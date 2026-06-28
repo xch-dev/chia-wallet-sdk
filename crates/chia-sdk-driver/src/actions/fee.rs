@@ -3,11 +3,15 @@ use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
     pub amount: u64,
+    pub reserved: bool,
 }
 
 impl FeeAction {
     pub fn new(amount: u64) -> Self {
-        Self { amount }
+        Self {
+            amount,
+            reserved: true,
+        }
     }
 }
 
@@ -23,6 +27,10 @@ impl SpendAction for FeeAction {
         _index: usize,
     ) -> Result<(), DriverError> {
         spends.outputs.fee += self.amount;
+
+        if self.reserved {
+            spends.outputs.reserved_fee += self.amount;
+        }
 
         Ok(())
     }

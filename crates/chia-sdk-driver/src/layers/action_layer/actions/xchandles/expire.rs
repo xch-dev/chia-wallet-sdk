@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution, XchandlesExpireActionArgs,
         XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
@@ -10,7 +10,6 @@ use chia_sdk_types::{
         XchandlesOtherPrecommitData, XchandlesPricingSolution, XchandlesSlotNonce,
         PREMIUM_BITS_LIST, PREMIUM_PRECISION,
     },
-    Conditions, Mod,
 };
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};

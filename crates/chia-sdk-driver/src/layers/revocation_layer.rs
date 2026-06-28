@@ -1,8 +1,8 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::REVOCATION_LAYER_HASH;
 use chia_sdk_types::{
-    puzzles::{RevocationArgs, RevocationSolution},
     Mod,
+    puzzles::{RevocationArgs, RevocationSolution},
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};

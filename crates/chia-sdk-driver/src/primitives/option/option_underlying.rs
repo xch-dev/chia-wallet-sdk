@@ -1,11 +1,12 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
+    Memos,
     cat::CatArgs,
     offer::{NotarizedPayment, Payment},
-    Memos,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
+    MerkleTree, Mod,
     conditions::{
         AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
     },
@@ -14,15 +15,14 @@ use chia_sdk_types::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, RevocationArgs,
         SingletonMember, SingletonMemberSolution,
     },
-    MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_list, ClvmEncoder, ToClvm};
+use clvm_traits::{ClvmEncoder, ToClvm, clvm_list, clvm_quote, match_list};
 use clvm_utils::{ToTreeHash, TreeHash, TreeHasher};
 use clvmr::NodePtr;
 
 use crate::{
-    mips_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
-    SpendContext,
+    DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend, SpendContext,
+    mips_puzzle_hash,
 };
 
 use super::OptionType;

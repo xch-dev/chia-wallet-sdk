@@ -1,16 +1,16 @@
 use std::{io::Read, sync::LazyLock};
 
-use bech32::{u5, Variant};
 use chia_protocol::SpendBundle;
 use chia_puzzles::{
     CAT_PUZZLE, NFT_METADATA_UPDATER_DEFAULT, NFT_OWNERSHIP_LAYER,
     NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES, NFT_STATE_LAYER,
     P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE, SETTLEMENT_PAYMENT, SINGLETON_TOP_LAYER_V1_1,
 };
+use chia_sdk_utils::Bech32;
 use chia_traits::Streamable;
 use flate2::{
-    read::{ZlibDecoder, ZlibEncoder},
     Compress, Compression, Decompress, FlushDecompress,
+    read::{ZlibDecoder, ZlibEncoder},
 };
 use hex_literal::hex;
 
@@ -25,11 +25,11 @@ pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DriverError> {
 }
 
 pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
-    encode_offer_data(&compress_offer(spend_bundle)?)
+    Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "offer".to_string()).encode()?)
 }
 
 pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
-    decompress_offer(&decode_offer_data(text)?)
+    decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
 }
 
 const CAT_PUZZLE_V1: [u8; 1420] = hex!(
@@ -141,6 +141,10 @@ pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     Ok(output)
 }
 
+// 6 MB matches the limit in chia-blockchain
+// see https://github.com/Chia-Network/chia-blockchain/blob/383e1d4897738719ad945300f9be2dffbfa54f58/chia/wallet/util/puzzle_compression.py#L70
+const MAX_DECOMPRESSED_SIZE: usize = 6 * 1024 * 1024; // 6 MB
+
 pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut decompress = Decompress::new(true);
 
@@ -155,30 +159,16 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
     let i = decompress.total_in();
     let mut decoder = ZlibDecoder::new_with_decompress(&input[usize::try_from(i)?..], decompress);
     let mut output = Vec::new();
-    decoder.read_to_end(&mut output)?;
+    decoder
+        .by_ref()
+        .take(MAX_DECOMPRESSED_SIZE as u64)
+        .read_to_end(&mut output)?;
+
+    if decoder.read(&mut [0u8])? > 0 {
+        return Err(DriverError::DecompressionTooLarge);
+    }
+
     Ok(output)
-}
-
-pub fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
-    let data = bech32::convert_bits(offer, 8, 5, true)?
-        .into_iter()
-        .map(u5::try_from_u8)
-        .collect::<Result<Vec<_>, bech32::Error>>()?;
-    Ok(bech32::encode("offer", data, Variant::Bech32m)?)
-}
-
-pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
-    let (hrp, data, variant) = bech32::decode(offer)?;
-
-    if variant != Variant::Bech32m {
-        return Err(DriverError::InvalidFormat);
-    }
-
-    if hrp.as_str() != "offer" {
-        return Err(DriverError::InvalidPrefix(hrp));
-    }
-
-    Ok(bech32::convert_bits(&data, 5, 8, false)?)
 }
 
 #[cfg(test)]
@@ -212,10 +202,33 @@ mod tests {
     }
 
     #[test]
+    fn test_decompression_too_large() {
+        let zdict = &COMPRESSION_ZDICT;
+        let data = vec![0u8; MAX_DECOMPRESSED_SIZE + 1];
+        let compressed = zlib_compress(&data, zdict).unwrap();
+        let result = zlib_decompress(&compressed, zdict);
+        assert!(matches!(result, Err(DriverError::DecompressionTooLarge)));
+    }
+
+    #[test]
+    fn test_decompression_at_limit() {
+        let zdict = &COMPRESSION_ZDICT;
+        let data = vec![0u8; MAX_DECOMPRESSED_SIZE];
+        let compressed = zlib_compress(&data, zdict).unwrap();
+        let output = zlib_decompress(&compressed, zdict).unwrap();
+        assert_eq!(output.len(), MAX_DECOMPRESSED_SIZE);
+    }
+
+    #[test]
     fn test_encode_decode_offer_data() {
         let offer = b"hello world";
-        let encoded = encode_offer_data(offer).unwrap();
-        let decoded = decode_offer_data(&encoded).unwrap();
+        let encoded = Bech32::new(offer.to_vec().into(), "offer".to_string())
+            .encode()
+            .unwrap();
+        let decoded = Bech32::decode(&encoded)
+            .unwrap()
+            .expect_prefix("offer")
+            .unwrap();
         assert_eq!(offer, decoded.as_slice());
     }
 }

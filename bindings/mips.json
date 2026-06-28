@@ -88,7 +88,8 @@
     "type": "function",
     "args": {
       "config": "MemberConfig",
-      "public_key": "PublicKey"
+      "public_key": "PublicKey",
+      "fast_forward": "bool"
     },
     "return": "TreeHash"
   },
@@ -105,7 +106,8 @@
     "type": "function",
     "args": {
       "config": "MemberConfig",
-      "launcher_id": "Bytes32"
+      "launcher_id": "Bytes32",
+      "fast_forward": "bool"
     },
     "return": "TreeHash"
   },
@@ -213,7 +215,8 @@
       "bls_member": {
         "args": {
           "config": "MemberConfig",
-          "public_key": "PublicKey"
+          "public_key": "PublicKey",
+          "fast_forward": "bool"
         }
       },
       "passkey_member": {
@@ -231,6 +234,7 @@
         "args": {
           "config": "MemberConfig",
           "launcher_id": "Bytes32",
+          "fast_forward": "bool",
           "singleton_inner_puzzle_hash": "Bytes32",
           "singleton_amount": "u64"
         }
@@ -291,6 +295,11 @@
     "new": true,
     "fields": {
       "inner_puzzle": "InnerPuzzleMemo"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "InnerPuzzleMemo": {
@@ -300,6 +309,14 @@
       "nonce": "u32",
       "restrictions": "Vec<RestrictionMemo>",
       "kind": "MemoKind"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "args": {
+          "top_level": "bool"
+        },
+        "return": "TreeHash"
+      }
     }
   },
   "RestrictionMemo": {
@@ -420,6 +437,9 @@
       },
       "as_m_of_n": {
         "return": "Option<MofNMemo>"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
       }
     }
   },
@@ -454,6 +474,7 @@
         "args": {
           "clvm": "Clvm",
           "public_key": "PublicKey",
+          "fast_forward": "bool",
           "taproot": "bool",
           "reveal": "bool"
         }
@@ -472,6 +493,7 @@
         "args": {
           "clvm": "Clvm",
           "launcher_id": "Bytes32",
+          "fast_forward": "bool",
           "reveal": "bool"
         }
       },
@@ -491,6 +513,54 @@
     "fields": {
       "required": "u32",
       "items": "Vec<InnerPuzzleMemo>"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "MipsMemoContext": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "add_k1": {
+        "args": {
+          "public_key": "K1PublicKey"
+        }
+      },
+      "add_r1": {
+        "args": {
+          "public_key": "R1PublicKey"
+        }
+      },
+      "add_bls": {
+        "args": {
+          "public_key": "PublicKey"
+        }
+      },
+      "add_hash": {
+        "args": {
+          "hash": "Bytes32"
+        }
+      },
+      "add_timelock": {
+        "args": {
+          "timelock": "u64"
+        }
+      },
+      "add_opcode": {
+        "args": {
+          "opcode": "u16"
+        }
+      },
+      "add_singleton_mode": {
+        "args": {
+          "mode": "u8"
+        }
+      }
     }
   }
 }

@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+
 jobs:
   build:
     name: Build
@@ -21,16 +26,16 @@ jobs:
       run:
         working-directory: ./wasm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: wasm/pnpm-lock.yaml
           architecture: x64
@@ -54,14 +59,14 @@ jobs:
           wasm-pack pack
 
       - name: Upload NPM pkg artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-pkg
           path: ./wasm/pkg/*-*.tgz
 
       - name: Publish
         if: startsWith(github.event.ref, 'refs/tags')
-        uses: JS-DevTools/npm-publish@v3
+        uses: JS-DevTools/npm-publish@v4
         with:
-          token: ${{ secrets.NPM_TOKEN }}
+          provenance: true
           package: wasm/pkg/package.json

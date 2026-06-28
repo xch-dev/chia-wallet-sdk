@@ -18,13 +18,13 @@ impl Mnemonic {
     }
 
     pub fn generate(use_24: bool) -> Result<Self> {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha20Rng::from_os_rng();
 
         let mnemonic = if use_24 {
-            let entropy: [u8; 32] = rng.gen();
+            let entropy: [u8; 32] = rng.random();
             bip39::Mnemonic::from_entropy(&entropy)?
         } else {
-            let entropy: [u8; 16] = rng.gen();
+            let entropy: [u8; 16] = rng.random();
             bip39::Mnemonic::from_entropy(&entropy)?
         };
 

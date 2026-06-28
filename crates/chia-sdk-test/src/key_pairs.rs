@@ -22,7 +22,7 @@ impl Default for BlsPair {
 impl BlsPair {
     pub fn new(seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let entropy: [u8; 32] = rng.gen();
+        let entropy: [u8; 32] = rng.random();
         let mnemonic = Mnemonic::from_entropy(&entropy).unwrap();
         let seed = mnemonic.to_seed("");
         let sk = SecretKey::from_seed(&seed);
@@ -91,7 +91,7 @@ impl Default for K1Pair {
 impl K1Pair {
     pub fn new(seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let sk = K1SecretKey::from_bytes(&rng.gen()).unwrap();
+        let sk = K1SecretKey::from_bytes(&rng.random()).unwrap();
         let pk = sk.public_key();
         Self { sk, pk }
     }
@@ -134,7 +134,7 @@ impl Default for R1Pair {
 impl R1Pair {
     pub fn new(seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let sk = R1SecretKey::from_bytes(&rng.gen()).unwrap();
+        let sk = R1SecretKey::from_bytes(&rng.random()).unwrap();
         let pk = sk.public_key();
         Self { sk, pk }
     }

@@ -4,12 +4,13 @@ use std::{
 };
 
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_sdk_types::{conditions::Memos, run_puzzle, Conditions, Mod};
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
+use chia_sdk_types::{Conditions, Mod, conditions::Memos, run_puzzle};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
+use clvm_utils::{CurriedProgram, TreeHash, tree_hash};
 use clvmr::{
-    serde::{node_from_bytes, node_to_bytes, node_to_bytes_backrefs},
     Allocator, NodePtr,
+    allocator::Checkpoint,
+    serde::{node_from_bytes, node_to_bytes, node_to_bytes_backrefs},
 };
 
 use crate::{DriverError, HashedPtr, Spend};
@@ -26,6 +27,12 @@ pub struct SpendContext {
 impl SpendContext {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn reset(&mut self, checkpoint: &Checkpoint) {
+        self.allocator.restore_checkpoint(checkpoint);
+        self.puzzles.clear();
+        self.coin_spends.clear();
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &CoinSpend> {

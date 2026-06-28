@@ -3,13 +3,12 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzle_types::{
-    offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
     Memos,
+    offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
 };
 use chia_sdk_driver::SpendContext;
-use clvmr::Allocator;
 
-use crate::{AsProgram, AsPtr, Program};
+use crate::{AsProgram, Program};
 
 pub fn encode_offer(spend_bundle: SpendBundle) -> Result<String> {
     Ok(chia_sdk_driver::encode_offer(&spend_bundle)?)
@@ -36,13 +35,15 @@ impl AsProgram for SdkNotarizedPayment {
     }
 }
 
-impl AsPtr for NotarizedPayment {
-    type AsPtr = SdkNotarizedPayment;
-
-    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
-        SdkNotarizedPayment::new(
-            self.nonce,
-            self.payments.iter().map(|p| p.as_ptr(allocator)).collect(),
+impl From<NotarizedPayment> for SdkNotarizedPayment {
+    fn from(notarized_payment: NotarizedPayment) -> Self {
+        Self::new(
+            notarized_payment.nonce,
+            notarized_payment
+                .payments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         )
     }
 }
@@ -69,14 +70,13 @@ impl AsProgram for SdkPayment {
     }
 }
 
-impl AsPtr for Payment {
-    type AsPtr = SdkPayment;
-
-    fn as_ptr(&self, _allocator: &Allocator) -> Self::AsPtr {
-        SdkPayment::new(
-            self.puzzle_hash,
-            self.amount,
-            self.memos
+impl From<Payment> for SdkPayment {
+    fn from(payment: Payment) -> Self {
+        Self::new(
+            payment.puzzle_hash,
+            payment.amount,
+            payment
+                .memos
                 .as_ref()
                 .map_or(Memos::None, |m| Memos::Some(m.1)),
         )

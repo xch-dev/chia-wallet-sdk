@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
-    puzzles::{DelegatedStateActionArgs, DelegatedStateActionSolution},
     Conditions,
+    puzzles::{DelegatedStateActionArgs, DelegatedStateActionSolution},
 };
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};

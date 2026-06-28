@@ -109,7 +109,7 @@ impl ToTreeHash for P2SingletonLayer {
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
-    use chia_puzzle_types::{singleton::SingletonSolution, EveProof, Proof};
+    use chia_puzzle_types::{EveProof, Proof, singleton::SingletonSolution};
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 

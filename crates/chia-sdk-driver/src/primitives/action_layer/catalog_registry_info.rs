@@ -1,8 +1,8 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::{
-    puzzles::{ActionLayerArgs, DefaultFinalizer2ndCurryArgs},
     MerkleTree,
+    puzzles::{ActionLayerArgs, DefaultFinalizer2ndCurryArgs},
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};

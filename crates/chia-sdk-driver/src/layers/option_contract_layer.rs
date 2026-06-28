@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    puzzles::{OptionContractArgs, OptionContractSolution, OPTION_CONTRACT_HASH},
     Mod,
+    puzzles::{OPTION_CONTRACT_HASH, OptionContractArgs, OptionContractSolution},
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};

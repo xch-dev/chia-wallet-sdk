@@ -1,11 +1,11 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{
-    puzzles::{UniquenessPrelauncher1stCurryArgs, UniquenessPrelauncher2ndCurryArgs},
     Mod,
+    puzzles::{UniquenessPrelauncher1stCurryArgs, UniquenessPrelauncher2ndCurryArgs},
 };
 use clvm_traits::ToClvm;
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Launcher, SpendContext};

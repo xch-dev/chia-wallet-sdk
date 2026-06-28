@@ -1,8 +1,8 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::puzzles::{
-    P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-    P2_DELEGATED_BY_SINGLETON_PUZZLE_HASH,
+    P2_DELEGATED_BY_SINGLETON_PUZZLE_HASH, P2DelegatedBySingletonLayerArgs,
+    P2DelegatedBySingletonLayerSolution,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};

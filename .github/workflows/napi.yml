@@ -19,7 +19,8 @@ env:
   MACOSX_DEPLOYMENT_TARGET: "10.13"
 
 permissions:
-  contents: write
+  contents: read
+  actions: write
   id-token: write
 
 jobs:
@@ -34,7 +35,7 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
             build: pnpm build:macos-x64
-          - host: windows-latest
+          - host: windows-2022
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
           - host: ubuntu-latest
@@ -46,7 +47,7 @@ jobs:
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
-          - host: linux-arm64
+          - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             docker: quay.io/pypa/manylinux_2_28_aarch64
             build: |
@@ -58,20 +59,26 @@ jobs:
               npm i -g corepack@latest
               yum install perl-IPC-Cmd -y
               pnpm build:linux-arm64
-    name: stable - ${{ matrix.settings.target }} - node@20
+    name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - name: Setup MSVC
+        if: ${{ runner.os == 'Windows' }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         if: ${{ !matrix.settings.docker }}
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
 
@@ -83,7 +90,7 @@ jobs:
           targets: ${{ matrix.settings.target }}
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -120,11 +127,15 @@ jobs:
 
       - name: Build
         run: ${{ matrix.settings.build }}
-        if: ${{ !matrix.settings.docker }}
+        if: ${{ !matrix.settings.docker && runner.os == 'Windows' }}
+
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        if: ${{ !matrix.settings.docker && runner.os != 'Windows' }}
         shell: bash
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.settings.target }}
           path: napi/${{ env.APP_NAME }}.*.node
@@ -143,21 +154,22 @@ jobs:
         settings:
           - host: macos-latest
             target: x86_64-apple-darwin
-          - host: windows-latest
+          - host: windows-2022
             target: x86_64-pc-windows-msvc
         node:
-          - "18"
           - "20"
+          - "22"
+          - "24"
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -168,7 +180,7 @@ jobs:
         run: pnpm install
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bindings-${{ matrix.settings.target }}
           path: napi
@@ -191,18 +203,19 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "18"
           - "20"
+          - "22"
+          - "24"
     runs-on: ubuntu-latest
     steps:
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -212,7 +225,7 @@ jobs:
         run: pnpm install
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bindings-x86_64-unknown-linux-gnu
           path: napi
@@ -243,18 +256,19 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "18"
           - "20"
-    runs-on: linux-arm64
+          - "22"
+          - "24"
+    runs-on: ubuntu-24.04-arm
     steps:
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -264,7 +278,7 @@ jobs:
         run: pnpm install
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bindings-aarch64-unknown-linux-gnu
           path: napi
@@ -293,16 +307,16 @@ jobs:
         working-directory: ./napi
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
 
@@ -310,13 +324,13 @@ jobs:
         run: pnpm install
 
       - name: Download macOS x64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bindings-x86_64-apple-darwin
           path: napi
 
       - name: Download macOS arm64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bindings-aarch64-apple-darwin
           path: napi
@@ -325,7 +339,7 @@ jobs:
         run: pnpm universal
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-universal-apple-darwin
           path: napi/${{ env.APP_NAME }}.*.node
@@ -343,16 +357,16 @@ jobs:
       run:
         working-directory: ./napi
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
 
@@ -360,7 +374,7 @@ jobs:
         run: pnpm install
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: napi/artifacts
 
@@ -375,8 +389,6 @@ jobs:
         if: startsWith(github.event.ref, 'refs/tags')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm config set provenance true
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public

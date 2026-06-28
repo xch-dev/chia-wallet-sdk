@@ -129,13 +129,11 @@ pub fn calculate_royalty_amounts(
     let mut amounts = OfferAmounts::new();
 
     for royalty in royalties {
-        amounts.xch = calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
+        amounts.xch += calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
 
         for (&asset_id, &amount) in &trade_prices.cats {
-            amounts.cats.insert(
-                asset_id,
-                calculate_nft_royalty(amount, royalty.basis_points),
-            );
+            *amounts.cats.entry(asset_id).or_default() +=
+                calculate_nft_royalty(amount, royalty.basis_points);
         }
     }
 

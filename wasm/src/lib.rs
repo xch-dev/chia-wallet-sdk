@@ -7,8 +7,8 @@ use std::fmt::Display;
 
 use bindy::{FromRust, IntoRust, WasmContext};
 use js_sys::{Array, BigInt, Uint8Array};
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
-use wasm_bindgen_derive::{try_from_js_array, TryFromJsValue};
+use wasm_bindgen::{JsCast, JsError, JsValue, prelude::wasm_bindgen};
+use wasm_bindgen_derive::{TryFromJsValue, try_from_js_array};
 
 bindy_macro::bindy_wasm!("bindings.json");
 

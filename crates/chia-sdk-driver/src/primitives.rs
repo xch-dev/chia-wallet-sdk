@@ -1,3 +1,4 @@
+mod bulletin;
 mod cat;
 mod clawback;
 mod clawback_v2;
@@ -11,6 +12,7 @@ mod singleton;
 mod streamed_asset;
 mod vault;
 
+pub use bulletin::*;
 pub use cat::*;
 pub use clawback::*;
 pub use clawback_v2::*;
@@ -35,3 +37,9 @@ mod action_layer;
 
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
+
+#[cfg(feature = "action-layer")]
+mod p2_parent_coin;
+
+#[cfg(feature = "action-layer")]
+pub use p2_parent_coin::*;

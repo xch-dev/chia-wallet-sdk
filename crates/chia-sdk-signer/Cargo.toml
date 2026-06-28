@@ -1,12 +1,12 @@
 [package]
 name = "chia-sdk-signer"
-version = "0.28.0"
-edition = "2021"
+version = "0.33.0"
+edition = "2024"
 license = "Apache-2.0"
 description = "Calculates the signatures required for coin spends in a transaction."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/xch-dev/chia-wallet-sdk"
+repository = "https://github.com/xch-dev/chia-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
@@ -25,6 +25,8 @@ clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
 k256 = { workspace = true }
+rue-lir = { workspace = true }
+colored = { workspace = true }
 
 [dev-dependencies]
 chia-puzzle-types = { workspace = true }

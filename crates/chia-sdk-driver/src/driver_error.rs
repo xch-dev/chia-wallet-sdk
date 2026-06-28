@@ -2,7 +2,7 @@ use std::{array::TryFromSliceError, num::TryFromIntError};
 
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
+use clvmr::error::EvalErr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -85,6 +85,9 @@ pub enum DriverError {
     #[error("missing key")]
     MissingKey,
 
+    #[error("missing spend")]
+    MissingSpend,
+
     #[cfg(feature = "offer-compression")]
     #[error("missing compression version prefix")]
     MissingVersionPrefix,
@@ -102,20 +105,16 @@ pub enum DriverError {
     NotCompressed,
 
     #[cfg(feature = "offer-compression")]
+    #[error("decompressed output exceeds maximum allowed size")]
+    DecompressionTooLarge,
+
+    #[cfg(feature = "offer-compression")]
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
     #[cfg(feature = "offer-compression")]
-    #[error("invalid prefix: {0}")]
-    InvalidPrefix(String),
-
-    #[cfg(feature = "offer-compression")]
-    #[error("encoding is not bech32m")]
-    InvalidFormat,
-
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
-    Decode(#[from] bech32::Error),
+    Decode(#[from] chia_sdk_utils::Bech32Error),
 
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,
@@ -128,4 +127,51 @@ pub enum DriverError {
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
+
+    #[error("invalid delegated spend format")]
+    InvalidDelegatedSpendFormat,
+
+    #[error("invalid vault message format")]
+    InvalidVaultMessageFormat,
+
+    #[error("puzzle hash mismatch for coin spend")]
+    WrongPuzzleHash,
+
+    #[error("nested clawbacks are not allowed")]
+    NestedClawback,
+
+    #[error("linked spend has unknown custody puzzle but was sent a message")]
+    InvalidLinkedCustody,
+
+    #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
+    UnguaranteedClawBack,
+
+    #[error("the revocation layer of the child does not match the parent")]
+    RevocableChild,
+
+    #[error("conflicting vault launcher ids")]
+    ConflictingVaultLauncherIds,
+
+    #[error("conditions do not match message")]
+    WrongConditions,
+
+    #[error("vault message did not match any custody auth or TAIL invocation")]
+    UnmatchedVaultMessage,
+
+    #[error("missing message for linked custody puzzle")]
+    MissingVaultMessage,
+
+    #[error("multiple vault messages matched the same custody slot")]
+    DuplicateVaultMessage,
+
+    #[error("wrong linked offer launcher id")]
+    WrongLinkedOfferLauncherId,
+
+    #[error("missing required bulletin conditions")]
+    MissingBulletinConditions,
+
+    #[error(
+        "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
+    )]
+    MissingP2ConditionsOrSingletonAssertion,
 }

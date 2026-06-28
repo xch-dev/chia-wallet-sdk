@@ -1,19 +1,20 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{mips_puzzle_hash, MofN};
+use chia_sdk_driver::{MofN, mips_puzzle_hash};
 use chia_sdk_types::{
-    puzzles::{
-        BlsMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert, PasskeyMember,
-        PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
-    },
     Mod,
+    puzzles::{
+        BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert,
+        PasskeyMember, PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
+        SingletonMemberWithMode,
+    },
 };
 use clvm_utils::TreeHash;
 
 use crate::{K1PublicKey, R1PublicKey};
 
-use super::{convert_restrictions, Restriction};
+use super::{Restriction, convert_restrictions};
 
 #[derive(Default, Clone)]
 pub struct MemberConfig {
@@ -98,8 +99,19 @@ pub fn r1_member_hash(
     )
 }
 
-pub fn bls_member_hash(config: MemberConfig, public_key: PublicKey) -> Result<TreeHash> {
-    member_hash(config, BlsMember::new(public_key).curry_tree_hash())
+pub fn bls_member_hash(
+    config: MemberConfig,
+    public_key: PublicKey,
+    fast_forward: bool,
+) -> Result<TreeHash> {
+    member_hash(
+        config,
+        if fast_forward {
+            BlsMemberPuzzleAssert::new(public_key).curry_tree_hash()
+        } else {
+            BlsMember::new(public_key).curry_tree_hash()
+        },
+    )
 }
 
 pub fn passkey_member_hash(
@@ -117,8 +129,19 @@ pub fn passkey_member_hash(
     )
 }
 
-pub fn singleton_member_hash(config: MemberConfig, launcher_id: Bytes32) -> Result<TreeHash> {
-    member_hash(config, SingletonMember::new(launcher_id).curry_tree_hash())
+pub fn singleton_member_hash(
+    config: MemberConfig,
+    launcher_id: Bytes32,
+    fast_forward: bool,
+) -> Result<TreeHash> {
+    member_hash(
+        config,
+        if fast_forward {
+            SingletonMemberWithMode::new(launcher_id, 0b010_010).curry_tree_hash()
+        } else {
+            SingletonMember::new(launcher_id).curry_tree_hash()
+        },
+    )
 }
 
 pub fn fixed_member_hash(config: MemberConfig, fixed_puzzle_hash: Bytes32) -> Result<TreeHash> {

@@ -1,3 +1,7 @@
+use chia_sdk_types::puzzles::{
+    BlsMemberPuzzleAssert, BlsTaprootMemberPuzzleAssert, SingletonMemberWithMode,
+};
+
 use super::{
     BlsMember, BlsTaprootMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert, PasskeyMember,
     PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
@@ -10,9 +14,12 @@ pub enum ParsedMember {
     R1(R1Member),
     R1PuzzleAssert(R1MemberPuzzleAssert),
     Bls(BlsMember),
+    BlsPuzzleAssert(BlsMemberPuzzleAssert),
     BlsTaproot(BlsTaprootMember),
+    BlsTaprootPuzzleAssert(BlsTaprootMemberPuzzleAssert),
     Passkey(PasskeyMember),
     PasskeyPuzzleAssert(PasskeyMemberPuzzleAssert),
     Singleton(SingletonMember),
+    SingletonWithMode(SingletonMemberWithMode),
     FixedPuzzle(FixedPuzzleMember),
 }

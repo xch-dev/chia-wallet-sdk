@@ -16,6 +16,18 @@ impl AssetInfo {
         Self::default()
     }
 
+    pub fn cats(&self) -> impl Iterator<Item = &Bytes32> {
+        self.cats.keys()
+    }
+
+    pub fn nfts(&self) -> impl Iterator<Item = &Bytes32> {
+        self.nfts.keys()
+    }
+
+    pub fn options(&self) -> impl Iterator<Item = &Bytes32> {
+        self.options.keys()
+    }
+
     pub fn cat(&self, asset_id: Bytes32) -> Option<&CatAssetInfo> {
         self.cats.get(&asset_id)
     }

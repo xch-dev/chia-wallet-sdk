@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, fmt};
 
 use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 

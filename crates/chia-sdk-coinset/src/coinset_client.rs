@@ -1,9 +1,9 @@
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::ChiaRpcClient;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CoinsetClient {
     base_url: String,
     client: Client,

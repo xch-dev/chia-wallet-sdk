@@ -8,10 +8,10 @@ use std::{
 };
 
 use chia_protocol::Message;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tokio_tungstenite::Connector;
 
-use crate::{connect_peer, ClientError, Network, Peer, PeerOptions};
+use crate::{ClientError, Network, Peer, PeerOptions, connect_peer};
 
 #[derive(Clone)]
 pub struct Client {

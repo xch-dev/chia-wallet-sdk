@@ -54,7 +54,7 @@ impl RequiredBlsSignature {
                     raw_message: message,
                     appended_info: Vec::new(),
                     domain_string: None,
-                }
+                };
             }
             AggSigKind::Me => {
                 domain_string = constants.me();

@@ -1,7 +1,11 @@
 use chia_protocol::CoinSpend;
-use chia_sdk_types::Condition;
+use chia_sdk_types::{Condition, is_debug_dialect_enabled};
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::{run_program, Allocator, ChiaDialect};
+use clvmr::{
+    Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, dialect::Dialect, run_program,
+};
+use colored::Colorize;
+use rue_lir::DebugDialect;
 
 use crate::{
     AggSigConstants, RequiredBlsSignature, RequiredSecpSignature, SecpDialect, SignerError,
@@ -22,9 +26,38 @@ impl RequiredSignature {
         coin_spend: &CoinSpend,
         constants: &AggSigConstants,
     ) -> Result<Vec<Self>, SignerError> {
+        if is_debug_dialect_enabled() {
+            let dialect = DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, false);
+
+            let result =
+                Self::from_coin_spend_with_dialect(allocator, coin_spend, constants, &dialect);
+
+            if result.is_err() {
+                for item in dialect.log() {
+                    eprintln!("{}: {}", item.srcloc.cyan().bold(), item.message);
+                }
+            }
+
+            result
+        } else {
+            Self::from_coin_spend_with_dialect(
+                allocator,
+                coin_spend,
+                constants,
+                &ChiaDialect::new(0),
+            )
+        }
+    }
+
+    fn from_coin_spend_with_dialect<D: Dialect>(
+        allocator: &mut Allocator,
+        coin_spend: &CoinSpend,
+        constants: &AggSigConstants,
+        dialect: &D,
+    ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
-        let dialect = SecpDialect::new(ChiaDialect::new(0));
+        let dialect = SecpDialect::new(dialect);
         let output = run_program(allocator, &dialect, puzzle, solution, 11_000_000_000)?.1;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
@@ -73,12 +106,12 @@ impl RequiredSignature {
 mod tests {
     use super::*;
 
-    use chia_bls::{master_to_wallet_unhardened, SecretKey};
+    use chia_bls::{SecretKey, master_to_wallet_unhardened};
     use chia_protocol::{Bytes, Bytes32, Coin};
     use chia_puzzle_types::DeriveSynthetic;
     use chia_sdk_types::{
-        conditions::{AggSig, AggSigKind},
         MAINNET_CONSTANTS,
+        conditions::{AggSig, AggSigKind},
     };
     use hex_literal::hex;
 

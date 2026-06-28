@@ -36,7 +36,7 @@ test("bls key vault", (t) => {
   const [vault, coin] = mintVaultWithCoin(
     sim,
     clvm,
-    blsMemberHash(config, alice.pk),
+    blsMemberHash(config, alice.pk, false),
     1n
   );
 
@@ -50,13 +50,14 @@ test("bls key vault", (t) => {
   ]);
 
   const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
-  mips.blsMember(config, alice.pk);
+  mips.blsMember(config, alice.pk, false);
   mips.spendVault(vault);
 
   const p2Spend = clvm.mipsSpend(coin, coinDelegatedSpend);
   p2Spend.singletonMember(
     config,
     vault.info.launcherId,
+    false,
     vault.info.custodyHash,
     vault.coin.amount
   );
@@ -601,7 +602,7 @@ test("non-vault MIPS spend", (t) => {
   const p2 = sim.bls(1n);
 
   const config = new MemberConfig().withTopLevel(true);
-  const puzzleHash = blsMemberHash(config, p2.pk);
+  const puzzleHash = blsMemberHash(config, p2.pk, false);
 
   const spend1 = clvm.standardSpend(
     p2.pk,
@@ -615,7 +616,7 @@ test("non-vault MIPS spend", (t) => {
     clvm.delegatedSpend([clvm.createCoin(puzzleHash, 1n, null)])
   );
 
-  mipsSpend.blsMember(config, p2.pk);
+  mipsSpend.blsMember(config, p2.pk, false);
   const spend2 = mipsSpend.spend(puzzleHash);
 
   clvm.spendCoin(p2.coin, spend1);
@@ -642,7 +643,8 @@ function mintVaultWithCoin(
 
   const p2PuzzleHash = singletonMemberHash(
     new MemberConfig().withTopLevel(true),
-    vault.info.launcherId
+    vault.info.launcherId,
+    false
   );
 
   const spend = clvm.standardSpend(

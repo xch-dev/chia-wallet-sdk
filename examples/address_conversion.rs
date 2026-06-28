@@ -1,7 +1,8 @@
-use chia_sdk_utils::Address;
+use anyhow::Result;
+use chia_wallet_sdk::prelude::*;
 use hex_literal::hex;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     let puzzle_hash =
         hex!("aca490e9f3ebcafa3d5342d347db2703b31029511f5b40c11441af1c961f6585").into();
 

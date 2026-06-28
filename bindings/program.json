@@ -71,6 +71,9 @@
       "to_list": {
         "return": "Option<Vec<Program>>"
       },
+      "to_arg_list": {
+        "return": "Option<Vec<Program>>"
+      },
       "to_pair": {
         "return": "Option<Pair>"
       },

@@ -9,7 +9,7 @@ use chia_sdk_types::{
         RewardDistributorNftsUnlockingPuzzleSolution, RewardDistributorSlotNonce,
         RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
     },
-    Conditions, Mod,
+    Conditions, Mod
 };
 use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};

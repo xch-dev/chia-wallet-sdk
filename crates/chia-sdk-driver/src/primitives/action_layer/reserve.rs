@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{cat::CatArgs, singleton::SingletonSolution, LineageProof};
+use chia_puzzle_types::{LineageProof, cat::CatArgs, singleton::SingletonSolution};
 use chia_sdk_types::{
     conditions::CreateCoin,
     puzzles::{P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution},

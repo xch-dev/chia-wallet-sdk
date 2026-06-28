@@ -5,6 +5,32 @@
       "new": {
         "type": "constructor"
       },
+      "with_seed": {
+        "type": "factory",
+        "args": {
+          "seed": "u64"
+        }
+      },
+      "height": {
+        "return": "u32"
+      },
+      "next_timestamp": {
+        "return": "u64"
+      },
+      "header_hash": {
+        "return": "Bytes32"
+      },
+      "header_hash_of": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Option<Bytes32>"
+      },
+      "insert_coin": {
+        "args": {
+          "coin": "Coin"
+        }
+      },
       "new_coin": {
         "args": {
           "puzzle_hash": "Bytes32",
@@ -18,17 +44,78 @@
         },
         "return": "BlsPairWithCoin"
       },
-      "spend_coins": {
+      "set_next_timestamp": {
         "args": {
-          "coin_spends": "Vec<CoinSpend>",
-          "secret_keys": "Vec<SecretKey>"
+          "time": "u64"
         }
       },
       "pass_time": {
         "args": {
           "time": "u64"
         }
-      }
+      },
+      "hint_coin": {
+        "args": {
+          "coin_id": "Bytes32",
+          "hint": "Bytes32"
+        }
+      },
+      "coin_state": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Option<CoinState>"
+      },
+      "children": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Vec<CoinState>"
+      },
+      "hinted_coins": {
+        "args": {
+          "hint": "Bytes32"
+        },
+        "return": "Vec<Bytes32>"
+      },
+      "coin_spend": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Option<CoinSpend>"
+      },
+      "spend_coins": {
+        "args": {
+          "coin_spends": "Vec<CoinSpend>",
+          "secret_keys": "Vec<SecretKey>"
+        }
+      },
+      "new_transaction": {
+        "args": {
+          "spend_bundle": "SpendBundle"
+        }
+      },
+      "lookup_coin_ids": {
+        "args": {
+          "coin_ids": "Vec<Bytes32>"
+        },
+        "return": "Vec<CoinState>"
+      },
+      "lookup_puzzle_hashes": {
+        "args": {
+          "puzzle_hashes": "Vec<Bytes32>",
+          "include_hints": "bool"
+        },
+        "return": "Vec<CoinState>"
+      },
+      "unspent_coins": {
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "include_hints": "bool"
+        },
+        "return": "Vec<Coin>"
+      },
+      "create_block": {}
     }
   },
   "BlsPair": {

@@ -3,16 +3,16 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{puzzles::SettlementPayment, run_puzzle, Condition};
+use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    calculate_royalty_amounts, calculate_trade_price_amounts, Arbitrage, AssetInfo, CatInfo,
-    DriverError, Layer, NftInfo, OfferAmounts, OfferCoins, OptionInfo, Puzzle, RequestedPayments,
-    RoyaltyInfo, SingletonInfo, SpendContext,
+    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
+    OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
+    calculate_royalty_amounts, calculate_trade_price_amounts,
 };
 
 #[derive(Debug, Clone)]
@@ -394,7 +394,7 @@ impl Offer {
             .extend(other.spend_bundle.coin_spends);
         self.spend_bundle.aggregated_signature += &other.spend_bundle.aggregated_signature;
         self.offered_coins.extend(other.offered_coins)?;
-        self.requested_payments.extend(other.requested_payments)?;
+        self.requested_payments.extend(other.requested_payments);
         self.asset_info.extend(other.asset_info)?;
 
         Ok(())
@@ -413,10 +413,10 @@ mod tests {
     use std::slice;
 
     use chia_puzzle_types::{
-        offer::{NotarizedPayment, Payment},
         Memos,
+        offer::{NotarizedPayment, Payment},
     };
-    use chia_sdk_test::{sign_transaction, Simulator};
+    use chia_sdk_test::{Simulator, sign_transaction};
     use indexmap::indexmap;
 
     use crate::{Action, Id, NftAssetInfo, Relation, SpendContext, Spends};

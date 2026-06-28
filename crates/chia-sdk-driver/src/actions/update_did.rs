@@ -67,7 +67,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, Relation, BURN_PUZZLE_HASH};
+    use crate::{Action, BURN_PUZZLE_HASH, Relation};
 
     use super::*;
 

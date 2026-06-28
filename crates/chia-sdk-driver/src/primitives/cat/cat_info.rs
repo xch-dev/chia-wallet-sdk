@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::cat::CatArgs;
-use chia_sdk_types::{puzzles::RevocationArgs, Mod};
+use chia_sdk_types::{Mod, puzzles::RevocationArgs};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 

@@ -2,17 +2,18 @@ mod announcements;
 mod benchmark;
 mod error;
 mod key_pairs;
-mod print_spend_bundle;
 mod simulator;
 mod transaction;
+mod validate_clvm_and_signature;
 
 pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
 pub use key_pairs::*;
-pub use print_spend_bundle::*;
 pub use simulator::*;
 pub use transaction::*;
+
+pub(crate) use validate_clvm_and_signature::validate_clvm_and_signature;
 
 #[cfg(feature = "peer-simulator")]
 mod peer_simulator;

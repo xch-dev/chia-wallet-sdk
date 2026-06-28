@@ -1,6 +1,10 @@
+mod p2_conditions_or_singleton;
+mod p2_singleton;
 mod vault_info;
 mod vault_launcher;
 
+pub use p2_conditions_or_singleton::*;
+pub use p2_singleton::*;
 pub use vault_info::*;
 
 use chia_puzzle_types::singleton::{SingletonArgs, SingletonSolution};
@@ -41,14 +45,14 @@ mod tests {
     use chia_puzzle_types::Memos;
     use chia_sdk_test::{K1Pair, Simulator};
     use chia_sdk_types::{
-        puzzles::{K1Member, K1MemberSolution},
         Conditions, Mod,
+        puzzles::{K1Member, K1MemberSolution},
     };
     use chia_secp::{K1SecretKey, K1Signature};
     use chia_sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{mips_puzzle_hash, InnerPuzzleSpend, Launcher, MofN, StandardLayer};
+    use crate::{InnerPuzzleSpend, Launcher, MofN, StandardLayer, mips_puzzle_hash};
 
     use super::*;
 

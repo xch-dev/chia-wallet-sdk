@@ -1,11 +1,11 @@
 use chia_sdk_types::{
-    conditions::{TradePrice, TransferNft},
     Conditions,
+    conditions::{TradePrice, TransferNft},
 };
 
 use crate::{
-    assignment_puzzle_announcement_id, Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction,
-    SpendContext, SpendKind, Spends,
+    Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind, Spends,
+    assignment_puzzle_announcement_id,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -50,12 +50,12 @@ impl SpendAction for UpdateNftAction {
         deltas.update(self.id).output += 1;
         deltas.set_needed(self.id);
 
-        if let Some(transfer) = &self.transfer {
-            if let Some(did_id) = transfer.did_id {
-                deltas.update(did_id).input += 1;
-                deltas.update(did_id).output += 1;
-                deltas.set_needed(did_id);
-            }
+        if let Some(transfer) = &self.transfer
+            && let Some(did_id) = transfer.did_id
+        {
+            deltas.update(did_id).input += 1;
+            deltas.update(did_id).output += 1;
+            deltas.set_needed(did_id);
         }
     }
 
@@ -126,7 +126,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, HashedPtr, MetadataUpdate, Relation};
+    use crate::{Action, HashedPtr, MetadataUpdate, Relation, UriKind};
 
     use super::*;
 
@@ -144,8 +144,11 @@ mod tests {
         };
         let original_metadata = ctx.alloc_hashed(&metadata)?;
 
-        let metadata_update_spend =
-            MetadataUpdate::NewDataUri("https://example.com/2".to_string()).spend(&mut ctx)?;
+        let metadata_update_spend = MetadataUpdate {
+            kind: UriKind::Data,
+            uri: "https://example.com/2".to_string(),
+        }
+        .spend(&mut ctx)?;
         metadata
             .data_uris
             .insert(0, "https://example.com/2".to_string());
@@ -200,8 +203,16 @@ mod tests {
         let original_metadata = ctx.alloc_hashed(&metadata)?;
 
         let metadata_update_spends = vec![
-            MetadataUpdate::NewDataUri("https://example.com/2".to_string()).spend(&mut ctx)?,
-            MetadataUpdate::NewDataUri("https://example.com/3".to_string()).spend(&mut ctx)?,
+            MetadataUpdate {
+                kind: UriKind::Data,
+                uri: "https://example.com/2".to_string(),
+            }
+            .spend(&mut ctx)?,
+            MetadataUpdate {
+                kind: UriKind::Data,
+                uri: "https://example.com/3".to_string(),
+            }
+            .spend(&mut ctx)?,
         ];
         metadata
             .data_uris

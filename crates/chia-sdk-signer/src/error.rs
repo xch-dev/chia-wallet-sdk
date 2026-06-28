@@ -1,5 +1,5 @@
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
+use clvmr::error::EvalErr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

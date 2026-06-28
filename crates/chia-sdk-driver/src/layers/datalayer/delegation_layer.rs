@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::puzzles::{
-    DelegationLayerArgs, DelegationLayerSolution, DELEGATION_LAYER_PUZZLE_HASH,
+    DELEGATION_LAYER_PUZZLE_HASH, DelegationLayerArgs, DelegationLayerSolution,
 };
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};

@@ -154,13 +154,13 @@ impl SpendAction for SettleAction {
 mod tests {
     use anyhow::Result;
     use chia_protocol::{Bytes32, Coin};
-    use chia_puzzle_types::{offer::Payment, Memos};
+    use chia_puzzle_types::{Memos, offer::Payment};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment, Conditions};
+    use chia_sdk_types::{Conditions, payment_assertion, tree_hash_notarized_payment};
     use indexmap::indexmap;
 
-    use crate::{Action, Relation, StandardLayer, BURN_PUZZLE_HASH};
+    use crate::{Action, BURN_PUZZLE_HASH, Relation, StandardLayer};
 
     use super::*;
 

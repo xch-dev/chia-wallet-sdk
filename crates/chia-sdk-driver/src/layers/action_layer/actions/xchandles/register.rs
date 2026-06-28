@@ -2,26 +2,25 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::{SingletonArgs, SingletonStruct};
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution, SlotNeigborsInfo,
         XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesNewDataPuzzleHashes,
         XchandlesOtherPrecommitData, XchandlesPricingSolution, XchandlesRegisterActionArgs,
         XchandlesRegisterActionSolution, XchandlesRestOfSlot, XchandlesSlotNonce,
     },
-    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    Asset, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{run_pricing_output, XchandlesRegisterActionLog};
+use super::{XchandlesRegisterActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
@@ -223,7 +222,7 @@ impl XchandlesRegisterAction {
 
         let secret = precommit_coin.value.secret;
 
-        let num_periods = precommit_coin.coin.amount
+        let num_periods = precommit_coin.coin.amount()
             / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
@@ -318,7 +317,7 @@ impl XchandlesRegisterAction {
 
 #[cfg(test)]
 mod tests {
-    use clvmr::{reduction::EvalErr, serde::node_to_bytes};
+    use clvmr::{error::EvalErr, serde::node_to_bytes};
 
     use super::*;
 
@@ -394,10 +393,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle of length 32
 
@@ -408,10 +406,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle with invalid characters
 
@@ -422,10 +419,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         Ok(())
     }

@@ -9,23 +9,79 @@ use chia_sdk_coinset::{
     GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
 };
+use serde::{Serialize, de::DeserializeOwned};
+
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+use chia_protocol::Bytes;
+
+enum RpcClientImpl {
+    Coinset(chia_sdk_coinset::CoinsetClient),
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    FullNode(chia_sdk_coinset::FullNodeClient),
+}
+
+impl ChiaRpcClient for RpcClientImpl {
+    type Error = reqwest::Error;
+
+    fn base_url(&self) -> &str {
+        match self {
+            RpcClientImpl::Coinset(client) => client.base_url(),
+            #[cfg(any(feature = "napi", feature = "pyo3"))]
+            RpcClientImpl::FullNode(client) => client.base_url(),
+        }
+    }
+
+    async fn make_post_request<R, B>(
+        &self,
+        endpoint: &str,
+        body: B,
+    ) -> std::result::Result<R, Self::Error>
+    where
+        B: Serialize + Send,
+        R: DeserializeOwned + Send,
+    {
+        match self {
+            RpcClientImpl::Coinset(client) => client.make_post_request(endpoint, body).await,
+            #[cfg(any(feature = "napi", feature = "pyo3"))]
+            RpcClientImpl::FullNode(client) => client.make_post_request(endpoint, body).await,
+        }
+    }
+}
 
 #[derive(Clone)]
-pub struct CoinsetClient(Arc<chia_sdk_coinset::CoinsetClient>);
+pub struct RpcClient(Arc<RpcClientImpl>);
 
-impl CoinsetClient {
+impl RpcClient {
     pub fn new(base_url: String) -> Result<Self> {
-        Ok(Self(Arc::new(chia_sdk_coinset::CoinsetClient::new(
-            base_url,
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::new(base_url),
         ))))
     }
 
     pub fn testnet11() -> Result<Self> {
-        Ok(Self(Arc::new(chia_sdk_coinset::CoinsetClient::testnet11())))
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::testnet11(),
+        ))))
     }
 
     pub fn mainnet() -> Result<Self> {
-        Ok(Self(Arc::new(chia_sdk_coinset::CoinsetClient::mainnet())))
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::mainnet(),
+        ))))
+    }
+
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    pub fn local(cert_bytes: Bytes, key_bytes: Bytes) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::FullNode(
+            chia_sdk_coinset::FullNodeClient::new(&cert_bytes, &key_bytes)?,
+        ))))
+    }
+
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    pub fn local_with_url(base_url: String, cert_bytes: Bytes, key_bytes: Bytes) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::FullNode(
+            chia_sdk_coinset::FullNodeClient::with_base_url(base_url, &cert_bytes, &key_bytes)?,
+        ))))
     }
 
     pub async fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
@@ -85,10 +141,11 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -98,10 +155,11 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -111,10 +169,11 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_names(names, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_names(names, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -124,6 +183,7 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -132,6 +192,7 @@ impl CoinsetClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }
@@ -142,6 +203,7 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -150,6 +212,7 @@ impl CoinsetClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }
@@ -160,6 +223,7 @@ impl CoinsetClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -168,6 +232,7 @@ impl CoinsetClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }

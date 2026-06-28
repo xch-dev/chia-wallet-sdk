@@ -48,6 +48,16 @@
       }
     }
   },
+  "CoinState": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "spent_height": "Option<u32>",
+      "created_height": "Option<u32>"
+    }
+  },
   "Spend": {
     "type": "class",
     "new": true,

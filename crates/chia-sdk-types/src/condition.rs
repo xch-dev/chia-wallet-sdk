@@ -7,10 +7,12 @@ use nfts::TradePrice;
 mod agg_sig;
 mod announcements;
 mod list;
+mod messages;
 mod nfts;
 
 pub use announcements::*;
 pub use list::*;
+pub use messages::*;
 
 conditions! {
     pub enum Condition<T> {

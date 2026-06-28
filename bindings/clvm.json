@@ -5,6 +5,7 @@
       "new": {
         "type": "constructor"
       },
+      "reset": {},
       "add_coin_spend": {
         "args": {
           "coin_spend": "CoinSpend"
@@ -184,6 +185,14 @@
           "memos": "Program"
         },
         "return": "VaultMint"
+      },
+      "create_bulletin": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "hidden_puzzle_hash": "Bytes32",
+          "messages": "Vec<BulletinMessage>"
+        },
+        "return": "CreatedBulletin"
       },
       "mips_spend": {
         "args": {

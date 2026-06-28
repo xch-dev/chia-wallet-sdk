@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, Memos};
-use chia_sdk_types::{conditions::CreateCoin, Conditions};
+use chia_puzzle_types::{Memos, cat::GenesisByCoinIdTailArgs};
+use chia_sdk_types::{Conditions, conditions::CreateCoin};
 use clvmr::NodePtr;
 
 use crate::{

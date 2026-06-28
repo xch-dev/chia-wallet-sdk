@@ -1,6 +1,8 @@
 mod augmented_condition_layer;
+mod bulletin_layer;
 mod cat_layer;
 mod did_layer;
+mod mips;
 mod nft_ownership_layer;
 mod nft_state_layer;
 mod option_contract_layer;
@@ -16,8 +18,10 @@ mod standard_layer;
 mod streaming_layer;
 
 pub use augmented_condition_layer::*;
+pub use bulletin_layer::*;
 pub use cat_layer::*;
 pub use did_layer::*;
+pub use mips::*;
 pub use nft_ownership_layer::*;
 pub use nft_state_layer::*;
 pub use option_contract_layer::*;
@@ -38,8 +42,24 @@ mod datalayer;
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
 
+#[cfg(feature = "chip-0037")]
+mod p2_controller_puzzle_layer;
+#[cfg(feature = "chip-0037")]
+mod p2_eip712_message_layer;
+
+#[cfg(feature = "chip-0037")]
+pub use p2_controller_puzzle_layer::*;
+#[cfg(feature = "chip-0037")]
+pub use p2_eip712_message_layer::*;
+
 #[cfg(feature = "action-layer")]
 mod action_layer;
 
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
+
+#[cfg(feature = "action-layer")]
+mod p2_parent;
+
+#[cfg(feature = "action-layer")]
+pub use p2_parent::*;

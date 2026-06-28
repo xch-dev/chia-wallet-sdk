@@ -11,6 +11,7 @@ import {
   NftMint,
   PublicKey,
   Simulator,
+  spendBundleCost,
   toHex,
 } from "../index.js";
 
@@ -272,7 +273,9 @@ test("mint and spend nft", (t) => {
 
   clvm.spendNft(result.nfts[0], innerSpend);
 
-  simulator.spendCoins(clvm.coinSpends(), [alice.sk]);
+  const coinSpends = clvm.coinSpends();
+
+  simulator.spendCoins(coinSpends, [alice.sk]);
 
   t.true(
     bytesEqual(
@@ -282,6 +285,8 @@ test("mint and spend nft", (t) => {
       result.nfts[0].info.metadata.serialize()
     )
   );
+
+  t.is(spendBundleCost(coinSpends), 61_437_425n);
 });
 
 test("create and parse condition", (t) => {

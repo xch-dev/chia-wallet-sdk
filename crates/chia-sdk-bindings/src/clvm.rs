@@ -3,31 +3,36 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::{PublicKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
-use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
+use chia_puzzle_types::{
+    LineageProof,
+    offer::{self, SettlementPaymentsSolution},
+};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    create_security_coin, launch_reward_distributor, spend_security_coin, spend_settlement_nft,
-    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo, Offer,
-    OptionMetadata, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
+    MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
+    RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
+    StandardLayer, StreamedAsset, create_security_coin, launch_reward_distributor,
+    spend_security_coin, spend_settlement_nft,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
-use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
-use clvm_traits::{clvm_quote, ToClvm};
+use chialisp::classic::clvm_tools::binutils::assemble;
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::TreeHash;
 use clvmr::{
-    serde::{node_from_bytes, node_from_bytes_backrefs},
     NodePtr,
+    allocator::Checkpoint,
+    serde::{node_from_bytes, node_from_bytes_backrefs},
 };
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
-    MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
-    NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails, OptionContract, Payment,
-    Program, RestrictionMemo, RewardDistributor, RewardDistributorInfoFromEveCoin,
-    RewardDistributorLaunchResult, RewardSlot, SettlementNftSpendResult, Spend,
-    StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
+    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
+    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
+    RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -38,12 +43,26 @@ pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
 
 // We use an Arc because we need to be able to share the SpendContext with the Program class
 // And we use a Mutex because we need to retain mutability even while Program instances exist
-#[derive(Default, Clone)]
-pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
+#[derive(Clone)]
+pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>, Arc<Checkpoint>);
+
+impl Default for Clvm {
+    fn default() -> Self {
+        let ctx = SpendContext::new();
+        let checkpoint = ctx.checkpoint();
+        Self(Arc::new(Mutex::new(ctx)), Arc::new(checkpoint))
+    }
+}
 
 impl Clvm {
     pub fn new() -> Result<Self> {
         Ok(Self::default())
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.reset(&self.1);
+        Ok(())
     }
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {
@@ -64,10 +83,9 @@ impl Clvm {
     }
 
     pub fn delegated_spend(&self, conditions: Vec<Program>) -> Result<Spend> {
-        let delegated_puzzle = self.0.lock().unwrap().alloc(&clvm_quote!(conditions
-            .into_iter()
-            .map(|p| p.1)
-            .collect::<Vec<_>>()))?;
+        let delegated_puzzle = self.0.lock().unwrap().alloc(&clvm_quote!(
+            conditions.into_iter().map(|p| p.1).collect::<Vec<_>>()
+        ))?;
         Ok(Spend {
             puzzle: Program(self.0.clone(), delegated_puzzle),
             solution: Program(self.0.clone(), NodePtr::NIL),
@@ -103,7 +121,7 @@ impl Clvm {
 
         let notarized_payments = notarized_payments
             .into_iter()
-            .map(|p| p.as_ptr(&ctx))
+            .map(Into::into)
             .collect::<Vec<_>>();
 
         let spend = SettlementLayer.construct_spend(
@@ -247,6 +265,30 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
         streamed_asset.spend(&mut ctx, payment_time, clawback)?;
         Ok(())
+    }
+
+    pub fn create_bulletin(
+        &self,
+        parent_coin_id: Bytes32,
+        hidden_puzzle_hash: Bytes32,
+        messages: Vec<BulletinMessage>,
+    ) -> Result<CreatedBulletin> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let (conditions, bulletin) =
+            Bulletin::create(parent_coin_id, hidden_puzzle_hash, messages)?;
+
+        let mut parent_conditions = Vec::new();
+
+        for condition in conditions {
+            let condition = condition.to_clvm(&mut ctx)?;
+            parent_conditions.push(Program(self.0.clone(), condition));
+        }
+
+        Ok(CreatedBulletin {
+            bulletin,
+            parent_conditions,
+        })
     }
 
     pub fn mint_vault(
@@ -459,14 +501,14 @@ impl Clvm {
 
     pub fn payment(&self, value: Payment) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
-        let ptr = value.as_ptr(&ctx);
+        let ptr: offer::Payment = value.into();
         let ptr = ctx.alloc(&ptr)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn notarized_payment(&self, value: NotarizedPayment) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
-        let ptr = value.as_ptr(&ctx);
+        let ptr: offer::NotarizedPayment = value.into();
         let ptr = ctx.alloc(&ptr)?;
         Ok(Program(self.0.clone(), ptr))
     }
@@ -599,7 +641,7 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
 
         let result =
-            SdkRewardDistributor::from_spend(&mut ctx, &spend, reserve_lineage_proof, constants)?;
+            SdkRewardDistributor::from_spend(&mut ctx, &spend, reserve_lineage_proof, constants, Signature::default())?;
 
         Ok(result.map(|reward_distributor| RewardDistributor {
             clvm: self.0.clone(),

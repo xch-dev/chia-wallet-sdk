@@ -3,7 +3,7 @@ use chia_protocol::Coin;
 use chia_puzzle_types::standard::{StandardArgs, StandardSolution};
 use chia_puzzles::P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH;
 use chia_sdk_types::Conditions;
-use clvm_traits::{clvm_quote, FromClvm};
+use clvm_traits::{FromClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 

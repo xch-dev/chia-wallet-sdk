@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::Condition;
-use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote, match_quote};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
@@ -20,7 +20,7 @@ impl OracleLayer {
     /// Creates a new [`OracleLayer`] if the fee is even.
     /// Returns `None` if the fee is odd, which would make the puzzle invalid.
     pub fn new(oracle_puzzle_hash: Bytes32, oracle_fee: u64) -> Option<Self> {
-        if oracle_fee % 2 != 0 {
+        if !oracle_fee.is_multiple_of(2) {
             return None;
         }
 

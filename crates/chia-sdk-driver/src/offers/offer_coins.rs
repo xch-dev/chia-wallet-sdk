@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{run_puzzle, Condition};
+use chia_sdk_types::{Condition, run_puzzle};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
@@ -161,36 +161,32 @@ impl OfferCoins {
         }
 
         if let Some(nft) = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && !spent_coin_ids.contains(&nft.coin.coin_id())
+            && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
-            if !spent_coin_ids.contains(&nft.coin.coin_id())
-                && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-            {
-                self.nfts.insert(nft.info.launcher_id, nft);
+            self.nfts.insert(nft.info.launcher_id, nft);
 
-                let info = NftAssetInfo::new(
-                    nft.info.metadata,
-                    nft.info.metadata_updater_puzzle_hash,
-                    nft.info.royalty_puzzle_hash,
-                    nft.info.royalty_basis_points,
-                );
-                asset_info.insert_nft(nft.info.launcher_id, info)?;
-            }
+            let info = NftAssetInfo::new(
+                nft.info.metadata,
+                nft.info.metadata_updater_puzzle_hash,
+                nft.info.royalty_puzzle_hash,
+                nft.info.royalty_basis_points,
+            );
+            asset_info.insert_nft(nft.info.launcher_id, info)?;
         }
 
         if let Some(option) =
             OptionContract::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && !spent_coin_ids.contains(&option.coin.coin_id())
+            && option.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
-            if !spent_coin_ids.contains(&option.coin.coin_id())
-                && option.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-            {
-                self.options.insert(option.info.launcher_id, option);
+            self.options.insert(option.info.launcher_id, option);
 
-                let info = OptionAssetInfo::new(
-                    option.info.underlying_coin_id,
-                    option.info.underlying_delegated_puzzle_hash,
-                );
-                asset_info.insert_option(option.info.launcher_id, info)?;
-            }
+            let info = OptionAssetInfo::new(
+                option.info.underlying_coin_id,
+                option.info.underlying_delegated_puzzle_hash,
+            );
+            asset_info.insert_option(option.info.launcher_id, info)?;
         }
 
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;

@@ -6,7 +6,7 @@ use peer_map::PeerMap;
 use subscriptions::Subscriptions;
 use tokio::{
     net::TcpListener,
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
     task::JoinHandle,
 };
 use tokio_tungstenite::connect_async;
@@ -14,18 +14,18 @@ use ws_connection::ws_connection;
 
 use crate::Simulator;
 
+mod config;
 mod error;
 mod peer_map;
-mod simulator_config;
 mod subscriptions;
 mod ws_connection;
 
+pub use config::*;
 pub use error::*;
-pub use simulator_config::*;
 
 #[derive(Debug)]
 pub struct PeerSimulator {
-    config: Arc<SimulatorConfig>,
+    config: Arc<PeerSimulatorConfig>,
     addr: SocketAddr,
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
@@ -42,10 +42,10 @@ impl Deref for PeerSimulator {
 
 impl PeerSimulator {
     pub async fn new() -> Result<Self, PeerSimulatorError> {
-        Self::with_config(SimulatorConfig::default()).await
+        Self::with_config(PeerSimulatorConfig::default()).await
     }
 
-    pub async fn with_config(config: SimulatorConfig) -> Result<Self, PeerSimulatorError> {
+    pub async fn with_config(config: PeerSimulatorConfig) -> Result<Self, PeerSimulatorError> {
         tracing::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
@@ -93,7 +93,7 @@ impl PeerSimulator {
         })
     }
 
-    pub fn config(&self) -> &SimulatorConfig {
+    pub fn config(&self) -> &PeerSimulatorConfig {
         &self.config
     }
 
@@ -155,7 +155,7 @@ mod tests {
     use chia_traits::Streamable;
     use clvmr::NodePtr;
 
-    use crate::{sign_transaction, to_program, to_puzzle, BlsPair};
+    use crate::{BlsPair, sign_transaction, to_program, to_puzzle};
 
     use super::*;
 
@@ -818,7 +818,7 @@ mod tests {
             .request_coin_state(
                 vec![coin.coin_id()],
                 None,
-                sim.config().constants.genesis_challenge,
+                sim.config().genesis_challenge,
                 false,
             )
             .await?
@@ -842,7 +842,7 @@ mod tests {
             .request_coin_state(
                 vec![coin.coin_id()],
                 None,
-                sim.config().constants.genesis_challenge,
+                sim.config().genesis_challenge,
                 false,
             )
             .await?
@@ -873,7 +873,7 @@ mod tests {
             .request_puzzle_state(
                 vec![puzzle_hash],
                 None,
-                sim.config().constants.genesis_challenge,
+                sim.config().genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
             )
@@ -907,7 +907,7 @@ mod tests {
             .request_puzzle_state(
                 vec![puzzle_hash],
                 None,
-                sim.config().constants.genesis_challenge,
+                sim.config().genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
             )

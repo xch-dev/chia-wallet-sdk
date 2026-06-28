@@ -1,13 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         CatalogOtherPrecommitData, CatalogRefundActionArgs, CatalogRefundActionSolution,
         CatalogSlotValue, DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution,
         SlotNeigborsInfo,
     },
-    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};

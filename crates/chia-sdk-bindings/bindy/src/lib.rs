@@ -7,6 +7,7 @@ mod wasm_impls;
 #[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
+use clvmr::error::EvalErr;
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
 
@@ -16,13 +17,13 @@ pub use wasm_impls::*;
 #[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
 
-use std::string::FromUtf8Error;
+use std::{net::AddrParseError, string::FromUtf8Error};
 
+use chia_protocol::{RejectCoinState, RejectPuzzleSolution, RejectPuzzleState};
 use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
-use chia_sdk_utils::AddressError;
+use chia_sdk_utils::Bech32Error;
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
 
 use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
 use thiserror::Error;
@@ -36,14 +37,11 @@ pub enum Error {
     #[error("Wrong length, expected {expected} bytes, found {found}")]
     WrongLength { expected: usize, found: usize },
 
-    #[error("Bech32m encoding error: {0}")]
-    Bech32(#[from] bech32::Error),
-
     #[error("Bip39 error: {0}")]
     Bip39(#[from] bip39::Error),
 
-    #[error("Address error: {0}")]
-    Address(#[from] AddressError),
+    #[error("Bech32 error: {0}")]
+    Bech32(#[from] Bech32Error),
 
     #[error("Hex error: {0}")]
     Hex(#[from] hex::FromHexError),
@@ -56,6 +54,23 @@ pub enum Error {
 
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
+
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[error("Client error: {0}")]
+    Client(#[from] chia_sdk_client::ClientError),
+
+    #[error("Reject coin state: {0:?}")]
+    RejectCoinState(RejectCoinState),
+
+    #[error("Reject puzzle state: {0:?}")]
+    RejectPuzzleState(RejectPuzzleState),
+
+    #[error("Reject puzzle solution: {0:?}")]
+    RejectPuzzleSolution(RejectPuzzleSolution),
+
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[error("SSL error: {0}")]
+    Ssl(#[from] chia_ssl::Error),
 
     #[error("Eval error: {0}")]
     Eval(#[from] EvalErr),
@@ -80,6 +95,9 @@ pub enum Error {
 
     #[error("UTF-8 error: {0}")]
     Utf8(#[from] FromUtf8Error),
+
+    #[error("Address parse error: {0}")]
+    AddressParse(#[from] AddrParseError),
 
     #[error("Atom expected")]
     AtomExpected,
@@ -116,6 +134,9 @@ pub enum Error {
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
+
+    #[error("Coin selection error: {0}")]
+    CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

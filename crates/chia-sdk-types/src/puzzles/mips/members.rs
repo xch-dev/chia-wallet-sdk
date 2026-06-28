@@ -1,5 +1,7 @@
 mod bls_member;
+mod bls_member_puzzle_assert;
 mod bls_taproot_member;
+mod bls_taproot_member_puzzle_assert;
 mod fixed_puzzle_member;
 mod k1_member;
 mod k1_member_puzzle_assert;
@@ -8,9 +10,12 @@ mod passkey_member_puzzle_assert;
 mod r1_member;
 mod r1_member_puzzle_assert;
 mod singleton_member;
+mod singleton_member_with_mode;
 
 pub use bls_member::*;
+pub use bls_member_puzzle_assert::*;
 pub use bls_taproot_member::*;
+pub use bls_taproot_member_puzzle_assert::*;
 pub use fixed_puzzle_member::*;
 pub use k1_member::*;
 pub use k1_member_puzzle_assert::*;
@@ -19,3 +24,4 @@ pub use passkey_member_puzzle_assert::*;
 pub use r1_member::*;
 pub use r1_member_puzzle_assert::*;
 pub use singleton_member::*;
+pub use singleton_member_with_mode::*;

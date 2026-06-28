@@ -2,14 +2,14 @@ use crate::{CatLayer, DriverError, HashedPtr, Layer, Puzzle, Spend, SpendContext
 use chia_consensus::make_aggsig_final_message::u64_to_bytes;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
-    cat::{CatArgs, CatSolution},
     CoinProof, LineageProof, Memos,
+    cat::{CatArgs, CatSolution},
 };
 use chia_sdk_types::{Condition, Conditions};
 use chia_sha2::Sha256;
 use clvm_traits::FromClvm;
 use clvm_utils::TreeHash;
-use clvmr::{op_utils::u64_from_bytes, Allocator, NodePtr};
+use clvmr::{Allocator, NodePtr, op_utils::u64_from_bytes};
 
 use crate::{StreamLayer, StreamPuzzleSolution};
 
@@ -398,8 +398,8 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, FungibleAsset, SpendWithConditions, StandardLayer, STREAM_PUZZLE,
-        STREAM_PUZZLE_HASH,
+        Cat, CatSpend, FungibleAsset, STREAM_PUZZLE, STREAM_PUZZLE_HASH, SpendWithConditions,
+        StandardLayer,
     };
 
     use super::*;
@@ -461,9 +461,10 @@ mod tests {
                 None,
             )
         } else {
-            let (issue_cat, cats) = Cat::issue_with_coin(
+            let (issue_cat, cats) = Cat::single_issuance(
                 &mut ctx,
                 minter_bls.coin.coin_id(),
+                None,
                 minter_bls.coin.amount,
                 Conditions::new().create_coin(
                     minter_bls.puzzle_hash,

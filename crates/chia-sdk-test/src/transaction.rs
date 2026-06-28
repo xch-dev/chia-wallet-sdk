@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chia_bls::{sign, PublicKey, SecretKey, Signature};
+use chia_bls::{PublicKey, SecretKey, Signature, sign};
 use chia_protocol::CoinSpend;
 use chia_sdk_signer::{AggSigConstants, RequiredSignature};
 use chia_sdk_types::TESTNET11_CONSTANTS;

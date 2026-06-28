@@ -1,7 +1,7 @@
 use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
-    puzzles::{AugmentedConditionArgs, AugmentedConditionSolution},
     Condition,
+    puzzles::{AugmentedConditionArgs, AugmentedConditionSolution},
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};

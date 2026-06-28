@@ -2,8 +2,8 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzle_types::{
-    singleton::{SingletonSolution, SingletonStruct},
     LineageProof, Proof,
+    singleton::{SingletonSolution, SingletonStruct},
 };
 use chia_sdk_types::puzzles::{
     RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorCommitmentSlotValue,
@@ -592,17 +592,15 @@ impl RewardDistributor {
                 let puzzle = Puzzle::parse(ctx, puzzle_ptr);
                 let solution_ptr = ctx.alloc(&spend.solution)?;
 
-                if let Ok(Some((cat, inner_puzzle, inner_solution))) =
+                if let Ok(Some(parsed_cat)) =
                     Cat::parse(ctx, spend.coin, puzzle, solution_ptr)
-                {
-                    if cat.info.asset_id == constants.reserve_asset_id {
+                    && parsed_cat.cat.info.asset_id == constants.reserve_asset_id {
                         other_cats.push(CatSpend::new(
-                            cat,
-                            Spend::new(inner_puzzle.ptr(), inner_solution),
+                            parsed_cat.cat,
+                            Spend::new(parsed_cat.p2_puzzle.ptr(), parsed_cat.p2_solution),
                         ));
                         continue;
                     }
-                }
 
                 ctx.insert(spend);
             }

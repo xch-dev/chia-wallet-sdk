@@ -2,12 +2,12 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
+    Conditions, Mod,
     puzzles::{
         RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
         RewardDistributorRemoveEntryActionArgs, RewardDistributorRemoveEntryActionSolution,
         RewardDistributorSlotNonce,
     },
-    Conditions, Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
