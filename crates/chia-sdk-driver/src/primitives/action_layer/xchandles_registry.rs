@@ -281,6 +281,10 @@ impl XchandlesRegistry {
         signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
+        if coin.amount != 1 {
+            return Ok(None);
+        }
+
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
         let puzzle = Puzzle::parse(ctx, puzzle_ptr);
         let solution_ptr = ctx.alloc(&spend.solution)?;

@@ -1,5 +1,5 @@
 use chia_bls::Signature;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzle_types::{
     singleton::{SingletonSolution, SingletonStruct},
@@ -299,6 +299,7 @@ impl RewardDistributor {
         inner_solution: NodePtr,
         initial_state: RewardDistributorState,
         constants: RewardDistributorConstants,
+        signature: Signature,
     ) -> Result<RewardDistributorPendingSpendInfo, DriverError> {
         let mut pending_spend_info = RewardDistributorPendingSpendInfo::new(initial_state);
 
@@ -316,6 +317,7 @@ impl RewardDistributor {
             pending_spend_info.add_delta(delta);
         }
 
+        pending_spend_info.signature = signature;
         Ok(pending_spend_info)
     }
 
@@ -324,8 +326,13 @@ impl RewardDistributor {
         spend: &CoinSpend,
         reserve_lineage_proof: Option<LineageProof>,
         constants: RewardDistributorConstants,
+        signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
+        if coin.amount != 1 {
+            return Ok(None);
+        }
+
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
         let puzzle = Puzzle::parse(ctx, puzzle_ptr);
         let solution_ptr = ctx.alloc(&spend.solution)?;
@@ -337,8 +344,13 @@ impl RewardDistributor {
         let solution = ctx.extract::<SingletonSolution<NodePtr>>(solution_ptr)?;
         let proof = solution.lineage_proof;
 
-        let pending_spend =
-            Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
+        let pending_spend = Self::pending_info_from_spend(
+            ctx,
+            solution.inner_solution,
+            info.state,
+            constants,
+            signature,
+        )?;
 
         let inner_solution =
             RawActionLayerSolution::<NodePtr, NodePtr, ReserveFinalizerSolution>::from_clvm(
@@ -386,7 +398,9 @@ impl RewardDistributor {
     where
         Self: Sized,
     {
-        let Some(parent_registry) = Self::from_spend(ctx, parent_spend, None, constants)? else {
+        let Some(parent_registry) =
+            Self::from_spend(ctx, parent_spend, None, constants, Signature::default())?
+        else {
             return Ok(None);
         };
 
@@ -553,6 +567,58 @@ impl RewardDistributor {
 
     pub fn set_pending_other_cats(&mut self, other_cats: Vec<CatSpend>) {
         self.pending_spend.other_cats = other_cats;
+    }
+
+    pub fn from_mempool_item(
+        ctx: &mut SpendContext,
+        mempool_item: SpendBundle,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<Self>, DriverError> {
+        let mut distributor = None;
+
+        let mut other_cats = vec![];
+
+        for spend in mempool_item.coin_spends {
+            if let Some(parsed_distributor) =
+                Self::from_spend(ctx, &spend, None, constants, Signature::default())?
+            {
+                distributor = Some(parsed_distributor);
+            } else {
+                // regular spends go into the spend context, while CAT spends are
+                // added to other_cats so the ring is built when the registry
+                // is spent (so it includes the reserve)
+                // also, the reserve is removed from other_cats
+                let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
+                let puzzle = Puzzle::parse(ctx, puzzle_ptr);
+                let solution_ptr = ctx.alloc(&spend.solution)?;
+
+                if let Ok(Some((cat, inner_puzzle, inner_solution))) =
+                    Cat::parse(ctx, spend.coin, puzzle, solution_ptr)
+                {
+                    if cat.info.asset_id == constants.reserve_asset_id {
+                        other_cats.push(CatSpend::new(
+                            cat,
+                            Spend::new(inner_puzzle.ptr(), inner_solution),
+                        ));
+                        continue;
+                    }
+                }
+
+                ctx.insert(spend);
+            }
+        }
+
+        if let Some(mut distributor) = distributor {
+            // filter out 'old' reserve spend from other_cats
+            // finish_spend will add the latest reserve spend
+            other_cats.retain(|c| c.cat.coin != distributor.reserve.coin);
+
+            distributor.set_pending_other_cats(other_cats);
+            distributor.set_pending_signature(mempool_item.aggregated_signature.clone());
+            Ok(Some(distributor))
+        } else {
+            Ok(None)
+        }
     }
 }
 
