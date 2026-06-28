@@ -1,5 +1,5 @@
 use chia_bls::Signature;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{LineageProof, Proof};
 use chia_sdk_types::puzzles::{
@@ -232,6 +232,7 @@ impl XchandlesRegistry {
         inner_solution: NodePtr,
         initial_state: XchandlesRegistryState,
         constants: XchandlesConstants,
+        signature: Signature,
     ) -> Result<XchandlesPendingSpendInfo, DriverError> {
         let mut created_handle_slots = vec![];
         let mut created_update_slots = vec![];
@@ -269,7 +270,7 @@ impl XchandlesRegistry {
             spent_update_slots,
             logs,
             latest_state: state_incl_ephemeral,
-            signature: Signature::default(),
+            signature,
         })
     }
 
@@ -277,6 +278,7 @@ impl XchandlesRegistry {
         ctx: &mut SpendContext,
         spend: &CoinSpend,
         constants: XchandlesConstants,
+        signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
@@ -290,8 +292,13 @@ impl XchandlesRegistry {
         let solution = ctx.extract::<SingletonSolution<NodePtr>>(solution_ptr)?;
         let proof = solution.lineage_proof;
 
-        let pending_spend =
-            Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
+        let pending_spend = Self::pending_info_from_spend(
+            ctx,
+            solution.inner_solution,
+            info.state,
+            constants,
+            signature,
+        )?;
 
         Ok(Some(XchandlesRegistry {
             coin,
@@ -321,7 +328,9 @@ impl XchandlesRegistry {
     where
         Self: Sized,
     {
-        let Some(parent_registry) = Self::from_spend(ctx, parent_spend, constants)? else {
+        let Some(parent_registry) =
+            Self::from_spend(ctx, parent_spend, constants, Signature::default())?
+        else {
             return Ok(None);
         };
 
@@ -465,6 +474,29 @@ impl XchandlesRegistry {
             initial_registration_asset_id,
             initial_base_price,
         )))
+    }
+
+    pub fn from_mempool_item(
+        ctx: &mut SpendContext,
+        mempool_item: SpendBundle,
+        constants: XchandlesConstants,
+    ) -> Result<Option<Self>, DriverError> {
+        let mut registry = None;
+
+        for spend in mempool_item.coin_spends {
+            if let Some(parsed_registry) = Self::from_spend(
+                ctx,
+                &spend,
+                constants,
+                mempool_item.aggregated_signature.clone(),
+            )? {
+                registry = Some(parsed_registry);
+            } else {
+                ctx.insert(spend);
+            }
+        }
+
+        Ok(registry)
     }
 }
 
