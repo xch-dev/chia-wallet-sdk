@@ -444,6 +444,8 @@ impl RewardDistributorStakeAction {
             ));
         }
 
+        let existing_slot = existing_slot.map(|s| distributor.actual_entry_slot_value(s));
+
         // spend self
         let lock_puzzle_solution = RewardDistributorNftsFromDidLockingPuzzleSolution {
             my_id: distributor.coin.coin_id(),
@@ -464,7 +466,6 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let existing_slot = distributor.actual_entry_slot_value(existing_slot);
             let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
                 * (distributor
                     .pending_spend
@@ -591,6 +592,8 @@ impl RewardDistributorStakeAction {
             ));
         }
 
+        let existing_slot = existing_slot.map(|s| distributor.actual_entry_slot_value(s));
+
         // spend self
         let lock_puzzle_solution = RewardDistributorNftsFromDlLockingPuzzleSolution {
             my_id: distributor.coin.coin_id(),
@@ -694,6 +697,8 @@ impl RewardDistributorStakeAction {
                     msg,
                 )),
             ));
+
+        let existing_slot = existing_slot.map(|s| distributor.actual_entry_slot_value(s));
 
         // spend self
         let lock_puzzle_solution = RewardDistributorCatLockingPuzzleSolution {
