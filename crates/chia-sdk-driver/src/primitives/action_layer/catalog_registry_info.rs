@@ -43,10 +43,10 @@ impl CatalogRegistryConstants {
         if testnet11 {
             return CatalogRegistryConstants {
                 launcher_id: Bytes32::from(hex!(
-                    "8c322110b6bdd627418485488fd95cc4006d1a97d9d399faf2a58aaaca235c04"
+                    "cd1b8437ad2e52a126931cf2b201c14d88e3fe30655f9459a3bfd954cddd52db"
                 )),
                 royalty_address: Bytes32::from(hex!(
-                    "b3aea098428b2b5e6d57cf3bff6ee82e3950dec338b17df6d8ee20944787def5"
+                    "764e9d674d2fa441f0f6f8fc5e749a17dde345ebe4a33536afd3ef417a3f8c90"
                 )),
                 royalty_basis_points: 100,
                 precommit_payout_puzzle_hash: Bytes32::from(hex!(
@@ -54,7 +54,7 @@ impl CatalogRegistryConstants {
                 )),
                 relative_block_height: 4,
                 price_singleton_launcher_id: Bytes32::from(hex!(
-                    "5d2bed546a6b7ad4580dede73c9a8dce238181ff7c77e58179f0c4795087f596"
+                    "c6ad7ee532a6e089374dedd0c03528a2e5209c3e2709ceff0aaaf4620c7105e9"
                 )),
             };
         }
