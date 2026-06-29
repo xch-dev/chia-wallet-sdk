@@ -249,8 +249,7 @@ impl MedievalVault {
 
     pub fn delegated_puzzle_for_flexible_send_message<M>(
         ctx: &mut SpendContext,
-        message_prefix: u8,
-        message: M,
+        prefix_and_message: M,
         receiver_launcher_id: Bytes32,
         my_coin: Coin,
         my_info: &MedievalVaultInfo,
@@ -275,7 +274,7 @@ impl MedievalVault {
             receiver_singleton_struct_hash: SingletonStruct::new(receiver_launcher_id)
                 .tree_hash()
                 .into(),
-            message: (message_prefix, message),
+            prefix_and_message,
             inner_puzzle: innermost_delegated_puzzle_ptr,
         })
     }

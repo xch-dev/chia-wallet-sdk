@@ -705,7 +705,7 @@ export declare class Clvm {
   spendMedievalVault(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, conditions: Array<Program>, genesisChallenge: Uint8Array): void
   spendMedievalVaultUnsafe(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, delegatedSpend: Spend): void
   medievalVaultRekeyDelegatedPuzzle(launcherId: Uint8Array, newM: bigint, newPubkeys: Array<PublicKey>, coinId: Uint8Array, genesisChallenge: Uint8Array): Program
-  medievalVaultSendMessageDelegatedPuzzle(messagePrefix: number, message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
+  medievalVaultSendMessageDelegatedPuzzle(prefixAndMessage: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributorInfoFromEveCoin | null
@@ -2288,9 +2288,9 @@ export declare class PublicKey {
 
 export declare class PushTxResponse {
   clone(): PushTxResponse
-  constructor(status: string, error: string | undefined | null, success: boolean)
-  get status(): string
-  set status(value: string)
+  constructor(status: string | undefined | null, error: string | undefined | null, success: boolean)
+  get status(): string | null
+  set status(value?: string | undefined | null)
   get error(): string | null
   set error(value?: string | undefined | null)
   get success(): boolean

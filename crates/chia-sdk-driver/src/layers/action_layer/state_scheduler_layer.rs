@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
@@ -46,7 +46,7 @@ impl Layer for StateSchedulerLayer {
             return Ok(None);
         }
 
-        let args = StateSchedulerLayerArgs::<Bytes32, NodePtr>::from_clvm(allocator, puzzle.args)?;
+        let args = StateSchedulerLayerArgs::<Vec<u8>, NodePtr>::from_clvm(allocator, puzzle.args)?;
 
         if args.singleton_mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into() {
             return Err(DriverError::NonStandardLayer);
@@ -74,9 +74,19 @@ impl Layer for StateSchedulerLayer {
             return Err(DriverError::NonStandardLayer);
         };
 
+        let prefix_and_message = args.prefix_and_message;
+        if prefix_and_message.len() != 33 {
+            return Err(DriverError::NonStandardLayer);
+        }
+        let new_state_hash = Bytes32::new(
+            prefix_and_message[1..]
+                .try_into()
+                .map_err(|_| DriverError::NonStandardLayer)?,
+        );
+
         Ok(Some(Self {
             receiver_singleton_struct_hash: args.receiver_singleton_struct_hash,
-            new_state_hash: args.message.1,
+            new_state_hash,
             required_block_height: assert_height_condition.height,
             new_puzzle_hash: create_coin_condition.puzzle_hash,
         }))
@@ -96,13 +106,13 @@ impl Layer for StateSchedulerLayer {
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(base_conditions))?;
 
-        ctx.curry(StateSchedulerLayerArgs::<Bytes32, NodePtr> {
+        ctx.curry(StateSchedulerLayerArgs::<Bytes, NodePtr> {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
             receiver_singleton_struct_hash: self.receiver_singleton_struct_hash,
-            message: (
-                XchandlesRegistryReceivedMessagePrefix::UpdateState as u8,
-                self.new_state_hash,
-            ),
+            prefix_and_message: XchandlesRegistryReceivedMessagePrefix::update_state(
+                self.new_state_hash.into(),
+            )
+            .into(),
             inner_puzzle,
         })
     }

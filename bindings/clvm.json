@@ -548,8 +548,7 @@
       },
       "medieval_vault_send_message_delegated_puzzle": {
         "args": {
-          "message_prefix": "u8",
-          "message": "Bytes",
+          "prefix_and_message": "Bytes",
           "receiver_launcher_id": "Bytes32",
           "my_coin": "Coin",
           "my_info": "MedievalVaultInfo",

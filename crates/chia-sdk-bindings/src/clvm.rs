@@ -609,8 +609,7 @@ impl Clvm {
 
     pub fn medieval_vault_send_message_delegated_puzzle(
         &self,
-        message_prefix: u8,
-        message: Bytes,
+        prefix_and_message: Bytes,
         receiver_launcher_id: Bytes32,
         my_coin: Coin,
         my_info: MedievalVaultInfo,
@@ -622,8 +621,7 @@ impl Clvm {
             self.0.clone(),
             SdkMedievalVault::delegated_puzzle_for_flexible_send_message(
                 &mut ctx,
-                message_prefix,
-                message,
+                prefix_and_message,
                 receiver_launcher_id,
                 my_coin,
                 &my_info,

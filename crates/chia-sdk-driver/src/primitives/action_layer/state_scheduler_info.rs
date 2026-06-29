@@ -7,7 +7,9 @@ use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, SingletonLayer, StateSchedulerLayer};
+use crate::{
+    DriverError, SingletonLayer, StateSchedulerLayer, XchandlesRegistryReceivedMessagePrefix,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSchedulerInfo<S> {
@@ -59,6 +61,7 @@ where
             SingletonStruct::new(self.receiver_singleton_launcher_id)
                 .tree_hash()
                 .into(),
+            XchandlesRegistryReceivedMessagePrefix::UpdateState as u8,
             &message,
             &clvm_quote!(vec![
                 Condition::<()>::create_coin(next_puzzle_hash, 1, Memos::None),
