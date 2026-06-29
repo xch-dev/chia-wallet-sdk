@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonStruct};
 use chia_sdk_types::Condition;
@@ -53,16 +53,13 @@ where
         &self,
         next_puzzle_hash: Bytes32,
         required_block_height: u32,
-        new_state: &S,
+        prefix_and_message_hash: TreeHash,
     ) -> TreeHash {
-        let message: Bytes32 = new_state.tree_hash().into();
-
-        StateSchedulerLayerArgs::curry_tree_hash(
+        StateSchedulerLayerArgs::<TreeHash, _>::curry_tree_hash(
             SingletonStruct::new(self.receiver_singleton_launcher_id)
                 .tree_hash()
                 .into(),
-            XchandlesRegistryReceivedMessagePrefix::UpdateState as u8,
-            &message,
+            prefix_and_message_hash,
             &clvm_quote!(vec![
                 Condition::<()>::create_coin(next_puzzle_hash, 1, Memos::None),
                 Condition::assert_height_absolute(required_block_height),
@@ -79,10 +76,15 @@ where
 
         let mut i = self.state_schedule.len();
         while i > generation {
+            let prefix_and_message_hash: Bytes =
+                XchandlesRegistryReceivedMessagePrefix::update_state(
+                    self.state_schedule[i - 1].1.tree_hash(),
+                )
+                .into();
             inner_puzzle_hash = self.inner_puzzle_hash_for(
                 inner_puzzle_hash.into(),
                 self.state_schedule[i - 1].0,
-                &self.state_schedule[i - 1].1,
+                prefix_and_message_hash.tree_hash(),
             );
 
             i -= 1;

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes32;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -39,25 +39,19 @@ pub struct StateSchedulerLayerArgs<M, I> {
 
 impl<M, I> StateSchedulerLayerArgs<M, I>
 where
-    M: ToTreeHash,
     I: ToTreeHash,
 {
     pub fn curry_tree_hash(
         receiver_singleton_struct_hash: Bytes32,
-        message_prefix: u8,
-        message: &M,
+        prefix_and_message_hash: TreeHash,
         inner_puzzle: &I,
     ) -> TreeHash {
-        let prefix_and_message: Bytes32 = message.tree_hash().into();
-        let mut prefix_and_message: Vec<u8> = prefix_and_message.into();
-        prefix_and_message.insert(0, message_prefix);
-
         CurriedProgram::<TreeHash, _> {
             program: STATE_SCHEDULER_PUZZLE_HASH,
-            args: StateSchedulerLayerArgs::<Bytes, _> {
+            args: StateSchedulerLayerArgs {
                 singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
                 receiver_singleton_struct_hash,
-                prefix_and_message: prefix_and_message.into(),
+                prefix_and_message: prefix_and_message_hash,
                 inner_puzzle: inner_puzzle.tree_hash(),
             },
         }
