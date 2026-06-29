@@ -342,6 +342,17 @@
       "new_nfts": "Vec<Nft>"
     }
   },
+  "RefreshNftsInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "slot": "EntrySlot",
+      "nfts": "Vec<Nft>",
+      "nft_shares_delta": "Vec<i64>",
+      "new_shares": "Vec<u64>",
+      "nft_inclusion_proofs": "Vec<MerkleProof>"
+    }
+  },
   "RewardDistributorLaunchResult": {
     "type": "class",
     "new": true,
@@ -538,11 +549,7 @@
       },
       "refresh_nfts": {
         "args": {
-          "slots": "Vec<EntrySlot>",
-          "nfts": "Vec<Vec<Nft>>",
-          "nft_shares_delta": "Vec<Vec<i64>>",
-          "nft_new_shares": "Vec<Vec<u64>>",
-          "nft_inclusion_proofs": "Vec<Vec<MerkleProof>>",
+          "refresh_nfts_infos": "Vec<RefreshNftsInfo>",
           "dl_root_hash": "Bytes32",
           "dl_metadata_rest_hash": "Option<Bytes32>",
           "dl_metadata_updater_hash_hash": "Bytes32",

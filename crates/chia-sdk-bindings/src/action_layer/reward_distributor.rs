@@ -244,6 +244,15 @@ pub struct RewardDistributorRefreshNftsResult {
 }
 
 #[derive(Clone)]
+pub struct RefreshNftsInfo {
+    pub slot: EntrySlot,
+    pub nfts: Vec<Nft>,
+    pub nft_shares_delta: Vec<i64>,
+    pub new_shares: Vec<u64>,
+    pub nft_inclusion_proofs: Vec<MerkleProof>,
+}
+
+#[derive(Clone)]
 pub struct RewardDistributorLaunchResult {
     pub security_signature: Signature,
     pub security_secret_key: SecretKey,
@@ -759,11 +768,7 @@ impl RewardDistributor {
     #[allow(clippy::too_many_arguments)]
     pub fn refresh_nfts(
         &self,
-        slots: Vec<EntrySlot>,
-        nfts: Vec<Vec<Nft>>,
-        nft_shares_delta: Vec<Vec<i64>>,
-        nft_new_shares: Vec<Vec<u64>>,
-        nft_inclusion_proofs: Vec<Vec<MerkleProof>>,
+        refresh_nfts_infos: Vec<RefreshNftsInfo>,
         dl_root_hash: Bytes32,
         dl_metadata_rest_hash: Option<Bytes32>,
         dl_metadata_updater_hash_hash: Bytes32,
@@ -772,25 +777,30 @@ impl RewardDistributor {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
-        let sdk_nft_groups: Vec<Vec<_>> = nfts
+        let slots: Vec<_> = refresh_nfts_infos
             .iter()
-            .map(|group| group.iter().map(|nft| nft.as_ptr(&ctx)).collect())
+            .map(|info| info.slot.clone().to_slot())
+            .collect();
+
+        let sdk_nft_groups: Vec<Vec<_>> = refresh_nfts_infos
+            .iter()
+            .map(|info| info.nfts.iter().map(|nft| nft.as_ptr(&ctx)).collect())
             .collect();
         let sdk_nft_refs: Vec<&[chia_sdk_driver::Nft]> = sdk_nft_groups
             .iter()
             .map(Vec::as_slice)
             .collect();
-        let shares_delta_refs: Vec<&[i64]> = nft_shares_delta
+        let shares_delta_refs: Vec<&[i64]> = refresh_nfts_infos
             .iter()
-            .map(Vec::as_slice)
+            .map(|info| info.nft_shares_delta.as_slice())
             .collect();
-        let new_shares_refs: Vec<&[u64]> = nft_new_shares
+        let new_shares_refs: Vec<&[u64]> = refresh_nfts_infos
             .iter()
-            .map(Vec::as_slice)
+            .map(|info| info.new_shares.as_slice())
             .collect();
-        let inclusion_proof_refs: Vec<&[MerkleProof]> = nft_inclusion_proofs
+        let inclusion_proof_refs: Vec<&[MerkleProof]> = refresh_nfts_infos
             .iter()
-            .map(Vec::as_slice)
+            .map(|info| info.nft_inclusion_proofs.as_slice())
             .collect();
 
         let (conditions, new_nfts) = distributor
@@ -798,7 +808,7 @@ impl RewardDistributor {
             .spend(
                 &mut ctx,
                 &mut distributor,
-                slots.into_iter().map(EntrySlot::to_slot).collect(),
+                slots,
                 &sdk_nft_refs,
                 &shares_delta_refs,
                 &new_shares_refs,

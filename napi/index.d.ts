@@ -2383,6 +2383,21 @@ export declare class ReceiveMessage {
   set data(value: Array<Program>)
 }
 
+export declare class RefreshNftsInfo {
+  clone(): RefreshNftsInfo
+  constructor(slot: EntrySlot, nfts: Array<Nft>, nftSharesDelta: Array<bigint>, newShares: Array<bigint>, nftInclusionProofs: Array<MerkleProof>)
+  get slot(): EntrySlot
+  set slot(value: EntrySlot)
+  get nfts(): Array<Nft>
+  set nfts(value: Array<Nft>)
+  get nftSharesDelta(): Array<bigint>
+  set nftSharesDelta(value: Array<bigint>)
+  get newShares(): Array<bigint>
+  set newShares(value: Array<bigint>)
+  get nftInclusionProofs(): Array<MerkleProof>
+  set nftInclusionProofs(value: Array<MerkleProof>)
+}
+
 export declare class Remark {
   clone(): Remark
   constructor(rest: Program)
@@ -2523,7 +2538,7 @@ export declare class RewardDistributor {
   stakeCat(offeredCat: Cat, entryCustodyPuzzleHash: Uint8Array, existingSlot?: EntrySlot | undefined | null): RewardDistributorStakeCatResult
   unstakeLockedNfts(entrySlot: EntrySlot, lockedNfts: Array<Nft>, lockedNftShares: Array<bigint>): RewardDistributorUnstakeLockedNftsResult
   unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat): RewardDistributorUnstakeLockedCatResult
-  refreshNfts(slots: Array<EntrySlot>, nfts: Array<Array<Nft>>, nftSharesDelta: Array<Array<number>>, nftNewShares: Array<Array<bigint>>, nftInclusionProofs: Array<Array<MerkleProof>>, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorRefreshNftsResult
+  refreshNfts(refreshNftsInfos: Array<RefreshNftsInfo>, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorRefreshNftsResult
   static lockedNftHint(distributorLauncherId: Uint8Array, custodyPuzzleHash: Uint8Array): Buffer
 }
 

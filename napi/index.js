@@ -548,6 +548,7 @@ module.exports.R1PublicKey = nativeBinding.R1PublicKey
 module.exports.R1SecretKey = nativeBinding.R1SecretKey
 module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.ReceiveMessage = nativeBinding.ReceiveMessage
+module.exports.RefreshNftsInfo = nativeBinding.RefreshNftsInfo
 module.exports.Remark = nativeBinding.Remark
 module.exports.ReserveFee = nativeBinding.ReserveFee
 module.exports.RespondCoinState = nativeBinding.RespondCoinState

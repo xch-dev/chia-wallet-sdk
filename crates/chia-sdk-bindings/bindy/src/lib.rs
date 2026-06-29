@@ -166,7 +166,7 @@ macro_rules! impl_self {
     };
 }
 
-#[cfg(not(feature = "pyo3"))]
+#[cfg(not(any(feature = "pyo3", feature = "napi", feature = "wasm")))]
 impl_self!(i64);
 impl_self!(bool);
 impl_self!(usize);

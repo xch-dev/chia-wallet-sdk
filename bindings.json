@@ -14,7 +14,7 @@
       "TreeHash",
       "SerializedProgram"
     ],
-    "{bigint}": ["u64", "u128", "BigInt"],
+    "{bigint}": ["u64", "u128", "i64", "BigInt"],
     "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"],
     "{usize}": ["usize"]
   },
