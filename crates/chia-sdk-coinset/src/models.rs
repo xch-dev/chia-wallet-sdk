@@ -117,7 +117,7 @@ pub struct GetPuzzleAndSolutionResponse {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct PushTxResponse {
-    pub status: String,
+    pub status: Option<String>,
     pub error: Option<String>,
     pub success: bool,
 }
