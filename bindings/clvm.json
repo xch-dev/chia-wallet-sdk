@@ -548,6 +548,7 @@
       },
       "medieval_vault_send_message_delegated_puzzle": {
         "args": {
+          "message_prefix": "u8",
           "message": "Bytes",
           "receiver_launcher_id": "Bytes32",
           "my_coin": "Coin",
@@ -591,6 +592,76 @@
           "comment": "String"
         },
         "return": "RewardDistributorLaunchResult"
+      },
+      "reward_distributor_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "catalog_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "launch_catalog_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_registration_price": "u64",
+          "constants": "CatalogRegistryConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "CatalogRegistryLaunchResult"
+      },
+      "xchandles_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "launch_xchandles_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_base_registration_price": "u64",
+          "initial_registration_period": "u64",
+          "constants": "XchandlesConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "XchandlesRegistryLaunchResult"
       },
       "create_offer_security_coin": {
         "args": {

@@ -166,6 +166,8 @@ macro_rules! impl_self {
     };
 }
 
+#[cfg(not(feature = "pyo3"))]
+impl_self!(i64);
 impl_self!(bool);
 impl_self!(usize);
 impl_self!(u8);

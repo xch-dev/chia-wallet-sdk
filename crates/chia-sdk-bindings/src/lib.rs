@@ -15,10 +15,12 @@ mod bls;
 mod clvm;
 mod clvm_types;
 mod coin;
+mod compact_representation;
 mod conditions;
 mod constants;
 mod convert;
 mod key_pairs;
+mod merkle_tree;
 mod mips;
 mod mnemonic;
 mod offer;
@@ -36,9 +38,11 @@ pub use bls::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
+pub use compact_representation::*;
 pub use conditions::*;
 pub use constants::*;
 pub use key_pairs::*;
+pub use merkle_tree::*;
 pub use mips::*;
 pub use mnemonic::*;
 pub use offer::*;
@@ -75,16 +79,21 @@ pub use chia_sdk_coinset::{
 pub use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, Delta, MedievalVaultHint,
     MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
-    P2ParentCoin, RewardDistributorConstants, RewardDistributorState, RewardDistributorType,
-    RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
+    P2ParentCoin, CatalogRegistryConstants, CatalogRegistryState, RewardDistributorConstants,
+    RewardDistributorState, RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo,
+    UriKind, VaultInfo, XchandlesConstants, XchandlesRegistryState,
 };
 pub use chia_sdk_types::{
     conditions::TradePrice,
     puzzles::{
-        IntermediaryCoinProof, NftLauncherProof, RewardDistributorCommitmentSlotValue,
-        RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
+        CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
+        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
+        RewardDistributorRewardSlotValue, SlotNeigborsInfo, XchandlesHandleSlotValue,
+        XchandlesUpdateSlotValue,
     },
+    MerkleProof,
 };
+pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 
 #[cfg(any(feature = "napi", feature = "pyo3"))]
 pub use chia_protocol::{

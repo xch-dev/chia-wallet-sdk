@@ -1,0 +1,240 @@
+{
+  "SlotNeigborsInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "left_value": "Bytes32",
+      "right_value": "Bytes32"
+    }
+  },
+  "CatalogSlotValue": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "counter": "u64",
+      "asset_id": "Bytes32",
+      "neighbors": "SlotNeigborsInfo"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "counter": "u64",
+          "asset_id": "Bytes32",
+          "left_asset_id": "Bytes32",
+          "right_asset_id": "Bytes32"
+        }
+      }
+    }
+  },
+  "CatalogSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "CatalogSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "CatalogSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "CatalogRegistryState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "cat_maker_puzzle_hash": "Bytes32",
+      "registration_price": "u64"
+    }
+  },
+  "CatalogRegistryConstants": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "royalty_address": "Bytes32",
+      "royalty_basis_points": "u16",
+      "precommit_payout_puzzle_hash": "Bytes32",
+      "relative_block_height": "u32",
+      "price_singleton_launcher_id": "Bytes32"
+    },
+    "methods": {
+      "get": {
+        "type": "factory",
+        "args": {
+          "testnet11": "bool"
+        }
+      },
+      "with_price_singleton": {
+        "args": {
+          "price_singleton_launcher_id": "Bytes32"
+        },
+        "return": "CatalogRegistryConstants"
+      },
+      "with_launcher_id": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "CatalogRegistryConstants"
+      }
+    }
+  },
+  "CatalogPrecommitValue": {
+    "type": "class",
+    "fields": {
+      "tail_reveal": "Program",
+      "initial_inner_puzzle_hash": "Bytes32",
+      "payment_asset_id": "Bytes32"
+    },
+    "methods": {
+      "with_default_cat_maker": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "payment_asset_id": "Bytes32",
+          "initial_inner_puzzle_hash": "Bytes32",
+          "tail_reveal": "Program"
+        }
+      }
+    }
+  },
+  "CatalogPrecommitCoin": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "asset_id": "Bytes32",
+      "proof": "LineageProof",
+      "inner_puzzle_hash": "Bytes32",
+      "value": "CatalogPrecommitValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "parent_coin_id": "Bytes32",
+          "proof": "LineageProof",
+          "asset_id": "Bytes32",
+          "controller_singleton_launcher_id": "Bytes32",
+          "relative_block_height": "u32",
+          "payout_puzzle_hash": "Bytes32",
+          "refund_puzzle_hash": "Bytes32",
+          "value": "CatalogPrecommitValue",
+          "precommit_amount": "u64"
+        }
+      }
+    }
+  },
+  "CatalogRegistryFinishedSpendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_catalog": "CatalogRegistry",
+      "signature": "Signature"
+    }
+  },
+  "CatalogRegistryLaunchResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "security_signature": "Signature",
+      "security_secret_key": "SecretKey",
+      "catalog": "CatalogRegistry",
+      "slots": "Vec<CatalogSlot>",
+      "security_coin": "Coin"
+    }
+  },
+  "CatalogRegistry": {
+    "type": "class",
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      },
+      "proof": {
+        "return": "Proof"
+      },
+      "state": {
+        "return": "CatalogRegistryState"
+      },
+      "constants": {
+        "return": "CatalogRegistryConstants"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "pending_created_slots": {
+        "return": "Vec<CatalogSlot>"
+      },
+      "pending_signature": {
+        "return": "Signature"
+      },
+      "finish_spend": {
+        "return": "CatalogRegistryFinishedSpendResult"
+      },
+      "register": {
+        "args": {
+          "tail_hash": "Bytes32",
+          "left_slot": "CatalogSlot",
+          "right_slot": "CatalogSlot",
+          "precommit_coin": "CatalogPrecommitCoin",
+          "eve_nft_inner_spend": "Spend"
+        },
+        "return": "Vec<Program>"
+      },
+      "refund": {
+        "args": {
+          "tail_hash": "Bytes32",
+          "precommit_coin": "CatalogPrecommitCoin",
+          "neighbors": "Option<SlotNeigborsInfo>",
+          "slot": "Option<CatalogSlot>"
+        },
+        "return": "Vec<Program>"
+      },
+      "delegated_state": {
+        "args": {
+          "new_state": "CatalogRegistryState",
+          "other_singleton_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "Vec<Program>"
+      },
+      "actual_neighbors": {
+        "args": {
+          "new_tail_hash": "Bytes32",
+          "on_chain_left_slot": "CatalogSlot",
+          "on_chain_right_slot": "CatalogSlot"
+        },
+        "return": "CatalogRegistryActualNeighborsResult"
+      },
+      "actual_slot": {
+        "args": {
+          "slot": "CatalogSlot"
+        },
+        "return": "CatalogSlot"
+      }
+    }
+  },
+  "CatalogRegistryActualNeighborsResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "left_slot": "CatalogSlot",
+      "right_slot": "CatalogSlot"
+    }
+  }
+}

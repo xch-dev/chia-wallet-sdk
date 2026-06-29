@@ -27,10 +27,10 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
-    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
-    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
+    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did,
+    Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind,
+    MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment,
+    OfferSecurityCoinDetails, OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
     RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
@@ -736,6 +736,22 @@ impl Clvm {
             first_epoch_slot: RewardSlot::from_slot(first_epoch_slot),
             refunded_cat,
         })
+    }
+
+    pub fn reward_distributor_from_mempool_item(
+        &self,
+        mempool_item: SpendBundle,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<RewardDistributor>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result =
+            SdkRewardDistributor::from_mempool_item(&mut ctx, mempool_item, constants)?;
+
+        Ok(result.map(|reward_distributor| RewardDistributor {
+            clvm: self.0.clone(),
+            distributor: Arc::new(Mutex::new(reward_distributor)),
+        }))
     }
 
     pub fn create_offer_security_coin(
