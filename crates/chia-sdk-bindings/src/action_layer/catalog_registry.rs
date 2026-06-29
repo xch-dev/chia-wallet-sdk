@@ -10,7 +10,9 @@ use chia_sdk_driver::{
     CatalogRegistryState, DelegatedStateAction, Offer, PrecommitCoin, SpendContext,
     launch_catalog_registry as driver_launch_catalog_registry,
 };
-use chia_sdk_types::{Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS, puzzles::SlotNeigborsInfo};
+use chia_sdk_types::{
+    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS, puzzles::SlotNeigborsInfo,
+};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -132,9 +134,10 @@ impl CatalogPrecommitCoin {
         precommit_amount: u64,
     ) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
-        let controller_singleton_struct_hash = SingletonStruct::new(controller_singleton_launcher_id)
-            .tree_hash()
-            .into();
+        let controller_singleton_struct_hash =
+            SingletonStruct::new(controller_singleton_launcher_id)
+                .tree_hash()
+                .into();
         let driver_value = value.to_driver_value();
         let precommit = PrecommitCoin::new(
             &mut ctx,
@@ -237,18 +240,14 @@ impl CatalogRegistry {
             .created_slots
             .clone()
             .into_iter()
-            .map(|slot_value| CatalogSlot::from_slot(catalog.created_slot_value_to_slot(slot_value)))
+            .map(|slot_value| {
+                CatalogSlot::from_slot(catalog.created_slot_value_to_slot(slot_value))
+            })
             .collect())
     }
 
     pub fn pending_signature(&self) -> Result<Signature> {
-        Ok(self
-            .catalog
-            .lock()
-            .unwrap()
-            .pending_spend
-            .signature
-            .clone())
+        Ok(self.catalog.lock().unwrap().pending_spend.signature.clone())
     }
 
     pub fn finish_spend(&self) -> Result<CatalogRegistryFinishedSpendResult> {
@@ -295,17 +294,15 @@ impl CatalogRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut catalog = self.catalog.lock().unwrap();
 
-        let conditions = catalog
-            .new_action::<CatalogRegisterAction>()
-            .spend(
-                &mut ctx,
-                &mut catalog,
-                tail_hash,
-                left_slot.to_slot(),
-                right_slot.to_slot(),
-                &precommit_coin.to_precommit_coin(),
-                eve_nft_inner_spend.into(),
-            )?;
+        let conditions = catalog.new_action::<CatalogRegisterAction>().spend(
+            &mut ctx,
+            &mut catalog,
+            tail_hash,
+            left_slot.to_slot(),
+            right_slot.to_slot(),
+            &precommit_coin.to_precommit_coin(),
+            eve_nft_inner_spend.into(),
+        )?;
 
         self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
@@ -320,16 +317,14 @@ impl CatalogRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut catalog = self.catalog.lock().unwrap();
 
-        let conditions = catalog
-            .new_action::<CatalogRefundAction>()
-            .spend(
-                &mut ctx,
-                &mut catalog,
-                tail_hash,
-                neighbors,
-                &precommit_coin.to_precommit_coin(),
-                slot.map(CatalogSlot::to_slot),
-            )?;
+        let conditions = catalog.new_action::<CatalogRefundAction>().spend(
+            &mut ctx,
+            &mut catalog,
+            tail_hash,
+            neighbors,
+            &precommit_coin.to_precommit_coin(),
+            slot.map(CatalogSlot::to_slot),
+        )?;
 
         self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
@@ -342,14 +337,12 @@ impl CatalogRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut catalog = self.catalog.lock().unwrap();
 
-        let (conditions, action_spend) = catalog
-            .new_action::<DelegatedStateAction>()
-            .spend(
-                &mut ctx,
-                catalog.coin,
-                new_state,
-                other_singleton_inner_puzzle_hash,
-            )?;
+        let (conditions, action_spend) = catalog.new_action::<DelegatedStateAction>().spend(
+            &mut ctx,
+            catalog.coin,
+            new_state,
+            other_singleton_inner_puzzle_hash,
+        )?;
 
         catalog.insert_action_spend(&mut ctx, action_spend)?;
 
@@ -377,9 +370,7 @@ impl CatalogRegistry {
 
     pub fn actual_slot(&self, slot: CatalogSlot) -> Result<CatalogSlot> {
         let catalog = self.catalog.lock().unwrap();
-        Ok(CatalogSlot::from_slot(
-            catalog.actual_slot(slot.to_slot()),
-        ))
+        Ok(CatalogSlot::from_slot(catalog.actual_slot(slot.to_slot())))
     }
 }
 
@@ -436,11 +427,12 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
 
         Ok(
-            SdkCatalogRegistry::from_spend(&mut ctx, &spend, constants, Signature::default())?
-                .map(|catalog| CatalogRegistry {
+            SdkCatalogRegistry::from_spend(&mut ctx, &spend, constants, Signature::default())?.map(
+                |catalog| CatalogRegistry {
                     clvm: self.0.clone(),
                     catalog: Arc::new(Mutex::new(catalog)),
-                }),
+                },
+            ),
         )
     }
 
