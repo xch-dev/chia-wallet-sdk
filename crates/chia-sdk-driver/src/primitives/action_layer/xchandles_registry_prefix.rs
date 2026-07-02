@@ -55,64 +55,20 @@ impl XchandlesRegistryReceivedMessagePrefix {
         )
     }
 
-    pub fn initiate_update(
-        handle_hash: Bytes32,
-        new_owner_launcher_id: Bytes32,
-        new_resolved_launcher_id: Bytes32,
-    ) -> Vec<u8> {
-        prefix_hash(
-            Self::InitiateUpdate as u8,
-            clvm_tuple!(
-                handle_hash,
-                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
-            )
-            .tree_hash(),
-        )
+    pub fn initiate_update(update_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::InitiateUpdate as u8, update_slot_value_hash)
     }
 
-    pub fn execute_update_old_owner(
-        handle_hash: Bytes32,
-        new_owner_launcher_id: Bytes32,
-        new_resolved_launcher_id: Bytes32,
-    ) -> Vec<u8> {
-        prefix_hash(
-            Self::ExecuteUpdateOldOwner as u8,
-            clvm_tuple!(
-                handle_hash,
-                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
-            )
-            .tree_hash(),
-        )
+    pub fn execute_update_old_owner(update_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::ExecuteUpdateOldOwner as u8, update_slot_value_hash)
     }
 
-    pub fn execute_update_new_owner(
-        handle_hash: Bytes32,
-        new_owner_launcher_id: Bytes32,
-        new_resolved_launcher_id: Bytes32,
-    ) -> Vec<u8> {
-        prefix_hash(
-            Self::ExecuteUpdateNewOwner as u8,
-            clvm_tuple!(
-                handle_hash,
-                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
-            )
-            .tree_hash(),
-        )
+    pub fn execute_update_new_owner(update_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::ExecuteUpdateNewOwner as u8, update_slot_value_hash)
     }
 
-    pub fn execute_update_new_resolved(
-        handle_hash: Bytes32,
-        new_owner_launcher_id: Bytes32,
-        new_resolved_launcher_id: Bytes32,
-    ) -> Vec<u8> {
-        prefix_hash(
-            Self::ExecuteUpdateNewResolved as u8,
-            clvm_tuple!(
-                handle_hash,
-                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
-            )
-            .tree_hash(),
-        )
+    pub fn execute_update_new_resolved(update_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::ExecuteUpdateNewResolved as u8, update_slot_value_hash)
     }
 }
 

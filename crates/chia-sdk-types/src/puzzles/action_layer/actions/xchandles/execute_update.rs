@@ -6,11 +6,11 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue},
     Mod,
+    puzzles::{CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue},
 };
 
-pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE: [u8; 996] = hex!(
+pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE: [u8; 979] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff01ff04ff81bfffff04ffff04ffff0155ffff04ff8216ff
@@ -30,27 +30,26 @@ pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE: [u8; 996] = hex!(
     ff0280ffff04ffff02ff15ffff04ff2dffff04ff0bffff04ffff02ff09ffff04
     ff09ffff04ff0bffff04ff820dffff1780808080ffff04ff821fffff80808080
     8080ff8080808080ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ffff
-    04ffff02ff15ffff04ff2dffff04ff5fffff04ffff0bffff0101ffff0bffff01
-    02ffff02ff09ffff04ff09ffff04ff8213ffff82017f808080ff028080ff8080
+    04ffff02ff15ffff04ff2dffff04ff5fffff04ffff0bffff0101ff0280ff8080
     808080ff8080808080ff80808080808080808080ffff04ffff02ff04ffff04ff
-    04ffff04ff82097fff8202ff808080ff018080ffff04ffff04ffff01ff02ffff
-    03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff058080ffff
-    02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080ff0180ffff04
-    ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102ffff0bffff01
-    02ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff
-    078080ffff0bffff010180808080ffff04ffff01ff02ffff03ff03ffff01ff0b
-    ffff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bff
-    ff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff
-    0bffff010180808080ffff01ff0bffff018201018080ff0180ffff01ff04ffff
-    0133ffff04ffff02ff04ffff04ff06ffff04ff05ffff04ffff0bffff0101ff07
-    80ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080808080808080
-    ff018080
+    04ffff04ffff04ff8209ffff81bf80ffff04ff82097fff8202ff80808080ff01
+    8080ffff04ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ff
+    ff02ff02ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff
+    0bffff0101ff038080ff0180ffff04ffff01ff0bffff0102ffff0bffff018201
+    0280ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0b
+    ffff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff04
+    ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0b
+    ffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ff
+    ff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff01
+    8201018080ff0180ffff01ff04ffff0133ffff04ffff02ff04ffff04ff06ffff
+    04ff05ffff04ffff0bffff0101ff0780ff8080808080ffff04ff80ffff04ffff
+    04ff05ff8080ff8080808080808080ff018080
     "
 );
 
 pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    743369017c9e26460703c2ef09c8f78891157925fd131fde589bb4c54058c0a7
+    5ab577e34135251486330c53c8c16ed2b50d1b3da58096019c745b7faa94a631
     "
 ));
 

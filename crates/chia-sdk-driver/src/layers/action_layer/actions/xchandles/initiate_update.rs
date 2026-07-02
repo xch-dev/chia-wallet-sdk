@@ -1,12 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
+    Conditions, Mod,
     puzzles::{
         CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue,
         XchandlesInitiateUpdateActionArgs, XchandlesInitiateUpdateActionSolution,
         XchandlesSlotNonce, XchandlesUpdateSlotValue,
     },
-    Conditions, Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
@@ -16,7 +16,7 @@ use crate::{
     XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{coin_id_from_owner_proof, XchandlesInitiateUpdateActionLog};
+use super::{XchandlesInitiateUpdateActionLog, coin_id_from_owner_proof};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesInitiateUpdateAction {
@@ -65,6 +65,24 @@ impl XchandlesInitiateUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id, self.relative_block_height))
     }
 
+    pub fn update_slot_value_from_solution(
+        solution: &XchandlesInitiateUpdateActionSolution,
+        relative_block_height: u32,
+    ) -> XchandlesUpdateSlotValue {
+        let initiator_coin_id = coin_id_from_owner_proof(
+            solution.current_owner,
+            solution.current_slot_value.owner_launcher_id,
+        );
+
+        XchandlesUpdateSlotValue::new(
+            initiator_coin_id,
+            solution.min_height + relative_block_height,
+            solution.current_slot_value.handle_hash,
+            solution.new_data.owner_launcher_id,
+            solution.new_data.resolved_launcher_id,
+        )
+    }
+
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -78,13 +96,8 @@ impl XchandlesInitiateUpdateAction {
             solution.current_owner,
             solution.current_slot_value.owner_launcher_id,
         );
-        let created_update_slot = XchandlesUpdateSlotValue::new(
-            initiator_coin_id,
-            solution.min_height + constants.relative_block_height,
-            solution.current_slot_value.handle_hash,
-            solution.new_data.owner_launcher_id,
-            solution.new_data.resolved_launcher_id,
-        );
+        let created_update_slot =
+            Self::update_slot_value_from_solution(&solution, constants.relative_block_height);
 
         Ok(XchandlesInitiateUpdateActionLog {
             spent_slot,
@@ -107,7 +120,7 @@ impl XchandlesInitiateUpdateAction {
     ) -> Result<Conditions, DriverError> {
         // spend self
         let slot = registry.actual_handle_slot(slot);
-        let action_solution = ctx.alloc(&XchandlesInitiateUpdateActionSolution {
+        let action_solution = XchandlesInitiateUpdateActionSolution {
             current_slot_value: slot.info.value,
             new_data: XchandlesDataValue {
                 owner_launcher_id: new_owner_launcher_id,
@@ -115,23 +128,24 @@ impl XchandlesInitiateUpdateAction {
             },
             current_owner,
             min_height,
-        })?;
+        };
+        let created_update_slot =
+            Self::update_slot_value_from_solution(&action_solution, self.relative_block_height);
+
+        let action_solution = ctx.alloc(&action_solution)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         // spend slot
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
-        let handle_hash = slot.info.value.handle_hash;
 
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
         Ok(Conditions::new().send_message(
             58,
             XchandlesRegistryReceivedMessagePrefix::initiate_update(
-                handle_hash,
-                new_owner_launcher_id,
-                new_resolved_launcher_id,
+                created_update_slot.tree_hash(),
             )
             .into(),
             vec![ctx.alloc(&registry.coin.puzzle_hash)?],
