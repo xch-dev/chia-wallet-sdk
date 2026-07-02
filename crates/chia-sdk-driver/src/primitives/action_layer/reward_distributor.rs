@@ -1,5 +1,6 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_puzzle_types::cat::CatSolution;
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzle_types::{
     LineageProof, Proof,
@@ -581,7 +582,7 @@ impl RewardDistributor {
         for spend in &mempool_item.coin_spends {
             if registry.is_none()
                 && let Some(parsed_registry) =
-                    Self::from_spend(ctx, &spend, None, constants, Signature::default())?
+                    Self::from_spend(ctx, spend, None, constants, Signature::default())?
             {
                 registry = Some(parsed_registry);
             } else {
@@ -602,22 +603,73 @@ impl RewardDistributor {
             }
         }
 
-        let Some(mut registry) = registry else {
+        let Some(registry) = registry else {
             return Ok(None);
         };
 
         // find & set actual reserve
         // note that we initialized the registy with reserve_lineage_proof=None, so
         // only the reserve parent id and amount are correct (but NOT puzzle hash)
+        // the puzzle hash can be obtained from the registry constants
+        let reserve_coin = Coin::new(
+            registry.reserve.coin.parent_coin_info,
+            registry.info.constants.reserve_full_puzzle_hash,
+            registry.reserve.coin.amount,
+        );
+        let Some(reserve_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin == reserve_coin)
+        else {
+            return Err(DriverError::Custom(
+                "Reserve spend not found in mempool item".to_string(),
+            ));
+        };
 
-        for reserve_spend in mempool_item.coin_spends.iter().filter(|c| {
-            c.coin.amount == registry.reserve.coin.amount
-                && c.coin.parent_coin_info == registry.reserve.coin.parent_coin_info
-        }) {
-            todo!("build resrve, check, set and break if correct");
+        let reserve_sol_ptr = ctx.alloc(&reserve_spend.solution)?;
+        let reserve_solution = ctx.extract::<CatSolution<NodePtr>>(reserve_sol_ptr)?;
+
+        // Could theoretically be a bit more optimized, but this ensures
+        //  consistent behavior even if there are future changes in the
+        //  way attributes are calculated for the reward distributor
+        let Some(mut registry) = RewardDistributor::from_spend(
+            ctx,
+            mempool_item
+                .coin_spends
+                .iter()
+                .find(|c| c.coin == registry.coin)
+                .ok_or(DriverError::Custom(
+                    "Couldn't find distributor spend in mempool item".to_string(),
+                ))?,
+            reserve_solution.lineage_proof,
+            constants,
+            Signature::default(),
+        )?
+        else {
+            return Err(DriverError::Custom(
+                "Couldn't rebuild distributor from spend a second time - something's pretty off"
+                    .to_string(),
+            ));
+        };
+
+        while let Some(registry_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
+        {
+            let Some(new_registry) = Self::from_spend(
+                ctx,
+                registry_spend,
+                Some(registry.reserve.child_lineage_proof()),
+                registry.info.constants,
+                Signature::default(),
+            )?
+            else {
+                break;
+            };
+
+            registry = new_registry;
         }
-
-        todo!("search for other reward distributors, set to latest one");
 
         // filter out 'old' reserve spend from other_cats
         // finish_spend will add the latest reserve spend

@@ -5,7 +5,7 @@ use chia_sdk_types::{
     puzzles::{P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution},
     run_puzzle,
 };
-use clvm_traits::{clvm_quote, clvm_tuple, match_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote, clvm_tuple, match_tuple};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
@@ -181,15 +181,19 @@ impl Reserve {
     pub fn child(&self, child_amount: u64) -> Self {
         Self::new(
             self.coin.coin_id(),
-            LineageProof {
-                parent_parent_coin_info: self.coin.parent_coin_info,
-                parent_inner_puzzle_hash: self.inner_puzzle_hash,
-                parent_amount: self.coin.amount,
-            },
+            self.child_lineage_proof(),
             self.asset_id,
             self.controller_singleton_struct_hash,
             self.nonce,
             child_amount,
         )
+    }
+
+    pub fn child_lineage_proof(&self) -> LineageProof {
+        LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.inner_puzzle_hash,
+            parent_amount: self.coin.amount,
+        }
     }
 }
