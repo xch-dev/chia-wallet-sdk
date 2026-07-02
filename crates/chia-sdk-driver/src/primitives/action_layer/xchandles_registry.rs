@@ -11,11 +11,11 @@ use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
-    eve_singleton_inner_puzzle, ActionLayer, ActionLayerSolution, ActionSingleton,
-    DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
-    XchandlesActionLog, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateAction,
-    XchandlesExpireAction, XchandlesExtendAction, XchandlesInitiateUpdateAction,
-    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction,
+    ActionLayer, ActionLayerSolution, ActionSingleton, DelegatedStateAction, DriverError, Layer,
+    Puzzle, SingletonAction, Spend, SpendContext, XchandlesActionLog,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateAction, XchandlesExpireAction,
+    XchandlesExtendAction, XchandlesInitiateUpdateAction, XchandlesOracleAction,
+    XchandlesRefundAction, XchandlesRegisterAction, eve_singleton_inner_puzzle,
 };
 
 use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
@@ -487,20 +487,53 @@ impl XchandlesRegistry {
     ) -> Result<Option<Self>, DriverError> {
         let mut registry = None;
 
-        for spend in mempool_item.coin_spends {
+        for spend in &mempool_item.coin_spends {
             if let Some(parsed_registry) = Self::from_spend(
                 ctx,
-                &spend,
+                spend,
                 constants,
                 mempool_item.aggregated_signature.clone(),
             )? {
                 registry = Some(parsed_registry);
-            } else {
-                ctx.insert(spend);
+                break;
             }
         }
 
-        Ok(registry)
+        let Some(mut registry) = registry else {
+            return Ok(None);
+        };
+
+        // find next child coin, if it exists
+        // amount != 0 makes sure we don't try to parse a slot
+        while let Some(registry_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
+        {
+            let Some(new_registry) = Self::from_spend(
+                ctx,
+                registry_spend,
+                registry.info.constants,
+                Signature::default(),
+            )?
+            else {
+                break;
+            };
+
+            registry = new_registry;
+        }
+
+        // after everything is done, add all other spends to the context
+        for spend in mempool_item.coin_spends {
+            if spend.coin == registry.coin {
+                continue;
+            }
+
+            ctx.insert(spend);
+        }
+
+        registry.set_pending_signature(mempool_item.aggregated_signature);
+        Ok(Some(registry))
     }
 }
 

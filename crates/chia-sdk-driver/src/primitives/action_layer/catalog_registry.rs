@@ -297,13 +297,12 @@ impl CatalogRegistry {
 
         // find next child coin, if it exists
         // amount != 0 makes sure we don't try to parse a slot
-
         while let Some(registry_spend) = mempool_item
             .coin_spends
             .iter()
             .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
         {
-            let Some(new_registry) = CatalogRegistry::from_spend(
+            let Some(new_registry) = Self::from_spend(
                 ctx,
                 registry_spend,
                 registry.info.constants,
