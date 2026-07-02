@@ -671,6 +671,15 @@ impl RewardDistributor {
             registry = new_registry;
         }
 
+        // insert all other spends into the context
+        for spend in mempool_item.coin_spends {
+            if spend.coin == registry.coin || other_cats.iter().any(|c| c.cat.coin == spend.coin) {
+                continue;
+            }
+
+            ctx.insert(spend);
+        }
+
         // filter out 'old' reserve spend from other_cats
         // finish_spend will add the latest reserve spend
         other_cats.retain(|c| c.cat.coin != registry.reserve.coin);

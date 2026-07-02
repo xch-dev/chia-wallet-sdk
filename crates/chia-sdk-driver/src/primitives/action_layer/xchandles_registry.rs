@@ -488,12 +488,9 @@ impl XchandlesRegistry {
         let mut registry = None;
 
         for spend in &mempool_item.coin_spends {
-            if let Some(parsed_registry) = Self::from_spend(
-                ctx,
-                spend,
-                constants,
-                mempool_item.aggregated_signature.clone(),
-            )? {
+            if let Some(parsed_registry) =
+                Self::from_spend(ctx, spend, constants, Signature::default())?
+            {
                 registry = Some(parsed_registry);
                 break;
             }
