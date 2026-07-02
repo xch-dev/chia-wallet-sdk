@@ -11,8 +11,8 @@ use chia_sdk_types::puzzles::{
     SlotInfo,
 };
 use chia_sdk_types::{Condition, Conditions};
-use clvm_traits::{clvm_tuple, match_tuple, FromClvm};
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_traits::{FromClvm, clvm_tuple, match_tuple};
+use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -574,49 +574,58 @@ impl RewardDistributor {
         mempool_item: SpendBundle,
         constants: RewardDistributorConstants,
     ) -> Result<Option<Self>, DriverError> {
-        let mut distributor = None;
+        let mut registry = None;
 
         let mut other_cats = vec![];
 
-        for spend in mempool_item.coin_spends {
-            if let Some(parsed_distributor) =
-                Self::from_spend(ctx, &spend, None, constants, Signature::default())?
+        for spend in &mempool_item.coin_spends {
+            if registry.is_none()
+                && let Some(parsed_registry) =
+                    Self::from_spend(ctx, &spend, None, constants, Signature::default())?
             {
-                distributor = Some(parsed_distributor);
+                registry = Some(parsed_registry);
             } else {
-                // regular spends go into the spend context, while CAT spends are
-                // added to other_cats so the ring is built when the registry
+                // CAT spends are added to other_cats so the ring is built when the registry
                 // is spent (so it includes the reserve)
-                // also, the reserve is removed from other_cats
                 let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
                 let puzzle = Puzzle::parse(ctx, puzzle_ptr);
                 let solution_ptr = ctx.alloc(&spend.solution)?;
 
-                if let Ok(Some(parsed_cat)) =
-                    Cat::parse(ctx, spend.coin, puzzle, solution_ptr)
-                    && parsed_cat.cat.info.asset_id == constants.reserve_asset_id {
-                        other_cats.push(CatSpend::new(
-                            parsed_cat.cat,
-                            Spend::new(parsed_cat.p2_puzzle.ptr(), parsed_cat.p2_solution),
-                        ));
-                        continue;
-                    }
-
-                ctx.insert(spend);
+                if let Ok(Some(parsed_cat)) = Cat::parse(ctx, spend.coin, puzzle, solution_ptr)
+                    && parsed_cat.cat.info.asset_id == constants.reserve_asset_id
+                {
+                    other_cats.push(CatSpend::new(
+                        parsed_cat.cat,
+                        Spend::new(parsed_cat.p2_puzzle.ptr(), parsed_cat.p2_solution),
+                    ));
+                }
             }
         }
 
-        if let Some(mut distributor) = distributor {
-            // filter out 'old' reserve spend from other_cats
-            // finish_spend will add the latest reserve spend
-            other_cats.retain(|c| c.cat.coin != distributor.reserve.coin);
+        let Some(mut registry) = registry else {
+            return Ok(None);
+        };
 
-            distributor.set_pending_other_cats(other_cats);
-            distributor.set_pending_signature(mempool_item.aggregated_signature.clone());
-            Ok(Some(distributor))
-        } else {
-            Ok(None)
+        // find & set actual reserve
+        // note that we initialized the registy with reserve_lineage_proof=None, so
+        // only the reserve parent id and amount are correct (but NOT puzzle hash)
+
+        for reserve_spend in mempool_item.coin_spends.iter().filter(|c| {
+            c.coin.amount == registry.reserve.coin.amount
+                && c.coin.parent_coin_info == registry.reserve.coin.parent_coin_info
+        }) {
+            todo!("build resrve, check, set and break if correct");
         }
+
+        todo!("search for other reward distributors, set to latest one");
+
+        // filter out 'old' reserve spend from other_cats
+        // finish_spend will add the latest reserve spend
+        other_cats.retain(|c| c.cat.coin != registry.reserve.coin);
+
+        registry.set_pending_other_cats(other_cats);
+        registry.set_pending_signature(mempool_item.aggregated_signature);
+        Ok(Some(registry))
     }
 }
 
