@@ -1,12 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
+    Conditions, Mod,
     puzzles::{
         CompactCoinProof, XchandlesDataValue, XchandlesExecuteUpdateActionArgs,
         XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue,
         XchandlesNewDataPuzzleHashes, XchandlesSlotNonce, XchandlesUpdateSlotValue,
     },
-    Conditions, Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
@@ -16,7 +16,7 @@ use crate::{
     XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{coin_id_from_owner_proof, XchandlesExecuteUpdateActionLog};
+use super::{XchandlesExecuteUpdateActionLog, coin_id_from_owner_proof};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExecuteUpdateAction {
@@ -133,7 +133,7 @@ impl XchandlesExecuteUpdateAction {
 
         // spend slot
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
-        let handle_hash = handle_slot.info.value.handle_hash;
+        let spent_update_slot_value_hash: TreeHash = update_slot.info.value_hash.into();
 
         handle_slot.spend(ctx, my_inner_puzzle_hash)?;
         update_slot.spend(ctx, my_inner_puzzle_hash)?;
@@ -142,9 +142,7 @@ impl XchandlesExecuteUpdateAction {
             Conditions::new().send_message(
                 58,
                 XchandlesRegistryReceivedMessagePrefix::execute_update_old_owner(
-                    handle_hash,
-                    new_owner_launcher_id,
-                    new_resolved_launcher_id,
+                    spent_update_slot_value_hash,
                 )
                 .into(),
                 vec![ctx.alloc(&registry.coin.puzzle_hash)?],
@@ -152,9 +150,7 @@ impl XchandlesExecuteUpdateAction {
             Conditions::new().send_message(
                 18,
                 XchandlesRegistryReceivedMessagePrefix::execute_update_new_owner(
-                    handle_hash,
-                    new_owner_launcher_id,
-                    new_resolved_launcher_id,
+                    spent_update_slot_value_hash,
                 )
                 .into(),
                 vec![ctx.alloc(&registry.coin.puzzle_hash)?],
@@ -162,9 +158,7 @@ impl XchandlesExecuteUpdateAction {
             Conditions::new().send_message(
                 18,
                 XchandlesRegistryReceivedMessagePrefix::execute_update_new_resolved(
-                    handle_hash,
-                    new_owner_launcher_id,
-                    new_resolved_launcher_id,
+                    spent_update_slot_value_hash,
                 )
                 .into(),
                 vec![ctx.alloc(&registry.coin.puzzle_hash)?],

@@ -65,7 +65,7 @@ impl XchandlesInitiateUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id, self.relative_block_height))
     }
 
-    pub fn update_slot_value_from_solution(
+    pub fn created_update_slot_value_from_solution(
         solution: &XchandlesInitiateUpdateActionSolution,
         relative_block_height: u32,
     ) -> XchandlesUpdateSlotValue {
@@ -96,8 +96,10 @@ impl XchandlesInitiateUpdateAction {
             solution.current_owner,
             solution.current_slot_value.owner_launcher_id,
         );
-        let created_update_slot =
-            Self::update_slot_value_from_solution(&solution, constants.relative_block_height);
+        let created_update_slot = Self::created_update_slot_value_from_solution(
+            &solution,
+            constants.relative_block_height,
+        );
 
         Ok(XchandlesInitiateUpdateActionLog {
             spent_slot,
@@ -129,8 +131,10 @@ impl XchandlesInitiateUpdateAction {
             current_owner,
             min_height,
         };
-        let created_update_slot =
-            Self::update_slot_value_from_solution(&action_solution, self.relative_block_height);
+        let created_update_slot = Self::created_update_slot_value_from_solution(
+            &action_solution,
+            self.relative_block_height,
+        );
 
         let action_solution = ctx.alloc(&action_solution)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
