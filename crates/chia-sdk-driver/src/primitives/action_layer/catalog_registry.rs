@@ -1,6 +1,6 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
-use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
+use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonSolution};
 use chia_sdk_types::puzzles::{CatalogSlotValue, DelegatedStateActionSolution, SlotInfo};
 use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
@@ -282,20 +282,51 @@ impl CatalogRegistry {
     ) -> Result<Option<Self>, DriverError> {
         let mut registry = None;
 
-        for spend in mempool_item.coin_spends {
-            if let Some(parsed_registry) = Self::from_spend(
-                ctx,
-                &spend,
-                constants,
-                mempool_item.aggregated_signature.clone(),
-            )? {
+        for spend in &mempool_item.coin_spends {
+            if let Some(parsed_registry) =
+                Self::from_spend(ctx, spend, constants, Signature::default())?
+            {
                 registry = Some(parsed_registry);
-            } else {
-                ctx.insert(spend);
+                break;
             }
         }
 
-        Ok(registry)
+        let Some(mut registry) = registry else {
+            return Ok(None);
+        };
+
+        // find next child coin, if it exists
+        // amount != 0 makes sure we don't try to parse a slot
+
+        while let Some(registry_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
+        {
+            let Some(new_registry) = CatalogRegistry::from_spend(
+                ctx,
+                registry_spend,
+                registry.info.constants,
+                Signature::default(),
+            )?
+            else {
+                break;
+            };
+
+            registry = new_registry;
+        }
+
+        // after everything is done, add all other spends to the context
+        for spend in mempool_item.coin_spends {
+            if spend.coin == registry.coin {
+                continue;
+            }
+
+            ctx.insert(spend);
+        }
+
+        registry.set_pending_signature(mempool_item.aggregated_signature);
+        Ok(Some(registry))
     }
 }
 
