@@ -3315,7 +3315,7 @@ export declare class XchandlesRegistry {
   expire(slot: XchandlesHandleSlot, numPeriods: bigint, baseHandlePrice: bigint, registrationPeriod: bigint, precommitCoin: XchandlesPrecommitCoin, startTime: bigint, newOwnerInnerPuzzleHash: Uint8Array, newResolvedInnerPuzzleHash: Uint8Array): XchandlesTripleConditionsResult
   oracle(slot: XchandlesHandleSlot): Array<Program>
   initiateUpdate(slot: XchandlesHandleSlot, newOwnerLauncherId: Uint8Array, newResolvedLauncherId: Uint8Array, currentOwner: CompactCoinProof, minHeight: number): Array<Program>
-  executeUpdate(handleSlot: XchandlesHandleSlot, updateSlot: XchandlesUpdateSlot, newOwnerLauncherId: Uint8Array, newResolvedLauncherId: Uint8Array, currentOwner: CompactCoinProof, minExecutionHeight: number, newOwnerInnerPuzzleHash: Uint8Array, newResolvedInnerPuzzleHash: Uint8Array): XchandlesExecuteUpdateResult
+  executeUpdate(handleSlot: XchandlesHandleSlot, updateSlot: XchandlesUpdateSlot, newOwnerLauncherId: Uint8Array, newResolvedLauncherId: Uint8Array, currentOwner: CompactCoinProof, newOwnerInnerPuzzleHash: Uint8Array, newResolvedInnerPuzzleHash: Uint8Array): XchandlesExecuteUpdateResult
   delegatedState(newState: XchandlesRegistryState, otherSingletonInnerPuzzleHash: Uint8Array): Array<Program>
   actualNeighbors(newHandleHash: Uint8Array, onChainLeftSlot: XchandlesHandleSlot, onChainRightSlot: XchandlesHandleSlot): XchandlesRegistryActualNeighborsResult
   actualHandleSlot(slot: XchandlesHandleSlot): XchandlesHandleSlot

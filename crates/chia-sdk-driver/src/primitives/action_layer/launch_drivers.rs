@@ -2181,7 +2181,6 @@ mod tests {
                         inner_puzzle_hash: did.info.inner_puzzle_hash().into(),
                         amount: 1,
                     },
-                    min_height + xchandles_constants.relative_block_height,
                     owner_did.info.inner_puzzle_hash().into(),
                     owner_did.info.inner_puzzle_hash().into(),
                 )?;

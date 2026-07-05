@@ -106,13 +106,14 @@ impl XchandlesExecuteUpdateAction {
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
         current_owner: CompactCoinProof,
-        min_execution_height: u32,
         new_owner_inner_puzzle_hash: Bytes32,
         new_resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Conditions), DriverError> {
         // spend self
         let handle_slot = registry.actual_handle_slot(handle_slot);
         let update_slot = registry.actual_update_slot(update_slot);
+
+        let min_execution_height = update_slot.info.value.min_height;
 
         let action_solution = ctx.alloc(&XchandlesExecuteUpdateActionSolution {
             current_slot_value: handle_slot.info.value,

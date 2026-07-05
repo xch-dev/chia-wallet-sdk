@@ -5,14 +5,15 @@ use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_sdk_driver::{
-    DelegatedStateAction, Offer, PrecommitCoin, SpendContext,
-    XchandlesConstants, XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExtendAction,
-    XchandlesInitiateUpdateAction, XchandlesOracleAction, XchandlesPrecommitValue as DriverXchandlesPrecommitValue,
-    XchandlesRefundAction, XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry,
-    XchandlesRegistryState, launch_xchandles_registry as driver_launch_xchandles_registry,
+    DelegatedStateAction, Offer, PrecommitCoin, SpendContext, XchandlesConstants,
+    XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExtendAction,
+    XchandlesInitiateUpdateAction, XchandlesOracleAction,
+    XchandlesPrecommitValue as DriverXchandlesPrecommitValue, XchandlesRefundAction,
+    XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry, XchandlesRegistryState,
+    launch_xchandles_registry as driver_launch_xchandles_registry,
 };
 use chia_sdk_types::{
-    Conditions, Mod, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    Conditions, MAINNET_CONSTANTS, Mod, TESTNET11_CONSTANTS,
     puzzles::{
         CompactCoinProof, XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue,
         XchandlesPricingSolution, XchandlesUpdateSlotValue,
@@ -259,9 +260,10 @@ impl XchandlesPrecommitCoin {
         precommit_amount: u64,
     ) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
-        let controller_singleton_struct_hash = SingletonStruct::new(controller_singleton_launcher_id)
-            .tree_hash()
-            .into();
+        let controller_singleton_struct_hash =
+            SingletonStruct::new(controller_singleton_launcher_id)
+                .tree_hash()
+                .into();
         let precommit = PrecommitCoin::new(
             &mut ctx,
             parent_coin_id,
@@ -392,7 +394,9 @@ impl XchandlesRegistry {
             .clone()
             .into_iter()
             .map(|slot_value| {
-                XchandlesHandleSlot::from_slot(registry.created_handle_slot_value_to_slot(slot_value))
+                XchandlesHandleSlot::from_slot(
+                    registry.created_handle_slot_value_to_slot(slot_value),
+                )
             })
             .collect())
     }
@@ -406,7 +410,9 @@ impl XchandlesRegistry {
             .clone()
             .into_iter()
             .map(|slot_value| {
-                XchandlesUpdateSlot::from_slot(registry.created_update_slot_value_to_slot(slot_value))
+                XchandlesUpdateSlot::from_slot(
+                    registry.created_update_slot_value_to_slot(slot_value),
+                )
             })
             .collect())
     }
@@ -485,9 +491,8 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let (registry_conditions, owner_conditions, resolved_conditions) = registry
-            .new_action::<XchandlesRegisterAction>()
-            .spend(
+        let (registry_conditions, owner_conditions, resolved_conditions) =
+            registry.new_action::<XchandlesRegisterAction>().spend(
                 &mut ctx,
                 &mut registry,
                 left_slot.to_slot(),
@@ -518,16 +523,14 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let conditions = registry
-            .new_action::<XchandlesRefundAction>()
-            .spend(
-                &mut ctx,
-                &mut registry,
-                &precommit_coin.to_precommit_coin(),
-                pricing_puzzle_reveal.1,
-                pricing_puzzle_solution.1,
-                slot.map(XchandlesHandleSlot::to_slot),
-            )?;
+        let conditions = registry.new_action::<XchandlesRefundAction>().spend(
+            &mut ctx,
+            &mut registry,
+            &precommit_coin.to_precommit_coin(),
+            pricing_puzzle_reveal.1,
+            pricing_puzzle_solution.1,
+            slot.map(XchandlesHandleSlot::to_slot),
+        )?;
 
         self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
@@ -546,9 +549,8 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let (conditions, notarized_payment) = registry
-            .new_action::<XchandlesExtendAction>()
-            .spend(
+        let (conditions, notarized_payment) =
+            registry.new_action::<XchandlesExtendAction>().spend(
                 &mut ctx,
                 &mut registry,
                 &handle,
@@ -581,9 +583,8 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let (registry_conditions, owner_conditions, resolved_conditions) = registry
-            .new_action::<XchandlesExpireAction>()
-            .spend(
+        let (registry_conditions, owner_conditions, resolved_conditions) =
+            registry.new_action::<XchandlesExpireAction>().spend(
                 &mut ctx,
                 &mut registry,
                 slot.to_slot(),
@@ -608,9 +609,11 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let conditions = registry
-            .new_action::<XchandlesOracleAction>()
-            .spend(&mut ctx, &mut registry, slot.to_slot())?;
+        let conditions = registry.new_action::<XchandlesOracleAction>().spend(
+            &mut ctx,
+            &mut registry,
+            slot.to_slot(),
+        )?;
 
         self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
@@ -649,7 +652,6 @@ impl XchandlesRegistry {
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
         current_owner: CompactCoinProof,
-        min_execution_height: u32,
         new_owner_inner_puzzle_hash: Bytes32,
         new_resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<XchandlesExecuteUpdateResult> {
@@ -666,7 +668,6 @@ impl XchandlesRegistry {
                 new_owner_launcher_id,
                 new_resolved_launcher_id,
                 current_owner,
-                min_execution_height,
                 new_owner_inner_puzzle_hash,
                 new_resolved_inner_puzzle_hash,
             )?;
@@ -689,14 +690,12 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let (conditions, action_spend) = registry
-            .new_action::<DelegatedStateAction>()
-            .spend(
-                &mut ctx,
-                registry.coin,
-                new_state,
-                other_singleton_inner_puzzle_hash,
-            )?;
+        let (conditions, action_spend) = registry.new_action::<DelegatedStateAction>().spend(
+            &mut ctx,
+            registry.coin,
+            new_state,
+            other_singleton_inner_puzzle_hash,
+        )?;
 
         registry.insert_action_spend(&mut ctx, action_spend)?;
 
@@ -742,24 +741,27 @@ impl XchandlesRegistry {
     ) -> Result<Option<XchandlesRegistryInfoFromLauncher>> {
         let mut ctx = launcher_solution.0.lock().unwrap();
 
-        Ok(
-            SdkXchandlesRegistry::from_launcher_solution(
-                &mut ctx,
-                launcher_coin,
-                launcher_solution.1,
-            )?
-            .map(|(registry, slots, initial_registration_asset_id, initial_base_price)| {
+        Ok(SdkXchandlesRegistry::from_launcher_solution(
+            &mut ctx,
+            launcher_coin,
+            launcher_solution.1,
+        )?
+        .map(
+            |(registry, slots, initial_registration_asset_id, initial_base_price)| {
                 XchandlesRegistryInfoFromLauncher {
                     registry: XchandlesRegistry {
                         clvm: launcher_solution.0.clone(),
                         registry: Arc::new(Mutex::new(registry)),
                     },
-                    initial_slots: slots.into_iter().map(XchandlesHandleSlot::from_slot).collect(),
+                    initial_slots: slots
+                        .into_iter()
+                        .map(XchandlesHandleSlot::from_slot)
+                        .collect(),
                     initial_registration_asset_id,
                     initial_base_price,
                 }
-            }),
-        )
+            },
+        ))
     }
 }
 
@@ -805,7 +807,10 @@ impl Clvm {
                 clvm: self.0.clone(),
                 registry: Arc::new(Mutex::new(registry)),
             },
-            slots: slots.into_iter().map(XchandlesHandleSlot::from_slot).collect(),
+            slots: slots
+                .into_iter()
+                .map(XchandlesHandleSlot::from_slot)
+                .collect(),
             security_coin,
         })
     }
