@@ -18,8 +18,7 @@ use crate::{
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
-pub type LenientNftLayers<M, I> =
-    SingletonLayer<NftStateLayer<M, NftOwnershipLayer<HashedPtr, I>>>;
+pub type LenientNftLayers<M, I> = SingletonLayer<NftStateLayer<M, NftOwnershipLayer<HashedPtr, I>>>;
 
 /// The result of a lenient NFT parse. Standard NFTs (with the royalty transfer program) produce
 /// the [`Standard`](ParsedNft::Standard) variant; NFTs with any other transfer program produce
@@ -139,8 +138,7 @@ impl NftInfo {
             Err(e) => return Err(e),
         }
 
-        let Some(layers) =
-            LenientNftLayers::<HashedPtr, Puzzle>::parse_puzzle(allocator, puzzle)?
+        let Some(layers) = LenientNftLayers::<HashedPtr, Puzzle>::parse_puzzle(allocator, puzzle)?
         else {
             return Ok(None);
         };
@@ -445,7 +443,10 @@ mod tests {
 
         // Strict parse must fail with NonStandardLayer (not a generic error).
         assert!(
-            matches!(NftInfo::parse(ctx, puzzle), Err(DriverError::NonStandardLayer)),
+            matches!(
+                NftInfo::parse(ctx, puzzle),
+                Err(DriverError::NonStandardLayer)
+            ),
             "expected Err(NonStandardLayer) from strict parse"
         );
 
