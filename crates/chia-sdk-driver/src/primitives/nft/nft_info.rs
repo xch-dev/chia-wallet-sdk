@@ -364,7 +364,7 @@ mod tests {
         Ok(())
     }
 
-    /// parse_lenient returns Standard for a normal NFT (same fields as parse).
+    /// `parse_lenient` returns Standard for a normal NFT (same fields as parse).
     #[test]
     fn test_parse_lenient_standard_nft() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
@@ -409,8 +409,8 @@ mod tests {
         Ok(())
     }
 
-    /// parse_lenient returns CustomTransferProgram for an NFT whose transfer program is not
-    /// the standard royalty puzzle. Strict parse() must return Err(NonStandardLayer) for the
+    /// `parse_lenient` returns `CustomTransferProgram` for an NFT whose transfer program is not
+    /// the standard royalty puzzle. Strict `parse()` must return Err(NonStandardLayer) for the
     /// same puzzle.
     #[test]
     fn test_parse_lenient_custom_transfer_program() -> anyhow::Result<()> {
@@ -473,7 +473,7 @@ mod tests {
             parsed_transfer.tree_hash(),
             custom_transfer_program.tree_hash()
         );
-        assert_eq!(parsed_p2.tree_hash(), p2.tree_hash().into());
+        assert_eq!(parsed_p2.tree_hash(), p2.tree_hash());
 
         Ok(())
     }
