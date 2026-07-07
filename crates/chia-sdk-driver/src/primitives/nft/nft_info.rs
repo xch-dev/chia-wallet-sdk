@@ -18,6 +18,26 @@ use crate::{
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
+pub type LenientNftLayers<M, I> =
+    SingletonLayer<NftStateLayer<M, NftOwnershipLayer<HashedPtr, I>>>;
+
+/// The result of a lenient NFT parse. Standard NFTs (with the royalty transfer program) produce
+/// the [`Standard`](ParsedNft::Standard) variant; NFTs with any other transfer program produce
+/// [`CustomTransferProgram`](ParsedNft::CustomTransferProgram).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParsedNft {
+    Standard(NftInfo, Puzzle),
+    CustomTransferProgram {
+        launcher_id: Bytes32,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        current_owner: Option<Bytes32>,
+        /// The opaque tree hash of the custom transfer program puzzle.
+        transfer_program: HashedPtr,
+        p2_puzzle: Puzzle,
+    },
+}
+
 /// Information needed to construct the outer puzzle of an NFT.
 /// It does not include the inner puzzle, which must be stored separately.
 ///
@@ -100,6 +120,41 @@ impl NftInfo {
         let p2_puzzle = layers.inner_puzzle.inner_puzzle.inner_puzzle;
 
         Ok(Some((Self::from_layers(&layers), p2_puzzle)))
+    }
+
+    /// Like [`parse`](Self::parse), but falls back to a lenient parse when the transfer program
+    /// is not the standard [`RoyaltyTransferLayer`].
+    ///
+    /// Returns [`ParsedNft::Standard`] for normal NFTs and
+    /// [`ParsedNft::CustomTransferProgram`] for NFTs with a non-standard transfer program.
+    /// Returns [`None`] if the puzzle is not an NFT at all.
+    pub fn parse_lenient(
+        allocator: &Allocator,
+        puzzle: Puzzle,
+    ) -> Result<Option<ParsedNft>, DriverError> {
+        match Self::parse(allocator, puzzle) {
+            Ok(Some((info, p2))) => return Ok(Some(ParsedNft::Standard(info, p2))),
+            Ok(None) => return Ok(None),
+            Err(DriverError::NonStandardLayer) => {}
+            Err(e) => return Err(e),
+        }
+
+        let Some(layers) =
+            LenientNftLayers::<HashedPtr, Puzzle>::parse_puzzle(allocator, puzzle)?
+        else {
+            return Ok(None);
+        };
+
+        let p2_puzzle = layers.inner_puzzle.inner_puzzle.inner_puzzle;
+
+        Ok(Some(ParsedNft::CustomTransferProgram {
+            launcher_id: layers.launcher_id,
+            metadata: layers.inner_puzzle.metadata,
+            metadata_updater_puzzle_hash: layers.inner_puzzle.metadata_updater_puzzle_hash,
+            current_owner: layers.inner_puzzle.inner_puzzle.current_owner,
+            transfer_program: layers.inner_puzzle.inner_puzzle.transfer_layer,
+            p2_puzzle,
+        }))
     }
 
     pub fn from_layers<I>(layers: &StandardNftLayers<HashedPtr, I>) -> Self
@@ -245,7 +300,9 @@ impl SingletonInfo for NftInfo {
 
 #[cfg(test)]
 mod tests {
+    use chia_protocol::Bytes32;
     use chia_puzzle_types::nft::NftMetadata;
+    use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::{Conditions, conditions::TransferNft};
 
@@ -305,6 +362,117 @@ mod tests {
 
         assert_eq!(nft_info, original_nft.info);
         assert_eq!(p2_puzzle.curried_puzzle_hash(), alice.puzzle_hash.into());
+
+        Ok(())
+    }
+
+    /// parse_lenient returns Standard for a normal NFT (same fields as parse).
+    #[test]
+    fn test_parse_lenient_standard_nft() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+
+        let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(ctx, &NftMint::new(metadata, alice.puzzle_hash, 300, None))?;
+
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
+        let original_nft = nft;
+        let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let puzzle_reveal = sim
+            .puzzle_reveal(original_nft.coin.coin_id())
+            .expect("missing nft puzzle");
+
+        let mut allocator = Allocator::new();
+        let ptr = puzzle_reveal.to_clvm(&mut allocator)?;
+        let puzzle = Puzzle::parse(&allocator, ptr);
+
+        let result = NftInfo::parse_lenient(&allocator, puzzle)?.expect("not an nft");
+
+        let ParsedNft::Standard(nft_info, p2_puzzle) = result else {
+            panic!("expected Standard variant, got CustomTransferProgram");
+        };
+
+        assert_eq!(nft_info, original_nft.info);
+        assert_eq!(p2_puzzle.curried_puzzle_hash(), alice.puzzle_hash.into());
+
+        Ok(())
+    }
+
+    /// parse_lenient returns CustomTransferProgram for an NFT whose transfer program is not
+    /// the standard royalty puzzle. Strict parse() must return Err(NonStandardLayer) for the
+    /// same puzzle.
+    #[test]
+    fn test_parse_lenient_custom_transfer_program() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let launcher_id = Bytes32::new([42; 32]);
+        let metadata = HashedPtr::NIL;
+        let metadata_updater_puzzle_hash = NFT_METADATA_UPDATER_DEFAULT_HASH.into();
+        let current_owner: Option<Bytes32> = None;
+
+        // Use NIL as a stand-in custom transfer program (not the royalty puzzle).
+        let custom_transfer_program = HashedPtr::NIL;
+
+        // Use NIL as a minimal p2 inner puzzle.
+        let p2_ptr = ctx.alloc(&clvm_traits::clvm_quote!(()))?;
+        let p2 = HashedPtr::from_ptr(ctx, p2_ptr);
+
+        // Build the full NFT puzzle using LenientNftLayers so the transfer program layer is arbitrary.
+        let layers: LenientNftLayers<HashedPtr, HashedPtr> = SingletonLayer::new(
+            launcher_id,
+            NftStateLayer::new(
+                metadata,
+                metadata_updater_puzzle_hash,
+                NftOwnershipLayer::new(current_owner, custom_transfer_program, p2),
+            ),
+        );
+
+        let puzzle_ptr = layers.construct_puzzle(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle_ptr);
+
+        // Strict parse must fail with NonStandardLayer (not a generic error).
+        assert!(
+            matches!(NftInfo::parse(ctx, puzzle), Err(DriverError::NonStandardLayer)),
+            "expected Err(NonStandardLayer) from strict parse"
+        );
+
+        // Lenient parse must succeed and return the CustomTransferProgram variant.
+        let result = NftInfo::parse_lenient(ctx, puzzle)?.expect("not an nft");
+
+        let ParsedNft::CustomTransferProgram {
+            launcher_id: parsed_launcher_id,
+            metadata: parsed_metadata,
+            metadata_updater_puzzle_hash: parsed_updater_hash,
+            current_owner: parsed_owner,
+            transfer_program: parsed_transfer,
+            p2_puzzle: parsed_p2,
+        } = result
+        else {
+            panic!("expected CustomTransferProgram variant, got Standard");
+        };
+
+        assert_eq!(parsed_launcher_id, launcher_id);
+        assert_eq!(parsed_metadata.tree_hash(), metadata.tree_hash());
+        assert_eq!(parsed_updater_hash, metadata_updater_puzzle_hash);
+        assert_eq!(parsed_owner, current_owner);
+        assert_eq!(
+            parsed_transfer.tree_hash(),
+            custom_transfer_program.tree_hash()
+        );
+        assert_eq!(parsed_p2.tree_hash(), p2.tree_hash().into());
 
         Ok(())
     }
