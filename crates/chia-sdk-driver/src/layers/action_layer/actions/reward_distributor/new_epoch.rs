@@ -141,7 +141,6 @@ impl RewardDistributorNewEpochAction {
             slot_next_epoch_initialized: reward_slot.info.value.next_epoch_initialized,
             slot_total_rewards: reward_slot.info.value.rewards,
             epoch_total_rewards,
-            fee,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 

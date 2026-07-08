@@ -13,8 +13,7 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
-    RewardDistributorWithdrawIncentivesActionLog, SingletonAction,
-    Slot, Spend, SpendContext,
+    RewardDistributorWithdrawIncentivesActionLog, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,7 +127,6 @@ impl RewardDistributorWithdrawIncentivesAction {
             reward_slot_total_rewards: reward_slot.info.value.rewards,
             clawback_ph: commitment_slot.info.value.clawback_ph,
             committed_value: commitment_slot.info.value.rewards,
-            withdrawal_share,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 

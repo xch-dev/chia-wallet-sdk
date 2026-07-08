@@ -8,11 +8,11 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{CompactLineageProof, NONCE_WRAPPER_PUZZLE_HASH},
     Mod,
+    puzzles::{CompactLineageProof, NONCE_WRAPPER_PUZZLE_HASH},
 };
 
-pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 970] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 980] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff2effff04ff3e
@@ -29,29 +29,29 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 970] = hex!(
     ffff04ffff02ff09ffff04ff09ffff04ff23ffff04ffff02ff5dffff04ff5dff
     ff04ff8207e7ffff04ffff30ff8209e7ffff02ff15ffff04ff2dffff04ff23ff
     ff04ffff02ff09ffff04ff09ff138080ffff04ff8215e7ff808080808080ff82
-    1de780ff8080808080ff7380808080ffff04ffff02ff15ffff04ff2dffff04ff
-    2bffff04ffff0bffff0101ff2b80ffff04ff47ffff04ff81a7ffff04ffff02ff
-    15ffff04ff2dffff04ff5bffff04ffff0bffff0101ff5b80ffff04ffff0bffff
-    0101ff82016780ffff04ff8202e7ffff04ff81bbff8080808080808080ff8080
-    808080808080ff808080808080ffff02ff09ffff04ff09ffff04ffff02ff09ff
-    ff04ff09ffff04ff2fffff04ff8205fbff8217fb80808080ffff04ffff04ff02
-    ffff04ffff0101ffff04ffff04ff02ff8080ff80808080ff808080808080ff01
-    8080ffff04ffff02ff0affff04ff16ffff04ff81bdffff04ffff02ff04ffff04
-    ff04ffff04ff8205fdffff0101808080ffff04ff82017dff808080808080ff01
-    8080ffff01ff04ff17ffff04ffff04ffff0146ffff04ff820bfdff808080ff1f
-    808080ff0180ffff04ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bff
-    ff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff05
-    80ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff0101808080
-    80ffff01ff0bffff018201018080ff0180ffff01ff02ffff03ff05ffff01ff30
-    ffff02ff02ffff04ff02ffff04ff0dffff04ff0bffff010180808080ff11ffff
-    03ffff22ff0fffff3dff19ffff01028080ffff0181ffff198080ffff010b80ff
-    018080808080ff018080
+    1de780ffff04ff73ff808080808080ff7380808080ffff04ffff02ff15ffff04
+    ff2dffff04ff2bffff04ffff0bffff0101ff2b80ffff04ff47ffff04ff81a7ff
+    ff04ffff02ff15ffff04ff2dffff04ff5bffff04ffff0bffff0101ff5b80ffff
+    04ffff0bffff0101ff82016780ffff04ff8202e7ffff04ff81bbff8080808080
+    808080ff8080808080808080ff808080808080ffff02ff09ffff04ff09ffff04
+    ffff02ff09ffff04ff09ffff04ff2fffff04ff8205fbff8217fb80808080ffff
+    04ffff04ff02ffff04ffff0101ffff04ffff04ff02ff8080ff80808080ff8080
+    80808080ff018080ffff04ffff02ff0affff04ff16ffff04ff81bdffff04ffff
+    02ff04ffff04ff04ffff04ff8205fdffff0101808080ffff04ff82017dff8080
+    80808080ff018080ffff01ff04ff17ffff04ffff04ffff0146ffff04ff820bfd
+    ff808080ff1f808080ff0180ffff04ffff01ff02ffff03ff03ffff01ff0bffff
+    0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff01
+    82010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bff
+    ff010180808080ffff01ff0bffff018201018080ff0180ffff01ff02ffff03ff
+    05ffff01ff30ffff02ff02ffff04ff02ffff04ff0dffff04ff0bffff04ff17ff
+    ff01018080808080ff11ffff03ffff22ff1fffff09ff11ff178080ffff0181ff
+    ff198080ffff010b80ff018080808080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    f69ea9bbc5856d5a060c65bb35a8b6c9c4a6487a75fa298505ad469a73d10a67
+    41e6c58326310e6d3f377cb8be48f94674e19da3d92b96ba37a752b75346818b
     "
 ));
 
