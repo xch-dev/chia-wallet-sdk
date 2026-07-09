@@ -550,6 +550,22 @@ pub fn spend_settlement_nft(
     nonce: Bytes32,
     destination_puzzle_hash: Bytes32,
 ) -> Result<(Nft, Conditions), DriverError> {
+    let payment = Payment::new(
+        destination_puzzle_hash,
+        1,
+        ctx.hint(destination_puzzle_hash)?,
+    );
+
+    spend_settlement_nft_with_payment(ctx, offer, nft_launcher_id, nonce, payment)
+}
+
+pub fn spend_settlement_nft_with_payment(
+    ctx: &mut SpendContext,
+    offer: &Offer,
+    nft_launcher_id: Bytes32,
+    nonce: Bytes32,
+    payment: Payment,
+) -> Result<(Nft, Conditions), DriverError> {
     let settlement_nft =
         offer
             .offered_coins()
@@ -561,11 +577,7 @@ pub fn spend_settlement_nft(
 
     let notarized_payment = NotarizedPayment {
         nonce,
-        payments: vec![Payment::new(
-            destination_puzzle_hash,
-            1,
-            ctx.hint(destination_puzzle_hash)?,
-        )],
+        payments: vec![payment],
     };
 
     let offer_ann_message = ctx.alloc(&notarized_payment)?;
