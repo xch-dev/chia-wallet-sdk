@@ -5,20 +5,20 @@ use chia_puzzle_types::{
     singleton::{SingletonArgs, SingletonStruct},
 };
 use chia_sdk_types::{
-    Conditions, Mod, announcement_id,
+    Conditions, MerkleProof, Mod, announcement_id,
     puzzles::{
-        NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
-        RewardDistributorCatLockingPuzzleArgs, RewardDistributorCatLockingPuzzleSolution,
-        RewardDistributorEntrySlotValue, RewardDistributorNftsFromDidLockingPuzzleArgs,
+        NONCE_WRAPPER_PUZZLE_HASH, NftLauncherProof, NonceWrapperArgs,
+        P2DelegatedBySingletonLayerArgs, RewardDistributorCatLockingPuzzleArgs,
+        RewardDistributorCatLockingPuzzleSolution, RewardDistributorEntrySlotValue,
+        RewardDistributorNftsFromDidLockingPuzzleArgs,
         RewardDistributorNftsFromDidLockingPuzzleSolution,
         RewardDistributorNftsFromDlLockingPuzzleArgs,
         RewardDistributorNftsFromDlLockingPuzzleSolution, RewardDistributorSlotNonce,
         RewardDistributorStakeActionArgs, RewardDistributorStakeActionSolution,
-        StakeNftFromDidInfo, StakeNftFromDlInfo, NONCE_WRAPPER_PUZZLE_HASH,
+        StakeNftFromDidInfo, StakeNftFromDlInfo,
     },
-     MerkleProof,
 };
-use clvm_traits::{clvm_tuple, ToClvm};
+use clvm_traits::{ToClvm, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -379,7 +379,8 @@ impl RewardDistributorStakeAction {
         let my_id = distributor.coin.coin_id();
 
         // calculate notarized payments; spend said nfts
-        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
+        let my_p2_treehash: TreeHash = my_p2.into();
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
             args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
@@ -404,7 +405,11 @@ impl RewardDistributorStakeAction {
                 payments: vec![Payment::new(
                     payment_puzzle_hash,
                     1,
-                    ctx.hint(payment_puzzle_hash)?,
+                    ctx.hint(
+                        clvm_tuple!(entry_custody_puzzle_hash, my_p2)
+                            .tree_hash()
+                            .into(),
+                    )?,
                 )],
             };
             let notarized_payment_ptr = ctx.alloc(&np)?;
@@ -520,7 +525,8 @@ impl RewardDistributorStakeAction {
         let my_id = distributor.coin.coin_id();
 
         // calculate notarized payments; spend said nfts
-        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
+        let my_p2_treehash: TreeHash = my_p2.into();
 
         let mut notarized_payments = Vec::with_capacity(offered_nfts.len());
         let mut created_nfts = Vec::with_capacity(offered_nfts.len());
@@ -549,7 +555,11 @@ impl RewardDistributorStakeAction {
                 payments: vec![Payment::new(
                     payment_puzzle_hash,
                     1,
-                    ctx.hint(payment_puzzle_hash)?,
+                    ctx.hint(
+                        clvm_tuple!(entry_custody_puzzle_hash, my_p2)
+                            .tree_hash()
+                            .into(),
+                    )?,
                 )],
             };
             let notarized_payment_ptr = ctx.alloc(&np)?;
@@ -665,7 +675,8 @@ impl RewardDistributorStakeAction {
         let my_id = distributor.coin.coin_id();
 
         // calculate notarized payments; spend said nfts
-        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
+        let my_p2_treehash: TreeHash = my_p2.into();
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
             args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
@@ -683,7 +694,11 @@ impl RewardDistributorStakeAction {
             payments: vec![Payment::new(
                 payment_puzzle_hash,
                 offered_cat.amount(),
-                ctx.hint(payment_puzzle_hash)?,
+                ctx.hint(
+                    clvm_tuple!(entry_custody_puzzle_hash, my_p2)
+                        .tree_hash()
+                        .into(),
+                )?,
             )],
         };
         let notarized_payment_ptr = ctx.alloc(&np)?;
