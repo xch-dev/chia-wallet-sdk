@@ -485,6 +485,21 @@ pub fn spend_settlement_cats(
     nonce: Bytes32,
     payments: &[(Bytes32, u64)],
 ) -> Result<(Vec<Cat>, Conditions), DriverError> {
+    let mut new_payments = Vec::with_capacity(payments.len());
+    for (puzzle_hash, amount) in payments {
+        new_payments.push(Payment::new(*puzzle_hash, *amount, ctx.hint(*puzzle_hash)?));
+    }
+
+    spend_settlement_cats_with_payments(ctx, offer, asset_id, nonce, new_payments)
+}
+
+pub fn spend_settlement_cats_with_payments(
+    ctx: &mut SpendContext,
+    offer: &Offer,
+    asset_id: Bytes32,
+    nonce: Bytes32,
+    payments: Vec<Payment>,
+) -> Result<(Vec<Cat>, Conditions), DriverError> {
     let settlement_cats = offer
         .offered_coins()
         .cats
@@ -493,14 +508,7 @@ pub fn spend_settlement_cats(
             "Could not find required CAT in offer".to_string(),
         ))?;
 
-    let mut pmnts = Vec::with_capacity(payments.len());
-    for (puzzle_hash, amount) in payments {
-        pmnts.push(Payment::new(*puzzle_hash, *amount, ctx.hint(*puzzle_hash)?));
-    }
-    let notarized_payment = NotarizedPayment {
-        nonce,
-        payments: pmnts,
-    };
+    let notarized_payment = NotarizedPayment { nonce, payments };
 
     let offer_ann_message = ctx.alloc(&notarized_payment)?;
     let offer_ann_message: Bytes32 = ctx.tree_hash(offer_ann_message).into();
