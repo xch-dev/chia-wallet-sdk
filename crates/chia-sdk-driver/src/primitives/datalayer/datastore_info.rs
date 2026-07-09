@@ -76,9 +76,14 @@ impl DelegatedPuzzle {
                 }
 
                 // puzzle hash bech32m_decode(oracle_address), not puzzle hash of the whole oracle puzze!
-                let oracle_fee: u64 = BigInt::from_signed_bytes_be(&remaining_memos.remove(0))
-                    .to_u64_digits()
-                    .1[0];
+                let fee_memo = remaining_memos.remove(0);
+                let oracle_fee: u64 = if fee_memo.is_empty() {
+                    0
+                } else {
+                    BigInt::from_signed_bytes_be(&fee_memo)
+                        .try_into()
+                        .map_err(|_| DriverError::InvalidMemo)?
+                };
 
                 Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }
@@ -319,4 +324,28 @@ pub fn get_merkle_tree(
     }
 
     Ok(MerkleTree::new(&leaves))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_oracle_delegated_puzzle_from_memos_zero_fee() -> Result<(), DriverError> {
+        let oracle_puzzle_hash = Bytes32::default();
+        let mut memos = vec![
+            Bytes::new([HintType::OraclePuzzle as u8].into()),
+            oracle_puzzle_hash.into(),
+            Bytes::new(vec![]),
+        ];
+
+        let delegated_puzzle = DelegatedPuzzle::from_memos(&mut memos)?;
+        assert_eq!(
+            delegated_puzzle,
+            DelegatedPuzzle::Oracle(oracle_puzzle_hash, 0)
+        );
+        assert!(memos.is_empty());
+
+        Ok(())
+    }
 }
