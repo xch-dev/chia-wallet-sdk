@@ -6,33 +6,33 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
+use crate::{Mod, puzzles::NONCE_WRAPPER_PUZZLE_HASH};
 
-pub const REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE: [u8; 493] = hex!(
+pub const REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE: [u8; 497] = hex!(
     // Rue
     "
-    ff02ffff01ff02ffff01ff02ffff01ff04ff820bffffff04ffff04ffff013fff
-    ff04ff02ff808080ffff04ffff04ffff013effff04ffff0effff016cff0280ff
-    808080ffff04ffff04ffff0146ffff04ff8205ffff808080ff8080808080ffff
-    04ffff0bffff02ff0bffff04ff17ff8207ff8080ffff02ff09ffff04ff09ffff
-    04ffff02ff09ffff04ff09ffff04ff81bfff8202ff808080ffff04ffff04ff02
-    ffff04ff8205ffffff04ffff04ff02ff8080ff80808080ff808080808080ff01
-    8080ffff04ffff0bffff0102ffff0bffff0182010280ffff0bffff0102ffff0b
-    ffff0102ffff0bffff0182010180ff1780ffff0bffff0102ffff02ff06ffff04
-    ff06ffff04ffff02ff04ffff04ff04ffff04ff81bfff8202ff808080ffff04ff
-    2fff8080808080ffff0bffff010180808080ff018080ffff04ffff04ffff01ff
-    02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff0580
-    80ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080ff0180
-    ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0b
-    ffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ff
-    ff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff01
-    8201018080ff018080ff018080
+    ff02ffff01ff02ffff01ff04ff8205ffffff04ffff04ffff013fffff04ff02ff
+    808080ffff04ffff04ffff013effff04ffff0effff016cff0280ff808080ffff
+    04ffff04ffff0146ffff04ff8202ffff808080ff8080808080ffff04ffff0bff
+    ff02ff05ffff04ff0bff8203ff8080ffff02ff04ffff04ff04ffff04ffff02ff
+    04ffff04ff04ffff04ff5fff82017f808080ffff04ffff04ffff0bffff0102ff
+    ff0bffff0182010280ffff0bffff0102ffff0bffff0102ffff0bffff01820101
+    80ff1780ffff0bffff0102ffff02ff06ffff04ff06ffff04ffff02ff04ffff04
+    ff04ffff04ff81bfff8202ff808080ffff04ff2fff8080808080ffff0bffff01
+    0180808080ffff04ff8202ffffff04ffff04ffff02ff04ffff04ff04ffff04ff
+    81bfff2f808080ff8080ff80808080ff808080808080ff018080ffff04ffff04
+    ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff
+    02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff0380
+    80ff0180ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff01820104
+    80ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bff
+    ff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff
+    0bffff018201018080ff018080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    e44f5a224b24daea738a0380bab1149cee38707dc1d385af6dc9d26b8dc7c28e
+    3e541eddff4520b17742f867c2789528db7a18d99a3bf9e5cc141f12e6ecffd1
     "
 ));
 

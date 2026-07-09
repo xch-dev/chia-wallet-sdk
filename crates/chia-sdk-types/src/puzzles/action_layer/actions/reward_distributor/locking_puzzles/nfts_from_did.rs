@@ -12,7 +12,7 @@ use crate::{
     puzzles::{CompactLineageProof, NONCE_WRAPPER_PUZZLE_HASH},
 };
 
-pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 980] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 984] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff2effff04ff3e
@@ -22,36 +22,36 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 980] = hex!(
     01ff038080ff0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff
     0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102
     ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff04ffff01ff
-    02ffff03ff0bffff01ff02ffff01ff02ffff01ff02ff81fbffff04ff0bffff04
-    ff17ffff04ff6fffff04ffff10ff5fffff010180ffff04ffff04ffff013fffff
-    04ff02ff808080ffff04ffff04ffff013effff04ffff0effff016cff0280ff80
-    8080ff7f80808080808080ffff04ffff0bffff02ff15ffff04ff2dffff04ff23
-    ffff04ffff02ff09ffff04ff09ffff04ff23ffff04ffff02ff5dffff04ff5dff
-    ff04ff8207e7ffff04ffff30ff8209e7ffff02ff15ffff04ff2dffff04ff23ff
-    ff04ffff02ff09ffff04ff09ff138080ffff04ff8215e7ff808080808080ff82
-    1de780ffff04ff73ff808080808080ff7380808080ffff04ffff02ff15ffff04
-    ff2dffff04ff2bffff04ffff0bffff0101ff2b80ffff04ff47ffff04ff81a7ff
-    ff04ffff02ff15ffff04ff2dffff04ff5bffff04ffff0bffff0101ff5b80ffff
-    04ffff0bffff0101ff82016780ffff04ff8202e7ffff04ff81bbff8080808080
-    808080ff8080808080808080ff808080808080ffff02ff09ffff04ff09ffff04
-    ffff02ff09ffff04ff09ffff04ff2fffff04ff8205fbff8217fb80808080ffff
-    04ffff04ff02ffff04ffff0101ffff04ffff04ff02ff8080ff80808080ff8080
-    80808080ff018080ffff04ffff02ff0affff04ff16ffff04ff81bdffff04ffff
-    02ff04ffff04ff04ffff04ff8205fdffff0101808080ffff04ff82017dff8080
-    80808080ff018080ffff01ff04ff17ffff04ffff04ffff0146ffff04ff820bfd
-    ff808080ff1f808080ff0180ffff04ffff01ff02ffff03ff03ffff01ff0bffff
-    0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff01
-    82010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bff
-    ff010180808080ffff01ff0bffff018201018080ff0180ffff01ff02ffff03ff
-    05ffff01ff30ffff02ff02ffff04ff02ffff04ff0dffff04ff0bffff04ff17ff
-    ff01018080808080ff11ffff03ffff22ff1fffff09ff11ff178080ffff0181ff
-    ff198080ffff010b80ff018080808080ff018080
+    02ffff03ff0bffff01ff02ffff01ff02ff7dffff04ff05ffff04ff0bffff04ff
+    37ffff04ffff10ff2fffff010180ffff04ffff04ffff013fffff04ff02ff8080
+    80ffff04ffff04ffff013effff04ffff0effff016cff0280ff808080ff3f8080
+    8080808080ffff04ffff0bffff02ff0affff04ff16ffff04ff11ffff04ffff02
+    ff04ffff04ff04ffff04ff11ffff04ffff02ff2effff04ff2effff04ff8203f3
+    ffff04ffff30ff8204f3ffff02ff0affff04ff16ffff04ff11ffff04ffff02ff
+    04ffff04ff04ff098080ffff04ff820af3ff808080808080ff820ef380ffff04
+    ff39ff808080808080ff3980808080ffff04ffff02ff0affff04ff16ffff04ff
+    15ffff04ffff0bffff0101ff1580ffff04ff23ffff04ff53ffff04ffff02ff0a
+    ffff04ff16ffff04ff2dffff04ffff0bffff0101ff2d80ffff04ffff0bffff01
+    01ff81b380ffff04ff820173ffff04ff5dff8080808080808080ff8080808080
+    808080ff808080808080ffff02ff04ffff04ff04ffff04ffff02ff04ffff04ff
+    04ffff04ff17ffff04ff8202fdff820bfd80808080ffff04ffff04ffff02ff0a
+    ffff04ff16ffff04ff81bdffff04ffff02ff04ffff04ff04ffff04ff8205fdff
+    ff0101808080ffff04ff82017dff808080808080ffff04ffff0101ffff04ffff
+    04ffff02ff04ffff04ff04ffff04ff8205fdff82017d808080ff8080ff808080
+    80ff808080808080ff018080ffff01ff04ff17ffff04ffff04ffff0146ffff04
+    ff820bfdff808080ff1f808080ff0180ffff04ffff01ff02ffff03ff03ffff01
+    ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff
+    0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080
+    ffff0bffff010180808080ffff01ff0bffff018201018080ff0180ffff01ff02
+    ffff03ff05ffff01ff30ffff02ff02ffff04ff02ffff04ff0dffff04ff0bffff
+    04ff17ffff01018080808080ff11ffff03ffff22ff1fffff09ff11ff178080ff
+    ff0181ffff198080ffff010b80ff018080808080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    41e6c58326310e6d3f377cb8be48f94674e19da3d92b96ba37a752b75346818b
+    bdb04abcb54d92c900ccfd7665fa5d04eade1aa89aec13702368e22b8d864a25
     "
 ));
 
