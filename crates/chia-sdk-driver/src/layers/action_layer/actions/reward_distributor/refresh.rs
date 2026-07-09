@@ -2,15 +2,15 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonArgs;
 use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, MerkleProof, Mod, announcement_id,
     puzzles::{
-        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RefreshNftInfo, RewardDistributorDlInfo, RewardDistributorEntryPayoutInfo,
-        RewardDistributorEntrySlotValue, RewardDistributorRefreshNftsFromDlActionArgs,
+        NONCE_WRAPPER_PUZZLE_HASH, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
+        P2DelegatedBySingletonLayerSolution, RefreshNftInfo, RewardDistributorDlInfo,
+        RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
+        RewardDistributorRefreshNftsFromDlActionArgs,
         RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorRefreshNftsTotals,
-        RewardDistributorSlotNonce, SlotAndNfts, NONCE_WRAPPER_PUZZLE_HASH,
+        RewardDistributorSlotNonce, SlotAndNfts,
     },
-    Conditions, MerkleProof, Mod,
 };
 use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -19,8 +19,8 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
     RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
-    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorStateTransition, RewardDistributorType, SingletonAction, Slot, Spend,
-    SpendContext,
+    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorStateTransition,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,7 +134,10 @@ impl RewardDistributorRefreshAction {
                 Ok(RewardDistributorEntrySlotValue {
                     counter: e.existing_slot_value.counter + 1,
                     payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
-                    initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
+                    initial_cumulative_payout: changes
+                        .old_state
+                        .round_reward_info
+                        .cumulative_payout,
                     shares: u64::try_from(
                         i128::from(e.existing_slot_value.shares)
                             + i128::from(e.nfts_total_shares_delta),
@@ -179,7 +182,8 @@ impl RewardDistributorRefreshAction {
         let mut created_nfts = Vec::<Nft>::new();
 
         let my_inner_puzzle_hash: Bytes32 = distributor.info.inner_puzzle_hash().into();
-        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_p2_puzzle_hash = Self::my_p2_puzzle_hash(self.launcher_id);
+        let my_p2_treehash: TreeHash = my_p2_puzzle_hash.into();
         let my_singleton_struct_hash = SingletonStruct::new(self.launcher_id).tree_hash().into();
 
         for (i, slot) in slots.into_iter().enumerate() {
@@ -233,7 +237,11 @@ impl RewardDistributorRefreshAction {
                     inner_puzzle: nft_inner_puzzle,
                 })?;
 
-                let hint = ctx.hint(new_nft_inner_puzzle_hash)?;
+                let hint = ctx.hint(
+                    (slot.info.value.payout_puzzle_hash, my_p2_puzzle_hash)
+                        .tree_hash()
+                        .into(),
+                )?;
                 let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
                     new_nft_inner_puzzle_hash,
                     1,
