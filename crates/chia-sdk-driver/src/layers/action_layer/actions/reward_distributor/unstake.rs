@@ -1,6 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_sdk_types::{
+    Conditions, Mod,
     puzzles::{
         NftToUnlockInfo, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
         P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
@@ -9,7 +10,6 @@ use chia_sdk_types::{
         RewardDistributorNftsUnlockingPuzzleSolution, RewardDistributorSlotNonce,
         RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
     },
-    Conditions, Mod
 };
 use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -225,15 +225,11 @@ impl RewardDistributorUnstakeAction {
         let unlock_puzzle_result = ctx.run(unlock_puzzle, actual_unlock_solution)?;
         let removed_shares = ctx.extract::<(u64, NodePtr)>(unlock_puzzle_result)?.0;
 
-        let created_entry_slot = if solution.entry_slot.shares == removed_shares {
-            None
-        } else {
-            Some(RewardDistributorEntrySlotValue {
-                counter: solution.entry_slot.counter + 1,
-                payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
-                initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
-                shares: solution.entry_slot.shares - removed_shares,
-            })
+        let created_entry_slot = RewardDistributorEntrySlotValue {
+            counter: solution.entry_slot.counter + 1,
+            payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
+            initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
+            shares: solution.entry_slot.shares - removed_shares,
         };
 
         let (cat_amount, nft_entries) = Self::unstake_cat_and_nft_from_solution(
@@ -313,9 +309,11 @@ impl RewardDistributorUnstakeAction {
             })?;
 
             let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
-            let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
-                .create_coin(entry_slot.info.value.payout_puzzle_hash, 1, hint,)
-                .assert_height_relative(0)))?;
+            let delegated_puzzle = ctx.alloc(&clvm_quote!(
+                Conditions::new()
+                    .create_coin(entry_slot.info.value.payout_puzzle_hash, 1, hint,)
+                    .assert_height_relative(0)
+            ))?;
             let nft_inner_solution = nft_p2.construct_solution(
                 ctx,
                 P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
@@ -398,13 +396,15 @@ impl RewardDistributorUnstakeAction {
         })?;
 
         let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
-        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
-            .create_coin(
-                entry_slot.info.value.payout_puzzle_hash,
-                locked_cat_coin.amount,
-                hint,
-            )
-            .assert_height_relative(0)))?;
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(
+            Conditions::new()
+                .create_coin(
+                    entry_slot.info.value.payout_puzzle_hash,
+                    locked_cat_coin.amount,
+                    hint,
+                )
+                .assert_height_relative(0)
+        ))?;
         let cat_inner_solution = cat_p2.construct_solution(
             ctx,
             P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {

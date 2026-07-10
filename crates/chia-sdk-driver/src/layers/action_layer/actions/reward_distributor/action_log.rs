@@ -96,7 +96,7 @@ pub struct RewardDistributorStakeActionLog {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewardDistributorUnstakeActionLog {
     pub spent_entry_slot: RewardDistributorEntrySlotValue,
-    pub created_entry_slot: Option<RewardDistributorEntrySlotValue>,
+    pub created_entry_slot: RewardDistributorEntrySlotValue,
     pub cat_amount: Option<u64>,
     pub nft_entries: Option<Vec<RewardDistributorNftStakeEntry>>,
     pub changes: RewardDistributorStateTransition,
@@ -167,11 +167,7 @@ impl RewardDistributorActionLog {
                 created_entry_slots.extend(log.created_entry_slots.iter().copied());
             }
             Self::Stake(log) => created_entry_slots.push(log.created_entry_slot),
-            Self::Unstake(log) => {
-                if let Some(created_entry_slot) = log.created_entry_slot {
-                    created_entry_slots.push(created_entry_slot);
-                }
-            }
+            Self::Unstake(log) => created_entry_slots.push(log.created_entry_slot),
         }
     }
 }
