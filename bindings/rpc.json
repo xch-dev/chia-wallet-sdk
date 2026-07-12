@@ -344,7 +344,7 @@
     "new": true,
     "remote": true,
     "fields": {
-      "status": "String",
+      "status": "Option<String>",
       "error": "Option<String>",
       "success": "bool"
     }
