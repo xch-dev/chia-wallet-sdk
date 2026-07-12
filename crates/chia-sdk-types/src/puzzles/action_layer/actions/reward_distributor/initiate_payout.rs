@@ -7,25 +7,64 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE: [u8; 760] = hex!(
+pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE: [u8; 751] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff03ffff22ffff22ffff22ffff09ffff12ffff11ff8204ef
     ff8207ff80ff8205ff80ffff10ffff12ff81bfff1780ff8202ff8080ffff15ff
-    8202ffffff0181ff8080ffff15ff17ff8202ff8080ffff21ffff15ff81bfff0b
-    80ffff09ff81bfff0b808080ffff01ff04ffff04ff4fffff04ffff11ff81afff
-    81bf80ffff04ff82016fffff04ffff04ff8204efffff10ff8206efff8202ff80
-    80ff8203ef80808080ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ff
-    ff04ffff02ff04ffff04ff0affff04ff05ffff04ffff0bffff0101ffff02ff0e
-    ffff04ffff04ff5fff82017f80ffff04ff8207ffff8205ff80808080ff808080
-    8080ff8080808080ffff04ffff04ffff0133ffff04ffff02ff04ffff04ff0aff
-    ff04ff05ffff04ffff0bffff0101ffff02ff0effff04ffff04ffff10ff5fffff
-    010180ff82017f80ffff04ff8204efff8205ff80808080ff8080808080ffff04
-    ff80ffff04ffff04ff82017fff8080ff8080808080ffff04ffff04ffff013eff
-    ff04ffff0effff0170ffff0bffff0102ffff0bffff0101ff82017f80ffff0bff
-    ff0101ff81bf808080ff808080ffff04ffff04ffff0181d6ffff04ffff0133ff
-    ff04ff82017fffff04ff81bfffff04ffff04ff82017fff8080ff808080808080
-    ff808080808080ffff01ff088080ff0180ffff04ffff04ffff01ff0bffff0102
+    8202ffffff0181ff8080ffff15ff17ff8202ff8080ffff20ffff15ff0bff81bf
+    808080ffff01ff04ffff04ff4fffff04ffff11ff81afff81bf80ffff04ff8201
+    6fffff04ffff04ff8204efffff10ff8206efff8202ff8080ff8203ef80808080
+    ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ffff04ffff02ff04ffff
+    04ff0affff04ff05ffff04ffff0bffff0101ffff02ff0effff04ffff04ff5fff
+    82017f80ffff04ff8207ffff8205ff80808080ff8080808080ff8080808080ff
+    ff04ffff04ffff0133ffff04ffff02ff04ffff04ff0affff04ff05ffff04ffff
+    0bffff0101ffff02ff0effff04ffff04ffff10ff5fffff010180ff82017f80ff
+    ff04ff8204efff8205ff80808080ff8080808080ffff04ff80ffff04ffff04ff
+    82017fff8080ff8080808080ffff04ffff04ffff013effff04ffff0effff0170
+    ffff0bffff0102ffff0bffff0101ff82017f80ffff0bffff0101ff81bf808080
+    ff808080ffff04ffff04ffff0181d6ffff04ffff0133ffff04ff82017fffff04
+    ff81bfffff04ffff04ff82017fff8080ff808080808080ff808080808080ffff
+    01ff088080ff0180ffff04ffff04ffff01ff0bffff0102ffff0bffff01820102
+    80ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bff
+    ff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff04ff
+    ff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bff
+    ff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff
+    02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff0182
+    01018080ff0180ffff01ff0bffff0102ffff0bffff0101ff0480ffff0bffff01
+    02ffff0bffff0101ff0680ffff0bffff0102ffff0bffff0101ff0580ffff0bff
+    ff0101ff07808080808080ff018080
+    "
+);
+
+pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH: TreeHash =
+    TreeHash::new(hex!(
+        "
+    3ac00fa8db24e15d425af0624502a9ff7c588eeb2726bd5d7f83b39897484b66
+    "
+    ));
+
+pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE: [u8; 824] = hex!(
+    // Rue
+    "
+    ff02ffff01ff02ffff03ffff22ffff22ffff22ffff09ffff12ffff11ff8204ef
+    ff8207ff80ff8205ff80ffff10ffff12ff81bfff1780ff8202ff8080ffff15ff
+    8202ffffff0181ff8080ffff15ff17ff8202ff8080ffff20ffff15ff0bff81bf
+    808080ffff01ff04ffff04ff4fffff04ffff11ff81afff81bf80ffff04ff8201
+    6fffff04ffff04ff8204efffff10ff8206efff8202ff8080ff8203ef80808080
+    ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ffff04ffff02ff04ffff
+    04ff0affff04ff05ffff04ffff0bffff0101ffff02ff0effff04ffff04ff5fff
+    82017f80ffff04ff8207ffff8205ff80808080ff8080808080ff8080808080ff
+    ff04ffff04ffff0133ffff04ffff02ff04ffff04ff0affff04ff05ffff04ffff
+    0bffff0101ffff02ff0effff04ffff04ffff10ff5fffff010180ff82017f80ff
+    ff04ff8204efff8205ff80808080ff8080808080ffff04ff80ffff04ffff04ff
+    82017fff8080ff8080808080ffff04ffff04ffff013effff04ffff0effff0170
+    ffff0bffff0102ffff0bffff0101ff82017f80ffff0bffff0101ff81bf808080
+    ff808080ffff04ffff04ffff0181d6ffff04ffff0133ffff04ff82017fffff04
+    ff81bfffff04ffff04ff82017fff8080ff808080808080ffff04ffff04ffff01
+    43ffff04ffff0112ffff04ffff0effff0170ffff0bffff0102ffff0bffff0101
+    ff81bf80ffff0bffff0101ff8202ff808080ffff04ff82017fff8080808080ff
+    80808080808080ffff01ff088080ff0180ffff04ffff04ffff01ff0bffff0102
     ffff0bffff0182010280ffff0bffff0102ffff0bffff0102ffff0bffff018201
     0180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff01
     0180808080ffff04ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff
@@ -37,50 +76,10 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE: [u8; 760] 
     "
 );
 
-pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH: TreeHash =
-    TreeHash::new(hex!(
-        "
-    2936969bd12dde18486ea4cf8f8d8bb3f05d11170d445b5c1a046539449e1896
-    "
-    ));
-
-pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE: [u8; 833] = hex!(
-    // Rue
-    "
-    ff02ffff01ff02ffff03ffff22ffff22ffff22ffff09ffff12ffff11ff8204ef
-    ff8207ff80ff8205ff80ffff10ffff12ff81bfff1780ff8202ff8080ffff15ff
-    8202ffffff0181ff8080ffff15ff17ff8202ff8080ffff21ffff15ff81bfff0b
-    80ffff09ff81bfff0b808080ffff01ff04ffff04ff4fffff04ffff11ff81afff
-    81bf80ffff04ff82016fffff04ffff04ff8204efffff10ff8206efff8202ff80
-    80ff8203ef80808080ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ff
-    ff04ffff02ff04ffff04ff0affff04ff05ffff04ffff0bffff0101ffff02ff0e
-    ffff04ffff04ff5fff82017f80ffff04ff8207ffff8205ff80808080ff808080
-    8080ff8080808080ffff04ffff04ffff0133ffff04ffff02ff04ffff04ff0aff
-    ff04ff05ffff04ffff0bffff0101ffff02ff0effff04ffff04ffff10ff5fffff
-    010180ff82017f80ffff04ff8204efff8205ff80808080ff8080808080ffff04
-    ff80ffff04ffff04ff82017fff8080ff8080808080ffff04ffff04ffff013eff
-    ff04ffff0effff0170ffff0bffff0102ffff0bffff0101ff82017f80ffff0bff
-    ff0101ff81bf808080ff808080ffff04ffff04ffff0181d6ffff04ffff0133ff
-    ff04ff82017fffff04ff81bfffff04ffff04ff82017fff8080ff808080808080
-    ffff04ffff04ffff0143ffff04ffff0112ffff04ffff0effff0170ffff0bffff
-    0102ffff0bffff0101ff81bf80ffff0bffff0101ff8202ff808080ffff04ff82
-    017fff8080808080ff80808080808080ffff01ff088080ff0180ffff04ffff04
-    ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102ffff0bffff01
-    02ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff
-    078080ffff0bffff010180808080ffff04ffff01ff02ffff03ff03ffff01ff0b
-    ffff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bff
-    ff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff
-    0bffff010180808080ffff01ff0bffff018201018080ff0180ffff01ff0bffff
-    0102ffff0bffff0101ff0480ffff0bffff0102ffff0bffff0101ff0680ffff0b
-    ffff0102ffff0bffff0101ff0580ffff0bffff0101ff07808080808080ff0180
-    80
-    "
-);
-
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH: TreeHash =
     TreeHash::new(hex!(
         "
-        4b405cbb838b10d4996816aa2b65d0f4a8add9fb7871f9aa8ccf3ba57a91ea5d
+        af5655ab9e43acce002073b7efc9a9a4ce6a5c3aabd215d594d9ec999d6c0492
         "
     ));
 
