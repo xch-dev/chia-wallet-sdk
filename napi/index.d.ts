@@ -2115,9 +2115,9 @@ export declare class PublicKey {
 
 export declare class PushTxResponse {
   clone(): PushTxResponse
-  constructor(status: string, error: string | undefined | null, success: boolean)
-  get status(): string
-  set status(value: string)
+  constructor(status: string | undefined | null, error: string | undefined | null, success: boolean)
+  get status(): string | null
+  set status(value?: string | undefined | null)
   get error(): string | null
   set error(value?: string | undefined | null)
   get success(): boolean

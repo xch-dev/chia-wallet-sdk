@@ -1949,8 +1949,8 @@ class GetPuzzleAndSolutionResponse:
     success: bool
 class PushTxResponse:
     def clone(self) -> PushTxResponse: ...
-    def __init__(self, status: str, error: Optional[str], success: bool) -> None: ...
-    status: str
+    def __init__(self, status: Optional[str], error: Optional[str], success: bool) -> None: ...
+    status: Optional[str]
     error: Optional[str]
     success: bool
 class GetNetworkInfoResponse:
