@@ -150,6 +150,22 @@
         },
         "return": "Nft"
       },
+      "mint_datastore": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "metadata": "DataStoreMetadata",
+          "owner_puzzle_hash": "Bytes32",
+          "delegated_puzzles": "Vec<DelegatedPuzzle>"
+        },
+        "return": "MintedDataStore"
+      },
+      "data_store_from_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "delegated_puzzles": "Option<Vec<DelegatedPuzzle>>"
+        },
+        "return": "Option<DataStore>"
+      },
       "create_eve_did": {
         "args": {
           "parent_coin_id": "Bytes32",

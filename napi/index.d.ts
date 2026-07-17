@@ -644,6 +644,8 @@ export declare class Clvm {
   spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): Nft
+  mintDatastore(parentCoinId: Uint8Array, metadata: DataStoreMetadata, ownerPuzzleHash: Uint8Array, delegatedPuzzles: Array<DelegatedPuzzle>): MintedDataStore
+  dataStoreFromSpend(parentSpend: CoinSpend, delegatedPuzzles?: Array<DelegatedPuzzle> | undefined | null): DataStore | null
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): Did | null
   spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
@@ -1165,6 +1167,19 @@ export declare class CreatePuzzleAnnouncement {
   set message(value: Uint8Array)
 }
 
+export declare class CuratedDataStoreFields {
+  clone(): CuratedDataStoreFields
+  constructor(rootHash: Uint8Array, metadataRestHash: Uint8Array | undefined | null, metadataUpdaterHashHash: Uint8Array, innerPuzzleHash: Uint8Array)
+  get rootHash(): Buffer
+  set rootHash(value: Uint8Array)
+  get metadataRestHash(): Buffer | null
+  set metadataRestHash(value?: Uint8Array | undefined | null)
+  get metadataUpdaterHashHash(): Buffer
+  set metadataUpdaterHashHash(value: Uint8Array)
+  get innerPuzzleHash(): Buffer
+  set innerPuzzleHash(value: Uint8Array)
+}
+
 export declare class CurriedProgram {
   clone(): CurriedProgram
   constructor(program: Program, args: Array<Program>)
@@ -1172,6 +1187,64 @@ export declare class CurriedProgram {
   set program(value: Program)
   get args(): Array<Program>
   set args(value: Array<Program>)
+}
+
+export declare class DataStore {
+  clone(): DataStore
+  coin(): Coin
+  proof(): Proof
+  launcherId(): Buffer
+  ownerPuzzleHash(): Buffer
+  metadata(): DataStoreMetadata
+  rootHash(): Buffer
+  label(): string | null
+  description(): string | null
+  bytes(): bigint | null
+  sizeProof(): string | null
+  delegatedPuzzles(): Array<DelegatedPuzzle>
+  curatedFields(): CuratedDataStoreFields
+  ownerCreateCoinCondition(newOwnerPuzzleHash: Uint8Array, newDelegatedPuzzles: Array<DelegatedPuzzle>, hintDelegatedPuzzles: boolean): Program
+  newMetadataCondition(newMetadata: DataStoreMetadata): Program
+  spend(innerSpend: Spend): DataStore
+  spendOracle(): void
+  updateMetadataAsOwner(ownerSyntheticKey: PublicKey, newMetadata: DataStoreMetadata): DataStore
+  updateOwnership(newOwnerPuzzleHash: Uint8Array, newDelegatedPuzzles: Array<DelegatedPuzzle>, ownerSyntheticKey?: PublicKey | undefined | null, adminSyntheticKey?: PublicKey | undefined | null): DataStore
+}
+
+export declare class DataStoreMetadata {
+  clone(): DataStoreMetadata
+  constructor(rootHash: Uint8Array, label?: string | undefined | null, description?: string | undefined | null, bytes?: bigint | undefined | null, sizeProof?: string | undefined | null)
+  get rootHash(): Buffer
+  set rootHash(value: Uint8Array)
+  get label(): string | null
+  set label(value?: string | undefined | null)
+  get description(): string | null
+  set description(value?: string | undefined | null)
+  get bytes(): bigint | null
+  set bytes(value?: bigint | undefined | null)
+  get sizeProof(): string | null
+  set sizeProof(value?: string | undefined | null)
+}
+
+export declare class DelegatedPuzzle {
+  clone(): DelegatedPuzzle
+  static oracle(oraclePuzzleHash: Uint8Array, oracleFee: bigint): DelegatedPuzzle
+  static admin(puzzleHash: Uint8Array): DelegatedPuzzle
+  static writer(innerPuzzleHash: Uint8Array): DelegatedPuzzle
+  static adminFromKey(syntheticKey: PublicKey): DelegatedPuzzle
+  static writerFromKey(syntheticKey: PublicKey): DelegatedPuzzle
+  toAdmin(): Buffer | null
+  toWriter(): Buffer | null
+  toOracle(): DelegatedPuzzleOracle | null
+}
+
+export declare class DelegatedPuzzleOracle {
+  clone(): DelegatedPuzzleOracle
+  constructor(oraclePuzzleHash: Uint8Array, oracleFee: bigint)
+  get oraclePuzzleHash(): Buffer
+  set oraclePuzzleHash(value: Uint8Array)
+  get oracleFee(): bigint
+  set oracleFee(value: bigint)
 }
 
 export declare class Delta {
@@ -1684,6 +1757,15 @@ export declare class MetadataUpdate {
   set kind(value: UriKind)
   get uri(): string
   set uri(value: string)
+}
+
+export declare class MintedDataStore {
+  clone(): MintedDataStore
+  constructor(datastore: DataStore, parentConditions: Array<Program>)
+  get datastore(): DataStore
+  set datastore(value: DataStore)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
 }
 
 export declare class MintedNfts {
