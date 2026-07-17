@@ -2521,6 +2521,7 @@ export declare class RewardDistributor {
   pendingCreatedRewardSlots(): Array<RewardSlot>
   pendingCreatedCommitmentSlots(): Array<CommitmentSlot>
   pendingCreatedEntrySlots(): Array<EntrySlot>
+  pendingLogs(): Array<RewardDistributorActionLog>
   pendingSignature(): Signature
   static reserveFullPuzzleHash(assetId: Uint8Array, distributorLauncherId: Uint8Array, nonce: bigint): Buffer
   static parseLauncherSolution(launcherCoin: Coin, launcherSolution: Program): RewardDistributorInfoFromLauncher | null
@@ -2540,6 +2541,66 @@ export declare class RewardDistributor {
   unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat): RewardDistributorUnstakeLockedCatResult
   refreshNfts(refreshNftsInfos: Array<RefreshNftsInfo>, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorRefreshNftsResult
   static lockedNftHint(distributorLauncherId: Uint8Array, custodyPuzzleHash: Uint8Array): Buffer
+}
+
+export declare class RewardDistributorActionLog {
+  clone(): RewardDistributorActionLog
+  get kind(): string
+  set kind(value: string)
+  get addEntry(): RewardDistributorAddEntryActionLog | null
+  set addEntry(value?: RewardDistributorAddEntryActionLog | undefined | null)
+  get removeEntry(): RewardDistributorRemoveEntryActionLog | null
+  set removeEntry(value?: RewardDistributorRemoveEntryActionLog | undefined | null)
+  get addIncentives(): RewardDistributorAddIncentivesActionLog | null
+  set addIncentives(value?: RewardDistributorAddIncentivesActionLog | undefined | null)
+  get commitIncentives(): RewardDistributorCommitIncentivesActionLog | null
+  set commitIncentives(value?: RewardDistributorCommitIncentivesActionLog | undefined | null)
+  get initiatePayout(): RewardDistributorInitiatePayoutActionLog | null
+  set initiatePayout(value?: RewardDistributorInitiatePayoutActionLog | undefined | null)
+  get newEpoch(): RewardDistributorNewEpochActionLog | null
+  set newEpoch(value?: RewardDistributorNewEpochActionLog | undefined | null)
+  get sync(): RewardDistributorSyncActionLog | null
+  set sync(value?: RewardDistributorSyncActionLog | undefined | null)
+  get withdrawIncentives(): RewardDistributorWithdrawIncentivesActionLog | null
+  set withdrawIncentives(value?: RewardDistributorWithdrawIncentivesActionLog | undefined | null)
+  get refreshNftsFromDl(): RewardDistributorRefreshNftsFromDlActionLog | null
+  set refreshNftsFromDl(value?: RewardDistributorRefreshNftsFromDlActionLog | undefined | null)
+  get stake(): RewardDistributorStakeActionLog | null
+  set stake(value?: RewardDistributorStakeActionLog | undefined | null)
+  get unstake(): RewardDistributorUnstakeActionLog | null
+  set unstake(value?: RewardDistributorUnstakeActionLog | undefined | null)
+}
+
+export declare class RewardDistributorAddEntryActionLog {
+  clone(): RewardDistributorAddEntryActionLog
+  get createdEntrySlot(): RewardDistributorEntrySlotValue
+  set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get managerSingletonInnerPuzzleHash(): Buffer
+  set managerSingletonInnerPuzzleHash(value: Uint8Array)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
+export declare class RewardDistributorAddIncentivesActionLog {
+  clone(): RewardDistributorAddIncentivesActionLog
+  get amount(): bigint
+  set amount(value: bigint)
+  get managerFee(): bigint
+  set managerFee(value: bigint)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
+export declare class RewardDistributorCommitIncentivesActionLog {
+  clone(): RewardDistributorCommitIncentivesActionLog
+  get spentRewardSlot(): RewardDistributorRewardSlotValue
+  set spentRewardSlot(value: RewardDistributorRewardSlotValue)
+  get createdCommitmentSlot(): RewardDistributorCommitmentSlotValue
+  set createdCommitmentSlot(value: RewardDistributorCommitmentSlotValue)
+  get createdRewardSlots(): Array<RewardDistributorRewardSlotValue>
+  set createdRewardSlots(value: Array<RewardDistributorRewardSlotValue>)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
 }
 
 export declare class RewardDistributorCommitmentSlotValue {
@@ -2626,6 +2687,20 @@ export declare class RewardDistributorInfoFromLauncher {
   set eveSingleton(value: Coin)
 }
 
+export declare class RewardDistributorInitiatePayoutActionLog {
+  clone(): RewardDistributorInitiatePayoutActionLog
+  get spentEntrySlot(): RewardDistributorEntrySlotValue
+  set spentEntrySlot(value: RewardDistributorEntrySlotValue)
+  get createdEntrySlot(): RewardDistributorEntrySlotValue
+  set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get entryPayoutAmount(): bigint
+  set entryPayoutAmount(value: bigint)
+  get payoutRoundingError(): bigint
+  set payoutRoundingError(value: bigint)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
 export declare class RewardDistributorInitiatePayoutResult {
   clone(): RewardDistributorInitiatePayoutResult
   get conditions(): Array<Program>
@@ -2660,6 +2735,18 @@ export declare class RewardDistributorLaunchResult {
   set refundedCat(value: Cat)
 }
 
+export declare class RewardDistributorNewEpochActionLog {
+  clone(): RewardDistributorNewEpochActionLog
+  get spentRewardSlot(): RewardDistributorRewardSlotValue
+  set spentRewardSlot(value: RewardDistributorRewardSlotValue)
+  get createdRewardSlot(): RewardDistributorRewardSlotValue
+  set createdRewardSlot(value: RewardDistributorRewardSlotValue)
+  get epochTotalRewards(): bigint
+  set epochTotalRewards(value: bigint)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
 export declare class RewardDistributorNewEpochResult {
   clone(): RewardDistributorNewEpochResult
   get conditions(): Array<Program>
@@ -2668,12 +2755,46 @@ export declare class RewardDistributorNewEpochResult {
   set epochFee(value: bigint)
 }
 
+export declare class RewardDistributorNftStakeEntry {
+  clone(): RewardDistributorNftStakeEntry
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get shares(): bigint
+  set shares(value: bigint)
+}
+
+export declare class RewardDistributorRefreshNftsFromDlActionLog {
+  clone(): RewardDistributorRefreshNftsFromDlActionLog
+  get spentEntrySlots(): Array<RewardDistributorEntrySlotValue>
+  set spentEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
+  get createdEntrySlots(): Array<RewardDistributorEntrySlotValue>
+  set createdEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
+  get dlRootHash(): Buffer
+  set dlRootHash(value: Uint8Array)
+  get dlInnerPuzzleHash(): Buffer
+  set dlInnerPuzzleHash(value: Uint8Array)
+  get dlFullPuzzleHash(): Buffer
+  set dlFullPuzzleHash(value: Uint8Array)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
 export declare class RewardDistributorRefreshNftsResult {
   clone(): RewardDistributorRefreshNftsResult
   get conditions(): Array<Program>
   set conditions(value: Array<Program>)
   get newNfts(): Array<Nft>
   set newNfts(value: Array<Nft>)
+}
+
+export declare class RewardDistributorRemoveEntryActionLog {
+  clone(): RewardDistributorRemoveEntryActionLog
+  get spentEntrySlot(): RewardDistributorEntrySlotValue
+  set spentEntrySlot(value: RewardDistributorEntrySlotValue)
+  get managerSingletonInnerPuzzleHash(): Buffer
+  set managerSingletonInnerPuzzleHash(value: Uint8Array)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
 }
 
 export declare class RewardDistributorRemoveEntryResult {
@@ -2695,6 +2816,20 @@ export declare class RewardDistributorRewardSlotValue {
   set nextEpochInitialized(value: boolean)
   get rewards(): bigint
   set rewards(value: bigint)
+}
+
+export declare class RewardDistributorStakeActionLog {
+  clone(): RewardDistributorStakeActionLog
+  get spentEntrySlot(): RewardDistributorEntrySlotValue | null
+  set spentEntrySlot(value?: RewardDistributorEntrySlotValue | undefined | null)
+  get createdEntrySlot(): RewardDistributorEntrySlotValue
+  set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get catAmount(): bigint | null
+  set catAmount(value?: bigint | undefined | null)
+  get nftEntries(): Array<RewardDistributorNftStakeEntry> | null
+  set nftEntries(value?: Array<RewardDistributorNftStakeEntry> | undefined | null)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
 }
 
 export declare class RewardDistributorStakeCatResult {
@@ -2741,12 +2876,42 @@ export declare class RewardDistributorState {
   set roundTimeInfo(value: RoundTimeInfo)
 }
 
+export declare class RewardDistributorStateTransition {
+  clone(): RewardDistributorStateTransition
+  get oldState(): RewardDistributorState
+  set oldState(value: RewardDistributorState)
+  get newState(): RewardDistributorState
+  set newState(value: RewardDistributorState)
+}
+
+export declare class RewardDistributorSyncActionLog {
+  clone(): RewardDistributorSyncActionLog
+  get updateTime(): bigint
+  set updateTime(value: bigint)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
+}
+
 export declare class RewardDistributorType {
   clone(): RewardDistributorType
   static managed(managerSingletonLauncherId: Uint8Array): RewardDistributorType
   static nftCollection(collectionDidLauncherId: Uint8Array): RewardDistributorType
   static curatedNft(storeLauncherId: Uint8Array, refreshable: boolean): RewardDistributorType
   static cat(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null): RewardDistributorType
+}
+
+export declare class RewardDistributorUnstakeActionLog {
+  clone(): RewardDistributorUnstakeActionLog
+  get spentEntrySlot(): RewardDistributorEntrySlotValue
+  set spentEntrySlot(value: RewardDistributorEntrySlotValue)
+  get createdEntrySlot(): RewardDistributorEntrySlotValue
+  set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get catAmount(): bigint | null
+  set catAmount(value?: bigint | undefined | null)
+  get nftEntries(): Array<RewardDistributorNftStakeEntry> | null
+  set nftEntries(value?: Array<RewardDistributorNftStakeEntry> | undefined | null)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
 }
 
 export declare class RewardDistributorUnstakeLockedCatResult {
@@ -2763,6 +2928,18 @@ export declare class RewardDistributorUnstakeLockedNftsResult {
   set conditions(value: Array<Program>)
   get paymentAmount(): bigint
   set paymentAmount(value: bigint)
+}
+
+export declare class RewardDistributorWithdrawIncentivesActionLog {
+  clone(): RewardDistributorWithdrawIncentivesActionLog
+  get spentRewardSlot(): RewardDistributorRewardSlotValue
+  set spentRewardSlot(value: RewardDistributorRewardSlotValue)
+  get spentCommitmentSlot(): RewardDistributorCommitmentSlotValue
+  set spentCommitmentSlot(value: RewardDistributorCommitmentSlotValue)
+  get createdRewardSlot(): RewardDistributorRewardSlotValue
+  set createdRewardSlot(value: RewardDistributorRewardSlotValue)
+  get changes(): RewardDistributorStateTransition
+  set changes(value: RewardDistributorStateTransition)
 }
 
 export declare class RewardDistributorWithdrawIncentivesResult {

@@ -98,14 +98,12 @@ impl RewardDistributorStakeAction {
                 let entries = lock_solution
                     .nft_infos
                     .iter()
-                    .map(|info| {
-                        (
-                            Self::nft_launcher_id_from_proof(
-                                collection_did_launcher_id,
-                                &info.nft_launcher_proof,
-                            ),
-                            1,
-                        )
+                    .map(|info| RewardDistributorNftStakeEntry {
+                        launcher_id: Self::nft_launcher_id_from_proof(
+                            collection_did_launcher_id,
+                            &info.nft_launcher_proof,
+                        ),
+                        shares: 1,
                     })
                     .collect();
                 Ok(Some(entries))
@@ -119,7 +117,10 @@ impl RewardDistributorStakeAction {
                     lock_solution
                         .nft_infos
                         .iter()
-                        .map(|info: &StakeNftFromDlInfo| (info.nft_launcher_id, info.nft_shares))
+                        .map(|info: &StakeNftFromDlInfo| RewardDistributorNftStakeEntry {
+                            launcher_id: info.nft_launcher_id,
+                            shares: info.nft_shares,
+                        })
                         .collect(),
                 ))
             }

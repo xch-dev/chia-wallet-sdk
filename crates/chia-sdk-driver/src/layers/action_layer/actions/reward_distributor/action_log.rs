@@ -6,36 +6,40 @@ use chia_sdk_types::puzzles::{
 
 use crate::RewardDistributorState;
 
-pub type RewardDistributorNftStakeEntry = (Bytes32, u64);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RewardDistributorNftStakeEntry {
+    pub launcher_id: Bytes32,
+    pub shares: u64,
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorStateTransition {
     pub old_state: RewardDistributorState,
     pub new_state: RewardDistributorState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorAddEntryActionLog {
     pub created_entry_slot: RewardDistributorEntrySlotValue,
     pub manager_singleton_inner_puzzle_hash: Bytes32,
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorRemoveEntryActionLog {
     pub spent_entry_slot: RewardDistributorEntrySlotValue,
     pub manager_singleton_inner_puzzle_hash: Bytes32,
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorAddIncentivesActionLog {
     pub amount: u64,
     pub manager_fee: u64,
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorCommitIncentivesActionLog {
     pub spent_reward_slot: RewardDistributorRewardSlotValue,
     pub created_commitment_slot: RewardDistributorCommitmentSlotValue,
@@ -43,7 +47,7 @@ pub struct RewardDistributorCommitIncentivesActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorInitiatePayoutActionLog {
     pub spent_entry_slot: RewardDistributorEntrySlotValue,
     pub created_entry_slot: RewardDistributorEntrySlotValue,
@@ -52,7 +56,7 @@ pub struct RewardDistributorInitiatePayoutActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorNewEpochActionLog {
     pub spent_reward_slot: RewardDistributorRewardSlotValue,
     pub created_reward_slot: RewardDistributorRewardSlotValue,
@@ -60,13 +64,13 @@ pub struct RewardDistributorNewEpochActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorSyncActionLog {
     pub update_time: u64,
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorWithdrawIncentivesActionLog {
     pub spent_reward_slot: RewardDistributorRewardSlotValue,
     pub spent_commitment_slot: RewardDistributorCommitmentSlotValue,
@@ -74,7 +78,7 @@ pub struct RewardDistributorWithdrawIncentivesActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorRefreshNftsFromDlActionLog {
     pub spent_entry_slots: Vec<RewardDistributorEntrySlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
@@ -84,7 +88,7 @@ pub struct RewardDistributorRefreshNftsFromDlActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorStakeActionLog {
     pub spent_entry_slot: Option<RewardDistributorEntrySlotValue>,
     pub created_entry_slot: RewardDistributorEntrySlotValue,
@@ -93,7 +97,7 @@ pub struct RewardDistributorStakeActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RewardDistributorUnstakeActionLog {
     pub spent_entry_slot: RewardDistributorEntrySlotValue,
     pub created_entry_slot: RewardDistributorEntrySlotValue,
@@ -102,8 +106,10 @@ pub struct RewardDistributorUnstakeActionLog {
     pub changes: RewardDistributorStateTransition,
 }
 
+/// A parsed Reward Distributor action serialized as a stable `{"type": "Variant", "payload": {...}}` object.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", content = "payload")]
 pub enum RewardDistributorActionLog {
     AddEntry(RewardDistributorAddEntryActionLog),
     RemoveEntry(RewardDistributorRemoveEntryActionLog),

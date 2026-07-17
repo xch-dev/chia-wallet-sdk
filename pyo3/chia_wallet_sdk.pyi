@@ -1793,6 +1793,94 @@ class RewardDistributorState:
     round_time_info: RoundTimeInfo
     @staticmethod
     def initial(firstEpochStart: int) -> RewardDistributorState: ...
+class RewardDistributorStateTransition:
+    def clone(self) -> RewardDistributorStateTransition: ...
+    old_state: RewardDistributorState
+    new_state: RewardDistributorState
+class RewardDistributorNftStakeEntry:
+    def clone(self) -> RewardDistributorNftStakeEntry: ...
+    launcher_id: bytes
+    shares: int
+class RewardDistributorAddEntryActionLog:
+    def clone(self) -> RewardDistributorAddEntryActionLog: ...
+    created_entry_slot: RewardDistributorEntrySlotValue
+    manager_singleton_inner_puzzle_hash: bytes
+    changes: RewardDistributorStateTransition
+class RewardDistributorRemoveEntryActionLog:
+    def clone(self) -> RewardDistributorRemoveEntryActionLog: ...
+    spent_entry_slot: RewardDistributorEntrySlotValue
+    manager_singleton_inner_puzzle_hash: bytes
+    changes: RewardDistributorStateTransition
+class RewardDistributorAddIncentivesActionLog:
+    def clone(self) -> RewardDistributorAddIncentivesActionLog: ...
+    amount: int
+    manager_fee: int
+    changes: RewardDistributorStateTransition
+class RewardDistributorCommitIncentivesActionLog:
+    def clone(self) -> RewardDistributorCommitIncentivesActionLog: ...
+    spent_reward_slot: RewardDistributorRewardSlotValue
+    created_commitment_slot: RewardDistributorCommitmentSlotValue
+    created_reward_slots: List[RewardDistributorRewardSlotValue]
+    changes: RewardDistributorStateTransition
+class RewardDistributorInitiatePayoutActionLog:
+    def clone(self) -> RewardDistributorInitiatePayoutActionLog: ...
+    spent_entry_slot: RewardDistributorEntrySlotValue
+    created_entry_slot: RewardDistributorEntrySlotValue
+    entry_payout_amount: int
+    payout_rounding_error: int
+    changes: RewardDistributorStateTransition
+class RewardDistributorNewEpochActionLog:
+    def clone(self) -> RewardDistributorNewEpochActionLog: ...
+    spent_reward_slot: RewardDistributorRewardSlotValue
+    created_reward_slot: RewardDistributorRewardSlotValue
+    epoch_total_rewards: int
+    changes: RewardDistributorStateTransition
+class RewardDistributorSyncActionLog:
+    def clone(self) -> RewardDistributorSyncActionLog: ...
+    update_time: int
+    changes: RewardDistributorStateTransition
+class RewardDistributorWithdrawIncentivesActionLog:
+    def clone(self) -> RewardDistributorWithdrawIncentivesActionLog: ...
+    spent_reward_slot: RewardDistributorRewardSlotValue
+    spent_commitment_slot: RewardDistributorCommitmentSlotValue
+    created_reward_slot: RewardDistributorRewardSlotValue
+    changes: RewardDistributorStateTransition
+class RewardDistributorRefreshNftsFromDlActionLog:
+    def clone(self) -> RewardDistributorRefreshNftsFromDlActionLog: ...
+    spent_entry_slots: List[RewardDistributorEntrySlotValue]
+    created_entry_slots: List[RewardDistributorEntrySlotValue]
+    dl_root_hash: bytes
+    dl_inner_puzzle_hash: bytes
+    dl_full_puzzle_hash: bytes
+    changes: RewardDistributorStateTransition
+class RewardDistributorStakeActionLog:
+    def clone(self) -> RewardDistributorStakeActionLog: ...
+    spent_entry_slot: Optional[RewardDistributorEntrySlotValue]
+    created_entry_slot: RewardDistributorEntrySlotValue
+    cat_amount: Optional[int]
+    nft_entries: Optional[List[RewardDistributorNftStakeEntry]]
+    changes: RewardDistributorStateTransition
+class RewardDistributorUnstakeActionLog:
+    def clone(self) -> RewardDistributorUnstakeActionLog: ...
+    spent_entry_slot: RewardDistributorEntrySlotValue
+    created_entry_slot: RewardDistributorEntrySlotValue
+    cat_amount: Optional[int]
+    nft_entries: Optional[List[RewardDistributorNftStakeEntry]]
+    changes: RewardDistributorStateTransition
+class RewardDistributorActionLog:
+    def clone(self) -> RewardDistributorActionLog: ...
+    kind: str
+    add_entry: Optional[RewardDistributorAddEntryActionLog]
+    remove_entry: Optional[RewardDistributorRemoveEntryActionLog]
+    add_incentives: Optional[RewardDistributorAddIncentivesActionLog]
+    commit_incentives: Optional[RewardDistributorCommitIncentivesActionLog]
+    initiate_payout: Optional[RewardDistributorInitiatePayoutActionLog]
+    new_epoch: Optional[RewardDistributorNewEpochActionLog]
+    sync: Optional[RewardDistributorSyncActionLog]
+    withdraw_incentives: Optional[RewardDistributorWithdrawIncentivesActionLog]
+    refresh_nfts_from_dl: Optional[RewardDistributorRefreshNftsFromDlActionLog]
+    stake: Optional[RewardDistributorStakeActionLog]
+    unstake: Optional[RewardDistributorUnstakeActionLog]
 class RewardDistributorLauncherSolutionInfo:
     def clone(self) -> RewardDistributorLauncherSolutionInfo: ...
     def __init__(self, constants: RewardDistributorConstants, initialState: RewardDistributorState, coin: Coin) -> None: ...
@@ -1956,6 +2044,7 @@ class RewardDistributor:
     def pending_created_reward_slots(self) -> List[RewardSlot]: ...
     def pending_created_commitment_slots(self) -> List[CommitmentSlot]: ...
     def pending_created_entry_slots(self) -> List[EntrySlot]: ...
+    def pending_logs(self) -> List[RewardDistributorActionLog]: ...
     def pending_signature(self) -> Signature: ...
     @staticmethod
     def reserve_full_puzzle_hash(assetId: bytes, distributorLauncherId: bytes, nonce: int) -> bytes: ...

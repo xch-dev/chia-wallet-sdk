@@ -401,7 +401,9 @@ impl RewardDistributorSlotNonce {
     }
 }
 
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RewardDistributorRewardSlotValue {
     pub counter: u64,
@@ -411,7 +413,9 @@ pub struct RewardDistributorRewardSlotValue {
     pub rewards: u64,
 }
 
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RewardDistributorCommitmentSlotValue {
     pub epoch_start: u64,
@@ -420,7 +424,9 @@ pub struct RewardDistributorCommitmentSlotValue {
     pub rewards: u64,
 }
 
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RewardDistributorEntrySlotValue {
     pub counter: u64,

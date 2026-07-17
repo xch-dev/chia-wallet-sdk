@@ -75,7 +75,10 @@ impl RewardDistributorUnstakeAction {
                 )?;
                 let entries = unlock_infos
                     .iter()
-                    .map(|info| (info.nft_launcher_id, info.nft_shares))
+                    .map(|info| RewardDistributorNftStakeEntry {
+                        launcher_id: info.nft_launcher_id,
+                        shares: info.nft_shares,
+                    })
                     .collect();
                 Ok((None, Some(entries)))
             }

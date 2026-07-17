@@ -115,6 +115,83 @@
       }
     }
   },
+  "RewardDistributorStateTransition": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "old_state": "RewardDistributorState",
+      "new_state": "RewardDistributorState"
+    }
+  },
+  "RewardDistributorNftStakeEntry": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "shares": "u64"
+    }
+  },
+  "RewardDistributorAddEntryActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "created_entry_slot": "RewardDistributorEntrySlotValue", "manager_singleton_inner_puzzle_hash": "Bytes32", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorRemoveEntryActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_entry_slot": "RewardDistributorEntrySlotValue", "manager_singleton_inner_puzzle_hash": "Bytes32", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorAddIncentivesActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "amount": "u64", "manager_fee": "u64", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorCommitIncentivesActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_reward_slot": "RewardDistributorRewardSlotValue", "created_commitment_slot": "RewardDistributorCommitmentSlotValue", "created_reward_slots": "Vec<RewardDistributorRewardSlotValue>", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorInitiatePayoutActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_entry_slot": "RewardDistributorEntrySlotValue", "created_entry_slot": "RewardDistributorEntrySlotValue", "entry_payout_amount": "u64", "payout_rounding_error": "u128", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorNewEpochActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_reward_slot": "RewardDistributorRewardSlotValue", "created_reward_slot": "RewardDistributorRewardSlotValue", "epoch_total_rewards": "u64", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorSyncActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "update_time": "u64", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorWithdrawIncentivesActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_reward_slot": "RewardDistributorRewardSlotValue", "spent_commitment_slot": "RewardDistributorCommitmentSlotValue", "created_reward_slot": "RewardDistributorRewardSlotValue", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorRefreshNftsFromDlActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "created_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "dl_root_hash": "Bytes32", "dl_inner_puzzle_hash": "Bytes32", "dl_full_puzzle_hash": "Bytes32", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorStakeActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_entry_slot": "Option<RewardDistributorEntrySlotValue>", "created_entry_slot": "RewardDistributorEntrySlotValue", "cat_amount": "Option<u64>", "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorUnstakeActionLog": {
+    "type": "class", "remote": true,
+    "fields": { "spent_entry_slot": "RewardDistributorEntrySlotValue", "created_entry_slot": "RewardDistributorEntrySlotValue", "cat_amount": "Option<u64>", "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>", "changes": "RewardDistributorStateTransition" }
+  },
+  "RewardDistributorActionLog": {
+    "type": "class",
+    "fields": {
+      "kind": "String",
+      "add_entry": "Option<RewardDistributorAddEntryActionLog>",
+      "remove_entry": "Option<RewardDistributorRemoveEntryActionLog>",
+      "add_incentives": "Option<RewardDistributorAddIncentivesActionLog>",
+      "commit_incentives": "Option<RewardDistributorCommitIncentivesActionLog>",
+      "initiate_payout": "Option<RewardDistributorInitiatePayoutActionLog>",
+      "new_epoch": "Option<RewardDistributorNewEpochActionLog>",
+      "sync": "Option<RewardDistributorSyncActionLog>",
+      "withdraw_incentives": "Option<RewardDistributorWithdrawIncentivesActionLog>",
+      "refresh_nfts_from_dl": "Option<RewardDistributorRefreshNftsFromDlActionLog>",
+      "stake": "Option<RewardDistributorStakeActionLog>",
+      "unstake": "Option<RewardDistributorUnstakeActionLog>"
+    }
+  },
   "RewardDistributorLauncherSolutionInfo": {
     "type": "class",
     "new": true,
@@ -419,6 +496,9 @@
       },
       "pending_created_entry_slots": {
         "return": "Vec<EntrySlot>"
+      },
+      "pending_logs": {
+        "return": "Vec<RewardDistributorActionLog>"
       },
       "pending_signature": {
         "return": "Signature"

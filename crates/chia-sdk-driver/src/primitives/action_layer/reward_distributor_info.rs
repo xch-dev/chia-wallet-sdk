@@ -25,7 +25,9 @@ use super::Reserveful;
 
 pub type RewardDistributorLayers = SingletonLayer<ActionLayer<RewardDistributorState, NodePtr>>;
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RoundRewardInfo {
     pub cumulative_payout: u128,
@@ -33,7 +35,9 @@ pub struct RoundRewardInfo {
     pub remaining_rewards: u128,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RoundTimeInfo {
     pub last_update: u64,
@@ -42,7 +46,9 @@ pub struct RoundTimeInfo {
 }
 
 #[must_use]
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RewardDistributorState {
     pub total_reserves: u64,

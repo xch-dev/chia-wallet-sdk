@@ -23,7 +23,7 @@ action-layer = []
 chia-sdk-derive = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }
-chia-protocol = { workspace = true }
+chia-protocol = { workspace = true, features = ["serde"] }
 chia-consensus = { workspace = true }
 chia-puzzle-types = { workspace = true }
 chia-puzzles = { workspace = true }
@@ -33,6 +33,7 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 chialisp = { workspace = true }
 rue-compiler = { workspace = true }
 rue-options = { workspace = true }

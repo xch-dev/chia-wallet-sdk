@@ -5,15 +5,20 @@ use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_sdk_driver::{
-    Cat, Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
-    RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
-    RewardDistributorConstants, RewardDistributorInitiatePayoutAction,
-    RewardDistributorNewEpochAction, RewardDistributorRefreshAction,
-    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
-    RewardDistributorState, RewardDistributorSyncAction,
-    RewardDistributorType as SdkRewardDistributorType,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, RoundRewardInfo,
-    RoundTimeInfo, SpendContext,
+    Cat, Reserve, RewardDistributor as SdkRewardDistributor,
+    RewardDistributorActionLog as SdkRewardDistributorActionLog, RewardDistributorAddEntryAction,
+    RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesAction,
+    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesAction,
+    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutAction, RewardDistributorInitiatePayoutActionLog,
+    RewardDistributorNewEpochAction, RewardDistributorNewEpochActionLog,
+    RewardDistributorRefreshAction, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorRemoveEntryAction, RewardDistributorRemoveEntryActionLog,
+    RewardDistributorStakeAction, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorSyncAction, RewardDistributorSyncActionLog,
+    RewardDistributorType as SdkRewardDistributorType, RewardDistributorUnstakeAction,
+    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesAction,
+    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::{
     Conditions, MerkleProof, Mod,
@@ -275,6 +280,90 @@ pub struct RewardDistributorInfoFromEveCoin {
 }
 
 #[derive(Clone)]
+pub struct RewardDistributorActionLog {
+    pub kind: String,
+    pub add_entry: Option<RewardDistributorAddEntryActionLog>,
+    pub remove_entry: Option<RewardDistributorRemoveEntryActionLog>,
+    pub add_incentives: Option<RewardDistributorAddIncentivesActionLog>,
+    pub commit_incentives: Option<RewardDistributorCommitIncentivesActionLog>,
+    pub initiate_payout: Option<RewardDistributorInitiatePayoutActionLog>,
+    pub new_epoch: Option<RewardDistributorNewEpochActionLog>,
+    pub sync: Option<RewardDistributorSyncActionLog>,
+    pub withdraw_incentives: Option<RewardDistributorWithdrawIncentivesActionLog>,
+    pub refresh_nfts_from_dl: Option<RewardDistributorRefreshNftsFromDlActionLog>,
+    pub stake: Option<RewardDistributorStakeActionLog>,
+    pub unstake: Option<RewardDistributorUnstakeActionLog>,
+}
+
+impl From<SdkRewardDistributorActionLog> for RewardDistributorActionLog {
+    fn from(log: SdkRewardDistributorActionLog) -> Self {
+        let mut result = Self {
+            kind: String::new(),
+            add_entry: None,
+            remove_entry: None,
+            add_incentives: None,
+            commit_incentives: None,
+            initiate_payout: None,
+            new_epoch: None,
+            sync: None,
+            withdraw_incentives: None,
+            refresh_nfts_from_dl: None,
+            stake: None,
+            unstake: None,
+        };
+
+        match log {
+            SdkRewardDistributorActionLog::AddEntry(payload) => {
+                result.kind = "AddEntry".to_string();
+                result.add_entry = Some(payload);
+            }
+            SdkRewardDistributorActionLog::RemoveEntry(payload) => {
+                result.kind = "RemoveEntry".to_string();
+                result.remove_entry = Some(payload);
+            }
+            SdkRewardDistributorActionLog::AddIncentives(payload) => {
+                result.kind = "AddIncentives".to_string();
+                result.add_incentives = Some(payload);
+            }
+            SdkRewardDistributorActionLog::CommitIncentives(payload) => {
+                result.kind = "CommitIncentives".to_string();
+                result.commit_incentives = Some(payload);
+            }
+            SdkRewardDistributorActionLog::InitiatePayout(payload) => {
+                result.kind = "InitiatePayout".to_string();
+                result.initiate_payout = Some(payload);
+            }
+            SdkRewardDistributorActionLog::NewEpoch(payload) => {
+                result.kind = "NewEpoch".to_string();
+                result.new_epoch = Some(payload);
+            }
+            SdkRewardDistributorActionLog::Sync(payload) => {
+                result.kind = "Sync".to_string();
+                result.sync = Some(payload);
+            }
+            SdkRewardDistributorActionLog::WithdrawIncentives(payload) => {
+                result.kind = "WithdrawIncentives".to_string();
+                result.withdraw_incentives = Some(payload);
+            }
+            SdkRewardDistributorActionLog::RefreshNftsFromDl(payload) => {
+                result.kind = "RefreshNftsFromDl".to_string();
+                result.refresh_nfts_from_dl = Some(payload);
+            }
+            SdkRewardDistributorActionLog::Stake(payload) => {
+                result.kind = "Stake".to_string();
+                result.stake = Some(payload);
+            }
+            SdkRewardDistributorActionLog::Unstake(payload) => {
+                result.kind = "Unstake".to_string();
+                result.unstake = Some(payload);
+            }
+        }
+
+        result
+    }
+}
+
+#[derive(Clone)]
 pub struct RewardDistributor {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
@@ -367,6 +456,19 @@ impl RewardDistributor {
                         .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::ENTRY),
                 )
             })
+            .collect())
+    }
+
+    pub fn pending_logs(&self) -> Result<Vec<RewardDistributorActionLog>> {
+        Ok(self
+            .distributor
+            .lock()
+            .unwrap()
+            .pending_spend
+            .logs
+            .clone()
+            .into_iter()
+            .map(Into::into)
             .collect())
     }
 
