@@ -165,7 +165,7 @@
   },
   "RewardDistributorRefreshNftsFromDlActionLog": {
     "type": "class", "remote": true,
-    "fields": { "spent_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "created_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "dl_root_hash": "Bytes32", "dl_inner_puzzle_hash": "Bytes32", "dl_full_puzzle_hash": "Bytes32", "changes": "RewardDistributorStateTransition" }
+    "fields": { "spent_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "created_entry_slots": "Vec<RewardDistributorEntrySlotValue>", "nft_entries": "Vec<RewardDistributorNftStakeEntry>", "dl_root_hash": "Bytes32", "dl_inner_puzzle_hash": "Bytes32", "dl_full_puzzle_hash": "Bytes32", "changes": "RewardDistributorStateTransition" }
   },
   "RewardDistributorStakeActionLog": {
     "type": "class", "remote": true,

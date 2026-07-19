@@ -5,19 +5,19 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_sdk_driver::{
-    get_merkle_tree, DataStore as SdkDataStore, DataStoreMetadata, DelegatedPuzzle, Layer, Launcher,
-    OracleLayer, SpendContext, SpendWithConditions, StandardLayer,
+    DataStore as SdkDataStore, DataStoreMetadata, DelegatedPuzzle, Launcher, Layer, OracleLayer,
+    SpendContext, SpendWithConditions, StandardLayer, get_merkle_tree,
 };
 use chia_sdk_types::{
-    conditions::UpdateDataStoreMerkleRoot, puzzles::DL_METADATA_UPDATER_PUZZLE_HASH, Condition,
-    Conditions,
+    Condition, Conditions, conditions::UpdateDataStoreMerkleRoot,
+    puzzles::DL_METADATA_UPDATER_PUZZLE_HASH,
 };
-use clvm_traits::{clvm_list, ToClvm};
+use clvm_traits::{ToClvm, clvm_list};
 use clvm_utils::ToTreeHash;
 
 use crate::{Clvm, Program, Proof, Spend};
 
-/// Fields the curated NFT stake/refresh actions need from an on-chain DataStore.
+/// Fields the curated NFT stake/refresh actions need from an on-chain `DataStore`.
 /// Matches slot-machine `curated_datastore_fields`.
 #[derive(Clone)]
 pub struct CuratedDataStoreFields {
@@ -27,14 +27,14 @@ pub struct CuratedDataStoreFields {
     pub inner_puzzle_hash: Bytes32,
 }
 
-/// Result of `Clvm::mint_datastore` — parent conditions plus the eve DataStore.
+/// Result of `Clvm::mint_datastore` — parent conditions plus the eve `DataStore`.
 #[derive(Clone)]
 pub struct MintedDataStore {
     pub datastore: DataStore,
     pub parent_conditions: Vec<Program>,
 }
 
-/// Synced DataStore coin. Parsing and oracle spend mirror slot-machine's
+/// Synced `DataStore` coin. Parsing and oracle spend mirror slot-machine's
 /// `sync_datastore` / `spend_datastore_oracle` helpers.
 #[derive(Clone)]
 pub struct DataStore {
@@ -63,10 +63,7 @@ fn curated_fields(
         root_hash: datastore.info.metadata.root_hash,
         metadata_rest_hash,
         metadata_updater_hash_hash: dl_metadata_updater_hash.tree_hash().into(),
-        inner_puzzle_hash: datastore
-            .info
-            .delegation_layer_puzzle_hash(ctx)?
-            .into(),
+        inner_puzzle_hash: datastore.info.delegation_layer_puzzle_hash(ctx)?.into(),
     })
 }
 
@@ -154,7 +151,7 @@ impl DataStore {
     }
 
     pub fn proof(&self) -> Result<Proof> {
-        Ok(Proof::from(self.datastore.lock().unwrap().proof.clone()))
+        Ok(Proof::from(self.datastore.lock().unwrap().proof))
     }
 
     pub fn launcher_id(&self) -> Result<Bytes32> {
@@ -219,7 +216,7 @@ impl DataStore {
         curated_fields(&mut ctx, &datastore)
     }
 
-    /// Build the CREATE_COIN condition an owner uses to recreate (or re-own) the store.
+    /// Build the `CREATE_COIN` condition an owner uses to recreate (or re-own) the store.
     pub fn owner_create_coin_condition(
         &self,
         new_owner_puzzle_hash: Bytes32,
@@ -238,7 +235,7 @@ impl DataStore {
         Ok(Program(self.clvm.clone(), condition.to_clvm(&mut ctx)?))
     }
 
-    /// Build the NFT metadata-update condition for a new DataStore metadata value.
+    /// Build the NFT metadata-update condition for a new `DataStore` metadata value.
     pub fn new_metadata_condition(&self, new_metadata: DataStoreMetadata) -> Result<Program> {
         let mut ctx = self.clvm.lock().unwrap();
         let condition = SdkDataStore::new_metadata_condition(&mut ctx, new_metadata)?;
@@ -246,7 +243,7 @@ impl DataStore {
     }
 
     /// Spend with an arbitrary inner spend and insert the coin spend into the CLVM context.
-    /// Returns the child DataStore parsed with this store's current delegated puzzles.
+    /// Returns the child `DataStore` parsed with this store's current delegated puzzles.
     pub fn spend(&self, inner_spend: Spend) -> Result<DataStore> {
         let mut ctx = self.clvm.lock().unwrap();
         let datastore = self.datastore.lock().unwrap().clone();
@@ -269,9 +266,8 @@ impl DataStore {
     pub fn spend_oracle(&self) -> Result<()> {
         let mut ctx = self.clvm.lock().unwrap();
         let datastore = self.datastore.lock().unwrap().clone();
-        let oracle = OracleLayer::new(Bytes32::default(), 0).ok_or_else(|| {
-            Error::Custom("Invalid oracle fee for DataStore spend.".to_string())
-        })?;
+        let oracle = OracleLayer::new(Bytes32::default(), 0)
+            .ok_or_else(|| Error::Custom("Invalid oracle fee for DataStore spend.".to_string()))?;
         let inner_spend = oracle.construct_spend(&mut ctx, ())?;
         let dl_spend = datastore.spend(&mut ctx, inner_spend)?;
         ctx.insert(dl_spend);
@@ -360,10 +356,8 @@ impl DataStore {
             }
         };
 
-        let inner_spend = StandardLayer::new(inner_key).spend_with_conditions(
-            &mut ctx,
-            Conditions::new().with(update_condition),
-        )?;
+        let inner_spend = StandardLayer::new(inner_key)
+            .spend_with_conditions(&mut ctx, Conditions::new().with(update_condition))?;
         let dl_spend = datastore.spend(&mut ctx, inner_spend)?;
         let new_datastore = SdkDataStore::<DataStoreMetadata>::from_spend(
             &mut ctx,
@@ -379,8 +373,8 @@ impl DataStore {
 }
 
 impl Clvm {
-    /// Mint a DataStore via `Launcher::mint_datastore`.
-    /// Returns parent conditions (apply on the funding coin) and the eve DataStore.
+    /// Mint a `DataStore` via `Launcher::mint_datastore`.
+    /// Returns parent conditions (apply on the funding coin) and the eve `DataStore`.
     pub fn mint_datastore(
         &self,
         parent_coin_id: Bytes32,
@@ -408,7 +402,7 @@ impl Clvm {
         })
     }
 
-    /// Parse a DataStore child from a parent coin spend.
+    /// Parse a `DataStore` child from a parent coin spend.
     /// When `delegated_puzzles` is `None`, uses `Oracle(zero, 0)` (slot-machine curated default).
     /// Pass `Some([...])` (including an empty list for vanilla stores) to override.
     pub fn data_store_from_spend(
@@ -417,8 +411,7 @@ impl Clvm {
         delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
     ) -> Result<Option<DataStore>> {
         let mut ctx = self.0.lock().unwrap();
-        let delegated_puzzles =
-            delegated_puzzles.unwrap_or_else(oracle_delegated_puzzles);
+        let delegated_puzzles = delegated_puzzles.unwrap_or_else(oracle_delegated_puzzles);
         let Some(datastore) = SdkDataStore::<DataStoreMetadata>::from_spend(
             &mut ctx,
             &parent_spend,

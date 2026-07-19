@@ -19,8 +19,9 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
     RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
-    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorStateTransition,
-    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorStateTransition, RewardDistributorType, SingletonAction, Slot, Spend,
+    SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,10 +146,20 @@ impl RewardDistributorRefreshAction {
                 })
             })
             .collect::<Result<Vec<_>, DriverError>>()?;
+        let nft_entries = params
+            .slots_and_nfts
+            .iter()
+            .flat_map(|slot| &slot.nfts)
+            .map(|nft| RewardDistributorNftStakeEntry {
+                launcher_id: nft.nft_launcher_id,
+                shares: nft.new_nft_shares,
+            })
+            .collect();
 
         Ok(RewardDistributorRefreshNftsFromDlActionLog {
             spent_entry_slots,
             created_entry_slots,
+            nft_entries,
             dl_root_hash: params.dl_root_hash,
             dl_inner_puzzle_hash: params.dl_info.dl_inner_puzzle_hash,
             dl_full_puzzle_hash: SingletonArgs::curry_tree_hash(
@@ -321,5 +332,124 @@ impl RewardDistributorRefreshAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, created_nfts))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_sdk_types::puzzles::{
+        RewardDistributorDlInfo, RewardDistributorEntryPayoutInfo,
+        RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorRefreshNftsTotals,
+    };
+
+    use super::*;
+    use crate::{
+        RewardDistributorState, RewardDistributorStateTransition, RoundRewardInfo, RoundTimeInfo,
+    };
+
+    fn id(byte: u8) -> Bytes32 {
+        Bytes32::new([byte; 32])
+    }
+
+    fn nft(launcher_id: Bytes32, shares_delta: i64, new_shares: u64) -> RefreshNftInfo {
+        RefreshNftInfo {
+            nft_shares_delta: shares_delta,
+            new_nft_shares: new_shares,
+            nft_parent_id: Bytes32::default(),
+            nft_launcher_id: launcher_id,
+            nft_metadata_hash: Bytes32::default(),
+            nft_metadata_updater_hash_hash: Bytes32::default(),
+            nft_transfer_porgram_hash: Bytes32::default(),
+            nft_owner: None,
+            nft_inclusion_proof: MerkleProof::new(0, vec![]),
+        }
+    }
+
+    fn slot(shares: u64, shares_delta: i64, nfts: Vec<RefreshNftInfo>) -> SlotAndNfts {
+        SlotAndNfts {
+            existing_slot_value: RewardDistributorEntrySlotValue {
+                counter: 0,
+                payout_puzzle_hash: Bytes32::default(),
+                initial_cumulative_payout: 0,
+                shares,
+            },
+            entry_payout_info: RewardDistributorEntryPayoutInfo {
+                payout_amount: 0,
+                payout_rounding_error: 0,
+            },
+            nfts_total_shares_delta: shares_delta,
+            nfts,
+        }
+    }
+
+    #[test]
+    fn refresh_log_maps_each_nft_to_its_new_shares_across_slot_groups() {
+        let first = id(1);
+        let second = id(2);
+        let third = id(3);
+        let mut ctx = SpendContext::new();
+        let solution = ctx
+            .alloc(&RewardDistributorRefreshNftsFromDlActionSolution {
+                dl_root_hash: id(4),
+                dl_info: RewardDistributorDlInfo {
+                    dl_metadata_rest_hash: None,
+                    dl_metadata_updater_hash_hash: id(5),
+                    dl_inner_puzzle_hash: id(6),
+                },
+                totals: RewardDistributorRefreshNftsTotals {
+                    total_entry_payout_amount: 0,
+                    total_shares_delta: 1,
+                    total_payout_rounding_error: 0,
+                },
+                slots_and_nfts: vec![
+                    slot(12, -2, vec![nft(first, -4, 0), nft(second, 2, 2)]),
+                    slot(7, 3, vec![nft(third, 3, 10)]),
+                ],
+            })
+            .unwrap();
+        let state = RewardDistributorState {
+            total_reserves: 0,
+            active_shares: 19,
+            round_reward_info: RoundRewardInfo {
+                cumulative_payout: 100,
+                remaining_rewards: 0,
+            },
+            round_time_info: RoundTimeInfo {
+                last_update: 0,
+                epoch_end: 0,
+            },
+        };
+
+        let log = RewardDistributorRefreshAction::get_log(
+            &mut ctx,
+            solution,
+            RewardDistributorStateTransition {
+                old_state: state,
+                new_state: RewardDistributorState {
+                    active_shares: 20,
+                    ..state
+                },
+            },
+            id(9),
+        )
+        .unwrap();
+
+        assert_eq!(
+            log.nft_entries,
+            vec![
+                RewardDistributorNftStakeEntry {
+                    launcher_id: first,
+                    shares: 0,
+                },
+                RewardDistributorNftStakeEntry {
+                    launcher_id: second,
+                    shares: 2,
+                },
+                RewardDistributorNftStakeEntry {
+                    launcher_id: third,
+                    shares: 10,
+                },
+            ]
+        );
     }
 }

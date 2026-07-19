@@ -124,7 +124,10 @@ mod tests {
     use chia_sdk_types::Conditions;
     use clvmr::NodePtr;
 
-    use crate::{CatalogRegistryState, Launcher, SingletonLayer, StateSchedulerLauncherHints};
+    use crate::{
+        CatalogRegistryState, Launcher, SingletonLayer, StateSchedulerLauncherHints,
+        XchandlesRegistryReceivedMessagePrefix,
+    };
 
     use super::*;
 
@@ -230,7 +233,8 @@ mod tests {
                 &Conditions::new()
                     .receive_message(
                         18,
-                        new_state.tree_hash().to_vec().into(),
+                        XchandlesRegistryReceivedMessagePrefix::update_state(new_state.tree_hash())
+                            .into(),
                         vec![state_scheduler_puzzle_hash_ptr],
                     )
                     .create_coin(other_singleton_inner_puzzle_hash.into(), 1, Memos::None),

@@ -82,6 +82,8 @@ pub struct RewardDistributorWithdrawIncentivesActionLog {
 pub struct RewardDistributorRefreshNftsFromDlActionLog {
     pub spent_entry_slots: Vec<RewardDistributorEntrySlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+    #[serde(default)]
+    pub nft_entries: Vec<RewardDistributorNftStakeEntry>,
     pub dl_root_hash: Bytes32,
     pub dl_inner_puzzle_hash: Bytes32,
     pub dl_full_puzzle_hash: Bytes32,
