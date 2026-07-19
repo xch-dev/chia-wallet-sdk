@@ -78,7 +78,7 @@ pub use chia_sdk_coinset::{
 };
 pub use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, CatInfo, CatalogRegistryConstants, CatalogRegistryState,
-    Clawback, ClawbackV2, DataStoreMetadata, DelegatedPuzzle, Delta, MedievalVaultHint,
+    Clawback, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta, MedievalVaultHint,
     MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
     P2ParentCoin, RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
     RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,

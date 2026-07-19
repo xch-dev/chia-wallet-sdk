@@ -15,7 +15,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use num_bigint::BigInt;
 
-pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
+pub type StandardDatastoreLayers<M = DatastoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
@@ -97,7 +97,7 @@ pub trait MetadataWithRootHash {
     fn root_hash_only(root_hash: Bytes32) -> Self;
 }
 
-impl MetadataWithRootHash for DataStoreMetadata {
+impl MetadataWithRootHash for DatastoreMetadata {
     fn root_hash(&self) -> Bytes32 {
         self.root_hash
     }
@@ -114,7 +114,7 @@ impl MetadataWithRootHash for DataStoreMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct DataStoreMetadata {
+pub struct DatastoreMetadata {
     pub root_hash: Bytes32,
     pub label: Option<String>,
     pub description: Option<String>,
@@ -122,7 +122,7 @@ pub struct DataStoreMetadata {
     pub size_proof: Option<String>,
 }
 
-impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DatastoreMetadata {
     fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
         let (root_hash, items) = <(Bytes32, Vec<(String, Raw<N>)>)>::from_clvm(decoder, node)?;
         let mut metadata = Self::root_hash_only(root_hash);
@@ -141,7 +141,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
     }
 }
 
-impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DatastoreMetadata {
     fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
         let mut items: Vec<(&str, Raw<N>)> = Vec::new();
 
@@ -167,14 +167,14 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
 
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DataStoreInfo<M = DataStoreMetadata> {
+pub struct DatastoreInfo<M = DatastoreMetadata> {
     pub launcher_id: Bytes32,
     pub metadata: M,
     pub owner_puzzle_hash: Bytes32,
     pub delegated_puzzles: Vec<DelegatedPuzzle>,
 }
 
-impl<M> DataStoreInfo<M> {
+impl<M> DatastoreInfo<M> {
     pub fn new(
         launcher_id: Bytes32,
         metadata: M,
@@ -190,7 +190,7 @@ impl<M> DataStoreInfo<M> {
     }
 
     pub fn from_layers_with_delegation_layer(
-        layers: StandardDataStoreLayers<M, DelegationLayer>,
+        layers: StandardDatastoreLayers<M, DelegationLayer>,
         delegated_puzzles: Vec<DelegatedPuzzle>,
     ) -> Self {
         Self {
@@ -201,7 +201,7 @@ impl<M> DataStoreInfo<M> {
         }
     }
 
-    pub fn from_layers_without_delegation_layer<I>(layers: StandardDataStoreLayers<M, I>) -> Self
+    pub fn from_layers_without_delegation_layer<I>(layers: StandardDatastoreLayers<M, I>) -> Self
     where
         I: ToTreeHash,
     {
@@ -216,7 +216,7 @@ impl<M> DataStoreInfo<M> {
     pub fn into_layers_with_delegation_layer(
         self,
         ctx: &mut SpendContext,
-    ) -> Result<StandardDataStoreLayers<M, DelegationLayer>, DriverError> {
+    ) -> Result<StandardDatastoreLayers<M, DelegationLayer>, DriverError> {
         Ok(SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
@@ -235,7 +235,7 @@ impl<M> DataStoreInfo<M> {
     pub fn into_layers_without_delegation_layer<I>(
         self,
         innermost_layer: I,
-    ) -> StandardDataStoreLayers<M, I> {
+    ) -> StandardDatastoreLayers<M, I> {
         SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(

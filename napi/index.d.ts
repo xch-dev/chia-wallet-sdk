@@ -644,8 +644,8 @@ export declare class Clvm {
   spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): Nft
-  mintDatastore(parentCoinId: Uint8Array, metadata: DataStoreMetadata, ownerPuzzleHash: Uint8Array, delegatedPuzzles: Array<DelegatedPuzzle>): MintedDataStore
-  dataStoreFromSpend(parentSpend: CoinSpend, delegatedPuzzles?: Array<DelegatedPuzzle> | undefined | null): DataStore | null
+  mintDatastore(parentCoinId: Uint8Array, metadata: DatastoreMetadata, ownerPuzzleHash: Uint8Array, delegatedPuzzles: Array<DelegatedPuzzle>): MintedDatastore
+  datastoreFromSpend(parentSpend: CoinSpend, delegatedPuzzles?: Array<DelegatedPuzzle> | undefined | null): Datastore | null
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): Did | null
   spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
@@ -701,7 +701,7 @@ export declare class Clvm {
   transferNft(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null): Program
   runCatTail(program: Program, solution: Program): Program
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
-  updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
+  updateDatastoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   parseChildStreamedAsset(coinSpend: CoinSpend): StreamedAssetParsingResult
   parseChildMedievalVault(coinSpend: CoinSpend): MedievalVault | null
   spendMedievalVault(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, conditions: Array<Program>, genesisChallenge: Uint8Array): void
@@ -1167,8 +1167,8 @@ export declare class CreatePuzzleAnnouncement {
   set message(value: Uint8Array)
 }
 
-export declare class CuratedDataStoreFields {
-  clone(): CuratedDataStoreFields
+export declare class CuratedDatastoreFields {
+  clone(): CuratedDatastoreFields
   constructor(rootHash: Uint8Array, metadataRestHash: Uint8Array | undefined | null, metadataUpdaterHashHash: Uint8Array, innerPuzzleHash: Uint8Array)
   get rootHash(): Buffer
   set rootHash(value: Uint8Array)
@@ -1189,30 +1189,30 @@ export declare class CurriedProgram {
   set args(value: Array<Program>)
 }
 
-export declare class DataStore {
-  clone(): DataStore
+export declare class Datastore {
+  clone(): Datastore
   coin(): Coin
   proof(): Proof
   launcherId(): Buffer
   ownerPuzzleHash(): Buffer
-  metadata(): DataStoreMetadata
+  metadata(): DatastoreMetadata
   rootHash(): Buffer
   label(): string | null
   description(): string | null
   bytes(): bigint | null
   sizeProof(): string | null
   delegatedPuzzles(): Array<DelegatedPuzzle>
-  curatedFields(): CuratedDataStoreFields
+  curatedFields(): CuratedDatastoreFields
   ownerCreateCoinCondition(newOwnerPuzzleHash: Uint8Array, newDelegatedPuzzles: Array<DelegatedPuzzle>, hintDelegatedPuzzles: boolean): Program
-  newMetadataCondition(newMetadata: DataStoreMetadata): Program
-  spend(innerSpend: Spend): DataStore
+  newMetadataCondition(newMetadata: DatastoreMetadata): Program
+  spend(innerSpend: Spend): Datastore
   spendOracle(): void
-  updateMetadataAsOwner(ownerSyntheticKey: PublicKey, newMetadata: DataStoreMetadata): DataStore
-  updateOwnership(newOwnerPuzzleHash: Uint8Array, newDelegatedPuzzles: Array<DelegatedPuzzle>, ownerSyntheticKey?: PublicKey | undefined | null, adminSyntheticKey?: PublicKey | undefined | null): DataStore
+  updateMetadataAsOwner(ownerSyntheticKey: PublicKey, newMetadata: DatastoreMetadata): Datastore
+  updateOwnership(newOwnerPuzzleHash: Uint8Array, newDelegatedPuzzles: Array<DelegatedPuzzle>, ownerSyntheticKey?: PublicKey | undefined | null, adminSyntheticKey?: PublicKey | undefined | null): Datastore
 }
 
-export declare class DataStoreMetadata {
-  clone(): DataStoreMetadata
+export declare class DatastoreMetadata {
+  clone(): DatastoreMetadata
   constructor(rootHash: Uint8Array, label?: string | undefined | null, description?: string | undefined | null, bytes?: bigint | undefined | null, sizeProof?: string | undefined | null)
   get rootHash(): Buffer
   set rootHash(value: Uint8Array)
@@ -1759,11 +1759,11 @@ export declare class MetadataUpdate {
   set uri(value: string)
 }
 
-export declare class MintedDataStore {
-  clone(): MintedDataStore
-  constructor(datastore: DataStore, parentConditions: Array<Program>)
-  get datastore(): DataStore
-  set datastore(value: DataStore)
+export declare class MintedDatastore {
+  clone(): MintedDatastore
+  constructor(datastore: Datastore, parentConditions: Array<Program>)
+  get datastore(): Datastore
+  set datastore(value: Datastore)
   get parentConditions(): Array<Program>
   set parentConditions(value: Array<Program>)
 }
@@ -2315,7 +2315,7 @@ export declare class Program {
   parseTransferNft(): TransferNft | null
   parseRunCatTail(): RunCatTail | null
   parseUpdateNftMetadata(): UpdateNftMetadata | null
-  parseUpdateDataStoreMerkleRoot(): UpdateDataStoreMerkleRoot | null
+  parseUpdateDatastoreMerkleRoot(): UpdateDatastoreMerkleRoot | null
   parseOptionMetadata(): OptionMetadata | null
   parsePayment(): Payment | null
   parseNotarizedPayment(): NotarizedPayment | null
@@ -2851,6 +2851,8 @@ export declare class RewardDistributorRefreshNftsFromDlActionLog {
   set spentEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
   get createdEntrySlots(): Array<RewardDistributorEntrySlotValue>
   set createdEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
+  get nftEntries(): Array<RewardDistributorNftStakeEntry>
+  set nftEntries(value: Array<RewardDistributorNftStakeEntry>)
   get dlRootHash(): Buffer
   set dlRootHash(value: Uint8Array)
   get dlInnerPuzzleHash(): Buffer
@@ -3363,8 +3365,8 @@ export declare class TransferNftById {
   set tradePrices(value: Array<TradePrice>)
 }
 
-export declare class UpdateDataStoreMerkleRoot {
-  clone(): UpdateDataStoreMerkleRoot
+export declare class UpdateDatastoreMerkleRoot {
+  clone(): UpdateDatastoreMerkleRoot
   constructor(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>)
   get newMerkleRoot(): Buffer
   set newMerkleRoot(value: Uint8Array)

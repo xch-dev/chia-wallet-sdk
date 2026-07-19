@@ -119,7 +119,7 @@
     "TransferNft",
     "RunCatTail",
     "UpdateNftMetadata",
-    "UpdateDataStoreMerkleRoot",
+    "UpdateDatastoreMerkleRoot",
     "OptionMetadata",
     "NotarizedPayment",
     "Payment"

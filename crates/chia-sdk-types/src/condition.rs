@@ -193,7 +193,7 @@ conditions! {
             updater_puzzle_reveal: P,
             updater_solution: S,
         },
-        UpdateDataStoreMerkleRoot {
+        UpdateDatastoreMerkleRoot {
             opcode: i8 if -13,
             new_merkle_root: Bytes32,
             ...memos: Vec<Bytes>,

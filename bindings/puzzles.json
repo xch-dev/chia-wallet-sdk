@@ -900,7 +900,7 @@
       "memos": "Vec<Bytes>"
     }
   },
-  "CuratedDataStoreFields": {
+  "CuratedDatastoreFields": {
     "type": "class",
     "new": true,
     "fields": {
@@ -910,7 +910,7 @@
       "inner_puzzle_hash": "Bytes32"
     }
   },
-  "DataStoreMetadata": {
+  "DatastoreMetadata": {
     "type": "class",
     "remote": true,
     "new": true,
@@ -981,15 +981,15 @@
       }
     }
   },
-  "MintedDataStore": {
+  "MintedDatastore": {
     "type": "class",
     "new": true,
     "fields": {
-      "datastore": "DataStore",
+      "datastore": "Datastore",
       "parent_conditions": "Vec<Program>"
     }
   },
-  "DataStore": {
+  "Datastore": {
     "type": "class",
     "methods": {
       "coin": {
@@ -1005,7 +1005,7 @@
         "return": "Bytes32"
       },
       "metadata": {
-        "return": "DataStoreMetadata"
+        "return": "DatastoreMetadata"
       },
       "root_hash": {
         "return": "Bytes32"
@@ -1026,7 +1026,7 @@
         "return": "Vec<DelegatedPuzzle>"
       },
       "curated_fields": {
-        "return": "CuratedDataStoreFields"
+        "return": "CuratedDatastoreFields"
       },
       "owner_create_coin_condition": {
         "args": {
@@ -1038,7 +1038,7 @@
       },
       "new_metadata_condition": {
         "args": {
-          "new_metadata": "DataStoreMetadata"
+          "new_metadata": "DatastoreMetadata"
         },
         "return": "Program"
       },
@@ -1046,15 +1046,15 @@
         "args": {
           "inner_spend": "Spend"
         },
-        "return": "DataStore"
+        "return": "Datastore"
       },
       "spend_oracle": {},
       "update_metadata_as_owner": {
         "args": {
           "owner_synthetic_key": "PublicKey",
-          "new_metadata": "DataStoreMetadata"
+          "new_metadata": "DatastoreMetadata"
         },
-        "return": "DataStore"
+        "return": "Datastore"
       },
       "update_ownership": {
         "args": {
@@ -1063,7 +1063,7 @@
           "owner_synthetic_key": "Option<PublicKey>",
           "admin_synthetic_key": "Option<PublicKey>"
         },
-        "return": "DataStore"
+        "return": "Datastore"
       }
     }
   }

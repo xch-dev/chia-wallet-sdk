@@ -808,8 +808,8 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        Asset, CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
-        DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
+        Asset, CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, Datastore,
+        DatastoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
         NftMint, OracleLayer, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
         RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
@@ -2675,13 +2675,13 @@ mod tests {
         ctx: &mut SpendContext,
         sim: &mut Simulator,
         benchmark: &mut Benchmark,
-        datastore: DataStore,
+        datastore: Datastore,
         delegated_puzzles: &[DelegatedPuzzle],
-        new_metadata: DataStoreMetadata,
+        new_metadata: DatastoreMetadata,
         datastore_p2: &BlsPairWithCoin,
-    ) -> anyhow::Result<DataStore<DataStoreMetadata>> {
+    ) -> anyhow::Result<Datastore<DatastoreMetadata>> {
         let owner_layer = StandardLayer::new(datastore_p2.pk);
-        let recreate = DataStore::<()>::owner_create_coin_condition(
+        let recreate = Datastore::<()>::owner_create_coin_condition(
             ctx,
             datastore.info.launcher_id,
             owner_layer.tree_hash().into(),
@@ -2689,7 +2689,7 @@ mod tests {
             false,
         )?;
 
-        let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
+        let new_metadata_condition = Datastore::new_metadata_condition(ctx, new_metadata)?;
 
         let inner_spend = owner_layer.spend_with_conditions(
             ctx,
@@ -2699,7 +2699,7 @@ mod tests {
         )?;
         let dl_spend = datastore.spend(ctx, inner_spend)?;
 
-        let new_datastore = DataStore::from_spend(ctx, &dl_spend, delegated_puzzles)?.unwrap();
+        let new_datastore = Datastore::from_spend(ctx, &dl_spend, delegated_puzzles)?.unwrap();
 
         benchmark.add_spends(
             ctx,
@@ -2765,14 +2765,14 @@ mod tests {
         let oracle_fee = 1336;
         let delegated_puzzles = vec![DelegatedPuzzle::Oracle(Bytes32::default(), 1336)];
         let mut merkle_tree = MerkleTree::new(&[]);
-        let mut datastore: Option<DataStore> = if let RewardDistributorTestType::CuratedNft {
+        let mut datastore: Option<Datastore> = if let RewardDistributorTestType::CuratedNft {
             refreshable: _,
         } = test_type
         {
             let (launch_singleton, datastore) = Launcher::new(datastore_p2.coin.coin_id(), 1)
                 .mint_datastore(
                     ctx,
-                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    DatastoreMetadata::root_hash_only(merkle_tree.root()),
                     datastore_p2.puzzle_hash.into(),
                     delegated_puzzles.clone(),
                 )?;
@@ -3088,7 +3088,7 @@ mod tests {
 
             if let Some(some_datastore) = datastore {
                 merkle_tree = MerkleTree::new(&[(nft.info.launcher_id, 1).tree_hash().into()]);
-                let metadata = DataStoreMetadata {
+                let metadata = DatastoreMetadata {
                     root_hash: merkle_tree.root(),
                     label: Some("label".to_string()),
                     description: None,
@@ -3134,7 +3134,7 @@ mod tests {
 
                 let dl_spend = some_datastore.spend(ctx, inner_spend)?;
                 datastore =
-                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                    Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
                 registry
@@ -3831,7 +3831,7 @@ mod tests {
                     &mut benchmark,
                     some_datastore,
                     &delegated_puzzles,
-                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    DatastoreMetadata::root_hash_only(merkle_tree.root()),
                     &datastore_p2,
                 )?);
             }
@@ -3892,7 +3892,7 @@ mod tests {
 
                 let dl_spend = some_datastore.spend(ctx, inner_spend)?;
                 datastore =
-                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                    Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
                 let (sec_conds2, notarized_payments2, locked_nfts2) = registry
@@ -4037,7 +4037,7 @@ mod tests {
                     &mut benchmark,
                     some_datastore,
                     &delegated_puzzles,
-                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    DatastoreMetadata::root_hash_only(merkle_tree.root()),
                     &datastore_p2,
                 )?);
 
@@ -4056,7 +4056,7 @@ mod tests {
 
                 let dl_spend = some_datastore.spend(ctx, inner_spend)?;
                 datastore =
-                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                    Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
                 let (sec_conds, new_locked_nfts) = registry
@@ -4159,7 +4159,7 @@ mod tests {
                     &mut benchmark,
                     some_datastore,
                     &delegated_puzzles,
-                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    DatastoreMetadata::root_hash_only(merkle_tree.root()),
                     &datastore_p2,
                 )?);
 
@@ -4178,7 +4178,7 @@ mod tests {
 
                 let dl_spend = some_datastore.spend(ctx, inner_spend)?;
                 datastore =
-                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                    Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
                 let (sec_conds, new_locked_nfts) = registry

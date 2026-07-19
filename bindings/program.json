@@ -200,8 +200,8 @@
       "parse_update_nft_metadata": {
         "return": "Option<UpdateNftMetadata>"
       },
-      "parse_update_data_store_merkle_root": {
-        "return": "Option<UpdateDataStoreMerkleRoot>"
+      "parse_update_datastore_merkle_root": {
+        "return": "Option<UpdateDatastoreMerkleRoot>"
       },
       "parse_option_metadata": {
         "return": "Option<OptionMetadata>"

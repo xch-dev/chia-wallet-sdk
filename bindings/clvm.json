@@ -153,18 +153,18 @@
       "mint_datastore": {
         "args": {
           "parent_coin_id": "Bytes32",
-          "metadata": "DataStoreMetadata",
+          "metadata": "DatastoreMetadata",
           "owner_puzzle_hash": "Bytes32",
           "delegated_puzzles": "Vec<DelegatedPuzzle>"
         },
-        "return": "MintedDataStore"
+        "return": "MintedDatastore"
       },
-      "data_store_from_spend": {
+      "datastore_from_spend": {
         "args": {
           "parent_spend": "CoinSpend",
           "delegated_puzzles": "Option<Vec<DelegatedPuzzle>>"
         },
-        "return": "Option<DataStore>"
+        "return": "Option<Datastore>"
       },
       "create_eve_did": {
         "args": {
@@ -518,7 +518,7 @@
         },
         "return": "Program"
       },
-      "update_data_store_merkle_root": {
+      "update_datastore_merkle_root": {
         "args": {
           "new_merkle_root": "Bytes32",
           "memos": "Vec<Bytes>"
