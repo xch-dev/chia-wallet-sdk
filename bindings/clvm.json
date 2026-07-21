@@ -684,6 +684,20 @@
         },
         "return": "OfferSecurityCoinDetails"
       },
+      "create_security_coin_with_pk": {
+        "args": {
+          "xch_settlement_coin": "Coin",
+          "public_key": "PublicKey"
+        },
+        "return": "Coin"
+      },
+      "create_offer_security_coin_with_key": {
+        "args": {
+          "offer": "SpendBundle",
+          "security_coin_sk": "SecretKey"
+        },
+        "return": "OfferSecurityCoinDetails"
+      },
       "spend_offer_security_coin": {
         "args": {
           "security_coin_details": "OfferSecurityCoinDetails",

@@ -1,5 +1,5 @@
 use bip39::Mnemonic;
-use chia_bls::{SecretKey, Signature, sign};
+use chia_bls::{PublicKey, SecretKey, Signature, sign};
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
@@ -234,13 +234,16 @@ where
     ))
 }
 
-pub fn create_security_coin(
+/// Spends `xch_settlement_coin` into a standard security coin locked by `public_key`.
+///
+/// Use this when the security-coin key must be stable across prepare/submit (for example
+/// Browser Delegation outer `AGG_SIG_ME` over an ephemeral custody child of the security coin).
+pub fn create_security_coin_with_pk(
     ctx: &mut SpendContext,
     xch_settlement_coin: Coin,
-) -> Result<(SecretKey, Coin), DriverError> {
-    let security_coin_sk = new_sk()?;
-    let security_coin_puzzle_hash =
-        StandardArgs::curry_tree_hash(security_coin_sk.public_key()).into();
+    public_key: PublicKey,
+) -> Result<Coin, DriverError> {
+    let security_coin_puzzle_hash = StandardArgs::curry_tree_hash(public_key).into();
 
     let notarized_payment = NotarizedPayment {
         nonce: xch_settlement_coin.coin_id(),
@@ -259,12 +262,20 @@ pub fn create_security_coin(
         Spend::new(settlement_puzzle, settlement_solution),
     )?;
 
-    let security_coin = Coin::new(
+    Ok(Coin::new(
         xch_settlement_coin.coin_id(),
         security_coin_puzzle_hash,
         xch_settlement_coin.amount,
-    );
+    ))
+}
 
+pub fn create_security_coin(
+    ctx: &mut SpendContext,
+    xch_settlement_coin: Coin,
+) -> Result<(SecretKey, Coin), DriverError> {
+    let security_coin_sk = new_sk()?;
+    let security_coin =
+        create_security_coin_with_pk(ctx, xch_settlement_coin, security_coin_sk.public_key())?;
     Ok((security_coin_sk, security_coin))
 }
 

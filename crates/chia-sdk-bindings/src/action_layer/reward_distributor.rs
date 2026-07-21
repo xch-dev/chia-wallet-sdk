@@ -379,7 +379,10 @@ impl RewardDistributor {
     }
 
     pub fn state(&self) -> Result<RewardDistributorState> {
-        Ok(self.distributor.lock().unwrap().info.state)
+        // Pending actions (including those reconstructed from a mempool item) update
+        // `pending_spend.latest_state`. Builders must see that tip — not the coin's
+        // pre-spend `info.state`.
+        Ok(self.distributor.lock().unwrap().pending_spend.latest_state.1)
     }
 
     pub fn constants(&self) -> Result<RewardDistributorConstants> {

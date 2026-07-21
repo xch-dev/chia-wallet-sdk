@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_bls::{PublicKey, Signature};
+use chia_bls::{PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
 use chia_puzzle_types::{
     LineageProof,
@@ -12,7 +12,9 @@ use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset, create_security_coin, launch_reward_distributor,
+    StandardLayer, StreamedAsset,
+    create_security_coin as driver_create_security_coin,
+    create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
     spend_security_coin, spend_settlement_nft,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
@@ -761,7 +763,45 @@ impl Clvm {
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
 
         let (security_coin_sk, security_coin) =
-            create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+            driver_create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+
+        Ok(OfferSecurityCoinDetails {
+            security_coin,
+            security_coin_sk,
+        })
+    }
+
+    /// Spends an XCH settlement coin into a standard security coin locked by `public_key`.
+    pub fn create_security_coin_with_pk(
+        &self,
+        xch_settlement_coin: Coin,
+        public_key: PublicKey,
+    ) -> Result<Coin> {
+        let mut ctx = self.0.lock().unwrap();
+        Ok(driver_create_security_coin_with_pk(
+            &mut ctx,
+            xch_settlement_coin,
+            public_key,
+        )?)
+    }
+
+    /// Like [`Self::create_offer_security_coin`], but locks the security coin with a caller-provided key.
+    ///
+    /// Persist `security_coin_sk` between prepare and submit so Browser Delegation custody coin ids stay stable.
+    pub fn create_offer_security_coin_with_key(
+        &self,
+        offer: SpendBundle,
+        security_coin_sk: SecretKey,
+    ) -> Result<OfferSecurityCoinDetails> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        let security_coin = driver_create_security_coin_with_pk(
+            &mut ctx,
+            offer.offered_coins().xch[0],
+            security_coin_sk.public_key(),
+        )?;
 
         Ok(OfferSecurityCoinDetails {
             security_coin,
