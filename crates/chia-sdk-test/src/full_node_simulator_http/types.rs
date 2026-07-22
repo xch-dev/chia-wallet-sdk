@@ -152,8 +152,20 @@ pub(super) struct SetFarmingPhRequest {
     pub(super) puzzle_hash: Bytes32,
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RestoreStateRequest {
+    pub(super) state: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct SimSuccessResponse {
+    pub(super) success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(super) struct SimStateResponse {
+    pub(super) state: Option<String>,
+    pub(super) error: Option<String>,
     pub(super) success: bool,
 }
 

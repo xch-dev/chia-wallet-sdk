@@ -1200,6 +1200,8 @@ export declare class FullNodeSimulator {
   static withSecretKey(secretKey: SecretKey): FullNodeSimulator
   onEvent(callback: ((err: Error | null, arg: FullNodeSimulatorEventPayload) => any)): void
   drainEvents(): Array<FullNodeSimulatorEventPayload>
+  dumpState(): string
+  restoreState(state: string): void
   startServer(): Promise<FullNodeSimulatorServer>
   height(): number
   headerHash(): Buffer

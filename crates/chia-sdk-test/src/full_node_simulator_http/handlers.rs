@@ -14,9 +14,9 @@ use super::{
         GetAggsigAdditionalDataResponse, HeaderHashRequest, HeightRequest, HintRequest,
         HintsRequest, InsertCoinRequest, NameRequest, NamesRequest, NewCoinRequest,
         ParentIdsRequest, PushTxRequest, PuzzleAndSolutionRequest, PuzzleHashRequest,
-        PuzzleHashesRequest, ReorgBlocksRequest, RevertBlocksRequest, SetFarmingPhRequest,
-        SimEventsResponse, SimFarmBlockResponse, SimNewCoinResponse, SimRevertBlocksResponse,
-        SimSuccessResponse, TxIdRequest,
+        PuzzleHashesRequest, ReorgBlocksRequest, RestoreStateRequest, RevertBlocksRequest,
+        SetFarmingPhRequest, SimEventsResponse, SimFarmBlockResponse, SimNewCoinResponse,
+        SimRevertBlocksResponse, SimStateResponse, SimSuccessResponse, TxIdRequest,
     },
 };
 
@@ -79,6 +79,8 @@ pub(super) fn router(simulator: SharedSimulator) -> Router {
         .route("/sim/new_coin", post(sim_new_coin))
         .route("/sim/insert_coin", post(sim_insert_coin))
         .route("/sim/set_farming_ph", post(sim_set_farming_ph))
+        .route("/sim/dump_state", post(sim_dump_state))
+        .route("/sim/restore_state", post(sim_restore_state))
         .route("/sim/drain_events", post(sim_drain_events))
         .with_state(simulator)
 }
@@ -390,6 +392,36 @@ async fn sim_set_farming_ph(
         .unwrap()
         .set_farming_ph(request.puzzle_hash);
     Json(SimSuccessResponse { success: true })
+}
+
+async fn sim_dump_state(
+    State(simulator): State<SharedSimulator>,
+    Json(_request): Json<EmptyRequest>,
+) -> Json<SimStateResponse> {
+    match simulator.lock().unwrap().dump_state() {
+        Ok(state) => Json(SimStateResponse {
+            state: Some(state),
+            error: None,
+            success: true,
+        }),
+        Err(error) => Json(SimStateResponse {
+            state: None,
+            error: Some(error.to_string()),
+            success: false,
+        }),
+    }
+}
+
+async fn sim_restore_state(
+    State(simulator): State<SharedSimulator>,
+    Json(request): Json<RestoreStateRequest>,
+) -> Json<SimSuccessResponse> {
+    let success = simulator
+        .lock()
+        .unwrap()
+        .restore_state(&request.state)
+        .is_ok();
+    Json(SimSuccessResponse { success })
 }
 
 async fn sim_drain_events(

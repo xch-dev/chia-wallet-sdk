@@ -35,6 +35,8 @@ use crate::{SimulatorError, validate_clvm_and_signature};
 mod chain;
 mod fast_forward;
 mod mempool;
+#[cfg(feature = "serde")]
+mod state_dump;
 mod validation;
 
 const BLOCK_REWARD_AMOUNT: u64 = 2_000_000_000_000;
@@ -64,6 +66,7 @@ pub struct FullNodeSimulator {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct SimBlock {
     record: BlockRecord,
     additions: Vec<Bytes32>,
@@ -75,6 +78,7 @@ struct SimBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct SimCoinRecord {
     coin: Coin,
     coinbase: bool,
@@ -1095,6 +1099,53 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_restore_accepts_canonical_ephemeral_spends() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        sim.set_farming_ph(puzzle_hash);
+        let parent = sim.farm_block(1)[0]
+            .reward_claims_incorporated
+            .as_ref()
+            .unwrap()[0];
+        let child = Coin::new(parent.coin_id(), puzzle_hash, 99);
+        let grandchild = Coin::new(child.coin_id(), puzzle_hash, 98);
+
+        let parent_spend = spend_to_child(parent, puzzle_reveal.clone(), puzzle_hash, 99)?;
+        let child_spend = CoinSpend::new(
+            child,
+            puzzle_reveal,
+            to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 98, Memos::None)])?,
+        );
+        let spend_bundle = SpendBundle::new(
+            vec![parent_spend.coin_spends[0].clone(), child_spend],
+            Signature::default(),
+        );
+        assert!(sim.push_tx(spend_bundle).success);
+        sim.farm_block(1);
+
+        let state = sim.dump_state()?;
+        let mut restored = FullNodeSimulator::new();
+        restored.restore_state(&state)?;
+
+        let child_record = restored
+            .get_coin_record_by_name(child.coin_id())
+            .coin_record
+            .unwrap();
+        assert!(child_record.spent);
+        assert_eq!(child_record.spent_block_index, 3);
+
+        let grandchild_record = restored
+            .get_coin_record_by_name(grandchild.coin_id())
+            .coin_record
+            .unwrap();
+        assert!(!grandchild_record.spent);
+        assert_eq!(grandchild_record.confirmed_block_index, 3);
+
+        Ok(())
+    }
+
     #[test]
     fn revert_removes_farmed_reward() {
         let mut sim = FullNodeSimulator::new();
@@ -1165,5 +1216,179 @@ mod tests {
                 } if *old_peak_hash == old_peak && *new_peak_hash == sim.header_hash()
             )
         }));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_restore_preserves_canonical_state_and_future_rng() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::with_seed(123);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        sim.set_farming_ph(puzzle_hash);
+        let coin = sim.farm_block(1)[0]
+            .reward_claims_incorporated
+            .as_ref()
+            .unwrap()[0];
+        let spend_bundle = spend_to_child(coin, puzzle_reveal, puzzle_hash, 100)?;
+        assert!(sim.push_tx(spend_bundle.clone()).success);
+        sim.farm_block(1);
+        let spent_coin_id = spend_bundle.coin_spends[0].coin.coin_id();
+        let state = sim.dump_state()?;
+
+        let mut expected = sim.clone();
+        let expected_next_block = expected.farm_block(1)[0].clone();
+
+        let mut restored = FullNodeSimulator::with_seed(999);
+        restored.restore_state(&state)?;
+
+        assert_eq!(restored.height(), sim.height());
+        assert_eq!(restored.header_hash(), sim.header_hash());
+        assert_eq!(restored.get_farming_ph(), sim.get_farming_ph());
+        assert_eq!(
+            restored.get_master_secret_key().to_bytes(),
+            sim.get_master_secret_key().to_bytes()
+        );
+        assert_eq!(
+            restored
+                .get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .node_id,
+            sim.get_blockchain_state().blockchain_state.unwrap().node_id
+        );
+        assert_eq!(
+            restored
+                .get_puzzle_and_solution(spent_coin_id, None)
+                .coin_solution
+                .unwrap()
+                .coin,
+            spend_bundle.coin_spends[0].coin
+        );
+        assert_eq!(
+            restored.farm_block(1)[0].header_hash,
+            expected_next_block.header_hash
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_restore_drops_pending_mempool() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        sim.set_farming_ph(puzzle_hash);
+        let coin = sim.farm_block(1)[0]
+            .reward_claims_incorporated
+            .as_ref()
+            .unwrap()[0];
+        assert!(
+            sim.push_tx(spend_to_child(coin, puzzle_reveal, puzzle_hash, 100)?)
+                .success
+        );
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
+        );
+
+        let state = sim.dump_state()?;
+        let mut restored = FullNodeSimulator::new();
+        restored.restore_state(&state)?;
+        assert_eq!(
+            restored
+                .get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            0
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_restore_drops_orphaned_blocks() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let old_peak = sim.farm_block(1)[0].header_hash;
+        sim.reorg_blocks(1, 1);
+        assert!(sim.get_block_record(old_peak).block_record.is_some());
+
+        let state = sim.dump_state()?;
+        let mut restored = FullNodeSimulator::new();
+        restored.restore_state(&state)?;
+        assert!(restored.get_block_record(old_peak).block_record.is_none());
+        assert_eq!(restored.header_hash(), sim.header_hash());
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_restore_drops_unspent_manual_coins() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (puzzle_hash, _) = to_puzzle(1)?;
+        let manual_coin = sim.new_coin(puzzle_hash, 100);
+
+        let state = sim.dump_state()?;
+        let mut restored = FullNodeSimulator::new();
+        restored.restore_state(&state)?;
+        assert!(
+            restored
+                .get_coin_record_by_name(manual_coin.coin_id())
+                .coin_record
+                .is_none()
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn dump_fails_when_canonical_chain_spends_manual_coin() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let manual_coin = sim.new_coin(puzzle_hash, 100);
+        assert!(
+            sim.push_tx(spend_to_child(manual_coin, puzzle_reveal, puzzle_hash, 99)?)
+                .success
+        );
+        sim.farm_block(1);
+
+        let error = sim.dump_state().unwrap_err().to_string();
+        assert!(error.contains("unsupported manual coin"));
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn restore_rejects_invalid_state_atomically() -> anyhow::Result<()> {
+        let mut source = FullNodeSimulator::with_seed(123);
+        source.farm_block(2);
+        let mut value: serde_json::Value = serde_json::from_str(&source.dump_state()?)?;
+        value["format"] = serde_json::Value::String("wrong".to_string());
+        let invalid_state = serde_json::to_string(&value)?;
+
+        let mut target = FullNodeSimulator::with_seed(999);
+        let original_height = target.height();
+        let original_peak = target.header_hash();
+        assert!(target.restore_state(&invalid_state).is_err());
+        assert_eq!(target.height(), original_height);
+        assert_eq!(target.header_hash(), original_peak);
+        assert!(target.restore_state("{").is_err());
+        assert_eq!(target.height(), original_height);
+        assert_eq!(target.header_hash(), original_peak);
+        Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn restore_clears_event_queue() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        sim.farm_block(1);
+        let state = sim.dump_state()?;
+
+        let mut restored = FullNodeSimulator::new();
+        restored.restore_state(&state)?;
+        assert!(restored.drain_events().is_empty());
+        Ok(())
     }
 }

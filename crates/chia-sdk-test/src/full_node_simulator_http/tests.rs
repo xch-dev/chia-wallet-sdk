@@ -14,7 +14,9 @@ use crate::{
 use super::{
     push_tx::push_tx_response_body,
     server::FullNodeSimulatorServer,
-    types::{GetAggsigAdditionalDataResponse, SimFarmBlockResponse, SimNewCoinResponse},
+    types::{
+        GetAggsigAdditionalDataResponse, SimFarmBlockResponse, SimNewCoinResponse, SimStateResponse,
+    },
 };
 
 #[tokio::test]
@@ -192,6 +194,62 @@ async fn rpc_client_can_drive_http_simulator() -> anyhow::Result<()> {
     let state = client.get_blockchain_state().await?;
     assert_eq!(state.blockchain_state.unwrap().mempool_size, 0);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn http_simulator_can_dump_and_restore_state() -> anyhow::Result<()> {
+    let server = FullNodeSimulatorServer::new().await?;
+    let http = reqwest::Client::new();
+
+    let farm_response = http
+        .post(format!("{}/sim/farm_block", server.url()))
+        .json(&serde_json::json!({ "blocks": 2_u32 }))
+        .send()
+        .await?
+        .json::<SimFarmBlockResponse>()
+        .await?;
+    assert!(farm_response.success);
+    let dumped_peak = farm_response.block_records.last().unwrap().header_hash;
+
+    let dump_response = http
+        .post(format!("{}/sim/dump_state", server.url()))
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .json::<SimStateResponse>()
+        .await?;
+    assert!(dump_response.success);
+    let dumped_state = dump_response.state.unwrap();
+
+    http.post(format!("{}/sim/farm_block", server.url()))
+        .json(&serde_json::json!({ "blocks": 1_u32 }))
+        .send()
+        .await?;
+
+    let restore_response = http
+        .post(format!("{}/sim/restore_state", server.url()))
+        .json(&serde_json::json!({ "state": dumped_state }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        restore_response.get("success"),
+        Some(&serde_json::Value::Bool(true))
+    );
+
+    let state = http
+        .post(format!("{}/get_blockchain_state", server.url()))
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .json::<chia_sdk_coinset::BlockchainStateResponse>()
+        .await?;
+    assert_eq!(
+        state.blockchain_state.unwrap().peak.header_hash,
+        dumped_peak
+    );
     Ok(())
 }
 

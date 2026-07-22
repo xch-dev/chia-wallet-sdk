@@ -38,6 +38,7 @@ serde = [
     "rand/serde",
     "rand_chacha/serde",
     "dep:serde",
+    "dep:serde_json",
     "dep:bincode"
 ]
 

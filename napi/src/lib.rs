@@ -261,6 +261,17 @@ impl FullNodeSimulator {
     }
 
     #[napi]
+    pub fn dump_state(&self) -> Result<String> {
+        Ok(self.inner.dump_state()?)
+    }
+
+    #[napi]
+    pub fn restore_state(&mut self, state: String) -> Result<()> {
+        self.inner.restore_state(state)?;
+        Ok(())
+    }
+
+    #[napi]
     pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
         Ok(FullNodeSimulatorServer {
             inner: self.inner.start_server().await?,

@@ -137,3 +137,23 @@ test("full node simulator can serve rpc over http", async (t) => {
     server.close();
   }
 });
+
+test("full node simulator can dump and restore state", (t) => {
+  const sim = FullNodeSimulator.withSeed(123n);
+  sim.farmBlock(2);
+  const state = sim.dumpState();
+  const peak = sim.headerHash();
+
+  const expected = FullNodeSimulator.withSeed(999n);
+  expected.restoreState(state);
+  const expectedNext = expected.farmBlock(1)[0].headerHash;
+
+  sim.farmBlock(1);
+  t.false(bytesEqual(sim.headerHash(), peak));
+
+  sim.restoreState(state);
+  t.true(bytesEqual(sim.headerHash(), peak));
+  t.deepEqual(sim.drainEvents(), []);
+  t.true(bytesEqual(sim.farmBlock(1)[0].headerHash, expectedNext));
+  t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 0);
+});

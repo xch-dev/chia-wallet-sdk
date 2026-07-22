@@ -262,6 +262,22 @@ impl FullNodeSimulator {
         Ok(self.0.lock().unwrap().drain_events())
     }
 
+    pub fn dump_state(&self) -> Result<String> {
+        self.0
+            .lock()
+            .unwrap()
+            .dump_state()
+            .map_err(|error| bindy::Error::Custom(error.to_string()))
+    }
+
+    pub fn restore_state(&self, state: String) -> Result<()> {
+        self.0
+            .lock()
+            .unwrap()
+            .restore_state(&state)
+            .map_err(|error| bindy::Error::Custom(error.to_string()))
+    }
+
     #[cfg(feature = "napi")]
     pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
         Ok(FullNodeSimulatorServer(Some(
