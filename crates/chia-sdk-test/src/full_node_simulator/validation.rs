@@ -29,14 +29,14 @@ impl FullNodeSimulator {
             ));
         }
         if let Some(height) = conds.before_height_absolute
-            && height < self.height
+            && height <= self.height
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeHeightAbsoluteFailed,
             ));
         }
         if let Some(seconds) = conds.before_seconds_absolute
-            && seconds < self.next_timestamp
+            && seconds <= self.next_timestamp
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeSecondsAbsoluteFailed,
@@ -191,19 +191,92 @@ impl FullNodeSimulator {
             ));
         }
         if let Some(relative_height) = spend.before_height_relative
-            && record.confirmed_block_index + relative_height < self.height
+            && record.confirmed_block_index + relative_height <= self.height
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeHeightRelativeFailed,
             ));
         }
         if let Some(relative_seconds) = spend.before_seconds_relative
-            && record.timestamp + relative_seconds < self.next_timestamp
+            && record.timestamp + relative_seconds <= self.next_timestamp
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeSecondsRelativeFailed,
             ));
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_bls::Signature;
+    use chia_consensus::validation_error::ErrorCode;
+    use chia_protocol::{Coin, CoinSpend, SpendBundle};
+    use chia_sdk_types::conditions::{
+        AssertBeforeHeightAbsolute, AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute,
+        AssertBeforeSecondsRelative, Condition, Conditions, CreateCoin, Memos,
+    };
+    use clvmr::NodePtr;
+
+    use crate::{FullNodeSimulator, SimulatorError, to_program, to_puzzle};
+
+    fn spend_with_condition(
+        coin: Coin,
+        puzzle_reveal: chia_protocol::Program,
+        puzzle_hash: chia_protocol::Bytes32,
+        condition: Condition<NodePtr>,
+    ) -> anyhow::Result<SpendBundle> {
+        let conditions = Conditions::new().with(condition).with(CreateCoin::new(
+            puzzle_hash,
+            coin.amount - 1,
+            Memos::None,
+        ));
+        Ok(SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(conditions)?)],
+            Signature::default(),
+        ))
+    }
+
+    #[test]
+    fn assert_before_conditions_reject_equality() -> anyhow::Result<()> {
+        let cases = [
+            (
+                AssertBeforeHeightAbsolute::new(1).into(),
+                ErrorCode::AssertBeforeHeightAbsoluteFailed,
+            ),
+            (
+                AssertBeforeSecondsAbsolute::new(1).into(),
+                ErrorCode::AssertBeforeSecondsAbsoluteFailed,
+            ),
+            (
+                AssertBeforeHeightRelative::new(0).into(),
+                ErrorCode::AssertBeforeHeightRelativeFailed,
+            ),
+            (
+                AssertBeforeSecondsRelative::new(0).into(),
+                ErrorCode::AssertBeforeSecondsRelativeFailed,
+            ),
+        ];
+
+        for (condition, expected_error) in cases {
+            let mut sim = FullNodeSimulator::new();
+            let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+            let coin = sim.new_coin(puzzle_hash, 100);
+            let condition = match expected_error {
+                ErrorCode::AssertBeforeSecondsAbsoluteFailed => {
+                    AssertBeforeSecondsAbsolute::new(sim.next_timestamp).into()
+                }
+                _ => condition,
+            };
+            let spend_bundle = spend_with_condition(coin, puzzle_reveal, puzzle_hash, condition)?;
+
+            assert!(matches!(
+                sim.validate_bundle(spend_bundle),
+                Err(SimulatorError::Validation(error)) if error == expected_error
+            ));
+        }
+
         Ok(())
     }
 }
