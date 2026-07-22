@@ -580,7 +580,7 @@ fn push_tx_response_maps_cost_exceeded_to_block_cost_exceeds_max() {
         Bytes32::default(),
         FullNodeSimulatorPushTxResponse {
             response: PushTxResponse {
-                status: "FAILED".to_string(),
+                status: Some("FAILED".to_string()),
                 error: Some(SimulatorError::Validation(ErrorCode::CostExceeded).to_string()),
                 success: false,
             },

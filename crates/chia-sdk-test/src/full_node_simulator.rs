@@ -133,7 +133,7 @@ pub enum FullNodeSimulatorEvent {
 fn push_tx_success() -> FullNodeSimulatorPushTxResponse {
     FullNodeSimulatorPushTxResponse {
         response: PushTxResponse {
-            status: "SUCCESS".to_string(),
+            status: Some("SUCCESS".to_string()),
             error: None,
             success: true,
         },
@@ -144,7 +144,7 @@ fn push_tx_success() -> FullNodeSimulatorPushTxResponse {
 fn push_tx_failure(error: SimulatorError) -> FullNodeSimulatorPushTxResponse {
     FullNodeSimulatorPushTxResponse {
         response: PushTxResponse {
-            status: "FAILED".to_string(),
+            status: Some("FAILED".to_string()),
             error: Some(error.to_string()),
             success: false,
         },
