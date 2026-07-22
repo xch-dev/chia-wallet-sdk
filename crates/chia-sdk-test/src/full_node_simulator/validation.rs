@@ -145,8 +145,7 @@ impl FullNodeSimulator {
 
         let fee = conds
             .removal_amount
-            .checked_sub(conds.addition_amount)
-            .unwrap_or_default()
+            .saturating_sub(conds.addition_amount)
             .try_into()
             .unwrap_or(u64::MAX);
         if fee < conds.reserve_fee {
