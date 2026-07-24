@@ -7,6 +7,7 @@ mod did;
 mod nft;
 mod option;
 mod p2_parent_coin;
+mod p2_next_reward_distributor_epoch;
 mod streamed_asset;
 
 pub use bulletin::*;
@@ -18,6 +19,7 @@ pub use did::*;
 pub use nft::*;
 pub use option::*;
 pub use p2_parent_coin::*;
+pub use p2_next_reward_distributor_epoch::*;
 pub use streamed_asset::*;
 
 use std::sync::{Arc, Mutex};

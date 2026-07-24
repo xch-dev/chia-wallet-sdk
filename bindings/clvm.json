@@ -136,6 +136,18 @@
         },
         "return": "Vec<Cat>"
       },
+      "p2_next_reward_distributor_epoch_spend": {
+        "args": {
+          "cat": "Cat",
+          "clawback_inner_puzzle_hash": "Bytes32",
+          "reward_distributor_launcher_id": "Bytes32",
+          "reward_distributor_first_epoch_start": "u64",
+          "reward_distributor_epoch_seconds": "u64",
+          "next_epoch_start": "u64",
+          "reward_distributor_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "CatSpend"
+      },
       "mint_nfts": {
         "args": {
           "parent_coin_id": "Bytes32",

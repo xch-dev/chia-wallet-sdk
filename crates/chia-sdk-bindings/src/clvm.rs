@@ -6,21 +6,24 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgra
 use chia_puzzle_types::{
     LineageProof,
     offer::{self, SettlementPaymentsSolution},
+    singleton::SingletonStruct,
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset,
-    create_security_coin as driver_create_security_coin,
+    StandardLayer, StreamedAsset, create_security_coin as driver_create_security_coin,
     create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
     spend_security_coin, spend_settlement_nft,
 };
-use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
+use chia_sdk_types::{
+    Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    puzzles::{P2NextRewardDistributorEpochArgs, P2NextRewardDistributorEpochSolution},
+};
 use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{ToClvm, clvm_quote};
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{
     NodePtr,
     allocator::Checkpoint,
@@ -29,10 +32,10 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did,
-    Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind,
-    MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment,
-    OfferSecurityCoinDetails, OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
+    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
+    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
+    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
     RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
@@ -157,6 +160,42 @@ impl Clvm {
             &mut ctx,
             &cat_spends.into_iter().map(Into::into).collect::<Vec<_>>(),
         )?)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn p2_next_reward_distributor_epoch_spend(
+        &self,
+        cat: Cat,
+        clawback_inner_puzzle_hash: Bytes32,
+        reward_distributor_launcher_id: Bytes32,
+        reward_distributor_first_epoch_start: u64,
+        reward_distributor_epoch_seconds: u64,
+        next_epoch_start: u64,
+        reward_distributor_inner_puzzle_hash: Bytes32,
+    ) -> Result<CatSpend> {
+        let mut ctx = self.0.lock().unwrap();
+        let args = P2NextRewardDistributorEpochArgs::new(
+            clawback_inner_puzzle_hash,
+            SingletonStruct::new(reward_distributor_launcher_id).tree_hash(),
+            reward_distributor_first_epoch_start,
+            reward_distributor_epoch_seconds,
+        );
+        let puzzle = ctx.curry(args)?;
+        let solution = ctx.alloc(&P2NextRewardDistributorEpochSolution {
+            next_epoch_start,
+            my_id: cat.coin.coin_id(),
+            my_amount: cat.coin.amount,
+            reward_distributor_inner_puzzle_hash,
+        })?;
+
+        Ok(CatSpend {
+            cat,
+            spend: Spend {
+                puzzle: Program(self.0.clone(), puzzle),
+                solution: Program(self.0.clone(), solution),
+            },
+            hidden: false,
+        })
     }
 
     pub fn mint_nfts(
@@ -640,8 +679,13 @@ impl Clvm {
     ) -> Result<Option<RewardDistributor>> {
         let mut ctx = self.0.lock().unwrap();
 
-        let result =
-            SdkRewardDistributor::from_spend(&mut ctx, &spend, reserve_lineage_proof, constants, Signature::default())?;
+        let result = SdkRewardDistributor::from_spend(
+            &mut ctx,
+            &spend,
+            reserve_lineage_proof,
+            constants,
+            Signature::default(),
+        )?;
 
         Ok(result.map(|reward_distributor| RewardDistributor {
             clvm: self.0.clone(),
@@ -745,8 +789,7 @@ impl Clvm {
     ) -> Result<Option<RewardDistributor>> {
         let mut ctx = self.0.lock().unwrap();
 
-        let result =
-            SdkRewardDistributor::from_mempool_item(&mut ctx, mempool_item, constants)?;
+        let result = SdkRewardDistributor::from_mempool_item(&mut ctx, mempool_item, constants)?;
 
         Ok(result.map(|reward_distributor| RewardDistributor {
             clvm: self.0.clone(),
