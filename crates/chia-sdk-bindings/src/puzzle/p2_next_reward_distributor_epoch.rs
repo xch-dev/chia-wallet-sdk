@@ -1,9 +1,7 @@
 use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{cat::CatArgs, singleton::SingletonStruct};
-use chia_sdk_driver::{
-    RewardDistributorConstants, RewardDistributorType as SdkRewardDistributorType,
-};
+use chia_sdk_driver::RewardDistributorConstants;
 use chia_sdk_types::{Mod, puzzles::P2NextRewardDistributorEpochArgs};
 use clvm_utils::{ToTreeHash, TreeHash};
 
@@ -38,14 +36,9 @@ impl P2NextRewardDistributorEpochCoinInfo {
         reward_distributor_first_epoch_start: u64,
         clawback_inner_puzzle_hash: Bytes32,
     ) -> Result<Self> {
-        let reward_asset_id = match constants.reward_distributor_type {
-            SdkRewardDistributorType::Cat { asset_id, .. } => asset_id,
-            _ => constants.reserve_asset_id,
-        };
-
         Self::new(
             clawback_inner_puzzle_hash,
-            reward_asset_id,
+            constants.reserve_asset_id,
             constants.launcher_id,
             reward_distributor_first_epoch_start,
             constants.epoch_seconds,
@@ -82,5 +75,43 @@ impl P2NextRewardDistributorEpochCoinInfo {
             self.reward_distributor_first_epoch_start,
             self.reward_distributor_epoch_seconds,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chia_sdk_driver::RewardDistributorType;
+
+    #[test]
+    fn cat_distributor_uses_reserve_asset_as_reward_asset() {
+        let stake_asset_id = Bytes32::new([1; 32]);
+        let reward_asset_id = Bytes32::new([2; 32]);
+        let constants = RewardDistributorConstants::without_launcher_id(
+            RewardDistributorType::Cat {
+                asset_id: stake_asset_id,
+                hidden_puzzle_hash: None,
+            },
+            Bytes32::new([3; 32]),
+            86_400,
+            1,
+            600,
+            1,
+            false,
+            1_000,
+            8_000,
+            reward_asset_id,
+        )
+        .with_launcher_id(Bytes32::new([4; 32]));
+
+        let info = P2NextRewardDistributorEpochCoinInfo::from_constants(
+            constants,
+            1_784_794_200,
+            Bytes32::default(),
+        )
+        .unwrap();
+
+        assert_eq!(info.reward_asset_id, reward_asset_id);
+        assert_ne!(info.reward_asset_id, stake_asset_id);
     }
 }
