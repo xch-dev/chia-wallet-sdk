@@ -105,14 +105,14 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
 
         match type_pair.0 {
             1 => Ok(RewardDistributorType::Managed {
-                manager_singleton_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
+                manager_singleton_launcher_id: FromClvm::from_clvm(decoder, type_pair.1.0)?,
             }),
             2 => Ok(RewardDistributorType::NftCollection {
-                collection_did_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
+                collection_did_launcher_id: FromClvm::from_clvm(decoder, type_pair.1.0)?,
             }),
             3 => {
                 let (store_launcher_id, refreshable): (Bytes32, bool) =
-                    FromClvm::from_clvm(decoder, type_pair.1 .0)?;
+                    FromClvm::from_clvm(decoder, type_pair.1.0)?;
                 Ok(RewardDistributorType::CuratedNft {
                     store_launcher_id,
                     refreshable,
@@ -120,7 +120,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
             }
             4 => {
                 let (asset_id, hidden_puzzle_hash): (Bytes32, Option<Bytes32>) =
-                    FromClvm::from_clvm(decoder, type_pair.1 .0)?;
+                    FromClvm::from_clvm(decoder, type_pair.1.0)?;
                 Ok(RewardDistributorType::Cat {
                     asset_id,
                     hidden_puzzle_hash,
@@ -299,13 +299,14 @@ impl RewardDistributorInfo {
 
         if let RewardDistributorType::CuratedNft { refreshable, .. } =
             constants.reward_distributor_type
-            && refreshable {
-                action_puzzle_hashes.push(
-                    RewardDistributorRefreshAction::from_constants(constants)
-                        .tree_hash()
-                        .into(),
-                );
-            }
+            && refreshable
+        {
+            action_puzzle_hashes.push(
+                RewardDistributorRefreshAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
+            );
+        }
 
         action_puzzle_hashes
     }

@@ -6,14 +6,14 @@ use chia_puzzles::{
     NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH,
 };
 use clvm_traits::{
-    clvm_tuple, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError,
+    ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError, clvm_tuple,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{CatalogOtherPrecommitData, ANY_METADATA_UPDATER_HASH},
     Mod,
+    puzzles::{ANY_METADATA_UPDATER_HASH, CatalogOtherPrecommitData},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

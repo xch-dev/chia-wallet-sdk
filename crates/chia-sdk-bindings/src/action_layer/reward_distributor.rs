@@ -382,7 +382,13 @@ impl RewardDistributor {
         // Pending actions (including those reconstructed from a mempool item) update
         // `pending_spend.latest_state`. Builders must see that tip — not the coin's
         // pre-spend `info.state`.
-        Ok(self.distributor.lock().unwrap().pending_spend.latest_state.1)
+        Ok(self
+            .distributor
+            .lock()
+            .unwrap()
+            .pending_spend
+            .latest_state
+            .1)
     }
 
     pub fn constants(&self) -> Result<RewardDistributorConstants> {
@@ -857,12 +863,7 @@ impl RewardDistributor {
 
         let (conditions, payment_amount) = distributor
             .new_action::<RewardDistributorUnstakeAction>()
-            .spend_for_locked_cats(
-                &mut ctx,
-                &mut distributor,
-                entry_slot.to_slot(),
-                locked_cat,
-            )?;
+            .spend_for_locked_cats(&mut ctx, &mut distributor, entry_slot.to_slot(), locked_cat)?;
 
         Ok(RewardDistributorUnstakeLockedCatResult {
             conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
@@ -891,10 +892,8 @@ impl RewardDistributor {
             .iter()
             .map(|info| info.nfts.iter().map(|nft| nft.as_ptr(&ctx)).collect())
             .collect();
-        let sdk_nft_refs: Vec<&[chia_sdk_driver::Nft]> = sdk_nft_groups
-            .iter()
-            .map(Vec::as_slice)
-            .collect();
+        let sdk_nft_refs: Vec<&[chia_sdk_driver::Nft]> =
+            sdk_nft_groups.iter().map(Vec::as_slice).collect();
         let shares_delta_refs: Vec<&[i64]> = refresh_nfts_infos
             .iter()
             .map(|info| info.nft_shares_delta.as_slice())

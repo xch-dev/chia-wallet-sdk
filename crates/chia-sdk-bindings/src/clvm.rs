@@ -6,7 +6,6 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgra
 use chia_puzzle_types::{
     LineageProof,
     offer::{self, SettlementPaymentsSolution},
-    singleton::SingletonStruct,
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
@@ -19,11 +18,11 @@ use chia_sdk_driver::{
 };
 use chia_sdk_types::{
     Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
-    puzzles::{P2NextRewardDistributorEpochArgs, P2NextRewardDistributorEpochSolution},
+    puzzles::P2NextRewardDistributorEpochSolution,
 };
 use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{ToClvm, clvm_quote};
-use clvm_utils::{ToTreeHash, TreeHash};
+use clvm_utils::TreeHash;
 use clvmr::{
     NodePtr,
     allocator::Checkpoint,
@@ -35,8 +34,8 @@ use crate::{
     AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
     InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
     MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
-    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
-    RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
+    RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
@@ -162,25 +161,15 @@ impl Clvm {
         )?)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn p2_next_reward_distributor_epoch_spend(
+    pub fn spend_p2_next_reward_distributor_epoch(
         &self,
         cat: Cat,
-        clawback_inner_puzzle_hash: Bytes32,
-        reward_distributor_launcher_id: Bytes32,
-        reward_distributor_first_epoch_start: u64,
-        reward_distributor_epoch_seconds: u64,
+        info: P2NextRewardDistributorEpochCoinInfo,
         next_epoch_start: u64,
         reward_distributor_inner_puzzle_hash: Bytes32,
     ) -> Result<CatSpend> {
         let mut ctx = self.0.lock().unwrap();
-        let args = P2NextRewardDistributorEpochArgs::new(
-            clawback_inner_puzzle_hash,
-            SingletonStruct::new(reward_distributor_launcher_id).tree_hash(),
-            reward_distributor_first_epoch_start,
-            reward_distributor_epoch_seconds,
-        );
-        let puzzle = ctx.curry(args)?;
+        let puzzle = ctx.curry(info.args())?;
         let solution = ctx.alloc(&P2NextRewardDistributorEpochSolution {
             next_epoch_start,
             my_id: cat.coin.coin_id(),

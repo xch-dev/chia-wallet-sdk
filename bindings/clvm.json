@@ -136,13 +136,10 @@
         },
         "return": "Vec<Cat>"
       },
-      "p2_next_reward_distributor_epoch_spend": {
+      "spend_p2_next_reward_distributor_epoch": {
         "args": {
           "cat": "Cat",
-          "clawback_inner_puzzle_hash": "Bytes32",
-          "reward_distributor_launcher_id": "Bytes32",
-          "reward_distributor_first_epoch_start": "u64",
-          "reward_distributor_epoch_seconds": "u64",
+          "info": "P2NextRewardDistributorEpochCoinInfo",
           "next_epoch_start": "u64",
           "reward_distributor_inner_puzzle_hash": "Bytes32"
         },

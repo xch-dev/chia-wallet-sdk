@@ -7,8 +7,8 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorSyncActionLog,
-    RewardDistributorStateTransition, SingletonAction, Spend, SpendContext,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorStateTransition,
+    RewardDistributorSyncActionLog, SingletonAction, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

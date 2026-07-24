@@ -18,7 +18,7 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
-use super::{run_pricing_output, XchandlesPrecommitValueLog, XchandlesRefundActionLog};
+use super::{XchandlesPrecommitValueLog, XchandlesRefundActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRefundAction {
@@ -105,7 +105,10 @@ impl XchandlesRefundAction {
             handle,
             solution.other_precommit_data.refund_and_secret.secret,
             solution.other_precommit_data.launcher_ids.owner_launcher_id,
-            solution.other_precommit_data.launcher_ids.resolved_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
         );
 
         let spent_slot = solution.slot_value;

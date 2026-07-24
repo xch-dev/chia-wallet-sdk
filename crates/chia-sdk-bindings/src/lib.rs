@@ -84,13 +84,15 @@ pub use chia_sdk_driver::{
     RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
     RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
     RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
-    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog,
-    RewardDistributorState, RewardDistributorStateTransition, RewardDistributorSyncActionLog,
+    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
     RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
     XchandlesConstants, XchandlesRegistryState,
 };
+pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 pub use chia_sdk_types::{
+    MerkleProof,
     conditions::TradePrice,
     puzzles::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
@@ -98,9 +100,7 @@ pub use chia_sdk_types::{
         RewardDistributorRewardSlotValue, SlotNeigborsInfo, XchandlesHandleSlotValue,
         XchandlesUpdateSlotValue,
     },
-    MerkleProof,
 };
-pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 
 #[cfg(any(feature = "napi", feature = "pyo3"))]
 pub use chia_protocol::{

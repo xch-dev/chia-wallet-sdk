@@ -900,34 +900,47 @@
       "memos": "Vec<Bytes>"
     }
   },
-  "p2_next_reward_distributor_epoch_inner_puzzle_hash": {
-    "type": "function",
-    "args": {
+  "P2NextRewardDistributorEpochCoinInfo": {
+    "type": "class",
+    "fields": {
       "clawback_inner_puzzle_hash": "Bytes32",
+      "reward_asset_id": "Bytes32",
       "reward_distributor_launcher_id": "Bytes32",
       "reward_distributor_first_epoch_start": "u64",
       "reward_distributor_epoch_seconds": "u64"
     },
-    "return": "Bytes32"
-  },
-  "p2_next_reward_distributor_epoch_puzzle_hash": {
-    "type": "function",
-    "args": {
-      "reward_cat_asset_id": "Bytes32",
-      "clawback_inner_puzzle_hash": "Bytes32",
-      "reward_distributor_launcher_id": "Bytes32",
-      "reward_distributor_first_epoch_start": "u64",
-      "reward_distributor_epoch_seconds": "u64"
-    },
-    "return": "Bytes32"
-  },
-  "p2_next_reward_distributor_epoch_clawback_puzzle_hash": {
-    "type": "function",
-    "args": {
-      "coin_id": "Bytes32",
-      "clawback_inner_puzzle_hash": "Bytes32"
-    },
-    "return": "Bytes32"
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "clawback_inner_puzzle_hash": "Bytes32",
+          "reward_asset_id": "Bytes32",
+          "reward_distributor_launcher_id": "Bytes32",
+          "reward_distributor_first_epoch_start": "u64",
+          "reward_distributor_epoch_seconds": "u64"
+        }
+      },
+      "from_constants": {
+        "type": "factory",
+        "args": {
+          "constants": "RewardDistributorConstants",
+          "reward_distributor_first_epoch_start": "u64",
+          "clawback_inner_puzzle_hash": "Bytes32"
+        }
+      },
+      "clawback_puzzle_hash": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Bytes32"
+      },
+      "inner_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "Bytes32"
+      }
+    }
   },
   "CuratedDatastoreFields": {
     "type": "class",

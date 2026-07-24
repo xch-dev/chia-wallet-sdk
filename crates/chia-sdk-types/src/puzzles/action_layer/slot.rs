@@ -7,7 +7,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{puzzles::CompactLineageProof, Mod};
+use crate::{Mod, puzzles::CompactLineageProof};
 
 pub const SLOT_PUZZLE: [u8; 311] = hex!(
     // Rue

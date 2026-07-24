@@ -6,8 +6,8 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue},
     Mod,
+    puzzles::{RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue},
 };
 
 pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE: [u8; 683] = hex!(

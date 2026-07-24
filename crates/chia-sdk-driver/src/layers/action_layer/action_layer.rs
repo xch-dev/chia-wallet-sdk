@@ -10,8 +10,8 @@ use chia_sdk_types::{
     },
     run_puzzle,
 };
-use clvm_traits::{clvm_tuple, match_tuple, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
+use clvm_traits::{FromClvm, ToClvm, clvm_tuple, match_tuple};
+use clvm_utils::{CurriedProgram, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};

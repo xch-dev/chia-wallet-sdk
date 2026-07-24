@@ -6,11 +6,11 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
+    Mod,
     puzzles::{
         PuzzleAndSolution, SlotNeigborsInfo, XchandlesDataValue, XchandlesNewDataPuzzleHashes,
         XchandlesOtherPrecommitData,
     },
-    Mod,
 };
 
 pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1478] = hex!(

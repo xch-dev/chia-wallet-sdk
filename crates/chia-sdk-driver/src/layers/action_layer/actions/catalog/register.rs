@@ -4,9 +4,9 @@ use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
-        CatalogDoubleTailHashData, CatalogOtherPrecommitData, CatalogRegisterActionArgs,
-        CatalogRegisterActionSolution, CatalogSlotValue, DefaultCatMakerArgs, NftPack,
-        PrecommitSpendMode, PuzzleAndSolution, ANY_METADATA_UPDATER_HASH,
+        ANY_METADATA_UPDATER_HASH, CatalogDoubleTailHashData, CatalogOtherPrecommitData,
+        CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue,
+        DefaultCatMakerArgs, NftPack, PrecommitSpendMode, PuzzleAndSolution,
     },
 };
 use clvm_traits::{FromClvm, ToClvm};

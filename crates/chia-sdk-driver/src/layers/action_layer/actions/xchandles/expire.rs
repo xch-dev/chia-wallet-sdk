@@ -4,11 +4,11 @@ use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution, XchandlesExpireActionArgs,
-        XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
-        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesNewDataPuzzleHashes,
-        XchandlesOtherPrecommitData, XchandlesPricingSolution, XchandlesSlotNonce,
-        PREMIUM_BITS_LIST, PREMIUM_PRECISION,
+        DefaultCatMakerArgs, PREMIUM_BITS_LIST, PREMIUM_PRECISION, PrecommitSpendMode,
+        PuzzleAndSolution, XchandlesExpireActionArgs, XchandlesExpireActionSolution,
+        XchandlesExponentialPremiumRenewPuzzleArgs, XchandlesFactorPricingPuzzleArgs,
+        XchandlesHandleSlotValue, XchandlesNewDataPuzzleHashes, XchandlesOtherPrecommitData,
+        XchandlesPricingSolution, XchandlesSlotNonce,
     },
 };
 use clvm_traits::ToClvm;
@@ -22,7 +22,7 @@ use crate::{
     XchandlesRegistryState,
 };
 
-use super::{run_pricing_output, XchandlesExpireActionLog, XchandlesPrecommitValueLog};
+use super::{XchandlesExpireActionLog, XchandlesPrecommitValueLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpireAction {

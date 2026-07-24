@@ -6,10 +6,10 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
+    Mod,
     puzzles::{
         PuzzleAndSolution, SlotNeigborsInfo, XchandlesDataValue, XchandlesNewDataPuzzleHashes,
     },
-    Mod,
 };
 
 pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1151] = hex!(

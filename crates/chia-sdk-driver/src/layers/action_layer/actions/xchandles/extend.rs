@@ -18,7 +18,7 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
-use super::{run_pricing_output, XchandlesExtendActionLog};
+use super::{XchandlesExtendActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExtendAction {

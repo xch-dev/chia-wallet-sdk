@@ -6,8 +6,8 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{PuzzleAndSolution, SlotNeigborsInfo},
     Mod,
+    puzzles::{PuzzleAndSolution, SlotNeigborsInfo},
 };
 
 pub const CATALOG_REFUND_PUZZLE: [u8; 780] = hex!(

@@ -6,7 +6,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
+use crate::{Mod, puzzles::NONCE_WRAPPER_PUZZLE_HASH};
 
 pub const P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE: [u8; 479] = hex!(
     // Rue
