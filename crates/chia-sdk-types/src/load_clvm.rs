@@ -105,6 +105,15 @@ pub fn compile_rue(
     let mut ctx = Compiler::new(project.options);
 
     let tree = FileTree::compile_path(&mut ctx, &project.entrypoint, &mut HashMap::new())?;
+    let base_path = if project.entrypoint.is_file() {
+        project
+            .entrypoint
+            .parent()
+            .ok_or(LoadClvmError::InvalidFileName)?
+            .canonicalize()?
+    } else {
+        project.entrypoint.canonicalize()?
+    };
 
     let ptr = if let Some(export_name) = export_name {
         if let Some(export) = tree
@@ -113,6 +122,7 @@ pub fn compile_rue(
                 &mut allocator,
                 main_kind.as_ref(),
                 Some(export_name),
+                &base_path,
             )?
             .into_iter()
             .next()
@@ -122,10 +132,12 @@ pub fn compile_rue(
             return Err(LoadClvmError::ExportNotFound(export_name.to_string()));
         }
     } else if let Some(main_kind) = main_kind
-        && let Some(main) = tree.main(&mut ctx, &mut allocator, &main_kind)?
+        && let Some(main) = tree.main(&mut ctx, &mut allocator, &main_kind, base_path.clone())?
     {
         main
-    } else if let Some(main) = tree.main(&mut ctx, &mut allocator, &normalize_path(&path)?)? {
+    } else if let Some(main) =
+        tree.main(&mut ctx, &mut allocator, &normalize_path(&path)?, base_path)?
+    {
         main
     } else {
         return Err(LoadClvmError::MainNotFound);
