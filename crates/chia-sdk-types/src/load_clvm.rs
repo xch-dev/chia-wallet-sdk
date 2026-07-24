@@ -139,15 +139,11 @@ pub fn compile_rue(
 
 #[macro_export]
 macro_rules! compile_chialisp {
-    ( $args:ty = $mod_name:ident, $path:literal ) => {
-        compile_chialisp!(impl $args = $mod_name $path);
-    };
-
-    ( impl $args:ty = $mod_name:ident $path:literal ) => {
+    ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {
         static $mod_name: ::std::sync::LazyLock<Compilation> =
             ::std::sync::LazyLock::new(|| $crate::compile_chialisp(::std::path::Path::new($path), &[".".to_string(), "include".to_string()]).unwrap());
 
-        impl $crate::Mod for $args {
+        impl$(<$($generic),+>)? $crate::Mod for $args$(<$($generic),+>)? {
             fn mod_reveal() -> ::std::borrow::Cow<'static, [u8]> {
                 ::std::borrow::Cow::Owned($mod_name.reveal.clone())
             }
@@ -161,27 +157,27 @@ macro_rules! compile_chialisp {
 
 #[macro_export]
 macro_rules! compile_rue {
-    ( $args:ty = $mod_name:ident, $path:literal ) => {
-        compile_rue!(impl $args = $mod_name $path false None);
+    ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {
+        $crate::compile_rue!(@impl $args $(<$($generic),+>)? = $mod_name $path false None);
     };
 
-    ( $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
-        compile_rue!(impl $args = $mod_name $path false Some($export_name));
+    ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal, $export_name:literal ) => {
+        $crate::compile_rue!(@impl $args $(<$($generic),+>)? = $mod_name $path false Some($export_name));
     };
 
-    ( debug $args:ty = $mod_name:ident, $path:literal ) => {
-        compile_rue!(impl $args = $mod_name $path true None);
+    ( debug $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {
+        $crate::compile_rue!(@impl $args $(<$($generic),+>)? = $mod_name $path true None);
     };
 
-    ( debug $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
-        compile_rue!(impl $args = $mod_name $path true Some($export_name));
+    ( debug $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal, $export_name:literal ) => {
+        $crate::compile_rue!(@impl $args $(<$($generic),+>)? = $mod_name $path true Some($export_name));
     };
 
-    ( impl $args:ty = $mod_name:ident $path:literal $debug:literal $export_name:expr ) => {
+    ( @impl $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident $path:literal $debug:literal $export_name:expr ) => {
         static $mod_name: ::std::sync::LazyLock<Compilation> =
             ::std::sync::LazyLock::new(|| $crate::compile_rue(::std::path::Path::new($path), $debug, $export_name).unwrap());
 
-        impl $crate::Mod for $args {
+        impl$(<$($generic),+>)? $crate::Mod for $args$(<$($generic),+>)? {
             fn mod_reveal() -> ::std::borrow::Cow<'static, [u8]> {
                 ::std::borrow::Cow::Owned($mod_name.reveal.clone())
             }
@@ -207,18 +203,18 @@ mod tests {
     fn test_compile_chialisp() -> anyhow::Result<()> {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
         #[clvm(curry)]
-        struct TestArgs {
-            a: u64,
-            b: u64,
+        struct TestArgs<T, U> {
+            a: T,
+            b: U,
         }
 
-        compile_chialisp!(TestArgs = TEST_MOD, "compile_chialisp_test.clsp");
+        compile_chialisp!(TestArgs<T, U> = TEST_MOD, "compile_chialisp_test.clsp");
 
         let args = TestArgs { a: 10, b: 20 };
 
         let mut allocator = Allocator::new();
 
-        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::mod_reveal().as_ref())?;
+        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::<u64, u64>::mod_reveal().as_ref())?;
 
         let ptr = CurriedProgram {
             program: mod_ptr,
@@ -237,18 +233,18 @@ mod tests {
     fn test_compile_rue() -> anyhow::Result<()> {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
         #[clvm(curry)]
-        struct TestArgs {
+        struct TestArgs<T> {
             a: u64,
-            b: u64,
+            b: T,
         }
 
-        compile_rue!(debug TestArgs = TEST_MOD, "compile_rue_test.rue");
+        compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue");
 
         let args = TestArgs { a: 10, b: 20 };
 
         let mut allocator = Allocator::new();
 
-        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::mod_reveal().as_ref())?;
+        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::<u64>::mod_reveal().as_ref())?;
 
         let ptr = CurriedProgram {
             program: mod_ptr,
@@ -267,18 +263,18 @@ mod tests {
     fn test_compile_rue_export() -> anyhow::Result<()> {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
         #[clvm(curry)]
-        struct TestArgs {
+        struct TestArgs<T> {
             a: u64,
-            b: u64,
+            b: T,
         }
 
-        compile_rue!(debug TestArgs = TEST_MOD, "compile_rue_test.rue", "another");
+        compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue", "another");
 
         let args = TestArgs { a: 10, b: 20 };
 
         let mut allocator = Allocator::new();
 
-        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::mod_reveal().as_ref())?;
+        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::<u64>::mod_reveal().as_ref())?;
 
         let ptr = CurriedProgram {
             program: mod_ptr,
