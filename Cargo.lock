@@ -808,6 +808,7 @@ dependencies = [
  "rue-compiler",
  "rue-lir",
  "rue-options",
+ "sha3",
  "thiserror 2.0.17",
 ]
 
