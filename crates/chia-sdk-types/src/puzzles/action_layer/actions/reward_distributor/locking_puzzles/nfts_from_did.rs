@@ -12,11 +12,11 @@ use crate::{
     puzzles::{CompactLineageProof, NONCE_WRAPPER_PUZZLE_HASH},
 };
 
-pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 984] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 982] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff2effff04ff3e
-    ff1680808080ffff04ff03ffff04ff8207ffffff04ff80ff808080808080ffff
+    ff1680808080ffff04ff03ffff04ff8207ffffff01ff808080808080ffff
     04ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02
     ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff01
     01ff038080ff0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff
@@ -51,7 +51,7 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 984] = hex!(
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    bdb04abcb54d92c900ccfd7665fa5d04eade1aa89aec13702368e22b8d864a25
+    d7358112fd4b1c1f384c150eb56e70cce2ae2108a510e0a184c413ad69b32363
     "
 ));
 

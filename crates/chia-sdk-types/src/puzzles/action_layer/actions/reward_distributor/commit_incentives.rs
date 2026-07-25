@@ -7,7 +7,7 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1093] = hex!(
+pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1089] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff03ffff22ffff20ffff15ff8207efff8205ff8080ffff15
@@ -34,8 +34,8 @@ pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1093] = hex!(
     ffff04ff06ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ffff04
     ff80ffff04ffff04ff0fff8080ff808080808080ffff04ffff04ffff01ff02ff
     ff03ffff09ff05ff1f80ffff0180ffff01ff04ffff02ff0cffff04ff0effff04
-    ff0bffff04ffff02ff08ffff04ff1affff04ffff04ff80ff0580ffff04ffff01
-    01ff8080808080ffff0bffff0101ff058080808080ffff02ff12ffff04ff02ff
+    ff0bffff04ffff02ff08ffff04ff1affff04ffff04ff80ff0580ffff01ff01
+    80808080ffff0bffff0101ff058080808080ffff02ff12ffff04ff02ff
     ff04ffff10ff05ff1780ff078080808080ff0180ffff01ff0bffff0102ffff0b
     ffff0101ff0280ffff0bffff0102ffff0bffff0101ff0580ffff0bffff0101ff
     0780808080ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff
@@ -50,7 +50,7 @@ pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1093] = hex!(
 
 pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    d55ae83d5d234b87e41fd703cd191d2d36f84a51dc3180dd657dc945f883ee3e
+    dd092298c7331f56f00b34cb68425a4f34bac28729a60daff7384a517087d3ec
     "
 ));
 

@@ -96,12 +96,12 @@ impl NftPack {
     }
 }
 
-pub const CATALOG_REGISTER_PUZZLE: [u8; 1458] = hex!(
+pub const CATALOG_REGISTER_PUZZLE: [u8; 1456] = hex!(
     "
     ff02ffff01ff02ffff03ffff22ffff22ffff0aff820bffff82057f80ffff0aff
     820affff820bff8080ffff09ffff02ff04ffff04ff04ff8209ff8080ff82015f
     8080ffff01ff02ffff01ff04ff81bfffff04ffff04ffff0133ffff04ff02ffff
-    04ff80ff80808080ffff04ffff02ff7dffff04ffff04ff09ffff04ff15ff5d80
+    01ff80808080ffff04ffff02ff7dffff04ffff04ff09ffff04ff15ff5d80
     80ffff04ff0bffff04ffff30ffff30ff82017fff02ff8080ff43ffff010180ff
     822fff80808080ffff04ffff04ffff0146ffff04ff82017fff808080ffff04ff
     ff04ffff013effff04ffff0effff0172ffff02ff09ffff04ff09ffff04ff8217
@@ -149,7 +149,7 @@ pub const CATALOG_REGISTER_PUZZLE: [u8; 1458] = hex!(
 
 pub const CATALOG_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    3a612b0a170d9caae93d369f1b9015d473f8754adcaed649314707ca69378e85
+    ef66622bbd9ac5922df81baac96082e16f51ae0a8a69e40e93b13a44fff1f8cf
     "
 ));
 

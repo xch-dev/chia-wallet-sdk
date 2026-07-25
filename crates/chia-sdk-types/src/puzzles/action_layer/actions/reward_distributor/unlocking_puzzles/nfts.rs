@@ -11,11 +11,11 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::NONCE_WRAPPER_PUZZLE_HASH};
 
-pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 781] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 767] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff1eff16808080
-    ffff04ff03ffff04ff8203ffffff04ff80ff808080808080ffff04ffff04ffff
+    ffff04ff03ffff04ff8203ffffff01ff808080808080ffff04ffff04ffff
     01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff
     058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080ff
     0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102ff
@@ -24,8 +24,8 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 781] = hex!(
     ffff01ff02ff1effff04ff02ffff04ff05ffff04ff1bffff04ffff10ff17ff82
     07f380ffff04ffff04ffff0142ffff04ffff0117ffff04ffff02ff04ffff04ff
     04ffff04ffff0101ffff04ffff04ffff0133ffff04ff8205fdffff04ffff0101
-    ffff04ffff04ff8205fdff8080ff8080808080ffff04ffff04ffff0152ffff04
-    ff80ff808080ff808080808080ffff04ffff30ff53ffff02ff0affff04ff16ff
+    ffff04ffff04ff8205fdff8080ff8080808080ffff01ffff52ff80
+    808080808080ffff04ffff30ff53ffff02ff0affff04ff16ff
     ff04ff09ffff04ffff02ff04ffff04ff04ffff04ff09ffff04ff23ff15808080
     80ffff04ffff02ff0affff04ff16ffff04ff2dffff04ffff0bffff0101ff2d80
     ffff04ff81b3ffff04ff820173ffff04ffff02ff0affff04ff16ffff04ff5dff
@@ -44,7 +44,7 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 781] = hex!(
 
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    03adc8471a329f91e34be6318767b3d675a444112e4d06a5e363b6b867ba9723
+    134966b5b5f1930f23c3cf5b3e3e0a62a58dde426b4b76526d5c0743b8aade78
     "
 ));
 

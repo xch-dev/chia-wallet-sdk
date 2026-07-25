@@ -642,6 +642,7 @@ export declare class Clvm {
   settlementSpend(notarizedPayments: Array<NotarizedPayment>): Spend
   spendSettlementCoin(coin: Coin, notarizedPayments: Array<NotarizedPayment>): void
   spendCats(catSpends: Array<CatSpend>): Array<Cat>
+  spendP2NextRewardDistributorEpoch(cat: Cat, info: P2NextRewardDistributorEpochCoinInfo, nextEpochStart: bigint, rewardDistributorInnerPuzzleHash: Uint8Array): CatSpend
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): Nft
   mintDatastore(parentCoinId: Uint8Array, metadata: DatastoreMetadata, ownerPuzzleHash: Uint8Array, delegatedPuzzles: Array<DelegatedPuzzle>): MintedDatastore
@@ -722,6 +723,8 @@ export declare class Clvm {
   xchandlesRegistryFromMempoolItem(mempoolItem: SpendBundle, constants: XchandlesConstants): XchandlesRegistry | null
   launchXchandlesRegistry(offer: SpendBundle, initialBaseRegistrationPrice: bigint, initialRegistrationPeriod: bigint, constants: XchandlesConstants, initialRegistrationAssetId: Uint8Array, mainnet: boolean): XchandlesRegistryLaunchResult
   createOfferSecurityCoin(offer: SpendBundle): OfferSecurityCoinDetails
+  createSecurityCoinWithPk(xchSettlementCoin: Coin, publicKey: PublicKey): Coin
+  createOfferSecurityCoinWithKey(offer: SpendBundle, securityCoinSk: SecretKey): OfferSecurityCoinDetails
   spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
@@ -2066,6 +2069,25 @@ export declare class Outputs {
   cat(id: Id): Array<Cat>
   nfts(): Array<Id>
   nft(id: Id): Nft
+}
+
+export declare class P2NextRewardDistributorEpochCoinInfo {
+  clone(): P2NextRewardDistributorEpochCoinInfo
+  constructor(clawbackInnerPuzzleHash: Uint8Array, rewardAssetId: Uint8Array, rewardDistributorLauncherId: Uint8Array, rewardDistributorFirstEpochStart: bigint, rewardDistributorEpochSeconds: bigint)
+  static fromConstants(constants: RewardDistributorConstants, rewardDistributorFirstEpochStart: bigint, clawbackInnerPuzzleHash: Uint8Array): P2NextRewardDistributorEpochCoinInfo
+  clawbackPuzzleHash(coinId: Uint8Array): Buffer
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  get clawbackInnerPuzzleHash(): Buffer
+  set clawbackInnerPuzzleHash(value: Uint8Array)
+  get rewardAssetId(): Buffer
+  set rewardAssetId(value: Uint8Array)
+  get rewardDistributorLauncherId(): Buffer
+  set rewardDistributorLauncherId(value: Uint8Array)
+  get rewardDistributorFirstEpochStart(): bigint
+  set rewardDistributorFirstEpochStart(value: bigint)
+  get rewardDistributorEpochSeconds(): bigint
+  set rewardDistributorEpochSeconds(value: bigint)
 }
 
 export declare class P2ParentCoin {

@@ -7,14 +7,14 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::NONCE_WRAPPER_PUZZLE_HASH};
 
-pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 505] = hex!(
+pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 493] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff03ff2fffff01ff0880ffff01ff04ff8202ffffff04ffff
     04ffff0142ffff04ffff0117ffff04ffff02ff04ffff04ff04ffff04ffff0101
     ffff04ffff04ffff0133ffff04ff5fffff04ff82017fffff04ffff04ff5fff80
-    80ff8080808080ffff04ffff04ffff0152ffff04ff80ff808080ff8080808080
-    80ffff04ffff30ff81bfffff02ff05ffff04ffff0bffff0102ffff0bffff0182
+    80ff8080808080ffff01ffff52ff80808080808080ffff04ffff30ff81bfffff
+    02ff05ffff04ffff0bffff0102ffff0bffff0182
     010280ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0b80ffff
     0bffff0102ffff02ff06ffff04ff06ffff04ffff02ff04ffff04ff04ffff04ff
     5fff8202ff808080ffff04ff17ff8080808080ffff0bffff010180808080ff82
@@ -31,7 +31,7 @@ pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 505] = hex!(
 
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    1ecefdd54a9a19465093100907161bde96d51f92b6ee44d0a9b131b05b0c707d
+    0ce068fb8fe1a7e745be4d0b512db82fd1f9c144b4521ab06a5c12930e15b6ae
     "
 ));
 

@@ -524,6 +524,7 @@ module.exports.OptionTypeXch = nativeBinding.OptionTypeXch
 module.exports.OptionUnderlying = nativeBinding.OptionUnderlying
 module.exports.Output = nativeBinding.Output
 module.exports.Outputs = nativeBinding.Outputs
+module.exports.P2NextRewardDistributorEpochCoinInfo = nativeBinding.P2NextRewardDistributorEpochCoinInfo
 module.exports.P2ParentCoin = nativeBinding.P2ParentCoin
 module.exports.P2ParentCoinChildParseResult = nativeBinding.P2ParentCoinChildParseResult
 module.exports.Pair = nativeBinding.Pair

@@ -9,11 +9,11 @@ use hex_literal::hex;
 
 use crate::{MerkleProof, Mod, puzzles::NONCE_WRAPPER_PUZZLE_HASH};
 
-pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1158] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1156] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff2effff04ff16
-    ff3e80808080ffff04ff03ffff04ff820bffffff04ff80ff808080808080ffff
+    ff3e80808080ffff04ff03ffff04ff820bffffff01ff808080808080ffff
     04ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02
     ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff01
     01ff038080ff0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff
@@ -54,7 +54,7 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1158] = hex!(
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    bd1ba6dc4b6b6f0b3d01d912b895e105c3fb7fd361eb30eafef856c592529ec2
+    40cd1303aad4496bb53e05b826669ecdf8ef0139bada26d75d96b0279e443b56
     "
 ));
 
