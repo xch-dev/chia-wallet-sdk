@@ -8,6 +8,7 @@
     "@types/node": "^24.0.13",
     "@wasm-tool/wasm-pack-plugin": "1.5.0",
     "ava": "^6.4.1",
+    "binaryen": "^125.0.0",
     "ts-node": "^10.9.2"
   },
   "ava": {
