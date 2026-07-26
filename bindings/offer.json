@@ -13,6 +13,20 @@
     },
     "return": "SpendBundle"
   },
+  "validate_offer": {
+    "type": "function",
+    "args": {
+      "offer": "String"
+    }
+  },
+  "from_input_spend_bundle_xch": {
+    "type": "function",
+    "args": {
+      "spend_bundle": "SpendBundle",
+      "requested_payments_xch": "Vec<NotarizedPayment>"
+    },
+    "return": "SpendBundle"
+  },
   "NotarizedPayment": {
     "type": "class",
     "new": true,

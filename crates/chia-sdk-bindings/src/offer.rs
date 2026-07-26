@@ -6,7 +6,7 @@ use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
 };
-use chia_sdk_driver::SpendContext;
+use chia_sdk_driver::{AssetInfo, Offer, RequestedPayments, SpendContext};
 
 use crate::{AsProgram, Program};
 
@@ -16,6 +16,30 @@ pub fn encode_offer(spend_bundle: SpendBundle) -> Result<String> {
 
 pub fn decode_offer(offer: String) -> Result<SpendBundle> {
     Ok(chia_sdk_driver::decode_offer(&offer)?)
+}
+
+pub fn validate_offer(offer: String) -> Result<()> {
+    chia_sdk_driver::validate_offer_str(&offer)?;
+    Ok(())
+}
+
+pub fn from_input_spend_bundle_xch(
+    spend_bundle: SpendBundle,
+    requested_payments_xch: Vec<NotarizedPayment>,
+) -> Result<SpendBundle> {
+    let mut ctx = SpendContext::new();
+
+    let mut requested_payments = RequestedPayments::new();
+    requested_payments.xch = requested_payments_xch.into_iter().map(Into::into).collect();
+
+    let offer = Offer::from_input_spend_bundle(
+        &mut ctx,
+        spend_bundle,
+        requested_payments,
+        AssetInfo::new(),
+    )?;
+
+    Ok(offer.to_spend_bundle(&mut ctx)?)
 }
 
 #[derive(Clone)]
@@ -80,5 +104,43 @@ impl From<Payment> for SdkPayment {
                 .as_ref()
                 .map_or(Memos::None, |m| Memos::Some(m.1)),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_bls::Signature;
+    use chia_protocol::Bytes32;
+
+    use super::*;
+
+    #[test]
+    fn validate_offer_accepts_generated_offer() {
+        let generated_offer = from_input_spend_bundle_xch(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            vec![NotarizedPayment {
+                nonce: Bytes32::new([1; 32]),
+                payments: vec![Payment {
+                    puzzle_hash: Bytes32::new([2; 32]),
+                    amount: 42,
+                    memos: None,
+                }],
+            }],
+        )
+        .unwrap();
+
+        let mut ctx = SpendContext::new();
+        let parsed = Offer::from_spend_bundle(&mut ctx, &generated_offer).unwrap();
+        assert_eq!(parsed.spend_bundle().coin_spends.len(), 0);
+        assert_eq!(parsed.requested_payments().xch.len(), 1);
+        assert_eq!(parsed.requested_payments().xch[0].payments[0].amount, 42);
+
+        let encoded = encode_offer(generated_offer).unwrap();
+        validate_offer(encoded).unwrap();
+    }
+
+    #[test]
+    fn validate_offer_rejects_invalid_string() {
+        assert!(validate_offer("not-an-offer".to_string()).is_err());
     }
 }
