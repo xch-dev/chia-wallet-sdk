@@ -1,0 +1,157 @@
+name: C++
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate C++ bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: x86_64-unknown-linux-gnu-cargo-ubuntu-latest-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build native library (linux-x64, symbols intact for bindgen)
+        run: cargo build --profile release-cpp -p chia-wallet-sdk-cpp --target x86_64-unknown-linux-gnu
+
+      - name: Install uniffi-bindgen-cpp
+        run: cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag v0.8.1+v0.29.4
+
+      - name: Generate C++ bindings
+        run: |
+          mkdir -p cpp/chia_wallet_sdk
+          uniffi-bindgen-cpp \
+            --library target/x86_64-unknown-linux-gnu/release-cpp/libchia_wallet_sdk.so \
+            --out-dir cpp/chia_wallet_sdk
+          test -f cpp/chia_wallet_sdk/chia_wallet_sdk.cpp || { echo "ERROR: chia_wallet_sdk.cpp was not generated"; exit 1; }
+
+      - name: Patch generated bindings
+        run: |
+          # 1. Clvm methods `bool`/`int` are emitted with reserved C++ keyword names.
+          # 2. VdfInfo/VdfProof forward declarations are emitted with all-caps acronyms.
+          sed -i \
+            -e 's/std::shared_ptr<Program> bool(/std::shared_ptr<Program> bool_(/' \
+            -e 's/std::shared_ptr<Program> int(/std::shared_ptr<Program> int_(/' \
+            -e 's/struct VDFInfo;/struct VdfInfo;/' \
+            -e 's/struct VDFProof;/struct VdfProof;/' \
+            cpp/chia_wallet_sdk/chia_wallet_sdk.hpp
+          sed -i \
+            -e 's/Clvm::bool(/Clvm::bool_(/' \
+            -e 's/Clvm::int(/Clvm::int_(/' \
+            cpp/chia_wallet_sdk/chia_wallet_sdk.cpp
+
+      - name: Upload C++ bindings artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-bindings
+          path: |
+            cpp/chia_wallet_sdk/chia_wallet_sdk.hpp
+            cpp/chia_wallet_sdk/chia_wallet_sdk.cpp
+            cpp/chia_wallet_sdk/chia_wallet_sdk_scaffolding.hpp
+          if-no-files-found: error
+
+  build:
+    name: Build native - ${{ matrix.settings.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: native-linux-x64
+            lib-name: libchia_wallet_sdk.so
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: native-osx-arm64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: native-osx-x64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: native-win-x64
+            lib-name: chia_wallet_sdk.dll
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build native library
+        run: cargo build --profile release-cpp -p chia-wallet-sdk-cpp --target ${{ matrix.settings.target }}
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.settings.artifact-name }}
+          path: target/${{ matrix.settings.target }}/release-cpp/${{ matrix.settings.lib-name }}
+          if-no-files-found: error
+
+  test:
+    name: Test C++ bindings
+    runs-on: ubuntu-latest
+    needs: [generate, build]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download C++ bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: cpp-bindings
+          path: cpp/chia_wallet_sdk
+
+      - name: Download linux-x64 native library
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-x64
+          path: cpp/chia_wallet_sdk
+
+      - name: Configure and build test
+        run: |
+          cmake -S cpp/tests -B cpp/tests/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build cpp/tests/build
+
+      - name: Run C++ tests
+        run: ctest --test-dir cpp/tests/build --output-on-failure

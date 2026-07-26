@@ -13,6 +13,8 @@ use chia_ssl::ChiaCertificate;
 use chia_traits::Streamable;
 use tokio::sync::{Mutex, mpsc::Receiver};
 
+use crate::runtime::ms_to_duration;
+
 #[derive(Clone)]
 pub struct Certificate {
     pub cert_pem: String,
@@ -50,9 +52,17 @@ impl Connector {
     }
 }
 
+/// Opt-in configuration for a [`Peer`]. Timeout values are in milliseconds.
+///
+/// `connect_timeout_ms` is a single budget covering the websocket TLS connect plus the
+/// chia handshake exchange; `None` leaves it unbounded. `request_timeout_ms` bounds each
+/// request/response round-trip on the established connection; `None` leaves requests
+/// unbounded.
 #[derive(Clone)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    pub connect_timeout_ms: Option<u32>,
+    pub request_timeout_ms: Option<u32>,
 }
 
 impl PeerOptions {
@@ -60,6 +70,8 @@ impl PeerOptions {
         let options = SdkPeerOptions::default();
         Ok(Self {
             rate_limit_factor: options.rate_limit_factor,
+            connect_timeout_ms: None,
+            request_timeout_ms: None,
         })
     }
 }
@@ -93,15 +105,15 @@ impl Peer {
         connector: Connector,
         options: PeerOptions,
     ) -> Result<Self> {
-        let (peer, receiver) = connect_peer(
-            network_id,
-            connector.0.clone(),
-            socket_addr.parse()?,
-            SdkPeerOptions {
-                rate_limit_factor: options.rate_limit_factor,
-            },
-        )
-        .await?;
+        let socket_addr = socket_addr.parse()?;
+        let sdk_options = SdkPeerOptions {
+            rate_limit_factor: options.rate_limit_factor,
+            connect_timeout: ms_to_duration(options.connect_timeout_ms),
+            request_timeout: ms_to_duration(options.request_timeout_ms),
+        };
+
+        let (peer, receiver) =
+            connect_peer(network_id, connector.0.clone(), socket_addr, sdk_options).await?;
 
         Ok(Self(peer, Arc::new(Mutex::new(receiver))))
     }

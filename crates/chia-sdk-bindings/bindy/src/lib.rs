@@ -7,6 +7,9 @@ mod wasm_impls;
 #[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
+#[cfg(feature = "uniffi")]
+mod uniffi_impls;
+
 use clvmr::error::EvalErr;
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
@@ -16,6 +19,9 @@ pub use wasm_impls::*;
 
 #[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
+
+#[cfg(feature = "uniffi")]
+pub use uniffi_impls::*;
 
 use std::{net::AddrParseError, string::FromUtf8Error};
 
@@ -55,9 +61,15 @@ pub enum Error {
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("Client error: {0}")]
-    Client(#[from] chia_sdk_client::ClientError),
+    Client(chia_sdk_client::ClientError),
+
+    /// Connection or request exceeded its configured timeout. The string includes
+    /// the duration when known. Binding consumers can pattern-match on this variant
+    /// (or substring-match "Timeout:" in the display) to drive retry logic.
+    #[error("Timeout: {0}")]
+    Timeout(String),
 
     #[error("Reject coin state: {0:?}")]
     RejectCoinState(RejectCoinState),
@@ -68,7 +80,7 @@ pub enum Error {
     #[error("Reject puzzle solution: {0:?}")]
     RejectPuzzleSolution(RejectPuzzleSolution),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 
@@ -130,13 +142,38 @@ pub enum Error {
     Custom(String),
 
     #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
+    Reqwest(reqwest::Error),
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
     #[error("Coin selection error: {0}")]
     CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
+}
+
+// Manual `From` impls route timeout errors to the structured `Error::Timeout` variant
+// so binding consumers can discriminate them from generic Client/Reqwest errors.
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+impl From<chia_sdk_client::ClientError> for Error {
+    fn from(value: chia_sdk_client::ClientError) -> Self {
+        match value {
+            chia_sdk_client::ClientError::Timeout(duration) => {
+                Self::Timeout(format!("operation timed out after {duration:?}"))
+            }
+            other => Self::Client(other),
+        }
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        if value.is_timeout() {
+            Self::Timeout(value.to_string())
+        } else {
+            Self::Reqwest(value)
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -167,13 +204,15 @@ macro_rules! impl_self {
 }
 
 impl_self!(bool);
-impl_self!(usize);
 impl_self!(u8);
 impl_self!(i8);
 impl_self!(u16);
 impl_self!(i16);
 impl_self!(u32);
 impl_self!(i32);
+impl_self!(i64);
+impl_self!(i128);
+impl_self!(usize);
 impl_self!(f64);
 impl_self!(String);
 

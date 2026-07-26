@@ -194,6 +194,9 @@ jobs:
         with:
           python-version: 3.x
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Test
         run: |
           set -e
@@ -208,9 +211,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Check type stubs
         run: |

@@ -18,6 +18,7 @@ workspace = true
 napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/napi"]
 wasm = ["bindy/wasm"]
 pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
+uniffi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/uniffi", "tokio/rt-multi-thread"]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }

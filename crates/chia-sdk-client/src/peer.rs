@@ -36,12 +36,22 @@ type Response<T, E> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    /// Total wall-clock budget for establishing a connection. In [`connect_peer`](crate::connect_peer)
+    /// this bounds the combined websocket TLS connect plus the chia handshake exchange;
+    /// in [`Peer::connect_full_uri`] (used directly without the handshake wrapper) it bounds
+    /// just the websocket connect. `None` (the default) leaves it unbounded.
+    pub connect_timeout: Option<Duration>,
+    /// Timeout for each request/response round-trip. `None` (the default) leaves
+    /// requests unbounded.
+    pub request_timeout: Option<Duration>,
 }
 
 impl Default for PeerOptions {
     fn default() -> Self {
         Self {
             rate_limit_factor: 0.6,
+            connect_timeout: None,
+            request_timeout: None,
         }
     }
 }
@@ -56,6 +66,7 @@ struct PeerInner {
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
     outbound_rate_limiter: Mutex<RateLimiter>,
+    request_timeout: Option<Duration>,
 }
 
 impl Peer {
@@ -77,9 +88,16 @@ impl Peer {
         connector: Connector,
         options: PeerOptions,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        let (ws, _) =
-            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector))
-                .await?;
+        let connect =
+            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector));
+
+        let (ws, _) = match options.connect_timeout {
+            Some(duration) => tokio::time::timeout(duration, connect)
+                .await
+                .map_err(|_| ClientError::Timeout(duration))??,
+            None => connect.await?,
+        };
+
         Self::from_websocket(ws, options)
     }
 
@@ -128,6 +146,7 @@ impl Peer {
                 options.rate_limit_factor,
                 V2_RATE_LIMITS.clone(),
             )),
+            request_timeout: options.request_timeout,
         }));
 
         Ok((peer, receiver))
@@ -305,14 +324,30 @@ impl Peer {
     {
         let (sender, receiver) = oneshot::channel();
 
+        let id = self.0.requests.insert(sender).await;
+
         self.send_raw(Message {
             msg_type: T::msg_type(),
-            id: Some(self.0.requests.insert(sender).await),
+            id: Some(id),
             data: body.to_bytes()?.into(),
         })
         .await?;
 
-        Ok(receiver.await?)
+        match self.0.request_timeout {
+            // On timeout the request id must be removed from the map. Otherwise it stays
+            // (its sender is only purged lazily on the next `insert`) and can be reused by a
+            // later request before the peer's delayed response arrives — at which point that
+            // stale response would be delivered to the unrelated newer request.
+            Some(duration) => {
+                if let Ok(result) = tokio::time::timeout(duration, receiver).await {
+                    Ok(result?)
+                } else {
+                    self.0.requests.remove(id).await;
+                    Err(ClientError::Timeout(duration))
+                }
+            }
+            None => Ok(receiver.await?),
+        }
     }
 
     async fn send_raw(&self, message: Message) -> Result<(), ClientError> {
@@ -389,4 +424,49 @@ async fn handle_inbound_messages(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{accept_async, connect_async};
+
+    /// A request that times out must be removed from the `RequestMap`. Otherwise its id
+    /// stays allocated (purged only lazily on the next `insert`) and can be reused by a
+    /// later request before the peer's delayed response arrives — which would route that
+    /// stale response to the unrelated newer request.
+    #[tokio::test]
+    async fn request_timeout_frees_request_id() {
+        // Server that completes the websocket handshake but never sends a response.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let _ws = accept_async(stream).await.unwrap();
+            // Hold the connection open without ever responding.
+            std::future::pending::<()>().await;
+        });
+
+        let (ws, _) = connect_async(format!("ws://{addr}")).await.unwrap();
+        let options = PeerOptions {
+            request_timeout: Some(Duration::from_millis(100)),
+            ..Default::default()
+        };
+        let (peer, _receiver) = Peer::from_websocket(ws, options).unwrap();
+
+        // Issue a request the server will never answer; it must time out.
+        let result = peer.request_children(Bytes32::default()).await;
+        assert!(
+            matches!(result, Err(ClientError::Timeout(_))),
+            "expected timeout, got {result:?}"
+        );
+
+        // The timed-out request must have been removed from the map, so the id is free
+        // again rather than lingering until the next `insert`.
+        assert_eq!(peer.0.requests.len().await, 0);
+
+        server.abort();
+    }
 }
