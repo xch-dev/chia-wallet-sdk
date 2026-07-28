@@ -4,7 +4,7 @@ use chia_bls::Signature;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_sdk_coinset::{ChiaRpcClient, CoinsetClient, PushTxResponse};
-use chia_sdk_types::conditions::{CreateCoin, Memos};
+use chia_sdk_types::conditions::{AssertCoinAnnouncement, Conditions, CreateCoin, Memos};
 use clvmr::NodePtr;
 
 use crate::{
@@ -570,6 +570,57 @@ async fn push_tx_returns_pending_for_mempool_conflict() -> anyhow::Result<()> {
         Some(&serde_json::Value::Bool(true))
     );
     assert!(conflict_response.get("structuredError").is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn push_tx_returns_assert_coin_announcement_failed() -> anyhow::Result<()> {
+    let server = FullNodeSimulatorServer::new().await?;
+    let http = reqwest::Client::new();
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = http
+        .post(format!("{}/sim/new_coin", server.url()))
+        .json(&serde_json::json!({
+            "puzzle_hash": puzzle_hash,
+            "amount": 100_u64,
+        }))
+        .send()
+        .await?
+        .json::<SimNewCoinResponse>()
+        .await?
+        .coin;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program(
+                Conditions::<NodePtr>::new()
+                    .with(AssertCoinAnnouncement::new(Bytes32::default()))
+                    .with(CreateCoin::new(puzzle_hash, 99, Memos::None)),
+            )?,
+        )],
+        Signature::default(),
+    );
+
+    let response = http
+        .post(format!("{}/push_tx", server.url()))
+        .json(&serde_json::json!({ "spend_bundle": spend_bundle }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+
+    assert_eq!(
+        response
+            .get("structuredError")
+            .and_then(|error| error.get("data"))
+            .and_then(|data| data.get("error")),
+        Some(&serde_json::Value::String(
+            "ASSERT_COIN_ANNOUNCEMENT_FAILED".to_string()
+        ))
+    );
 
     Ok(())
 }
