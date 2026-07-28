@@ -2,10 +2,9 @@ mod announcements;
 mod benchmark;
 mod error;
 mod full_node_simulator;
-#[cfg(feature = "full-node-simulator-http")]
-mod full_node_simulator_http;
 mod key_pairs;
 mod simulator;
+mod spend_bundle_validation;
 mod transaction;
 mod validate_clvm_and_signature;
 
@@ -13,11 +12,15 @@ pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
 pub use full_node_simulator::*;
-#[cfg(feature = "full-node-simulator-http")]
-pub use full_node_simulator_http::*;
 pub use key_pairs::*;
 pub use simulator::*;
 pub use transaction::*;
+
+#[cfg(feature = "full-node-simulator-http")]
+mod full_node_simulator_http;
+
+#[cfg(feature = "full-node-simulator-http")]
+pub use full_node_simulator_http::*;
 
 pub(crate) use validate_clvm_and_signature::validate_clvm_and_signature;
 

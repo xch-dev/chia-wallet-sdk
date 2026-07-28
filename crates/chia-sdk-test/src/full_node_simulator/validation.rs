@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use chia_consensus::{
     conditions::ELIGIBLE_FOR_DEDUP, flags::COMPUTE_FINGERPRINT, validation_error::ErrorCode,
 };
@@ -10,68 +8,66 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     FullNodeSimulator, SimulatorError,
-    full_node_simulator::{
-        SIMULATOR_GENESIS_CHALLENGE, SimCoinRecord, ValidatedBundle, ValidatedSpend,
+    full_node_simulator::{SIMULATOR_GENESIS_CHALLENGE, ValidatedBundle, ValidatedSpend},
+    spend_bundle_validation::{
+        CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
+        validate_relative_conditions, validate_reserve_fee,
     },
-    validate_clvm_and_signature,
 };
+
+#[derive(Debug, Default)]
+pub(super) struct ValidationOverlay {
+    additions: IndexSet<Bytes32>,
+    removals: IndexSet<Bytes32>,
+}
+
+impl ValidationOverlay {
+    #[cfg(feature = "serde")]
+    pub(super) fn apply(&mut self, bundle: &ValidatedBundle) {
+        self.additions
+            .extend(bundle.additions.iter().map(|(coin, _)| coin.coin_id()));
+        self.removals.extend(bundle.removals.iter().copied());
+    }
+}
 
 impl FullNodeSimulator {
     pub(super) fn validate_bundle(
         &self,
         spend_bundle: SpendBundle,
     ) -> Result<ValidatedBundle, SimulatorError> {
-        if spend_bundle.coin_spends.is_empty() {
-            return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
-        }
+        self.validate_bundle_with_overlay(spend_bundle, None)
+    }
 
+    #[cfg(feature = "serde")]
+    pub(super) fn validate_bundle_in_block(
+        &self,
+        spend_bundle: SpendBundle,
+        overlay: &ValidationOverlay,
+    ) -> Result<ValidatedBundle, SimulatorError> {
+        self.validate_bundle_with_overlay(spend_bundle, Some(overlay))
+    }
+
+    fn validate_bundle_with_overlay(
+        &self,
+        spend_bundle: SpendBundle,
+        overlay: Option<&ValidationOverlay>,
+    ) -> Result<ValidatedBundle, SimulatorError> {
         let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
-        let conds = validate_clvm_and_signature(
+        let clock = ValidationClock {
+            height: self.state.height,
+            timestamp: self.state.next_timestamp,
+        };
+        let validation = validate_conditions(
             &spend_bundle,
-            11_000_000_000 / 2,
-            &constants,
-            ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
+            ValidationSettings {
+                constants: &constants,
+                max_cost: 11_000_000_000 / 2,
+                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
+                clock,
+            },
         )
         .map_err(SimulatorError::Validation)?;
-
-        if self.height < conds.height_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertHeightAbsoluteFailed,
-            ));
-        }
-        if self.next_timestamp < conds.seconds_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertSecondsAbsoluteFailed,
-            ));
-        }
-        if let Some(height) = conds.before_height_absolute
-            && height <= self.height
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeHeightAbsoluteFailed,
-            ));
-        }
-        if let Some(seconds) = conds.before_seconds_absolute
-            && seconds <= self.next_timestamp
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeSecondsAbsoluteFailed,
-            ));
-        }
-
-        let bundle_puzzle_hashes = spend_bundle
-            .coin_spends
-            .iter()
-            .map(|spend| spend.coin.puzzle_hash)
-            .collect::<HashSet<_>>();
-        let condition_puzzle_hashes = conds
-            .spends
-            .iter()
-            .map(|spend| spend.puzzle_hash)
-            .collect::<HashSet<_>>();
-        if bundle_puzzle_hashes != condition_puzzle_hashes {
-            return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
-        }
+        let conds = validation.conditions;
 
         let bundle_coin_spends = spend_bundle
             .coin_spends
@@ -83,18 +79,16 @@ impl FullNodeSimulator {
         let mut additions = IndexMap::new();
         let mut spends = IndexMap::new();
 
-        for spend in &conds.spends {
+        for (spend, parsed) in conds.spends.iter().zip(validation.additions) {
             let coin_id = spend.coin_id;
-            let mut spend_additions = Vec::new();
-
-            for (puzzle_hash, amount, hint) in &spend.create_coin {
-                let coin = Coin::new(coin_id, *puzzle_hash, *amount);
-                let parsed_hint = hint
-                    .as_ref()
-                    .filter(|bytes| bytes.len() == 32)
-                    .and_then(|bytes| Bytes32::try_from(bytes.as_ref()).ok());
-                spend_additions.push((coin, parsed_hint));
-                additions.insert(coin.coin_id(), (coin, parsed_hint));
+            debug_assert_eq!(parsed.coin_id, coin_id);
+            let spend_additions = parsed
+                .additions
+                .into_iter()
+                .map(|addition| (addition.coin, addition.hint))
+                .collect::<Vec<_>>();
+            for (coin, hint) in &spend_additions {
+                additions.insert(coin.coin_id(), (*coin, *hint));
             }
 
             let Some(coin_spend) = bundle_coin_spends.get(&coin_id).cloned() else {
@@ -123,50 +117,43 @@ impl FullNodeSimulator {
             if !removals.insert(coin_id) {
                 return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
             }
+            if overlay.is_some_and(|overlay| overlay.removals.contains(&coin_id)) {
+                return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
+            }
 
-            if let Some(record) = self.coins.get(&coin_id) {
+            if let Some(record) = self.state.coins.get(&coin_id) {
                 if record.spent_block_index.is_some() {
                     return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
                 }
 
-                self.validate_relative_conditions(spend, record)?;
-            } else if additions.contains_key(&coin_id) {
-                let coin = additions.get(&coin_id).map_or_else(
-                    || Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount),
-                    |(coin, _)| *coin,
-                );
-                let ephemeral_coin_record = SimCoinRecord {
-                    coin,
-                    coinbase: false,
-                    confirmed_block_index: self.height,
-                    spent_block_index: None,
-                    timestamp: self.next_timestamp,
-                };
-                self.validate_relative_conditions(spend, &ephemeral_coin_record)?;
-            } else if let Some(coin) = self.mempool_addition_coin(coin_id) {
-                let ephemeral_coin_record = SimCoinRecord {
-                    coin,
-                    coinbase: false,
-                    confirmed_block_index: self.height,
-                    spent_block_index: None,
-                    timestamp: self.next_timestamp,
-                };
-                self.validate_relative_conditions(spend, &ephemeral_coin_record)?;
+                validate_relative_conditions(
+                    spend,
+                    CoinRecord {
+                        created_height: Some(record.confirmed_block_index),
+                        created_timestamp: Some(record.timestamp),
+                    },
+                    clock,
+                )
+                .map_err(SimulatorError::Validation)?;
+            } else if additions.contains_key(&coin_id)
+                || overlay.is_some_and(|overlay| overlay.additions.contains(&coin_id))
+                || self.mempool_addition_coin(coin_id).is_some()
+            {
+                validate_relative_conditions(
+                    spend,
+                    CoinRecord {
+                        created_height: Some(clock.height),
+                        created_timestamp: Some(clock.timestamp),
+                    },
+                    clock,
+                )
+                .map_err(SimulatorError::Validation)?;
             } else {
                 return Err(SimulatorError::Validation(ErrorCode::UnknownUnspent));
             }
         }
 
-        let fee = conds
-            .removal_amount
-            .saturating_sub(conds.addition_amount)
-            .try_into()
-            .unwrap_or(u64::MAX);
-        if fee < conds.reserve_fee {
-            return Err(SimulatorError::Validation(
-                ErrorCode::ReserveFeeConditionFailed,
-            ));
-        }
+        validate_reserve_fee(&conds, validation.fee).map_err(SimulatorError::Validation)?;
 
         Ok(ValidatedBundle {
             spend_bundle,
@@ -174,51 +161,15 @@ impl FullNodeSimulator {
             additions: additions.into_values().collect(),
             spends,
             cost: conds.cost,
-            fee,
+            fee: validation.fee,
         })
     }
 
-    pub(super) fn mempool_addition_coin(&self, coin_id: Bytes32) -> Option<Coin> {
+    fn mempool_addition_coin(&self, coin_id: Bytes32) -> Option<Coin> {
         self.mempool
             .values()
             .flat_map(|item| item.additions.iter().map(|(coin, _)| *coin))
             .find(|coin| coin.coin_id() == coin_id)
-    }
-
-    pub(super) fn validate_relative_conditions(
-        &self,
-        spend: &chia_consensus::owned_conditions::OwnedSpendConditions,
-        record: &SimCoinRecord,
-    ) -> Result<(), SimulatorError> {
-        if let Some(relative_height) = spend.height_relative
-            && self.height < record.confirmed_block_index + relative_height
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertHeightRelativeFailed,
-            ));
-        }
-        if let Some(relative_seconds) = spend.seconds_relative
-            && self.next_timestamp < record.timestamp + relative_seconds
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertSecondsRelativeFailed,
-            ));
-        }
-        if let Some(relative_height) = spend.before_height_relative
-            && record.confirmed_block_index + relative_height <= self.height
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeHeightRelativeFailed,
-            ));
-        }
-        if let Some(relative_seconds) = spend.before_seconds_relative
-            && record.timestamp + relative_seconds <= self.next_timestamp
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeSecondsRelativeFailed,
-            ));
-        }
-        Ok(())
     }
 }
 
@@ -279,7 +230,7 @@ mod tests {
             let coin = sim.new_coin(puzzle_hash, 100);
             let condition = match expected_error {
                 ErrorCode::AssertBeforeSecondsAbsoluteFailed => {
-                    AssertBeforeSecondsAbsolute::new(sim.next_timestamp).into()
+                    AssertBeforeSecondsAbsolute::new(sim.state.next_timestamp).into()
                 }
                 _ => condition,
             };

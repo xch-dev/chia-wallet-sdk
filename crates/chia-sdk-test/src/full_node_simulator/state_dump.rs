@@ -1,10 +1,12 @@
-use chia_protocol::{BlockRecord, Bytes32, CoinSpend};
+mod restore;
+
+use chia_protocol::{BlockRecord, Bytes32, CoinSpend, SpendBundle};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::SimulatorError;
+use crate::{SimulatorError, StateDumpError};
 
-use super::{FullNodeSimulator, SimBlock, SimCoinRecord, ValidatedBundle};
+use super::{FullNodeSimulator, SimBlock, SimCoinRecord};
 
 const FORMAT: &str = "chia-wallet-sdk/full-node-simulator-state";
 const VERSION: u32 = 1;
@@ -36,7 +38,7 @@ struct DumpBlock {
     additions: Vec<Bytes32>,
     removals: Vec<Bytes32>,
     spends: Vec<CoinSpend>,
-    transactions: Vec<chia_protocol::SpendBundle>,
+    transactions: Vec<SpendBundle>,
     previous_coin_records: Vec<(Bytes32, SimCoinRecord)>,
     added_hints: Vec<Bytes32>,
 }
@@ -45,32 +47,35 @@ impl FullNodeSimulator {
     pub fn dump_state(&self) -> Result<String, SimulatorError> {
         let canonical_coin_ids = self.canonical_coin_ids()?;
         let blocks = self
+            .state
             .header_hashes
             .iter()
             .map(|header_hash| {
-                let block = self.blocks.get(header_hash).ok_or_else(|| {
-                    SimulatorError::Custom(format!(
-                        "missing canonical block {}",
-                        hex::encode(header_hash.to_bytes())
-                    ))
-                })?;
+                let block = self
+                    .state
+                    .blocks
+                    .get(header_hash)
+                    .ok_or(StateDumpError::MissingCanonicalBlock(*header_hash))?;
                 Ok(DumpBlock::from_block(*header_hash, block))
             })
             .collect::<Result<Vec<_>, SimulatorError>>()?;
 
         let coins = self
+            .state
             .coins
             .iter()
             .filter(|(coin_id, _)| canonical_coin_ids.contains_key(*coin_id))
             .map(|(coin_id, record)| (*coin_id, *record))
             .collect();
         let coin_spends = self
+            .state
             .coin_spends
             .iter()
             .filter(|(coin_id, _)| canonical_coin_ids.contains_key(*coin_id))
             .map(|(coin_id, spend)| (*coin_id, spend.clone()))
             .collect();
         let coin_hints = self
+            .state
             .coin_hints
             .iter()
             .filter(|(coin_id, _)| canonical_coin_ids.contains_key(*coin_id))
@@ -81,9 +86,9 @@ impl FullNodeSimulator {
             format: FORMAT.to_string(),
             version: VERSION,
             rng: self.rng.clone(),
-            height: self.height,
-            next_timestamp: self.next_timestamp,
-            header_hashes: self.header_hashes.clone(),
+            height: self.state.height,
+            next_timestamp: self.state.next_timestamp,
+            header_hashes: self.state.header_hashes.clone(),
             blocks,
             coins,
             coin_spends,
@@ -95,12 +100,12 @@ impl FullNodeSimulator {
         };
 
         serde_json::to_string_pretty(&dump)
-            .map_err(|error| SimulatorError::Custom(error.to_string()))
+            .map_err(|error| StateDumpError::Serialize(error.to_string()).into())
     }
 
     pub fn restore_state(&mut self, state_json: &str) -> Result<(), SimulatorError> {
         let dump: SimulatorStateDump = serde_json::from_str(state_json)
-            .map_err(|error| SimulatorError::Custom(error.to_string()))?;
+            .map_err(|error| StateDumpError::Deserialize(error.to_string()))?;
         let restored = FullNodeSimulator::try_from(dump)?;
         *self = restored;
         Ok(())
@@ -108,12 +113,9 @@ impl FullNodeSimulator {
 
     fn canonical_coin_ids(&self) -> Result<IndexMap<Bytes32, ()>, SimulatorError> {
         let mut coin_ids = IndexMap::new();
-        for header_hash in &self.header_hashes {
-            let Some(block) = self.blocks.get(header_hash) else {
-                return Err(SimulatorError::Custom(format!(
-                    "missing canonical block {}",
-                    hex::encode(header_hash.to_bytes())
-                )));
+        for header_hash in &self.state.header_hashes {
+            let Some(block) = self.state.blocks.get(header_hash) else {
+                return Err(StateDumpError::MissingCanonicalBlock(*header_hash).into());
             };
             let mut block_coin_ids = coin_ids.clone();
             for addition in &block.additions {
@@ -121,10 +123,7 @@ impl FullNodeSimulator {
             }
             for removal in &block.removals {
                 if !block_coin_ids.contains_key(removal) {
-                    return Err(SimulatorError::Custom(format!(
-                        "cannot dump state with canonical spend of unsupported manual coin {}",
-                        hex::encode(removal.to_bytes())
-                    )));
+                    return Err(StateDumpError::UnsupportedManualCoinSpend(*removal).into());
                 }
             }
             coin_ids = block_coin_ids;
@@ -142,92 +141,19 @@ impl DumpBlock {
             removals: block.removals.clone(),
             spends: block.spends.clone(),
             transactions: block.transactions.clone(),
-            previous_coin_records: block.previous_coin_records.clone(),
-            added_hints: block.added_hints.clone(),
+            previous_coin_records: block
+                .delta
+                .coins
+                .iter()
+                .filter_map(|change| change.before.map(|record| (change.coin_id, record)))
+                .collect(),
+            added_hints: block
+                .delta
+                .hints
+                .iter()
+                .filter(|change| change.before.is_none() && change.after.is_some())
+                .map(|change| change.coin_id)
+                .collect(),
         }
-    }
-
-    fn into_block(self) -> Result<(Bytes32, SimBlock), SimulatorError> {
-        if self.header_hash != self.record.header_hash {
-            return Err(SimulatorError::Custom(format!(
-                "block key {} does not match record header hash {}",
-                hex::encode(self.header_hash.to_bytes()),
-                hex::encode(self.record.header_hash.to_bytes())
-            )));
-        }
-
-        Ok((
-            self.header_hash,
-            SimBlock {
-                record: self.record,
-                additions: self.additions,
-                removals: self.removals,
-                spends: self.spends,
-                transactions: self.transactions,
-                previous_coin_records: self.previous_coin_records,
-                added_hints: self.added_hints,
-            },
-        ))
-    }
-}
-
-impl TryFrom<SimulatorStateDump> for FullNodeSimulator {
-    type Error = SimulatorError;
-
-    fn try_from(dump: SimulatorStateDump) -> Result<Self, Self::Error> {
-        if dump.format != FORMAT {
-            return Err(SimulatorError::Custom(format!(
-                "unsupported full node simulator state format {}",
-                dump.format
-            )));
-        }
-        if dump.version != VERSION {
-            return Err(SimulatorError::Custom(format!(
-                "unsupported full node simulator state version {}",
-                dump.version
-            )));
-        }
-        if dump.height as usize != dump.header_hashes.len() {
-            return Err(SimulatorError::Custom(format!(
-                "height {} does not match {} header hashes",
-                dump.height,
-                dump.header_hashes.len()
-            )));
-        }
-
-        let mut blocks = IndexMap::new();
-        for block in dump.blocks {
-            let (header_hash, block) = block.into_block()?;
-            blocks.insert(header_hash, block);
-        }
-        for header_hash in &dump.header_hashes {
-            if !blocks.contains_key(header_hash) {
-                return Err(SimulatorError::Custom(format!(
-                    "missing block for canonical header {}",
-                    hex::encode(header_hash.to_bytes())
-                )));
-            }
-        }
-
-        let master_secret_key = chia_bls::SecretKey::from_bytes(&dump.master_secret_key)
-            .map_err(|error| SimulatorError::Custom(error.to_string()))?;
-
-        Ok(Self {
-            rng: dump.rng,
-            height: dump.height,
-            next_timestamp: dump.next_timestamp,
-            header_hashes: dump.header_hashes,
-            blocks,
-            orphaned_blocks: IndexMap::new(),
-            coins: dump.coins.into_iter().collect(),
-            coin_spends: dump.coin_spends.into_iter().collect(),
-            coin_hints: dump.coin_hints.into_iter().collect(),
-            mempool: IndexMap::<Bytes32, ValidatedBundle>::new(),
-            farming_puzzle_hash: dump.farming_puzzle_hash,
-            master_secret_key,
-            prefarm_puzzle_hash: dump.prefarm_puzzle_hash,
-            node_id: dump.node_id,
-            events: Vec::new(),
-        })
     }
 }
