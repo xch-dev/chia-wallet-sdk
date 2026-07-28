@@ -6,6 +6,7 @@ use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_sdk_coinset::{ChiaRpcClient, CoinsetClient, PushTxResponse};
 use chia_sdk_types::conditions::{AssertCoinAnnouncement, Conditions, CreateCoin, Memos};
 use clvmr::NodePtr;
+use serde_json::Value;
 
 use crate::{
     FullNodeSimulator, FullNodeSimulatorPushTxResponse, SimulatorError, to_program, to_puzzle,
@@ -388,7 +389,7 @@ async fn get_coin_records_by_puzzle_hashes_passes_through_include_spent_coins() 
         }))
         .send()
         .await?
-        .json::<serde_json::Value>()
+        .json::<Value>()
         .await?;
     let null_records = null_records
         .get("coin_records")
@@ -398,7 +399,7 @@ async fn get_coin_records_by_puzzle_hashes_passes_through_include_spent_coins() 
         record
             .get("coin")
             .and_then(|coin| coin.get("amount"))
-            .and_then(|amount| amount.as_u64())
+            .and_then(Value::as_u64)
             != Some(historical_coin.amount)
     }));
 
@@ -629,7 +630,7 @@ async fn push_tx_returns_assert_coin_announcement_failed() -> anyhow::Result<()>
 fn push_tx_response_maps_cost_exceeded_to_block_cost_exceeds_max() {
     let body = push_tx_response_body(
         Bytes32::default(),
-        FullNodeSimulatorPushTxResponse {
+        &FullNodeSimulatorPushTxResponse {
             response: PushTxResponse {
                 status: Some("FAILED".to_string()),
                 error: Some(SimulatorError::Validation(ErrorCode::CostExceeded).to_string()),

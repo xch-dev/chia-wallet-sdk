@@ -1,4 +1,20 @@
-use super::*;
+use std::collections::HashSet;
+
+use chia_consensus::{
+    conditions::ELIGIBLE_FOR_DEDUP, flags::COMPUTE_FINGERPRINT, validation_error::ErrorCode,
+};
+use chia_protocol::{Bytes32, Coin, SpendBundle};
+use chia_sdk_types::default_constants;
+use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+use indexmap::{IndexMap, IndexSet};
+
+use crate::{
+    FullNodeSimulator, SimulatorError,
+    full_node_simulator::{
+        SIMULATOR_GENESIS_CHALLENGE, SimCoinRecord, ValidatedBundle, ValidatedSpend,
+    },
+    validate_clvm_and_signature,
+};
 
 impl FullNodeSimulator {
     pub(super) fn validate_bundle(
@@ -115,12 +131,10 @@ impl FullNodeSimulator {
 
                 self.validate_relative_conditions(spend, record)?;
             } else if additions.contains_key(&coin_id) {
-                let coin = additions
-                    .get(&coin_id)
-                    .map(|(coin, _)| *coin)
-                    .unwrap_or_else(|| {
-                        Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount)
-                    });
+                let coin = additions.get(&coin_id).map_or_else(
+                    || Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount),
+                    |(coin, _)| *coin,
+                );
                 let ephemeral_coin_record = SimCoinRecord {
                     coin,
                     coinbase: false,

@@ -5,12 +5,7 @@ use std::{
 
 use bip39::Mnemonic;
 use chia_bls::{SecretKey, master_to_wallet_hardened};
-use chia_consensus::{
-    conditions::{ELIGIBLE_FOR_DEDUP, ELIGIBLE_FOR_FF},
-    fast_forward::fast_forward_singleton,
-    flags::COMPUTE_FINGERPRINT,
-    validation_error::ErrorCode,
-};
+use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{BlockRecord, Bytes32, ClassgroupElement, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
 use chia_sdk_coinset::{
@@ -20,17 +15,13 @@ use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-use chia_sdk_types::default_constants;
 use chia_sha2::Sha256;
-use clvmr::{
-    Allocator, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, serde::node_from_bytes, serde::node_to_bytes,
-};
 use hex_literal::hex;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-use crate::{SimulatorError, validate_clvm_and_signature};
+use crate::SimulatorError;
 
 mod chain;
 mod fast_forward;
@@ -197,14 +188,14 @@ impl FullNodeSimulator {
                 genesis_height,
                 0,
                 prefarm_puzzle_hash,
-                18375000000000000000,
+                18_375_000_000_000_000_000,
             ),
             Self::reward_coin(
                 genesis_hash,
                 genesis_height,
                 1,
                 prefarm_puzzle_hash,
-                2625000000000000000,
+                2_625_000_000_000_000_000,
             ),
         ];
         let genesis_record = Self::make_block_record(
@@ -312,11 +303,8 @@ impl FullNodeSimulator {
     }
 
     pub fn get_blockchain_state(&self) -> BlockchainStateResponse {
-        let peak = self
-            .blocks
-            .get(&self.header_hash())
-            .map(|block| block.record.clone())
-            .unwrap_or_else(|| {
+        let peak = self.blocks.get(&self.header_hash()).map_or_else(
+            || {
                 Self::make_block_record(
                     Bytes32::default(),
                     Bytes32::default(),
@@ -328,7 +316,9 @@ impl FullNodeSimulator {
                     self.farming_puzzle_hash,
                     Vec::new(),
                 )
-            });
+            },
+            |block| block.record.clone(),
+        );
 
         BlockchainStateResponse {
             blockchain_state: Some(BlockchainState {
@@ -340,7 +330,7 @@ impl FullNodeSimulator {
                 mempool_fees: self.mempool.values().map(|item| item.fee).sum(),
                 mempool_max_total_cost: 110_000_000_000,
                 mempool_min_fees: MempoolMinFees { cost_5000000: 0 },
-                mempool_size: self.mempool.len() as u32,
+                mempool_size: self.mempool.len().try_into().unwrap(),
                 node_id: self.node_id,
                 peak,
                 space: 0,
@@ -452,12 +442,12 @@ impl FullNodeSimulator {
 
     pub fn get_coin_records_by_names(
         &self,
-        names: Vec<Bytes32>,
+        names: &[Bytes32],
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
-        self.records_response(
+        Self::records_response(
             self.coins
                 .iter()
                 .filter(|(coin_id, _)| names.contains(coin_id))
@@ -486,7 +476,7 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
         let hints: HashSet<Bytes32> = hints.into_iter().collect();
-        self.records_response(
+        Self::records_response(
             self.coins
                 .iter()
                 .filter(|(coin_id, _)| {
@@ -509,7 +499,7 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
         let parent_ids: HashSet<Bytes32> = parent_ids.into_iter().collect();
-        self.records_response(
+        Self::records_response(
             self.coins
                 .values()
                 .filter(|record| parent_ids.contains(&record.coin.parent_coin_info))
@@ -543,7 +533,7 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
         let puzzle_hashes: HashSet<Bytes32> = puzzle_hashes.into_iter().collect();
-        self.records_response(
+        Self::records_response(
             self.coins
                 .values()
                 .filter(|record| puzzle_hashes.contains(&record.coin.puzzle_hash))
@@ -734,7 +724,6 @@ impl FullNodeSimulator {
     }
 
     fn records_response(
-        &self,
         records: impl IntoIterator<Item = SimCoinRecord>,
         start_height: Option<u32>,
         end_height: Option<u32>,
@@ -748,7 +737,7 @@ impl FullNodeSimulator {
                 start_height.is_none_or(|start| record.confirmed_block_index >= start)
                     && end_height.is_none_or(|end| record.confirmed_block_index < end)
             })
-            .map(|record| record.to_coin_record())
+            .map(SimCoinRecord::to_coin_record)
             .collect();
 
         GetCoinRecordsResponse {
@@ -812,8 +801,8 @@ impl FullNodeSimulator {
             header_hash,
             prev_hash,
             height,
-            height as u128,
-            height as u128,
+            u128::from(height),
+            u128::from(height),
             0,
             ClassgroupElement::default(),
             None,

@@ -1,4 +1,11 @@
-use super::*;
+use chia_consensus::{conditions::ELIGIBLE_FOR_DEDUP, validation_error::ErrorCode};
+use chia_protocol::Bytes32;
+use indexmap::IndexSet;
+
+use crate::{
+    FullNodeSimulator, SimulatorError,
+    full_node_simulator::{ValidatedBundle, ValidatedSpend},
+};
 
 impl FullNodeSimulator {
     pub(super) fn insert_mempool_item(
@@ -39,16 +46,12 @@ impl FullNodeSimulator {
     pub(super) fn conflicting_mempool_tx_ids(&self, validated: &ValidatedBundle) -> Vec<Bytes32> {
         self.mempool
             .iter()
-            .filter(|(_, item)| self.has_non_dedup_overlap(validated, item))
+            .filter(|(_, item)| Self::has_non_dedup_overlap(validated, item))
             .map(|(tx_id, _)| *tx_id)
             .collect()
     }
 
-    pub(super) fn has_non_dedup_overlap(
-        &self,
-        lhs: &ValidatedBundle,
-        rhs: &ValidatedBundle,
-    ) -> bool {
+    pub(super) fn has_non_dedup_overlap(lhs: &ValidatedBundle, rhs: &ValidatedBundle) -> bool {
         lhs.removals.iter().any(|coin_id| {
             rhs.removals.contains(coin_id) && !Self::removal_is_dedup_compatible(lhs, rhs, *coin_id)
         })

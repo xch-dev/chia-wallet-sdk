@@ -1,4 +1,18 @@
-use super::*;
+use chia_consensus::{
+    conditions::ELIGIBLE_FOR_FF, fast_forward::fast_forward_singleton, flags::COMPUTE_FINGERPRINT,
+};
+use chia_protocol::{Coin, CoinSpend, SpendBundle};
+use chia_sdk_types::default_constants;
+use clvmr::{
+    Allocator, ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+    serde::{node_from_bytes, node_to_bytes},
+};
+
+use crate::{
+    FullNodeSimulator,
+    full_node_simulator::{SIMULATOR_GENESIS_CHALLENGE, ValidatedBundle},
+    validate_clvm_and_signature,
+};
 
 impl FullNodeSimulator {
     pub(super) fn try_fast_forward_bundle(
@@ -156,7 +170,7 @@ impl FullNodeSimulator {
 #[cfg(test)]
 mod tests {
     use chia_bls::Signature;
-    use chia_protocol::{Coin, CoinSpend, SpendBundle};
+    use chia_protocol::{Bytes32, Coin, CoinSpend, Program, SpendBundle};
     use chia_puzzle_types::{
         LineageProof, Proof,
         singleton::{SingletonArgs, SingletonSolution},
@@ -166,15 +180,16 @@ mod tests {
     use clvm_traits::ToClvm;
     use clvm_utils::CurriedProgram;
     use clvmr::{Allocator, NodePtr, serde::node_from_bytes, serde::node_to_bytes};
+    use indexmap::IndexMap;
 
-    use crate::to_puzzle;
+    use crate::{full_node_simulator::ValidatedSpend, to_puzzle};
 
     use super::*;
 
     fn singleton_spend_to_child(
         coin: Coin,
         launcher_id: Bytes32,
-        inner_puzzle_reveal: chia_protocol::Program,
+        inner_puzzle_reveal: &Program,
         lineage_proof: LineageProof,
         child_puzzle_hash: Bytes32,
         child_amount: u64,
@@ -198,7 +213,7 @@ mod tests {
             &mut allocator,
             SingletonArgs::<NodePtr>::mod_reveal().as_ref(),
         )?;
-        let inner_puzzle = node_from_bytes(&mut allocator, inner_puzzle_reveal.as_slice())?;
+        let inner_puzzle = node_from_bytes(&mut allocator, inner_puzzle_reveal)?;
         let singleton_puzzle = CurriedProgram {
             program: singleton_mod,
             args: SingletonArgs::new(launcher_id, inner_puzzle),
@@ -237,7 +252,7 @@ mod tests {
         let first_singleton_spend = singleton_spend_to_child(
             singleton_coin,
             launcher_id,
-            inner_puzzle_reveal.clone(),
+            &inner_puzzle_reveal,
             lineage_proof,
             singleton_puzzle_hash,
             singleton_coin.amount,
@@ -247,7 +262,7 @@ mod tests {
         let second_singleton_spend = singleton_spend_to_child(
             singleton_coin,
             launcher_id,
-            inner_puzzle_reveal.clone(),
+            &inner_puzzle_reveal,
             lineage_proof,
             singleton_puzzle_hash,
             singleton_coin.amount,
@@ -338,7 +353,7 @@ mod tests {
         let stale_singleton_spend = singleton_spend_to_child(
             singleton_coin,
             launcher_id,
-            inner_puzzle_reveal.clone(),
+            &inner_puzzle_reveal,
             lineage_proof,
             singleton_puzzle_hash,
             singleton_coin.amount,

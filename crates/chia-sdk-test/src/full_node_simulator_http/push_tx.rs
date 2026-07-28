@@ -5,7 +5,7 @@ use crate::{FullNodeSimulatorPushTxResponse, SimulatorError};
 
 pub(super) fn push_tx_response_body(
     spend_name: Bytes32,
-    result: FullNodeSimulatorPushTxResponse,
+    result: &FullNodeSimulatorPushTxResponse,
 ) -> serde_json::Value {
     if result.response.success {
         return serde_json::json!({
@@ -15,11 +15,7 @@ pub(super) fn push_tx_response_body(
         });
     }
 
-    let error_name = result
-        .error
-        .as_ref()
-        .map(push_tx_error_name)
-        .unwrap_or("UNKNOWN");
+    let error_name = result.error.as_ref().map_or("UNKNOWN", push_tx_error_name);
     if error_name == "MEMPOOL_CONFLICT" {
         return serde_json::json!({
             "status": "PENDING",

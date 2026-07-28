@@ -1,4 +1,10 @@
-use super::*;
+use chia_protocol::{BlockRecord, Bytes32, SpendBundle};
+use indexmap::{IndexMap, IndexSet};
+
+use crate::{
+    FullNodeSimulator, FullNodeSimulatorEvent,
+    full_node_simulator::{BLOCK_REWARD_AMOUNT, SimBlock, ValidatedSpend},
+};
 
 impl FullNodeSimulator {
     pub(super) fn create_block_from_mempool(&mut self) -> BlockRecord {

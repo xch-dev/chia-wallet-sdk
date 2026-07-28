@@ -125,7 +125,7 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self.0.lock().unwrap().get_coin_records_by_names(
-            names,
+            &names,
             start_height,
             end_height,
             include_spent_coins,

@@ -214,7 +214,7 @@ async fn get_coin_records_by_names(
     Json(request): Json<NamesRequest>,
 ) -> Json<GetCoinRecordsResponse> {
     Json(simulator.lock().unwrap().get_coin_records_by_names(
-        request.names,
+        &request.names,
         request.start_height,
         request.end_height,
         request.include_spent_coins,
@@ -302,7 +302,7 @@ async fn push_tx(
         .lock()
         .unwrap()
         .push_tx_detailed(request.spend_bundle);
-    Json(push_tx_response_body(spend_name, response))
+    Json(push_tx_response_body(spend_name, &response))
 }
 
 async fn get_mempool_item_by_tx_id(
