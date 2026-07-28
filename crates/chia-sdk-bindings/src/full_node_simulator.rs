@@ -4,20 +4,42 @@ use bindy::Result;
 use chia_bls::SecretKey;
 use chia_protocol::{BlockRecord, Bytes32, Coin, SpendBundle};
 use chia_sdk_coinset::{
-    AdditionsAndRemovalsResponse, BlockchainStateResponse, GetBlockRecordResponse,
+    AdditionsAndRemovalsResponse, BlockchainStateResponse, CoinRecord, GetBlockRecordResponse,
     GetBlockRecordsResponse, GetBlockSpendsResponse, GetCoinRecordResponse, GetCoinRecordsResponse,
     GetMempoolItemResponse, GetMempoolItemsResponse, GetNetworkInfoResponse,
     GetPuzzleAndSolutionResponse, PushTxResponse,
 };
 
-pub use chia_sdk_test::FullNodeSimulatorEvent;
-
 #[derive(Clone, Default)]
 pub struct FullNodeSimulator(Arc<Mutex<chia_sdk_test::FullNodeSimulator>>);
 
-#[cfg(feature = "napi")]
-#[derive(Debug)]
-pub struct FullNodeSimulatorServer(Option<chia_sdk_test::FullNodeSimulatorServer>);
+#[derive(Debug, Clone)]
+pub struct FullNodeSimulatorEvent(chia_sdk_test::FullNodeSimulatorEvent);
+
+#[derive(Debug, Clone)]
+pub struct FullNodeSimulatorBlockEvent {
+    pub height: u32,
+    pub header_hash: Bytes32,
+    pub previous_header_hash: Bytes32,
+    pub additions: Vec<CoinRecord>,
+    pub removals: Vec<CoinRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FullNodeSimulatorReorgEvent {
+    pub fork_height: u32,
+    pub old_peak_hash: Bytes32,
+    pub new_peak_hash: Bytes32,
+    pub reverted_header_hashes: Vec<Bytes32>,
+    pub new_header_hashes: Vec<Bytes32>,
+}
+
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[derive(Clone)]
+pub struct FullNodeSimulatorServer {
+    pub url: String,
+    server: Arc<Mutex<Option<chia_sdk_test::FullNodeSimulatorServer>>>,
+}
 
 impl FullNodeSimulator {
     pub fn new() -> Result<Self> {
@@ -259,7 +281,14 @@ impl FullNodeSimulator {
     }
 
     pub fn drain_events(&self) -> Result<Vec<FullNodeSimulatorEvent>> {
-        Ok(self.0.lock().unwrap().drain_events())
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .drain_events()
+            .into_iter()
+            .map(Into::into)
+            .collect())
     }
 
     pub fn dump_state(&self) -> Result<String> {
@@ -278,29 +307,68 @@ impl FullNodeSimulator {
             .map_err(|error| bindy::Error::Custom(error.to_string()))
     }
 
-    #[cfg(feature = "napi")]
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
     pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
-        Ok(FullNodeSimulatorServer(Some(
-            chia_sdk_test::FullNodeSimulatorServer::with_simulator(self.0.clone())
-                .await
-                .map_err(|error| bindy::Error::Custom(error.to_string()))?,
-        )))
+        let server = chia_sdk_test::FullNodeSimulatorServer::with_simulator(self.0.clone())
+            .await
+            .map_err(|error| bindy::Error::Custom(error.to_string()))?;
+        Ok(FullNodeSimulatorServer {
+            url: server.url(),
+            server: Arc::new(Mutex::new(Some(server))),
+        })
     }
 }
 
-#[cfg(feature = "napi")]
-impl FullNodeSimulatorServer {
-    pub fn url(&self) -> Result<String> {
-        let Some(server) = &self.0 else {
-            return Err(bindy::Error::Custom(
-                "full node simulator server is closed".to_string(),
-            ));
-        };
-        Ok(server.url())
+impl From<chia_sdk_test::FullNodeSimulatorEvent> for FullNodeSimulatorEvent {
+    fn from(event: chia_sdk_test::FullNodeSimulatorEvent) -> Self {
+        Self(event)
+    }
+}
+
+impl FullNodeSimulatorEvent {
+    pub fn block(&self) -> Result<Option<FullNodeSimulatorBlockEvent>> {
+        Ok(match &self.0 {
+            chia_sdk_test::FullNodeSimulatorEvent::Block {
+                height,
+                header_hash,
+                previous_header_hash,
+                additions,
+                removals,
+            } => Some(FullNodeSimulatorBlockEvent {
+                height: *height,
+                header_hash: *header_hash,
+                previous_header_hash: *previous_header_hash,
+                additions: additions.clone(),
+                removals: removals.clone(),
+            }),
+            chia_sdk_test::FullNodeSimulatorEvent::Reorg { .. } => None,
+        })
     }
 
-    pub fn close(&mut self) -> Result<()> {
-        self.0.take();
+    pub fn reorg(&self) -> Result<Option<FullNodeSimulatorReorgEvent>> {
+        Ok(match &self.0 {
+            chia_sdk_test::FullNodeSimulatorEvent::Reorg {
+                fork_height,
+                old_peak_hash,
+                new_peak_hash,
+                reverted_header_hashes,
+                new_header_hashes,
+            } => Some(FullNodeSimulatorReorgEvent {
+                fork_height: *fork_height,
+                old_peak_hash: *old_peak_hash,
+                new_peak_hash: *new_peak_hash,
+                reverted_header_hashes: reverted_header_hashes.clone(),
+                new_header_hashes: new_header_hashes.clone(),
+            }),
+            chia_sdk_test::FullNodeSimulatorEvent::Block { .. } => None,
+        })
+    }
+}
+
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+impl FullNodeSimulatorServer {
+    pub fn close(&self) -> Result<()> {
+        self.server.lock().unwrap().take();
         Ok(())
     }
 }

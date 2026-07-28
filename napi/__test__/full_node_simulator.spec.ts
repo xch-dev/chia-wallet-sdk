@@ -46,7 +46,7 @@ test("full node simulator derives prefarm from explicit secret key", (t) => {
     expectedPrefarmSecretKey.publicKey()
   );
 
-  const sim = new FullNodeSimulator(rootSecretKey);
+  const sim = FullNodeSimulator.withSecretKey(rootSecretKey);
   const derivedPrefarmSecretKey = sim
     .getMasterSecretKey()
     .deriveHardenedPath([12381, 8444, 2, 1])

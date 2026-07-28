@@ -23,7 +23,13 @@ napi = [
     "chia-sdk-test/full-node-simulator-http",
 ]
 wasm = ["bindy/wasm"]
-pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
+pyo3 = [
+    "dep:chia-sdk-client",
+    "dep:chia-ssl",
+    "dep:tokio",
+    "bindy/pyo3",
+    "chia-sdk-test/full-node-simulator-http",
+]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }

@@ -26,7 +26,6 @@ napi-derive = { workspace = true }
 chia-sdk-bindings = { workspace = true, features = ["napi"] }
 bindy = { workspace = true, features = ["napi"] }
 bindy-macro = { workspace = true }
-hex = { workspace = true }
 
 [build-dependencies]
 napi-build = { workspace = true }

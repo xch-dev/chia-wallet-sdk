@@ -1195,14 +1195,10 @@ export declare class FullBlock {
 }
 
 export declare class FullNodeSimulator {
-  constructor(secretKey?: SecretKey | undefined | null)
+  clone(): FullNodeSimulator
+  constructor()
   static withSeed(seed: bigint): FullNodeSimulator
   static withSecretKey(secretKey: SecretKey): FullNodeSimulator
-  onEvent(callback: ((err: Error | null, arg: FullNodeSimulatorEventPayload) => any)): void
-  drainEvents(): Array<FullNodeSimulatorEventPayload>
-  dumpState(): string
-  restoreState(state: string): void
-  startServer(): Promise<FullNodeSimulatorServer>
   height(): number
   headerHash(): Buffer
   headerHashOf(height: number): Buffer | null
@@ -1234,11 +1230,51 @@ export declare class FullNodeSimulator {
   farmBlock(blocks: number): Array<BlockRecord>
   revertBlocks(blocks: number): Array<Buffer>
   reorgBlocks(numOfBlocksToRev: number, numOfNewBlocks: number): Array<BlockRecord>
+  drainEvents(): Array<FullNodeSimulatorEvent>
+  dumpState(): string
+  restoreState(state: string): void
+  startServer(): Promise<FullNodeSimulatorServer>
+}
+
+export declare class FullNodeSimulatorBlockEvent {
+  clone(): FullNodeSimulatorBlockEvent
+  get height(): number
+  set height(value: number)
+  get headerHash(): Buffer
+  set headerHash(value: Uint8Array)
+  get previousHeaderHash(): Buffer
+  set previousHeaderHash(value: Uint8Array)
+  get additions(): Array<CoinRecord>
+  set additions(value: Array<CoinRecord>)
+  get removals(): Array<CoinRecord>
+  set removals(value: Array<CoinRecord>)
+}
+
+export declare class FullNodeSimulatorEvent {
+  clone(): FullNodeSimulatorEvent
+  block(): FullNodeSimulatorBlockEvent | null
+  reorg(): FullNodeSimulatorReorgEvent | null
+}
+
+export declare class FullNodeSimulatorReorgEvent {
+  clone(): FullNodeSimulatorReorgEvent
+  get forkHeight(): number
+  set forkHeight(value: number)
+  get oldPeakHash(): Buffer
+  set oldPeakHash(value: Uint8Array)
+  get newPeakHash(): Buffer
+  set newPeakHash(value: Uint8Array)
+  get revertedHeaderHashes(): Array<Buffer>
+  set revertedHeaderHashes(value: Array<Uint8Array>)
+  get newHeaderHashes(): Array<Buffer>
+  set newHeaderHashes(value: Array<Uint8Array>)
 }
 
 export declare class FullNodeSimulatorServer {
-  get url(): string
+  clone(): FullNodeSimulatorServer
   close(): void
+  get url(): string
+  set url(value: string)
 }
 
 export declare class GetBlockRecordResponse {
@@ -3009,20 +3045,6 @@ export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: U
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 
 export declare function fromHex(value: string): Buffer
-
-export interface FullNodeSimulatorEventPayload {
-  type: string
-  height?: number
-  headerHash?: string
-  previousHeaderHash?: string
-  additions: Array<string>
-  removals: Array<string>
-  forkHeight?: number
-  oldPeakHash?: string
-  newPeakHash?: string
-  revertedHeaderHashes: Array<string>
-  newHeaderHashes: Array<string>
-}
 
 export declare function generateBytes(bytes: number): Buffer
 
