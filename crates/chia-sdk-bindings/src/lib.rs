@@ -68,7 +68,6 @@ pub use chia_protocol::{
     TransactionsInfo, VDFInfo, VDFProof,
 };
 pub use chia_puzzle_types::{LineageProof, nft::NftMetadata};
-pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
@@ -91,6 +90,7 @@ pub use chia_sdk_driver::{
     RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
     XchandlesConstants, XchandlesRegistryState,
 };
+pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 pub use chia_sdk_types::{
     MerkleProof,

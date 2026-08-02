@@ -2680,9 +2680,10 @@ mod tests {
         sim.spend_coins(ctx.take(), &[bls.sk])?;
 
         assert!(sim.coin_state(updated_nft.coin.coin_id()).is_some());
-        assert!(sim
-            .coin_state(blank_nft.coin.coin_id())
-            .is_some_and(|state| state.spent_height.is_some()));
+        assert!(
+            sim.coin_state(blank_nft.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_some())
+        );
 
         Ok(())
     }

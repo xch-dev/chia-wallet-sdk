@@ -3,11 +3,11 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::nft::NftMetadata;
-use chia_sdk_types::puzzles::HandleNftMetadata;
 use chia_sdk_driver::{
     Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SingletonInfo, SpendContext,
 };
 use chia_sdk_types::conditions;
+use chia_sdk_types::puzzles::HandleNftMetadata;
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
 

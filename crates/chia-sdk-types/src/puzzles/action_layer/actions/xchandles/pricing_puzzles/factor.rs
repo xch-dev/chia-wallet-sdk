@@ -93,7 +93,9 @@ mod tests {
     fn accepts_valid_handle_grammar() {
         assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("abc"));
         assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("a1b"));
-        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(&"a".repeat(63)));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
+            &"a".repeat(63)
+        ));
         assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
             "ashorttermmindgetsinthewayofalongtermgrind"
         ));
@@ -101,7 +103,16 @@ mod tests {
 
     #[test]
     fn rejects_invalid_handle_grammar() {
-        for handle in ["", "a", "aa", &*"a".repeat(64), "ABC", "yak@test", "foo bar", "café"] {
+        for handle in [
+            "",
+            "a",
+            "aa",
+            &*"a".repeat(64),
+            "ABC",
+            "yak@test",
+            "foo bar",
+            "café",
+        ] {
             assert!(
                 !XchandlesFactorPricingPuzzleArgs::is_valid_handle(handle),
                 "expected invalid: {handle:?}"

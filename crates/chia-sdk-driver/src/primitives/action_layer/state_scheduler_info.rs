@@ -314,8 +314,9 @@ mod tests {
 
         let mut allocator = Allocator::new();
         let ptr = hints.to_clvm(&mut allocator)?;
-        let roundtrip =
-            StateSchedulerLauncherHints::<CatalogRegistryState, NodePtr>::from_clvm(&allocator, ptr)?;
+        let roundtrip = StateSchedulerLauncherHints::<CatalogRegistryState, NodePtr>::from_clvm(
+            &allocator, ptr,
+        )?;
 
         assert_eq!(roundtrip.my_launcher_id, hints.my_launcher_id);
         assert_eq!(

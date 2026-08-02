@@ -359,8 +359,11 @@ mod tests {
                     let output = ctx.run(puzzle, solution)?;
                     let output = ctx.extract::<XchandlesFactorPricingOutput>(output)?;
 
-                    let expected_price =
-                        XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, num_periods);
+                    let expected_price = XchandlesFactorPricingPuzzleArgs::get_price(
+                        base_price,
+                        &handle,
+                        num_periods,
+                    );
 
                     assert_eq!(output.price, expected_price);
                     assert_eq!(output.registered_time, num_periods * registration_period);
