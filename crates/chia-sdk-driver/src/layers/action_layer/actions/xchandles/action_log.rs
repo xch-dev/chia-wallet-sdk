@@ -173,6 +173,8 @@ pub struct XchandlesRegisterActionLog {
     pub created_left_slot: XchandlesHandleSlotValue,
     pub created_handle_slot: XchandlesHandleSlotValue,
     pub created_right_slot: XchandlesHandleSlotValue,
+    /// Complete revealed precommit (Handle string + registration secret + pricing).
+    pub precommit_value: XchandlesPrecommitValueLog,
     pub total_price: u64,
     pub registered_time: u64,
     pub owner_full_puzzle_hash: Bytes32,

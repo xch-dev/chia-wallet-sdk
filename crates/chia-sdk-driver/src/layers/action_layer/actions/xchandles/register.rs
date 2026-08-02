@@ -10,7 +10,7 @@ use chia_sdk_types::{
         XchandlesRegisterActionSolution, XchandlesRestOfSlot, XchandlesSlotNonce,
     },
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -20,7 +20,7 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{XchandlesRegisterActionLog, run_pricing_output};
+use super::{XchandlesPrecommitValueLog, XchandlesRegisterActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
@@ -85,13 +85,13 @@ impl XchandlesRegisterAction {
         ctx: &mut SpendContext,
         solution: NodePtr,
     ) -> Result<XchandlesRegisterActionLog, DriverError> {
-        let solution = XchandlesRegisterActionSolution::<
+        let solution = ctx.extract::<XchandlesRegisterActionSolution<
             NodePtr,
             NodePtr,
             NodePtr,
             NodePtr,
-            NodePtr,
-        >::from_clvm(ctx, solution)?;
+            Bytes32,
+        >>(solution)?;
 
         let spent_left_slot = XchandlesHandleSlotValue::new(
             solution.left_rest_of_slot.this_counter,
@@ -152,6 +152,27 @@ impl XchandlesRegisterAction {
             solution.right_rest_of_slot.this_data.resolved_launcher_id,
         );
 
+        let handle = pricing_solution.handle.clone();
+        let cat_maker_puzzle_hash: Bytes32 = ctx
+            .tree_hash(solution.cat_maker_puzzle_and_solution.puzzle)
+            .into();
+        let pricing_puzzle_hash: Bytes32 = ctx
+            .tree_hash(solution.pricing_puzzle_and_solution.puzzle)
+            .into();
+        let precommit_value = XchandlesPrecommitValueLog::new(
+            cat_maker_puzzle_hash,
+            (),
+            pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            solution.other_precommit_data.refund_and_secret.secret,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
         let owner_full_puzzle_hash = SingletonArgs::curry_tree_hash(
             solution.other_precommit_data.launcher_ids.owner_launcher_id,
             solution
@@ -191,6 +212,7 @@ impl XchandlesRegisterAction {
             created_left_slot,
             created_handle_slot,
             created_right_slot,
+            precommit_value,
             total_price,
             registered_time,
             owner_full_puzzle_hash,
@@ -321,6 +343,7 @@ impl XchandlesRegisterAction {
 
 #[cfg(test)]
 mod tests {
+    use clvm_traits::FromClvm;
     use clvmr::error::EvalErr;
 
     use super::*;
