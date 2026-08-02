@@ -195,6 +195,10 @@ impl XchandlesRegisterAction {
             registered_time,
             owner_full_puzzle_hash,
             resolved_full_puzzle_hash,
+            owner_inner_puzzle_hash: solution.data_puzzle_hashes.new_owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash: solution
+                .data_puzzle_hashes
+                .new_resolved_inner_puzzle_hash,
         })
     }
 
