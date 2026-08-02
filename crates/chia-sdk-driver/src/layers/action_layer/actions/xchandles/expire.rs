@@ -224,16 +224,17 @@ impl XchandlesExpireAction {
         let slot = registry.actual_handle_slot(slot);
         let expire_args =
             XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
+        let pricing_solution = XchandlesPricingSolution {
+            buy_time: start_time,
+            current_expiration: slot.info.value.expiration,
+            handle: precommit_coin.value.handle.clone(),
+            num_periods,
+        };
         let action_solution = XchandlesExpireActionSolution {
             counter: slot.info.value.counter,
             expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution::new(
                 ctx.curry(expire_args)?,
-                XchandlesPricingSolution {
-                    buy_time: start_time,
-                    current_expiration: slot.info.value.expiration,
-                    handle: precommit_coin.value.handle.clone(),
-                    num_periods,
-                },
+                pricing_solution,
             ),
             cat_maker_and_solution: PuzzleAndSolution::new(
                 ctx.curry(DefaultCatMakerArgs::new(

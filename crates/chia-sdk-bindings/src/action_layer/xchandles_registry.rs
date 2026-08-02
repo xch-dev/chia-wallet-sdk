@@ -384,7 +384,13 @@ impl XchandlesPrecommitValue {
         }
     }
 
-    fn pricing_solution(&self) -> XchandlesPricingSolution {
+    /// Tree hash of the pricing puzzle this precommit commits.
+    pub fn committed_pricing_puzzle_hash(&self) -> TreeHash {
+        self.pricing_puzzle_hash()
+    }
+
+    /// On-chain pricing solution committed into this precommit value.
+    pub fn pricing_solution(&self) -> XchandlesPricingSolution {
         XchandlesPricingSolution {
             buy_time: self.buy_time,
             current_expiration: if self.use_expire_pricing {
@@ -686,6 +692,13 @@ impl XchandlesRegistry {
         })
     }
 
+    /// Ordinary Handle registration.
+    ///
+    /// When `precommit_coin.value.use_expire_pricing` is true, reveals the same
+    /// deployed expiry-pricing puzzle and exact committed
+    /// `XchandlesPricingSolution` as the precommit (including ordinary
+    /// `current_expiration = 0`). Otherwise preserves the historical
+    /// factor-pricing helper path.
     #[allow(clippy::too_many_arguments)]
     pub fn register(
         &self,
@@ -700,20 +713,54 @@ impl XchandlesRegistry {
     ) -> Result<XchandlesTripleConditionsResult> {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
+        let action = registry.new_action::<XchandlesRegisterAction>();
 
         let (registry_conditions, owner_conditions, resolved_conditions) =
-            registry.new_action::<XchandlesRegisterAction>().spend(
-                &mut ctx,
-                &mut registry,
-                left_slot.to_slot(),
-                right_slot.to_slot(),
-                &precommit_coin.to_precommit_coin(),
-                base_handle_price,
-                registration_period,
-                start_time,
-                owner_inner_puzzle_hash,
-                resolved_inner_puzzle_hash,
-            )?;
+            if precommit_coin.value.use_expire_pricing {
+                if base_handle_price != precommit_coin.value.base_price
+                    || registration_period != precommit_coin.value.registration_period
+                {
+                    return Err(Error::Custom(
+                        "register base_price/registration_period must match expiry-pricing precommit"
+                            .to_string(),
+                    ));
+                }
+                if start_time != precommit_coin.value.buy_time {
+                    return Err(Error::Custom(
+                        "register start_time must match committed buy_time".to_string(),
+                    ));
+                }
+                let pricing_puzzle = XchandlesRegisterAction::expiry_pricing_puzzle(
+                    &mut ctx,
+                    base_handle_price,
+                    registration_period,
+                )?;
+                let pricing_solution = precommit_coin.value.pricing_solution();
+                action.spend_with_pricing(
+                    &mut ctx,
+                    &mut registry,
+                    left_slot.to_slot(),
+                    right_slot.to_slot(),
+                    &precommit_coin.to_precommit_coin(),
+                    pricing_puzzle,
+                    pricing_solution,
+                    owner_inner_puzzle_hash,
+                    resolved_inner_puzzle_hash,
+                )?
+            } else {
+                action.spend(
+                    &mut ctx,
+                    &mut registry,
+                    left_slot.to_slot(),
+                    right_slot.to_slot(),
+                    &precommit_coin.to_precommit_coin(),
+                    base_handle_price,
+                    registration_period,
+                    start_time,
+                    owner_inner_puzzle_hash,
+                    resolved_inner_puzzle_hash,
+                )?
+            };
 
         self.triple_conditions_to_result(
             &mut ctx,
@@ -778,6 +825,10 @@ impl XchandlesRegistry {
         })
     }
 
+    /// Expiry-auction purchase (nonzero current expiration).
+    ///
+    /// When `precommit_coin.value.use_expire_pricing` is true, `start_time` and
+    /// `num_periods` must match the committed pricing solution.
     #[allow(clippy::too_many_arguments)]
     pub fn expire(
         &self,
@@ -792,6 +843,33 @@ impl XchandlesRegistry {
     ) -> Result<XchandlesTripleConditionsResult> {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
+
+        let (start_time, num_periods) = if precommit_coin.value.use_expire_pricing {
+            if base_handle_price != precommit_coin.value.base_price
+                || registration_period != precommit_coin.value.registration_period
+            {
+                return Err(Error::Custom(
+                    "expire base_price/registration_period must match expiry-pricing precommit"
+                        .to_string(),
+                ));
+            }
+            if start_time != precommit_coin.value.buy_time {
+                return Err(Error::Custom(
+                    "expire start_time must match committed buy_time".to_string(),
+                ));
+            }
+            if num_periods != precommit_coin.value.num_periods {
+                return Err(Error::Custom(
+                    "expire num_periods must match committed num_periods".to_string(),
+                ));
+            }
+            (
+                precommit_coin.value.buy_time,
+                precommit_coin.value.num_periods,
+            )
+        } else {
+            (start_time, num_periods)
+        };
 
         let (registry_conditions, owner_conditions, resolved_conditions) =
             registry.new_action::<XchandlesExpireAction>().spend(
@@ -1270,6 +1348,60 @@ mod tests {
         assert_eq!(coin.value.current_expiration, 1_800_000_000);
         assert!(coin.value.use_expire_pricing);
         assert_eq!(coin.coin.amount, 10_000);
+    }
+
+    #[test]
+    fn expiry_pricing_solution_fields_are_exact_for_register_and_expire_vectors() {
+        let payment = Bytes32::new([0x11; 32]);
+        let secret = Bytes32::new([0x22; 32]);
+        let owner = Bytes32::new([0x33; 32]);
+        let buy_time = 1_787_216_820_u64;
+        let base_price = 5_000_u64;
+        let registration_period = 31_557_600_u64;
+
+        let ordinary = XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+            payment,
+            base_price,
+            registration_period,
+            buy_time,
+            0,
+            2,
+        )
+        .unwrap();
+        let ordinary_solution = ordinary.pricing_solution();
+        assert_eq!(ordinary_solution.buy_time, buy_time);
+        assert_eq!(ordinary_solution.current_expiration, 0);
+        assert_eq!(ordinary_solution.handle, "alice");
+        assert_eq!(ordinary_solution.num_periods, 2);
+        assert_eq!(
+            ordinary.committed_pricing_puzzle_hash(),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period)
+        );
+
+        let auction = XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+            payment,
+            base_price,
+            registration_period,
+            buy_time,
+            1_800_000_000,
+            1,
+        )
+        .unwrap();
+        let auction_solution = auction.pricing_solution();
+        assert_eq!(auction_solution.current_expiration, 1_800_000_000);
+        assert_eq!(auction_solution.num_periods, 1);
+        assert_ne!(
+            ordinary.commitment_hash().unwrap(),
+            auction.commitment_hash().unwrap()
+        );
     }
 }
 

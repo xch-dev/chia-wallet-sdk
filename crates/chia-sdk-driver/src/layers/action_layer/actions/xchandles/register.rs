@@ -20,7 +20,10 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{XchandlesPrecommitValueLog, XchandlesRegisterActionLog, run_pricing_output};
+use super::{
+    XchandlesExpirePricingPuzzle, XchandlesPrecommitValueLog, XchandlesRegisterActionLog,
+    run_pricing_output,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
@@ -224,10 +227,9 @@ impl XchandlesRegisterAction {
         })
     }
 
-    // return:
-    //  - register general announcement
-    //  - send message to be sent by the new owner
-    //  - send message to be sent by the new resolved launcher (if different from the owner)
+    /// Historical factor-pricing register path. Prefer
+    /// [`Self::spend_with_pricing`] when the precommit committed the deployed
+    /// expiry-pricing puzzle.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -243,13 +245,53 @@ impl XchandlesRegisterAction {
         resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
         let handle = precommit_coin.value.handle.clone();
-        let handle_hash = handle.tree_hash().into();
+        let num_periods = precommit_coin.coin.amount()
+            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
+        let pricing_puzzle = ctx.curry(XchandlesFactorPricingPuzzleArgs {
+            base_price: base_handle_price,
+            registration_period,
+        })?;
+        let pricing_solution = XchandlesPricingSolution {
+            buy_time: start_time,
+            current_expiration: 0,
+            handle,
+            num_periods,
+        };
+        self.spend_with_pricing(
+            ctx,
+            registry,
+            left_slot,
+            right_slot,
+            precommit_coin,
+            pricing_puzzle,
+            pricing_solution,
+            owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash,
+        )
+    }
+
+    /// Register using an explicit pricing puzzle reveal and solution.
+    ///
+    /// Used for the deployed expiry-pricing precommit (ordinary
+    /// `current_expiration = 0`) so the reveal matches the commitment instead
+    /// of silently substituting factor pricing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn spend_with_pricing(
+        self,
+        ctx: &mut SpendContext,
+        registry: &mut XchandlesRegistry,
+        left_slot: Slot<XchandlesHandleSlotValue>,
+        right_slot: Slot<XchandlesHandleSlotValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
+        pricing_puzzle: NodePtr,
+        pricing_solution: XchandlesPricingSolution,
+        owner_inner_puzzle_hash: Bytes32,
+        resolved_inner_puzzle_hash: Bytes32,
+    ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
+        let handle_hash = pricing_solution.handle.tree_hash().into();
         let (left_slot, right_slot) = registry.actual_neigbors(handle_hash, left_slot, right_slot);
 
         let secret = precommit_coin.value.secret;
-
-        let num_periods = precommit_coin.coin.amount()
-            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
         let register_announcement =
@@ -283,18 +325,7 @@ impl XchandlesRegisterAction {
                 ))?,
                 (),
             ),
-            pricing_puzzle_and_solution: PuzzleAndSolution::new(
-                ctx.curry(XchandlesFactorPricingPuzzleArgs {
-                    base_price: base_handle_price,
-                    registration_period,
-                })?,
-                XchandlesPricingSolution {
-                    buy_time: start_time,
-                    current_expiration: 0,
-                    handle: handle.clone(),
-                    num_periods,
-                },
-            ),
+            pricing_puzzle_and_solution: PuzzleAndSolution::new(pricing_puzzle, pricing_solution),
             left_rest_of_slot: XchandlesRestOfSlot::new(
                 left_slot.info.value.counter,
                 left_slot.info.value.neighbors.left_value,
@@ -338,6 +369,17 @@ impl XchandlesRegisterAction {
                 Conditions::new().send_message(18, message.into(), vec![message_destination])
             }),
         ))
+    }
+
+    /// Curry the deployed expiry-pricing puzzle for an ordinary-register reveal.
+    pub fn expiry_pricing_puzzle(
+        ctx: &mut SpendContext,
+        base_handle_price: u64,
+        registration_period: u64,
+    ) -> Result<NodePtr, DriverError> {
+        let args =
+            XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
+        ctx.curry(args)
     }
 }
 
@@ -454,6 +496,29 @@ mod tests {
             assert_eq!(output.registered_time, registration_period);
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn expiry_pricing_register_reveal_matches_deployed_expire_hash() -> Result<(), DriverError> {
+        let mut ctx = SpendContext::new();
+        let base_price = 5_000;
+        let registration_period = 31_557_600;
+        let puzzle = XchandlesRegisterAction::expiry_pricing_puzzle(
+            &mut ctx,
+            base_price,
+            registration_period,
+        )?;
+        assert_eq!(
+            ctx.tree_hash(puzzle),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period)
+        );
+        let factor = XchandlesFactorPricingPuzzleArgs {
+            base_price,
+            registration_period,
+        }
+        .curry_tree_hash();
+        assert_ne!(ctx.tree_hash(puzzle), factor);
         Ok(())
     }
 }
