@@ -16,7 +16,8 @@ pub struct StateSchedulerInfo<S> {
     pub launcher_id: Bytes32,
 
     pub receiver_singleton_launcher_id: Bytes32,
-    pub state_schedule: Vec<(u32, S)>, // block height + state
+    /// Nonempty, strictly increasing list of `(unix timestamp, state)` entries.
+    pub state_schedule: Vec<(u64, S)>,
     pub generation: usize,
     pub final_puzzle_hash: Bytes32,
 }
@@ -28,17 +29,19 @@ where
     pub fn new(
         launcher_id: Bytes32,
         receiver_singleton_launcher_id: Bytes32,
-        state_schedule: Vec<(u32, S)>,
+        state_schedule: Vec<(u64, S)>,
         generation: usize,
         final_puzzle_hash: Bytes32,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DriverError> {
+        validate_state_schedule(&state_schedule)?;
+
+        Ok(Self {
             launcher_id,
             receiver_singleton_launcher_id,
             state_schedule,
             generation,
             final_puzzle_hash,
-        }
+        })
     }
 
     #[must_use]
@@ -52,7 +55,7 @@ where
     pub fn inner_puzzle_hash_for(
         &self,
         next_puzzle_hash: Bytes32,
-        required_block_height: u32,
+        required_timestamp: u64,
         prefix_and_message_hash: TreeHash,
     ) -> TreeHash {
         StateSchedulerLayerArgs::<TreeHash, _>::curry_tree_hash(
@@ -62,7 +65,7 @@ where
             prefix_and_message_hash,
             &clvm_quote!(vec![
                 Condition::<()>::create_coin(next_puzzle_hash, 1, Memos::None),
-                Condition::assert_height_absolute(required_block_height),
+                Condition::assert_seconds_absolute(required_timestamp),
             ]),
         )
     }
@@ -98,7 +101,7 @@ where
     }
 
     pub fn into_layers(self) -> SingletonLayer<StateSchedulerLayer> {
-        let (required_block_height, new_state) = self.state_schedule[self.generation].clone();
+        let (required_timestamp, new_state) = self.state_schedule[self.generation].clone();
 
         SingletonLayer::new(
             self.launcher_id,
@@ -107,7 +110,7 @@ where
                     .tree_hash()
                     .into(),
                 new_state.tree_hash().into(),
-                required_block_height,
+                required_timestamp,
                 self.inner_puzzle_hash_for_generation(self.generation + 1)
                     .into(),
             ),
@@ -133,7 +136,7 @@ where
             hints.state_schedule,
             0,
             hints.final_puzzle_hash,
-        );
+        )?;
 
         let predicted_inner_puzzle_hash = candidate.inner_puzzle_hash();
         let predicted_puzzle_hash =
@@ -159,13 +162,170 @@ where
     }
 }
 
+/// Launcher hints retain their previous CLVM structure; schedule values are Unix timestamps.
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct StateSchedulerLauncherHints<S, H> {
     pub my_launcher_id: Bytes32,
     pub receiver_singleton_launcher_id: Bytes32,
     pub final_puzzle_hash: Bytes32,
-    pub state_schedule: Vec<(u32, S)>,
+    pub state_schedule: Vec<(u64, S)>,
     #[clvm(rest)]
     pub final_puzzle_hash_hints: H,
+}
+
+fn validate_state_schedule<S>(state_schedule: &[(u64, S)]) -> Result<(), DriverError> {
+    if state_schedule.is_empty() {
+        return Err(DriverError::InvalidStateSchedule);
+    }
+
+    for window in state_schedule.windows(2) {
+        if window[1].0 <= window[0].0 {
+            return Err(DriverError::InvalidStateSchedule);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::Bytes32;
+    use chia_puzzle_types::Memos;
+    use chia_sdk_types::Condition;
+    use clvm_traits::{FromClvm, ToClvm, clvm_quote};
+    use clvm_utils::ToTreeHash;
+    use clvmr::Allocator;
+
+    use crate::{CatalogRegistryState, DriverError};
+
+    use super::*;
+
+    fn mock_state(generator: u8) -> CatalogRegistryState {
+        CatalogRegistryState {
+            cat_maker_puzzle_hash: Bytes32::new([generator; 32]),
+            registration_price: u64::from(generator) * 1000,
+        }
+    }
+
+    #[test]
+    fn test_rejects_empty_schedule() {
+        let err = StateSchedulerInfo::new(
+            Bytes32::default(),
+            Bytes32::default(),
+            Vec::<(u64, CatalogRegistryState)>::new(),
+            0,
+            Bytes32::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, DriverError::InvalidStateSchedule));
+    }
+
+    #[test]
+    fn test_rejects_duplicate_timestamps() {
+        let err = StateSchedulerInfo::new(
+            Bytes32::default(),
+            Bytes32::default(),
+            vec![(100, mock_state(0)), (100, mock_state(1))],
+            0,
+            Bytes32::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, DriverError::InvalidStateSchedule));
+    }
+
+    #[test]
+    fn test_rejects_non_increasing_timestamps() {
+        let err = StateSchedulerInfo::new(
+            Bytes32::default(),
+            Bytes32::default(),
+            vec![(200, mock_state(0)), (150, mock_state(1))],
+            0,
+            Bytes32::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, DriverError::InvalidStateSchedule));
+    }
+
+    #[test]
+    fn test_accepts_strictly_increasing_timestamps() -> anyhow::Result<()> {
+        let info = StateSchedulerInfo::new(
+            Bytes32::new([1; 32]),
+            Bytes32::new([2; 32]),
+            vec![(100, mock_state(0)), (200, mock_state(1))],
+            0,
+            Bytes32::new([3; 32]),
+        )?;
+        assert_eq!(info.state_schedule.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_inner_puzzle_hash_uses_assert_seconds_absolute() -> anyhow::Result<()> {
+        let info = StateSchedulerInfo::new(
+            Bytes32::new([1; 32]),
+            Bytes32::new([2; 32]),
+            vec![(1_700_000_000, mock_state(0))],
+            0,
+            Bytes32::new([3; 32]),
+        )?;
+
+        let seconds_hash = info.inner_puzzle_hash();
+
+        let prefix_and_message: Bytes = XchandlesRegistryReceivedMessagePrefix::update_state(
+            info.state_schedule[0].1.tree_hash(),
+        )
+        .into();
+        let height_hash = StateSchedulerLayerArgs::<TreeHash, _>::curry_tree_hash(
+            SingletonStruct::new(info.receiver_singleton_launcher_id)
+                .tree_hash()
+                .into(),
+            prefix_and_message.tree_hash(),
+            &clvm_quote!(vec![
+                Condition::<()>::create_coin(info.final_puzzle_hash, 1, Memos::None),
+                Condition::assert_height_absolute(1_700_000_000),
+            ]),
+        );
+
+        assert_ne!(hex::encode(seconds_hash), hex::encode(height_hash));
+        assert_eq!(
+            hex::encode(seconds_hash),
+            hex::encode(info.inner_puzzle_hash_for(
+                info.final_puzzle_hash,
+                1_700_000_000,
+                prefix_and_message.tree_hash(),
+            ))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_launcher_hints_roundtrip() -> anyhow::Result<()> {
+        let schedule = vec![(100, mock_state(0)), (200, mock_state(1))];
+        let info = StateSchedulerInfo::new(
+            Bytes32::new([9; 32]),
+            Bytes32::new([8; 32]),
+            schedule,
+            0,
+            Bytes32::new([7; 32]),
+        )?;
+        let hints = info.to_hints(NodePtr::NIL);
+
+        let mut allocator = Allocator::new();
+        let ptr = hints.to_clvm(&mut allocator)?;
+        let roundtrip =
+            StateSchedulerLauncherHints::<CatalogRegistryState, NodePtr>::from_clvm(&allocator, ptr)?;
+
+        assert_eq!(roundtrip.my_launcher_id, hints.my_launcher_id);
+        assert_eq!(
+            roundtrip.receiver_singleton_launcher_id,
+            hints.receiver_singleton_launcher_id
+        );
+        assert_eq!(roundtrip.final_puzzle_hash, hints.final_puzzle_hash);
+        assert_eq!(roundtrip.state_schedule, hints.state_schedule);
+        assert_eq!(roundtrip.final_puzzle_hash_hints, NodePtr::NIL);
+
+        Ok(())
+    }
 }

@@ -31,6 +31,9 @@ pub enum DriverError {
     #[error("non-standard inner puzzle layer")]
     NonStandardLayer,
 
+    #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
+    InvalidStateSchedule,
+
     #[error("missing child")]
     MissingChild,
 
