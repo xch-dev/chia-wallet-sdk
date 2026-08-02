@@ -478,6 +478,7 @@ module.exports.GetMempoolItemResponse = nativeBinding.GetMempoolItemResponse
 module.exports.GetMempoolItemsResponse = nativeBinding.GetMempoolItemsResponse
 module.exports.GetNetworkInfoResponse = nativeBinding.GetNetworkInfoResponse
 module.exports.GetPuzzleAndSolutionResponse = nativeBinding.GetPuzzleAndSolutionResponse
+module.exports.HandleNftMetadata = nativeBinding.HandleNftMetadata
 module.exports.Id = nativeBinding.Id
 module.exports.InfusedChallengeChainSubSlot = nativeBinding.InfusedChallengeChainSubSlot
 module.exports.InnerPuzzleMemo = nativeBinding.InnerPuzzleMemo

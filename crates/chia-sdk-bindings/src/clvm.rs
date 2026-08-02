@@ -32,8 +32,8 @@ use num_bigint::BigInt;
 
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
-    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo,
+    MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
     OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
     RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
@@ -467,6 +467,12 @@ impl Clvm {
     pub fn nft_metadata(&self, nft_metadata: NftMetadata) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.alloc(&nft_metadata)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn handle_nft_metadata(&self, handle_nft_metadata: HandleNftMetadata) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&handle_nft_metadata)?;
         Ok(Program(self.0.clone(), ptr))
     }
 

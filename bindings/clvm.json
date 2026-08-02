@@ -232,6 +232,12 @@
         },
         "return": "Program"
       },
+      "handle_nft_metadata": {
+        "args": {
+          "value": "HandleNftMetadata"
+        },
+        "return": "Program"
+      },
       "mips_memo": {
         "args": {
           "value": "MipsMemo"

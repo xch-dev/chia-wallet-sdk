@@ -106,6 +106,7 @@
     "Softfork",
     "Pair",
     "NftMetadata",
+    "HandleNftMetadata",
     "CurriedProgram",
     "MipsMemo",
     "InnerPuzzleMemo",

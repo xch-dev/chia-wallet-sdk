@@ -655,6 +655,7 @@ export declare class Clvm {
   createBulletin(parentCoinId: Uint8Array, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>): CreatedBulletin
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
+  handleNftMetadata(value: HandleNftMetadata): Program
   mipsMemo(value: MipsMemo): Program
   innerPuzzleMemo(value: InnerPuzzleMemo): Program
   restrictionMemo(value: RestrictionMemo): Program
@@ -1563,6 +1564,25 @@ export declare class GetPuzzleAndSolutionResponse {
   set success(value: boolean)
 }
 
+export declare class HandleNftMetadata {
+  clone(): HandleNftMetadata
+  constructor(displayName: string | undefined | null, imageUris: Array<string>, imageHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
+  get displayName(): string | null
+  set displayName(value?: string | undefined | null)
+  get imageUris(): Array<string>
+  set imageUris(value: Array<string>)
+  get imageHash(): Buffer | null
+  set imageHash(value?: Uint8Array | undefined | null)
+  get metadataUris(): Array<string>
+  set metadataUris(value: Array<string>)
+  get metadataHash(): Buffer | null
+  set metadataHash(value?: Uint8Array | undefined | null)
+  get licenseUris(): Array<string>
+  set licenseUris(value: Array<string>)
+  get licenseHash(): Buffer | null
+  set licenseHash(value?: Uint8Array | undefined | null)
+}
+
 export declare class Id {
   clone(): Id
   static xch(): Id
@@ -2298,6 +2318,7 @@ export declare class Program {
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
+  parseHandleNftMetadata(): HandleNftMetadata | null
   parseRemark(): Remark | null
   parseAggSigParent(): AggSigParent | null
   parseAggSigPuzzle(): AggSigPuzzle | null

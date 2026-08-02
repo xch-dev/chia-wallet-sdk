@@ -282,6 +282,20 @@
       "license_hash": "Option<Bytes32>"
     }
   },
+  "HandleNftMetadata": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "display_name": "Option<String>",
+      "image_uris": "Vec<String>",
+      "image_hash": "Option<Bytes32>",
+      "metadata_uris": "Vec<String>",
+      "metadata_hash": "Option<Bytes32>",
+      "license_uris": "Vec<String>",
+      "license_hash": "Option<Bytes32>"
+    }
+  },
   "MetadataUpdate": {
     "type": "class",
     "new": true,
