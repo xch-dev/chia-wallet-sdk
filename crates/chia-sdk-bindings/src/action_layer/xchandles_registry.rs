@@ -6,8 +6,8 @@ use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_sdk_driver::{
     DelegatedStateAction, Offer, PrecommitCoin, SpendContext, XchandlesConstants,
-    XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExtendAction,
-    XchandlesInitiateUpdateAction, XchandlesOracleAction,
+    XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
+    XchandlesExtendAction, XchandlesInitiateUpdateAction, XchandlesOracleAction,
     XchandlesPrecommitValue as DriverXchandlesPrecommitValue, XchandlesRefundAction,
     XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry, XchandlesRegistryState,
     launch_xchandles_registry as driver_launch_xchandles_registry,
@@ -192,9 +192,17 @@ pub struct XchandlesPrecommitValue {
     pub registration_period: u64,
     pub buy_time: u64,
     pub num_periods: u64,
+    /// Pricing-solution `current_expiration`. Zero for ordinary available-Handle
+    /// registrations; the exact slot expiration for expiry-auction purchases.
+    pub current_expiration: u64,
+    /// When true, commit the deployed expiry-pricing puzzle. When false, keep the
+    /// historical factor-pricing tree hash used by `for_normal_registration`.
+    pub use_expire_pricing: bool,
 }
 
 impl XchandlesPrecommitValue {
+    /// Factor-pricing precommit used by historical / non-expiry consumers.
+    /// Always commits `current_expiration = 0` and the factor-pricing puzzle hash.
     #[allow(clippy::too_many_arguments)]
     pub fn for_normal_registration(
         handle: String,
@@ -217,28 +225,96 @@ impl XchandlesPrecommitValue {
             registration_period,
             buy_time,
             num_periods,
+            current_expiration: 0,
+            use_expire_pricing: false,
         })
+    }
+
+    /// Expiry-pricing precommit for the currently deployed pricing puzzle.
+    ///
+    /// Accepts the explicit `XchandlesPricingSolution` fields (`buy_time`,
+    /// `current_expiration`, `handle`, `num_periods`) plus base price and the
+    /// fixed registration period. Usable for both ordinary
+    /// (`current_expiration = 0`) and expiry-auction (nonzero) vectors, and
+    /// remains consumable by `XchandlesPrecommitCoin`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_expiry_pricing_registration(
+        handle: String,
+        secret: Bytes32,
+        owner_launcher_id: Bytes32,
+        resolved_launcher_id: Bytes32,
+        payment_asset_id: Bytes32,
+        base_price: u64,
+        registration_period: u64,
+        buy_time: u64,
+        current_expiration: u64,
+        num_periods: u64,
+    ) -> Result<Self> {
+        if num_periods == 0 {
+            return Err(Error::Custom(
+                "num_periods must be greater than 0".to_string(),
+            ));
+        }
+        Ok(Self {
+            handle,
+            secret,
+            owner_launcher_id,
+            resolved_launcher_id,
+            payment_asset_id,
+            base_price,
+            registration_period,
+            buy_time,
+            num_periods,
+            current_expiration,
+            use_expire_pricing: true,
+        })
+    }
+
+    fn pricing_puzzle_hash(&self) -> TreeHash {
+        if self.use_expire_pricing {
+            XchandlesExpirePricingPuzzle::curry_tree_hash(
+                self.base_price,
+                self.registration_period,
+            )
+        } else {
+            XchandlesFactorPricingPuzzleArgs {
+                base_price: self.base_price,
+                registration_period: self.registration_period,
+            }
+            .curry_tree_hash()
+        }
+    }
+
+    fn pricing_solution(&self) -> XchandlesPricingSolution {
+        XchandlesPricingSolution {
+            buy_time: self.buy_time,
+            current_expiration: if self.use_expire_pricing {
+                self.current_expiration
+            } else {
+                0
+            },
+            handle: self.handle.clone(),
+            num_periods: self.num_periods,
+        }
     }
 
     fn to_driver_value(&self) -> DriverXchandlesPrecommitValue {
         DriverXchandlesPrecommitValue::for_normal_registration(
             self.payment_asset_id.tree_hash(),
-            XchandlesFactorPricingPuzzleArgs {
-                base_price: self.base_price,
-                registration_period: self.registration_period,
-            }
-            .curry_tree_hash(),
-            &XchandlesPricingSolution {
-                buy_time: self.buy_time,
-                current_expiration: 0,
-                handle: self.handle.clone(),
-                num_periods: self.num_periods,
-            },
+            self.pricing_puzzle_hash(),
+            &self.pricing_solution(),
             self.handle.clone(),
             self.secret,
             self.owner_launcher_id,
             self.resolved_launcher_id,
         )
+    }
+
+    /// On-chain precommit value tree hash (same digest `PrecommitCoin` embeds).
+    pub fn commitment_hash(&self) -> Result<Bytes32> {
+        let mut ctx = SpendContext::new();
+        let ptr = ctx.alloc(&self.to_driver_value())?;
+        Ok(ctx.tree_hash(ptr).into())
     }
 }
 
@@ -907,5 +983,168 @@ mod tests {
         assert!(xchandles_get_price(5, "a".repeat(64), 1).is_err());
         assert!(xchandles_get_price(5, "ABC".into(), 1).is_err());
         assert!(xchandles_get_price(5, "abc".into(), 0).is_err());
+    }
+
+    fn driver_commitment_hash(
+        payment_asset_id: Bytes32,
+        pricing_puzzle_hash: TreeHash,
+        pricing_solution: &XchandlesPricingSolution,
+        handle: String,
+        secret: Bytes32,
+        owner_launcher_id: Bytes32,
+        resolved_launcher_id: Bytes32,
+    ) -> Bytes32 {
+        let mut ctx = SpendContext::new();
+        let value = DriverXchandlesPrecommitValue::for_normal_registration(
+            payment_asset_id.tree_hash(),
+            pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            secret,
+            owner_launcher_id,
+            resolved_launcher_id,
+        );
+        let ptr = ctx.alloc(&value).unwrap();
+        ctx.tree_hash(ptr).into()
+    }
+
+    #[test]
+    fn factor_pricing_factory_preserves_zero_expiration_commitment() {
+        let payment = Bytes32::new([0x11; 32]);
+        let secret = Bytes32::new([0x22; 32]);
+        let owner = Bytes32::new([0x33; 32]);
+        let binding = XchandlesPrecommitValue::for_normal_registration(
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+            payment,
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            2,
+        )
+        .unwrap();
+
+        assert!(!binding.use_expire_pricing);
+        assert_eq!(binding.current_expiration, 0);
+
+        let expected = driver_commitment_hash(
+            payment,
+            XchandlesFactorPricingPuzzleArgs {
+                base_price: 5_000,
+                registration_period: 31_557_600,
+            }
+            .curry_tree_hash(),
+            &XchandlesPricingSolution {
+                buy_time: 1_787_216_820,
+                current_expiration: 0,
+                handle: "alice".into(),
+                num_periods: 2,
+            },
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+        );
+        assert_eq!(binding.commitment_hash().unwrap(), expected);
+    }
+
+    #[test]
+    fn expiry_pricing_factory_matches_driver_for_zero_and_nonzero_expiration() {
+        let payment = Bytes32::new([0xaa; 32]);
+        let secret = Bytes32::new([0xbb; 32]);
+        let owner = Bytes32::new([0xcc; 32]);
+        let registration_period = 31_557_600_u64;
+        let base_price = 5_000_u64;
+        let buy_time = 1_787_216_820_u64;
+
+        for current_expiration in [0_u64, 1_800_000_000_u64] {
+            let binding = XchandlesPrecommitValue::for_expiry_pricing_registration(
+                "alice".into(),
+                secret,
+                owner,
+                owner,
+                payment,
+                base_price,
+                registration_period,
+                buy_time,
+                current_expiration,
+                1,
+            )
+            .unwrap();
+
+            assert!(binding.use_expire_pricing);
+            assert_eq!(binding.current_expiration, current_expiration);
+
+            let expected = driver_commitment_hash(
+                payment,
+                XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period),
+                &XchandlesPricingSolution {
+                    buy_time,
+                    current_expiration,
+                    handle: "alice".into(),
+                    num_periods: 1,
+                },
+                "alice".into(),
+                secret,
+                owner,
+                owner,
+            );
+            assert_eq!(
+                binding.commitment_hash().unwrap(),
+                expected,
+                "commitment mismatch for current_expiration={current_expiration}"
+            );
+        }
+    }
+
+    #[test]
+    fn expiry_pricing_precommit_coin_consumes_binding_value() {
+        let payment = Bytes32::new([0x01; 32]);
+        let secret = Bytes32::new([0x02; 32]);
+        let owner = Bytes32::new([0x03; 32]);
+        let controller = Bytes32::new([0x04; 32]);
+        let payout = Bytes32::new([0x05; 32]);
+        let refund = Bytes32::new([0x06; 32]);
+        let parent = Bytes32::new([0x07; 32]);
+
+        let value = XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "bob".into(),
+            secret,
+            owner,
+            owner,
+            payment,
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            1_800_000_000,
+            1,
+        )
+        .unwrap();
+
+        let clvm = Clvm::new().unwrap();
+        let coin = XchandlesPrecommitCoin::new(
+            clvm,
+            parent,
+            LineageProof {
+                parent_parent_coin_info: Bytes32::new([0x08; 32]),
+                parent_inner_puzzle_hash: Bytes32::new([0x09; 32]),
+                parent_amount: 1_000,
+            },
+            payment,
+            controller,
+            32,
+            payout,
+            refund,
+            value.clone(),
+            10_000,
+        )
+        .unwrap();
+
+        assert_eq!(coin.value.handle, "bob");
+        assert_eq!(coin.value.current_expiration, 1_800_000_000);
+        assert!(coin.value.use_expire_pricing);
+        assert_eq!(coin.coin.amount, 10_000);
     }
 }

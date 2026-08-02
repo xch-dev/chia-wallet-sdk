@@ -3581,6 +3581,8 @@ export declare class XchandlesPrecommitCoin {
 export declare class XchandlesPrecommitValue {
   clone(): XchandlesPrecommitValue
   static forNormalRegistration(handle: string, secret: Uint8Array, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array, paymentAssetId: Uint8Array, basePrice: bigint, registrationPeriod: bigint, buyTime: bigint, numPeriods: bigint): XchandlesPrecommitValue
+  static forExpiryPricingRegistration(handle: string, secret: Uint8Array, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array, paymentAssetId: Uint8Array, basePrice: bigint, registrationPeriod: bigint, buyTime: bigint, currentExpiration: bigint, numPeriods: bigint): XchandlesPrecommitValue
+  commitmentHash(): Buffer
   get handle(): string
   set handle(value: string)
   get secret(): Buffer
@@ -3599,6 +3601,10 @@ export declare class XchandlesPrecommitValue {
   set buyTime(value: bigint)
   get numPeriods(): bigint
   set numPeriods(value: bigint)
+  get currentExpiration(): bigint
+  set currentExpiration(value: bigint)
+  get useExpirePricing(): boolean
+  set useExpirePricing(value: boolean)
 }
 
 export declare class XchandlesRegistry {

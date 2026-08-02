@@ -176,7 +176,9 @@
       "base_price": "u64",
       "registration_period": "u64",
       "buy_time": "u64",
-      "num_periods": "u64"
+      "num_periods": "u64",
+      "current_expiration": "u64",
+      "use_expire_pricing": "bool"
     },
     "methods": {
       "for_normal_registration": {
@@ -192,6 +194,24 @@
           "buy_time": "u64",
           "num_periods": "u64"
         }
+      },
+      "for_expiry_pricing_registration": {
+        "type": "factory",
+        "args": {
+          "handle": "String",
+          "secret": "Bytes32",
+          "owner_launcher_id": "Bytes32",
+          "resolved_launcher_id": "Bytes32",
+          "payment_asset_id": "Bytes32",
+          "base_price": "u64",
+          "registration_period": "u64",
+          "buy_time": "u64",
+          "current_expiration": "u64",
+          "num_periods": "u64"
+        }
+      },
+      "commitment_hash": {
+        "return": "Bytes32"
       }
     }
   },

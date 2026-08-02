@@ -2653,8 +2653,13 @@ class XchandlesPrecommitValue:
     registration_period: int
     buy_time: int
     num_periods: int
+    current_expiration: int
+    use_expire_pricing: bool
     @staticmethod
     def for_normal_registration(handle: str, secret: bytes, ownerLauncherId: bytes, resolvedLauncherId: bytes, paymentAssetId: bytes, basePrice: int, registrationPeriod: int, buyTime: int, numPeriods: int) -> XchandlesPrecommitValue: ...
+    @staticmethod
+    def for_expiry_pricing_registration(handle: str, secret: bytes, ownerLauncherId: bytes, resolvedLauncherId: bytes, paymentAssetId: bytes, basePrice: int, registrationPeriod: int, buyTime: int, currentExpiration: int, numPeriods: int) -> XchandlesPrecommitValue: ...
+    def commitment_hash(self) -> bytes: ...
 class XchandlesPrecommitCoin:
     def clone(self) -> XchandlesPrecommitCoin: ...
     coin: Coin
