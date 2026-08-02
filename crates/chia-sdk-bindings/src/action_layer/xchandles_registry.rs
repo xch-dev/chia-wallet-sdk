@@ -792,6 +792,47 @@ impl XchandlesRegistry {
         self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
+    /// Refund using the pricing reveal implied by a committed precommit value.
+    ///
+    /// Expiry-pricing precommits curry the deployed expire-pricing puzzle and
+    /// the exact committed `XchandlesPricingSolution`. Factor-pricing
+    /// precommits curry factor pricing with `current_expiration = 0`.
+    /// Callers still pass an optional Handle slot when protocol state requires
+    /// it (conflicting active registration).
+    pub fn refund_committed(
+        &self,
+        precommit_coin: XchandlesPrecommitCoin,
+        slot: Option<XchandlesHandleSlot>,
+    ) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut registry = self.registry.lock().unwrap();
+
+        let pricing_puzzle = if precommit_coin.value.use_expire_pricing {
+            XchandlesRegisterAction::expiry_pricing_puzzle(
+                &mut ctx,
+                precommit_coin.value.base_price,
+                precommit_coin.value.registration_period,
+            )?
+        } else {
+            ctx.curry(XchandlesFactorPricingPuzzleArgs {
+                base_price: precommit_coin.value.base_price,
+                registration_period: precommit_coin.value.registration_period,
+            })?
+        };
+        let pricing_solution = ctx.alloc(&precommit_coin.value.pricing_solution())?;
+
+        let conditions = registry.new_action::<XchandlesRefundAction>().spend(
+            &mut ctx,
+            &mut registry,
+            &precommit_coin.to_precommit_coin(),
+            pricing_puzzle,
+            pricing_solution,
+            slot.map(XchandlesHandleSlot::to_slot),
+        )?;
+
+        self.sdk_conditions_to_program_list(&mut ctx, conditions)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn extend(
         &self,

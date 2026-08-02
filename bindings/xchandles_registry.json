@@ -372,6 +372,13 @@
                 },
                 "return": "Vec<Program>"
             },
+            "refund_committed": {
+                "args": {
+                    "precommit_coin": "XchandlesPrecommitCoin",
+                    "slot": "Option<XchandlesHandleSlot>"
+                },
+                "return": "Vec<Program>"
+            },
             "extend": {
                 "args": {
                     "handle": "String",
