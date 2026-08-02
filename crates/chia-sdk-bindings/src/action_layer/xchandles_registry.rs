@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use bindy::Result;
+use bindy::{Error, Result};
 use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
@@ -26,6 +26,16 @@ use crate::{
 };
 
 pub fn xchandles_get_price(base_price: u64, handle: String, num_periods: u64) -> Result<u64> {
+    if !XchandlesFactorPricingPuzzleArgs::is_valid_handle(&handle) {
+        return Err(Error::Custom(format!(
+            "Invalid handle '{handle}': must be 3-63 lowercase ASCII letters and digits"
+        )));
+    }
+    if num_periods == 0 {
+        return Err(Error::Custom(
+            "num_periods must be greater than 0".to_string(),
+        ));
+    }
     Ok(XchandlesFactorPricingPuzzleArgs::get_price(
         base_price,
         &handle,
@@ -863,5 +873,39 @@ impl Clvm {
                 },
             ),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_price_accepts_valid_handles_and_rejects_invalid() {
+        assert_eq!(xchandles_get_price(5, "abc".into(), 1).unwrap(), 640);
+        assert_eq!(xchandles_get_price(5, "example1".into(), 2).unwrap(), 10);
+        assert_eq!(
+            xchandles_get_price(
+                1,
+                "bigbouncingthicctwerkingthunderclappingbadonkabooty".into(),
+                1
+            )
+            .unwrap(),
+            2
+        );
+        assert_eq!(
+            xchandles_get_price(
+                1,
+                "rolexislandpermutoplatinumlamboempirexrp404inu".into(),
+                1
+            )
+            .unwrap(),
+            1
+        );
+
+        assert!(xchandles_get_price(5, "aa".into(), 1).is_err());
+        assert!(xchandles_get_price(5, "a".repeat(64), 1).is_err());
+        assert!(xchandles_get_price(5, "ABC".into(), 1).is_err());
+        assert!(xchandles_get_price(5, "abc".into(), 0).is_err());
     }
 }

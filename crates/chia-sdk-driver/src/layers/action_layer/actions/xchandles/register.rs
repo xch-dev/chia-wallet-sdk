@@ -317,7 +317,7 @@ impl XchandlesRegisterAction {
 
 #[cfg(test)]
 mod tests {
-    use clvmr::{error::EvalErr, serde::node_to_bytes};
+    use clvmr::error::EvalErr;
 
     use super::*;
 
@@ -340,7 +340,7 @@ mod tests {
             registration_period,
         })?;
 
-        for handle_length in 3..=31 {
+        for handle_length in 3..=63 {
             for num_periods in 1..=3 {
                 for has_number in [false, true] {
                     let handle = if has_number {
@@ -352,31 +352,15 @@ mod tests {
                     let solution = ctx.alloc(&XchandlesPricingSolution {
                         buy_time: 0,
                         current_expiration: (handle_length - 3) as u64, // shouldn't matter
-                        handle,
+                        handle: handle.clone(),
                         num_periods,
                     })?;
-
-                    // todo: debug
-                    println!("puzzle: {:}", hex::encode(node_to_bytes(&ctx, puzzle)?));
-                    println!("solution: {:}", hex::encode(node_to_bytes(&ctx, solution)?));
-                    // todo: debug
 
                     let output = ctx.run(puzzle, solution)?;
                     let output = ctx.extract::<XchandlesFactorPricingOutput>(output)?;
 
-                    let mut expected_price = if handle_length == 3 {
-                        128
-                    } else if handle_length == 4 {
-                        64
-                    } else if handle_length == 5 {
-                        16
-                    } else {
-                        2
-                    };
-                    if has_number {
-                        expected_price /= 2;
-                    }
-                    expected_price *= num_periods;
+                    let expected_price =
+                        XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, num_periods);
 
                     assert_eq!(output.price, expected_price);
                     assert_eq!(output.registered_time, num_periods * registration_period);
@@ -384,44 +368,61 @@ mod tests {
             }
         }
 
-        // make sure the puzzle won't let us register a handle of length 2
+        // Reject lengths 0, 1, 2, and 64+.
+        for handle in ["", "a", "aa", &*"a".repeat(64)] {
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: handle.to_string(),
+                num_periods: 1,
+            })?;
 
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "aa".to_string(),
-            num_periods: 1,
-        })?;
+            let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+                panic!("Expected clvm raise for handle {handle:?}");
+            };
+        }
 
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
+        // Reject invalid characters (uppercase, punctuation, whitespace, non-ASCII).
+        for handle in ["ABC", "yak@test", "foo bar", "café", "a.b", "a-b"] {
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: handle.to_string(),
+                num_periods: 1,
+            })?;
 
-        // make sure the puzzle won't let us register a handle of length 32
+            let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+                panic!("Expected clvm raise for handle {handle:?}");
+            };
+        }
 
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "a".repeat(32),
-            num_periods: 1,
-        })?;
-
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
-
-        // make sure the puzzle won't let us register a handle with invalid characters
-
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "yak@test".to_string(),
-            num_periods: 1,
-        })?;
-
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
+        // Published Premine handles longer than 31 must price through the executable path.
+        const LONG_PREMINE_HANDLES: &[&str] = &[
+            "ashorttermmindgetsinthewayofalongtermgrind",
+            "bigbouncingthicctwerkingthunderclappingbadonkabooty",
+            "bigfathonkingjigglymommymilkerboobies",
+            "rolexislandpermutoplatinumlamboempirexrp404inu",
+            "thankstopawketforprovidingthebestchiasdk",
+        ];
+        for handle in LONG_PREMINE_HANDLES {
+            assert!(
+                XchandlesFactorPricingPuzzleArgs::is_valid_handle(handle),
+                "premine handle failed launch validation: {handle}"
+            );
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: (*handle).to_string(),
+                num_periods: 1,
+            })?;
+            let output = ctx.run(puzzle, solution)?;
+            let output = ctx.extract::<XchandlesFactorPricingOutput>(output)?;
+            assert_eq!(
+                output.price,
+                XchandlesFactorPricingPuzzleArgs::get_price(base_price, handle, 1)
+            );
+            assert_eq!(output.registered_time, registration_period);
+        }
 
         Ok(())
     }
