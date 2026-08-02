@@ -729,6 +729,8 @@ export declare class Clvm {
   spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
+  spendSettlementCats(offer: SpendBundle, assetId: Uint8Array, nonce: Uint8Array, payments: Array<Payment>): SpendSettlementCatsResult
+  stateSchedulerLayer(receiverSingletonStructHash: Uint8Array, prefixAndMessage: Uint8Array, innerPuzzle: Program): Program
   offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
   acsTransferProgram(): Program
   augmentedCondition(): Program
@@ -1070,6 +1072,10 @@ export declare class Constants {
   static singletonTopLayerHash(): Buffer
   static singletonTopLayerV11(): Buffer
   static singletonTopLayerV11Hash(): Buffer
+  static anyMetadataUpdater(): Buffer
+  static anyMetadataUpdaterHash(): Buffer
+  static stateSchedulerPuzzle(): Buffer
+  static stateSchedulerPuzzleHash(): Buffer
   static standardVcRevocationPuzzle(): Buffer
   static standardVcRevocationPuzzleHash(): Buffer
   static stdParentMorpher(): Buffer
@@ -3175,6 +3181,13 @@ export declare class SendMessage {
   set data(value: Array<Program>)
 }
 
+export declare class SpendSettlementCatsResult {
+  clone(): SpendSettlementCatsResult
+  get createdCats(): Array<Cat>
+  set createdCats(value: Array<Cat>)
+  get securityConditions(): Array<Program>
+  set securityConditions(value: Array<Program>)
+}
 export declare class SettlementNftSpendResult {
   clone(): SettlementNftSpendResult
   constructor(newNft: Nft, securityConditions: Array<Program>)
@@ -3565,6 +3578,7 @@ export declare class XchandlesHandleSlotValue {
 
 export declare class XchandlesPrecommitCoin {
   clone(): XchandlesPrecommitCoin
+  static puzzleHash(assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue): Uint8Array
   static new(clvm: Clvm, parentCoinId: Uint8Array, proof: LineageProof, assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue, precommitAmount: bigint): XchandlesPrecommitCoin
   get coin(): Coin
   set coin(value: Coin)
@@ -3803,3 +3817,8 @@ export declare const enum UriKind {
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 
 export declare function xchandlesGetPrice(basePrice: bigint, handle: string, numPeriods: bigint): bigint
+export declare function singletonStructHash(launcherId: Uint8Array): Uint8Array
+export declare function xchandlesRegisterOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
+export declare function xchandlesExpireOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
+export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Uint8Array
+export declare function xchandlesRegistrationDelegatedPuzzleHash(registryLauncherId: Uint8Array, precommitPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, registrationTimestamp: bigint, currentExpiration: bigint, finalHandleNftMetadata: HandleNftMetadata): Uint8Array

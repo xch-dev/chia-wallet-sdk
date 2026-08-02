@@ -1,24 +1,30 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_bls::{SecretKey, Signature};
-use chia_protocol::{Bytes32, Coin, SpendBundle};
-use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
+use chia_bls::{PublicKey, SecretKey, Signature};
+use chia_protocol::{Bytes, Bytes32, Coin, SpendBundle};
+use chia_puzzle_types::{
+    LineageProof, singleton::SingletonStruct, standard::StandardArgs,
+};
+use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_driver::{
-    DelegatedStateAction, Offer, PrecommitCoin, SpendContext, XchandlesConstants,
-    XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
-    XchandlesExtendAction, XchandlesInitiateUpdateAction, XchandlesOracleAction,
-    XchandlesPrecommitValue as DriverXchandlesPrecommitValue, XchandlesRefundAction,
-    XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry, XchandlesRegistryState,
+    DelegatedStateAction, HashedPtr, NftInfo, Offer, PrecommitCoin, SingletonInfo, SpendContext,
+    XchandlesConstants, XchandlesExecuteUpdateAction, XchandlesExpireAction,
+    XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesInitiateUpdateAction,
+    XchandlesOracleAction, XchandlesPrecommitValue as DriverXchandlesPrecommitValue,
+    XchandlesRefundAction, XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry,
+    XchandlesRegistryReceivedMessagePrefix, XchandlesRegistryState,
     launch_xchandles_registry as driver_launch_xchandles_registry,
 };
 use chia_sdk_types::{
     Conditions, MAINNET_CONSTANTS, Mod, TESTNET11_CONSTANTS,
     puzzles::{
-        CompactCoinProof, XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue,
+        ANY_METADATA_UPDATER_HASH, CompactCoinProof, HandleNftMetadata,
+        StateSchedulerLayerArgs, XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue,
         XchandlesPricingSolution, XchandlesUpdateSlotValue,
     },
 };
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{
@@ -41,6 +47,99 @@ pub fn xchandles_get_price(base_price: u64, handle: String, num_periods: u64) ->
         &handle,
         num_periods,
     ))
+}
+
+/// Tree hash of `SingletonStruct::new(launcher_id)`.
+pub fn singleton_struct_hash(launcher_id: Bytes32) -> Result<Bytes32> {
+    Ok(SingletonStruct::new(launcher_id).tree_hash().into())
+}
+
+/// XCHandles register-owner received-message bytes for a precommit puzzle hash.
+pub fn xchandles_register_owner_message(precommit_puzzle_hash: Bytes32) -> Result<Bytes> {
+    Ok(Bytes::new(XchandlesRegistryReceivedMessagePrefix::register_owner(
+        precommit_puzzle_hash,
+    )))
+}
+
+/// XCHandles expire-owner received-message bytes for a precommit puzzle hash.
+pub fn xchandles_expire_owner_message(precommit_puzzle_hash: Bytes32) -> Result<Bytes> {
+    Ok(Bytes::new(XchandlesRegistryReceivedMessagePrefix::expire_owner(
+        precommit_puzzle_hash,
+    )))
+}
+
+/// Predict the eve blank Handle NFT coin id (nil metadata, AnyMetadataUpdater, royalty).
+pub fn predict_blank_handle_nft_coin_id(
+    launcher_id: Bytes32,
+    synthetic_public_key: PublicKey,
+    royalty_puzzle_hash: Bytes32,
+    royalty_basis_points: u16,
+) -> Result<Bytes32> {
+    let p2_puzzle_hash: Bytes32 = StandardArgs::curry_tree_hash(synthetic_public_key).into();
+    let mut allocator = clvmr::Allocator::new();
+    let metadata_ptr = HandleNftMetadata::default()
+        .to_clvm(&mut allocator)
+        .map_err(|e| Error::Custom(format!("allocate blank metadata: {e}")))?;
+    let metadata = HashedPtr::from_ptr(&allocator, metadata_ptr);
+    let info = NftInfo::new(
+        launcher_id,
+        metadata,
+        ANY_METADATA_UPDATER_HASH.into(),
+        None,
+        royalty_puzzle_hash,
+        royalty_basis_points,
+        p2_puzzle_hash,
+    );
+    Ok(Coin::new(launcher_id, info.puzzle_hash().into(), 1).coin_id())
+}
+
+/// Build the constrained registration state-scheduler delegated puzzle hash.
+///
+/// Inner conditions are create_coin(p2,1,hint) + update_nft_metadata + assert_seconds_absolute,
+/// wrapped in the reusable state-scheduler layer with the register/expire owner message.
+#[allow(clippy::too_many_arguments)]
+pub fn xchandles_registration_delegated_puzzle_hash(
+    registry_launcher_id: Bytes32,
+    precommit_puzzle_hash: Bytes32,
+    p2_puzzle_hash: Bytes32,
+    registration_timestamp: u64,
+    current_expiration: u64,
+    final_handle_nft_metadata: HandleNftMetadata,
+) -> Result<Bytes32> {
+    let mut ctx = SpendContext::new();
+    let message = if current_expiration == 0 {
+        XchandlesRegistryReceivedMessagePrefix::register_owner(precommit_puzzle_hash)
+    } else {
+        XchandlesRegistryReceivedMessagePrefix::expire_owner(precommit_puzzle_hash)
+    };
+
+    let metadata_updater = ctx
+        .alloc_mod::<chia_sdk_types::puzzles::AnyMetadataUpdater>()
+        .map_err(|e| Error::Custom(format!("allocate metadata updater: {e}")))?;
+    let metadata_ptr = ctx
+        .alloc(&final_handle_nft_metadata)
+        .map_err(|e| Error::Custom(format!("alloc final metadata: {e}")))?;
+    let hint = ctx
+        .hint(p2_puzzle_hash)
+        .map_err(|e| Error::Custom(format!("allocate p2 hint: {e}")))?;
+    let inner_conditions = Conditions::new()
+        .create_coin(p2_puzzle_hash, 1, hint)
+        .update_nft_metadata(metadata_updater, metadata_ptr)
+        .assert_seconds_absolute(registration_timestamp);
+    let inner_puzzle = ctx
+        .alloc(&clvm_quote!(inner_conditions))
+        .map_err(|e| Error::Custom(format!("allocate inner delegated conditions: {e}")))?;
+    let receiver_singleton_struct_hash: Bytes32 =
+        SingletonStruct::new(registry_launcher_id).tree_hash().into();
+    let delegated = ctx
+        .curry(StateSchedulerLayerArgs::<Bytes, clvmr::NodePtr> {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            receiver_singleton_struct_hash,
+            prefix_and_message: Bytes::new(message),
+            inner_puzzle,
+        })
+        .map_err(|e| Error::Custom(format!("allocate state-scheduler delegated puzzle: {e}")))?;
+    Ok(ctx.tree_hash(delegated).into())
 }
 
 pub trait XchandlesRegistryStateExt
@@ -374,6 +473,31 @@ impl XchandlesPrecommitCoin {
             payout_puzzle_hash,
             refund_puzzle_hash,
         })
+    }
+
+    /// Full CAT puzzle hash for an expiry/factor precommit with the given parameters.
+    #[allow(clippy::too_many_arguments)]
+    pub fn puzzle_hash(
+        asset_id: Bytes32,
+        controller_singleton_launcher_id: Bytes32,
+        relative_block_height: u32,
+        payout_puzzle_hash: Bytes32,
+        refund_puzzle_hash: Bytes32,
+        value: XchandlesPrecommitValue,
+    ) -> Result<Bytes32> {
+        let controller_singleton_struct_hash = SingletonStruct::new(controller_singleton_launcher_id)
+            .tree_hash()
+            .into();
+        let value_hash = value.commitment_hash()?;
+        Ok(PrecommitCoin::<DriverXchandlesPrecommitValue>::puzzle_hash(
+            asset_id,
+            controller_singleton_struct_hash,
+            relative_block_height,
+            payout_puzzle_hash,
+            refund_puzzle_hash,
+            value_hash.into(),
+        )
+        .into())
     }
 
     fn to_precommit_coin(&self) -> PrecommitCoin<DriverXchandlesPrecommitValue> {
@@ -1146,5 +1270,66 @@ mod tests {
         assert_eq!(coin.value.current_expiration, 1_800_000_000);
         assert!(coin.value.use_expire_pricing);
         assert_eq!(coin.coin.amount, 10_000);
+    }
+}
+
+
+#[cfg(test)]
+mod registration_helpers_tests {
+    use super::*;
+    use chia_bls::SecretKey;
+
+    fn sk() -> SecretKey {
+        let mut bytes = [0u8; 32];
+        bytes[0] = 1;
+        bytes[31] = 7;
+        SecretKey::from_bytes(&bytes).unwrap()
+    }
+
+    #[test]
+    fn blank_nft_prediction_is_stable() {
+        let launcher = Bytes32::new([0x44; 32]);
+        let mut royalty_bytes = [0u8; 32];
+        royalty_bytes[0] = 0x36;
+        royalty_bytes[1] = 0xda;
+        let royalty = Bytes32::new(royalty_bytes);
+        let a = predict_blank_handle_nft_coin_id(launcher, sk().public_key(), royalty, 420).unwrap();
+        let b = predict_blank_handle_nft_coin_id(launcher, sk().public_key(), royalty, 420).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn registration_delegated_puzzle_differs_for_register_vs_expire() {
+        let registry = Bytes32::new([0x11; 32]);
+        let precommit = Bytes32::new([0xdd; 32]);
+        let p2 = Bytes32::new([0x33; 32]);
+        let meta = HandleNftMetadata {
+            display_name: Some("alice".into()),
+            image_uris: vec!["https://example.com/a.png".into()],
+            image_hash: Some(Bytes32::from([0x11; 32])),
+            metadata_uris: vec!["https://example.com/a.json".into()],
+            metadata_hash: Some(Bytes32::from([0x22; 32])),
+            license_uris: vec!["https://example.com/license.txt".into()],
+            license_hash: Some(Bytes32::from([0x33; 32])),
+        };
+        let register = xchandles_registration_delegated_puzzle_hash(
+            registry,
+            precommit,
+            p2,
+            1_787_216_820,
+            0,
+            meta.clone(),
+        )
+        .unwrap();
+        let expire = xchandles_registration_delegated_puzzle_hash(
+            registry,
+            precommit,
+            p2,
+            1_787_216_820,
+            1_800_000_000,
+            meta,
+        )
+        .unwrap();
+        assert_ne!(register, expire);
     }
 }
