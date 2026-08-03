@@ -10,7 +10,7 @@ use chia_sdk_types::{
         XchandlesRegisterActionSolution, XchandlesRestOfSlot, XchandlesSlotNonce,
     },
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -20,7 +20,10 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
 };
 
-use super::{XchandlesRegisterActionLog, run_pricing_output};
+use super::{
+    XchandlesExpirePricingPuzzle, XchandlesPrecommitValueLog, XchandlesRegisterActionLog,
+    run_pricing_output,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
@@ -85,13 +88,13 @@ impl XchandlesRegisterAction {
         ctx: &mut SpendContext,
         solution: NodePtr,
     ) -> Result<XchandlesRegisterActionLog, DriverError> {
-        let solution = XchandlesRegisterActionSolution::<
+        let solution = ctx.extract::<XchandlesRegisterActionSolution<
             NodePtr,
             NodePtr,
             NodePtr,
             NodePtr,
-            NodePtr,
-        >::from_clvm(ctx, solution)?;
+            Bytes32,
+        >>(solution)?;
 
         let spent_left_slot = XchandlesHandleSlotValue::new(
             solution.left_rest_of_slot.this_counter,
@@ -152,6 +155,27 @@ impl XchandlesRegisterAction {
             solution.right_rest_of_slot.this_data.resolved_launcher_id,
         );
 
+        let handle = pricing_solution.handle.clone();
+        let cat_maker_puzzle_hash: Bytes32 = ctx
+            .tree_hash(solution.cat_maker_puzzle_and_solution.puzzle)
+            .into();
+        let pricing_puzzle_hash: Bytes32 = ctx
+            .tree_hash(solution.pricing_puzzle_and_solution.puzzle)
+            .into();
+        let precommit_value = XchandlesPrecommitValueLog::new(
+            cat_maker_puzzle_hash,
+            (),
+            pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            solution.other_precommit_data.refund_and_secret.secret,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
         let owner_full_puzzle_hash = SingletonArgs::curry_tree_hash(
             solution.other_precommit_data.launcher_ids.owner_launcher_id,
             solution
@@ -191,17 +215,21 @@ impl XchandlesRegisterAction {
             created_left_slot,
             created_handle_slot,
             created_right_slot,
+            precommit_value,
             total_price,
             registered_time,
             owner_full_puzzle_hash,
             resolved_full_puzzle_hash,
+            owner_inner_puzzle_hash: solution.data_puzzle_hashes.new_owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash: solution
+                .data_puzzle_hashes
+                .new_resolved_inner_puzzle_hash,
         })
     }
 
-    // return:
-    //  - register general announcement
-    //  - send message to be sent by the new owner
-    //  - send message to be sent by the new resolved launcher (if different from the owner)
+    /// Historical factor-pricing register path. Prefer
+    /// [`Self::spend_with_pricing`] when the precommit committed the deployed
+    /// expiry-pricing puzzle.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -217,13 +245,53 @@ impl XchandlesRegisterAction {
         resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
         let handle = precommit_coin.value.handle.clone();
-        let handle_hash = handle.tree_hash().into();
+        let num_periods = precommit_coin.coin.amount()
+            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
+        let pricing_puzzle = ctx.curry(XchandlesFactorPricingPuzzleArgs {
+            base_price: base_handle_price,
+            registration_period,
+        })?;
+        let pricing_solution = XchandlesPricingSolution {
+            buy_time: start_time,
+            current_expiration: 0,
+            handle,
+            num_periods,
+        };
+        self.spend_with_pricing(
+            ctx,
+            registry,
+            left_slot,
+            right_slot,
+            precommit_coin,
+            pricing_puzzle,
+            pricing_solution,
+            owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash,
+        )
+    }
+
+    /// Register using an explicit pricing puzzle reveal and solution.
+    ///
+    /// Used for the deployed expiry-pricing precommit (ordinary
+    /// `current_expiration = 0`) so the reveal matches the commitment instead
+    /// of silently substituting factor pricing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn spend_with_pricing(
+        self,
+        ctx: &mut SpendContext,
+        registry: &mut XchandlesRegistry,
+        left_slot: Slot<XchandlesHandleSlotValue>,
+        right_slot: Slot<XchandlesHandleSlotValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
+        pricing_puzzle: NodePtr,
+        pricing_solution: XchandlesPricingSolution,
+        owner_inner_puzzle_hash: Bytes32,
+        resolved_inner_puzzle_hash: Bytes32,
+    ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
+        let handle_hash = pricing_solution.handle.tree_hash().into();
         let (left_slot, right_slot) = registry.actual_neigbors(handle_hash, left_slot, right_slot);
 
         let secret = precommit_coin.value.secret;
-
-        let num_periods = precommit_coin.coin.amount()
-            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
         let register_announcement =
@@ -257,18 +325,7 @@ impl XchandlesRegisterAction {
                 ))?,
                 (),
             ),
-            pricing_puzzle_and_solution: PuzzleAndSolution::new(
-                ctx.curry(XchandlesFactorPricingPuzzleArgs {
-                    base_price: base_handle_price,
-                    registration_period,
-                })?,
-                XchandlesPricingSolution {
-                    buy_time: start_time,
-                    current_expiration: 0,
-                    handle: handle.clone(),
-                    num_periods,
-                },
-            ),
+            pricing_puzzle_and_solution: PuzzleAndSolution::new(pricing_puzzle, pricing_solution),
             left_rest_of_slot: XchandlesRestOfSlot::new(
                 left_slot.info.value.counter,
                 left_slot.info.value.neighbors.left_value,
@@ -313,11 +370,23 @@ impl XchandlesRegisterAction {
             }),
         ))
     }
+
+    /// Curry the deployed expiry-pricing puzzle for an ordinary-register reveal.
+    pub fn expiry_pricing_puzzle(
+        ctx: &mut SpendContext,
+        base_handle_price: u64,
+        registration_period: u64,
+    ) -> Result<NodePtr, DriverError> {
+        let args =
+            XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
+        ctx.curry(args)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use clvmr::{error::EvalErr, serde::node_to_bytes};
+    use clvm_traits::FromClvm;
+    use clvmr::error::EvalErr;
 
     use super::*;
 
@@ -340,7 +409,7 @@ mod tests {
             registration_period,
         })?;
 
-        for handle_length in 3..=31 {
+        for handle_length in 3..=63 {
             for num_periods in 1..=3 {
                 for has_number in [false, true] {
                     let handle = if has_number {
@@ -352,31 +421,18 @@ mod tests {
                     let solution = ctx.alloc(&XchandlesPricingSolution {
                         buy_time: 0,
                         current_expiration: (handle_length - 3) as u64, // shouldn't matter
-                        handle,
+                        handle: handle.clone(),
                         num_periods,
                     })?;
-
-                    // todo: debug
-                    println!("puzzle: {:}", hex::encode(node_to_bytes(&ctx, puzzle)?));
-                    println!("solution: {:}", hex::encode(node_to_bytes(&ctx, solution)?));
-                    // todo: debug
 
                     let output = ctx.run(puzzle, solution)?;
                     let output = ctx.extract::<XchandlesFactorPricingOutput>(output)?;
 
-                    let mut expected_price = if handle_length == 3 {
-                        128
-                    } else if handle_length == 4 {
-                        64
-                    } else if handle_length == 5 {
-                        16
-                    } else {
-                        2
-                    };
-                    if has_number {
-                        expected_price /= 2;
-                    }
-                    expected_price *= num_periods;
+                    let expected_price = XchandlesFactorPricingPuzzleArgs::get_price(
+                        base_price,
+                        &handle,
+                        num_periods,
+                    );
 
                     assert_eq!(output.price, expected_price);
                     assert_eq!(output.registered_time, num_periods * registration_period);
@@ -384,45 +440,85 @@ mod tests {
             }
         }
 
-        // make sure the puzzle won't let us register a handle of length 2
+        // Reject lengths 0, 1, 2, and 64+.
+        for handle in ["", "a", "aa", &*"a".repeat(64)] {
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: handle.to_string(),
+                num_periods: 1,
+            })?;
 
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "aa".to_string(),
-            num_periods: 1,
-        })?;
+            let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+                panic!("Expected clvm raise for handle {handle:?}");
+            };
+        }
 
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
+        // Reject invalid characters (uppercase, punctuation, whitespace, non-ASCII).
+        for handle in ["ABC", "yak@test", "foo bar", "café", "a.b", "a-b"] {
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: handle.to_string(),
+                num_periods: 1,
+            })?;
 
-        // make sure the puzzle won't let us register a handle of length 32
+            let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+                panic!("Expected clvm raise for handle {handle:?}");
+            };
+        }
 
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "a".repeat(32),
-            num_periods: 1,
-        })?;
+        // Published Premine handles longer than 31 must price through the executable path.
+        const LONG_PREMINE_HANDLES: &[&str] = &[
+            "ashorttermmindgetsinthewayofalongtermgrind",
+            "bigbouncingthicctwerkingthunderclappingbadonkabooty",
+            "bigfathonkingjigglymommymilkerboobies",
+            "rolexislandpermutoplatinumlamboempirexrp404inu",
+            "thankstopawketforprovidingthebestchiasdk",
+        ];
+        for handle in LONG_PREMINE_HANDLES {
+            assert!(
+                XchandlesFactorPricingPuzzleArgs::is_valid_handle(handle),
+                "premine handle failed launch validation: {handle}"
+            );
+            let solution = ctx.alloc(&XchandlesPricingSolution {
+                buy_time: 0,
+                current_expiration: 0,
+                handle: (*handle).to_string(),
+                num_periods: 1,
+            })?;
+            let output = ctx.run(puzzle, solution)?;
+            let output = ctx.extract::<XchandlesFactorPricingOutput>(output)?;
+            assert_eq!(
+                output.price,
+                XchandlesFactorPricingPuzzleArgs::get_price(base_price, handle, 1)
+            );
+            assert_eq!(output.registered_time, registration_period);
+        }
 
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
+        Ok(())
+    }
 
-        // make sure the puzzle won't let us register a handle with invalid characters
-
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time: 0,
-            current_expiration: 0,
-            handle: "yak@test".to_string(),
-            num_periods: 1,
-        })?;
-
-        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
-            panic!("Expected clvm raise");
-        };
-
+    #[test]
+    fn expiry_pricing_register_reveal_matches_deployed_expire_hash() -> Result<(), DriverError> {
+        let mut ctx = SpendContext::new();
+        let base_price = 5_000;
+        let registration_period = 31_557_600;
+        let puzzle = XchandlesRegisterAction::expiry_pricing_puzzle(
+            &mut ctx,
+            base_price,
+            registration_period,
+        )?;
+        assert_eq!(
+            ctx.tree_hash(puzzle),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period)
+        );
+        let factor = XchandlesFactorPricingPuzzleArgs {
+            base_price,
+            registration_period,
+        }
+        .curry_tree_hash();
+        assert_ne!(ctx.tree_hash(puzzle), factor);
         Ok(())
     }
 }

@@ -655,6 +655,7 @@ export declare class Clvm {
   createBulletin(parentCoinId: Uint8Array, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>): CreatedBulletin
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
+  handleNftMetadata(value: HandleNftMetadata): Program
   mipsMemo(value: MipsMemo): Program
   innerPuzzleMemo(value: InnerPuzzleMemo): Program
   restrictionMemo(value: RestrictionMemo): Program
@@ -728,6 +729,8 @@ export declare class Clvm {
   spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
+  spendSettlementCats(offer: SpendBundle, assetId: Uint8Array, nonce: Uint8Array, payments: Array<Payment>): SpendSettlementCatsResult
+  stateSchedulerLayer(receiverSingletonStructHash: Uint8Array, prefixAndMessage: Uint8Array, innerPuzzle: Program): Program
   offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
   acsTransferProgram(): Program
   augmentedCondition(): Program
@@ -1069,6 +1072,10 @@ export declare class Constants {
   static singletonTopLayerHash(): Buffer
   static singletonTopLayerV11(): Buffer
   static singletonTopLayerV11Hash(): Buffer
+  static anyMetadataUpdater(): Buffer
+  static anyMetadataUpdaterHash(): Buffer
+  static stateSchedulerPuzzle(): Buffer
+  static stateSchedulerPuzzleHash(): Buffer
   static standardVcRevocationPuzzle(): Buffer
   static standardVcRevocationPuzzleHash(): Buffer
   static stdParentMorpher(): Buffer
@@ -1561,6 +1568,25 @@ export declare class GetPuzzleAndSolutionResponse {
   set error(value?: string | undefined | null)
   get success(): boolean
   set success(value: boolean)
+}
+
+export declare class HandleNftMetadata {
+  clone(): HandleNftMetadata
+  constructor(displayName: string | undefined | null, imageUris: Array<string>, imageHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
+  get displayName(): string | null
+  set displayName(value?: string | undefined | null)
+  get imageUris(): Array<string>
+  set imageUris(value: Array<string>)
+  get imageHash(): Buffer | null
+  set imageHash(value?: Uint8Array | undefined | null)
+  get metadataUris(): Array<string>
+  set metadataUris(value: Array<string>)
+  get metadataHash(): Buffer | null
+  set metadataHash(value?: Uint8Array | undefined | null)
+  get licenseUris(): Array<string>
+  set licenseUris(value: Array<string>)
+  get licenseHash(): Buffer | null
+  set licenseHash(value?: Uint8Array | undefined | null)
 }
 
 export declare class Id {
@@ -2298,6 +2324,7 @@ export declare class Program {
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
+  parseHandleNftMetadata(): HandleNftMetadata | null
   parseRemark(): Remark | null
   parseAggSigParent(): AggSigParent | null
   parseAggSigPuzzle(): AggSigPuzzle | null
@@ -3154,6 +3181,13 @@ export declare class SendMessage {
   set data(value: Array<Program>)
 }
 
+export declare class SpendSettlementCatsResult {
+  clone(): SpendSettlementCatsResult
+  get createdCats(): Array<Cat>
+  set createdCats(value: Array<Cat>)
+  get securityConditions(): Array<Program>
+  set securityConditions(value: Array<Program>)
+}
 export declare class SettlementNftSpendResult {
   clone(): SettlementNftSpendResult
   constructor(newNft: Nft, securityConditions: Array<Program>)
@@ -3544,6 +3578,7 @@ export declare class XchandlesHandleSlotValue {
 
 export declare class XchandlesPrecommitCoin {
   clone(): XchandlesPrecommitCoin
+  static puzzleHash(assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue): Uint8Array
   static new(clvm: Clvm, parentCoinId: Uint8Array, proof: LineageProof, assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue, precommitAmount: bigint): XchandlesPrecommitCoin
   get coin(): Coin
   set coin(value: Coin)
@@ -3560,6 +3595,8 @@ export declare class XchandlesPrecommitCoin {
 export declare class XchandlesPrecommitValue {
   clone(): XchandlesPrecommitValue
   static forNormalRegistration(handle: string, secret: Uint8Array, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array, paymentAssetId: Uint8Array, basePrice: bigint, registrationPeriod: bigint, buyTime: bigint, numPeriods: bigint): XchandlesPrecommitValue
+  static forExpiryPricingRegistration(handle: string, secret: Uint8Array, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array, paymentAssetId: Uint8Array, basePrice: bigint, registrationPeriod: bigint, buyTime: bigint, currentExpiration: bigint, numPeriods: bigint): XchandlesPrecommitValue
+  commitmentHash(): Buffer
   get handle(): string
   set handle(value: string)
   get secret(): Buffer
@@ -3578,6 +3615,10 @@ export declare class XchandlesPrecommitValue {
   set buyTime(value: bigint)
   get numPeriods(): bigint
   set numPeriods(value: bigint)
+  get currentExpiration(): bigint
+  set currentExpiration(value: bigint)
+  get useExpirePricing(): boolean
+  set useExpirePricing(value: boolean)
 }
 
 export declare class XchandlesRegistry {
@@ -3776,3 +3817,8 @@ export declare const enum UriKind {
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 
 export declare function xchandlesGetPrice(basePrice: bigint, handle: string, numPeriods: bigint): bigint
+export declare function singletonStructHash(launcherId: Uint8Array): Uint8Array
+export declare function xchandlesRegisterOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
+export declare function xchandlesExpireOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
+export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Uint8Array
+export declare function xchandlesRegistrationDelegatedPuzzleHash(registryLauncherId: Uint8Array, precommitPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, registrationTimestamp: bigint, currentExpiration: bigint, finalHandleNftMetadata: HandleNftMetadata): Uint8Array

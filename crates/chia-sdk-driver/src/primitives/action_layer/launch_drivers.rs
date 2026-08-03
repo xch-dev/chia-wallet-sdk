@@ -807,8 +807,8 @@ mod tests {
         MerkleTree, TESTNET11_CONSTANTS,
         puzzles::{
             ANY_METADATA_UPDATER_HASH, AnyMetadataUpdater, CatNftMetadata, CompactCoinProof,
-            DelegatedStateActionSolution, IntermediaryCoinProof, NftLauncherProof,
-            NonceWrapperArgs, P2NextRewardDistributorEpochArgs,
+            DelegatedStateActionSolution, HandleNftMetadata, IntermediaryCoinProof,
+            NftLauncherProof, NonceWrapperArgs, P2NextRewardDistributorEpochArgs,
             P2NextRewardDistributorEpochSolution, XchandlesFactorPricingPuzzleArgs,
             XchandlesPricingSolution,
         },
@@ -2608,6 +2608,83 @@ mod tests {
             new_metadata
         );
         sim.spend_coins(ctx.take(), &[bls.sk])?;
+        Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)]
+    fn test_blank_handle_nft_metadata_atomic_replacement() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let bls = sim.bls(1);
+        let p2 = StandardLayer::new(bls.pk);
+
+        let nft_launcher = Launcher::new(bls.coin.coin_id(), 1);
+        let royalty_puzzle_hash = Bytes32::from([7; 32]);
+
+        // Stage one: mint a blank Handle NFT whose metadata is exact CLVM nil.
+        let blank_metadata = HandleNftMetadata::default();
+        assert_eq!(ctx.serialize(&blank_metadata)?.as_ref(), &[0x80]);
+
+        let metadata = ctx.alloc_hashed(&blank_metadata)?;
+        let (create_nft, blank_nft) = nft_launcher.mint_nft(
+            ctx,
+            &NftMint {
+                metadata,
+                metadata_updater_puzzle_hash: ANY_METADATA_UPDATER_HASH.into(),
+                royalty_puzzle_hash,
+                royalty_basis_points: 100,
+                p2_puzzle_hash: bls.puzzle_hash,
+                transfer_condition: None,
+            },
+        )?;
+        p2.spend(ctx, bls.coin, create_nft)?;
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&bls.sk))?;
+
+        // Discover the blank NFT from the simulator by coin id after mint confirmation.
+        assert!(sim.coin_state(blank_nft.coin.coin_id()).is_some());
+        assert_eq!(
+            ctx.extract::<HandleNftMetadata>(blank_nft.info.metadata.ptr())?,
+            HandleNftMetadata::default()
+        );
+
+        // Stage two: atomically replace nil with populated Handle NFT Metadata.
+        let populated = HandleNftMetadata {
+            display_name: Some("alice".to_string()),
+            image_uris: vec!["https://example.com/a.png".to_string()],
+            image_hash: Some(Bytes32::from([0x11; 32])),
+            metadata_uris: vec!["https://example.com/a.json".to_string()],
+            metadata_hash: Some(Bytes32::from([0x22; 32])),
+            license_uris: vec!["https://example.com/license.txt".to_string()],
+            license_hash: Some(Bytes32::from([0x33; 32])),
+        };
+
+        let metadata_update = Spend {
+            puzzle: ctx.alloc_mod::<AnyMetadataUpdater>()?,
+            solution: ctx.alloc(&populated)?,
+        };
+
+        let updated_nft = blank_nft.transfer_with_metadata(
+            ctx,
+            &p2,
+            bls.puzzle_hash,
+            metadata_update,
+            Conditions::new(),
+        )?;
+
+        assert_eq!(
+            ctx.extract::<HandleNftMetadata>(updated_nft.info.metadata.ptr())?,
+            populated
+        );
+        sim.spend_coins(ctx.take(), &[bls.sk])?;
+
+        assert!(sim.coin_state(updated_nft.coin.coin_id()).is_some());
+        assert!(
+            sim.coin_state(blank_nft.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_some())
+        );
+
         Ok(())
     }
 

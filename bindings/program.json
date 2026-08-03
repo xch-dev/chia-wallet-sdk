@@ -83,6 +83,9 @@
       "parse_nft_metadata": {
         "return": "Option<NftMetadata>"
       },
+      "parse_handle_nft_metadata": {
+        "return": "Option<HandleNftMetadata>"
+      },
       "parse_remark": {
         "return": "Option<Remark>"
       },

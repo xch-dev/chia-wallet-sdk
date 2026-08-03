@@ -132,6 +132,7 @@ fn alloc(
                 clvm.update_datastore_merkle_root(value.0.new_merkle_root, value.0.memos.clone())?
             }
             ClvmType::NftMetadata(value) => clvm.nft_metadata(value.0.clone())?,
+            ClvmType::HandleNftMetadata(value) => clvm.handle_nft_metadata(value.0.clone())?,
             ClvmType::MipsMemo(value) => clvm.mips_memo(value.0.clone())?,
             ClvmType::InnerPuzzleMemo(value) => clvm.inner_puzzle_memo(value.0.clone())?,
             ClvmType::RestrictionMemo(value) => clvm.restriction_memo(value.0.clone())?,

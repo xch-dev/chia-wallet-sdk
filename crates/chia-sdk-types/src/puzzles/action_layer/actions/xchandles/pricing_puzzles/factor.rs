@@ -12,7 +12,7 @@ pub const XCHANDLES_FACTOR_PRICING_PUZZLE: [u8; 397] = hex!(
     ff02ffff01ff02ffff03ffff15ff7fff8080ffff01ff04ffff12ff7fff05ffff
     13ffff02ffff03ffff15ffff0dff5f80ffff010280ffff01ff03ffff15ffff0d
     ff5f80ffff010480ffff03ffff09ffff0dff5f80ffff010580ffff0110ffff02
-    ffff03ffff15ffff0dff5f80ffff011f80ffff01ff0880ffff01ff010280ff01
+    ffff03ffff15ffff0dff5f80ffff013f80ffff01ff0880ffff01ff010280ff01
     8080ffff03ffff09ffff0dff5f80ffff010380ffff01820080ffff01408080ff
     ff01ff088080ff0180ffff03ffff02ff02ffff04ff02ff5f8080ffff0102ffff
     0101808080ffff12ff7fff0b8080ffff01ff088080ff0180ffff04ffff01ff02
@@ -27,7 +27,7 @@ pub const XCHANDLES_FACTOR_PRICING_PUZZLE: [u8; 397] = hex!(
 
 pub const XCHANDLES_FACTOR_PRICING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    24aebbd6d7a6c7ba7751c3a8a7beb28e31362cbc46cbee1fb58370050af530a2
+    8876f129e711da8776b746cc07ae65f8336e8b1b7f08169de55a200ab287d1a2
     "
 ));
 
@@ -39,6 +39,15 @@ pub struct XchandlesFactorPricingPuzzleArgs {
 }
 
 impl XchandlesFactorPricingPuzzleArgs {
+    /// Canonical XCHandles Handle grammar: 3–63 lowercase ASCII letters and digits.
+    pub fn is_valid_handle(handle: &str) -> bool {
+        let len = handle.len();
+        (3..=63).contains(&len)
+            && handle
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    }
+
     pub fn get_price(base_price: u64, handle: &str, num_periods: u64) -> u64 {
         base_price
             * match handle.len() {
@@ -73,5 +82,61 @@ impl Mod for XchandlesFactorPricingPuzzleArgs {
 
     fn mod_hash() -> TreeHash {
         XCHANDLES_FACTOR_PRICING_PUZZLE_HASH
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_valid_handle_grammar() {
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("abc"));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("a1b"));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
+            &"a".repeat(63)
+        ));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
+            "ashorttermmindgetsinthewayofalongtermgrind"
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_handle_grammar() {
+        for handle in [
+            "",
+            "a",
+            "aa",
+            &*"a".repeat(64),
+            "ABC",
+            "yak@test",
+            "foo bar",
+            "café",
+        ] {
+            assert!(
+                !XchandlesFactorPricingPuzzleArgs::is_valid_handle(handle),
+                "expected invalid: {handle:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn digit_and_multi_period_pricing_unchanged() {
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "abc", 1),
+            640
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "ab1", 1),
+            320
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "example", 3),
+            30
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "example1", 2),
+            10
+        );
     }
 }

@@ -90,6 +90,7 @@ pub use chia_sdk_driver::{
     RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
     XchandlesConstants, XchandlesRegistryState,
 };
+pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 pub use chia_sdk_types::{
     MerkleProof,

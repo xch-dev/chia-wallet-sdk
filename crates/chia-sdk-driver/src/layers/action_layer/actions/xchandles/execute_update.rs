@@ -1,4 +1,5 @@
 use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonArgs;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     Conditions, Mod,
@@ -84,11 +85,44 @@ impl XchandlesExecuteUpdateAction {
             solution.current_slot_value.owner_launcher_id,
         );
 
+        let owner_full_puzzle_hash = SingletonArgs::curry_tree_hash(
+            solution.new_data.owner_launcher_id,
+            solution
+                .new_data_puzzle_hashes
+                .new_owner_inner_puzzle_hash
+                .into(),
+        )
+        .into();
+
+        let resolved_full_puzzle_hash =
+            if solution.new_data.owner_launcher_id == solution.new_data.resolved_launcher_id {
+                None
+            } else {
+                Some(
+                    SingletonArgs::curry_tree_hash(
+                        solution.new_data.resolved_launcher_id,
+                        solution
+                            .new_data_puzzle_hashes
+                            .new_resolved_inner_puzzle_hash
+                            .into(),
+                    )
+                    .into(),
+                )
+            };
+
         Ok(XchandlesExecuteUpdateActionLog {
             spent_handle_slot,
             spent_update_slot,
             created_slot,
             owner_coin_id,
+            owner_full_puzzle_hash,
+            resolved_full_puzzle_hash,
+            owner_inner_puzzle_hash: solution
+                .new_data_puzzle_hashes
+                .new_owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash: solution
+                .new_data_puzzle_hashes
+                .new_resolved_inner_puzzle_hash,
         })
     }
 

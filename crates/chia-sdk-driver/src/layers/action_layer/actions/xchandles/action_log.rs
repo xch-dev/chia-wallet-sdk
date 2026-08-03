@@ -79,6 +79,10 @@ pub struct XchandlesExpireActionLog {
     pub precommit_value: XchandlesPrecommitValueLog,
     pub total_price: u64,
     pub registered_time: u64,
+    pub owner_full_puzzle_hash: Bytes32,
+    pub resolved_full_puzzle_hash: Option<Bytes32>,
+    pub owner_inner_puzzle_hash: Bytes32,
+    pub resolved_inner_puzzle_hash: Bytes32,
 }
 
 impl XchandlesExpireActionLog {
@@ -119,6 +123,10 @@ pub struct XchandlesExecuteUpdateActionLog {
     pub spent_update_slot: XchandlesUpdateSlotValue,
     pub created_slot: XchandlesHandleSlotValue,
     pub owner_coin_id: Bytes32,
+    pub owner_full_puzzle_hash: Bytes32,
+    pub resolved_full_puzzle_hash: Option<Bytes32>,
+    pub owner_inner_puzzle_hash: Bytes32,
+    pub resolved_inner_puzzle_hash: Bytes32,
 }
 
 impl XchandlesExecuteUpdateActionLog {
@@ -165,10 +173,14 @@ pub struct XchandlesRegisterActionLog {
     pub created_left_slot: XchandlesHandleSlotValue,
     pub created_handle_slot: XchandlesHandleSlotValue,
     pub created_right_slot: XchandlesHandleSlotValue,
+    /// Complete revealed precommit (Handle string + registration secret + pricing).
+    pub precommit_value: XchandlesPrecommitValueLog,
     pub total_price: u64,
     pub registered_time: u64,
     pub owner_full_puzzle_hash: Bytes32,
     pub resolved_full_puzzle_hash: Option<Bytes32>,
+    pub owner_inner_puzzle_hash: Bytes32,
+    pub resolved_inner_puzzle_hash: Bytes32,
 }
 
 impl XchandlesRegisterActionLog {

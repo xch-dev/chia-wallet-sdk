@@ -8,17 +8,18 @@ use chia_puzzle_types::{
     offer::{self, SettlementPaymentsSolution},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
     StandardLayer, StreamedAsset, create_security_coin as driver_create_security_coin,
     create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
-    spend_security_coin, spend_settlement_nft,
+    spend_security_coin, spend_settlement_cats, spend_settlement_nft,
 };
 use chia_sdk_types::{
     Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
-    puzzles::P2NextRewardDistributorEpochSolution,
+    puzzles::{P2NextRewardDistributorEpochSolution, StateSchedulerLayerArgs},
 };
 use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{ToClvm, clvm_quote};
@@ -32,11 +33,12 @@ use num_bigint::BigInt;
 
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
-    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo,
+    MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
     OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
     RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    SpendSettlementCatsResult,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -467,6 +469,12 @@ impl Clvm {
     pub fn nft_metadata(&self, nft_metadata: NftMetadata) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.alloc(&nft_metadata)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn handle_nft_metadata(&self, handle_nft_metadata: HandleNftMetadata) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&handle_nft_metadata)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
@@ -906,6 +914,58 @@ impl Clvm {
             .get(&asset_id)
             .cloned()
             .unwrap_or_default())
+    }
+
+    /// Spend settlement CATs from an offer into the given destination puzzle hashes.
+    ///
+    /// Payment memos are ignored; destinations receive standard puzzle-hash hints.
+    /// Returns the created CAT children and security-coin conditions (puzzle
+    /// announcement asserts) that must be included when spending the offer
+    /// security coin.
+    pub fn spend_settlement_cats(
+        &self,
+        offer: SpendBundle,
+        asset_id: Bytes32,
+        nonce: Bytes32,
+        payments: Vec<Payment>,
+    ) -> Result<SpendSettlementCatsResult> {
+        let mut ctx = self.0.lock().unwrap();
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+        let payment_refs: Vec<(Bytes32, u64)> = payments
+            .into_iter()
+            .map(|payment| (payment.puzzle_hash, payment.amount))
+            .collect();
+        let (created_cats, security_conditions) = spend_settlement_cats(
+            &mut ctx,
+            &offer,
+            asset_id,
+            nonce,
+            &payment_refs,
+        )?;
+        Ok(SpendSettlementCatsResult {
+            created_cats,
+            security_conditions: security_conditions
+                .into_iter()
+                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
+                .collect(),
+        })
+    }
+
+    /// Curry the reusable state-scheduler layer over an inner (typically quoted) puzzle.
+    pub fn state_scheduler_layer(
+        &self,
+        receiver_singleton_struct_hash: Bytes32,
+        prefix_and_message: Bytes,
+        inner_puzzle: Program,
+    ) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let delegated = ctx.curry(StateSchedulerLayerArgs::<Bytes, NodePtr> {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            receiver_singleton_struct_hash,
+            prefix_and_message,
+            inner_puzzle: inner_puzzle.1,
+        })?;
+        Ok(Program(self.0.clone(), delegated))
     }
 
     pub fn offer_settlement_nft(
