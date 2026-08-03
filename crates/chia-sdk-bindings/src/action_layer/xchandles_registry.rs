@@ -831,7 +831,11 @@ impl XchandlesRegistry {
         )
     }
 
-    pub fn refund(
+    /// Refund by revealing an explicit pricing puzzle and solution.
+    ///
+    /// Prefer [`Self::refund`] when the reveal can be derived from the
+    /// committed precommit value.
+    pub fn refund_with_pricing(
         &self,
         precommit_coin: XchandlesPrecommitCoin,
         pricing_puzzle_reveal: Program,
@@ -860,7 +864,7 @@ impl XchandlesRegistry {
     /// precommits curry factor pricing with `current_expiration = 0`.
     /// Callers still pass an optional Handle slot when protocol state requires
     /// it (conflicting active registration).
-    pub fn refund_committed(
+    pub fn refund(
         &self,
         precommit_coin: XchandlesPrecommitCoin,
         slot: Option<XchandlesHandleSlot>,

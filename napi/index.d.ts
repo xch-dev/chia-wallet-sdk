@@ -729,9 +729,9 @@ export declare class Clvm {
   spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
+  offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
   spendSettlementCats(offer: SpendBundle, assetId: Uint8Array, nonce: Uint8Array, payments: Array<Payment>): SpendSettlementCatsResult
   stateSchedulerLayer(receiverSingletonStructHash: Uint8Array, prefixAndMessage: Uint8Array, innerPuzzle: Program): Program
-  offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -822,6 +822,8 @@ export declare class Clvm {
   mOfN(): Program
   nOfN(): Program
   oneOfN(): Program
+  anyMetadataUpdater(): Program
+  stateSchedulerPuzzle(): Program
   alloc(value: any): Program
 }
 
@@ -1072,10 +1074,6 @@ export declare class Constants {
   static singletonTopLayerHash(): Buffer
   static singletonTopLayerV11(): Buffer
   static singletonTopLayerV11Hash(): Buffer
-  static anyMetadataUpdater(): Buffer
-  static anyMetadataUpdaterHash(): Buffer
-  static stateSchedulerPuzzle(): Buffer
-  static stateSchedulerPuzzleHash(): Buffer
   static standardVcRevocationPuzzle(): Buffer
   static standardVcRevocationPuzzleHash(): Buffer
   static stdParentMorpher(): Buffer
@@ -1132,6 +1130,10 @@ export declare class Constants {
   static nOfNHash(): Buffer
   static oneOfN(): Buffer
   static oneOfNHash(): Buffer
+  static anyMetadataUpdater(): Buffer
+  static anyMetadataUpdaterHash(): Buffer
+  static stateSchedulerPuzzle(): Buffer
+  static stateSchedulerPuzzleHash(): Buffer
 }
 
 export declare class CreateCoin {
@@ -3181,13 +3183,6 @@ export declare class SendMessage {
   set data(value: Array<Program>)
 }
 
-export declare class SpendSettlementCatsResult {
-  clone(): SpendSettlementCatsResult
-  get createdCats(): Array<Cat>
-  set createdCats(value: Array<Cat>)
-  get securityConditions(): Array<Program>
-  set securityConditions(value: Array<Program>)
-}
 export declare class SettlementNftSpendResult {
   clone(): SettlementNftSpendResult
   constructor(newNft: Nft, securityConditions: Array<Program>)
@@ -3288,6 +3283,15 @@ export declare class Spends {
   selectedCatAmount(assetId: Uint8Array): bigint
   apply(actions: Array<Action>): Deltas
   prepare(deltas: Deltas): FinishedSpends
+}
+
+export declare class SpendSettlementCatsResult {
+  clone(): SpendSettlementCatsResult
+  constructor(createdCats: Array<Cat>, securityConditions: Array<Program>)
+  get createdCats(): Array<Cat>
+  set createdCats(value: Array<Cat>)
+  get securityConditions(): Array<Program>
+  set securityConditions(value: Array<Program>)
 }
 
 export declare class StreamedAsset {
@@ -3578,8 +3582,8 @@ export declare class XchandlesHandleSlotValue {
 
 export declare class XchandlesPrecommitCoin {
   clone(): XchandlesPrecommitCoin
-  static puzzleHash(assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue): Uint8Array
   static new(clvm: Clvm, parentCoinId: Uint8Array, proof: LineageProof, assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue, precommitAmount: bigint): XchandlesPrecommitCoin
+  static puzzleHash(assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: XchandlesPrecommitValue): Buffer
   get coin(): Coin
   set coin(value: Coin)
   get assetId(): Buffer
@@ -3634,7 +3638,8 @@ export declare class XchandlesRegistry {
   pendingSignature(): Signature
   finishSpend(): XchandlesRegistryFinishedSpendResult
   register(leftSlot: XchandlesHandleSlot, rightSlot: XchandlesHandleSlot, precommitCoin: XchandlesPrecommitCoin, baseHandlePrice: bigint, registrationPeriod: bigint, startTime: bigint, ownerInnerPuzzleHash: Uint8Array, resolvedInnerPuzzleHash: Uint8Array): XchandlesTripleConditionsResult
-  refund(precommitCoin: XchandlesPrecommitCoin, pricingPuzzleReveal: Program, pricingPuzzleSolution: Program, slot?: XchandlesHandleSlot | undefined | null): Array<Program>
+  refundWithPricing(precommitCoin: XchandlesPrecommitCoin, pricingPuzzleReveal: Program, pricingPuzzleSolution: Program, slot?: XchandlesHandleSlot | undefined | null): Array<Program>
+  refund(precommitCoin: XchandlesPrecommitCoin, slot?: XchandlesHandleSlot | undefined | null): Array<Program>
   extend(handle: string, slot: XchandlesHandleSlot, paymentAssetId: Uint8Array, baseHandlePrice: bigint, registrationPeriod: bigint, numPeriods: bigint, buyTime: bigint): XchandlesExtendResult
   expire(slot: XchandlesHandleSlot, numPeriods: bigint, baseHandlePrice: bigint, registrationPeriod: bigint, precommitCoin: XchandlesPrecommitCoin, startTime: bigint, newOwnerInnerPuzzleHash: Uint8Array, newResolvedInnerPuzzleHash: Uint8Array): XchandlesTripleConditionsResult
   oracle(slot: XchandlesHandleSlot): Array<Program>
@@ -3776,6 +3781,8 @@ export declare function mOfNHash(config: MemberConfig, required: number, items: 
 
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
 
+export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Buffer
+
 export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
 
 export declare function preventMultipleCreateCoinsRestriction(): Restriction
@@ -3795,6 +3802,8 @@ export declare function selectCoins(coins: Array<Coin>, amount: bigint): Array<C
 export declare function sha256(value: Uint8Array): Buffer
 
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean): Buffer
+
+export declare function singletonStructHash(launcherId: Uint8Array): Buffer
 
 export declare function spendBundleCost(coinSpends: Array<CoinSpend>): bigint
 
@@ -3816,9 +3825,10 @@ export declare const enum UriKind {
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 
+export declare function xchandlesExpireOwnerMessage(precommitPuzzleHash: Uint8Array): Buffer
+
 export declare function xchandlesGetPrice(basePrice: bigint, handle: string, numPeriods: bigint): bigint
-export declare function singletonStructHash(launcherId: Uint8Array): Uint8Array
-export declare function xchandlesRegisterOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
-export declare function xchandlesExpireOwnerMessage(precommitPuzzleHash: Uint8Array): Uint8Array
-export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Uint8Array
-export declare function xchandlesRegistrationDelegatedPuzzleHash(registryLauncherId: Uint8Array, precommitPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, registrationTimestamp: bigint, currentExpiration: bigint, finalHandleNftMetadata: HandleNftMetadata): Uint8Array
+
+export declare function xchandlesRegisterOwnerMessage(precommitPuzzleHash: Uint8Array): Buffer
+
+export declare function xchandlesRegistrationDelegatedPuzzleHash(registryLauncherId: Uint8Array, precommitPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, registrationTimestamp: bigint, currentExpiration: bigint, finalHandleNftMetadata: HandleNftMetadata): Buffer
