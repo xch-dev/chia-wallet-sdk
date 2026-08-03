@@ -299,6 +299,74 @@ pub struct XchandlesPrecommitValue {
     pub use_expire_pricing: bool,
 }
 
+/// Validate expiry-pricing precommit fields for ordinary `register`.
+///
+/// Register reveals the committed pricing solution; that solution must use
+/// `current_expiration = 0` (available-Handle registration), not an auction
+/// vector intended for `expire`.
+fn validate_register_expiry_pricing_commitment(
+    value: &XchandlesPrecommitValue,
+    base_handle_price: u64,
+    registration_period: u64,
+    start_time: u64,
+) -> Result<()> {
+    if base_handle_price != value.base_price || registration_period != value.registration_period {
+        return Err(Error::Custom(
+            "register base_price/registration_period must match expiry-pricing precommit"
+                .to_string(),
+        ));
+    }
+    if start_time != value.buy_time {
+        return Err(Error::Custom(
+            "register start_time must match committed buy_time".to_string(),
+        ));
+    }
+    if value.current_expiration != 0 {
+        return Err(Error::Custom(
+            "register requires committed current_expiration = 0 (use expire for auction purchases)"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validate expiry-pricing precommit fields for `expire`.
+///
+/// Expire rebuilds the pricing solution from the Handle slot's expiration; the
+/// precommit must have committed that same `current_expiration` or the spend
+/// fails on-chain when reconstructing the precommit value.
+fn validate_expire_expiry_pricing_commitment(
+    value: &XchandlesPrecommitValue,
+    base_handle_price: u64,
+    registration_period: u64,
+    start_time: u64,
+    num_periods: u64,
+    slot_expiration: u64,
+) -> Result<()> {
+    if base_handle_price != value.base_price || registration_period != value.registration_period {
+        return Err(Error::Custom(
+            "expire base_price/registration_period must match expiry-pricing precommit"
+                .to_string(),
+        ));
+    }
+    if start_time != value.buy_time {
+        return Err(Error::Custom(
+            "expire start_time must match committed buy_time".to_string(),
+        ));
+    }
+    if num_periods != value.num_periods {
+        return Err(Error::Custom(
+            "expire num_periods must match committed num_periods".to_string(),
+        ));
+    }
+    if value.current_expiration != slot_expiration {
+        return Err(Error::Custom(
+            "expire current_expiration must match slot expiration".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 impl XchandlesPrecommitValue {
     /// Factor-pricing precommit used by historical / non-expiry consumers.
     /// Always commits `current_expiration = 0` and the factor-pricing puzzle hash.
@@ -696,9 +764,9 @@ impl XchandlesRegistry {
     ///
     /// When `precommit_coin.value.use_expire_pricing` is true, reveals the same
     /// deployed expiry-pricing puzzle and exact committed
-    /// `XchandlesPricingSolution` as the precommit (including ordinary
-    /// `current_expiration = 0`). Otherwise preserves the historical
-    /// factor-pricing helper path.
+    /// `XchandlesPricingSolution` as the precommit. Requires ordinary
+    /// `current_expiration = 0` (auction vectors belong on `expire`). Otherwise
+    /// preserves the historical factor-pricing helper path.
     #[allow(clippy::too_many_arguments)]
     pub fn register(
         &self,
@@ -717,19 +785,12 @@ impl XchandlesRegistry {
 
         let (registry_conditions, owner_conditions, resolved_conditions) =
             if precommit_coin.value.use_expire_pricing {
-                if base_handle_price != precommit_coin.value.base_price
-                    || registration_period != precommit_coin.value.registration_period
-                {
-                    return Err(Error::Custom(
-                        "register base_price/registration_period must match expiry-pricing precommit"
-                            .to_string(),
-                    ));
-                }
-                if start_time != precommit_coin.value.buy_time {
-                    return Err(Error::Custom(
-                        "register start_time must match committed buy_time".to_string(),
-                    ));
-                }
+                validate_register_expiry_pricing_commitment(
+                    &precommit_coin.value,
+                    base_handle_price,
+                    registration_period,
+                    start_time,
+                )?;
                 let pricing_puzzle = XchandlesRegisterAction::expiry_pricing_puzzle(
                     &mut ctx,
                     base_handle_price,
@@ -868,8 +929,9 @@ impl XchandlesRegistry {
 
     /// Expiry-auction purchase (nonzero current expiration).
     ///
-    /// When `precommit_coin.value.use_expire_pricing` is true, `start_time` and
-    /// `num_periods` must match the committed pricing solution.
+    /// When `precommit_coin.value.use_expire_pricing` is true, `start_time`,
+    /// `num_periods`, and `current_expiration` must match the committed pricing
+    /// solution (`current_expiration` must equal the Handle slot expiration).
     #[allow(clippy::too_many_arguments)]
     pub fn expire(
         &self,
@@ -886,24 +948,14 @@ impl XchandlesRegistry {
         let mut registry = self.registry.lock().unwrap();
 
         let (start_time, num_periods) = if precommit_coin.value.use_expire_pricing {
-            if base_handle_price != precommit_coin.value.base_price
-                || registration_period != precommit_coin.value.registration_period
-            {
-                return Err(Error::Custom(
-                    "expire base_price/registration_period must match expiry-pricing precommit"
-                        .to_string(),
-                ));
-            }
-            if start_time != precommit_coin.value.buy_time {
-                return Err(Error::Custom(
-                    "expire start_time must match committed buy_time".to_string(),
-                ));
-            }
-            if num_periods != precommit_coin.value.num_periods {
-                return Err(Error::Custom(
-                    "expire num_periods must match committed num_periods".to_string(),
-                ));
-            }
+            validate_expire_expiry_pricing_commitment(
+                &precommit_coin.value,
+                base_handle_price,
+                registration_period,
+                start_time,
+                num_periods,
+                slot.value.expiration,
+            )?;
             (
                 precommit_coin.value.buy_time,
                 precommit_coin.value.num_periods,
@@ -1443,6 +1495,77 @@ mod tests {
             ordinary.commitment_hash().unwrap(),
             auction.commitment_hash().unwrap()
         );
+    }
+
+    fn sample_expiry_precommit(current_expiration: u64, num_periods: u64) -> XchandlesPrecommitValue {
+        XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "alice".into(),
+            Bytes32::new([0x22; 32]),
+            Bytes32::new([0x33; 32]),
+            Bytes32::new([0x33; 32]),
+            Bytes32::new([0x11; 32]),
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            current_expiration,
+            num_periods,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn register_rejects_nonzero_committed_expiration() {
+        let value = sample_expiry_precommit(1_800_000_000, 1);
+        let err = validate_register_expiry_pricing_commitment(
+            &value,
+            5_000,
+            31_557_600,
+            1_787_216_820,
+        )
+        .expect_err("auction precommit must not register");
+        assert!(
+            err.to_string().contains("current_expiration"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn register_accepts_zero_committed_expiration() {
+        let value = sample_expiry_precommit(0, 2);
+        validate_register_expiry_pricing_commitment(&value, 5_000, 31_557_600, 1_787_216_820)
+            .unwrap();
+    }
+
+    #[test]
+    fn expire_rejects_committed_expiration_mismatching_slot() {
+        let value = sample_expiry_precommit(1_800_000_000, 1);
+        let err = validate_expire_expiry_pricing_commitment(
+            &value,
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            1,
+            1_900_000_000,
+        )
+        .expect_err("slot expiration must match commitment");
+        assert!(
+            err.to_string().contains("current_expiration"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn expire_accepts_committed_expiration_matching_slot() {
+        let value = sample_expiry_precommit(1_800_000_000, 1);
+        validate_expire_expiry_pricing_commitment(
+            &value,
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            1,
+            1_800_000_000,
+        )
+        .unwrap();
     }
 }
 
