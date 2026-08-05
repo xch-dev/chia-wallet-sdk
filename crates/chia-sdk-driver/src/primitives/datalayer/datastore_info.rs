@@ -298,7 +298,6 @@ pub fn get_merkle_tree(
     Ok(MerkleTree::new(&leaves))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
