@@ -1194,6 +1194,89 @@ export declare class FullBlock {
   set transactionsGeneratorRefList(value: Array<number>)
 }
 
+export declare class FullNodeSimulator {
+  clone(): FullNodeSimulator
+  constructor()
+  static withSeed(seed: bigint): FullNodeSimulator
+  static withSecretKey(secretKey: SecretKey): FullNodeSimulator
+  height(): number
+  headerHash(): Buffer
+  headerHashOf(height: number): Buffer | null
+  insertCoin(coin: Coin): void
+  newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
+  getFarmingPh(): Buffer
+  getMasterSecretKey(): SecretKey
+  getPrefarmPuzzleHash(): Buffer
+  setFarmingPh(puzzleHash: Uint8Array): void
+  getBlockchainState(): BlockchainStateResponse
+  getNetworkInfo(): GetNetworkInfoResponse
+  getAggsigAdditionalData(): Buffer
+  getBlockRecord(headerHash: Uint8Array): GetBlockRecordResponse
+  getBlockRecordByHeight(height: number): GetBlockRecordResponse
+  getBlockRecords(start: number, end: number): GetBlockRecordsResponse
+  getAdditionsAndRemovals(headerHash: Uint8Array): AdditionsAndRemovalsResponse
+  getBlockSpends(headerHash: Uint8Array): GetBlockSpendsResponse
+  getCoinRecordByName(name: Uint8Array): GetCoinRecordResponse
+  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): GetCoinRecordsResponse
+  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): GetPuzzleAndSolutionResponse
+  pushTx(spendBundle: SpendBundle): PushTxResponse
+  getMempoolItemByTxId(txId: Uint8Array): GetMempoolItemResponse
+  getMempoolItemsByCoinName(coinName: Uint8Array): GetMempoolItemsResponse
+  farmBlock(blocks: number): Array<BlockRecord>
+  revertBlocks(blocks: number): Array<Buffer>
+  reorgBlocks(numOfBlocksToRev: number, numOfNewBlocks: number): Array<BlockRecord>
+  drainEvents(): Array<FullNodeSimulatorEvent>
+  dumpState(): string
+  restoreState(state: string): void
+  startServer(): Promise<FullNodeSimulatorServer>
+}
+
+export declare class FullNodeSimulatorBlockEvent {
+  clone(): FullNodeSimulatorBlockEvent
+  get height(): number
+  set height(value: number)
+  get headerHash(): Buffer
+  set headerHash(value: Uint8Array)
+  get previousHeaderHash(): Buffer
+  set previousHeaderHash(value: Uint8Array)
+  get additions(): Array<CoinRecord>
+  set additions(value: Array<CoinRecord>)
+  get removals(): Array<CoinRecord>
+  set removals(value: Array<CoinRecord>)
+}
+
+export declare class FullNodeSimulatorEvent {
+  clone(): FullNodeSimulatorEvent
+  block(): FullNodeSimulatorBlockEvent | null
+  reorg(): FullNodeSimulatorReorgEvent | null
+}
+
+export declare class FullNodeSimulatorReorgEvent {
+  clone(): FullNodeSimulatorReorgEvent
+  get forkHeight(): number
+  set forkHeight(value: number)
+  get oldPeakHash(): Buffer
+  set oldPeakHash(value: Uint8Array)
+  get newPeakHash(): Buffer
+  set newPeakHash(value: Uint8Array)
+  get revertedHeaderHashes(): Array<Buffer>
+  set revertedHeaderHashes(value: Array<Uint8Array>)
+  get newHeaderHashes(): Array<Buffer>
+  set newHeaderHashes(value: Array<Uint8Array>)
+}
+
+export declare class FullNodeSimulatorServer {
+  clone(): FullNodeSimulatorServer
+  close(): void
+  get url(): string
+  set url(value: string)
+}
+
 export declare class GetBlockRecordResponse {
   clone(): GetBlockRecordResponse
   constructor(blockRecord: BlockRecord | undefined | null, error: string | undefined | null, success: boolean)
