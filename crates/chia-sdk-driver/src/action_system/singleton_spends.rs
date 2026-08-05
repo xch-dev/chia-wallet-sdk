@@ -4,16 +4,13 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
     Conditions,
-    conditions::{
-        AssertPuzzleAnnouncement, CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata,
-    },
+    conditions::{AssertPuzzleAnnouncement, CreateCoin, TransferNft, UpdateNftMetadata},
 };
-use clvm_traits::clvm_list;
 use clvmr::NodePtr;
 
 use crate::{
     Asset, Did, DidInfo, DriverError, FungibleSpend, HashedPtr, Launcher, Nft, NftInfo,
-    OptionContract, OutputSet, SingletonInfo, Spend, SpendContext, SpendKind,
+    OptionContract, OutputSet, SingletonInfo, Spend, SpendContext, SpendKind, run_metadata_updater,
 };
 
 #[derive(Debug, Clone)]
@@ -418,16 +415,16 @@ impl SingletonAsset for Nft {
         if let Some(spend) = metadata_update_spend {
             conditions.push(UpdateNftMetadata::new(spend.puzzle, spend.solution));
 
-            let metadata_updater_solution = ctx.alloc(&clvm_list!(
-                singleton.asset.info.metadata,
+            let metadata_info = run_metadata_updater(
+                ctx,
+                &singleton.asset.info.metadata,
                 singleton.asset.info.metadata_updater_puzzle_hash,
-                spend.solution
-            ))?;
-            let ptr = ctx.run(spend.puzzle, metadata_updater_solution)?;
-            let output = ctx.extract::<NewMetadataOutput<HashedPtr, NodePtr>>(ptr)?;
+                spend.puzzle,
+                spend.solution,
+            )?;
 
-            nft_info.metadata = output.metadata_info.new_metadata;
-            nft_info.metadata_updater_puzzle_hash = output.metadata_info.new_updater_puzzle_hash;
+            nft_info.metadata = metadata_info.new_metadata;
+            nft_info.metadata_updater_puzzle_hash = metadata_info.new_updater_puzzle_hash;
         }
 
         if let Some(transfer_condition) = transfer_condition {
