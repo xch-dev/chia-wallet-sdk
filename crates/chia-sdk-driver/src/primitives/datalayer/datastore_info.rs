@@ -77,8 +77,8 @@ impl DelegatedPuzzle {
 
                 // puzzle hash bech32m_decode(oracle_address), not puzzle hash of the whole oracle puzze!
                 let oracle_fee: u64 = BigInt::from_signed_bytes_be(&remaining_memos.remove(0))
-                    .to_u64_digits()
-                    .1[0];
+                    .try_into()
+                    .map_err(|_| DriverError::InvalidMemo)?;
 
                 Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }
