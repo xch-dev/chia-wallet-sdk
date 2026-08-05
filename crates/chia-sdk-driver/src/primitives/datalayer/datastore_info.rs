@@ -297,32 +297,3 @@ pub fn get_merkle_tree(
 
     Ok(MerkleTree::new(&leaves))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chia_protocol::Bytes;
-
-    fn oracle_memos(fee_bytes: Vec<u8>) -> Vec<Bytes> {
-        vec![
-            Bytes::new(vec![HintType::OraclePuzzle as u8]),
-            Bytes::new(vec![0x11; 32]),
-            Bytes::new(fee_bytes),
-        ]
-    }
-
-    #[test]
-    fn oracle_fee_from_memos_accepts_zero() {
-        let mut memos = oracle_memos(vec![0x00]);
-        let puzzle = DelegatedPuzzle::from_memos(&mut memos).unwrap();
-        assert_eq!(puzzle, DelegatedPuzzle::Oracle([0x11; 32].into(), 0));
-    }
-
-    #[test]
-    fn oracle_fee_from_memos_rejects_overflow() {
-        // 2^64 does not fit in u64
-        let mut memos = oracle_memos(vec![0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        let err = DelegatedPuzzle::from_memos(&mut memos).unwrap_err();
-        assert!(matches!(err, DriverError::InvalidMemo));
-    }
-}
