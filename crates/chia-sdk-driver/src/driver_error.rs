@@ -52,6 +52,9 @@ pub enum DriverError {
     #[error("expected even oracle fee, but it was odd")]
     OddOracleFee,
 
+    #[error("fee overflow")]
+    FeeOverflow,
+
     #[error("custom driver error: {0}")]
     Custom(String),
 
