@@ -19,7 +19,10 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext};
+use crate::{
+    DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext,
+    run_metadata_updater,
+};
 
 use super::{
     DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType, MetadataWithRootHash,
@@ -343,12 +346,14 @@ where
 
         let new_metadata = if let Some(inner_new_metadata_condition) = inner_new_metadata_condition
         {
-            NftStateLayer::<M, NodePtr>::get_next_metadata(
+            run_metadata_updater(
                 allocator,
                 &state_layer.metadata,
                 state_layer.metadata_updater_puzzle_hash,
-                inner_new_metadata_condition,
+                inner_new_metadata_condition.updater_puzzle_reveal,
+                inner_new_metadata_condition.updater_solution,
             )?
+            .new_metadata
         } else {
             state_layer.metadata
         };

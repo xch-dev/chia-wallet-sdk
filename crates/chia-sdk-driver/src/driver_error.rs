@@ -28,6 +28,9 @@ pub enum DriverError {
     #[error("invalid mod hash")]
     InvalidModHash,
 
+    #[error("metadata updater puzzle hash mismatch")]
+    MetadataUpdaterPuzzleHashMismatch,
+
     #[error("non-standard inner puzzle layer")]
     NonStandardLayer,
 
