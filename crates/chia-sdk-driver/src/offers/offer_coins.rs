@@ -131,7 +131,10 @@ impl OfferCoins {
             }
         }
 
-        self.fee += other.fee;
+        self.fee = self
+            .fee
+            .checked_add(other.fee)
+            .ok_or(DriverError::FeeOverflow)?;
 
         Ok(())
     }
@@ -194,7 +197,10 @@ impl OfferCoins {
 
         for condition in conditions {
             if let Some(reserve_fee) = condition.as_reserve_fee() {
-                self.fee += reserve_fee.amount;
+                self.fee = self
+                    .fee
+                    .checked_add(reserve_fee.amount)
+                    .ok_or(DriverError::FeeOverflow)?;
             }
 
             let Some(create_coin) = condition.into_create_coin() else {
@@ -237,5 +243,23 @@ impl AddAsset for OfferCoins {
         for option in self.options.into_values() {
             spends.add(option);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_offer_coins_fee_overflow_on_extend() {
+        let mut coins = OfferCoins {
+            fee: u64::MAX,
+            ..OfferCoins::default()
+        };
+        let other = OfferCoins {
+            fee: 1,
+            ..OfferCoins::default()
+        };
+        assert!(matches!(coins.extend(other), Err(DriverError::FeeOverflow)));
     }
 }
