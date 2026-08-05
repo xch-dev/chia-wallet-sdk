@@ -170,7 +170,7 @@ impl RequestedPayments {
         actions
     }
 
-    pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
+    pub fn extend(&mut self, other: Self) {
         for payment in other.xch {
             self.xch.push(payment);
         }
@@ -189,8 +189,6 @@ impl RequestedPayments {
                 .or_default()
                 .extend(payments);
         }
-
-        Ok(())
     }
 
     pub fn parse(

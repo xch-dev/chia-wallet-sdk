@@ -26,16 +26,16 @@ jobs:
       run:
         working-directory: ./wasm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: wasm/pnpm-lock.yaml
           architecture: x64
@@ -59,15 +59,10 @@ jobs:
           wasm-pack pack
 
       - name: Upload NPM pkg artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-pkg
           path: ./wasm/pkg/*-*.tgz
-
-      - name: Ensure we have a new enough npm version for trusted publishing
-        run: |
-          npm install -g npm
-          npm --version
 
       - name: Publish
         if: startsWith(github.event.ref, 'refs/tags')

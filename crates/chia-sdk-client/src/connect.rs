@@ -53,7 +53,7 @@ pub async fn connect_peer(
 
     if handshake.network_id != network_id {
         return Err(ClientError::WrongNetwork(
-            network_id.to_string(),
+            network_id.clone(),
             handshake.network_id,
         ));
     }

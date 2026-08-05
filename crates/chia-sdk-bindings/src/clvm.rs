@@ -12,8 +12,8 @@ use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset, VaultTransaction, create_security_coin,
-    launch_reward_distributor, spend_security_coin, spend_settlement_nft,
+    StandardLayer, StreamedAsset, create_security_coin, launch_reward_distributor,
+    spend_security_coin, spend_settlement_nft,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use chialisp::classic::clvm_tools::binutils::assemble;
@@ -21,6 +21,7 @@ use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::TreeHash;
 use clvmr::{
     NodePtr,
+    allocator::Checkpoint,
     serde::{node_from_bytes, node_from_bytes_backrefs},
 };
 use num_bigint::BigInt;
@@ -31,8 +32,7 @@ use crate::{
     MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
     OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
     RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
-    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, VaultSpendReveal,
-    WrapperMemo,
+    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -43,12 +43,26 @@ pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
 
 // We use an Arc because we need to be able to share the SpendContext with the Program class
 // And we use a Mutex because we need to retain mutability even while Program instances exist
-#[derive(Default, Clone)]
-pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
+#[derive(Clone)]
+pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>, Arc<Checkpoint>);
+
+impl Default for Clvm {
+    fn default() -> Self {
+        let ctx = SpendContext::new();
+        let checkpoint = ctx.checkpoint();
+        Self(Arc::new(Mutex::new(ctx)), Arc::new(checkpoint))
+    }
+}
 
 impl Clvm {
     pub fn new() -> Result<Self> {
         Ok(Self::default())
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.reset(&self.1);
+        Ok(())
     }
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {
@@ -821,17 +835,5 @@ impl Clvm {
             .get(&nft_launcher_id)
             .copied()
             .map(|n| n.as_program(&self.0)))
-    }
-
-    pub fn parse_vault_transaction(
-        &self,
-        vault: VaultSpendReveal,
-        coin_spends: Vec<CoinSpend>,
-    ) -> Result<VaultTransaction> {
-        let mut ctx = self.0.lock().unwrap();
-
-        let vault = vault.into();
-
-        Ok(VaultTransaction::parse(&mut ctx, &vault, coin_spends)?)
     }
 }

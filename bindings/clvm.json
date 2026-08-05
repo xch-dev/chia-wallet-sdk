@@ -5,6 +5,7 @@
       "new": {
         "type": "constructor"
       },
+      "reset": {},
       "add_coin_spend": {
         "args": {
           "coin_spend": "CoinSpend"
@@ -627,13 +628,6 @@
           "nft_launcher_id": "Bytes32"
         },
         "return": "Option<Nft>"
-      },
-      "parse_vault_transaction": {
-        "args": {
-          "vault": "VaultSpendReveal",
-          "coin_spends": "Vec<CoinSpend>"
-        },
-        "return": "VaultTransaction"
       }
     }
   }

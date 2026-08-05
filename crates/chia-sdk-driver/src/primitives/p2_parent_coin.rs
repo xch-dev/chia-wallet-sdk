@@ -218,9 +218,10 @@ mod tests {
         ];
 
         let (expected_coin, expected_asset_id, expected_lp) = if cat_mode {
-            let (issue_cat, cats) = Cat::issue_with_coin(
+            let (issue_cat, cats) = Cat::single_issuance(
                 &mut ctx,
                 parent_bls.coin.coin_id(),
+                None,
                 parent_bls.coin.amount,
                 Conditions::new().create_coin(
                     parent_bls.puzzle_hash,

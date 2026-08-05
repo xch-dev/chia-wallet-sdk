@@ -78,7 +78,7 @@ impl Bulletin {
         coin: Coin,
         puzzle: Puzzle,
         solution: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
         let Some(bulletin_layer) = BulletinLayer::<HashedPtr>::parse_puzzle(allocator, puzzle)?
         else {
             return Ok(None);
@@ -105,10 +105,16 @@ impl Bulletin {
             }
         }
 
-        Ok(Some(Self::new(
+        let bulletin = Self::new(
             coin,
             bulletin_layer.inner_puzzle.tree_hash().into(),
             messages,
+        );
+
+        Ok(Some((
+            bulletin,
+            Puzzle::parse(allocator, bulletin_layer.inner_puzzle.ptr()),
+            bulletin_solution,
         )))
     }
 }
@@ -153,7 +159,7 @@ mod tests {
         let puzzle = Puzzle::parse(&ctx, puzzle);
         let solution = ctx.alloc(&coin_spend.solution)?;
 
-        let parsed_bulletin =
+        let (parsed_bulletin, ..) =
             Bulletin::parse(&mut ctx, coin_spend.coin, puzzle, solution)?.unwrap();
 
         assert_eq!(parsed_bulletin, bulletin);
