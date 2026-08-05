@@ -6,7 +6,7 @@ use chia_sdk_types::{
     run_puzzle,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -140,6 +140,12 @@ impl<M, I> NftStateLayer<M, I> {
     where
         M: ToClvm<Allocator> + FromClvm<Allocator>,
     {
+        if Bytes32::from(tree_hash(allocator, condition.updater_puzzle_reveal))
+            != curent_metadata_updater_puzzle_hash
+        {
+            return Err(DriverError::WrongPuzzleHash);
+        }
+
         let real_metadata_updater_solution: Vec<NodePtr> = vec![
             current_metadata.to_clvm(allocator)?,
             curent_metadata_updater_puzzle_hash.to_clvm(allocator)?,
@@ -156,5 +162,28 @@ impl<M, I> NftStateLayer<M, I> {
         let parsed = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;
 
         Ok(parsed.metadata_info.new_metadata)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_sdk_types::conditions::UpdateNftMetadata;
+    use clvmr::Allocator;
+
+    use super::*;
+
+    #[test]
+    fn test_get_next_metadata_rejects_updater_hash_mismatch() {
+        let mut allocator = Allocator::new();
+        let result = NftStateLayer::<(), ()>::get_next_metadata(
+            &mut allocator,
+            &(),
+            Bytes32::new([0xff; 32]),
+            UpdateNftMetadata {
+                updater_puzzle_reveal: NodePtr::NIL,
+                updater_solution: NodePtr::NIL,
+            },
+        );
+        assert!(matches!(result, Err(DriverError::WrongPuzzleHash)));
     }
 }

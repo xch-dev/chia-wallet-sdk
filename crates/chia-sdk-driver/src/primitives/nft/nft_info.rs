@@ -7,7 +7,7 @@ use chia_sdk_types::{
     run_puzzle,
 };
 use clvm_traits::{FromClvm, ToClvm, clvm_list};
-use clvm_utils::{ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -193,6 +193,12 @@ impl NftInfo {
         }
 
         if let Some(new_metadata) = new_metadata {
+            if Bytes32::from(tree_hash(allocator, new_metadata.updater_puzzle_reveal))
+                != self.metadata_updater_puzzle_hash
+            {
+                return Err(DriverError::WrongPuzzleHash);
+            }
+
             let metadata_updater_solution = clvm_list!(
                 &self.metadata,
                 self.metadata_updater_puzzle_hash,
