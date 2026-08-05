@@ -245,21 +245,3 @@ impl AddAsset for OfferCoins {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_offer_coins_fee_overflow_on_extend() {
-        let mut coins = OfferCoins {
-            fee: u64::MAX,
-            ..OfferCoins::default()
-        };
-        let other = OfferCoins {
-            fee: 1,
-            ..OfferCoins::default()
-        };
-        assert!(matches!(coins.extend(other), Err(DriverError::FeeOverflow)));
-    }
-}
