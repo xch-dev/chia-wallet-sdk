@@ -184,7 +184,12 @@ mod tests {
             &mut ctx,
             &[
                 Action::send(Id::Xch, alice.puzzle_hash, 0, Memos::None),
-                Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+                Action::send(
+                    Id::Xch,
+                    Bytes32::new(SETTLEMENT_PAYMENT_HASH),
+                    1,
+                    Memos::None,
+                ),
             ],
         )?;
 

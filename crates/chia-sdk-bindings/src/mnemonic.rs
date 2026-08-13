@@ -46,4 +46,11 @@ impl Mnemonic {
     pub fn to_seed(&self, password: String) -> Result<Bytes> {
         Ok(Bytes::new(self.0.to_seed(password).to_vec()))
     }
+
+    /// Crate-internal accessor for the wrapped `bip39::Mnemonic`. Used by the
+    /// silent-payments facade (`SilentPaymentKeys::from_mnemonic`) to pass the
+    /// inner type into chia-sdk-utils without round-tripping through a string.
+    pub(crate) fn inner(&self) -> &bip39::Mnemonic {
+        &self.0
+    }
 }

@@ -61,9 +61,16 @@
       },
       "prepare": {
         "args": {
-          "deltas": "Deltas"
+          "deltas": "Deltas",
+          "relation": "Option<Relation>"
         },
         "return": "FinishedSpends"
+      },
+      "with_silent_payment_keys": {
+        "args": {
+          "synthetic_pks": "Vec<SilentPaymentRegisteredKey>",
+          "secret_keys": "Vec<SilentPaymentRegisteredSecretKey>"
+        }
       }
     }
   },
@@ -121,6 +128,14 @@
         "args": {
           "id": "Id",
           "puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        }
+      },
+      "silent_payment_send": {
+        "type": "factory",
+        "args": {
+          "recipient": "SilentPaymentAddress",
           "amount": "u64",
           "memos": "Option<Program>"
         }
@@ -249,6 +264,29 @@
       "equals": {
         "args": {
           "id": "Id"
+        },
+        "return": "bool"
+      }
+    }
+  },
+  "Relation": {
+    "type": "class",
+    "methods": {
+      "none": {
+        "type": "factory"
+      },
+      "assert_concurrent": {
+        "type": "factory"
+      },
+      "is_none": {
+        "return": "bool"
+      },
+      "is_assert_concurrent": {
+        "return": "bool"
+      },
+      "equals": {
+        "args": {
+          "other": "Relation"
         },
         "return": "bool"
       }

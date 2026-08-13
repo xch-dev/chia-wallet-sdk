@@ -20,11 +20,11 @@ wasm = ["bindy/wasm"]
 pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
 
 [dependencies]
-chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer"] }
+chia-sdk-utils = { workspace = true, features = ["chip-0057"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0057"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
-chia-sdk-test = { workspace = true }
-chia-sdk-types = { workspace = true }
+chia-sdk-test = { workspace = true, features = ["chip-0057"] }
+chia-sdk-types = { workspace = true, features = ["chip-0057"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }
@@ -40,6 +40,7 @@ clvmr = { workspace = true }
 bindy = { workspace = true }
 bip39 = { workspace = true }
 hex = { workspace = true }
+indexmap = { workspace = true }
 sha2 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }

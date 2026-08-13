@@ -172,6 +172,41 @@ impl Simulator {
         self.data.coin_spends.get(&coin_id).cloned()
     }
 
+    /// Return every coin spend that resolved at `height`.
+    ///
+    /// Iterates `data.coin_states` filtered by `spent_height == Some(height)`,
+    /// joins each `coin_id` against `data.coin_spends`, and returns the joined
+    /// `CoinSpend`s in iteration order.
+    ///
+    /// Returns an empty vector when no spends resolved at `height`.
+    #[must_use]
+    pub fn block_spends(&self, height: u32) -> Vec<CoinSpend> {
+        self.data
+            .coin_states
+            .values()
+            .filter(|cs| cs.spent_height == Some(height))
+            .filter_map(|cs| self.data.coin_spends.get(&cs.coin.coin_id()).cloned())
+            .collect()
+    }
+
+    /// Return every coin created at `height`.
+    ///
+    /// Iterates `data.coin_states` filtered by `created_height == Some(height)`
+    /// and returns the underlying `Coin` for each (drops the `CoinState`
+    /// envelope — callers that need spent-height information should use
+    /// `coin_state(coin_id)` directly).
+    ///
+    /// Returns an empty vector when no coins were created at `height`.
+    #[must_use]
+    pub fn block_outputs(&self, height: u32) -> Vec<Coin> {
+        self.data
+            .coin_states
+            .values()
+            .filter(|cs| cs.created_height == Some(height))
+            .map(|cs| cs.coin)
+            .collect()
+    }
+
     pub fn spend_coins(
         &mut self,
         coin_spends: Vec<CoinSpend>,
@@ -443,5 +478,24 @@ impl Simulator {
 
         self.data.height += 1;
         self.data.next_timestamp += 1;
+    }
+}
+
+#[cfg(test)]
+mod block_accessor_tests {
+    use super::*;
+
+    #[test]
+    fn block_spends_empty_for_unused_height() {
+        let sim = Simulator::new();
+        assert!(sim.block_spends(0).is_empty());
+        assert!(sim.block_spends(1).is_empty());
+    }
+
+    #[test]
+    fn block_outputs_empty_for_unused_height() {
+        let sim = Simulator::new();
+        assert!(sim.block_outputs(0).is_empty());
+        assert!(sim.block_outputs(1).is_empty());
     }
 }

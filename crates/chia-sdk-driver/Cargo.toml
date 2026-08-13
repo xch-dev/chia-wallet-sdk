@@ -20,6 +20,12 @@ workspace = true
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037", "dep:sha3"]
+chip-0057 = [
+    "chia-sdk-types/chip-0057",
+    "dep:chia-sdk-utils",
+    "chia-sdk-utils/chip-0057",
+    "chia-sdk-test/chip-0057", # dev-dep: enables chia_sdk_test::silent_payments for tests/silent_payments_e2e.rs under non-all-features test builds
+]
 action-layer = ["chia-sdk-types/action-layer"]
 offer-compression = ["dep:flate2", "dep:chia-sdk-utils"]
 
