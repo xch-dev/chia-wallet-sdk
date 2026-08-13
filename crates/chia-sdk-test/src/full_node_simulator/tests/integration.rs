@@ -416,7 +416,7 @@ fn reorg_replaces_peak_and_emits_reorg() {
 }
 
 #[test]
-fn reorg_requeues_reverted_transactions_through_new_chain() -> anyhow::Result<()> {
+fn reorg_does_not_requeue_reverted_transactions() -> anyhow::Result<()> {
     let mut sim = FullNodeSimulator::new();
     let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
     let coin = sim.new_coin(puzzle_hash, 100);
@@ -435,7 +435,7 @@ fn reorg_requeues_reverted_transactions_through_new_chain() -> anyhow::Result<()
 
     assert_eq!(replacement.len(), 1);
     assert!(
-        sim.get_coin_record_by_name(coin.coin_id())
+        !sim.get_coin_record_by_name(coin.coin_id())
             .coin_record
             .unwrap()
             .spent
@@ -445,7 +445,7 @@ fn reorg_requeues_reverted_transactions_through_new_chain() -> anyhow::Result<()
             .block_spends
             .unwrap()
             .len(),
-        1
+        0
     );
     assert_eq!(
         sim.get_blockchain_state()
@@ -459,17 +459,13 @@ fn reorg_requeues_reverted_transactions_through_new_chain() -> anyhow::Result<()
 }
 
 #[test]
-fn reorg_requeues_multiblock_parent_child_in_order() -> anyhow::Result<()> {
-    let (mut sim, parent_bundle, child_bundle, _, child, grandchild) =
-        simulator_with_multiblock_parent_child()?;
+fn reorg_does_not_requeue_multiblock_parent_child() -> anyhow::Result<()> {
+    let (mut sim, _, _, _, child, grandchild) = simulator_with_multiblock_parent_child()?;
 
     let replacement = sim.reorg_blocks(2, 0);
 
     assert!(replacement.is_empty());
-    assert_eq!(
-        sim.mempool.keys().copied().collect::<Vec<_>>(),
-        vec![parent_bundle.name(), child_bundle.name()]
-    );
+    assert!(sim.mempool.is_empty());
 
     let replacement = sim.farm_block(1);
     assert_eq!(
@@ -477,19 +473,17 @@ fn reorg_requeues_multiblock_parent_child_in_order() -> anyhow::Result<()> {
             .block_spends
             .unwrap()
             .len(),
-        2
+        0
     );
     assert!(
         sim.get_coin_record_by_name(child.coin_id())
             .coin_record
-            .unwrap()
-            .spent
+            .is_none()
     );
     assert!(
-        !sim.get_coin_record_by_name(grandchild.coin_id())
+        sim.get_coin_record_by_name(grandchild.coin_id())
             .coin_record
-            .unwrap()
-            .spent
+            .is_none()
     );
     Ok(())
 }

@@ -292,15 +292,10 @@ impl FullNodeSimulator {
             .iter()
             .map(|block| block.record.header_hash)
             .collect::<Vec<_>>();
-        let reverted_transactions = reverted
-            .iter()
-            .flat_map(|block| block.transactions.clone())
-            .collect::<Vec<_>>();
 
         for block in reverted {
             self.orphaned_blocks.insert(block.record.header_hash, block);
         }
-        self.requeue_transactions(reverted_transactions);
 
         let mut records = Vec::new();
         let mut new_header_hashes = Vec::new();
