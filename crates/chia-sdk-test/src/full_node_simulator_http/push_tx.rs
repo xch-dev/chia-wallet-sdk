@@ -55,7 +55,7 @@ fn push_tx_error_name(error: &SimulatorError) -> &'static str {
         ErrorCode::InvalidCoinAnnouncement => "INVALID_COIN_ANNOUNCEMENT",
         ErrorCode::InvalidPuzzleAnnouncement => "INVALID_PUZZLE_ANNOUNCEMENT",
         ErrorCode::AssertCoinAnnouncementFailed => "ASSERT_COIN_ANNOUNCEMENT_FAILED",
-        ErrorCode::AssertPuzzleAnnouncementFailed => "ASSERT_PUZZLE_ANNOUNCEMENT_FAILED",
+        ErrorCode::AssertPuzzleAnnouncementFailed => "ASSERT_ANNOUNCE_CONSUMED_FAILED",
         ErrorCode::ReserveFeeConditionFailed => "RESERVE_FEE_CONDITION_FAILED",
         ErrorCode::AssertHeightAbsoluteFailed => "ASSERT_HEIGHT_ABSOLUTE_FAILED",
         ErrorCode::AssertSecondsAbsoluteFailed => "ASSERT_SECONDS_ABSOLUTE_FAILED",

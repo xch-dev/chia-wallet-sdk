@@ -649,3 +649,32 @@ fn push_tx_response_maps_cost_exceeded_to_block_cost_exceeds_max() {
         ))
     );
 }
+
+#[test]
+fn push_tx_response_maps_puzzle_announcement_failure_to_legacy_name() {
+    let body = push_tx_response_body(
+        Bytes32::default(),
+        &FullNodeSimulatorPushTxResponse {
+            response: PushTxResponse {
+                status: Some("FAILED".to_string()),
+                error: Some(
+                    SimulatorError::Validation(ErrorCode::AssertPuzzleAnnouncementFailed)
+                        .to_string(),
+                ),
+                success: false,
+            },
+            error: Some(SimulatorError::Validation(
+                ErrorCode::AssertPuzzleAnnouncementFailed,
+            )),
+        },
+    );
+
+    assert_eq!(
+        body.get("structuredError")
+            .and_then(|error| error.get("data"))
+            .and_then(|data| data.get("error")),
+        Some(&serde_json::Value::String(
+            "ASSERT_ANNOUNCE_CONSUMED_FAILED".to_string()
+        ))
+    );
+}
