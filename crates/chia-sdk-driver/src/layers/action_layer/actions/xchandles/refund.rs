@@ -3,8 +3,9 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesRefundActionArgs,
-        XchandlesRefundActionSolution, XchandlesSlotValue,
+        DefaultCatMakerArgs, PrecommitSpendMode, PuzzleHashPuzzleAndSolution,
+        XchandlesHandleSlotValue, XchandlesOtherPrecommitData, XchandlesPricingSolution,
+        XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotNonce,
     },
 };
 use clvm_traits::{FromClvm, ToClvm};
@@ -14,7 +15,10 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
+
+use super::{XchandlesPrecommitValueLog, XchandlesRefundActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRefundAction {
@@ -57,7 +61,11 @@ impl XchandlesRefundAction {
                 payout_puzzle_hash,
             )
             .into(),
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -69,22 +77,50 @@ impl XchandlesRefundAction {
         ))
     }
 
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
+    pub fn get_log(
+        ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<Option<XchandlesSlotValue>, DriverError> {
+    ) -> Result<XchandlesRefundActionLog, DriverError> {
         let solution =
-            XchandlesRefundActionSolution::<NodePtr, NodePtr, NodePtr, NodePtr, NodePtr>::from_clvm(
+            XchandlesRefundActionSolution::<NodePtr, (), NodePtr, NodePtr, Bytes32>::from_clvm(
                 ctx, solution,
             )?;
 
-        Ok(solution.slot_value)
-    }
+        let pricing_solution = ctx.extract::<XchandlesPricingSolution>(
+            solution.precommited_pricing_puzzle_and_solution.solution,
+        )?;
 
-    pub fn created_slot_value(
-        spent_slot_value: Option<XchandlesSlotValue>,
-    ) -> Option<XchandlesSlotValue> {
-        spent_slot_value // nothing changed; just oracle
+        let (precommitted_total_price, precommitted_registered_time) = run_pricing_output(
+            ctx,
+            solution.precommited_pricing_puzzle_and_solution.puzzle,
+            solution.precommited_pricing_puzzle_and_solution.solution,
+        )?;
+
+        let handle = solution.handle.clone();
+        let precommit_value = XchandlesPrecommitValueLog::new(
+            solution.precommited_cat_maker_and_solution.puzzle_hash,
+            (),
+            solution.precommited_pricing_puzzle_and_solution.puzzle_hash,
+            pricing_solution,
+            handle,
+            solution.other_precommit_data.refund_and_secret.secret,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
+        let spent_slot = solution.slot_value;
+        let created_slot = spent_slot.map(|slot| slot.with_counter(slot.counter + 1));
+
+        Ok(XchandlesRefundActionLog {
+            spent_slot,
+            created_slot,
+            precommit_value,
+            precommitted_total_price,
+            precommitted_registered_time,
+        })
     }
 
     pub fn spend(
@@ -94,35 +130,39 @@ impl XchandlesRefundAction {
         precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         precommited_pricing_puzzle_reveal: NodePtr,
         precommited_pricing_puzzle_solution: NodePtr,
-        slot: Option<Slot<XchandlesSlotValue>>,
+        slot: Option<Slot<XchandlesHandleSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let mut refund_announcement = precommit_coin.coin.puzzle_hash.to_vec();
-        refund_announcement.insert(0, b'$');
+        let refund_announcement =
+            XchandlesRegistryCreatedAnnouncementPrefix::refund(precommit_coin.coin.puzzle_hash);
 
         // spend precommit coin
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
         precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, my_inner_puzzle_hash)?;
 
         // spend self
-        let slot = slot.map(|s| registry.actual_slot(s));
+        let slot = slot.map(|s| registry.actual_handle_slot(s));
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = XchandlesRefundActionSolution {
-            precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,
-            precommited_cat_maker_hash: cat_maker_args.curry_tree_hash().into(),
-            precommited_cat_maker_solution: (),
-            precommited_pricing_puzzle_reveal,
-            precommited_pricing_puzzle_hash: ctx
-                .tree_hash(precommited_pricing_puzzle_reveal)
-                .into(),
-            precommited_pricing_puzzle_solution,
+            precommited_pricing_puzzle_and_solution: PuzzleHashPuzzleAndSolution::new(
+                ctx.tree_hash(precommited_pricing_puzzle_reveal).into(),
+                precommited_pricing_puzzle_reveal,
+                precommited_pricing_puzzle_solution,
+            ),
+            precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution::new(
+                cat_maker_args.curry_tree_hash().into(),
+                ctx.curry(cat_maker_args)?,
+                (),
+            ),
             handle: precommit_coin.value.handle.clone(),
-            secret: precommit_coin.value.secret,
-            precommited_owner_launcher_id: precommit_coin.value.owner_launcher_id,
-            precommited_resolved_data: precommit_coin.value.resolved_data.clone(),
-            refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
             precommit_amount: precommit_coin.coin.amount,
-            slot_value: slot.as_ref().map(|slot| slot.info.value.clone()),
+            slot_value: slot.as_ref().map(|slot| slot.info.value),
+            other_precommit_data: XchandlesOtherPrecommitData::new(
+                precommit_coin.value.owner_launcher_id,
+                precommit_coin.value.resolved_launcher_id,
+                precommit_coin.refund_puzzle_hash.tree_hash().into(),
+                precommit_coin.value.secret,
+            ),
         }
         .to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;

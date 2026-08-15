@@ -7,6 +7,7 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
 };
 use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
+use chia_sdk_types::puzzles::HandleNftMetadata;
 use chia_sdk_types::run_puzzle_with_cost;
 use chialisp::classic::clvm_tools::stages::run;
 use chialisp::classic::clvm_tools::stages::stage_0::TRunProgram;
@@ -289,6 +290,12 @@ impl Program {
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
         let ctx = self.0.lock().unwrap();
         let value = NftMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
+    }
+
+    pub fn parse_handle_nft_metadata(&self) -> Result<Option<HandleNftMetadata>> {
+        let ctx = self.0.lock().unwrap();
+        let value = HandleNftMetadata::from_clvm(&**ctx, self.1);
         Ok(value.ok())
     }
 

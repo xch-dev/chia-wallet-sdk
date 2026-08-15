@@ -1,21 +1,50 @@
 {
   "RewardDistributorType": {
-    "type": "enum",
-    "remote": true,
-    "values": ["Manager", "Nft"]
+    "type": "class",
+    "methods": {
+      "managed": {
+        "type": "static",
+        "args": {
+          "manager_singleton_launcher_id": "Bytes32"
+        },
+        "return": "RewardDistributorType"
+      },
+      "nft_collection": {
+        "type": "static",
+        "args": {
+          "collection_did_launcher_id": "Bytes32"
+        },
+        "return": "RewardDistributorType"
+      },
+      "curated_nft": {
+        "type": "static",
+        "args": {
+          "store_launcher_id": "Bytes32",
+          "refreshable": "bool"
+        },
+        "return": "RewardDistributorType"
+      },
+      "cat": {
+        "type": "static",
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Option<Bytes32>"
+        },
+        "return": "RewardDistributorType"
+      }
+    }
   },
   "RewardDistributorConstants": {
     "type": "class",
-    "new": true,
     "remote": true,
     "fields": {
       "launcher_id": "Bytes32",
-      "reward_distributor_type": "RewardDistributorType",
-      "manager_or_collection_did_launcher_id": "Bytes32",
       "fee_payout_puzzle_hash": "Bytes32",
       "epoch_seconds": "u64",
+      "precision": "u64",
       "max_seconds_offset": "u64",
       "payout_threshold": "u64",
+      "require_payout_approval": "bool",
       "fee_bps": "u64",
       "withdrawal_share_bps": "u64",
       "reserve_asset_id": "Bytes32",
@@ -27,11 +56,12 @@
         "type": "factory",
         "args": {
           "reward_distributor_type": "RewardDistributorType",
-          "manager_or_collection_did_launcher_id": "Bytes32",
           "fee_payout_puzzle_hash": "Bytes32",
           "epoch_seconds": "u64",
+          "precision": "u64",
           "max_seconds_offset": "u64",
           "payout_threshold": "u64",
+          "require_payout_approval": "bool",
           "fee_bps": "u64",
           "withdrawal_share_bps": "u64",
           "reserve_asset_id": "Bytes32"
@@ -42,6 +72,9 @@
           "launcher_id": "Bytes32"
         },
         "return": "RewardDistributorConstants"
+      },
+      "reward_distributor_type": {
+        "return": "RewardDistributorType"
       }
     }
   },
@@ -50,8 +83,8 @@
     "new": true,
     "remote": true,
     "fields": {
-      "cumulative_payout": "u64",
-      "remaining_rewards": "u64"
+      "cumulative_payout": "u128",
+      "remaining_rewards": "u128"
     }
   },
   "RoundTimeInfo": {
@@ -72,6 +105,158 @@
       "active_shares": "u64",
       "round_reward_info": "RoundRewardInfo",
       "round_time_info": "RoundTimeInfo"
+    },
+    "methods": {
+      "initial": {
+        "type": "factory",
+        "args": {
+          "first_epoch_start": "u64"
+        }
+      }
+    }
+  },
+  "RewardDistributorStateTransition": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "old_state": "RewardDistributorState",
+      "new_state": "RewardDistributorState"
+    }
+  },
+  "RewardDistributorNftStakeEntry": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "shares": "u64"
+    }
+  },
+  "RewardDistributorAddEntryActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "manager_singleton_inner_puzzle_hash": "Bytes32",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorRemoveEntryActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_entry_slot": "RewardDistributorEntrySlotValue",
+      "manager_singleton_inner_puzzle_hash": "Bytes32",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorAddIncentivesActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "amount": "u64",
+      "manager_fee": "u64",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorCommitIncentivesActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_reward_slot": "RewardDistributorRewardSlotValue",
+      "created_commitment_slot": "RewardDistributorCommitmentSlotValue",
+      "created_reward_slots": "Vec<RewardDistributorRewardSlotValue>",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorInitiatePayoutActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_entry_slot": "RewardDistributorEntrySlotValue",
+      "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "entry_payout_amount": "u64",
+      "payout_rounding_error": "u128",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorNewEpochActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_reward_slot": "RewardDistributorRewardSlotValue",
+      "created_reward_slot": "RewardDistributorRewardSlotValue",
+      "epoch_total_rewards": "u64",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorSyncActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "update_time": "u64",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorWithdrawIncentivesActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_reward_slot": "RewardDistributorRewardSlotValue",
+      "spent_commitment_slot": "RewardDistributorCommitmentSlotValue",
+      "created_reward_slot": "RewardDistributorRewardSlotValue",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorRefreshNftsFromDlActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_entry_slots": "Vec<RewardDistributorEntrySlotValue>",
+      "created_entry_slots": "Vec<RewardDistributorEntrySlotValue>",
+      "nft_entries": "Vec<RewardDistributorNftStakeEntry>",
+      "dl_root_hash": "Bytes32",
+      "dl_inner_puzzle_hash": "Bytes32",
+      "dl_full_puzzle_hash": "Bytes32",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorStakeActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_entry_slot": "Option<RewardDistributorEntrySlotValue>",
+      "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "cat_amount": "Option<u64>",
+      "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorUnstakeActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_entry_slot": "RewardDistributorEntrySlotValue",
+      "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "cat_amount": "Option<u64>",
+      "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>",
+      "changes": "RewardDistributorStateTransition"
+    }
+  },
+  "RewardDistributorActionLog": {
+    "type": "class",
+    "fields": {
+      "kind": "String",
+      "add_entry": "Option<RewardDistributorAddEntryActionLog>",
+      "remove_entry": "Option<RewardDistributorRemoveEntryActionLog>",
+      "add_incentives": "Option<RewardDistributorAddIncentivesActionLog>",
+      "commit_incentives": "Option<RewardDistributorCommitIncentivesActionLog>",
+      "initiate_payout": "Option<RewardDistributorInitiatePayoutActionLog>",
+      "new_epoch": "Option<RewardDistributorNewEpochActionLog>",
+      "sync": "Option<RewardDistributorSyncActionLog>",
+      "withdraw_incentives": "Option<RewardDistributorWithdrawIncentivesActionLog>",
+      "refresh_nfts_from_dl": "Option<RewardDistributorRefreshNftsFromDlActionLog>",
+      "stake": "Option<RewardDistributorStakeActionLog>",
+      "unstake": "Option<RewardDistributorUnstakeActionLog>"
     }
   },
   "RewardDistributorLauncherSolutionInfo": {
@@ -96,6 +281,7 @@
     "new": true,
     "remote": true,
     "fields": {
+      "counter": "u64",
       "epoch_start": "u64",
       "next_epoch_initialized": "bool",
       "rewards": "u64"
@@ -162,8 +348,9 @@
     "new": true,
     "remote": true,
     "fields": {
+      "counter": "u64",
       "payout_puzzle_hash": "Bytes32",
-      "initial_cumulative_payout": "u64",
+      "initial_cumulative_payout": "u128",
       "shares": "u64"
     }
   },
@@ -227,28 +414,87 @@
       "amount": "u64"
     }
   },
+  "CompactLineageProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "parent_parent_coin_info": "Bytes32",
+      "parent_inner_puzzle_hash": "Bytes32",
+      "parent_amount": "u64"
+    },
+    "methods": {
+      "from_lineage_proof": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof"
+        }
+      }
+    }
+  },
   "NftLauncherProof": {
     "type": "class",
     "new": true,
     "remote": true,
     "fields": {
-      "did_proof": "LineageProof",
+      "did_proof": "CompactLineageProof",
       "intermediary_coin_proofs": "Vec<IntermediaryCoinProof>"
     }
   },
-  "RewardDistributorStakeResult": {
+  "RewardDistributorStakeCollectionNftsResult": {
+    "type": "class",
+    "fields": {
+      "conditions": "Vec<Program>",
+      "notarized_payments": "Vec<NotarizedPayment>",
+      "new_nfts": "Vec<Nft>"
+    }
+  },
+  "RewardDistributorStakeCuratedNftsResult": {
+    "type": "class",
+    "fields": {
+      "conditions": "Vec<Program>",
+      "notarized_payments": "Vec<NotarizedPayment>",
+      "new_nfts": "Vec<Nft>"
+    }
+  },
+  "RewardDistributorStakeCatResult": {
     "type": "class",
     "fields": {
       "conditions": "Vec<Program>",
       "notarized_payment": "NotarizedPayment",
-      "new_nft": "Nft"
+      "new_cat": "Cat"
     }
   },
-  "RewardDistributorUnstakeResult": {
+  "RewardDistributorUnstakeLockedNftsResult": {
     "type": "class",
     "fields": {
       "conditions": "Vec<Program>",
       "payment_amount": "u64"
+    }
+  },
+  "RewardDistributorUnstakeLockedCatResult": {
+    "type": "class",
+    "fields": {
+      "conditions": "Vec<Program>",
+      "payment_amount": "u64"
+    }
+  },
+  "RewardDistributorRefreshNftsResult": {
+    "type": "class",
+    "fields": {
+      "conditions": "Vec<Program>",
+      "new_nfts": "Vec<Nft>"
+    }
+  },
+  "RefreshNftsInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "slot": "EntrySlot",
+      "nfts": "Vec<Nft>",
+      "nft_shares_delta": "Vec<i64>",
+      "new_shares": "Vec<u64>",
+      "nft_inclusion_proofs": "Vec<MerkleProof>"
     }
   },
   "RewardDistributorLaunchResult": {
@@ -317,6 +563,9 @@
       },
       "pending_created_entry_slots": {
         "return": "Vec<EntrySlot>"
+      },
+      "pending_logs": {
+        "return": "Vec<RewardDistributorActionLog>"
       },
       "pending_signature": {
         "return": "Signature"
@@ -399,20 +648,61 @@
         },
         "return": "RewardDistributorRemoveEntryResult"
       },
-      "stake": {
+      "stake_collection_nfts": {
         "args": {
-          "current_nft": "Nft",
-          "nft_launcher_proof": "NftLauncherProof",
-          "entry_custody_puzzle_hash": "Bytes32"
+          "offered_nfts": "Vec<Nft>",
+          "nft_launcher_proofs": "Vec<NftLauncherProof>",
+          "entry_custody_puzzle_hash": "Bytes32",
+          "existing_slot": "Option<EntrySlot>"
         },
-        "return": "RewardDistributorStakeResult"
+        "return": "RewardDistributorStakeCollectionNftsResult"
       },
-      "unstake": {
+      "stake_curated_nfts": {
+        "args": {
+          "offered_nfts": "Vec<Nft>",
+          "nft_shares": "Vec<u64>",
+          "inclusion_proofs": "Vec<MerkleProof>",
+          "entry_custody_puzzle_hash": "Bytes32",
+          "existing_slot": "Option<EntrySlot>",
+          "dl_root_hash": "Bytes32",
+          "dl_metadata_rest_hash": "Option<Bytes32>",
+          "dl_metadata_updater_hash_hash": "Bytes32",
+          "dl_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "RewardDistributorStakeCuratedNftsResult"
+      },
+      "stake_cat": {
+        "args": {
+          "offered_cat": "Cat",
+          "entry_custody_puzzle_hash": "Bytes32",
+          "existing_slot": "Option<EntrySlot>"
+        },
+        "return": "RewardDistributorStakeCatResult"
+      },
+      "unstake_locked_nfts": {
         "args": {
           "entry_slot": "EntrySlot",
-          "locked_nft": "Nft"
+          "locked_nfts": "Vec<Nft>",
+          "locked_nft_shares": "Vec<u64>"
         },
-        "return": "RewardDistributorUnstakeResult"
+        "return": "RewardDistributorUnstakeLockedNftsResult"
+      },
+      "unstake_locked_cat": {
+        "args": {
+          "entry_slot": "EntrySlot",
+          "locked_cat": "Cat"
+        },
+        "return": "RewardDistributorUnstakeLockedCatResult"
+      },
+      "refresh_nfts": {
+        "args": {
+          "refresh_nfts_infos": "Vec<RefreshNftsInfo>",
+          "dl_root_hash": "Bytes32",
+          "dl_metadata_rest_hash": "Option<Bytes32>",
+          "dl_metadata_updater_hash_hash": "Bytes32",
+          "dl_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "RewardDistributorRefreshNftsResult"
       },
       "locked_nft_hint": {
         "type": "static",

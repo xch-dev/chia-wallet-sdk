@@ -7,6 +7,7 @@ import {
   Constants,
   curryTreeHash,
   fromHex,
+  HandleNftMetadata,
   NftMetadata,
   NftMint,
   PublicKey,
@@ -307,4 +308,41 @@ test("create and parse condition", (t) => {
       .filter((memo) => memo !== null),
     [puzzleHash]
   );
+});
+
+test("handle nft metadata nil and populated encodings", (t) => {
+  const clvm = new Clvm();
+
+  const blank = new HandleNftMetadata(null, [], null, [], null, [], null);
+  const blankProgram = clvm.handleNftMetadata(blank);
+  t.is(toHex(blankProgram.serialize()), "80");
+  t.deepEqual(blankProgram.parseHandleNftMetadata()?.displayName, null);
+  t.deepEqual(blankProgram.parseHandleNftMetadata()?.imageUris, []);
+
+  const imageHash = fromHex("11".repeat(32));
+  const metadataHash = fromHex("22".repeat(32));
+  const licenseHash = fromHex("33".repeat(32));
+  const populated = new HandleNftMetadata(
+    "alice",
+    ["https://example.com/a.png"],
+    imageHash,
+    ["https://example.com/a.json"],
+    metadataHash,
+    ["https://example.com/license.txt"],
+    licenseHash
+  );
+  const populatedProgram = clvm.handleNftMetadata(populated);
+  t.is(
+    toHex(populatedProgram.serialize()),
+    "ffff82646e85616c696365ffff75ff9968747470733a2f2f6578616d706c652e636f6d2f612e706e6780ffff68a01111111111111111111111111111111111111111111111111111111111111111ffff826d75ff9a68747470733a2f2f6578616d706c652e636f6d2f612e6a736f6e80ffff826d68a02222222222222222222222222222222222222222222222222222222222222222ffff826c75ff9f68747470733a2f2f6578616d706c652e636f6d2f6c6963656e73652e74787480ffff826c68a0333333333333333333333333333333333333333333333333333333333333333380"
+  );
+
+  const parsed = populatedProgram.parseHandleNftMetadata();
+  t.is(parsed?.displayName, "alice");
+  t.deepEqual(parsed?.imageUris, ["https://example.com/a.png"]);
+  t.true(parsed !== null && bytesEqual(parsed.imageHash!, imageHash));
+  t.deepEqual(parsed?.metadataUris, ["https://example.com/a.json"]);
+  t.true(parsed !== null && bytesEqual(parsed.metadataHash!, metadataHash));
+  t.deepEqual(parsed?.licenseUris, ["https://example.com/license.txt"]);
+  t.true(parsed !== null && bytesEqual(parsed.licenseHash!, licenseHash));
 });

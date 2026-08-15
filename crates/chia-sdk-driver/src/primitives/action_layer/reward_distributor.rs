@@ -1,5 +1,6 @@
 use chia_bls::Signature;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_puzzle_types::cat::CatSolution;
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzle_types::{
     LineageProof, Proof,
@@ -11,16 +12,18 @@ use chia_sdk_types::puzzles::{
     SlotInfo,
 };
 use chia_sdk_types::{Condition, Conditions};
-use clvm_traits::{FromClvm, clvm_list, match_tuple};
+use clvm_traits::{FromClvm, clvm_tuple, match_tuple};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::NodePtr;
 
 use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Layer, Puzzle,
-    RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
-    RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
-    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
-    RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
+    RewardDistributorActionLog, RewardDistributorAddEntryAction,
+    RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
+    RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
+    RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorStateTransition, RewardDistributorSyncAction,
+    RewardDistributorType, RewardDistributorUnstakeAction,
     RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, Spend,
     SpendContext,
 };
@@ -39,6 +42,8 @@ pub struct RewardDistributorPendingSpendInfo {
     pub created_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
 
+    pub logs: Vec<RewardDistributorActionLog>,
+
     pub latest_state: (NodePtr, RewardDistributorState),
 
     pub signature: Signature,
@@ -55,6 +60,7 @@ impl RewardDistributorPendingSpendInfo {
             spent_reward_slots: vec![],
             spent_commitment_slots: vec![],
             spent_entry_slots: vec![],
+            logs: vec![],
             latest_state: (NodePtr::NIL, latest_state),
             signature: Signature::default(),
             other_cats: vec![],
@@ -73,6 +79,8 @@ impl RewardDistributorPendingSpendInfo {
         self.created_commitment_slots
             .extend(delta.created_commitment_slots);
         self.created_entry_slots.extend(delta.created_entry_slots);
+
+        self.logs.extend(delta.logs);
 
         self.latest_state = delta.latest_state;
 
@@ -154,7 +162,10 @@ impl RewardDistributor {
         let sync_action = RewardDistributorSyncAction::from_constants(&constants);
         let sync_hash = sync_action.tree_hash();
 
-        let actual_solution = ctx.alloc(&clvm_list!(
+        let refresh_action = RewardDistributorRefreshAction::from_constants(&constants);
+        let refresh_hash = refresh_action.tree_hash();
+
+        let actual_solution = ctx.alloc(&clvm_tuple!(
             current_state_and_ephemeral,
             action_spend.solution
         ))?;
@@ -163,81 +174,111 @@ impl RewardDistributor {
         let (new_state_and_ephemeral, _) =
             ctx.extract::<match_tuple!((NodePtr, RewardDistributorState), NodePtr)>(output)?;
 
+        let changes = RewardDistributorStateTransition {
+            old_state: current_state_and_ephemeral.1,
+            new_state: new_state_and_ephemeral.1,
+        };
+
         let raw_action_hash = ctx.tree_hash(action_spend.puzzle);
 
-        if raw_action_hash == new_epoch_hash {
-            created_reward_slots.push(RewardDistributorNewEpochAction::created_slot_value(
+        let log = if raw_action_hash == new_epoch_hash {
+            RewardDistributorActionLog::NewEpoch(RewardDistributorNewEpochAction::get_log(
                 ctx,
                 action_spend.solution,
-            )?);
-            spent_reward_slots.push(RewardDistributorNewEpochAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+                changes,
+            )?)
         } else if raw_action_hash == commit_incentives_hash {
-            let (comm, rews) = RewardDistributorCommitIncentivesAction::created_slot_values(
-                ctx,
-                constants.epoch_seconds,
-                action_spend.solution,
-            )?;
-
-            created_commitment_slots.push(comm);
-            created_reward_slots.extend(rews);
-            spent_reward_slots.push(RewardDistributorCommitIncentivesAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash == add_entry_hash {
-            created_entry_slots.push(RewardDistributorAddEntryAction::created_slot_value(
-                ctx,
-                &current_state_and_ephemeral.1,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash == stake_hash {
-            created_entry_slots.push(RewardDistributorStakeAction::created_slot_value(
-                ctx,
-                &current_state_and_ephemeral.1,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash == remove_entry_hash {
-            spent_entry_slots.push(RewardDistributorRemoveEntryAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash == unstake_hash {
-            spent_entry_slots.push(RewardDistributorUnstakeAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash == withdraw_incentives_hash {
-            let (rew, cmt) = RewardDistributorWithdrawIncentivesAction::spent_slot_values(
-                ctx,
-                action_spend.solution,
-            )?;
-
-            spent_reward_slots.push(rew);
-            spent_commitment_slots.push(cmt);
-            created_reward_slots.push(
-                RewardDistributorWithdrawIncentivesAction::created_slot_value(
+            RewardDistributorActionLog::CommitIncentives(
+                RewardDistributorCommitIncentivesAction::get_log(
                     ctx,
-                    constants.withdrawal_share_bps,
                     action_spend.solution,
+                    changes,
+                    constants.epoch_seconds,
                 )?,
-            );
+            )
+        } else if raw_action_hash == add_entry_hash {
+            RewardDistributorActionLog::AddEntry(RewardDistributorAddEntryAction::get_log(
+                ctx,
+                action_spend.solution,
+                changes,
+            )?)
+        } else if raw_action_hash == stake_hash {
+            RewardDistributorActionLog::Stake(RewardDistributorStakeAction::get_log(
+                ctx,
+                action_spend.solution,
+                changes,
+                constants.reward_distributor_type,
+            )?)
+        } else if raw_action_hash == remove_entry_hash {
+            RewardDistributorActionLog::RemoveEntry(RewardDistributorRemoveEntryAction::get_log(
+                ctx,
+                action_spend.solution,
+                changes,
+            )?)
+        } else if raw_action_hash == unstake_hash {
+            RewardDistributorActionLog::Unstake(RewardDistributorUnstakeAction::get_log(
+                ctx,
+                action_spend.solution,
+                changes,
+                constants.launcher_id,
+                constants.reward_distributor_type,
+                current_state_and_ephemeral.0,
+            )?)
+        } else if raw_action_hash == withdraw_incentives_hash {
+            RewardDistributorActionLog::WithdrawIncentives(
+                RewardDistributorWithdrawIncentivesAction::get_log(
+                    ctx,
+                    action_spend.solution,
+                    changes,
+                    constants.withdrawal_share_bps,
+                )?,
+            )
         } else if raw_action_hash == initiate_payout_hash {
-            created_entry_slots.push(RewardDistributorInitiatePayoutAction::created_slot_value(
+            RewardDistributorActionLog::InitiatePayout(
+                RewardDistributorInitiatePayoutAction::get_log(
+                    ctx,
+                    action_spend.solution,
+                    changes,
+                )?,
+            )
+        } else if raw_action_hash == refresh_hash {
+            let RewardDistributorType::CuratedNft {
+                store_launcher_id, ..
+            } = constants.reward_distributor_type
+            else {
+                return Err(DriverError::InvalidMerkleProof);
+            };
+
+            RewardDistributorActionLog::RefreshNftsFromDl(RewardDistributorRefreshAction::get_log(
                 ctx,
-                &current_state_and_ephemeral.1,
                 action_spend.solution,
-            )?);
-            spent_entry_slots.push(RewardDistributorInitiatePayoutAction::spent_slot_value(
+                changes,
+                store_launcher_id,
+            )?)
+        } else if raw_action_hash == add_incentives_hash {
+            RewardDistributorActionLog::AddIncentives(
+                RewardDistributorAddIncentivesAction::get_log(ctx, action_spend.solution, changes)?,
+            )
+        } else if raw_action_hash == sync_hash {
+            RewardDistributorActionLog::Sync(RewardDistributorSyncAction::get_log(
                 ctx,
                 action_spend.solution,
-            )?);
-        } else if raw_action_hash != add_incentives_hash && raw_action_hash != sync_hash {
-            // delegated state action has no effect on slots
+                changes,
+            )?)
+        } else {
             return Err(DriverError::InvalidMerkleProof);
-        }
+        };
+
+        log.extend_spent_slots(
+            &mut spent_reward_slots,
+            &mut spent_commitment_slots,
+            &mut spent_entry_slots,
+        );
+        log.extend_created_slots(
+            &mut created_reward_slots,
+            &mut created_commitment_slots,
+            &mut created_entry_slots,
+        );
 
         Ok(RewardDistributorPendingSpendInfo {
             actions: vec![action_spend],
@@ -247,6 +288,7 @@ impl RewardDistributor {
             created_reward_slots,
             created_commitment_slots,
             created_entry_slots,
+            logs: vec![log],
             latest_state: new_state_and_ephemeral,
             signature: Signature::default(),
             other_cats: vec![],
@@ -258,6 +300,7 @@ impl RewardDistributor {
         inner_solution: NodePtr,
         initial_state: RewardDistributorState,
         constants: RewardDistributorConstants,
+        signature: Signature,
     ) -> Result<RewardDistributorPendingSpendInfo, DriverError> {
         let mut pending_spend_info = RewardDistributorPendingSpendInfo::new(initial_state);
 
@@ -275,6 +318,7 @@ impl RewardDistributor {
             pending_spend_info.add_delta(delta);
         }
 
+        pending_spend_info.signature = signature;
         Ok(pending_spend_info)
     }
 
@@ -283,8 +327,13 @@ impl RewardDistributor {
         spend: &CoinSpend,
         reserve_lineage_proof: Option<LineageProof>,
         constants: RewardDistributorConstants,
+        signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
+        if coin.amount != 1 {
+            return Ok(None);
+        }
+
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
         let puzzle = Puzzle::parse(ctx, puzzle_ptr);
         let solution_ptr = ctx.alloc(&spend.solution)?;
@@ -296,8 +345,13 @@ impl RewardDistributor {
         let solution = ctx.extract::<SingletonSolution<NodePtr>>(solution_ptr)?;
         let proof = solution.lineage_proof;
 
-        let pending_spend =
-            Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
+        let pending_spend = Self::pending_info_from_spend(
+            ctx,
+            solution.inner_solution,
+            info.state,
+            constants,
+            signature,
+        )?;
 
         let inner_solution =
             RawActionLayerSolution::<NodePtr, NodePtr, ReserveFinalizerSolution>::from_clvm(
@@ -345,7 +399,9 @@ impl RewardDistributor {
     where
         Self: Sized,
     {
-        let Some(parent_registry) = Self::from_spend(ctx, parent_spend, None, constants)? else {
+        let Some(parent_registry) =
+            Self::from_spend(ctx, parent_spend, None, constants, Signature::default())?
+        else {
             return Ok(None);
         };
 
@@ -488,6 +544,7 @@ impl RewardDistributor {
         }
 
         let slot_value = RewardDistributorRewardSlotValue {
+            counter: 0,
             epoch_start: initial_state.round_time_info.epoch_end,
             next_epoch_initialized: false,
             rewards: 0,
@@ -511,6 +568,125 @@ impl RewardDistributor {
 
     pub fn set_pending_other_cats(&mut self, other_cats: Vec<CatSpend>) {
         self.pending_spend.other_cats = other_cats;
+    }
+
+    pub fn from_mempool_item(
+        ctx: &mut SpendContext,
+        mempool_item: SpendBundle,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<Self>, DriverError> {
+        let mut registry = None;
+
+        let mut other_cats = vec![];
+
+        for spend in &mempool_item.coin_spends {
+            if registry.is_none()
+                && let Some(parsed_registry) =
+                    Self::from_spend(ctx, spend, None, constants, Signature::default())?
+            {
+                registry = Some(parsed_registry);
+            } else {
+                // CAT spends are added to other_cats so the ring is built when the registry
+                // is spent (so it includes the reserve)
+                let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
+                let puzzle = Puzzle::parse(ctx, puzzle_ptr);
+                let solution_ptr = ctx.alloc(&spend.solution)?;
+
+                if let Ok(Some(parsed_cat)) = Cat::parse(ctx, spend.coin, puzzle, solution_ptr)
+                    && parsed_cat.cat.info.asset_id == constants.reserve_asset_id
+                {
+                    other_cats.push(CatSpend::new(
+                        parsed_cat.cat,
+                        Spend::new(parsed_cat.p2_puzzle.ptr(), parsed_cat.p2_solution),
+                    ));
+                }
+            }
+        }
+
+        let Some(registry) = registry else {
+            return Ok(None);
+        };
+
+        // find & set actual reserve
+        // note that we initialized the registy with reserve_lineage_proof=None, so
+        // only the reserve parent id and amount are correct (but NOT puzzle hash)
+        // the puzzle hash can be obtained from the registry constants
+        let reserve_coin = Coin::new(
+            registry.reserve.coin.parent_coin_info,
+            registry.info.constants.reserve_full_puzzle_hash,
+            registry.reserve.coin.amount,
+        );
+        let Some(reserve_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin == reserve_coin)
+        else {
+            return Err(DriverError::Custom(
+                "Reserve spend not found in mempool item".to_string(),
+            ));
+        };
+
+        let reserve_sol_ptr = ctx.alloc(&reserve_spend.solution)?;
+        let reserve_solution = ctx.extract::<CatSolution<NodePtr>>(reserve_sol_ptr)?;
+
+        // Could theoretically be a bit more optimized, but this ensures
+        //  consistent behavior even if there are future changes in the
+        //  way attributes are calculated for the reward distributor
+        let Some(mut registry) = RewardDistributor::from_spend(
+            ctx,
+            mempool_item
+                .coin_spends
+                .iter()
+                .find(|c| c.coin == registry.coin)
+                .ok_or(DriverError::Custom(
+                    "Couldn't find distributor spend in mempool item".to_string(),
+                ))?,
+            reserve_solution.lineage_proof,
+            constants,
+            Signature::default(),
+        )?
+        else {
+            return Err(DriverError::Custom(
+                "Couldn't rebuild distributor from spend a second time - something's pretty off"
+                    .to_string(),
+            ));
+        };
+
+        while let Some(registry_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
+        {
+            let Some(new_registry) = Self::from_spend(
+                ctx,
+                registry_spend,
+                Some(registry.reserve.child_lineage_proof()),
+                registry.info.constants,
+                Signature::default(),
+            )?
+            else {
+                break;
+            };
+
+            registry = new_registry;
+        }
+
+        // insert all other spends into the context
+        for spend in mempool_item.coin_spends {
+            if spend.coin == registry.coin || other_cats.iter().any(|c| c.cat.coin == spend.coin) {
+                continue;
+            }
+
+            ctx.insert(spend);
+        }
+
+        // filter out 'old' reserve spend from other_cats
+        // finish_spend will add the latest reserve spend
+        other_cats.retain(|c| c.cat.coin != registry.reserve.coin);
+
+        registry.set_pending_other_cats(other_cats);
+        registry.set_pending_signature(mempool_item.aggregated_signature);
+        Ok(Some(registry))
     }
 }
 

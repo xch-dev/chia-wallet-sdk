@@ -1,22 +1,28 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzle_types::singleton::{SingletonArgs, SingletonStruct};
+use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
         DefaultCatMakerArgs, PREMIUM_BITS_LIST, PREMIUM_PRECISION, PrecommitSpendMode,
-        XchandlesDataValue, XchandlesExpireActionArgs, XchandlesExpireActionSolution,
+        PuzzleAndSolution, XchandlesExpireActionArgs, XchandlesExpireActionSolution,
         XchandlesExponentialPremiumRenewPuzzleArgs, XchandlesFactorPricingPuzzleArgs,
-        XchandlesPricingSolution, XchandlesSlotValue,
+        XchandlesHandleSlotValue, XchandlesNewDataPuzzleHashes, XchandlesOtherPrecommitData,
+        XchandlesPricingSolution, XchandlesSlotNonce,
     },
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
+    XchandlesRegistryState,
 };
+
+use super::{XchandlesExpireActionLog, XchandlesPrecommitValueLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpireAction {
@@ -53,13 +59,19 @@ impl XchandlesExpireAction {
         payout_puzzle_hash: Bytes32,
     ) -> XchandlesExpireActionArgs {
         XchandlesExpireActionArgs {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            singleton_launcher_mod_hash: SINGLETON_LAUNCHER_HASH.into(),
             precommit_1st_curry_hash: PrecommitLayer::<()>::first_curry_hash(
                 SingletonStruct::new(launcher_id).tree_hash().into(),
                 relative_block_height,
                 payout_puzzle_hash,
             )
             .into(),
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -71,109 +83,175 @@ impl XchandlesExpireAction {
         ))
     }
 
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        // truths for epired solution are: Buy_Time, Current_Expiration, Handle
-        let solution = XchandlesExpireActionSolution::<
-            NodePtr,
-            NodePtr,
-            NodePtr,
-            (NodePtr, (u64, (String, NodePtr))),
-            NodePtr,
-        >::from_clvm(ctx, solution)?;
-
-        let handle = solution.expired_handle_pricing_puzzle_solution.1.1.0;
-        let current_expiration = solution.expired_handle_pricing_puzzle_solution.1.0;
-
-        Ok(XchandlesSlotValue::new(
-            handle.tree_hash().into(),
-            solution.neighbors.left_value,
-            solution.neighbors.right_value,
-            current_expiration,
-            solution.old_rest.owner_launcher_id,
-            solution.old_rest.resolved_data,
-        ))
-    }
-
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
+        state: XchandlesRegistryState,
+    ) -> Result<XchandlesExpireActionLog, DriverError> {
         let solution = ctx.extract::<XchandlesExpireActionSolution<
             NodePtr,
             NodePtr,
             NodePtr,
             NodePtr,
-            NodePtr,
+            Bytes32,
         >>(solution)?;
 
-        let pricing_output = ctx.run(
-            solution.expired_handle_pricing_puzzle_reveal,
-            solution.expired_handle_pricing_puzzle_solution,
-        )?;
-        let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
-
-        // truths are: Buy_Time, Current_Expiration, Handle
-        let (buy_time, (_, (handle, _))) = ctx.extract::<(u64, (NodePtr, (String, NodePtr)))>(
-            solution.expired_handle_pricing_puzzle_solution,
+        let pricing_solution = ctx.extract::<XchandlesPricingSolution>(
+            solution.expired_handle_pricing_puzzle_and_solution.solution,
         )?;
 
-        Ok(XchandlesSlotValue::new(
-            handle.tree_hash().into(),
+        let spent_slot = XchandlesHandleSlotValue::new(
+            solution.counter,
+            pricing_solution.handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            buy_time + registration_time_delta,
-            solution.new_rest.owner_launcher_id,
-            solution.new_rest.resolved_data,
-        ))
+            pricing_solution.current_expiration,
+            solution.old_rest.owner_launcher_id,
+            solution.old_rest.resolved_launcher_id,
+        );
+
+        let (total_price, registered_time) = run_pricing_output(
+            ctx,
+            solution.expired_handle_pricing_puzzle_and_solution.puzzle,
+            solution.expired_handle_pricing_puzzle_and_solution.solution,
+        )?;
+
+        let created_slot = XchandlesHandleSlotValue::new(
+            solution.counter + 1,
+            spent_slot.handle_hash,
+            solution.neighbors.left_value,
+            solution.neighbors.right_value,
+            pricing_solution.buy_time + registered_time,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
+        let handle = pricing_solution.handle.clone();
+        let precommit_value = XchandlesPrecommitValueLog::new(
+            state.cat_maker_puzzle_hash,
+            (),
+            state.expired_handle_pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            solution.other_precommit_data.refund_and_secret.secret,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
+        let owner_full_puzzle_hash = SingletonArgs::curry_tree_hash(
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .new_inner_puzzle_hashes
+                .new_owner_inner_puzzle_hash
+                .into(),
+        )
+        .into();
+
+        let resolved_full_puzzle_hash =
+            if solution.other_precommit_data.launcher_ids.owner_launcher_id
+                == solution
+                    .other_precommit_data
+                    .launcher_ids
+                    .resolved_launcher_id
+            {
+                None
+            } else {
+                Some(
+                    SingletonArgs::curry_tree_hash(
+                        solution
+                            .other_precommit_data
+                            .launcher_ids
+                            .resolved_launcher_id,
+                        solution
+                            .new_inner_puzzle_hashes
+                            .new_resolved_inner_puzzle_hash
+                            .into(),
+                    )
+                    .into(),
+                )
+            };
+
+        Ok(XchandlesExpireActionLog {
+            spent_slot,
+            created_slot,
+            precommit_value,
+            total_price,
+            registered_time,
+            owner_full_puzzle_hash,
+            resolved_full_puzzle_hash,
+            owner_inner_puzzle_hash: solution.new_inner_puzzle_hashes.new_owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash: solution
+                .new_inner_puzzle_hashes
+                .new_resolved_inner_puzzle_hash,
+        })
     }
 
+    // returns:
+    //  - expire general announcement
+    //  - send message to be sent by the new owner
+    //  - send message to be sent by the new resolved launcher (if different from the owner)
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        slot: Slot<XchandlesSlotValue>,
+        slot: Slot<XchandlesHandleSlotValue>,
         num_periods: u64,
         base_handle_price: u64,
         registration_period: u64,
-        precommit_coin: PrecommitCoin<XchandlesPrecommitValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         start_time: u64,
-    ) -> Result<Conditions, DriverError> {
+        new_owner_inner_puzzle_hash: Bytes32,
+        new_resolved_inner_puzzle_hash: Bytes32,
+    ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
 
-        // announcement is simply premcommitment coin ph
-        let expire_ann = precommit_coin.coin.puzzle_hash;
+        // announcements and messages
+        let precommit_coin_puzzle_hash = precommit_coin.coin.puzzle_hash;
 
         // spend precommit coin
         precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
 
         // spend self
-        let slot = registry.actual_slot(slot);
+        let slot = registry.actual_handle_slot(slot);
         let expire_args =
             XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
+        let pricing_solution = XchandlesPricingSolution {
+            buy_time: start_time,
+            current_expiration: slot.info.value.expiration,
+            handle: precommit_coin.value.handle.clone(),
+            num_periods,
+        };
         let action_solution = XchandlesExpireActionSolution {
-            cat_maker_puzzle_reveal: ctx.curry(DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            ))?,
-            cat_maker_puzzle_solution: (),
-            expired_handle_pricing_puzzle_reveal: ctx.curry(expire_args)?,
-            expired_handle_pricing_puzzle_solution: XchandlesPricingSolution {
-                buy_time: start_time,
-                current_expiration: slot.info.value.expiration,
-                handle: precommit_coin.value.handle.clone(),
-                num_periods,
-            },
-            refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
-            secret: precommit_coin.value.secret,
+            counter: slot.info.value.counter,
+            expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution::new(
+                ctx.curry(expire_args)?,
+                pricing_solution,
+            ),
+            cat_maker_and_solution: PuzzleAndSolution::new(
+                ctx.curry(DefaultCatMakerArgs::new(
+                    precommit_coin.asset_id.tree_hash().into(),
+                ))?,
+                (),
+            ),
+            other_precommit_data: XchandlesOtherPrecommitData::new(
+                precommit_coin.value.owner_launcher_id,
+                precommit_coin.value.resolved_launcher_id,
+                precommit_coin.refund_puzzle_hash.tree_hash().into(),
+                precommit_coin.value.secret,
+            ),
             neighbors: slot.info.value.neighbors,
             old_rest: slot.info.value.rest_data(),
-            new_rest: XchandlesDataValue {
-                owner_launcher_id: precommit_coin.value.owner_launcher_id,
-                resolved_data: precommit_coin.value.resolved_data,
-            },
+            new_inner_puzzle_hashes: XchandlesNewDataPuzzleHashes::new(
+                new_owner_inner_puzzle_hash,
+                new_resolved_inner_puzzle_hash,
+            ),
         }
         .to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -183,10 +261,33 @@ impl XchandlesExpireAction {
         // spend slot
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
-        let mut expire_ann = expire_ann.to_vec();
-        expire_ann.insert(0, b'x');
-        Ok(Conditions::new()
-            .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, expire_ann)))
+        let message_destination = ctx.alloc(&registry.coin.puzzle_hash)?;
+        Ok((
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                registry.coin.puzzle_hash,
+                XchandlesRegistryCreatedAnnouncementPrefix::expire(precommit_coin_puzzle_hash),
+            )),
+            Conditions::new().send_message(
+                18,
+                XchandlesRegistryReceivedMessagePrefix::expire_owner(precommit_coin_puzzle_hash)
+                    .into(),
+                vec![message_destination],
+            ),
+            if precommit_coin.value.resolved_launcher_id == precommit_coin.value.owner_launcher_id {
+                None
+            } else {
+                Some(
+                    Conditions::new().send_message(
+                        18,
+                        XchandlesRegistryReceivedMessagePrefix::expire_resolved(
+                            precommit_coin_puzzle_hash,
+                        )
+                        .into(),
+                        vec![message_destination],
+                    ),
+                )
+            },
+        ))
     }
 }
 
@@ -257,6 +358,8 @@ impl XchandlesExpirePricingPuzzle {
 
 #[cfg(test)]
 mod tests {
+    use clvm_traits::{FromClvm, ToClvm};
+
     use super::*;
 
     #[derive(FromClvm, ToClvm, Debug, Copy, Clone, PartialEq, Eq)]

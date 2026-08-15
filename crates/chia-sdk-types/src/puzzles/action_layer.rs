@@ -3,36 +3,36 @@ mod actions;
 mod any_metadata_updater;
 mod cat_makers;
 mod cat_nft_metadata;
+mod compact_representation;
 mod default_finalizer;
-mod name_nft_metadata;
+mod handle_nft_metadata;
 mod p2_delegated_by_singleton;
 mod p2_m_of_n_delegate_direct;
+mod p2_next_reward_distributor_epoch;
 mod precommit_layer;
 mod reserve_finalizer;
 mod slot;
 mod slot_values;
 mod state_scheduler;
 mod uniqueness_prelauncher;
-mod verification_asserter;
-mod verification_layer;
 
 pub use action_layer_puzzle::*;
 pub use actions::*;
 pub use any_metadata_updater::*;
 pub use cat_makers::*;
 pub use cat_nft_metadata::*;
+pub use compact_representation::*;
 pub use default_finalizer::*;
-pub use name_nft_metadata::*;
+pub use handle_nft_metadata::*;
 pub use p2_delegated_by_singleton::*;
 pub use p2_m_of_n_delegate_direct::*;
+pub use p2_next_reward_distributor_epoch::*;
 pub use precommit_layer::*;
 pub use reserve_finalizer::*;
 pub use slot::*;
 pub use slot_values::*;
 pub use state_scheduler::*;
 pub use uniqueness_prelauncher::*;
-pub use verification_asserter::*;
-pub use verification_layer::*;
 
 #[cfg(test)]
 mod tests {
@@ -51,9 +51,9 @@ mod tests {
         assert_puzzle_hash!(PRECOMMIT_LAYER_PUZZLE => PRECOMMIT_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(SLOT_PUZZLE => SLOT_PUZZLE_HASH);
         assert_puzzle_hash!(ANY_METADATA_UPDATER => ANY_METADATA_UPDATER_HASH);
-        assert_puzzle_hash!(VERIFICATION_LAYER_PUZZLE => VERIFICATION_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_REGISTER_PUZZLE => XCHANDLES_REGISTER_PUZZLE_HASH);
-        assert_puzzle_hash!(XCHANDLES_UPDATE_PUZZLE => XCHANDLES_UPDATE_PUZZLE_HASH);
+        assert_puzzle_hash!(XCHANDLES_INITIATE_UPDATE_PUZZLE => XCHANDLES_INITIATE_UPDATE_PUZZLE_HASH);
+        assert_puzzle_hash!(XCHANDLES_EXECUTE_UPDATE_PUZZLE => XCHANDLES_EXECUTE_UPDATE_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_EXTEND_PUZZLE => XCHANDLES_EXTEND_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_EXPIRE_PUZZLE => XCHANDLES_EXPIRE_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_ORACLE_PUZZLE => XCHANDLES_ORACLE_PUZZLE_HASH);
@@ -64,7 +64,8 @@ mod tests {
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE => REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE => REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE => REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE_HASH);
-        assert_puzzle_hash!(REWARD_DISTRIBUTOR_INITIATE_PAYOUT_PUZZLE => REWARD_DISTRIBUTOR_INITIATE_PAYOUT_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE => REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE => REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE => REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE => REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_SYNC_PUZZLE => REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH);
@@ -80,10 +81,15 @@ mod tests {
             RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM =>
                 RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH
         );
-        assert_puzzle_hash!(VERIFICATION_ASSERTER_PUZZLE => VERIFICATION_ASSERTER_PUZZLE_HASH);
-        assert_puzzle_hash!(CATALOG_VERIFICATION_MAKER_PUZZLE => CATALOG_VERIFICATION_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(REVOCABLE_CAT_MAKER_PUZZLE => REVOCABLE_CAT_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(XCH_CAT_MAKER_PUZZLE => XCH_CAT_MAKER_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE => REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE => REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE => REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE => REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE => REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH);
+        assert_puzzle_hash!(REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE => REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE_HASH);
+        assert_puzzle_hash!(P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE => P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE_HASH);
         Ok(())
     }
 }

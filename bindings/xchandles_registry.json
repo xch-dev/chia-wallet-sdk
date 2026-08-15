@@ -1,0 +1,515 @@
+{
+  "xchandles_get_price": {
+    "type": "function",
+    "args": {
+      "base_price": "u64",
+      "handle": "String",
+      "num_periods": "u64"
+    },
+    "return": "u64"
+  },
+  "CompactCoinProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "parent_coin_info": "Bytes32",
+      "inner_puzzle_hash": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "XchandlesRegistryState": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "cat_maker_puzzle_hash": "Bytes32",
+      "pricing_puzzle_hash": "Bytes32",
+      "expired_handle_pricing_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "from": {
+        "type": "factory",
+        "args": {
+          "payment_cat_tail_hash_hash": "Bytes32",
+          "base_price": "u64",
+          "registration_period": "u64"
+        }
+      }
+    }
+  },
+  "XchandlesConstants": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "precommit_payout_puzzle_hash": "Bytes32",
+      "relative_block_height": "u32",
+      "price_singleton_launcher_id": "Bytes32"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "launcher_id": "Bytes32",
+          "precommit_payout_puzzle_hash": "Bytes32",
+          "relative_block_height": "u32",
+          "price_singleton_launcher_id": "Bytes32"
+        }
+      },
+      "with_price_singleton": {
+        "args": {
+          "price_singleton_launcher_id": "Bytes32"
+        },
+        "return": "XchandlesConstants"
+      },
+      "with_launcher_id": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "XchandlesConstants"
+      }
+    }
+  },
+  "XchandlesHandleSlotValue": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "counter": "u64",
+      "handle_hash": "Bytes32",
+      "neighbors": "SlotNeigborsInfo",
+      "expiration": "u64",
+      "owner_launcher_id": "Bytes32",
+      "resolved_launcher_id": "Bytes32"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "counter": "u64",
+          "handle_hash": "Bytes32",
+          "left_handle_hash": "Bytes32",
+          "right_handle_hash": "Bytes32",
+          "expiration": "u64",
+          "owner_launcher_id": "Bytes32",
+          "resolved_launcher_id": "Bytes32"
+        }
+      }
+    }
+  },
+  "XchandlesUpdateSlotValue": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "update_initiator_coin_id": "Bytes32",
+      "min_height": "u32",
+      "handle_hash": "Bytes32",
+      "new_owner_launcher_id": "Bytes32",
+      "new_resolved_launcher_id": "Bytes32"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "update_initiator_coin_id": "Bytes32",
+          "min_height": "u32",
+          "handle_hash": "Bytes32",
+          "new_owner_launcher_id": "Bytes32",
+          "new_resolved_launcher_id": "Bytes32"
+        }
+      }
+    }
+  },
+  "XchandlesHandleSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "XchandlesHandleSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "XchandlesHandleSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "XchandlesUpdateSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "XchandlesUpdateSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "XchandlesUpdateSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "XchandlesPrecommitValue": {
+    "type": "class",
+    "fields": {
+      "handle": "String",
+      "secret": "Bytes32",
+      "owner_launcher_id": "Bytes32",
+      "resolved_launcher_id": "Bytes32",
+      "payment_asset_id": "Bytes32",
+      "base_price": "u64",
+      "registration_period": "u64",
+      "buy_time": "u64",
+      "num_periods": "u64",
+      "current_expiration": "u64",
+      "use_expire_pricing": "bool"
+    },
+    "methods": {
+      "for_normal_registration": {
+        "type": "factory",
+        "args": {
+          "handle": "String",
+          "secret": "Bytes32",
+          "owner_launcher_id": "Bytes32",
+          "resolved_launcher_id": "Bytes32",
+          "payment_asset_id": "Bytes32",
+          "base_price": "u64",
+          "registration_period": "u64",
+          "buy_time": "u64",
+          "num_periods": "u64"
+        }
+      },
+      "for_expiry_pricing_registration": {
+        "type": "factory",
+        "args": {
+          "handle": "String",
+          "secret": "Bytes32",
+          "owner_launcher_id": "Bytes32",
+          "resolved_launcher_id": "Bytes32",
+          "payment_asset_id": "Bytes32",
+          "base_price": "u64",
+          "registration_period": "u64",
+          "buy_time": "u64",
+          "current_expiration": "u64",
+          "num_periods": "u64"
+        }
+      },
+      "commitment_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "XchandlesPrecommitCoin": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "asset_id": "Bytes32",
+      "proof": "LineageProof",
+      "inner_puzzle_hash": "Bytes32",
+      "value": "XchandlesPrecommitValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "parent_coin_id": "Bytes32",
+          "proof": "LineageProof",
+          "asset_id": "Bytes32",
+          "controller_singleton_launcher_id": "Bytes32",
+          "relative_block_height": "u32",
+          "payout_puzzle_hash": "Bytes32",
+          "refund_puzzle_hash": "Bytes32",
+          "value": "XchandlesPrecommitValue",
+          "precommit_amount": "u64"
+        }
+      },
+      "puzzle_hash": {
+        "return": "Bytes32",
+        "args": {
+          "asset_id": "Bytes32",
+          "controller_singleton_launcher_id": "Bytes32",
+          "relative_block_height": "u32",
+          "payout_puzzle_hash": "Bytes32",
+          "refund_puzzle_hash": "Bytes32",
+          "value": "XchandlesPrecommitValue"
+        },
+        "type": "static"
+      }
+    }
+  },
+  "XchandlesRegistryFinishedSpendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_registry": "XchandlesRegistry",
+      "signature": "Signature"
+    }
+  },
+  "XchandlesRegistryLaunchResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "security_signature": "Signature",
+      "security_secret_key": "SecretKey",
+      "registry": "XchandlesRegistry",
+      "slots": "Vec<XchandlesHandleSlot>",
+      "security_coin": "Coin"
+    }
+  },
+  "XchandlesRegistryInfoFromLauncher": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "registry": "XchandlesRegistry",
+      "initial_slots": "Vec<XchandlesHandleSlot>",
+      "initial_registration_asset_id": "Bytes32",
+      "initial_base_price": "u64"
+    }
+  },
+  "XchandlesTripleConditionsResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "registry_conditions": "Vec<Program>",
+      "owner_conditions": "Vec<Program>",
+      "resolved_conditions": "Option<Vec<Program>>"
+    }
+  },
+  "XchandlesExtendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "conditions": "Vec<Program>",
+      "notarized_payment": "NotarizedPayment"
+    }
+  },
+  "XchandlesExecuteUpdateResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "registry_conditions": "Vec<Program>",
+      "old_owner_conditions": "Vec<Program>",
+      "new_owner_conditions": "Vec<Program>"
+    }
+  },
+  "XchandlesRegistryActualNeighborsResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "left_slot": "XchandlesHandleSlot",
+      "right_slot": "XchandlesHandleSlot"
+    }
+  },
+  "XchandlesRegistry": {
+    "type": "class",
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      },
+      "proof": {
+        "return": "Proof"
+      },
+      "state": {
+        "return": "XchandlesRegistryState"
+      },
+      "constants": {
+        "return": "XchandlesConstants"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "pending_created_handle_slots": {
+        "return": "Vec<XchandlesHandleSlot>"
+      },
+      "pending_created_update_slots": {
+        "return": "Vec<XchandlesUpdateSlot>"
+      },
+      "pending_signature": {
+        "return": "Signature"
+      },
+      "finish_spend": {
+        "return": "XchandlesRegistryFinishedSpendResult"
+      },
+      "register": {
+        "args": {
+          "left_slot": "XchandlesHandleSlot",
+          "right_slot": "XchandlesHandleSlot",
+          "precommit_coin": "XchandlesPrecommitCoin",
+          "base_handle_price": "u64",
+          "registration_period": "u64",
+          "start_time": "u64",
+          "owner_inner_puzzle_hash": "Bytes32",
+          "resolved_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "XchandlesTripleConditionsResult"
+      },
+      "refund_with_pricing": {
+        "args": {
+          "precommit_coin": "XchandlesPrecommitCoin",
+          "pricing_puzzle_reveal": "Program",
+          "pricing_puzzle_solution": "Program",
+          "slot": "Option<XchandlesHandleSlot>"
+        },
+        "return": "Vec<Program>"
+      },
+      "refund": {
+        "args": {
+          "precommit_coin": "XchandlesPrecommitCoin",
+          "slot": "Option<XchandlesHandleSlot>"
+        },
+        "return": "Vec<Program>"
+      },
+      "extend": {
+        "args": {
+          "handle": "String",
+          "slot": "XchandlesHandleSlot",
+          "payment_asset_id": "Bytes32",
+          "base_handle_price": "u64",
+          "registration_period": "u64",
+          "num_periods": "u64",
+          "buy_time": "u64"
+        },
+        "return": "XchandlesExtendResult"
+      },
+      "expire": {
+        "args": {
+          "slot": "XchandlesHandleSlot",
+          "num_periods": "u64",
+          "base_handle_price": "u64",
+          "registration_period": "u64",
+          "precommit_coin": "XchandlesPrecommitCoin",
+          "start_time": "u64",
+          "new_owner_inner_puzzle_hash": "Bytes32",
+          "new_resolved_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "XchandlesTripleConditionsResult"
+      },
+      "oracle": {
+        "args": {
+          "slot": "XchandlesHandleSlot"
+        },
+        "return": "Vec<Program>"
+      },
+      "initiate_update": {
+        "args": {
+          "slot": "XchandlesHandleSlot",
+          "new_owner_launcher_id": "Bytes32",
+          "new_resolved_launcher_id": "Bytes32",
+          "current_owner": "CompactCoinProof",
+          "min_height": "u32"
+        },
+        "return": "Vec<Program>"
+      },
+      "execute_update": {
+        "args": {
+          "handle_slot": "XchandlesHandleSlot",
+          "update_slot": "XchandlesUpdateSlot",
+          "new_owner_launcher_id": "Bytes32",
+          "new_resolved_launcher_id": "Bytes32",
+          "current_owner": "CompactCoinProof",
+          "new_owner_inner_puzzle_hash": "Bytes32",
+          "new_resolved_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "XchandlesExecuteUpdateResult"
+      },
+      "delegated_state": {
+        "args": {
+          "new_state": "XchandlesRegistryState",
+          "other_singleton_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "Vec<Program>"
+      },
+      "actual_neighbors": {
+        "args": {
+          "new_handle_hash": "Bytes32",
+          "on_chain_left_slot": "XchandlesHandleSlot",
+          "on_chain_right_slot": "XchandlesHandleSlot"
+        },
+        "return": "XchandlesRegistryActualNeighborsResult"
+      },
+      "actual_handle_slot": {
+        "args": {
+          "slot": "XchandlesHandleSlot"
+        },
+        "return": "XchandlesHandleSlot"
+      },
+      "actual_update_slot": {
+        "args": {
+          "slot": "XchandlesUpdateSlot"
+        },
+        "return": "XchandlesUpdateSlot"
+      },
+      "parse_launcher_solution": {
+        "type": "static",
+        "args": {
+          "launcher_coin": "Coin",
+          "launcher_solution": "Program"
+        },
+        "return": "Option<XchandlesRegistryInfoFromLauncher>"
+      }
+    }
+  },
+  "singleton_struct_hash": {
+    "type": "function",
+    "args": {
+      "launcher_id": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "xchandles_register_owner_message": {
+    "type": "function",
+    "args": {
+      "precommit_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "xchandles_expire_owner_message": {
+    "type": "function",
+    "args": {
+      "precommit_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "predict_blank_handle_nft_coin_id": {
+    "type": "function",
+    "args": {
+      "launcher_id": "Bytes32",
+      "synthetic_public_key": "PublicKey",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16"
+    },
+    "return": "Bytes32"
+  },
+  "xchandles_registration_delegated_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "registry_launcher_id": "Bytes32",
+      "precommit_puzzle_hash": "Bytes32",
+      "p2_puzzle_hash": "Bytes32",
+      "registration_timestamp": "u64",
+      "current_expiration": "u64",
+      "final_handle_nft_metadata": "HandleNftMetadata"
+    },
+    "return": "Bytes32"
+  }
+}

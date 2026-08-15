@@ -1,13 +1,14 @@
 use chia_bls::Signature;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonSolution};
-use chia_sdk_types::puzzles::{CatalogSlotValue, SlotInfo};
-use clvm_traits::{clvm_list, match_tuple};
+use chia_sdk_types::puzzles::{CatalogSlotValue, DelegatedStateActionSolution, SlotInfo};
+use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
-    ActionLayer, ActionLayerSolution, ActionSingleton, CatalogRefundAction, CatalogRegisterAction,
+    ActionLayer, ActionLayerSolution, ActionSingleton, CatalogActionLog,
+    CatalogDelegatedStateActionLog, CatalogRefundAction, CatalogRegisterAction,
     DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
 };
 
@@ -18,6 +19,8 @@ pub struct CatalogPendingSpendInfo {
     pub actions: Vec<Spend>,
     pub created_slots: Vec<CatalogSlotValue>,
     pub spent_slots: Vec<CatalogSlotValue>,
+
+    pub logs: Vec<CatalogActionLog>,
 
     pub latest_state: (NodePtr, CatalogRegistryState),
 
@@ -30,6 +33,7 @@ impl CatalogPendingSpendInfo {
             actions: vec![],
             created_slots: vec![],
             spent_slots: vec![],
+            logs: vec![],
             latest_state: (NodePtr::NIL, latest_state),
             signature: Signature::default(),
         }
@@ -67,6 +71,7 @@ impl CatalogRegistry {
     ) -> Result<
         (
             (NodePtr, CatalogRegistryState),
+            CatalogActionLog,
             Vec<CatalogSlotValue>, // created slot values
             Vec<CatalogSlotValue>, // spent slot values
         ),
@@ -74,6 +79,8 @@ impl CatalogRegistry {
     > {
         let mut created_slots = vec![];
         let mut spent_slots = vec![];
+
+        let state = current_state_and_ephemeral.1;
 
         let register_action = CatalogRegisterAction::from_constants(&constants);
         let register_hash = register_action.tree_hash();
@@ -85,7 +92,7 @@ impl CatalogRegistry {
             <DelegatedStateAction as SingletonAction<CatalogRegistry>>::from_constants(&constants);
         let delegated_state_hash = delegated_state_action.tree_hash();
 
-        let actual_solution = ctx.alloc(&clvm_list!(
+        let actual_solution = ctx.alloc(&clvm_tuple!(
             current_state_and_ephemeral,
             action_spend.solution
         ))?;
@@ -96,24 +103,39 @@ impl CatalogRegistry {
 
         let raw_action_hash = ctx.tree_hash(action_spend.puzzle);
 
-        if raw_action_hash == register_hash {
-            spent_slots.extend(register_action.spent_slot_values(ctx, action_spend.solution)?);
+        let log = if raw_action_hash == register_hash {
+            let action_log = CatalogActionLog::Register(CatalogRegisterAction::get_log(
+                ctx,
+                action_spend.solution,
+                state.registration_price,
+            )?);
+            action_log.extend_spent_slots(&mut spent_slots);
+            action_log.extend_created_slots(&mut created_slots);
 
-            created_slots.extend(register_action.created_slot_values(ctx, action_spend.solution)?);
+            action_log
         } else if raw_action_hash == refund_hash {
-            if let (Some(spent_slot), Some(created_slot)) = (
-                refund_action.spent_slot_value(ctx, action_spend.solution)?,
-                refund_action.created_slot_value(ctx, action_spend.solution)?,
-            ) {
-                spent_slots.push(spent_slot);
-                created_slots.push(created_slot);
-            }
-        } else if raw_action_hash != delegated_state_hash {
-            // delegated state action has no effect on slots
-            return Err(DriverError::InvalidMerkleProof);
-        }
+            let action_log = CatalogActionLog::Refund(CatalogRefundAction::get_log(
+                ctx,
+                action_spend.solution,
+                state,
+            )?);
+            action_log.extend_spent_slots(&mut spent_slots);
+            action_log.extend_created_slots(&mut created_slots);
+            action_log
+        } else if raw_action_hash == delegated_state_hash {
+            let sol = ctx.extract::<DelegatedStateActionSolution<CatalogRegistryState>>(
+                action_spend.solution,
+            )?;
 
-        Ok((new_state_and_ephemeral, created_slots, spent_slots))
+            CatalogActionLog::DelegatedState(CatalogDelegatedStateActionLog {
+                old_state: current_state_and_ephemeral.1,
+                new_state: sol.new_state,
+            })
+        } else {
+            return Err(DriverError::InvalidMerkleProof);
+        };
+
+        Ok((new_state_and_ephemeral, log, created_slots, spent_slots))
     }
 
     pub fn pending_info_from_spend(
@@ -121,9 +143,11 @@ impl CatalogRegistry {
         inner_solution: NodePtr,
         initial_state: CatalogRegistryState,
         constants: CatalogRegistryConstants,
+        signature: Signature,
     ) -> Result<CatalogPendingSpendInfo, DriverError> {
         let mut created_slots = vec![];
         let mut spent_slots = vec![];
+        let mut logs = vec![];
 
         let mut state_incl_ephemeral: (NodePtr, CatalogRegistryState) =
             (NodePtr::NIL, initial_state);
@@ -140,16 +164,18 @@ impl CatalogRegistry {
             )?;
 
             state_incl_ephemeral = res.0;
-            created_slots.extend(res.1);
-            spent_slots.extend(res.2);
+            logs.push(res.1);
+            created_slots.extend(res.2);
+            spent_slots.extend(res.3);
         }
 
         Ok(CatalogPendingSpendInfo {
             actions: inner_solution.action_spends,
             created_slots,
             spent_slots,
+            logs,
             latest_state: state_incl_ephemeral,
-            signature: Signature::default(),
+            signature,
         })
     }
 
@@ -161,21 +187,32 @@ impl CatalogRegistry {
         ctx: &mut SpendContext,
         spend: &CoinSpend,
         constants: CatalogRegistryConstants,
+        signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
+
+        if coin.amount != 1 {
+            return Ok(None);
+        }
+
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
         let puzzle = Puzzle::parse(ctx, puzzle_ptr);
-        let solution_ptr = ctx.alloc(&spend.solution)?;
 
         let Some(info) = CatalogRegistryInfo::parse(ctx, puzzle, constants)? else {
             return Ok(None);
         };
 
+        let solution_ptr = ctx.alloc(&spend.solution)?;
         let solution = ctx.extract::<SingletonSolution<NodePtr>>(solution_ptr)?;
         let proof = solution.lineage_proof;
 
-        let pending_spend =
-            Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
+        let pending_spend = Self::pending_info_from_spend(
+            ctx,
+            solution.inner_solution,
+            info.state,
+            constants,
+            signature,
+        )?;
 
         Ok(Some(CatalogRegistry {
             coin,
@@ -201,7 +238,8 @@ impl CatalogRegistry {
     where
         Self: Sized,
     {
-        let Some(parent_registry) = CatalogRegistry::from_spend(ctx, parent_spend, constants)?
+        let Some(parent_registry) =
+            CatalogRegistry::from_spend(ctx, parent_spend, constants, Signature::default())?
         else {
             return Ok(None);
         };
@@ -235,6 +273,59 @@ impl CatalogRegistry {
             info: new_info,
             pending_spend: CatalogPendingSpendInfo::new(new_info.state),
         }
+    }
+
+    pub fn from_mempool_item(
+        ctx: &mut SpendContext,
+        mempool_item: SpendBundle,
+        constants: CatalogRegistryConstants,
+    ) -> Result<Option<Self>, DriverError> {
+        let mut registry = None;
+
+        for spend in &mempool_item.coin_spends {
+            if let Some(parsed_registry) =
+                Self::from_spend(ctx, spend, constants, Signature::default())?
+            {
+                registry = Some(parsed_registry);
+                break;
+            }
+        }
+
+        let Some(mut registry) = registry else {
+            return Ok(None);
+        };
+
+        // find next child coin, if it exists
+        // amount != 0 makes sure we don't try to parse a slot
+        while let Some(registry_spend) = mempool_item
+            .coin_spends
+            .iter()
+            .find(|c| c.coin.amount != 0 && c.coin.parent_coin_info == registry.coin.coin_id())
+        {
+            let Some(new_registry) = Self::from_spend(
+                ctx,
+                registry_spend,
+                registry.info.constants,
+                Signature::default(),
+            )?
+            else {
+                break;
+            };
+
+            registry = new_registry;
+        }
+
+        // after everything is done, add all other spends to the context
+        for spend in mempool_item.coin_spends {
+            if spend.coin == registry.coin {
+                continue;
+            }
+
+            ctx.insert(spend);
+        }
+
+        registry.set_pending_signature(mempool_item.aggregated_signature);
+        Ok(Some(registry))
     }
 }
 
@@ -355,8 +446,9 @@ impl CatalogRegistry {
         )?;
 
         self.pending_spend.latest_state = res.0;
-        self.pending_spend.created_slots.extend(res.1);
-        self.pending_spend.spent_slots.extend(res.2);
+        self.pending_spend.logs.push(res.1);
+        self.pending_spend.created_slots.extend(res.2);
+        self.pending_spend.spent_slots.extend(res.3);
         self.pending_spend.actions.push(action_spend);
 
         Ok(())

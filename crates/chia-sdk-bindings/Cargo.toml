@@ -33,10 +33,10 @@ pyo3 = [
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0035"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true, features = ["serde"] }
-chia-sdk-types = { workspace = true }
+chia-sdk-types = { workspace = true, features = ["chip-0035"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }

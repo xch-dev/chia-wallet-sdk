@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     CatalogRegistry, CatalogRegistryConstants, DriverError, SingletonAction, Spend, SpendContext,
-    XchandlesConstants, XchandlesRegistry,
+    XchandlesConstants, XchandlesRegistry, XchandlesRegistryReceivedMessagePrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,10 +66,9 @@ impl DelegatedStateAction {
         .to_clvm(ctx)?;
         let my_puzzle = self.construct_puzzle(ctx)?;
 
-        let message: Bytes32 = ctx.tree_hash(state).into();
         let conds = Conditions::new().send_message(
             18,
-            message.into(),
+            XchandlesRegistryReceivedMessagePrefix::update_state(ctx.tree_hash(state)).into(),
             vec![ctx.alloc(&my_coin.puzzle_hash)?],
         );
         Ok((conds, Spend::new(my_puzzle, my_solution)))

@@ -1,34 +1,33 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
+use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{Mod, puzzles::CompactLineageProof};
 
-pub const SLOT_PUZZLE: [u8; 360] = hex!(
+pub const SLOT_PUZZLE: [u8; 311] = hex!(
+    // Rue
     "
-    ff02ffff01ff04ffff04ff08ffff04ffff30ff4fffff02ff1effff04ff02ffff
-    04ff05ffff04ff81afff8080808080ff82016f80ff808080ffff04ffff04ff0c
-    ffff04ffff0112ffff04ff80ffff04ffff02ff1effff04ff02ffff04ff05ffff
-    04ff3fff8080808080ff8080808080ff808080ffff04ffff01ffff4743ff02ff
-    ffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c77
-    85459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596
-    718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b23759d225
-    f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a9
-    1ce119a63400ade7c5ff0bff56ffff0bff0affff0bff0aff66ff0980ffff0bff
-    0affff0bff76ffff0bff0affff0bff0aff66ff0d80ffff0bff0affff0bff76ff
-    ff0bff0affff0bff0aff66ff0b80ffff0bff0aff66ff46808080ff46808080ff
-    46808080ff018080
+    ff02ffff01ff04ffff04ffff0147ffff04ffff30ff4fffff02ff04ffff04ff06
+    ffff04ff05ff81af808080ff81ef80ff808080ffff04ffff04ffff0143ffff04
+    ffff0112ffff04ff80ffff04ffff02ff04ffff04ff06ffff04ff05ff3f808080
+    ff8080808080ff808080ffff04ffff04ffff01ff0bffff0102ffff0bffff0182
+    010280ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0980ffff
+    0bffff0102ffff02ff02ffff04ff02ffff04ff0dffff04ff07ff8080808080ff
+    ff0bffff010180808080ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0b
+    ffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff
+    0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff01018080
+    8080ffff01ff0bffff018201018080ff018080ff018080
     "
 );
 
 pub const SLOT_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    2d55c0904da19dfb06ccdfb9b6ee3e4117e5856b573c9e5f495a5cdeab35ab51
+    8ab9f3b57a65d7f7a0810f79f7bc1e96bda680d16dd6f51d51e868e13fc7bbb3
     "
 ));
 
@@ -73,7 +72,7 @@ pub struct Slot2ndCurryArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SlotSolution {
-    pub lineage_proof: LineageProof,
+    pub lineage_proof: CompactLineageProof,
     #[clvm(rest)]
     pub spender_inner_puzzle_hash: Bytes32,
 }

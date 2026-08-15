@@ -1,6 +1,7 @@
 {
   "entrypoint": "chia_sdk_bindings",
   "pymodule": "chia_wallet_sdk",
+  "wasm_custom_typescript": "export type RewardDistributorActionLogValue =\n  | (RewardDistributorActionLog & { kind: \"AddEntry\"; addEntry: RewardDistributorAddEntryActionLog })\n  | (RewardDistributorActionLog & { kind: \"RemoveEntry\"; removeEntry: RewardDistributorRemoveEntryActionLog })\n  | (RewardDistributorActionLog & { kind: \"AddIncentives\"; addIncentives: RewardDistributorAddIncentivesActionLog })\n  | (RewardDistributorActionLog & { kind: \"CommitIncentives\"; commitIncentives: RewardDistributorCommitIncentivesActionLog })\n  | (RewardDistributorActionLog & { kind: \"InitiatePayout\"; initiatePayout: RewardDistributorInitiatePayoutActionLog })\n  | (RewardDistributorActionLog & { kind: \"NewEpoch\"; newEpoch: RewardDistributorNewEpochActionLog })\n  | (RewardDistributorActionLog & { kind: \"Sync\"; sync: RewardDistributorSyncActionLog })\n  | (RewardDistributorActionLog & { kind: \"WithdrawIncentives\"; withdrawIncentives: RewardDistributorWithdrawIncentivesActionLog })\n  | (RewardDistributorActionLog & { kind: \"RefreshNftsFromDl\"; refreshNftsFromDl: RewardDistributorRefreshNftsFromDlActionLog })\n  | (RewardDistributorActionLog & { kind: \"Stake\"; stake: RewardDistributorStakeActionLog })\n  | (RewardDistributorActionLog & { kind: \"Unstake\"; unstake: RewardDistributorUnstakeActionLog });",
   "type_groups": {
     "{bytes}": [
       "Vec<u8>",
@@ -14,7 +15,7 @@
       "TreeHash",
       "SerializedProgram"
     ],
-    "{bigint}": ["u64", "u128", "BigInt"],
+    "{bigint}": ["u64", "u128", "i64", "BigInt"],
     "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"],
     "{usize}": ["usize"]
   },
@@ -42,6 +43,7 @@
     "f64": "number",
     "bool": "boolean",
     "String": "string",
+    "Vec<RewardDistributorActionLog>": "RewardDistributorActionLogValue[]",
     "()": "void",
     "Vec<Bytes32>": "Uint8Array[]",
     "Vec<Bytes>": "Uint8Array[]",
@@ -104,6 +106,7 @@
     "Softfork",
     "Pair",
     "NftMetadata",
+    "HandleNftMetadata",
     "CurriedProgram",
     "MipsMemo",
     "InnerPuzzleMemo",
@@ -117,7 +120,7 @@
     "TransferNft",
     "RunCatTail",
     "UpdateNftMetadata",
-    "UpdateDataStoreMerkleRoot",
+    "UpdateDatastoreMerkleRoot",
     "OptionMetadata",
     "NotarizedPayment",
     "Payment"

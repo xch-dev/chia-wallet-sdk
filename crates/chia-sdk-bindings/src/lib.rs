@@ -15,11 +15,13 @@ mod bls;
 mod clvm;
 mod clvm_types;
 mod coin;
+mod compact_representation;
 mod conditions;
 mod constants;
 mod convert;
 mod full_node_simulator;
 mod key_pairs;
+mod merkle_tree;
 mod mips;
 mod mnemonic;
 mod offer;
@@ -37,10 +39,12 @@ pub use bls::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
+pub use compact_representation::*;
 pub use conditions::*;
 pub use constants::*;
 pub use full_node_simulator::*;
 pub use key_pairs::*;
+pub use merkle_tree::*;
 pub use mips::*;
 pub use mnemonic::*;
 pub use offer::*;
@@ -75,16 +79,29 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, Delta, MedievalVaultHint,
+    Bulletin, BulletinMessage, Cat, CatInfo, CatalogRegistryConstants, CatalogRegistryState,
+    Clawback, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta, MedievalVaultHint,
     MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
-    P2ParentCoin, RewardDistributorConstants, RewardDistributorState, RewardDistributorType,
+    P2ParentCoin, RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
+    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
+    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
+    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
     RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
+    XchandlesConstants, XchandlesRegistryState,
 };
+pub use chia_sdk_types::puzzles::HandleNftMetadata;
+pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
 pub use chia_sdk_types::{
+    MerkleProof,
     conditions::TradePrice,
     puzzles::{
-        IntermediaryCoinProof, NftLauncherProof, RewardDistributorCommitmentSlotValue,
-        RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
+        CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
+        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
+        RewardDistributorRewardSlotValue, SlotNeigborsInfo, XchandlesHandleSlotValue,
+        XchandlesUpdateSlotValue,
     },
 };
 

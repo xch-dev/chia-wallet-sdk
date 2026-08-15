@@ -136,6 +136,15 @@
         },
         "return": "Vec<Cat>"
       },
+      "spend_p2_next_reward_distributor_epoch": {
+        "args": {
+          "cat": "Cat",
+          "info": "P2NextRewardDistributorEpochCoinInfo",
+          "next_epoch_start": "u64",
+          "reward_distributor_inner_puzzle_hash": "Bytes32"
+        },
+        "return": "CatSpend"
+      },
       "mint_nfts": {
         "args": {
           "parent_coin_id": "Bytes32",
@@ -149,6 +158,22 @@
           "inner_spend": "Spend"
         },
         "return": "Nft"
+      },
+      "mint_datastore": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "metadata": "DatastoreMetadata",
+          "owner_puzzle_hash": "Bytes32",
+          "delegated_puzzles": "Vec<DelegatedPuzzle>"
+        },
+        "return": "MintedDatastore"
+      },
+      "datastore_from_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "delegated_puzzles": "Option<Vec<DelegatedPuzzle>>"
+        },
+        "return": "Option<Datastore>"
       },
       "create_eve_did": {
         "args": {
@@ -204,6 +229,12 @@
       "nft_metadata": {
         "args": {
           "value": "NftMetadata"
+        },
+        "return": "Program"
+      },
+      "handle_nft_metadata": {
+        "args": {
+          "value": "HandleNftMetadata"
         },
         "return": "Program"
       },
@@ -502,7 +533,7 @@
         },
         "return": "Program"
       },
-      "update_data_store_merkle_root": {
+      "update_datastore_merkle_root": {
         "args": {
           "new_merkle_root": "Bytes32",
           "memos": "Vec<Bytes>"
@@ -548,7 +579,7 @@
       },
       "medieval_vault_send_message_delegated_puzzle": {
         "args": {
-          "message": "Bytes",
+          "prefix_and_message": "Bytes",
           "receiver_launcher_id": "Bytes32",
           "my_coin": "Coin",
           "my_info": "MedievalVaultInfo",
@@ -592,9 +623,93 @@
         },
         "return": "RewardDistributorLaunchResult"
       },
+      "reward_distributor_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "catalog_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "launch_catalog_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_registration_price": "u64",
+          "constants": "CatalogRegistryConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "CatalogRegistryLaunchResult"
+      },
+      "xchandles_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "launch_xchandles_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_base_registration_price": "u64",
+          "initial_registration_period": "u64",
+          "constants": "XchandlesConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "XchandlesRegistryLaunchResult"
+      },
       "create_offer_security_coin": {
         "args": {
           "offer": "SpendBundle"
+        },
+        "return": "OfferSecurityCoinDetails"
+      },
+      "create_security_coin_with_pk": {
+        "args": {
+          "xch_settlement_coin": "Coin",
+          "public_key": "PublicKey"
+        },
+        "return": "Coin"
+      },
+      "create_offer_security_coin_with_key": {
+        "args": {
+          "offer": "SpendBundle",
+          "security_coin_sk": "SecretKey"
         },
         "return": "OfferSecurityCoinDetails"
       },
@@ -628,6 +743,23 @@
           "nft_launcher_id": "Bytes32"
         },
         "return": "Option<Nft>"
+      },
+      "spend_settlement_cats": {
+        "args": {
+          "offer": "SpendBundle",
+          "asset_id": "Bytes32",
+          "nonce": "Bytes32",
+          "payments": "Vec<Payment>"
+        },
+        "return": "SpendSettlementCatsResult"
+      },
+      "state_scheduler_layer": {
+        "args": {
+          "receiver_singleton_struct_hash": "Bytes32",
+          "prefix_and_message": "Bytes",
+          "inner_puzzle": "Program"
+        },
+        "return": "Program"
       }
     }
   }

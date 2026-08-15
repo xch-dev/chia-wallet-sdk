@@ -8,28 +8,25 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REVOCABLE_CAT_MAKER_PUZZLE: [u8; 419] = hex!(
+pub const REVOCABLE_CAT_MAKER_PUZZLE: [u8; 295] = hex!(
+    // Rue
     "
-    ff02ffff01ff0bff16ffff0bff04ffff0bff04ff1aff0980ffff0bff04ffff0b
-    ff1effff0bff04ffff0bff04ff1affff0bffff0101ff098080ffff0bff04ffff
-    0bff1effff0bff04ffff0bff04ff1aff0b80ffff0bff04ffff0bff1effff0bff
-    04ffff0bff04ff1affff0bff16ffff0bff04ffff0bff04ff1aff1580ffff0bff
-    04ffff0bff1effff0bff04ffff0bff04ff1affff0bffff0101ff158080ffff0b
-    ff04ffff0bff1effff0bff04ffff0bff04ff1aff1d80ffff0bff04ffff0bff1e
-    ffff0bff04ffff0bff04ff1affff0bffff0101ff178080ffff0bff04ff1aff12
-    808080ff12808080ff12808080ff1280808080ffff0bff04ff1aff12808080ff
-    12808080ff12808080ff12808080ffff04ffff01ff02ffffa04bf5122f344554
-    c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f3
-    2623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871
-    fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8
-    d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ff
-    018080
+    ff02ffff01ff02ff04ffff04ff06ffff04ff09ffff04ffff0bffff0101ff0980
+    ffff04ff0bffff04ffff02ff04ffff04ff06ffff04ff15ffff04ffff0bffff01
+    01ff1580ffff04ff1dffff04ffff0bffff0101ff1780ff80808080808080ff80
+    808080808080ffff04ffff04ffff01ff0bffff0102ffff0bffff0182010280ff
+    ff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff01
+    02ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff02ff
+    ff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff
+    0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff
+    04ff02ff078080ffff0bffff010180808080ffff01ff0bffff018201018080ff
+    018080ff018080
     "
 );
 
 pub const REVOCABLE_CAT_MAKER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    040753f82d91f7d6640cbd1ca0a53a5988a423808198725603eaf0db3280703b
+    f1b280e985d067fa79a86eca600d8fe9ca62bf2eaa5346a6ddaf23c7773ee955
     "
 ));
 

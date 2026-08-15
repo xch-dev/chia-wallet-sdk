@@ -7,34 +7,30 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::ACTION_LAYER_PUZZLE_HASH};
 
-pub const DEFAULT_FINALIZER_PUZZLE: [u8; 617] = hex!(
+pub const DEFAULT_FINALIZER_PUZZLE: [u8; 494] = hex!(
     "
-    ff02ffff01ff04ffff04ff10ffff04ffff02ff12ffff04ff02ffff04ff05ffff
-    04ffff02ff12ffff04ff02ffff04ff17ffff04ffff0bffff0101ff1780ff8080
-    808080ffff04ffff0bffff0101ff2f80ffff04ffff02ff1effff04ff02ffff04
-    ff82033fff80808080ff80808080808080ffff04ffff0101ffff04ffff04ff0b
-    ff8080ff8080808080ffff02ff1affff04ff02ffff04ff8201bfff8080808080
-    ffff04ffff01ffffff3302ffff02ffff03ff05ffff01ff0bff7cffff02ff16ff
-    ff04ff02ffff04ff09ffff04ffff02ff14ffff04ff02ffff04ff0dff80808080
-    ff808080808080ffff016c80ff0180ffffa04bf5122f344554c53bde2ebb8cd2
-    b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124c
-    eb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb861929
-    1eaea194581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471eb
-    cb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffffff0bff5cffff
-    02ff16ffff04ff02ffff04ff05ffff04ffff02ff14ffff04ff02ffff04ff07ff
-    80808080ff808080808080ff02ffff03ff09ffff01ff04ff11ffff02ff1affff
-    04ff02ffff04ffff04ff19ff0d80ff8080808080ffff01ff02ffff03ff0dffff
-    01ff02ff1affff04ff02ffff04ff0dff80808080ff8080ff018080ff0180ffff
-    0bff18ffff0bff18ff6cff0580ffff0bff18ff0bff4c8080ff02ffff03ffff07
-    ff0580ffff01ff0bffff0102ffff02ff1effff04ff02ffff04ff09ff80808080
-    ffff02ff1effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff05
-    8080ff0180ff018080
+    ff02ffff01ff04ffff04ffff0133ffff04ffff02ff0affff04ff0effff04ff05
+    ffff04ffff02ff0affff04ff0effff04ff17ffff04ffff0bffff0101ff1780ff
+    8080808080ffff04ffff0bffff0101ff4f80ffff04ffff02ff0cffff04ff0cff
+    82019f8080ff80808080808080ffff04ffff0101ffff04ffff04ff0bff8080ff
+    8080808080ffff02ff08ffff04ff08ff81df808080ffff04ffff04ffff04ffff
+    01ff02ffff03ff05ffff01ff04ff09ffff02ff02ffff04ff02ffff04ff0dff07
+    80808080ffff01ff02ffff03ff07ffff01ff02ff02ffff04ff02ff078080ffff
+    018080ff018080ff0180ffff01ff02ffff03ffff07ff0380ffff01ff0bffff01
+    02ffff02ff02ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff
+    01ff0bffff0101ff038080ff018080ffff04ffff01ff0bffff0102ffff0bffff
+    0182010280ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580
+    ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080
+    ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0b
+    ffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ff
+    ff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff01
+    8201018080ff01808080ff018080
     "
 );
 
 pub const DEFAULT_FINALIZER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    34b1f957ca3ba935921c32625cd432316ae71344977d96b4ffc5243c7d08d781
+    9d274de59aeaa128d1b0a802b52911838420ef9720d605c78942e8dadfc0810b
     "
 ));
 

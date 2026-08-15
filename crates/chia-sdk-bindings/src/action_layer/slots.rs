@@ -2,13 +2,10 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::Slot;
-use chia_sdk_types::puzzles::{
-    RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
-    RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, SlotInfo,
-};
+use chia_sdk_types::puzzles::SlotInfo;
 use clvm_utils::ToTreeHash;
 
-macro_rules! define_reward_distributor_slot {
+macro_rules! define_slot {
     ($name:ident, $value_ty:ty, $nonce:expr, $ext_trait:ident) => {
         pub trait $ext_trait {}
 
@@ -33,12 +30,7 @@ macro_rules! define_reward_distributor_slot {
             ) -> Result<Self> {
                 let slot = Slot::new(
                     proof,
-                    SlotInfo::new(
-                        launcher_id,
-                        $nonce.to_u64(),
-                        value.tree_hash().into(),
-                        value,
-                    ),
+                    SlotInfo::new(launcher_id, $nonce, value.tree_hash().into(), value),
                 );
 
                 Ok(Self::from_slot(slot))
@@ -73,23 +65,44 @@ macro_rules! define_reward_distributor_slot {
     };
 }
 
-define_reward_distributor_slot!(
+define_slot!(
     RewardSlot,
-    RewardDistributorRewardSlotValue,
-    RewardDistributorSlotNonce::REWARD,
+    chia_sdk_types::puzzles::RewardDistributorRewardSlotValue,
+    chia_sdk_types::puzzles::RewardDistributorSlotNonce::REWARD.to_u64(),
     RewardDistributorRewardSlotValueExt
 );
 
-define_reward_distributor_slot!(
+define_slot!(
     CommitmentSlot,
-    RewardDistributorCommitmentSlotValue,
-    RewardDistributorSlotNonce::COMMITMENT,
+    chia_sdk_types::puzzles::RewardDistributorCommitmentSlotValue,
+    chia_sdk_types::puzzles::RewardDistributorSlotNonce::COMMITMENT.to_u64(),
     RewardDistributorCommitmentSlotValueExt
 );
 
-define_reward_distributor_slot!(
+define_slot!(
     EntrySlot,
-    RewardDistributorEntrySlotValue,
-    RewardDistributorSlotNonce::ENTRY,
+    chia_sdk_types::puzzles::RewardDistributorEntrySlotValue,
+    chia_sdk_types::puzzles::RewardDistributorSlotNonce::ENTRY.to_u64(),
     RewardDistributorEntrySlotValueExt
+);
+
+define_slot!(
+    CatalogSlot,
+    chia_sdk_types::puzzles::CatalogSlotValue,
+    0u64,
+    CatalogSlotValueRemoteExt
+);
+
+define_slot!(
+    XchandlesHandleSlot,
+    chia_sdk_types::puzzles::XchandlesHandleSlotValue,
+    chia_sdk_types::puzzles::XchandlesSlotNonce::HANDLE.to_u64(),
+    XchandlesHandleSlotValueRemoteExt
+);
+
+define_slot!(
+    XchandlesUpdateSlot,
+    chia_sdk_types::puzzles::XchandlesUpdateSlotValue,
+    chia_sdk_types::puzzles::XchandlesSlotNonce::UPDATE.to_u64(),
+    XchandlesUpdateSlotValueRemoteExt
 );

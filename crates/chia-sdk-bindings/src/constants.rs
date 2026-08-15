@@ -135,4 +135,6 @@ puzzle_constants! {
     m_of_n => M_OF_N,
     n_of_n => N_OF_N,
     one_of_n => ONE_OF_N,
+    any_metadata_updater => ANY_METADATA_UPDATER,
+    state_scheduler_puzzle => STATE_SCHEDULER_PUZZLE,
 }
