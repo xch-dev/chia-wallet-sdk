@@ -292,6 +292,8 @@ impl FullNodeSimulator {
             .iter()
             .map(|block| block.record.header_hash)
             .collect::<Vec<_>>();
+        let replacement_block_count =
+            num_of_new_blocks.saturating_add(u32::try_from(reverted.len()).unwrap());
 
         for block in reverted {
             self.orphaned_blocks.insert(block.record.header_hash, block);
@@ -299,7 +301,7 @@ impl FullNodeSimulator {
 
         let mut records = Vec::new();
         let mut new_header_hashes = Vec::new();
-        for _ in 0..num_of_new_blocks {
+        for _ in 0..replacement_block_count {
             let record = self.create_block_from_mempool();
             new_header_hashes.push(record.header_hash);
             records.push(record);

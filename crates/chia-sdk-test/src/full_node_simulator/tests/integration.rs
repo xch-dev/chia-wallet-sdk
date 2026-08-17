@@ -383,9 +383,9 @@ fn reorg_replaces_peak_and_emits_reorg() {
         .unwrap();
 
     let new_blocks = sim.reorg_blocks(1, 2);
-    assert_eq!(new_blocks.len(), 2);
+    assert_eq!(new_blocks.len(), 3);
     assert_ne!(sim.header_hash(), old_peak);
-    assert_eq!(sim.height(), 4);
+    assert_eq!(sim.height(), 5);
     assert!(
         sim.get_coin_record_by_name(old_reward.coin_id())
             .coin_record
@@ -433,7 +433,7 @@ fn reorg_does_not_requeue_reverted_transactions() -> anyhow::Result<()> {
 
     let replacement = sim.reorg_blocks(1, 1);
 
-    assert_eq!(replacement.len(), 1);
+    assert_eq!(replacement.len(), 2);
     assert!(
         !sim.get_coin_record_by_name(coin.coin_id())
             .coin_record
@@ -464,17 +464,15 @@ fn reorg_does_not_requeue_multiblock_parent_child() -> anyhow::Result<()> {
 
     let replacement = sim.reorg_blocks(2, 0);
 
-    assert!(replacement.is_empty());
+    assert_eq!(replacement.len(), 2);
     assert!(sim.mempool.is_empty());
 
-    let replacement = sim.farm_block(1);
-    assert_eq!(
-        sim.get_block_spends(replacement[0].header_hash)
+    assert!(replacement.iter().all(|block| {
+        sim.get_block_spends(block.header_hash)
             .block_spends
             .unwrap()
-            .len(),
-        0
-    );
+            .is_empty()
+    }));
     assert!(
         sim.get_coin_record_by_name(child.coin_id())
             .coin_record
