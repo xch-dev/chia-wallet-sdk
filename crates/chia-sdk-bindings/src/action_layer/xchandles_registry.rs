@@ -650,7 +650,7 @@ impl XchandlesRegistry {
     }
 
     pub fn state(&self) -> Result<XchandlesRegistryState> {
-        Ok(self.registry.lock().unwrap().info.state)
+        Ok(self.registry.lock().unwrap().pending_spend.latest_state.1)
     }
 
     pub fn constants(&self) -> Result<XchandlesConstants> {

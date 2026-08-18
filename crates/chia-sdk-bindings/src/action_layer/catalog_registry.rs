@@ -217,7 +217,7 @@ impl CatalogRegistry {
     }
 
     pub fn state(&self) -> Result<CatalogRegistryState> {
-        Ok(self.catalog.lock().unwrap().info.state)
+        Ok(self.catalog.lock().unwrap().pending_spend.latest_state.1)
     }
 
     pub fn constants(&self) -> Result<CatalogRegistryConstants> {
