@@ -79,18 +79,22 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatInfo, CatalogRegistryConstants, CatalogRegistryState,
-    Clawback, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta, MedievalVaultHint,
-    MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
-    P2ParentCoin, RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
-    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
-    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
-    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
-    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
-    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
-    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo,
-    XchandlesConstants, XchandlesRegistryState,
+    Bulletin, BulletinMessage, Cat, CatInfo, CatalogDelegatedStateActionLog,
+    CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
+    CatalogRegistryState, Clawback, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta,
+    MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType,
+    OptionUnderlying, P2ParentCoin, RewardDistributorAddEntryActionLog,
+    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
+    RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,
+    RewardDistributorNewEpochActionLog, RewardDistributorNftStakeEntry,
+    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
+    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
+    RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
+    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
+    StreamingPuzzleInfo, UriKind, VaultInfo, XchandlesConstants, XchandlesDelegatedStateActionLog,
+    XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
+    XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
+    XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -101,7 +105,7 @@ pub use chia_sdk_types::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
         RewardDistributorRewardSlotValue, SlotNeigborsInfo, XchandlesHandleSlotValue,
-        XchandlesUpdateSlotValue,
+        XchandlesPricingSolution, XchandlesUpdateSlotValue,
     },
 };
 

@@ -99,7 +99,6 @@ impl XchandlesRefundAction {
         let handle = solution.handle.clone();
         let precommit_value = XchandlesPrecommitValueLog::new(
             solution.precommited_cat_maker_and_solution.puzzle_hash,
-            (),
             solution.precommited_pricing_puzzle_and_solution.puzzle_hash,
             pricing_solution,
             handle,

@@ -6,10 +6,41 @@ use chia_sdk_types::puzzles::{
 use clvm_traits::FromClvm;
 use clvmr::NodePtr;
 
-use crate::{DriverError, SpendContext, XchandlesPrecommitValue, XchandlesRegistryState};
+use crate::{DriverError, SpendContext, XchandlesRegistryState};
 
-pub type XchandlesPrecommitValueLog =
-    XchandlesPrecommitValue<(), XchandlesPricingSolution, Bytes32>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XchandlesPrecommitValueLog {
+    pub cat_maker_hash: Bytes32,
+    pub pricing_puzzle_hash: Bytes32,
+    pub pricing_solution: XchandlesPricingSolution,
+    pub handle: String,
+    pub secret: Bytes32,
+    pub owner_launcher_id: Bytes32,
+    pub resolved_launcher_id: Bytes32,
+}
+
+impl XchandlesPrecommitValueLog {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        cat_maker_hash: Bytes32,
+        pricing_puzzle_hash: Bytes32,
+        pricing_solution: XchandlesPricingSolution,
+        handle: String,
+        secret: Bytes32,
+        owner_launcher_id: Bytes32,
+        resolved_launcher_id: Bytes32,
+    ) -> Self {
+        Self {
+            cat_maker_hash,
+            pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            secret,
+            owner_launcher_id,
+            resolved_launcher_id,
+        }
+    }
+}
 
 #[derive(FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]

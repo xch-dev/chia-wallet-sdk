@@ -119,6 +119,139 @@
       }
     }
   },
+  "XchandlesPricingSolution": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "buy_time": "u64",
+      "current_expiration": "u64",
+      "handle": "String",
+      "num_periods": "u64"
+    }
+  },
+  "XchandlesPrecommitValueLog": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "cat_maker_hash": "Bytes32",
+      "pricing_puzzle_hash": "Bytes32",
+      "pricing_solution": "XchandlesPricingSolution",
+      "handle": "String",
+      "secret": "Bytes32",
+      "owner_launcher_id": "Bytes32",
+      "resolved_launcher_id": "Bytes32"
+    }
+  },
+  "XchandlesOracleActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "XchandlesHandleSlotValue",
+      "created_slot": "XchandlesHandleSlotValue"
+    }
+  },
+  "XchandlesExtendActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "XchandlesHandleSlotValue",
+      "created_slot": "XchandlesHandleSlotValue",
+      "total_price": "u64",
+      "registered_time": "u64"
+    }
+  },
+  "XchandlesExpireActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "XchandlesHandleSlotValue",
+      "created_slot": "XchandlesHandleSlotValue",
+      "precommit_value": "XchandlesPrecommitValueLog",
+      "total_price": "u64",
+      "registered_time": "u64",
+      "owner_full_puzzle_hash": "Bytes32",
+      "resolved_full_puzzle_hash": "Option<Bytes32>",
+      "owner_inner_puzzle_hash": "Bytes32",
+      "resolved_inner_puzzle_hash": "Bytes32"
+    }
+  },
+  "XchandlesInitiateUpdateActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "XchandlesHandleSlotValue",
+      "created_handle_slot": "XchandlesHandleSlotValue",
+      "created_update_slot": "XchandlesUpdateSlotValue",
+      "initiator_coin_id": "Bytes32"
+    }
+  },
+  "XchandlesExecuteUpdateActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_handle_slot": "XchandlesHandleSlotValue",
+      "spent_update_slot": "XchandlesUpdateSlotValue",
+      "created_slot": "XchandlesHandleSlotValue",
+      "owner_coin_id": "Bytes32",
+      "owner_full_puzzle_hash": "Bytes32",
+      "resolved_full_puzzle_hash": "Option<Bytes32>",
+      "owner_inner_puzzle_hash": "Bytes32",
+      "resolved_inner_puzzle_hash": "Bytes32"
+    }
+  },
+  "XchandlesRefundActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "Option<XchandlesHandleSlotValue>",
+      "created_slot": "Option<XchandlesHandleSlotValue>",
+      "precommit_value": "XchandlesPrecommitValueLog",
+      "precommitted_total_price": "u64",
+      "precommitted_registered_time": "u64"
+    }
+  },
+  "XchandlesRegisterActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_left_slot": "XchandlesHandleSlotValue",
+      "spent_right_slot": "XchandlesHandleSlotValue",
+      "created_left_slot": "XchandlesHandleSlotValue",
+      "created_handle_slot": "XchandlesHandleSlotValue",
+      "created_right_slot": "XchandlesHandleSlotValue",
+      "precommit_value": "XchandlesPrecommitValueLog",
+      "total_price": "u64",
+      "registered_time": "u64",
+      "owner_full_puzzle_hash": "Bytes32",
+      "resolved_full_puzzle_hash": "Option<Bytes32>",
+      "owner_inner_puzzle_hash": "Bytes32",
+      "resolved_inner_puzzle_hash": "Bytes32"
+    }
+  },
+  "XchandlesDelegatedStateActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "old_state": "XchandlesRegistryState",
+      "new_state": "XchandlesRegistryState"
+    }
+  },
+  "XchandlesActionLog": {
+    "type": "class",
+    "fields": {
+      "kind": "String",
+      "oracle": "Option<XchandlesOracleActionLog>",
+      "extend": "Option<XchandlesExtendActionLog>",
+      "expire": "Option<XchandlesExpireActionLog>",
+      "initiate_update": "Option<XchandlesInitiateUpdateActionLog>",
+      "execute_update": "Option<XchandlesExecuteUpdateActionLog>",
+      "refund": "Option<XchandlesRefundActionLog>",
+      "register": "Option<XchandlesRegisterActionLog>",
+      "delegated_state": "Option<XchandlesDelegatedStateActionLog>"
+    }
+  },
   "XchandlesHandleSlot": {
     "type": "class",
     "fields": {
@@ -343,6 +476,9 @@
       },
       "pending_created_update_slots": {
         "return": "Vec<XchandlesUpdateSlot>"
+      },
+      "pending_logs": {
+        "return": "Vec<XchandlesActionLog>"
       },
       "pending_signature": {
         "return": "Signature"

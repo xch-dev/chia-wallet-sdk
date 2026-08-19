@@ -7,10 +7,14 @@ use chia_puzzle_types::{LineageProof, singleton::SingletonStruct, standard::Stan
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_driver::{
     DelegatedStateAction, HashedPtr, NftInfo, Offer, PrecommitCoin, SingletonInfo, SpendContext,
-    XchandlesConstants, XchandlesExecuteUpdateAction, XchandlesExpireAction,
-    XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesInitiateUpdateAction,
-    XchandlesOracleAction, XchandlesPrecommitValue as DriverXchandlesPrecommitValue,
-    XchandlesRefundAction, XchandlesRegisterAction, XchandlesRegistry as SdkXchandlesRegistry,
+    XchandlesActionLog as SdkXchandlesActionLog, XchandlesConstants,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateAction,
+    XchandlesExecuteUpdateActionLog, XchandlesExpireAction, XchandlesExpireActionLog,
+    XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesExtendActionLog,
+    XchandlesInitiateUpdateAction, XchandlesInitiateUpdateActionLog, XchandlesOracleAction,
+    XchandlesOracleActionLog, XchandlesPrecommitValue as DriverXchandlesPrecommitValue,
+    XchandlesRefundAction, XchandlesRefundActionLog, XchandlesRegisterAction,
+    XchandlesRegisterActionLog, XchandlesRegistry as SdkXchandlesRegistry,
     XchandlesRegistryReceivedMessagePrefix, XchandlesRegistryState,
     launch_xchandles_registry as driver_launch_xchandles_registry,
 };
@@ -635,6 +639,72 @@ pub struct XchandlesRegistryActualNeighborsResult {
 }
 
 #[derive(Clone)]
+pub struct XchandlesActionLog {
+    pub kind: String,
+    pub oracle: Option<XchandlesOracleActionLog>,
+    pub extend: Option<XchandlesExtendActionLog>,
+    pub expire: Option<XchandlesExpireActionLog>,
+    pub initiate_update: Option<XchandlesInitiateUpdateActionLog>,
+    pub execute_update: Option<XchandlesExecuteUpdateActionLog>,
+    pub refund: Option<XchandlesRefundActionLog>,
+    pub register: Option<XchandlesRegisterActionLog>,
+    pub delegated_state: Option<XchandlesDelegatedStateActionLog>,
+}
+
+impl From<SdkXchandlesActionLog> for XchandlesActionLog {
+    fn from(log: SdkXchandlesActionLog) -> Self {
+        let mut result = Self {
+            kind: String::new(),
+            oracle: None,
+            extend: None,
+            expire: None,
+            initiate_update: None,
+            execute_update: None,
+            refund: None,
+            register: None,
+            delegated_state: None,
+        };
+
+        match log {
+            SdkXchandlesActionLog::Oracle(payload) => {
+                result.kind = "Oracle".to_string();
+                result.oracle = Some(payload);
+            }
+            SdkXchandlesActionLog::Extend(payload) => {
+                result.kind = "Extend".to_string();
+                result.extend = Some(payload);
+            }
+            SdkXchandlesActionLog::Expire(payload) => {
+                result.kind = "Expire".to_string();
+                result.expire = Some(payload);
+            }
+            SdkXchandlesActionLog::InitiateUpdate(payload) => {
+                result.kind = "InitiateUpdate".to_string();
+                result.initiate_update = Some(payload);
+            }
+            SdkXchandlesActionLog::ExecuteUpdate(payload) => {
+                result.kind = "ExecuteUpdate".to_string();
+                result.execute_update = Some(payload);
+            }
+            SdkXchandlesActionLog::Refund(payload) => {
+                result.kind = "Refund".to_string();
+                result.refund = Some(payload);
+            }
+            SdkXchandlesActionLog::Register(payload) => {
+                result.kind = "Register".to_string();
+                result.register = Some(payload);
+            }
+            SdkXchandlesActionLog::DelegatedState(payload) => {
+                result.kind = "DelegatedState".to_string();
+                result.delegated_state = Some(payload);
+            }
+        }
+
+        result
+    }
+}
+
+#[derive(Clone)]
 pub struct XchandlesRegistry {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) registry: Arc<Mutex<SdkXchandlesRegistry>>,
@@ -694,6 +764,19 @@ impl XchandlesRegistry {
                     registry.created_update_slot_value_to_slot(slot_value),
                 )
             })
+            .collect())
+    }
+
+    pub fn pending_logs(&self) -> Result<Vec<XchandlesActionLog>> {
+        Ok(self
+            .registry
+            .lock()
+            .unwrap()
+            .pending_spend
+            .logs
+            .clone()
+            .into_iter()
+            .map(Into::into)
             .collect())
     }
 
@@ -1627,5 +1710,168 @@ mod registration_helpers_tests {
         )
         .unwrap();
         assert_ne!(register, expire);
+    }
+
+    fn b32(n: u8) -> Bytes32 {
+        Bytes32::new([n; 32])
+    }
+
+    fn handle_slot(n: u8) -> XchandlesHandleSlotValue {
+        XchandlesHandleSlotValue::new(
+            n.into(),
+            b32(n),
+            b32(n.wrapping_add(1)),
+            b32(n.wrapping_add(2)),
+            1_000,
+            b32(n.wrapping_add(3)),
+            b32(n.wrapping_add(4)),
+        )
+    }
+
+    fn precommit_log() -> crate::XchandlesPrecommitValueLog {
+        crate::XchandlesPrecommitValueLog::new(
+            b32(1),
+            b32(2),
+            XchandlesPricingSolution {
+                buy_time: 10,
+                current_expiration: 0,
+                handle: "alice".into(),
+                num_periods: 1,
+            },
+            "alice".into(),
+            b32(3),
+            b32(4),
+            b32(5),
+        )
+    }
+
+    fn assert_only_xchandles_kind(log: &XchandlesActionLog, kind: &str) {
+        assert_eq!(log.kind, kind);
+        assert_eq!(log.oracle.is_some(), kind == "Oracle");
+        assert_eq!(log.extend.is_some(), kind == "Extend");
+        assert_eq!(log.expire.is_some(), kind == "Expire");
+        assert_eq!(log.initiate_update.is_some(), kind == "InitiateUpdate");
+        assert_eq!(log.execute_update.is_some(), kind == "ExecuteUpdate");
+        assert_eq!(log.refund.is_some(), kind == "Refund");
+        assert_eq!(log.register.is_some(), kind == "Register");
+        assert_eq!(log.delegated_state.is_some(), kind == "DelegatedState");
+    }
+
+    #[test]
+    fn xchandles_action_log_from_sets_kind_and_only_matching_payload() {
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::Oracle(XchandlesOracleActionLog {
+                spent_slot: handle_slot(1),
+                created_slot: handle_slot(2),
+            })),
+            "Oracle",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::Extend(XchandlesExtendActionLog {
+                spent_slot: handle_slot(1),
+                created_slot: handle_slot(2),
+                total_price: 3,
+                registered_time: 4,
+            })),
+            "Extend",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::Expire(XchandlesExpireActionLog {
+                spent_slot: handle_slot(1),
+                created_slot: handle_slot(2),
+                precommit_value: precommit_log(),
+                total_price: 3,
+                registered_time: 4,
+                owner_full_puzzle_hash: b32(5),
+                resolved_full_puzzle_hash: None,
+                owner_inner_puzzle_hash: b32(6),
+                resolved_inner_puzzle_hash: b32(7),
+            })),
+            "Expire",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::InitiateUpdate(
+                XchandlesInitiateUpdateActionLog {
+                    spent_slot: handle_slot(1),
+                    created_handle_slot: handle_slot(2),
+                    created_update_slot: XchandlesUpdateSlotValue::new(
+                        b32(3),
+                        4,
+                        b32(5),
+                        b32(6),
+                        b32(7),
+                    ),
+                    initiator_coin_id: b32(8),
+                },
+            )),
+            "InitiateUpdate",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::ExecuteUpdate(
+                XchandlesExecuteUpdateActionLog {
+                    spent_handle_slot: handle_slot(1),
+                    spent_update_slot: XchandlesUpdateSlotValue::new(
+                        b32(2),
+                        3,
+                        b32(4),
+                        b32(5),
+                        b32(6),
+                    ),
+                    created_slot: handle_slot(7),
+                    owner_coin_id: b32(8),
+                    owner_full_puzzle_hash: b32(9),
+                    resolved_full_puzzle_hash: Some(b32(10)),
+                    owner_inner_puzzle_hash: b32(11),
+                    resolved_inner_puzzle_hash: b32(12),
+                },
+            )),
+            "ExecuteUpdate",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::Refund(XchandlesRefundActionLog {
+                spent_slot: None,
+                created_slot: None,
+                precommit_value: precommit_log(),
+                precommitted_total_price: 1,
+                precommitted_registered_time: 2,
+            })),
+            "Refund",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::Register(
+                XchandlesRegisterActionLog {
+                    spent_left_slot: handle_slot(1),
+                    spent_right_slot: handle_slot(2),
+                    created_left_slot: handle_slot(3),
+                    created_handle_slot: handle_slot(4),
+                    created_right_slot: handle_slot(5),
+                    precommit_value: precommit_log(),
+                    total_price: 6,
+                    registered_time: 7,
+                    owner_full_puzzle_hash: b32(8),
+                    resolved_full_puzzle_hash: None,
+                    owner_inner_puzzle_hash: b32(9),
+                    resolved_inner_puzzle_hash: b32(10),
+                },
+            )),
+            "Register",
+        );
+        assert_only_xchandles_kind(
+            &XchandlesActionLog::from(SdkXchandlesActionLog::DelegatedState(
+                XchandlesDelegatedStateActionLog {
+                    old_state: XchandlesRegistryState {
+                        cat_maker_puzzle_hash: b32(1),
+                        pricing_puzzle_hash: b32(2),
+                        expired_handle_pricing_puzzle_hash: b32(3),
+                    },
+                    new_state: XchandlesRegistryState {
+                        cat_maker_puzzle_hash: b32(4),
+                        pricing_puzzle_hash: b32(5),
+                        expired_handle_pricing_puzzle_hash: b32(6),
+                    },
+                },
+            )),
+            "DelegatedState",
+        );
     }
 }
