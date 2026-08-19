@@ -25,6 +25,9 @@
           "left_asset_id": "Bytes32",
           "right_asset_id": "Bytes32"
         }
+      },
+      "value_hash": {
+        "return": "Bytes32"
       }
     }
   },
@@ -58,6 +61,51 @@
     "fields": {
       "cat_maker_puzzle_hash": "Bytes32",
       "registration_price": "u64"
+    }
+  },
+  "CatalogRegisterActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_left_slot": "CatalogSlotValue",
+      "spent_right_slot": "CatalogSlotValue",
+      "created_left_slot": "CatalogSlotValue",
+      "created_tail_slot": "CatalogSlotValue",
+      "created_right_slot": "CatalogSlotValue",
+      "prelauncher_full_puzzle_hash": "Bytes32",
+      "prelauncher_id": "Bytes32",
+      "launcher_id": "Bytes32",
+      "registered_tail_hash": "Bytes32",
+      "registered_initial_inner_puzzle_hash": "Bytes32",
+      "precommit_amount": "u64"
+    }
+  },
+  "CatalogRefundActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "spent_slot": "Option<CatalogSlotValue>",
+      "created_slot": "Option<CatalogSlotValue>",
+      "registered_tail_hash": "Bytes32",
+      "registered_initial_inner_puzzle_hash": "Bytes32",
+      "precommit_amount": "u64"
+    }
+  },
+  "CatalogDelegatedStateActionLog": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "old_state": "CatalogRegistryState",
+      "new_state": "CatalogRegistryState"
+    }
+  },
+  "CatalogActionLog": {
+    "type": "class",
+    "fields": {
+      "kind": "String",
+      "register": "Option<CatalogRegisterActionLog>",
+      "refund": "Option<CatalogRefundActionLog>",
+      "delegated_state": "Option<CatalogDelegatedStateActionLog>"
     }
   },
   "CatalogRegistryConstants": {
@@ -178,8 +226,17 @@
       "puzzle_hash": {
         "return": "TreeHash"
       },
+      "child": {
+        "return": "CatalogRegistry"
+      },
       "pending_created_slots": {
         "return": "Vec<CatalogSlot>"
+      },
+      "pending_spent_slots": {
+        "return": "Vec<CatalogSlotValue>"
+      },
+      "pending_logs": {
+        "return": "Vec<CatalogActionLog>"
       },
       "pending_signature": {
         "return": "Signature"

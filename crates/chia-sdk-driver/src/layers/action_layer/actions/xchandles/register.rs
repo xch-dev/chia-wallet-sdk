@@ -164,7 +164,6 @@ impl XchandlesRegisterAction {
             .into();
         let precommit_value = XchandlesPrecommitValueLog::new(
             cat_maker_puzzle_hash,
-            (),
             pricing_puzzle_hash,
             pricing_solution,
             handle,

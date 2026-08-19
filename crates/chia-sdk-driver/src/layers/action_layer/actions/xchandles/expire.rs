@@ -132,7 +132,6 @@ impl XchandlesExpireAction {
         let handle = pricing_solution.handle.clone();
         let precommit_value = XchandlesPrecommitValueLog::new(
             state.cat_maker_puzzle_hash,
-            (),
             state.expired_handle_pricing_puzzle_hash,
             pricing_solution,
             handle,

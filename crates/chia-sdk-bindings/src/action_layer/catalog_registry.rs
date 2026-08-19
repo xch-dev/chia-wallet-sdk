@@ -5,13 +5,16 @@ use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_sdk_driver::{
+    CatalogActionLog as SdkCatalogActionLog, CatalogDelegatedStateActionLog,
     CatalogPrecommitValue as DriverCatalogPrecommitValue, CatalogRefundAction,
-    CatalogRegisterAction, CatalogRegistry as SdkCatalogRegistry, CatalogRegistryConstants,
-    CatalogRegistryState, DelegatedStateAction, Offer, PrecommitCoin, SpendContext,
+    CatalogRefundActionLog, CatalogRegisterAction, CatalogRegisterActionLog,
+    CatalogRegistry as SdkCatalogRegistry, CatalogRegistryConstants, CatalogRegistryState,
+    DelegatedStateAction, Offer, PrecommitCoin, SpendContext,
     launch_catalog_registry as driver_launch_catalog_registry,
 };
 use chia_sdk_types::{
-    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS, puzzles::SlotNeigborsInfo,
+    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    puzzles::{CatalogSlotValue, SlotNeigborsInfo},
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
@@ -32,9 +35,11 @@ where
         left_asset_id: Bytes32,
         right_asset_id: Bytes32,
     ) -> Result<Self>;
+
+    fn value_hash(&self) -> Result<Bytes32>;
 }
 
-impl CatalogSlotValueExt for chia_sdk_types::puzzles::CatalogSlotValue {
+impl CatalogSlotValueExt for CatalogSlotValue {
     fn new(
         counter: u64,
         asset_id: Bytes32,
@@ -42,6 +47,10 @@ impl CatalogSlotValueExt for chia_sdk_types::puzzles::CatalogSlotValue {
         right_asset_id: Bytes32,
     ) -> Result<Self> {
         Ok(Self::new(counter, asset_id, left_asset_id, right_asset_id))
+    }
+
+    fn value_hash(&self) -> Result<Bytes32> {
+        Ok(self.tree_hash().into())
     }
 }
 
@@ -202,6 +211,42 @@ pub struct CatalogRegistryActualNeighborsResult {
 }
 
 #[derive(Clone)]
+pub struct CatalogActionLog {
+    pub kind: String,
+    pub register: Option<CatalogRegisterActionLog>,
+    pub refund: Option<CatalogRefundActionLog>,
+    pub delegated_state: Option<CatalogDelegatedStateActionLog>,
+}
+
+impl From<SdkCatalogActionLog> for CatalogActionLog {
+    fn from(log: SdkCatalogActionLog) -> Self {
+        let mut result = Self {
+            kind: String::new(),
+            register: None,
+            refund: None,
+            delegated_state: None,
+        };
+
+        match log {
+            SdkCatalogActionLog::Register(payload) => {
+                result.kind = "Register".to_string();
+                result.register = Some(payload);
+            }
+            SdkCatalogActionLog::Refund(payload) => {
+                result.kind = "Refund".to_string();
+                result.refund = Some(payload);
+            }
+            SdkCatalogActionLog::DelegatedState(payload) => {
+                result.kind = "DelegatedState".to_string();
+                result.delegated_state = Some(payload);
+            }
+        }
+
+        result
+    }
+}
+
+#[derive(Clone)]
 pub struct CatalogRegistry {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) catalog: Arc<Mutex<SdkCatalogRegistry>>,
@@ -232,6 +277,16 @@ impl CatalogRegistry {
         Ok(self.catalog.lock().unwrap().info.puzzle_hash())
     }
 
+    pub fn child(&self) -> Result<CatalogRegistry> {
+        let catalog = self.catalog.lock().unwrap();
+        let child = catalog.child(catalog.pending_spend.latest_state.1);
+
+        Ok(CatalogRegistry {
+            clvm: self.clvm.clone(),
+            catalog: Arc::new(Mutex::new(child)),
+        })
+    }
+
     pub fn pending_created_slots(&self) -> Result<Vec<CatalogSlot>> {
         let catalog = self.catalog.lock().unwrap();
 
@@ -243,6 +298,29 @@ impl CatalogRegistry {
             .map(|slot_value| {
                 CatalogSlot::from_slot(catalog.created_slot_value_to_slot(slot_value))
             })
+            .collect())
+    }
+
+    pub fn pending_spent_slots(&self) -> Result<Vec<CatalogSlotValue>> {
+        Ok(self
+            .catalog
+            .lock()
+            .unwrap()
+            .pending_spend
+            .spent_slots
+            .clone())
+    }
+
+    pub fn pending_logs(&self) -> Result<Vec<CatalogActionLog>> {
+        Ok(self
+            .catalog
+            .lock()
+            .unwrap()
+            .pending_spend
+            .logs
+            .clone()
+            .into_iter()
+            .map(Into::into)
             .collect())
     }
 
@@ -468,5 +546,84 @@ impl Clvm {
                 },
             ),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::Bytes32;
+    use chia_sdk_types::puzzles::CatalogSlotValue;
+
+    use super::*;
+
+    fn b32(n: u8) -> Bytes32 {
+        Bytes32::new([n; 32])
+    }
+
+    fn slot(n: u8) -> CatalogSlotValue {
+        CatalogSlotValue::new(
+            n.into(),
+            b32(n),
+            b32(n.wrapping_add(1)),
+            b32(n.wrapping_add(2)),
+        )
+    }
+
+    fn assert_only_catalog_kind(log: &CatalogActionLog, kind: &str) {
+        assert_eq!(log.kind, kind);
+        assert_eq!(log.register.is_some(), kind == "Register");
+        assert_eq!(log.refund.is_some(), kind == "Refund");
+        assert_eq!(log.delegated_state.is_some(), kind == "DelegatedState");
+    }
+
+    #[test]
+    fn catalog_action_log_from_sets_kind_and_only_matching_payload() {
+        let register =
+            CatalogActionLog::from(SdkCatalogActionLog::Register(CatalogRegisterActionLog {
+                spent_left_slot: slot(1),
+                spent_right_slot: slot(2),
+                created_left_slot: slot(3),
+                created_tail_slot: slot(4),
+                created_right_slot: slot(5),
+                prelauncher_full_puzzle_hash: b32(6),
+                prelauncher_id: b32(7),
+                launcher_id: b32(8),
+                registered_tail_hash: b32(9),
+                registered_initial_inner_puzzle_hash: b32(10),
+                precommit_amount: 11,
+            }));
+        assert_only_catalog_kind(&register, "Register");
+
+        let refund = CatalogActionLog::from(SdkCatalogActionLog::Refund(CatalogRefundActionLog {
+            spent_slot: Some(slot(1)),
+            created_slot: None,
+            registered_tail_hash: b32(2),
+            registered_initial_inner_puzzle_hash: b32(3),
+            precommit_amount: 4,
+        }));
+        assert_only_catalog_kind(&refund, "Refund");
+
+        let delegated = CatalogActionLog::from(SdkCatalogActionLog::DelegatedState(
+            CatalogDelegatedStateActionLog {
+                old_state: CatalogRegistryState {
+                    cat_maker_puzzle_hash: b32(1),
+                    registration_price: 2,
+                },
+                new_state: CatalogRegistryState {
+                    cat_maker_puzzle_hash: b32(3),
+                    registration_price: 4,
+                },
+            },
+        ));
+        assert_only_catalog_kind(&delegated, "DelegatedState");
+    }
+
+    #[test]
+    fn catalog_slot_value_hash_matches_tree_hash() {
+        let value = slot(1);
+        assert_eq!(
+            CatalogSlotValueExt::value_hash(&value).unwrap(),
+            value.tree_hash().into()
+        );
     }
 }
