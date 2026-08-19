@@ -227,6 +227,8 @@ where
         owner_launcher_id: Bytes32,
         resolved_launcher_id: Bytes32,
     ) -> Result<Self>;
+
+    fn value_hash(&self) -> Result<Bytes32>;
 }
 
 impl XchandlesHandleSlotValueExt for XchandlesHandleSlotValue {
@@ -250,6 +252,10 @@ impl XchandlesHandleSlotValueExt for XchandlesHandleSlotValue {
             resolved_launcher_id,
         ))
     }
+
+    fn value_hash(&self) -> Result<Bytes32> {
+        Ok(self.tree_hash().into())
+    }
 }
 
 pub trait XchandlesUpdateSlotValueExt
@@ -263,6 +269,8 @@ where
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
     ) -> Result<Self>;
+
+    fn value_hash(&self) -> Result<Bytes32>;
 }
 
 impl XchandlesUpdateSlotValueExt for XchandlesUpdateSlotValue {
@@ -280,6 +288,10 @@ impl XchandlesUpdateSlotValueExt for XchandlesUpdateSlotValue {
             new_owner_launcher_id,
             new_resolved_launcher_id,
         ))
+    }
+
+    fn value_hash(&self) -> Result<Bytes32> {
+        Ok(self.tree_hash().into())
     }
 }
 
@@ -735,6 +747,16 @@ impl XchandlesRegistry {
         Ok(self.registry.lock().unwrap().info.puzzle_hash())
     }
 
+    pub fn child(&self) -> Result<XchandlesRegistry> {
+        let registry = self.registry.lock().unwrap();
+        let child = registry.child(registry.pending_spend.latest_state.1);
+
+        Ok(XchandlesRegistry {
+            clvm: self.clvm.clone(),
+            registry: Arc::new(Mutex::new(child)),
+        })
+    }
+
     pub fn pending_created_handle_slots(&self) -> Result<Vec<XchandlesHandleSlot>> {
         let registry = self.registry.lock().unwrap();
 
@@ -765,6 +787,26 @@ impl XchandlesRegistry {
                 )
             })
             .collect())
+    }
+
+    pub fn pending_spent_handle_slots(&self) -> Result<Vec<XchandlesHandleSlotValue>> {
+        Ok(self
+            .registry
+            .lock()
+            .unwrap()
+            .pending_spend
+            .spent_handle_slots
+            .clone())
+    }
+
+    pub fn pending_spent_update_slots(&self) -> Result<Vec<XchandlesUpdateSlotValue>> {
+        Ok(self
+            .registry
+            .lock()
+            .unwrap()
+            .pending_spend
+            .spent_update_slots
+            .clone())
     }
 
     pub fn pending_logs(&self) -> Result<Vec<XchandlesActionLog>> {
@@ -1361,6 +1403,35 @@ mod tests {
         assert!(xchandles_get_price(5, "a".repeat(64), 1).is_err());
         assert!(xchandles_get_price(5, "ABC".into(), 1).is_err());
         assert!(xchandles_get_price(5, "abc".into(), 0).is_err());
+    }
+
+    #[test]
+    fn handle_and_update_slot_value_hash_match_tree_hash() {
+        let handle = XchandlesHandleSlotValue::new(
+            1,
+            Bytes32::new([1; 32]),
+            Bytes32::new([2; 32]),
+            Bytes32::new([3; 32]),
+            4,
+            Bytes32::new([5; 32]),
+            Bytes32::new([6; 32]),
+        );
+        assert_eq!(
+            XchandlesHandleSlotValueExt::value_hash(&handle).unwrap(),
+            handle.tree_hash().into()
+        );
+
+        let update = XchandlesUpdateSlotValue::new(
+            Bytes32::new([1; 32]),
+            2,
+            Bytes32::new([3; 32]),
+            Bytes32::new([4; 32]),
+            Bytes32::new([5; 32]),
+        );
+        assert_eq!(
+            XchandlesUpdateSlotValueExt::value_hash(&update).unwrap(),
+            update.tree_hash().into()
+        );
     }
 
     fn driver_commitment_hash(

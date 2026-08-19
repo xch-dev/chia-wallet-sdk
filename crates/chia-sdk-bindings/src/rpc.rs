@@ -84,6 +84,10 @@ impl RpcClient {
         ))))
     }
 
+    pub fn base_url(&self) -> Result<String> {
+        Ok(self.0.base_url().to_string())
+    }
+
     pub async fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
         Ok(self.0.get_blockchain_state().await?)
     }
@@ -265,5 +269,24 @@ impl RpcClient {
         coin_name: Bytes32,
     ) -> Result<GetMempoolItemsResponse> {
         Ok(self.0.get_mempool_items_by_coin_name(coin_name).await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_url_returns_configured_url() {
+        let client = RpcClient::new("https://example.com".into()).unwrap();
+        assert_eq!(client.base_url().unwrap(), "https://example.com");
+        assert_eq!(
+            RpcClient::testnet11().unwrap().base_url().unwrap(),
+            "https://testnet11.api.coinset.org"
+        );
+        assert_eq!(
+            RpcClient::mainnet().unwrap().base_url().unwrap(),
+            "https://api.coinset.org"
+        );
     }
 }

@@ -492,7 +492,9 @@ export declare class CatalogRegistry {
   constants(): CatalogRegistryConstants
   innerPuzzleHash(): Buffer
   puzzleHash(): Buffer
+  child(): CatalogRegistry
   pendingCreatedSlots(): Array<CatalogSlot>
+  pendingSpentSlots(): Array<CatalogSlotValue>
   pendingLogs(): Array<CatalogActionLog>
   pendingSignature(): Signature
   finishSpend(): CatalogRegistryFinishedSpendResult
@@ -583,6 +585,7 @@ export declare class CatalogSlot {
 export declare class CatalogSlotValue {
   clone(): CatalogSlotValue
   static new(counter: bigint, assetId: Uint8Array, leftAssetId: Uint8Array, rightAssetId: Uint8Array): CatalogSlotValue
+  valueHash(): Buffer
   get counter(): bigint
   set counter(value: bigint)
   get assetId(): Buffer
@@ -3270,6 +3273,7 @@ export declare class RpcClient {
   static mainnet(): RpcClient
   static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
   static localWithUrl(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  baseUrl(): string
   getBlockchainState(): Promise<BlockchainStateResponse>
   getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
   getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
@@ -3794,6 +3798,7 @@ export declare class XchandlesHandleSlot {
 export declare class XchandlesHandleSlotValue {
   clone(): XchandlesHandleSlotValue
   static new(counter: bigint, handleHash: Uint8Array, leftHandleHash: Uint8Array, rightHandleHash: Uint8Array, expiration: bigint, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array): XchandlesHandleSlotValue
+  valueHash(): Buffer
   get counter(): bigint
   set counter(value: bigint)
   get handleHash(): Buffer
@@ -3955,8 +3960,11 @@ export declare class XchandlesRegistry {
   constants(): XchandlesConstants
   innerPuzzleHash(): Buffer
   puzzleHash(): Buffer
+  child(): XchandlesRegistry
   pendingCreatedHandleSlots(): Array<XchandlesHandleSlot>
   pendingCreatedUpdateSlots(): Array<XchandlesUpdateSlot>
+  pendingSpentHandleSlots(): Array<XchandlesHandleSlotValue>
+  pendingSpentUpdateSlots(): Array<XchandlesUpdateSlotValue>
   pendingLogs(): Array<XchandlesActionLog>
   pendingSignature(): Signature
   finishSpend(): XchandlesRegistryFinishedSpendResult
@@ -4062,6 +4070,7 @@ export declare class XchandlesUpdateSlot {
 export declare class XchandlesUpdateSlotValue {
   clone(): XchandlesUpdateSlotValue
   static new(updateInitiatorCoinId: Uint8Array, minHeight: number, handleHash: Uint8Array, newOwnerLauncherId: Uint8Array, newResolvedLauncherId: Uint8Array): XchandlesUpdateSlotValue
+  valueHash(): Buffer
   get updateInitiatorCoinId(): Buffer
   set updateInitiatorCoinId(value: Uint8Array)
   get minHeight(): number

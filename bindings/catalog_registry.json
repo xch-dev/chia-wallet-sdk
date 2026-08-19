@@ -25,6 +25,9 @@
           "left_asset_id": "Bytes32",
           "right_asset_id": "Bytes32"
         }
+      },
+      "value_hash": {
+        "return": "Bytes32"
       }
     }
   },
@@ -223,8 +226,14 @@
       "puzzle_hash": {
         "return": "TreeHash"
       },
+      "child": {
+        "return": "CatalogRegistry"
+      },
       "pending_created_slots": {
         "return": "Vec<CatalogSlot>"
+      },
+      "pending_spent_slots": {
+        "return": "Vec<CatalogSlotValue>"
       },
       "pending_logs": {
         "return": "Vec<CatalogActionLog>"

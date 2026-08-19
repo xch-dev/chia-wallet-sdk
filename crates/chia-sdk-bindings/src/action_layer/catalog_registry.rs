@@ -13,7 +13,8 @@ use chia_sdk_driver::{
     launch_catalog_registry as driver_launch_catalog_registry,
 };
 use chia_sdk_types::{
-    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS, puzzles::SlotNeigborsInfo,
+    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    puzzles::{CatalogSlotValue, SlotNeigborsInfo},
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
@@ -34,9 +35,11 @@ where
         left_asset_id: Bytes32,
         right_asset_id: Bytes32,
     ) -> Result<Self>;
+
+    fn value_hash(&self) -> Result<Bytes32>;
 }
 
-impl CatalogSlotValueExt for chia_sdk_types::puzzles::CatalogSlotValue {
+impl CatalogSlotValueExt for CatalogSlotValue {
     fn new(
         counter: u64,
         asset_id: Bytes32,
@@ -44,6 +47,10 @@ impl CatalogSlotValueExt for chia_sdk_types::puzzles::CatalogSlotValue {
         right_asset_id: Bytes32,
     ) -> Result<Self> {
         Ok(Self::new(counter, asset_id, left_asset_id, right_asset_id))
+    }
+
+    fn value_hash(&self) -> Result<Bytes32> {
+        Ok(self.tree_hash().into())
     }
 }
 
@@ -270,6 +277,16 @@ impl CatalogRegistry {
         Ok(self.catalog.lock().unwrap().info.puzzle_hash())
     }
 
+    pub fn child(&self) -> Result<CatalogRegistry> {
+        let catalog = self.catalog.lock().unwrap();
+        let child = catalog.child(catalog.pending_spend.latest_state.1);
+
+        Ok(CatalogRegistry {
+            clvm: self.clvm.clone(),
+            catalog: Arc::new(Mutex::new(child)),
+        })
+    }
+
     pub fn pending_created_slots(&self) -> Result<Vec<CatalogSlot>> {
         let catalog = self.catalog.lock().unwrap();
 
@@ -282,6 +299,16 @@ impl CatalogRegistry {
                 CatalogSlot::from_slot(catalog.created_slot_value_to_slot(slot_value))
             })
             .collect())
+    }
+
+    pub fn pending_spent_slots(&self) -> Result<Vec<CatalogSlotValue>> {
+        Ok(self
+            .catalog
+            .lock()
+            .unwrap()
+            .pending_spend
+            .spent_slots
+            .clone())
     }
 
     pub fn pending_logs(&self) -> Result<Vec<CatalogActionLog>> {
@@ -589,5 +616,14 @@ mod tests {
             },
         ));
         assert_only_catalog_kind(&delegated, "DelegatedState");
+    }
+
+    #[test]
+    fn catalog_slot_value_hash_matches_tree_hash() {
+        let value = slot(1);
+        assert_eq!(
+            CatalogSlotValueExt::value_hash(&value).unwrap(),
+            value.tree_hash().into()
+        );
     }
 }

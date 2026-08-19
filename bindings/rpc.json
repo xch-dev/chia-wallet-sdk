@@ -31,6 +31,9 @@
           "key_bytes": "Bytes"
         }
       },
+      "base_url": {
+        "return": "String"
+      },
       "get_blockchain_state": {
         "type": "async",
         "return": "BlockchainStateResponse"
