@@ -37,13 +37,13 @@ test("mints and spends an option", (t) => {
       clvm.createCoin(catInfo.puzzleHash(), 1n),
       clvm.createCoin(Constants.singletonLauncherHash(), 0n),
       clvm.createCoin(alice.puzzleHash, 0n),
-    ])
+    ]),
   );
 
   const eve = new Cat(
     new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1n),
     null,
-    catInfo
+    catInfo,
   );
 
   clvm.spendCats([
@@ -54,8 +54,8 @@ test("mints and spends an option", (t) => {
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
           clvm.runCatTail(tail, clvm.nil()),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -63,7 +63,7 @@ test("mints and spends an option", (t) => {
   const launcher = new Coin(
     alice.coin.coinId(),
     Constants.singletonLauncherHash(),
-    0n
+    0n,
   );
 
   const underlying = new OptionUnderlying(
@@ -71,7 +71,7 @@ test("mints and spends an option", (t) => {
     alice.puzzleHash,
     10n,
     1n,
-    OptionType.xch(1n)
+    OptionType.xch(1n),
   );
 
   const cat = eve.child(alice.puzzleHash, 1n);
@@ -81,8 +81,8 @@ test("mints and spends an option", (t) => {
       cat,
       clvm.standardSpend(
         alice.pk,
-        clvm.delegatedSpend([clvm.createCoin(underlying.puzzleHash(), 1n)])
-      )
+        clvm.delegatedSpend([clvm.createCoin(underlying.puzzleHash(), 1n)]),
+      ),
     ),
   ]);
 
@@ -93,7 +93,7 @@ test("mints and spends an option", (t) => {
     launcher.coinId(),
     underlyingCat.coin.coinId(),
     underlying.delegatedPuzzleHash(),
-    alice.puzzleHash
+    alice.puzzleHash,
   );
 
   clvm.spendCoin(
@@ -104,14 +104,14 @@ test("mints and spends an option", (t) => {
         optionInfo.puzzleHash(),
         1n,
         new OptionMetadata(underlying.seconds, underlying.strikeType),
-      ])
-    )
+      ]),
+    ),
   );
 
   const eveOption = new OptionContract(
     new Coin(launcher.coinId(), optionInfo.puzzleHash(), 1n),
     new Proof(launcher.parentCoinInfo, null, launcher.amount),
-    optionInfo
+    optionInfo,
   );
 
   const option = clvm.spendOption(
@@ -120,8 +120,8 @@ test("mints and spends an option", (t) => {
       alice.pk,
       clvm.delegatedSpend([
         clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-      ])
-    )
+      ]),
+    ),
   );
 
   if (!option) throw new Error("Option not found");
@@ -138,8 +138,8 @@ test("mints and spends an option", (t) => {
         clvm.sendMessage(23, underlying.delegatedPuzzleHash(), [
           clvm.alloc(underlyingCat.coin.coinId()),
         ]),
-      ])
-    )
+      ]),
+    ),
   );
 
   t.is(melted, null);
@@ -149,13 +149,13 @@ test("mints and spends an option", (t) => {
     alice.pk,
     clvm.delegatedSpend([
       clvm.createCoin(Constants.settlementPaymentHash(), 0n),
-    ])
+    ]),
   );
 
   const settlementCoin = new Coin(
     childCoin.coinId(),
     Constants.settlementPaymentHash(),
-    0n
+    0n,
   );
 
   clvm.spendSettlementCoin(settlementCoin, [
@@ -170,8 +170,8 @@ test("mints and spends an option", (t) => {
       underlying.exerciseSpend(
         clvm,
         option.info.innerPuzzleHash(),
-        option.coin.amount
-      )
+        option.coin.amount,
+      ),
     ),
   ]);
 
