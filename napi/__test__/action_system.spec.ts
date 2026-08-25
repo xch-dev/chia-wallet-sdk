@@ -62,7 +62,7 @@ class Wallet {
     } else if (existing) {
       return this.fetchCatCoins(sim, existing).reduce(
         (acc, coin) => acc + coin.amount,
-        0n
+        0n,
       );
     } else {
       return 0n;
@@ -73,7 +73,7 @@ class Wallet {
     sim: Simulator,
     spends: Spends,
     actions: Action[],
-    reservedNfts: Map<string, Nft>
+    reservedNfts: Map<string, Nft>,
   ) {
     const deltas = Deltas.fromActions(actions);
 
@@ -123,7 +123,7 @@ class Wallet {
     sim: Simulator,
     clvm: Clvm,
     actions: Action[],
-    extras?: { nfts?: Nft[] }
+    extras?: { nfts?: Nft[] },
   ): Outputs {
     // Create a Spends object and insert coins we want to spend
     const spends = new Spends(clvm, this.puzzleHash);
@@ -146,8 +146,8 @@ class Wallet {
         spend.coin().coinId(),
         clvm.standardSpend(
           this.pair.pk,
-          clvm.delegatedSpend(spend.conditions())
-        )
+          clvm.delegatedSpend(spend.conditions()),
+        ),
       );
     }
 
@@ -236,7 +236,7 @@ test("mint and update nft metadata", (t) => {
     [],
     null,
     [],
-    null
+    null,
   );
 
   const mint = Action.mintNft(
@@ -246,12 +246,12 @@ test("mint and update nft metadata", (t) => {
     alice.puzzleHash,
     0,
     1n,
-    null
+    null,
   );
 
   const metadataUpdate = new Spend(
     clvm.nftMetadataUpdaterDefault(),
-    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")]),
   );
 
   const update = Action.updateNft(Id.new(0n), [metadataUpdate]);
@@ -285,7 +285,7 @@ test("update existing nft metadata", (t) => {
     [],
     null,
     [],
-    null
+    null,
   );
 
   const mint = Action.mintNft(
@@ -295,7 +295,7 @@ test("update existing nft metadata", (t) => {
     alice.puzzleHash,
     0,
     1n,
-    null
+    null,
   );
 
   const mintOutputs = alice.spend(sim, clvm, [mint]);
@@ -305,10 +305,12 @@ test("update existing nft metadata", (t) => {
   // Update the metadata using the existing NFT
   const metadataUpdate = new Spend(
     clvm.nftMetadataUpdaterDefault(),
-    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")]),
   );
 
-  const update = Action.updateNft(Id.existing(mintedNft.info.launcherId), [metadataUpdate]);
+  const update = Action.updateNft(Id.existing(mintedNft.info.launcherId), [
+    metadataUpdate,
+  ]);
 
   const outputs = alice.spend(sim, clvm, [update], { nfts: [mintedNft] });
 
