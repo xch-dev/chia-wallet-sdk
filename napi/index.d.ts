@@ -1340,6 +1340,22 @@ export declare class Deltas {
   ids(): Array<Id>
 }
 
+export declare class DepositSlot {
+  clone(): DepositSlot
+  static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorDepositSlotValue): DepositSlot
+  valueHash(): Buffer
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get nonce(): bigint
+  set nonce(value: bigint)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get value(): RewardDistributorDepositSlotValue
+  set value(value: RewardDistributorDepositSlotValue)
+}
+
 export declare class Did {
   clone(): Did
   childProof(): Proof
@@ -2665,7 +2681,7 @@ export declare class ReceiveMessage {
 
 export declare class RefreshNftsInfo {
   clone(): RefreshNftsInfo
-  constructor(slot: EntrySlot, nfts: Array<Nft>, nftSharesDelta: Array<bigint>, newShares: Array<bigint>, nftInclusionProofs: Array<MerkleProof>)
+  constructor(slot: EntrySlot, nfts: Array<Nft>, nftSharesDelta: Array<bigint>, newShares: Array<bigint>, nftInclusionProofs: Array<MerkleProof>, depositSlots: Array<DepositSlot>)
   get slot(): EntrySlot
   set slot(value: EntrySlot)
   get nfts(): Array<Nft>
@@ -2676,6 +2692,8 @@ export declare class RefreshNftsInfo {
   set newShares(value: Array<bigint>)
   get nftInclusionProofs(): Array<MerkleProof>
   set nftInclusionProofs(value: Array<MerkleProof>)
+  get depositSlots(): Array<DepositSlot>
+  set depositSlots(value: Array<DepositSlot>)
 }
 
 export declare class Remark {
@@ -2801,6 +2819,7 @@ export declare class RewardDistributor {
   pendingCreatedRewardSlots(): Array<RewardSlot>
   pendingCreatedCommitmentSlots(): Array<CommitmentSlot>
   pendingCreatedEntrySlots(): Array<EntrySlot>
+  pendingCreatedDepositSlots(): Array<DepositSlot>
   pendingLogs(): Array<RewardDistributorActionLog>
   pendingSignature(): Signature
   static reserveFullPuzzleHash(assetId: Uint8Array, distributorLauncherId: Uint8Array, nonce: bigint): Buffer
@@ -2817,8 +2836,8 @@ export declare class RewardDistributor {
   stakeCollectionNfts(offeredNfts: Array<Nft>, nftLauncherProofs: Array<NftLauncherProof>, entryCustodyPuzzleHash: Uint8Array, existingSlot?: EntrySlot | undefined | null): RewardDistributorStakeCollectionNftsResult
   stakeCuratedNfts(offeredNfts: Array<Nft>, nftShares: Array<bigint>, inclusionProofs: Array<MerkleProof>, entryCustodyPuzzleHash: Uint8Array, existingSlot: EntrySlot | undefined | null, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorStakeCuratedNftsResult
   stakeCat(offeredCat: Cat, entryCustodyPuzzleHash: Uint8Array, existingSlot?: EntrySlot | undefined | null): RewardDistributorStakeCatResult
-  unstakeLockedNfts(entrySlot: EntrySlot, lockedNfts: Array<Nft>, lockedNftShares: Array<bigint>): RewardDistributorUnstakeLockedNftsResult
-  unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat): RewardDistributorUnstakeLockedCatResult
+  unstakeLockedNfts(entrySlot: EntrySlot, lockedNfts: Array<Nft>, lockedNftShares: Array<bigint>, depositSlots: Array<DepositSlot>): RewardDistributorUnstakeLockedNftsResult
+  unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat, depositSlot: DepositSlot): RewardDistributorUnstakeLockedCatResult
   refreshNfts(refreshNftsInfos: Array<RefreshNftsInfo>, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorRefreshNftsResult
   static lockedNftHint(distributorLauncherId: Uint8Array, custodyPuzzleHash: Uint8Array): Buffer
 }
@@ -2923,6 +2942,18 @@ export declare class RewardDistributorConstants {
   set reserveInnerPuzzleHash(value: Uint8Array)
   get reserveFullPuzzleHash(): Buffer
   set reserveFullPuzzleHash(value: Uint8Array)
+}
+
+export declare class RewardDistributorDepositSlotValue {
+  clone(): RewardDistributorDepositSlotValue
+  static nft(payoutPuzzleHash: Uint8Array, shares: bigint, launcherId: Uint8Array): RewardDistributorDepositSlotValue
+  static cat(payoutPuzzleHash: Uint8Array, catAmount: bigint): RewardDistributorDepositSlotValue
+  launcherId(): Buffer | null
+  catAmount(): bigint | null
+  get payoutPuzzleHash(): Buffer
+  set payoutPuzzleHash(value: Uint8Array)
+  get shares(): bigint
+  set shares(value: bigint)
 }
 
 export declare class RewardDistributorEntrySlotValue {
@@ -3049,6 +3080,10 @@ export declare class RewardDistributorRefreshNftsFromDlActionLog {
   set spentEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
   get createdEntrySlots(): Array<RewardDistributorEntrySlotValue>
   set createdEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
+  get spentDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set spentDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
+  get createdDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set createdDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get nftEntries(): Array<RewardDistributorNftStakeEntry>
   set nftEntries(value: Array<RewardDistributorNftStakeEntry>)
   get dlRootHash(): Buffer
@@ -3106,6 +3141,8 @@ export declare class RewardDistributorStakeActionLog {
   set spentEntrySlot(value?: RewardDistributorEntrySlotValue | undefined | null)
   get createdEntrySlot(): RewardDistributorEntrySlotValue
   set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get createdDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set createdDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get catAmount(): bigint | null
   set catAmount(value?: bigint | undefined | null)
   get nftEntries(): Array<RewardDistributorNftStakeEntry> | null
@@ -3188,6 +3225,8 @@ export declare class RewardDistributorUnstakeActionLog {
   set spentEntrySlot(value: RewardDistributorEntrySlotValue)
   get createdEntrySlot(): RewardDistributorEntrySlotValue
   set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get spentDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set spentDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get catAmount(): bigint | null
   set catAmount(value?: bigint | undefined | null)
   get nftEntries(): Array<RewardDistributorNftStakeEntry> | null

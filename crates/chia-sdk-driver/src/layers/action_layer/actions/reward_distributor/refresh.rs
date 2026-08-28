@@ -4,16 +4,16 @@ use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonS
 use chia_sdk_types::{
     Conditions, MerkleProof, Mod, announcement_id,
     puzzles::{
-        NONCE_WRAPPER_PUZZLE_HASH, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
-        P2DelegatedBySingletonLayerSolution, RefreshNftInfo, RewardDistributorDlInfo,
+        P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution, RefreshNftInfo,
+        RewardDistributorDepositSlotValue, RewardDistributorDlInfo,
         RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
         RewardDistributorRefreshNftsFromDlActionArgs,
         RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorRefreshNftsTotals,
         RewardDistributorSlotNonce, SlotAndNfts,
     },
 };
-use clvm_traits::{clvm_quote, clvm_tuple};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_traits::clvm_quote;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -80,6 +80,11 @@ impl RewardDistributorRefreshAction {
                 Ok(RewardDistributorRefreshNftsFromDlActionArgs::new(
                     store_launcher_id,
                     Self::my_p2_puzzle_hash(launcher_id),
+                    Slot::<()>::first_curry_hash(
+                        launcher_id,
+                        RewardDistributorSlotNonce::DEPOSIT.to_u64(),
+                    )
+                    .into(),
                     Slot::<()>::first_curry_hash(
                         launcher_id,
                         RewardDistributorSlotNonce::ENTRY.to_u64(),
@@ -156,9 +161,32 @@ impl RewardDistributorRefreshAction {
             })
             .collect();
 
+        let mut spent_deposit_slots = Vec::new();
+        let mut created_deposit_slots = Vec::new();
+        for group in &params.slots_and_nfts {
+            let custody = group.existing_slot_value.payout_puzzle_hash;
+            for nft in &group.nfts {
+                let old_shares = u64::try_from(
+                    i128::from(nft.new_nft_shares) - i128::from(nft.nft_shares_delta),
+                )?;
+                spent_deposit_slots.push(RewardDistributorDepositSlotValue::nft(
+                    custody,
+                    old_shares,
+                    nft.nft_launcher_id,
+                ));
+                created_deposit_slots.push(RewardDistributorDepositSlotValue::nft(
+                    custody,
+                    nft.new_nft_shares,
+                    nft.nft_launcher_id,
+                ));
+            }
+        }
+
         Ok(RewardDistributorRefreshNftsFromDlActionLog {
             spent_entry_slots,
             created_entry_slots,
+            spent_deposit_slots,
+            created_deposit_slots,
             nft_entries,
             dl_root_hash: params.dl_root_hash,
             dl_inner_puzzle_hash: params.dl_info.dl_inner_puzzle_hash,
@@ -182,6 +210,7 @@ impl RewardDistributorRefreshAction {
         nft_shares_delta: &[&[i64]],
         nft_new_shares: &[&[u64]],
         nft_inclusion_proofs: &[&[MerkleProof]],
+        deposit_slots: &[Slot<RewardDistributorDepositSlotValue>],
         dl_root_hash: Bytes32,
         dl_metadata_rest_hash: Option<Bytes32>,
         dl_metadata_updater_hash_hash: Bytes32,
@@ -194,7 +223,6 @@ impl RewardDistributorRefreshAction {
 
         let my_inner_puzzle_hash: Bytes32 = distributor.info.inner_puzzle_hash().into();
         let my_p2_puzzle_hash = Self::my_p2_puzzle_hash(self.launcher_id);
-        let my_p2_treehash: TreeHash = my_p2_puzzle_hash.into();
         let my_singleton_struct_hash = SingletonStruct::new(self.launcher_id).tree_hash().into();
 
         for (i, slot) in slots.into_iter().enumerate() {
@@ -223,30 +251,29 @@ impl RewardDistributorRefreshAction {
                     nft_inclusion_proof: nft_inclusion_proofs[i][j].clone(),
                 });
 
-                // spend NFT
-                let new_nft_inner_puzzle_hash = CurriedProgram {
-                    program: NONCE_WRAPPER_PUZZLE_HASH,
-                    args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
-                        nonce: clvm_tuple!(
-                            slot.info.value.payout_puzzle_hash,
-                            nft_new_shares[i][j]
-                        ),
-                        inner_puzzle: my_p2_treehash,
-                    },
-                }
-                .tree_hash()
-                .into();
+                // spend NFT (inner puzzle is my_p2 both before and after refresh)
                 let nft_p2 = P2DelegatedBySingletonLayer::new(my_singleton_struct_hash, 1);
                 let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
                 let old_nft_shares = u64::try_from(
                     i128::from(nft_new_shares[i][j]) - i128::from(nft_shares_delta[i][j]),
                 )?;
-                let nft_nonce: (Bytes32, u64) =
-                    clvm_tuple!(slot.info.value.payout_puzzle_hash, old_nft_shares);
-                let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
-                    nonce: nft_nonce,
-                    inner_puzzle: nft_inner_puzzle,
-                })?;
+                let deposit_value = RewardDistributorDepositSlotValue::nft(
+                    slot.info.value.payout_puzzle_hash,
+                    old_nft_shares,
+                    nft.info.launcher_id,
+                );
+                let deposit_slot = deposit_slots
+                    .iter()
+                    .find(|s| s.info.value == deposit_value)
+                    .cloned()
+                    .ok_or_else(|| {
+                        DriverError::Custom(
+                            "matching deposit slot not provided for refresh".to_string(),
+                        )
+                    })?;
+                distributor
+                    .actual_deposit_slot_value(deposit_slot)
+                    .spend(ctx, my_inner_puzzle_hash)?;
 
                 let hint = ctx.hint(
                     (slot.info.value.payout_puzzle_hash, my_p2_puzzle_hash)
@@ -254,7 +281,7 @@ impl RewardDistributorRefreshAction {
                         .into(),
                 )?;
                 let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-                    new_nft_inner_puzzle_hash,
+                    my_p2_puzzle_hash,
                     1,
                     hint,
                 )))?;

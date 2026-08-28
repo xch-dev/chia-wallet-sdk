@@ -87,6 +87,13 @@ define_slot!(
 );
 
 define_slot!(
+    DepositSlot,
+    chia_sdk_types::puzzles::RewardDistributorDepositSlotValue,
+    chia_sdk_types::puzzles::RewardDistributorSlotNonce::DEPOSIT.to_u64(),
+    DepositSlotValueRemoteExt
+);
+
+define_slot!(
     CatalogSlot,
     chia_sdk_types::puzzles::CatalogSlotValue,
     0u64,

@@ -103,8 +103,9 @@ pub use chia_sdk_types::{
     conditions::TradePrice,
     puzzles::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
-        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
-        RewardDistributorRewardSlotValue, SlotNeigborsInfo, XchandlesHandleSlotValue,
+        RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
+        RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,
+        XchandlesHandleSlotValue,
         XchandlesPricingSolution, XchandlesUpdateSlotValue,
     },
 };

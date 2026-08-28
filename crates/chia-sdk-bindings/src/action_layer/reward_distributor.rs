@@ -21,16 +21,18 @@ use chia_sdk_driver::{
     RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::{
-    Conditions, MerkleProof, Mod,
+    Conditions, MerkleProof,
     puzzles::{
-        IntermediaryCoinProof, NftLauncherProof, NonceWrapperArgs, RewardDistributorSlotNonce,
+        IntermediaryCoinProof, NftLauncherProof, RewardDistributorDepositSlotAsset,
+        RewardDistributorDepositSlotValue, RewardDistributorSlotNonce,
     },
 };
+use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof,
-    RewardSlot,
+    AsProgram, AsPtr, CatSpend, CommitmentSlot, DepositSlot, EntrySlot, Nft, NotarizedPayment,
+    Program, Proof, RewardSlot,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -201,6 +203,43 @@ pub struct RewardDistributorRemoveEntryResult {
     pub last_payment_amount: u64,
 }
 
+pub trait RewardDistributorDepositSlotValueExt
+where
+    Self: Sized,
+{
+    fn nft(payout_puzzle_hash: Bytes32, shares: u64, launcher_id: Bytes32) -> Result<Self>;
+
+    fn cat(payout_puzzle_hash: Bytes32, cat_amount: u64) -> Result<Self>;
+
+    fn launcher_id(&self) -> Result<Option<Bytes32>>;
+
+    fn cat_amount(&self) -> Result<Option<u64>>;
+}
+
+impl RewardDistributorDepositSlotValueExt for RewardDistributorDepositSlotValue {
+    fn nft(payout_puzzle_hash: Bytes32, shares: u64, launcher_id: Bytes32) -> Result<Self> {
+        Ok(Self::nft(payout_puzzle_hash, shares, launcher_id))
+    }
+
+    fn cat(payout_puzzle_hash: Bytes32, cat_amount: u64) -> Result<Self> {
+        Ok(Self::cat(payout_puzzle_hash, cat_amount))
+    }
+
+    fn launcher_id(&self) -> Result<Option<Bytes32>> {
+        Ok(match self.launcher_id_or_cat_amount {
+            RewardDistributorDepositSlotAsset::LauncherId(launcher_id) => Some(launcher_id),
+            RewardDistributorDepositSlotAsset::CatAmount(_) => None,
+        })
+    }
+
+    fn cat_amount(&self) -> Result<Option<u64>> {
+        Ok(match self.launcher_id_or_cat_amount {
+            RewardDistributorDepositSlotAsset::CatAmount(cat_amount) => Some(cat_amount),
+            RewardDistributorDepositSlotAsset::LauncherId(_) => None,
+        })
+    }
+}
+
 pub trait IntermediaryCoinProofExt {}
 
 impl IntermediaryCoinProofExt for IntermediaryCoinProof {}
@@ -255,6 +294,7 @@ pub struct RefreshNftsInfo {
     pub nft_shares_delta: Vec<i64>,
     pub new_shares: Vec<u64>,
     pub nft_inclusion_proofs: Vec<MerkleProof>,
+    pub deposit_slots: Vec<DepositSlot>,
 }
 
 #[derive(Clone)]
@@ -463,6 +503,23 @@ impl RewardDistributor {
                 EntrySlot::from_slot(
                     distributor
                         .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::ENTRY),
+                )
+            })
+            .collect())
+    }
+
+    pub fn pending_created_deposit_slots(&self) -> Result<Vec<DepositSlot>> {
+        let distributor = self.distributor.lock().unwrap();
+
+        Ok(distributor
+            .pending_spend
+            .created_deposit_slots
+            .clone()
+            .into_iter()
+            .map(|slot_value| {
+                DepositSlot::from_slot(
+                    distributor
+                        .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::DEPOSIT),
                 )
             })
             .collect())
@@ -832,11 +889,16 @@ impl RewardDistributor {
         entry_slot: EntrySlot,
         locked_nfts: Vec<Nft>,
         locked_nft_shares: Vec<u64>,
+        deposit_slots: Vec<DepositSlot>,
     ) -> Result<RewardDistributorUnstakeLockedNftsResult> {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
         let sdk_locked_nfts: Vec<_> = locked_nfts.iter().map(|nft| nft.as_ptr(&ctx)).collect();
+        let sdk_deposit_slots: Vec<_> = deposit_slots
+            .into_iter()
+            .map(DepositSlot::to_slot)
+            .collect();
         let (conditions, payment_amount) = distributor
             .new_action::<RewardDistributorUnstakeAction>()
             .spend_for_locked_nfts(
@@ -845,6 +907,7 @@ impl RewardDistributor {
                 entry_slot.to_slot(),
                 &sdk_locked_nfts,
                 &locked_nft_shares,
+                &sdk_deposit_slots,
             )?;
 
         Ok(RewardDistributorUnstakeLockedNftsResult {
@@ -857,13 +920,20 @@ impl RewardDistributor {
         &self,
         entry_slot: EntrySlot,
         locked_cat: Cat,
+        deposit_slot: DepositSlot,
     ) -> Result<RewardDistributorUnstakeLockedCatResult> {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
         let (conditions, payment_amount) = distributor
             .new_action::<RewardDistributorUnstakeAction>()
-            .spend_for_locked_cats(&mut ctx, &mut distributor, entry_slot.to_slot(), locked_cat)?;
+            .spend_for_locked_cats(
+                &mut ctx,
+                &mut distributor,
+                entry_slot.to_slot(),
+                locked_cat,
+                deposit_slot.to_slot(),
+            )?;
 
         Ok(RewardDistributorUnstakeLockedCatResult {
             conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
@@ -906,6 +976,10 @@ impl RewardDistributor {
             .iter()
             .map(|info| info.nft_inclusion_proofs.as_slice())
             .collect();
+        let deposit_slots: Vec<_> = refresh_nfts_infos
+            .iter()
+            .flat_map(|info| info.deposit_slots.iter().cloned().map(DepositSlot::to_slot))
+            .collect();
 
         let (conditions, new_nfts) = distributor
             .new_action::<RewardDistributorRefreshAction>()
@@ -917,6 +991,7 @@ impl RewardDistributor {
                 &shares_delta_refs,
                 &new_shares_refs,
                 &inclusion_proof_refs,
+                &deposit_slots,
                 dl_root_hash,
                 dl_metadata_rest_hash,
                 dl_metadata_updater_hash_hash,
@@ -936,12 +1011,7 @@ impl RewardDistributor {
         distributor_launcher_id: Bytes32,
         custody_puzzle_hash: Bytes32,
     ) -> Result<Bytes32> {
-        Ok(NonceWrapperArgs::<Bytes32, TreeHash> {
-            nonce: custody_puzzle_hash,
-            inner_puzzle: RewardDistributorStakeAction::my_p2_puzzle_hash(distributor_launcher_id)
-                .into(),
-        }
-        .curry_tree_hash()
-        .into())
+        let my_p2 = RewardDistributorStakeAction::my_p2_puzzle_hash(distributor_launcher_id);
+        Ok(clvm_tuple!(custody_puzzle_hash, my_p2).tree_hash().into())
     }
 }

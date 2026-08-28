@@ -3794,6 +3794,10 @@ mod tests {
                 registry.pending_spend.created_entry_slots[1],
                 RewardDistributorSlotNonce::ENTRY,
             );
+            let cat3_deposit = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_deposit_slots[1],
+                RewardDistributorSlotNonce::DEPOSIT,
+            );
 
             registry = registry.finish_spend(ctx, vec![])?.0;
 
@@ -3849,7 +3853,7 @@ mod tests {
                 "stake_2_cats",
                 &[stakeable_cat_minter.sk.clone(), nft2_bls.sk.clone()],
             )?;
-            (entry2_slot, None, Some(locked_cat3))
+            (entry2_slot, None, Some((locked_cat3, cat3_deposit)))
         } else {
             let nft2_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
             let nft2_launcher_coin = nft2_launcher.coin();
@@ -4082,6 +4086,14 @@ mod tests {
                     0,
                 )
             };
+            let nft2_deposit = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_deposit_slots[0],
+                RewardDistributorSlotNonce::DEPOSIT,
+            );
+            let mut nft3_deposit = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_deposit_slots[1],
+                RewardDistributorSlotNonce::DEPOSIT,
+            );
             registry = registry.finish_spend(ctx, vec![])?.0;
 
             ensure_conditions_met(ctx, &mut sim, sec_conds, mint_mojos)?;
@@ -4159,6 +4171,7 @@ mod tests {
                         &[&[merkle_tree
                             .proof((locked_nft3.info.launcher_id, 3).tree_hash().into())
                             .unwrap()]],
+                        &[nft3_deposit],
                         merkle_tree.root(),
                         None,
                         dl_metadata_updater_hash.tree_hash().into(),
@@ -4167,6 +4180,10 @@ mod tests {
                 entry3_slot = registry.created_slot_value_to_slot(
                     registry.pending_spend.created_entry_slots[0],
                     RewardDistributorSlotNonce::ENTRY,
+                );
+                nft3_deposit = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_deposit_slots[0],
+                    RewardDistributorSlotNonce::DEPOSIT,
                 );
                 registry = registry.finish_spend(ctx, vec![])?.0;
 
@@ -4191,7 +4208,7 @@ mod tests {
 
             (
                 entry2_slot,
-                Some((entry3_slot, locked_nft2, locked_nft3)),
+                Some((entry3_slot, locked_nft2, locked_nft3, nft2_deposit, nft3_deposit)),
                 None,
             )
         };
@@ -4231,7 +4248,9 @@ mod tests {
 
         // remove 2nd entry/the 2 NFTs
         let mut reserve_cat = registry.reserve.to_cat();
-        if let Some((mut entry3_slot, mut locked_nft2, mut locked_nft3)) = other_nft2_info {
+        if let Some((mut entry3_slot, mut locked_nft2, mut locked_nft3, mut nft2_deposit, mut nft3_deposit)) =
+            other_nft2_info
+        {
             if refreshable {
                 // if refreshable, refresh NFTs to 0 shares before removing
                 // note that we know the non-0 share case works from the non-refreshable
@@ -4286,6 +4305,7 @@ mod tests {
                                 .proof((locked_nft3.info.launcher_id, 0).tree_hash().into())
                                 .unwrap()],
                         ],
+                        &[nft2_deposit, nft3_deposit],
                         merkle_tree.root(),
                         None,
                         dl_metadata_updater_hash.tree_hash().into(),
@@ -4298,6 +4318,14 @@ mod tests {
                 entry3_slot = registry.created_slot_value_to_slot(
                     registry.pending_spend.created_entry_slots[1],
                     RewardDistributorSlotNonce::ENTRY,
+                );
+                nft2_deposit = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_deposit_slots[0],
+                    RewardDistributorSlotNonce::DEPOSIT,
+                );
+                nft3_deposit = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_deposit_slots[1],
+                    RewardDistributorSlotNonce::DEPOSIT,
                 );
                 registry = registry.finish_spend(ctx, vec![])?.0;
 
@@ -4356,6 +4384,7 @@ mod tests {
                     } else {
                         1
                     }],
+                    &[nft2_deposit],
                 )?;
             let (custody3_conds, payout3_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
@@ -4369,6 +4398,7 @@ mod tests {
                     } else {
                         1
                     }],
+                    &[nft3_deposit],
                 )?;
 
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
@@ -4405,13 +4435,19 @@ mod tests {
             );
             assert!(sim.coin_state(nft2_return_coin_id).is_some());
             assert!(sim.coin_state(nft3_return_coin_id).is_some());
-        } else if let Some(locked_cat2) = locked_cat2 {
+        } else if let Some((locked_cat2, cat3_deposit)) = locked_cat2 {
             assert_eq!(locked_cat2.amount(), 3);
             let cat2_return_coin_id = locked_cat2.child(nft2_bls.puzzle_hash, 3).coin.coin_id();
 
             let (custody2_conds, payout2_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
-                .spend_for_locked_cats(ctx, &mut registry, entry2_slot.clone(), locked_cat2)?;
+                .spend_for_locked_cats(
+                    ctx,
+                    &mut registry,
+                    entry2_slot.clone(),
+                    locked_cat2,
+                    cat3_deposit,
+                )?;
             let new_entry2_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
