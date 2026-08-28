@@ -4208,7 +4208,13 @@ mod tests {
 
             (
                 entry2_slot,
-                Some((entry3_slot, locked_nft2, locked_nft3, nft2_deposit, nft3_deposit)),
+                Some((
+                    entry3_slot,
+                    locked_nft2,
+                    locked_nft3,
+                    nft2_deposit,
+                    nft3_deposit,
+                )),
                 None,
             )
         };
@@ -4248,8 +4254,13 @@ mod tests {
 
         // remove 2nd entry/the 2 NFTs
         let mut reserve_cat = registry.reserve.to_cat();
-        if let Some((mut entry3_slot, mut locked_nft2, mut locked_nft3, mut nft2_deposit, mut nft3_deposit)) =
-            other_nft2_info
+        if let Some((
+            mut entry3_slot,
+            mut locked_nft2,
+            mut locked_nft3,
+            mut nft2_deposit,
+            mut nft3_deposit,
+        )) = other_nft2_info
         {
             if refreshable {
                 // if refreshable, refresh NFTs to 0 shares before removing

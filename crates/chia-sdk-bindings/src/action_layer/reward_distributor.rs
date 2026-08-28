@@ -518,8 +518,10 @@ impl RewardDistributor {
             .into_iter()
             .map(|slot_value| {
                 DepositSlot::from_slot(
-                    distributor
-                        .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::DEPOSIT),
+                    distributor.created_slot_value_to_slot(
+                        slot_value,
+                        RewardDistributorSlotNonce::DEPOSIT,
+                    ),
                 )
             })
             .collect())

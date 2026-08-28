@@ -373,11 +373,7 @@ impl RewardDistributorStakeAction {
             nft_entries
                 .iter()
                 .map(|entry| {
-                    RewardDistributorDepositSlotValue::nft(
-                        custody,
-                        entry.shares,
-                        entry.launcher_id,
-                    )
+                    RewardDistributorDepositSlotValue::nft(custody, entry.shares, entry.launcher_id)
                 })
                 .collect()
         } else {

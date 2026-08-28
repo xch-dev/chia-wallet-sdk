@@ -105,8 +105,7 @@ pub use chia_sdk_types::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,
-        XchandlesHandleSlotValue,
-        XchandlesPricingSolution, XchandlesUpdateSlotValue,
+        XchandlesHandleSlotValue, XchandlesPricingSolution, XchandlesUpdateSlotValue,
     },
 };
 
