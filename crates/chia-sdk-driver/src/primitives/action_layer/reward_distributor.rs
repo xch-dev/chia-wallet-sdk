@@ -8,8 +8,8 @@ use chia_puzzle_types::{
 };
 use chia_sdk_types::puzzles::{
     RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorCommitmentSlotValue,
-    RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
-    SlotInfo,
+    RewardDistributorDepositSlotValue, RewardDistributorEntrySlotValue,
+    RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, SlotInfo,
 };
 use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{FromClvm, clvm_tuple, match_tuple};
@@ -37,10 +37,12 @@ pub struct RewardDistributorPendingSpendInfo {
     pub spent_reward_slots: Vec<RewardDistributorRewardSlotValue>,
     pub spent_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
     pub spent_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+    pub spent_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
 
     pub created_reward_slots: Vec<RewardDistributorRewardSlotValue>,
     pub created_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+    pub created_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
 
     pub logs: Vec<RewardDistributorActionLog>,
 
@@ -57,9 +59,11 @@ impl RewardDistributorPendingSpendInfo {
             created_reward_slots: vec![],
             created_commitment_slots: vec![],
             created_entry_slots: vec![],
+            created_deposit_slots: vec![],
             spent_reward_slots: vec![],
             spent_commitment_slots: vec![],
             spent_entry_slots: vec![],
+            spent_deposit_slots: vec![],
             logs: vec![],
             latest_state: (NodePtr::NIL, latest_state),
             signature: Signature::default(),
@@ -74,11 +78,14 @@ impl RewardDistributorPendingSpendInfo {
         self.spent_commitment_slots
             .extend(delta.spent_commitment_slots);
         self.spent_entry_slots.extend(delta.spent_entry_slots);
+        self.spent_deposit_slots.extend(delta.spent_deposit_slots);
 
         self.created_reward_slots.extend(delta.created_reward_slots);
         self.created_commitment_slots
             .extend(delta.created_commitment_slots);
         self.created_entry_slots.extend(delta.created_entry_slots);
+        self.created_deposit_slots
+            .extend(delta.created_deposit_slots);
 
         self.logs.extend(delta.logs);
 
@@ -123,10 +130,12 @@ impl RewardDistributor {
         let mut spent_reward_slots = vec![];
         let mut spent_commitment_slots = vec![];
         let mut spent_entry_slots = vec![];
+        let mut spent_deposit_slots = vec![];
 
         let mut created_reward_slots = vec![];
         let mut created_commitment_slots = vec![];
         let mut created_entry_slots = vec![];
+        let mut created_deposit_slots = vec![];
 
         let new_epoch_action = RewardDistributorNewEpochAction::from_constants(&constants);
         let new_epoch_hash = new_epoch_action.tree_hash();
@@ -273,11 +282,13 @@ impl RewardDistributor {
             &mut spent_reward_slots,
             &mut spent_commitment_slots,
             &mut spent_entry_slots,
+            &mut spent_deposit_slots,
         );
         log.extend_created_slots(
             &mut created_reward_slots,
             &mut created_commitment_slots,
             &mut created_entry_slots,
+            &mut created_deposit_slots,
         );
 
         Ok(RewardDistributorPendingSpendInfo {
@@ -285,9 +296,11 @@ impl RewardDistributor {
             spent_reward_slots,
             spent_commitment_slots,
             spent_entry_slots,
+            spent_deposit_slots,
             created_reward_slots,
             created_commitment_slots,
             created_entry_slots,
+            created_deposit_slots,
             logs: vec![log],
             latest_state: new_state_and_ephemeral,
             signature: Signature::default(),
@@ -842,6 +855,24 @@ impl RewardDistributor {
                     *slot_value,
                     RewardDistributorSlotNonce::COMMITMENT,
                 );
+            }
+        }
+
+        slot
+    }
+
+    pub fn actual_deposit_slot_value(
+        &self,
+        slot: Slot<RewardDistributorDepositSlotValue>,
+    ) -> Slot<RewardDistributorDepositSlotValue> {
+        let mut slot = slot;
+
+        for slot_value in &self.pending_spend.created_deposit_slots {
+            if slot_value.payout_puzzle_hash == slot.info.value.payout_puzzle_hash
+                && slot_value.launcher_id_or_cat_amount == slot.info.value.launcher_id_or_cat_amount
+            {
+                slot = self
+                    .created_slot_value_to_slot(*slot_value, RewardDistributorSlotNonce::DEPOSIT);
             }
         }
 

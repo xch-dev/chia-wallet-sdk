@@ -7,10 +7,9 @@ use chia_puzzle_types::{
 use chia_sdk_types::{
     Conditions, MerkleProof, Mod, announcement_id,
     puzzles::{
-        NONCE_WRAPPER_PUZZLE_HASH, NftLauncherProof, NonceWrapperArgs,
-        P2DelegatedBySingletonLayerArgs, RewardDistributorCatLockingPuzzleArgs,
-        RewardDistributorCatLockingPuzzleSolution, RewardDistributorEntrySlotValue,
-        RewardDistributorNftsFromDidLockingPuzzleArgs,
+        NftLauncherProof, P2DelegatedBySingletonLayerArgs, RewardDistributorCatLockingPuzzleArgs,
+        RewardDistributorCatLockingPuzzleSolution, RewardDistributorDepositSlotValue,
+        RewardDistributorEntrySlotValue, RewardDistributorNftsFromDidLockingPuzzleArgs,
         RewardDistributorNftsFromDidLockingPuzzleSolution,
         RewardDistributorNftsFromDlLockingPuzzleArgs,
         RewardDistributorNftsFromDlLockingPuzzleSolution, RewardDistributorSlotNonce,
@@ -19,7 +18,7 @@ use chia_sdk_types::{
     },
 };
 use clvm_traits::{ToClvm, clvm_tuple};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -181,6 +180,7 @@ impl RewardDistributorStakeAction {
             } => ctx.curry(RewardDistributorNftsFromDidLockingPuzzleArgs::new(
                 collection_did_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
+                Self::deposit_slot_1st_curry_hash(launcher_id),
             )),
             RewardDistributorType::CuratedNft {
                 store_launcher_id,
@@ -188,6 +188,7 @@ impl RewardDistributorStakeAction {
             } => ctx.curry(RewardDistributorNftsFromDlLockingPuzzleArgs::new(
                 store_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
+                Self::deposit_slot_1st_curry_hash(launcher_id),
             )),
             RewardDistributorType::Cat {
                 asset_id,
@@ -208,6 +209,7 @@ impl RewardDistributorStakeAction {
                 ctx.curry(RewardDistributorCatLockingPuzzleArgs::new(
                     cat_maker_puzzle,
                     Self::my_p2_puzzle_hash(launcher_id),
+                    Self::deposit_slot_1st_curry_hash(launcher_id),
                 ))
             }
         }?;
@@ -237,6 +239,7 @@ impl RewardDistributorStakeAction {
             } => RewardDistributorNftsFromDidLockingPuzzleArgs::new(
                 collection_did_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
+                Self::deposit_slot_1st_curry_hash(launcher_id),
             )
             .curry_tree_hash(),
             RewardDistributorType::CuratedNft {
@@ -245,6 +248,7 @@ impl RewardDistributorStakeAction {
             } => RewardDistributorNftsFromDlLockingPuzzleArgs::new(
                 store_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
+                Self::deposit_slot_1st_curry_hash(launcher_id),
             )
             .curry_tree_hash(),
             RewardDistributorType::Cat {
@@ -266,6 +270,7 @@ impl RewardDistributorStakeAction {
                 RewardDistributorCatLockingPuzzleArgs::new(
                     cat_maker_puzzle_hash,
                     Self::my_p2_puzzle_hash(launcher_id),
+                    Self::deposit_slot_1st_curry_hash(launcher_id),
                 )
                 .curry_tree_hash()
             }
@@ -288,6 +293,11 @@ impl RewardDistributorStakeAction {
             1,
         )
         .into()
+    }
+
+    fn deposit_slot_1st_curry_hash(launcher_id: Bytes32) -> Bytes32 {
+        Slot::<()>::first_curry_hash(launcher_id, RewardDistributorSlotNonce::DEPOSIT.to_u64())
+            .into()
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -356,9 +366,24 @@ impl RewardDistributorStakeAction {
         let (cat_amount, nft_entries) =
             Self::stake_cat_and_nft_from_solution(ctx, solution, distributor_type)?;
 
+        let custody = stake_solution.entry_custody_puzzle_hash;
+        let created_deposit_slots = if let Some(cat_amount) = cat_amount {
+            vec![RewardDistributorDepositSlotValue::cat(custody, cat_amount)]
+        } else if let Some(nft_entries) = nft_entries.as_ref() {
+            nft_entries
+                .iter()
+                .map(|entry| {
+                    RewardDistributorDepositSlotValue::nft(custody, entry.shares, entry.launcher_id)
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
         Ok(RewardDistributorStakeActionLog {
             spent_entry_slot,
             created_entry_slot,
+            created_deposit_slots,
             cat_amount,
             nft_entries,
             changes,
@@ -381,16 +406,6 @@ impl RewardDistributorStakeAction {
 
         // calculate notarized payments; spend said nfts
         let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
-        let my_p2_treehash: TreeHash = my_p2.into();
-        let payment_puzzle_hash: Bytes32 = CurriedProgram {
-            program: NONCE_WRAPPER_PUZZLE_HASH,
-            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
-                nonce: clvm_tuple!(entry_custody_puzzle_hash, 1),
-                inner_puzzle: my_p2_treehash,
-            },
-        }
-        .tree_hash()
-        .into();
 
         let mut notarized_payments = Vec::with_capacity(offered_nfts.len());
         let mut created_nfts = Vec::with_capacity(offered_nfts.len());
@@ -404,7 +419,7 @@ impl RewardDistributorStakeAction {
                 // i = cumulative shares until now since each NFT has a weight of 1 in the Collection NFT mode
                 nonce,
                 payments: vec![Payment::new(
-                    payment_puzzle_hash,
+                    my_p2,
                     1,
                     ctx.hint(
                         clvm_tuple!(entry_custody_puzzle_hash, my_p2)
@@ -417,7 +432,7 @@ impl RewardDistributorStakeAction {
             notarized_payments.push(np);
 
             created_nfts.push(offered_nfts[i].child(
-                payment_puzzle_hash,
+                my_p2,
                 offered_nfts[i].info.current_owner,
                 offered_nfts[i].info.metadata,
                 offered_nfts[i].coin.amount,
@@ -527,7 +542,6 @@ impl RewardDistributorStakeAction {
 
         // calculate notarized payments; spend said nfts
         let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
-        let my_p2_treehash: TreeHash = my_p2.into();
 
         let mut notarized_payments = Vec::with_capacity(offered_nfts.len());
         let mut created_nfts = Vec::with_capacity(offered_nfts.len());
@@ -535,16 +549,6 @@ impl RewardDistributorStakeAction {
         let mut security_conditions = Conditions::new();
         let mut total_shares_until_now = 0;
         for i in 0..offered_nfts.len() {
-            let payment_puzzle_hash: Bytes32 = CurriedProgram {
-                program: NONCE_WRAPPER_PUZZLE_HASH,
-                args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
-                    nonce: clvm_tuple!(entry_custody_puzzle_hash, nft_shares[i]),
-                    inner_puzzle: my_p2_treehash,
-                },
-            }
-            .tree_hash()
-            .into();
-
             let np = NotarizedPayment {
                 // NFTs may have different weights in curated NFT mode
                 nonce: clvm_tuple!(
@@ -554,7 +558,7 @@ impl RewardDistributorStakeAction {
                 .tree_hash()
                 .into(),
                 payments: vec![Payment::new(
-                    payment_puzzle_hash,
+                    my_p2,
                     1,
                     ctx.hint(
                         clvm_tuple!(entry_custody_puzzle_hash, my_p2)
@@ -568,7 +572,7 @@ impl RewardDistributorStakeAction {
             total_shares_until_now += nft_shares[i];
 
             created_nfts.push(offered_nfts[i].child(
-                payment_puzzle_hash,
+                my_p2,
                 offered_nfts[i].info.current_owner,
                 offered_nfts[i].info.metadata,
                 offered_nfts[i].coin.amount,
@@ -677,23 +681,13 @@ impl RewardDistributorStakeAction {
 
         // calculate notarized payments; spend said nfts
         let my_p2 = Self::my_p2_puzzle_hash(self.launcher_id);
-        let my_p2_treehash: TreeHash = my_p2.into();
-        let payment_puzzle_hash: Bytes32 = CurriedProgram {
-            program: NONCE_WRAPPER_PUZZLE_HASH,
-            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
-                nonce: clvm_tuple!(entry_custody_puzzle_hash, offered_cat.amount()),
-                inner_puzzle: my_p2_treehash,
-            },
-        }
-        .tree_hash()
-        .into();
 
         let np = NotarizedPayment {
             nonce: clvm_tuple!(ephemeral_counter.tree_hash(), my_id)
                 .tree_hash()
                 .into(),
             payments: vec![Payment::new(
-                payment_puzzle_hash,
+                my_p2,
                 offered_cat.amount(),
                 ctx.hint(
                     clvm_tuple!(entry_custody_puzzle_hash, my_p2)
@@ -770,7 +764,7 @@ impl RewardDistributorStakeAction {
         Ok((
             security_conditions,
             np,
-            offered_cat.child(payment_puzzle_hash, offered_cat.amount()),
+            offered_cat.child(my_p2, offered_cat.amount()),
         ))
     }
 }

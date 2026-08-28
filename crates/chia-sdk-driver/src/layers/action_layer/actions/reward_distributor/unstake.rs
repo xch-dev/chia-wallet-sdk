@@ -3,9 +3,9 @@ use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonS
 use chia_sdk_types::{
     Conditions, Mod,
     puzzles::{
-        NftToUnlockInfo, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
-        P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
-        RewardDistributorCatUnlockingPuzzleSolution, RewardDistributorEntryPayoutInfo,
+        NftToUnlockInfo, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
+        RewardDistributorCatUnlockingPuzzleArgs, RewardDistributorCatUnlockingPuzzleSolution,
+        RewardDistributorDepositSlotValue, RewardDistributorEntryPayoutInfo,
         RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
         RewardDistributorNftsUnlockingPuzzleSolution, RewardDistributorSlotNonce,
         RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
@@ -93,9 +93,12 @@ impl RewardDistributorUnstakeAction {
     ) -> Result<NodePtr, DriverError> {
         match distributor_type {
             RewardDistributorType::NftCollection { .. }
-            | RewardDistributorType::CuratedNft { .. } => ctx.curry(
-                RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(launcher_id)),
-            ),
+            | RewardDistributorType::CuratedNft { .. } => {
+                ctx.curry(RewardDistributorNftsUnlockingPuzzleArgs::new(
+                    Self::my_p2_puzzle_hash(launcher_id),
+                    Self::deposit_slot_1st_curry_hash(launcher_id),
+                ))
+            }
             RewardDistributorType::Cat {
                 asset_id,
                 hidden_puzzle_hash,
@@ -115,6 +118,7 @@ impl RewardDistributorUnstakeAction {
                 ctx.curry(RewardDistributorCatUnlockingPuzzleArgs::new(
                     cat_maker_puzzle,
                     Self::my_p2_puzzle_hash(launcher_id),
+                    Self::deposit_slot_1st_curry_hash(launcher_id),
                 ))
             }
             RewardDistributorType::Managed { .. } => Err(DriverError::Custom(
@@ -159,9 +163,10 @@ impl RewardDistributorUnstakeAction {
             unlock_puzzle: match distributor_type {
                 RewardDistributorType::NftCollection { .. }
                 | RewardDistributorType::CuratedNft { .. } => {
-                    RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
-                        launcher_id,
-                    ))
+                    RewardDistributorNftsUnlockingPuzzleArgs::new(
+                        Self::my_p2_puzzle_hash(launcher_id),
+                        Self::deposit_slot_1st_curry_hash(launcher_id),
+                    )
                     .curry_tree_hash()
                 }
                 RewardDistributorType::Cat {
@@ -179,6 +184,7 @@ impl RewardDistributorUnstakeAction {
                     }
                     .curry_tree_hash(),
                     Self::my_p2_puzzle_hash(launcher_id),
+                    Self::deposit_slot_1st_curry_hash(launcher_id),
                 )
                 .curry_tree_hash(),
                 RewardDistributorType::Managed { .. } => TreeHash::new([0; 32]),
@@ -192,6 +198,11 @@ impl RewardDistributorUnstakeAction {
             1,
         )
         .into()
+    }
+
+    fn deposit_slot_1st_curry_hash(launcher_id: Bytes32) -> Bytes32 {
+        Slot::<()>::first_curry_hash(launcher_id, RewardDistributorSlotNonce::DEPOSIT.to_u64())
+            .into()
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -241,9 +252,32 @@ impl RewardDistributorUnstakeAction {
             distributor_type,
         )?;
 
+        let custody = solution.entry_slot.payout_puzzle_hash;
+        let spent_deposit_slots = if let Some(cat_amount) = cat_amount {
+            let unlock_solution = ctx
+                .extract::<RewardDistributorCatUnlockingPuzzleSolution<NodePtr>>(
+                    solution.unlock_puzzle_solution,
+                )?;
+            vec![RewardDistributorDepositSlotValue::new(
+                custody,
+                unlock_solution.cat_shares,
+                chia_sdk_types::puzzles::RewardDistributorDepositSlotAsset::CatAmount(cat_amount),
+            )]
+        } else if let Some(nft_entries) = nft_entries.as_ref() {
+            nft_entries
+                .iter()
+                .map(|entry| {
+                    RewardDistributorDepositSlotValue::nft(custody, entry.shares, entry.launcher_id)
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
         Ok(RewardDistributorUnstakeActionLog {
             spent_entry_slot: solution.entry_slot,
             created_entry_slot,
+            spent_deposit_slots,
             cat_amount,
             nft_entries,
             changes,
@@ -257,6 +291,7 @@ impl RewardDistributorUnstakeAction {
         entry_slot: Slot<RewardDistributorEntrySlotValue>,
         locked_nfts: &[Nft],
         locked_nft_shares: &[u64],
+        deposit_slots: &[Slot<RewardDistributorDepositSlotValue>],
     ) -> Result<(Conditions, u64), DriverError> {
         // u64 = last payment amount
         let my_state = distributor.pending_spend.latest_state.1;
@@ -300,16 +335,25 @@ impl RewardDistributorUnstakeAction {
 
             removed_shares += locked_nft_share;
 
-            // spend locked NFT
+            // spend locked NFT (inner puzzle is my_p2)
             let nft_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
             let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
-            // don't forget about the nonce wrapper!
-            let nft_nonce: (Bytes32, u64) =
-                clvm_tuple!(entry_slot.info.value.payout_puzzle_hash, *locked_nft_share);
-            let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
-                nonce: nft_nonce,
-                inner_puzzle: nft_inner_puzzle,
-            })?;
+
+            let deposit_value = RewardDistributorDepositSlotValue::nft(
+                entry_slot.info.value.payout_puzzle_hash,
+                *locked_nft_share,
+                locked_nft.info.launcher_id,
+            );
+            let deposit_slot = deposit_slots
+                .iter()
+                .find(|slot| slot.info.value == deposit_value)
+                .cloned()
+                .ok_or_else(|| {
+                    DriverError::Custom("matching deposit slot not provided for NFT".to_string())
+                })?;
+            distributor
+                .actual_deposit_slot_value(deposit_slot)
+                .spend(ctx, distributor.info.inner_puzzle_hash().into())?;
 
             let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
             let delegated_puzzle = ctx.alloc(&clvm_quote!(
@@ -363,6 +407,7 @@ impl RewardDistributorUnstakeAction {
         distributor: &mut RewardDistributor,
         entry_slot: Slot<RewardDistributorEntrySlotValue>,
         locked_cat: Cat,
+        deposit_slot: Slot<RewardDistributorDepositSlotValue>,
     ) -> Result<(Conditions, u64), DriverError> {
         // u64 = last payment amount
         let my_state = distributor.pending_spend.latest_state.1;
@@ -386,17 +431,13 @@ impl RewardDistributorUnstakeAction {
             SingletonStruct::new(self.launcher_id).tree_hash().into();
         let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
 
-        // spend locked CAT
+        // spend locked CAT (inner puzzle is my_p2)
         let cat_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
         let cat_inner_puzzle = cat_p2.construct_puzzle(ctx)?;
-        // don't forget about the nonce wrapper!
-        let cat_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
-            nonce: (
-                entry_slot.info.value.payout_puzzle_hash,
-                locked_cat_coin.amount,
-            ),
-            inner_puzzle: cat_inner_puzzle,
-        })?;
+
+        distributor
+            .actual_deposit_slot_value(deposit_slot)
+            .spend(ctx, distributor.info.inner_puzzle_hash().into())?;
 
         let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
         let delegated_puzzle = ctx.alloc(&clvm_quote!(

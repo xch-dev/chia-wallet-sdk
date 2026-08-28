@@ -380,6 +380,7 @@ pub enum RewardDistributorSlotNonce {
     REWARD = 1,
     COMMITMENT = 2,
     ENTRY = 3,
+    DEPOSIT = 4,
 }
 
 impl RewardDistributorSlotNonce {
@@ -388,6 +389,7 @@ impl RewardDistributorSlotNonce {
             1 => Some(Self::REWARD),
             2 => Some(Self::COMMITMENT),
             3 => Some(Self::ENTRY),
+            4 => Some(Self::DEPOSIT),
             _ => None,
         }
     }
@@ -397,6 +399,7 @@ impl RewardDistributorSlotNonce {
             Self::REWARD => 1,
             Self::COMMITMENT => 2,
             Self::ENTRY => 3,
+            Self::DEPOSIT => 4,
         }
     }
 }
@@ -434,4 +437,75 @@ pub struct RewardDistributorEntrySlotValue {
     pub initial_cumulative_payout: u128,
     #[clvm(rest)]
     pub shares: u64,
+}
+
+/// Third field of a deposit slot: NFT launcher id (32-byte atom) or CAT amount (CLVM integer).
+/// Encodes as a raw atom so the on-chain `(payout . (shares . rest))` tree hash matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RewardDistributorDepositSlotAsset {
+    LauncherId(Bytes32),
+    CatAmount(u64),
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorDepositSlotAsset {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        let atom = decoder.decode_atom(&node)?;
+        if atom.as_ref().len() == 32 {
+            let mut bytes = [0u8; 32];
+            bytes.copy_from_slice(atom.as_ref());
+            return Ok(Self::LauncherId(bytes.into()));
+        }
+        Ok(Self::CatAmount(u64::from_clvm(decoder, node)?))
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for RewardDistributorDepositSlotAsset {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        match self {
+            Self::LauncherId(launcher_id) => launcher_id.to_clvm(encoder),
+            Self::CatAmount(amount) => amount.to_clvm(encoder),
+        }
+    }
+}
+
+/// Authenticated stake deposit: `(payout_puzzle_hash . (shares . launcher_id_or_cat_amount))`.
+#[derive(
+    ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
+#[clvm(list)]
+pub struct RewardDistributorDepositSlotValue {
+    pub payout_puzzle_hash: Bytes32,
+    pub shares: u64,
+    #[clvm(rest)]
+    pub launcher_id_or_cat_amount: RewardDistributorDepositSlotAsset,
+}
+
+impl RewardDistributorDepositSlotValue {
+    pub fn new(
+        payout_puzzle_hash: Bytes32,
+        shares: u64,
+        launcher_id_or_cat_amount: RewardDistributorDepositSlotAsset,
+    ) -> Self {
+        Self {
+            payout_puzzle_hash,
+            shares,
+            launcher_id_or_cat_amount,
+        }
+    }
+
+    pub fn nft(payout_puzzle_hash: Bytes32, shares: u64, launcher_id: Bytes32) -> Self {
+        Self::new(
+            payout_puzzle_hash,
+            shares,
+            RewardDistributorDepositSlotAsset::LauncherId(launcher_id),
+        )
+    }
+
+    pub fn cat(payout_puzzle_hash: Bytes32, cat_amount: u64) -> Self {
+        Self::new(
+            payout_puzzle_hash,
+            cat_amount,
+            RewardDistributorDepositSlotAsset::CatAmount(cat_amount),
+        )
+    }
 }

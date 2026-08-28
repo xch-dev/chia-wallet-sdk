@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::puzzles::{
-    RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
-    RewardDistributorRewardSlotValue,
+    RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
+    RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
 };
 
 use crate::RewardDistributorState;
@@ -83,6 +83,10 @@ pub struct RewardDistributorRefreshNftsFromDlActionLog {
     pub spent_entry_slots: Vec<RewardDistributorEntrySlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
     #[serde(default)]
+    pub spent_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
+    #[serde(default)]
+    pub created_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
+    #[serde(default)]
     pub nft_entries: Vec<RewardDistributorNftStakeEntry>,
     pub dl_root_hash: Bytes32,
     pub dl_inner_puzzle_hash: Bytes32,
@@ -94,6 +98,8 @@ pub struct RewardDistributorRefreshNftsFromDlActionLog {
 pub struct RewardDistributorStakeActionLog {
     pub spent_entry_slot: Option<RewardDistributorEntrySlotValue>,
     pub created_entry_slot: RewardDistributorEntrySlotValue,
+    #[serde(default)]
+    pub created_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
     pub cat_amount: Option<u64>,
     pub nft_entries: Option<Vec<RewardDistributorNftStakeEntry>>,
     pub changes: RewardDistributorStateTransition,
@@ -103,6 +109,8 @@ pub struct RewardDistributorStakeActionLog {
 pub struct RewardDistributorUnstakeActionLog {
     pub spent_entry_slot: RewardDistributorEntrySlotValue,
     pub created_entry_slot: RewardDistributorEntrySlotValue,
+    #[serde(default)]
+    pub spent_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
     pub cat_amount: Option<u64>,
     pub nft_entries: Option<Vec<RewardDistributorNftStakeEntry>>,
     pub changes: RewardDistributorStateTransition,
@@ -132,6 +140,7 @@ impl RewardDistributorActionLog {
         spent_reward_slots: &mut Vec<RewardDistributorRewardSlotValue>,
         spent_commitment_slots: &mut Vec<RewardDistributorCommitmentSlotValue>,
         spent_entry_slots: &mut Vec<RewardDistributorEntrySlotValue>,
+        spent_deposit_slots: &mut Vec<RewardDistributorDepositSlotValue>,
     ) {
         match self {
             Self::AddEntry(_) | Self::AddIncentives(_) | Self::Sync(_) => {}
@@ -145,13 +154,17 @@ impl RewardDistributorActionLog {
             }
             Self::RefreshNftsFromDl(log) => {
                 spent_entry_slots.extend(log.spent_entry_slots.iter().copied());
+                spent_deposit_slots.extend(log.spent_deposit_slots.iter().copied());
             }
             Self::Stake(log) => {
                 if let Some(spent_entry_slot) = log.spent_entry_slot {
                     spent_entry_slots.push(spent_entry_slot);
                 }
             }
-            Self::Unstake(log) => spent_entry_slots.push(log.spent_entry_slot),
+            Self::Unstake(log) => {
+                spent_entry_slots.push(log.spent_entry_slot);
+                spent_deposit_slots.extend(log.spent_deposit_slots.iter().copied());
+            }
         }
     }
 
@@ -160,6 +173,7 @@ impl RewardDistributorActionLog {
         created_reward_slots: &mut Vec<RewardDistributorRewardSlotValue>,
         created_commitment_slots: &mut Vec<RewardDistributorCommitmentSlotValue>,
         created_entry_slots: &mut Vec<RewardDistributorEntrySlotValue>,
+        created_deposit_slots: &mut Vec<RewardDistributorDepositSlotValue>,
     ) {
         match self {
             Self::AddEntry(log) => created_entry_slots.push(log.created_entry_slot),
@@ -173,8 +187,12 @@ impl RewardDistributorActionLog {
             Self::WithdrawIncentives(log) => created_reward_slots.push(log.created_reward_slot),
             Self::RefreshNftsFromDl(log) => {
                 created_entry_slots.extend(log.created_entry_slots.iter().copied());
+                created_deposit_slots.extend(log.created_deposit_slots.iter().copied());
             }
-            Self::Stake(log) => created_entry_slots.push(log.created_entry_slot),
+            Self::Stake(log) => {
+                created_entry_slots.push(log.created_entry_slot);
+                created_deposit_slots.extend(log.created_deposit_slots.iter().copied());
+            }
             Self::Unstake(log) => created_entry_slots.push(log.created_entry_slot),
         }
     }

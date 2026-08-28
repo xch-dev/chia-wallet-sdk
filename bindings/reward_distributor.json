@@ -213,6 +213,8 @@
     "fields": {
       "spent_entry_slots": "Vec<RewardDistributorEntrySlotValue>",
       "created_entry_slots": "Vec<RewardDistributorEntrySlotValue>",
+      "spent_deposit_slots": "Vec<RewardDistributorDepositSlotValue>",
+      "created_deposit_slots": "Vec<RewardDistributorDepositSlotValue>",
       "nft_entries": "Vec<RewardDistributorNftStakeEntry>",
       "dl_root_hash": "Bytes32",
       "dl_inner_puzzle_hash": "Bytes32",
@@ -226,6 +228,7 @@
     "fields": {
       "spent_entry_slot": "Option<RewardDistributorEntrySlotValue>",
       "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "created_deposit_slots": "Vec<RewardDistributorDepositSlotValue>",
       "cat_amount": "Option<u64>",
       "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>",
       "changes": "RewardDistributorStateTransition"
@@ -237,6 +240,7 @@
     "fields": {
       "spent_entry_slot": "RewardDistributorEntrySlotValue",
       "created_entry_slot": "RewardDistributorEntrySlotValue",
+      "spent_deposit_slots": "Vec<RewardDistributorDepositSlotValue>",
       "cat_amount": "Option<u64>",
       "nft_entries": "Option<Vec<RewardDistributorNftStakeEntry>>",
       "changes": "RewardDistributorStateTransition"
@@ -377,6 +381,60 @@
       }
     }
   },
+  "RewardDistributorDepositSlotValue": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "payout_puzzle_hash": "Bytes32",
+      "shares": "u64"
+    },
+    "methods": {
+      "nft": {
+        "type": "factory",
+        "args": {
+          "payout_puzzle_hash": "Bytes32",
+          "shares": "u64",
+          "launcher_id": "Bytes32"
+        }
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "payout_puzzle_hash": "Bytes32",
+          "cat_amount": "u64"
+        }
+      },
+      "launcher_id": {
+        "return": "Option<Bytes32>"
+      },
+      "cat_amount": {
+        "return": "Option<u64>"
+      }
+    }
+  },
+  "DepositSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "RewardDistributorDepositSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "RewardDistributorDepositSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
   "RewardDistributorInitiatePayoutResult": {
     "type": "class",
     "fields": {
@@ -494,7 +552,8 @@
       "nfts": "Vec<Nft>",
       "nft_shares_delta": "Vec<i64>",
       "new_shares": "Vec<u64>",
-      "nft_inclusion_proofs": "Vec<MerkleProof>"
+      "nft_inclusion_proofs": "Vec<MerkleProof>",
+      "deposit_slots": "Vec<DepositSlot>"
     }
   },
   "RewardDistributorLaunchResult": {
@@ -563,6 +622,9 @@
       },
       "pending_created_entry_slots": {
         "return": "Vec<EntrySlot>"
+      },
+      "pending_created_deposit_slots": {
+        "return": "Vec<DepositSlot>"
       },
       "pending_logs": {
         "return": "Vec<RewardDistributorActionLog>"
@@ -683,14 +745,16 @@
         "args": {
           "entry_slot": "EntrySlot",
           "locked_nfts": "Vec<Nft>",
-          "locked_nft_shares": "Vec<u64>"
+          "locked_nft_shares": "Vec<u64>",
+          "deposit_slots": "Vec<DepositSlot>"
         },
         "return": "RewardDistributorUnstakeLockedNftsResult"
       },
       "unstake_locked_cat": {
         "args": {
           "entry_slot": "EntrySlot",
-          "locked_cat": "Cat"
+          "locked_cat": "Cat",
+          "deposit_slot": "DepositSlot"
         },
         "return": "RewardDistributorUnstakeLockedCatResult"
       },
