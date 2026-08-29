@@ -2893,7 +2893,6 @@ class XchandlesPrecommitValue:
     buy_time: int
     num_periods: int
     current_expiration: int
-    use_expire_pricing: bool
     @staticmethod
     def for_normal_registration(handle: str, secret: bytes, ownerLauncherId: bytes, resolvedLauncherId: bytes, paymentAssetId: bytes, basePrice: int, registrationPeriod: int, buyTime: int, numPeriods: int) -> XchandlesPrecommitValue: ...
     @staticmethod
