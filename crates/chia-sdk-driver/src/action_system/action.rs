@@ -7,9 +7,9 @@ use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
-    MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
-    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
-    UpdateNftAction,
+    MeltSingletonAction, MintNftAction, MintOptionAction, NftIdentity, OptionType, RunTailAction,
+    SendAction, SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
+    UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
@@ -102,7 +102,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            Id::Xch,
+            None,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -120,7 +120,25 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            parent_did_id,
+            Some(NftIdentity::Did(parent_did_id)),
+            metadata,
+            metadata_updater_puzzle_hash,
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            amount,
+        ))
+    }
+
+    pub fn mint_nft_from_nft(
+        parent_nft_id: Id,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+    ) -> Self {
+        Self::MintNft(MintNftAction::new(
+            Some(NftIdentity::Nft(parent_nft_id)),
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -136,6 +154,17 @@ impl Action {
     pub fn mint_empty_nft_from_did(parent_did_id: Id) -> Self {
         Self::mint_nft_from_did(
             parent_did_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            Bytes32::default(),
+            0,
+            1,
+        )
+    }
+
+    pub fn mint_empty_nft_from_nft(parent_nft_id: Id) -> Self {
+        Self::mint_nft_from_nft(
+            parent_nft_id,
             HashedPtr::NIL,
             Bytes32::default(),
             Bytes32::default(),
@@ -161,6 +190,21 @@ impl Action {
     ) -> Self {
         Self::mint_nft_from_did(
             parent_did_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            1,
+        )
+    }
+
+    pub fn mint_empty_royalty_nft_from_nft(
+        parent_nft_id: Id,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+    ) -> Self {
+        Self::mint_nft_from_nft(
+            parent_nft_id,
             HashedPtr::NIL,
             Bytes32::default(),
             royalty_puzzle_hash,

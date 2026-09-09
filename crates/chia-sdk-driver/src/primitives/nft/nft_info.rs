@@ -36,9 +36,12 @@ pub struct NftInfo {
     /// services may be limited.
     pub metadata_updater_puzzle_hash: Bytes32,
 
-    /// The current assigned owner of the NFT, if any. This is managed by the [`NftOwnershipLayer`].
+    /// The singleton launcher id of the NFT's current assigned identity, if any.
+    /// This is managed by the [`NftOwnershipLayer`].
     ///
-    /// Historically this was always a DID, although it's possible to assign any singleton including a vault.
+    /// Historically this was described as a DID id, but the on-chain value can
+    /// identify any singleton. The high-level action system supports spendable
+    /// DID and NFT identities.
     ///
     /// It's intended to unassign the owner after transferring to an external wallet or creating an offer.
     pub current_owner: Option<Bytes32>,
