@@ -164,7 +164,7 @@
           "royalty_puzzle_hash": "Bytes32",
           "royalty_basis_points": "u16",
           "amount": "u64",
-          "parent_id": "Option<Id>"
+          "parent": "Option<NftIdentity>"
         }
       },
       "update_nft": {
@@ -280,12 +280,63 @@
       }
     }
   },
+  "NftIdentityKind": {
+    "type": "enum",
+    "values": [
+      "Did",
+      "Nft"
+    ]
+  },
+  "NftIdentity": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "kind": "NftIdentityKind",
+      "id": "Id"
+    },
+    "methods": {
+      "did": {
+        "type": "factory",
+        "args": {
+          "id": "Id"
+        }
+      },
+      "nft": {
+        "type": "factory",
+        "args": {
+          "id": "Id"
+        }
+      }
+    }
+  },
   "TransferNftById": {
     "type": "class",
     "new": true,
     "fields": {
-      "owner_id": "Option<Id>",
+      "owner": "Option<NftIdentity>",
       "trade_prices": "Vec<TradePrice>"
+    },
+    "methods": {
+      "with_did": {
+        "type": "factory",
+        "args": {
+          "did_id": "Id",
+          "trade_prices": "Vec<TradePrice>"
+        }
+      },
+      "with_nft": {
+        "type": "factory",
+        "args": {
+          "nft_id": "Id",
+          "trade_prices": "Vec<TradePrice>"
+        }
+      },
+      "unassigned": {
+        "type": "factory",
+        "args": {
+          "trade_prices": "Vec<TradePrice>"
+        }
+      }
     }
   }
 }

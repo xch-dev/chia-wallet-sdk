@@ -7,7 +7,7 @@ export declare class Action {
   static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
-  static mintNft(clvm: Clvm, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, amount: bigint, parentId?: Id | undefined | null): Action
+  static mintNft(clvm: Clvm, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, amount: bigint, parent?: NftIdentity | undefined | null): Action
   static updateNft(id: Id, metadataUpdateSpends: Array<Spend>, transfer?: TransferNftById | undefined | null): Action
   static fee(amount: bigint): Action
 }
@@ -2058,6 +2058,17 @@ export declare class Nft {
   set info(value: NftInfo)
 }
 
+export declare class NftIdentity {
+  clone(): NftIdentity
+  static did(id: Id): NftIdentity
+  static nft(id: Id): NftIdentity
+  constructor(kind: NftIdentityKind, id: Id)
+  get kind(): NftIdentityKind
+  set kind(value: NftIdentityKind)
+  get id(): Id
+  set id(value: Id)
+}
+
 export declare class NftInfo {
   clone(): NftInfo
   innerPuzzleHash(): Buffer
@@ -3605,9 +3616,12 @@ export declare class TransferNft {
 
 export declare class TransferNftById {
   clone(): TransferNftById
-  constructor(ownerId: Id | undefined | null, tradePrices: Array<TradePrice>)
-  get ownerId(): Id | null
-  set ownerId(value?: Id | undefined | null)
+  static withDid(didId: Id, tradePrices: Array<TradePrice>): TransferNftById
+  static withNft(nftId: Id, tradePrices: Array<TradePrice>): TransferNftById
+  static unassigned(tradePrices: Array<TradePrice>): TransferNftById
+  constructor(owner: NftIdentity | undefined | null, tradePrices: Array<TradePrice>)
+  get owner(): NftIdentity | null
+  set owner(value?: NftIdentity | undefined | null)
   get tradePrices(): Array<TradePrice>
   set tradePrices(value: Array<TradePrice>)
 }
@@ -4149,6 +4163,11 @@ export declare function generateBytes(bytes: number): Buffer
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Buffer
 
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Buffer
+
+export declare const enum NftIdentityKind {
+  Did = 0,
+  Nft = 1
+}
 
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
 

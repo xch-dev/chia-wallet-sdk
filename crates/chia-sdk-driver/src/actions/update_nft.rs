@@ -1,26 +1,72 @@
+use chia_protocol::Bytes32;
 use chia_sdk_types::{
     Conditions,
     conditions::{TradePrice, TransferNft},
 };
 
 use crate::{
-    Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind, Spends,
-    assignment_puzzle_announcement_id,
+    Deltas, DriverError, Id, NftIdentity, SingletonInfo, Spend, SpendAction, SpendContext,
+    SpendKind, Spends, assignment_puzzle_announcement_id,
 };
 
 #[derive(Debug, Default, Clone)]
 pub struct TransferNftById {
-    pub did_id: Option<Id>,
+    pub owner: Option<NftIdentity>,
     pub trade_prices: Vec<TradePrice>,
 }
 
 impl TransferNftById {
-    pub fn new(did_id: Option<Id>, trade_prices: Vec<TradePrice>) -> Self {
+    pub fn new(owner: Option<NftIdentity>, trade_prices: Vec<TradePrice>) -> Self {
         Self {
-            did_id,
+            owner,
             trade_prices,
         }
     }
+
+    pub fn with_did(did_id: Id, trade_prices: Vec<TradePrice>) -> Self {
+        Self::new(Some(NftIdentity::Did(did_id)), trade_prices)
+    }
+
+    pub fn with_nft(nft_id: Id, trade_prices: Vec<TradePrice>) -> Self {
+        Self::new(Some(NftIdentity::Nft(nft_id)), trade_prices)
+    }
+
+    pub fn unassigned(trade_prices: Vec<TradePrice>) -> Self {
+        Self::new(None, trade_prices)
+    }
+}
+
+fn assign_identity(
+    identity_kind: &mut SpendKind,
+    identity_launcher_id: Bytes32,
+    identity_inner_puzzle_hash: Bytes32,
+    target_puzzle_hash: Bytes32,
+    target_launcher_id: Bytes32,
+    trade_prices: Vec<TradePrice>,
+) -> Result<TransferNft, DriverError> {
+    let transfer_condition = TransferNft::new(
+        Some(identity_launcher_id),
+        trade_prices,
+        Some(identity_inner_puzzle_hash),
+    );
+
+    match identity_kind {
+        SpendKind::Conditions(spend) => {
+            spend.add_conditions(
+                Conditions::new()
+                    .assert_puzzle_announcement(assignment_puzzle_announcement_id(
+                        target_puzzle_hash,
+                        &transfer_condition,
+                    ))
+                    .create_puzzle_announcement(target_launcher_id.into()),
+            );
+        }
+        SpendKind::Settlement(_) => {
+            return Err(DriverError::CannotEmitConditions);
+        }
+    }
+
+    Ok(transfer_condition)
 }
 
 #[derive(Debug, Clone)]
@@ -51,11 +97,12 @@ impl SpendAction for UpdateNftAction {
         deltas.set_needed(self.id);
 
         if let Some(transfer) = &self.transfer
-            && let Some(did_id) = transfer.did_id
+            && let Some(owner) = transfer.owner
         {
-            deltas.update(did_id).input += 1;
-            deltas.update(did_id).output += 1;
-            deltas.set_needed(did_id);
+            let owner_id = owner.id();
+            deltas.update(owner_id).input += 1;
+            deltas.update(owner_id).output += 1;
+            deltas.set_needed(owner_id);
         }
     }
 
@@ -65,53 +112,68 @@ impl SpendAction for UpdateNftAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
+        let target = spends
+            .nfts
+            .get(&self.id)
+            .ok_or(DriverError::InvalidAssetId)?
+            .last()?;
+        let target_puzzle_hash = target.asset.coin.puzzle_hash;
+        let target_launcher_id = target.asset.info.launcher_id;
+
+        if let Some(transfer) = self.transfer.clone() {
+            let transfer_condition = if let Some(owner) = transfer.owner {
+                match owner {
+                    NftIdentity::Did(id) => {
+                        let identity = spends
+                            .dids
+                            .get_mut(&id)
+                            .ok_or(DriverError::MissingNftIdentity)?
+                            .last_mut()?;
+                        assign_identity(
+                            &mut identity.kind,
+                            identity.asset.info.launcher_id,
+                            identity.asset.info.inner_puzzle_hash().into(),
+                            target_puzzle_hash,
+                            target_launcher_id,
+                            transfer.trade_prices,
+                        )?
+                    }
+                    NftIdentity::Nft(id) => {
+                        let identity = spends
+                            .nfts
+                            .get_mut(&id)
+                            .ok_or(DriverError::MissingNftIdentity)?
+                            .last_mut()?;
+                        assign_identity(
+                            &mut identity.kind,
+                            identity.asset.info.launcher_id,
+                            identity.asset.info.inner_puzzle_hash().into(),
+                            target_puzzle_hash,
+                            target_launcher_id,
+                            transfer.trade_prices,
+                        )?
+                    }
+                }
+            } else {
+                TransferNft::new(None, transfer.trade_prices, None)
+            };
+
+            let nft = spends
+                .nfts
+                .get_mut(&self.id)
+                .ok_or(DriverError::InvalidAssetId)?
+                .last_mut()?;
+            nft.child_info.transfer_condition = Some(transfer_condition);
+        }
+
         let nft = spends
             .nfts
             .get_mut(&self.id)
             .ok_or(DriverError::InvalidAssetId)?
             .last_mut()?;
-
         nft.child_info
             .metadata_update_spends
             .extend_from_slice(&self.metadata_update_spends);
-
-        if let Some(transfer) = self.transfer.clone() {
-            let transfer_condition = if let Some(did_id) = transfer.did_id {
-                let did = spends
-                    .dids
-                    .get_mut(&did_id)
-                    .ok_or(DriverError::InvalidAssetId)?
-                    .last_mut()?;
-
-                let transfer_condition = TransferNft::new(
-                    Some(did.asset.info.launcher_id),
-                    transfer.trade_prices,
-                    Some(did.asset.info.inner_puzzle_hash().into()),
-                );
-
-                match &mut did.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(
-                            Conditions::new()
-                                .assert_puzzle_announcement(assignment_puzzle_announcement_id(
-                                    nft.asset.coin.puzzle_hash,
-                                    &transfer_condition,
-                                ))
-                                .create_puzzle_announcement(nft.asset.info.launcher_id.into()),
-                        );
-                    }
-                    SpendKind::Settlement(_) => {
-                        return Err(DriverError::CannotEmitConditions);
-                    }
-                }
-
-                transfer_condition
-            } else {
-                TransferNft::new(None, transfer.trade_prices, None)
-            };
-
-            nft.child_info.transfer_condition = Some(transfer_condition);
-        }
 
         Ok(())
     }
@@ -274,7 +336,7 @@ mod tests {
                 Action::update_nft(
                     Id::New(1),
                     Vec::new(),
-                    Some(TransferNftById::new(Some(Id::New(0)), vec![])),
+                    Some(TransferNftById::with_did(Id::New(0), vec![])),
                 ),
             ],
         )?;
@@ -298,5 +360,84 @@ mod tests {
         assert_eq!(nft.info.current_owner, Some(did.info.launcher_id));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_action_update_nft_owner_to_nft_chain() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(3);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::mint_empty_nft(),
+                Action::mint_empty_nft(),
+                Action::mint_empty_nft(),
+                Action::update_nft(
+                    Id::New(1),
+                    Vec::new(),
+                    Some(TransferNftById::with_nft(Id::New(0), vec![])),
+                ),
+                Action::update_nft(
+                    Id::New(2),
+                    Vec::new(),
+                    Some(TransferNftById::with_nft(Id::New(1), vec![])),
+                ),
+            ],
+        )?;
+
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::AssertConcurrent,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let first = outputs.nfts[&Id::New(0)];
+        let second = outputs.nfts[&Id::New(1)];
+        let third = outputs.nfts[&Id::New(2)];
+
+        assert_eq!(second.info.current_owner, Some(first.info.launcher_id));
+        assert_eq!(third.info.current_owner, Some(second.info.launcher_id));
+        assert_ne!(sim.coin_state(first.coin.coin_id()), None);
+        assert_ne!(sim.coin_state(second.coin.coin_id()), None);
+        assert_ne!(sim.coin_state(third.coin.coin_id()), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_update_nft_owner_missing_identity() {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(1);
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let error = spends
+            .apply(
+                &mut ctx,
+                &[
+                    Action::mint_empty_nft(),
+                    Action::update_nft(
+                        Id::New(0),
+                        Vec::new(),
+                        Some(TransferNftById::with_nft(
+                            Id::Existing(Bytes32::default()),
+                            vec![],
+                        )),
+                    ),
+                ],
+            )
+            .unwrap_err();
+
+        assert!(matches!(error, DriverError::MissingNftIdentity));
     }
 }

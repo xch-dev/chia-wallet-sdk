@@ -1,13 +1,13 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Asset, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
-    SpendKind, Spends,
+    Asset, Deltas, DriverError, HashedPtr, Id, NftIdentity, SingletonSpends, SpendAction,
+    SpendContext, SpendKind, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct MintNftAction {
-    pub parent_id: Id,
+    pub parent: Option<NftIdentity>,
     pub metadata: HashedPtr,
     pub metadata_updater_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
@@ -17,7 +17,7 @@ pub struct MintNftAction {
 
 impl MintNftAction {
     pub fn new(
-        parent_id: Id,
+        parent: Option<NftIdentity>,
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
@@ -25,7 +25,7 @@ impl MintNftAction {
         amount: u64,
     ) -> Self {
         Self {
-            parent_id,
+            parent,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -38,7 +38,7 @@ impl MintNftAction {
 impl Default for MintNftAction {
     fn default() -> Self {
         Self::new(
-            Id::Xch,
+            None,
             HashedPtr::NIL,
             Bytes32::default(),
             Bytes32::default(),
@@ -53,12 +53,12 @@ impl SpendAction for MintNftAction {
         deltas.update(Id::Xch).output += self.amount;
         deltas.update(Id::New(index)).input += self.amount;
 
-        if matches!(self.parent_id, Id::Xch) {
-            deltas.set_needed(Id::Xch);
+        if let Some(parent) = self.parent {
+            let parent = deltas.update(parent.id());
+            parent.input += 1;
+            parent.output += 1;
         } else {
-            let did = deltas.update(self.parent_id);
-            did.input += 1;
-            did.output += 1;
+            deltas.set_needed(Id::Xch);
         }
     }
 
@@ -68,19 +68,32 @@ impl SpendAction for MintNftAction {
         spends: &mut Spends,
         index: usize,
     ) -> Result<(), DriverError> {
-        let (p2_puzzle_hash, source_kind, launcher) = if matches!(self.parent_id, Id::Xch) {
-            let (source, launcher) = spends.xch.create_launcher(self.amount)?;
-            let source = &mut spends.xch.items[source];
-            (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
-        } else {
-            let did = spends
-                .dids
-                .get_mut(&self.parent_id)
-                .ok_or(DriverError::InvalidAssetId)?;
-            let (source, launcher) = did.create_launcher(self.amount)?;
-            let p2_puzzle_hash = did.last()?.asset.p2_puzzle_hash();
-            let source = &mut did.lineage[source];
-            (p2_puzzle_hash, &mut source.kind, launcher)
+        let (p2_puzzle_hash, source_kind, launcher) = match self.parent {
+            None => {
+                let (source, launcher) = spends.xch.create_launcher(self.amount)?;
+                let source = &mut spends.xch.items[source];
+                (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
+            }
+            Some(NftIdentity::Did(id)) => {
+                let did = spends
+                    .dids
+                    .get_mut(&id)
+                    .ok_or(DriverError::MissingNftIdentity)?;
+                let (source, launcher) = did.create_launcher(self.amount)?;
+                let p2_puzzle_hash = did.last()?.asset.p2_puzzle_hash();
+                let source = &mut did.lineage[source];
+                (p2_puzzle_hash, &mut source.kind, launcher)
+            }
+            Some(NftIdentity::Nft(id)) => {
+                let nft = spends
+                    .nfts
+                    .get_mut(&id)
+                    .ok_or(DriverError::MissingNftIdentity)?;
+                let (source, launcher) = nft.create_launcher(self.amount)?;
+                let p2_puzzle_hash = nft.last()?.asset.p2_puzzle_hash();
+                let source = &mut nft.lineage[source];
+                (p2_puzzle_hash, &mut source.kind, launcher)
+            }
         };
 
         let (parent_conditions, eve_nft) = launcher.mint_eve_nft(
@@ -183,5 +196,59 @@ mod tests {
         assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_action_mint_nft_from_nft() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(2);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::mint_empty_nft(),
+                Action::mint_empty_nft_from_nft(Id::New(0)),
+            ],
+        )?;
+
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let parent = outputs.nfts[&Id::New(0)];
+        assert_ne!(sim.coin_state(parent.coin.coin_id()), None);
+
+        let child = outputs.nfts[&Id::New(1)];
+        assert_ne!(sim.coin_state(child.coin.coin_id()), None);
+        assert_eq!(child.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_mint_nft_from_missing_nft() {
+        let mut ctx = SpendContext::new();
+        let mut spends = Spends::new(Bytes32::default());
+
+        let error = spends
+            .apply(
+                &mut ctx,
+                &[Action::mint_empty_nft_from_nft(Id::Existing(
+                    Bytes32::default(),
+                ))],
+            )
+            .unwrap_err();
+
+        assert!(matches!(error, DriverError::MissingNftIdentity));
     }
 }
