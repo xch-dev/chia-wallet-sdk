@@ -685,6 +685,7 @@ module.exports.decodeOffer = nativeBinding.decodeOffer
 module.exports.encodeOffer = nativeBinding.encodeOffer
 module.exports.fixedMemberHash = nativeBinding.fixedMemberHash
 module.exports.force1Of2Restriction = nativeBinding.force1Of2Restriction
+module.exports.forceSingletonRecreationRestriction = nativeBinding.forceSingletonRecreationRestriction
 module.exports.fromHex = nativeBinding.fromHex
 module.exports.generateBytes = nativeBinding.generateBytes
 module.exports.k1MemberHash = nativeBinding.k1MemberHash

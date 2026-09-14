@@ -6,6 +6,7 @@ import {
   Coin,
   customMemberHash,
   force1Of2Restriction,
+  forceSingletonRecreationRestriction,
   k1MemberHash,
   K1Pair,
   K1SecretKey,
@@ -453,6 +454,7 @@ test("single signer recovery vault", (t) => {
       clvm.nil().treeHash(),
     ),
     ...preventVaultSideEffectsRestriction(),
+    forceSingletonRecreationRestriction(),
   ];
   const initialRecoveryHash = k1MemberHash(
     config.withRestrictions(recoveryRestrictions),
@@ -502,6 +504,7 @@ test("single signer recovery vault", (t) => {
 
   delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(custodyHash, vault.coin.amount, null),
+    clvm.assertMyAmount(vault.coin.amount),
   ]);
 
   vault = vault.child(vault.info.custodyHash, vault.coin.amount);
@@ -525,6 +528,7 @@ test("single signer recovery vault", (t) => {
   );
 
   mips.preventVaultSideEffects();
+  mips.forceSingletonRecreation();
 
   mips.force1Of2RestrictedVariable(
     memberHash,
@@ -573,6 +577,148 @@ test("single signer recovery vault", (t) => {
 
   t.true(true);
 });
+
+test("recovery initiation can melt a vault without singleton recreation restriction", (t) => {
+  t.notThrows(() => initiateVaultRecovery(false, null));
+});
+
+test("singleton recreation restriction prevents recovery initiation from melting a vault", (t) => {
+  t.throws(() => initiateVaultRecovery(true, null));
+});
+
+test("recovery initiation can change a vault amount without singleton recreation restriction", (t) => {
+  t.notThrows(() => initiateVaultRecovery(false, 3n));
+});
+
+test("singleton recreation restriction prevents recovery initiation from changing a vault amount", (t) => {
+  t.throws(() => initiateVaultRecovery(true, 3n));
+});
+
+test("recovery initiation succeeds with singleton recreation restriction", (t) => {
+  t.notThrows(() => initiateVaultRecovery(true, 1n));
+});
+
+function initiateVaultRecovery(
+  forceSingletonRecreation: boolean,
+  childAmount: bigint | null,
+): void {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const custodyKey = K1Pair.fromSeed(1n);
+  const recoveryKey = K1Pair.fromSeed(2n);
+  const config = new MemberConfig();
+  const memberHash = k1MemberHash(config, custodyKey.pk, false);
+  const timelock = timelockRestriction(1n);
+  const recoveryRestrictions = [
+    force1Of2Restriction(
+      memberHash,
+      0,
+      treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
+      clvm.nil().treeHash(),
+    ),
+    ...preventVaultSideEffectsRestriction(),
+    ...(forceSingletonRecreation
+      ? [forceSingletonRecreationRestriction()]
+      : []),
+  ];
+  const initialRecoveryHash = k1MemberHash(
+    config.withRestrictions(recoveryRestrictions),
+    recoveryKey.pk,
+    false,
+  );
+
+  let vault = mintVault(
+    sim,
+    clvm,
+    mOfNHash(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash]),
+  );
+  const originalCustodyHash = vault.info.custodyHash;
+
+  const initialDelegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(originalCustodyHash, vault.coin.amount, null),
+  ]);
+  const initialMips = clvm.mipsSpend(vault.coin, initialDelegatedSpend);
+  initialMips.mOfN(config.withTopLevel(true), 1, [
+    memberHash,
+    initialRecoveryHash,
+  ]);
+  initialMips.k1Member(
+    config,
+    custodyKey.pk,
+    signK1(
+      custodyKey.sk,
+      vault,
+      initialDelegatedSpend.puzzle.treeHash(),
+      false,
+    ),
+    false,
+  );
+  initialMips.spendVault(vault);
+  sim.spendCoins(clvm.coinSpends(), []);
+  vault = vault.child(originalCustodyHash, vault.coin.amount);
+
+  const recoveryFinishMemberSpend = clvm.delegatedSpend([
+    clvm.createCoin(originalCustodyHash, vault.coin.amount, null),
+    clvm.assertSecondsRelative(1n),
+  ]);
+  const recoveryFinishMemberHash = customMemberHash(
+    config.withRestrictions([timelock]),
+    recoveryFinishMemberSpend.puzzle.treeHash(),
+  );
+  const custodyHash = mOfNHash(config.withTopLevel(true), 1, [
+    memberHash,
+    recoveryFinishMemberHash,
+  ]);
+  const delegatedSpend = clvm.delegatedSpend([
+    ...(childAmount === null
+      ? // Use the expected custody hash so force1Of2 allows the singleton melt amount.
+        [clvm.alloc([51, custodyHash, -113])]
+      : [clvm.createCoin(custodyHash, childAmount, null)]),
+    clvm.assertMyAmount(vault.coin.amount),
+  ]);
+
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash]);
+  mips.k1Member(
+    config.withRestrictions(recoveryRestrictions),
+    recoveryKey.pk,
+    signK1(
+      recoveryKey.sk,
+      vault,
+      wrappedDelegatedPuzzleHash(
+        recoveryRestrictions,
+        delegatedSpend.puzzle.treeHash(),
+      ),
+      false,
+    ),
+    false,
+  );
+  mips.preventVaultSideEffects();
+  if (forceSingletonRecreation) {
+    mips.forceSingletonRecreation();
+  }
+  mips.force1Of2RestrictedVariable(
+    memberHash,
+    0,
+    treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
+    clvm.nil().treeHash(),
+    recoveryFinishMemberSpend.puzzle.treeHash(),
+  );
+  mips.spendVault(vault);
+
+  const additionalAmount = (childAmount ?? 0n) - vault.coin.amount;
+  if (additionalAmount > 0n) {
+    const funder = sim.bls(additionalAmount);
+    clvm.spendCoin(
+      funder.coin,
+      clvm.standardSpend(funder.pk, clvm.delegatedSpend([])),
+    );
+    sim.spendCoins(clvm.coinSpends(), [funder.sk]);
+  } else {
+    sim.spendCoins(clvm.coinSpends(), []);
+  }
+}
 
 function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {
   const p2 = sim.bls(1n);

@@ -125,6 +125,7 @@ puzzle_constants! {
     force_1_of_2_restricted_variable => FORCE_1_OF_2_W_RESTRICTED_VARIABLE,
     force_assert_coin_announcement => FORCE_ASSERT_COIN_ANNOUNCEMENT,
     force_coin_message => FORCE_COIN_MESSAGE,
+    force_singleton_recreation => FORCE_SINGLETON_RECREATION,
     prevent_condition_opcode => PREVENT_CONDITION_OPCODE,
     prevent_multiple_create_coins => PREVENT_MULTIPLE_CREATE_COINS,
     timelock => TIMELOCK,
