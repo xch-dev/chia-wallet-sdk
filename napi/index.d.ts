@@ -876,6 +876,7 @@ export declare class Clvm {
   force1Of2RestrictedVariable(): Program
   forceAssertCoinAnnouncement(): Program
   forceCoinMessage(): Program
+  forceSingletonRecreation(): Program
   preventConditionOpcode(): Program
   preventMultipleCreateCoins(): Program
   timelock(): Program
@@ -1174,6 +1175,8 @@ export declare class Constants {
   static forceAssertCoinAnnouncementHash(): Buffer
   static forceCoinMessage(): Buffer
   static forceCoinMessageHash(): Buffer
+  static forceSingletonRecreation(): Buffer
+  static forceSingletonRecreationHash(): Buffer
   static preventConditionOpcode(): Buffer
   static preventConditionOpcodeHash(): Buffer
   static preventMultipleCreateCoins(): Buffer
@@ -2006,6 +2009,7 @@ export declare class MipsSpend {
   timelock(timelock: bigint): void
   force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
   preventConditionOpcode(conditionOpcode: number): void
+  forceSingletonRecreation(): void
   preventMultipleCreateCoins(): void
   preventVaultSideEffects(): void
 }
@@ -3690,6 +3694,7 @@ export declare class WrapperMemo {
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo
   static preventMultipleCreateCoins(clvm: Clvm): WrapperMemo
+  static forceSingletonRecreation(clvm: Clvm): WrapperMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): WrapperMemo
   static preventConditionOpcode(clvm: Clvm, opcode: number, reveal: boolean): WrapperMemo
   constructor(puzzleHash: Uint8Array, memo: Program)
@@ -4141,6 +4146,8 @@ export declare function encodeOffer(spendBundle: SpendBundle): string
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Buffer
 
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
+
+export declare function forceSingletonRecreationRestriction(): Restriction
 
 export declare function fromHex(value: string): Buffer
 

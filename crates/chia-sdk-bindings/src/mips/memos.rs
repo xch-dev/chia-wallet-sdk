@@ -164,6 +164,14 @@ impl WrapperMemo {
         })
     }
 
+    pub fn force_singleton_recreation(clvm: Clvm) -> Result<Self> {
+        let wrapper = sdk::WrapperMemo::force_singleton_recreation();
+        Ok(Self {
+            puzzle_hash: wrapper.puzzle_hash,
+            memo: Program(clvm.0.clone(), wrapper.memo),
+        })
+    }
+
     pub fn timelock(clvm: Clvm, seconds: u64, reveal: bool) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
         let wrapper = sdk::WrapperMemo::timelock(&mut ctx, seconds, reveal)?;
