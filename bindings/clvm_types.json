@@ -67,5 +67,13 @@
       "new_nft": "Nft",
       "security_conditions": "Vec<Program>"
     }
+  },
+  "SpendSettlementCatsResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "created_cats": "Vec<Cat>",
+      "security_conditions": "Vec<Program>"
+    }
   }
 }

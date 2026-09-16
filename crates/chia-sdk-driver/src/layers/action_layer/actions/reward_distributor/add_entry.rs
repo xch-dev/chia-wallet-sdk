@@ -8,13 +8,13 @@ use chia_sdk_types::{
         RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
     },
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorAddEntryActionLog, RewardDistributorConstants,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +39,14 @@ impl SingletonAction<RewardDistributor> for RewardDistributorAddEntryAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
-            manager_launcher_id: constants.manager_or_collection_did_launcher_id,
+            manager_launcher_id: if let RewardDistributorType::Managed {
+                manager_singleton_launcher_id,
+            } = constants.reward_distributor_type
+            {
+                manager_singleton_launcher_id
+            } else {
+                Bytes32::default()
+            },
             max_second_offset: constants.max_seconds_offset,
         }
     }
@@ -73,17 +80,22 @@ impl RewardDistributorAddEntryAction {
         ))
     }
 
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
-        state: &RewardDistributorState,
         solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorAddEntryActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorAddEntryActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorAddEntryActionSolution>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-            shares: solution.entry_shares,
+        Ok(RewardDistributorAddEntryActionLog {
+            created_entry_slot: RewardDistributorEntrySlotValue {
+                counter: 0,
+                payout_puzzle_hash: params.entry_payout_puzzle_hash,
+                initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
+                shares: params.entry_shares,
+            },
+            manager_singleton_inner_puzzle_hash: params.manager_singleton_inner_puzzle_hash,
+            changes,
         })
     }
 
@@ -96,11 +108,9 @@ impl RewardDistributorAddEntryAction {
         manager_singleton_inner_puzzle_hash: Bytes32,
     ) -> Result<Conditions, DriverError> {
         // calculate message that the manager needs to send
-        let mut add_entry_message = clvm_tuple!(payout_puzzle_hash, shares).tree_hash().to_vec();
-        add_entry_message.insert(0, b'a');
         let add_entry_message = Conditions::new().send_message(
             18,
-            add_entry_message.into(),
+            RewardDistributorReceivedMessagePrefix::add_entry(payout_puzzle_hash, shares).into(),
             vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
         );
 

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use chia_bls::SecretKey;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
@@ -10,7 +8,11 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{
-    BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction, validate_clvm_and_signature,
+    BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction,
+    spend_bundle_validation::{
+        CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
+        validate_relative_conditions,
+    },
 };
 
 mod config;
@@ -186,88 +188,47 @@ impl Simulator {
         &mut self,
         spend_bundle: SpendBundle,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        if spend_bundle.coin_spends.is_empty() {
-            return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
-        }
-
-        let conds = validate_clvm_and_signature(
+        let clock = ValidationClock {
+            height: self.data.height,
+            timestamp: self.data.next_timestamp,
+        };
+        let validation = validate_conditions(
             &spend_bundle,
-            11_000_000_000 / 2,
-            &TESTNET11_CONSTANTS,
-            ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+            ValidationSettings {
+                constants: &TESTNET11_CONSTANTS,
+                max_cost: 11_000_000_000 / 2,
+                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+                clock,
+            },
         )
         .map_err(SimulatorError::Validation)?;
-
-        let puzzle_hashes: HashSet<Bytes32> =
-            conds.spends.iter().map(|spend| spend.puzzle_hash).collect();
-
-        let bundle_puzzle_hashes: HashSet<Bytes32> = spend_bundle
-            .coin_spends
-            .iter()
-            .map(|cs| cs.coin.puzzle_hash)
-            .collect();
-
-        if puzzle_hashes != bundle_puzzle_hashes {
-            return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
-        }
+        let conds = validation.conditions;
 
         let mut removed_coins = IndexMap::new();
         let mut added_coins = IndexMap::new();
         let mut added_hints = IndexMap::new();
         let mut coin_spends = IndexMap::new();
 
-        if self.data.height < conds.height_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertHeightAbsoluteFailed,
-            ));
-        }
-
-        if self.data.next_timestamp < conds.seconds_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertSecondsAbsoluteFailed,
-            ));
-        }
-
-        if let Some(height) = conds.before_height_absolute
-            && height < self.data.height
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeHeightAbsoluteFailed,
-            ));
-        }
-
-        if let Some(seconds) = conds.before_seconds_absolute
-            && seconds < self.data.next_timestamp
-        {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertBeforeSecondsAbsoluteFailed,
-            ));
-        }
-
         for coin_spend in spend_bundle.coin_spends {
             coin_spends.insert(coin_spend.coin.coin_id(), coin_spend);
         }
 
         // Calculate additions and removals.
-        for spend in &conds.spends {
-            for new_coin in &spend.create_coin {
-                let coin = Coin::new(spend.coin_id, new_coin.0, new_coin.1);
-
+        for (spend, parsed) in conds.spends.iter().zip(validation.additions) {
+            debug_assert_eq!(parsed.coin_id, spend.coin_id);
+            for addition in parsed.additions {
+                let coin = addition.coin;
                 added_coins.insert(
                     coin.coin_id(),
                     CoinState::new(coin, None, Some(self.data.height)),
                 );
 
-                let Some(hint) = new_coin.2.clone() else {
+                let Some(hint) = addition.hint else {
                     continue;
                 };
 
-                if hint.len() != 32 {
-                    continue;
-                }
-
                 added_hints
-                    .entry(Bytes32::try_from(hint).unwrap())
+                    .entry(hint)
                     .or_insert_with(IndexSet::new)
                     .insert(coin.coin_id());
             }
@@ -281,73 +242,18 @@ impl Simulator {
                 .copied()
                 .unwrap_or(CoinState::new(coin, None, Some(self.data.height)));
 
-            if let Some(relative_height) = spend.height_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if self.data.height < created_height + relative_height {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertHeightRelativeFailed,
-                    ));
-                }
-            }
-
-            if let Some(relative_seconds) = spend.seconds_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-                let Some(created_timestamp) = self.data.block_timestamps.get(&created_height)
-                else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if self.data.next_timestamp < created_timestamp + relative_seconds {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertSecondsRelativeFailed,
-                    ));
-                }
-            }
-
-            if let Some(relative_height) = spend.before_height_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if created_height + relative_height < self.data.height {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertBeforeHeightRelativeFailed,
-                    ));
-                }
-            }
-
-            if let Some(relative_seconds) = spend.before_seconds_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-                let Some(created_timestamp) = self.data.block_timestamps.get(&created_height)
-                else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if created_timestamp + relative_seconds < self.data.next_timestamp {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertBeforeSecondsRelativeFailed,
-                    ));
-                }
-            }
+            let created_timestamp = coin_state
+                .created_height
+                .and_then(|height| self.data.block_timestamps.get(&height).copied());
+            validate_relative_conditions(
+                spend,
+                CoinRecord {
+                    created_height: coin_state.created_height,
+                    created_timestamp,
+                },
+                clock,
+            )
+            .map_err(SimulatorError::Validation)?;
 
             removed_coins.insert(spend.coin_id, coin_state);
         }

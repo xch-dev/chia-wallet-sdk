@@ -7,16 +7,16 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const UNIQUENESS_PRELAUNCHER_PUZZLE: [u8; 59] = hex!(
+pub const UNIQUENESS_PRELAUNCHER_PUZZLE: [u8; 45] = hex!(
     "
-    ff02ffff01ff04ffff04ff04ffff04ff05ffff01ff01808080ffff04ffff04ff
-    06ffff04ff0bff808080ff808080ffff04ffff01ff333eff018080
+    ff04ffff04ffff0133ffff04ff02ffff01ff01808080ffff04ffff04
+    ffff013effff04ff05ff808080ff808080
     "
 );
 
 pub const UNIQUENESS_PRELAUNCHER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    851c3d39cef84cfd9449afcaeff5f50d1be9371d8b7d6057ac318bec553a1a9f
+    e7fa797a8537895c571ae9556abdd2ebaba2d36957f2c63f37aba130f8f0c5ff
     "
 ));
 

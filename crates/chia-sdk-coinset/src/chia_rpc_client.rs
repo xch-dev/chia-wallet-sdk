@@ -786,4 +786,29 @@ mod tests {
         );
         assert_eq!(coin_solution.solution.to_bytes().unwrap(), hex!("ff0180"));
     }
+
+    #[test]
+    fn test_push_tx_error_response() {
+        let response = serde_json::from_str::<PushTxResponse>(
+            r#"{
+            "error": "bytes object is expected to start with 0x",
+            "structuredError": {
+                "code": "UNKNOWN",
+                "data": {},
+                "message": "bytes object is expected to start with 0x"
+            },
+            "success": false,
+            "traceback": "Traceback...",
+            "tx_id": "0xc95a054274eecf7a98ed0ce8dc09ae5dd466283dbab3a963ee5c7760f46dcfcc"
+        }"#,
+        )
+        .unwrap();
+
+        assert!(!response.success);
+        assert_eq!(
+            response.error,
+            Some("bytes object is expected to start with 0x".to_string())
+        );
+        assert!(response.status.is_none());
+    }
 }

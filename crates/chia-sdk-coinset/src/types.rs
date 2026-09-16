@@ -1,7 +1,7 @@
 use chia_protocol::{Coin, SpendBundle};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct CoinRecord {
     pub coin: Coin,
     pub coinbase: bool,
@@ -11,7 +11,7 @@ pub struct CoinRecord {
     pub timestamp: u64,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MempoolItem {
     pub spend_bundle: SpendBundle,
     pub fee: u64,

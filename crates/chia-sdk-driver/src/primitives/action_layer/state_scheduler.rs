@@ -120,11 +120,14 @@ where
 #[cfg(test)]
 mod tests {
     use chia_puzzle_types::Memos;
-    use chia_sdk_test::Simulator;
+    use chia_sdk_test::{Simulator, expect_spend};
     use chia_sdk_types::Conditions;
     use clvmr::NodePtr;
 
-    use crate::{CatalogRegistryState, Launcher, SingletonLayer, StateSchedulerLauncherHints};
+    use crate::{
+        CatalogRegistryState, Launcher, SingletonLayer, StateSchedulerLauncherHints,
+        XchandlesRegistryReceivedMessagePrefix,
+    };
 
     use super::*;
 
@@ -135,24 +138,250 @@ mod tests {
         }
     }
 
+    fn spend_with_receiver(
+        ctx: &mut SpendContext,
+        state_scheduler: &StateScheduler<CatalogRegistryState>,
+        other_singleton_coin: Coin,
+        other_singleton_launcher: Coin,
+        other_singleton_inner_puzzle: NodePtr,
+        other_singleton_inner_puzzle_hash: Bytes32,
+        new_state: &CatalogRegistryState,
+    ) -> anyhow::Result<()> {
+        state_scheduler
+            .clone()
+            .spend(ctx, other_singleton_inner_puzzle_hash)?;
+
+        let spends = ctx.take();
+        assert_eq!(spends.len(), 1);
+        ctx.insert(spends[0].clone());
+
+        let other_singleton = SingletonLayer::<NodePtr>::new(
+            other_singleton_launcher.coin_id(),
+            other_singleton_inner_puzzle,
+        );
+        let state_scheduler_puzzle_hash_ptr = ctx.alloc(&state_scheduler.coin.puzzle_hash)?;
+        let other_singleton_inner_solution = ctx.alloc(
+            &Conditions::new()
+                .receive_message(
+                    18,
+                    XchandlesRegistryReceivedMessagePrefix::update_state(new_state.tree_hash())
+                        .into(),
+                    vec![state_scheduler_puzzle_hash_ptr],
+                )
+                .create_coin(other_singleton_inner_puzzle_hash, 1, Memos::None),
+        )?;
+        let other_singleton_spend = other_singleton.construct_spend(
+            ctx,
+            SingletonSolution {
+                lineage_proof: Proof::Eve(EveProof {
+                    parent_parent_coin_info: other_singleton_launcher.parent_coin_info,
+                    parent_amount: other_singleton_launcher.amount,
+                }),
+                amount: 1,
+                inner_solution: other_singleton_inner_solution,
+            },
+        )?;
+
+        ctx.spend(other_singleton_coin, other_singleton_spend)?;
+        Ok(())
+    }
+
     #[test]
-    fn test_price_scheduler() -> anyhow::Result<()> {
+    fn test_scheduler_rejects_before_required_timestamp() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let required_timestamp = 5_000u64;
+        let schedule = vec![(required_timestamp, mock_state(0))];
+        let final_puzzle_hash = "yakuhito".tree_hash().into();
+
+        let other_singleton_inner_puzzle = ctx.alloc(&1)?;
+        let other_singleton_inner_puzzle_hash = ctx.tree_hash(other_singleton_inner_puzzle);
+
+        let other_singleton_launcher = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let other_launcher = Launcher::new(other_singleton_launcher.parent_coin_info, 1);
+        let (_conds, other_singleton_coin) =
+            other_launcher.spend(ctx, other_singleton_inner_puzzle_hash.into(), ())?;
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+        let first_coin_info = StateSchedulerInfo::new(
+            launcher_coin.coin_id(),
+            other_singleton_launcher.coin_id(),
+            schedule.clone(),
+            0,
+            final_puzzle_hash,
+        )?;
+        let (_conds, _) = launcher.spend(
+            ctx,
+            first_coin_info.inner_puzzle_hash().into(),
+            StateSchedulerLauncherHints {
+                my_launcher_id: launcher_coin.coin_id(),
+                receiver_singleton_launcher_id: other_singleton_launcher.coin_id(),
+                final_puzzle_hash,
+                state_schedule: schedule.clone(),
+                final_puzzle_hash_hints: NodePtr::NIL,
+            },
+        )?;
+        let spends = ctx.take();
+        let state_scheduler_launcher_spend = spends[0].clone();
+        ctx.insert(state_scheduler_launcher_spend.clone());
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let state_scheduler =
+            StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
+
+        sim.set_next_timestamp(required_timestamp - 1)?;
+        spend_with_receiver(
+            ctx,
+            &state_scheduler,
+            other_singleton_coin,
+            other_singleton_launcher,
+            other_singleton_inner_puzzle,
+            other_singleton_inner_puzzle_hash.into(),
+            &schedule[0].1,
+        )?;
+        expect_spend(sim.spend_coins(ctx.take(), &[]), false);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_scheduler_accepts_at_required_timestamp() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let required_timestamp = 5_000u64;
+        let schedule = vec![(required_timestamp, mock_state(0))];
+        let final_puzzle_hash = "yakuhito".tree_hash().into();
+
+        let other_singleton_inner_puzzle = ctx.alloc(&1)?;
+        let other_singleton_inner_puzzle_hash = ctx.tree_hash(other_singleton_inner_puzzle);
+
+        let other_singleton_launcher = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let other_launcher = Launcher::new(other_singleton_launcher.parent_coin_info, 1);
+        let (_conds, other_singleton_coin) =
+            other_launcher.spend(ctx, other_singleton_inner_puzzle_hash.into(), ())?;
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+        let first_coin_info = StateSchedulerInfo::new(
+            launcher_coin.coin_id(),
+            other_singleton_launcher.coin_id(),
+            schedule.clone(),
+            0,
+            final_puzzle_hash,
+        )?;
+        let (_conds, _) = launcher.spend(
+            ctx,
+            first_coin_info.inner_puzzle_hash().into(),
+            StateSchedulerLauncherHints {
+                my_launcher_id: launcher_coin.coin_id(),
+                receiver_singleton_launcher_id: other_singleton_launcher.coin_id(),
+                final_puzzle_hash,
+                state_schedule: schedule.clone(),
+                final_puzzle_hash_hints: NodePtr::NIL,
+            },
+        )?;
+        let spends = ctx.take();
+        let state_scheduler_launcher_spend = spends[0].clone();
+        ctx.insert(state_scheduler_launcher_spend.clone());
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let state_scheduler =
+            StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
+
+        sim.set_next_timestamp(required_timestamp)?;
+        spend_with_receiver(
+            ctx,
+            &state_scheduler,
+            other_singleton_coin,
+            other_singleton_launcher,
+            other_singleton_inner_puzzle,
+            other_singleton_inner_puzzle_hash.into(),
+            &schedule[0].1,
+        )?;
+        expect_spend(sim.spend_coins(ctx.take(), &[]), true);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_scheduler_accepts_after_required_timestamp() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let required_timestamp = 5_000u64;
+        let schedule = vec![(required_timestamp, mock_state(0))];
+        let final_puzzle_hash = "yakuhito".tree_hash().into();
+
+        let other_singleton_inner_puzzle = ctx.alloc(&1)?;
+        let other_singleton_inner_puzzle_hash = ctx.tree_hash(other_singleton_inner_puzzle);
+
+        let other_singleton_launcher = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let other_launcher = Launcher::new(other_singleton_launcher.parent_coin_info, 1);
+        let (_conds, other_singleton_coin) =
+            other_launcher.spend(ctx, other_singleton_inner_puzzle_hash.into(), ())?;
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+        let first_coin_info = StateSchedulerInfo::new(
+            launcher_coin.coin_id(),
+            other_singleton_launcher.coin_id(),
+            schedule.clone(),
+            0,
+            final_puzzle_hash,
+        )?;
+        let (_conds, _) = launcher.spend(
+            ctx,
+            first_coin_info.inner_puzzle_hash().into(),
+            StateSchedulerLauncherHints {
+                my_launcher_id: launcher_coin.coin_id(),
+                receiver_singleton_launcher_id: other_singleton_launcher.coin_id(),
+                final_puzzle_hash,
+                state_schedule: schedule.clone(),
+                final_puzzle_hash_hints: NodePtr::NIL,
+            },
+        )?;
+        let spends = ctx.take();
+        let state_scheduler_launcher_spend = spends[0].clone();
+        ctx.insert(state_scheduler_launcher_spend.clone());
+        sim.spend_coins(ctx.take(), &[])?;
+
+        let state_scheduler =
+            StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
+
+        sim.set_next_timestamp(required_timestamp + 100)?;
+        spend_with_receiver(
+            ctx,
+            &state_scheduler,
+            other_singleton_coin,
+            other_singleton_launcher,
+            other_singleton_inner_puzzle,
+            other_singleton_inner_puzzle_hash.into(),
+            &schedule[0].1,
+        )?;
+        expect_spend(sim.spend_coins(ctx.take(), &[]), true);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_price_scheduler_progression() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
         let mut sim = Simulator::new();
 
         let schedule = vec![
-            (0, mock_state(0)),
-            (1, mock_state(1)),
-            (2, mock_state(2)),
-            (3, mock_state(3)),
-            (4, mock_state(4)),
-            (5, mock_state(5)),
-            (6, mock_state(6)),
-            (7, mock_state(7)),
+            (1000, mock_state(0)),
+            (2000, mock_state(1)),
+            (3000, mock_state(2)),
+            (4000, mock_state(3)),
         ];
         let final_puzzle_hash = "yakuhito".tree_hash().into();
 
-        // Launch 'other' singleton, which will consume (reveive) the messages
         let other_singleton_inner_puzzle = ctx.alloc(&1)?;
         let other_singleton_inner_puzzle_hash = ctx.tree_hash(other_singleton_inner_puzzle);
 
@@ -163,7 +392,6 @@ mod tests {
 
         sim.spend_coins(ctx.take(), &[])?;
 
-        // Launch state scheduler singleton
         let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
         let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
 
@@ -173,7 +401,7 @@ mod tests {
             schedule.clone(),
             0,
             final_puzzle_hash,
-        );
+        )?;
         let (_conds, state_scheduler_coin) = launcher.spend(
             ctx,
             first_coin_info.inner_puzzle_hash().into(),
@@ -199,7 +427,9 @@ mod tests {
         assert_eq!(state_scheduler.coin, state_scheduler_coin);
 
         let mut other_singleton_coin_parent = other_singleton_coin;
-        for (index, (block, new_state)) in schedule.iter().enumerate() {
+        for (index, (timestamp, new_state)) in schedule.iter().enumerate() {
+            sim.set_next_timestamp(*timestamp)?;
+
             state_scheduler
                 .clone()
                 .spend(ctx, other_singleton_inner_puzzle_hash.into())?;
@@ -230,7 +460,8 @@ mod tests {
                 &Conditions::new()
                     .receive_message(
                         18,
-                        new_state.tree_hash().to_vec().into(),
+                        XchandlesRegistryReceivedMessagePrefix::update_state(new_state.tree_hash())
+                            .into(),
                         vec![state_scheduler_puzzle_hash_ptr],
                     )
                     .create_coin(other_singleton_inner_puzzle_hash.into(), 1, Memos::None),
@@ -258,7 +489,7 @@ mod tests {
                 state_scheduler = state_scheduler.child().unwrap();
 
                 assert_eq!(state_scheduler.info.state_schedule, schedule);
-                assert_eq!(state_scheduler.info.generation, *block as usize + 1);
+                assert_eq!(state_scheduler.info.generation, index + 1);
             } else {
                 break;
             }

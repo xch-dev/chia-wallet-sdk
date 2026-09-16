@@ -7,42 +7,39 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::ACTION_LAYER_PUZZLE_HASH};
 
-pub const RESERVE_FINALIZER_PUZZLE: [u8; 884] = hex!(
+pub const RESERVE_FINALIZER_PUZZLE: [u8; 739] = hex!(
+    // Rue
     "
-    ff02ffff01ff04ffff04ff10ffff04ffff02ff1affff04ff02ffff04ff05ffff
-    04ffff02ff1affff04ff02ffff04ff81bfffff04ffff0bffff0101ff81bf80ff
-    8080808080ffff04ffff0bffff0101ff82017f80ffff04ffff02ff3effff04ff
-    02ffff04ff8219ffff80808080ff80808080808080ffff04ffff0101ffff04ff
-    ff04ff5fff8080ff8080808080ffff04ffff04ff18ffff04ffff0117ffff04ff
-    ff02ff3effff04ff02ffff04ffff04ffff0101ffff04ffff04ff10ffff04ff17
-    ffff04ffff02ff2fff8219ff80ffff04ffff04ff17ff8080ff8080808080ffff
-    06ffff02ff2effff04ff02ffff04ff820dffffff01ff80ff8080808080808080
-    ff80808080ffff04ffff30ff8213ffff0bffff02ff2fff8202ff8080ff808080
-    8080ffff05ffff02ff2effff04ff02ffff04ff820dffffff01ff80ff80808080
-    80808080ffff04ffff01ffffff3342ff02ff02ffff03ff05ffff01ff0bff72ff
-    ff02ff16ffff04ff02ffff04ff09ffff04ffff02ff1cffff04ff02ffff04ff0d
-    ff80808080ff808080808080ffff016280ff0180ffffffffa04bf5122f344554
-    c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f3
-    2623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871
-    fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8
-    d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ff
-    0bff52ffff02ff16ffff04ff02ffff04ff05ffff04ffff02ff1cffff04ff02ff
-    ff04ff07ff80808080ff808080808080ffff0bff14ffff0bff14ff62ff0580ff
-    ff0bff14ff0bff428080ffff02ffff03ff09ffff01ff02ffff03ffff09ff21ff
-    ff0181d680ffff01ff02ff2effff04ff02ffff04ffff04ff19ff0d80ffff04ff
-    0bffff04ffff04ff31ff1780ff808080808080ffff01ff02ff2effff04ff02ff
-    ff04ffff04ff19ff0d80ffff04ffff04ff11ff0b80ffff04ff17ff8080808080
-    8080ff0180ffff01ff02ffff03ff0dffff01ff02ff2effff04ff02ffff04ff0d
-    ffff04ff0bffff04ff17ff808080808080ffff01ff04ff0bff178080ff018080
-    ff0180ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff3effff04ff
-    02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff0dff8080808080
-    ffff01ff0bffff0101ff058080ff0180ff018080
+    ff02ffff01ff02ffff01ff04ffff04ffff0133ffff04ffff02ff2dffff04ff3d
+    ffff04ff0bffff04ffff02ff2dffff04ff3dffff04ff82017fffff04ffff0bff
+    ff0101ff82017f80ff8080808080ffff04ffff0bffff0101ff8204ff80ffff04
+    ffff02ff15ffff04ff15ff8219ff8080ff80808080808080ffff04ffff0101ff
+    ff04ffff04ff81bfff8080ff8080808080ffff04ffff04ffff0142ffff04ffff
+    0117ffff04ffff02ff15ffff04ff15ffff04ffff0101ffff04ffff04ffff0133
+    ffff04ff2fffff04ffff02ff5fff8219ff80ffff04ffff04ff2fff8080ff8080
+    808080ff0680808080ffff04ffff30ff8207ffff17ffff02ff5fff8206ff8080
+    ff8080808080ff048080ffff04ffff02ff04ffff04ff04ffff04ff80ffff04ff
+    80ff8206ff80808080ff018080ffff04ffff04ffff01ff02ffff03ff17ffff01
+    ff02ffff03ffff09ff47ffff0181d680ffff01ff02ff02ffff04ff02ffff04ff
+    05ffff04ffff04ff67ff0b80ffff04ff37ff1f8080808080ffff01ff02ff02ff
+    ff04ff02ffff04ffff04ff27ff0580ffff04ff0bffff04ff37ff1f8080808080
+    80ff0180ffff01ff02ffff03ff1fffff01ff02ff02ffff04ff02ffff04ff05ff
+    ff04ff0bff1f80808080ffff01ff04ff05ff0b8080ff018080ff0180ffff04ff
+    ff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02
+    ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080
+    ff0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102
+    ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02
+    ffff04ff02ff078080ffff0bffff010180808080ffff01ff02ffff03ff03ffff
+    01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ff
+    ff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff0780
+    80ffff0bffff010180808080ffff01ff0bffff018201018080ff0180808080ff
+    018080
     "
 );
 
 pub const RESERVE_FINALIZER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    d277207ecea05d2b6a3874ef3bf5831cd224527eedab8c000a03b5511fb511de
+    5b406eb66d10998027924c9bdea4254966e27ca765a8992227f826cb0e868095
     "
 ));
 
@@ -162,7 +159,7 @@ impl ReserveFinalizer2ndCurryArgs {
 }
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
+#[clvm(transparent)]
 pub struct ReserveFinalizerSolution {
     pub reserve_parent_id: Bytes32,
 }

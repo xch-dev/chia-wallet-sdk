@@ -3,18 +3,22 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
-        CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue,
-        DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo,
+        CatalogOtherPrecommitData, CatalogRefundActionArgs, CatalogRefundActionSolution,
+        CatalogSlotValue, DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution,
+        SlotNeigborsInfo,
     },
 };
-use clvm_traits::{FromClvm, ToClvm, clvm_tuple};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, PrecommitCoin,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants,
+    CatalogRegistryCreatedAnnouncementPrefix, CatalogRegistryState, DriverError, PrecommitCoin,
     PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
 };
+
+use super::CatalogRefundActionLog;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRefundAction {
@@ -69,25 +73,43 @@ impl CatalogRefundAction {
         ))
     }
 
-    pub fn spent_slot_value(
-        &self,
-        ctx: &SpendContext,
+    pub fn get_log(
+        ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<Option<CatalogSlotValue>, DriverError> {
+        state: CatalogRegistryState,
+    ) -> Result<CatalogRefundActionLog, DriverError> {
         let params = CatalogRefundActionSolution::<NodePtr, ()>::from_clvm(ctx, solution)?;
 
-        Ok(params.neighbors.map(|neighbors| CatalogSlotValue {
-            asset_id: params.tail_hash,
-            neighbors,
-        }))
-    }
+        let cat_maker_hash = ctx
+            .tree_hash(params.precommited_cat_maker_and_solution.puzzle)
+            .into();
 
-    pub fn created_slot_value(
-        &self,
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<Option<CatalogSlotValue>, DriverError> {
-        self.spent_slot_value(ctx, solution)
+        let slots_spent = state.registration_price == params.precommit_amount
+            && state.cat_maker_puzzle_hash == cat_maker_hash
+            && params.neighbors.is_some();
+
+        let spent_slot = if slots_spent {
+            Some(CatalogSlotValue {
+                counter: params.slot_counter,
+                asset_id: params.other_precommit_data.tail_hash,
+                neighbors: params.neighbors.unwrap(),
+            })
+        } else {
+            None
+        };
+
+        let created_slot = spent_slot.map(|mut slot| {
+            slot.counter += 1;
+            slot
+        });
+
+        Ok(CatalogRefundActionLog {
+            spent_slot,
+            created_slot,
+            registered_tail_hash: params.other_precommit_data.tail_hash,
+            registered_initial_inner_puzzle_hash: params.other_precommit_data.initial_nft_owner_ph,
+            precommit_amount: params.precommit_amount,
+        })
     }
 
     pub fn spend(
@@ -100,11 +122,10 @@ impl CatalogRefundAction {
         slot: Option<Slot<CatalogSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let mut refund_announcement =
-            clvm_tuple!(tail_hash, precommit_coin.value.initial_inner_puzzle_hash)
-                .tree_hash()
-                .to_vec();
-        refund_announcement.insert(0, b'$');
+        let refund_announcement = CatalogRegistryCreatedAnnouncementPrefix::refund(
+            tail_hash,
+            precommit_coin.value.initial_inner_puzzle_hash,
+        );
 
         let secure_conditions = Conditions::new().assert_puzzle_announcement(announcement_id(
             catalog.coin.puzzle_hash,
@@ -117,22 +138,36 @@ impl CatalogRefundAction {
         precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, spender_inner_puzzle_hash)?;
 
         // if there's a slot, spend it
-        if let Some(slot) = slot {
+        let counter = if let Some(slot) = slot {
             let slot = catalog.actual_slot(slot);
+            let c = slot.info.value.counter;
             slot.spend(ctx, spender_inner_puzzle_hash)?;
-        }
+
+            c
+        } else {
+            0
+        };
 
         // then, create action spend
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = CatalogRefundActionSolution {
-            precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,
-            precommited_cat_maker_hash: cat_maker_args.curry_tree_hash().into(),
-            precommited_cat_maker_solution: (),
-            tail_hash,
-            initial_nft_owner_ph: initial_inner_puzzle_hash,
-            refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
+            // precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution::new(
+            //     cat_maker_args.curry_tree_hash().into(),
+            //     ctx.curry(cat_maker_args)?,
+            //     (),
+            // ),
+            precommited_cat_maker_and_solution: PuzzleAndSolution::new(
+                ctx.curry(cat_maker_args)?,
+                (),
+            ),
+            other_precommit_data: CatalogOtherPrecommitData::new(
+                tail_hash,
+                initial_inner_puzzle_hash,
+                precommit_coin.refund_puzzle_hash.tree_hash().into(),
+            ),
             precommit_amount: precommit_coin.coin.amount,
             neighbors,
+            slot_counter: counter,
         };
         let action_solution = action_solution.to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;

@@ -10,8 +10,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Slot, Spend,
-    SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorNewEpochActionLog,
+    RewardDistributorStateTransition, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +21,7 @@ pub struct RewardDistributorNewEpochAction {
     pub fee_payout_puzzle_hash: Bytes32,
     pub fee_bps: u64,
     pub epoch_seconds: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorNewEpochAction {
@@ -29,6 +31,7 @@ impl ToTreeHash for RewardDistributorNewEpochAction {
             self.fee_payout_puzzle_hash,
             self.fee_bps,
             self.epoch_seconds,
+            self.precision,
         )
         .curry_tree_hash()
     }
@@ -41,6 +44,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorNewEpochAction {
             fee_payout_puzzle_hash: constants.fee_payout_puzzle_hash,
             fee_bps: constants.fee_bps,
             epoch_seconds: constants.epoch_seconds,
+            precision: constants.precision,
         }
     }
 }
@@ -51,6 +55,7 @@ impl RewardDistributorNewEpochAction {
         fee_payout_puzzle_hash: Bytes32,
         fee_bps: u64,
         epoch_seconds: u64,
+        precision: u64,
     ) -> RewardDistributorNewEpochActionArgs {
         RewardDistributorNewEpochActionArgs {
             reward_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
@@ -61,6 +66,7 @@ impl RewardDistributorNewEpochAction {
             fee_payout_puzzle_hash,
             fee_bps,
             epoch_seconds,
+            precision,
         }
     }
 
@@ -70,32 +76,32 @@ impl RewardDistributorNewEpochAction {
             self.fee_payout_puzzle_hash,
             self.fee_bps,
             self.epoch_seconds,
+            self.precision,
         ))
     }
 
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorNewEpochActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
 
-        Ok(RewardDistributorRewardSlotValue {
-            epoch_start: solution.slot_epoch_time,
-            next_epoch_initialized: solution.slot_next_epoch_initialized,
-            rewards: solution.slot_total_rewards,
-        })
-    }
-
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
-
-        Ok(RewardDistributorRewardSlotValue {
-            epoch_start: solution.slot_epoch_time,
-            next_epoch_initialized: solution.slot_next_epoch_initialized,
-            rewards: solution.slot_total_rewards,
+        Ok(RewardDistributorNewEpochActionLog {
+            spent_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.slot_counter,
+                epoch_start: params.slot_epoch_time,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards,
+            },
+            created_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.slot_counter + 1,
+                epoch_start: params.slot_epoch_time,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards,
+            },
+            epoch_total_rewards: params.epoch_total_rewards,
+            changes,
         })
     }
 
@@ -118,8 +124,9 @@ impl RewardDistributorNewEpochAction {
         let fee = epoch_total_rewards * distributor.info.constants.fee_bps / 10000;
 
         // calculate announcement needed to ensure everything's happening as expected
-        let mut new_epoch_announcement = my_state.round_time_info.epoch_end.tree_hash().to_vec();
-        new_epoch_announcement.insert(0, b'e');
+        let new_epoch_announcement = RewardDistributorCreatedAnnouncementPrefix::new_epoch(
+            my_state.round_time_info.epoch_end,
+        );
         let new_epoch_conditions = Conditions::new()
             .assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
@@ -129,11 +136,11 @@ impl RewardDistributorNewEpochAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorNewEpochActionSolution {
+            slot_counter: reward_slot.info.value.counter,
             slot_epoch_time: reward_slot.info.value.epoch_start,
             slot_next_epoch_initialized: reward_slot.info.value.next_epoch_initialized,
             slot_total_rewards: reward_slot.info.value.rewards,
             epoch_total_rewards,
-            fee,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 

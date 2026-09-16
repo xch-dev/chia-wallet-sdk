@@ -1,0 +1,118 @@
+use chia_protocol::Bytes32;
+use clvm_traits::clvm_tuple;
+use clvm_utils::{ToTreeHash, TreeHash};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum RewardDistributorCreatedAnnouncementPrefix {
+    AddIncentives = b'i',
+    CommitIncentives = b'c',
+    InitiatePayout = b'p',
+    NewEpoch = b'e',
+    Sync = b's',
+    StakeSlot = b't',
+    StakeLock = b'l',
+    Refresh = b'r',
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum RewardDistributorReceivedMessagePrefix {
+    InitiatePayout = b'p',
+    WithdrawIncentives = b'w',
+    AddEntry = b'a',
+    RemoveEntry = b'r',
+    Stake = b's',
+    Unstake = b'u',
+}
+
+pub fn prefix_hash(prefix: u8, hash: TreeHash) -> Vec<u8> {
+    let mut msg = hash.to_vec();
+    msg.insert(0, prefix);
+    msg
+}
+
+impl RewardDistributorCreatedAnnouncementPrefix {
+    pub fn add_incentives(amount: u64, epoch_last_update: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::AddIncentives as u8,
+            clvm_tuple!(amount, epoch_last_update).tree_hash(),
+        )
+    }
+
+    pub fn commit_incentives(new_commitment_slot_value: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::CommitIncentives as u8, new_commitment_slot_value)
+    }
+
+    pub fn initiate_payout(payout_puzzle_hash: Bytes32, payout_amount: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::InitiatePayout as u8,
+            clvm_tuple!(payout_puzzle_hash, payout_amount).tree_hash(),
+        )
+    }
+
+    pub fn new_epoch(epoch_end: u64) -> Vec<u8> {
+        prefix_hash(Self::NewEpoch as u8, epoch_end.tree_hash())
+    }
+
+    pub fn sync(update_time: u64, epoch_end: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::Sync as u8,
+            clvm_tuple!(update_time, epoch_end).tree_hash(),
+        )
+    }
+
+    pub fn stake_slot(new_entry_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::StakeSlot as u8, new_entry_slot_value_hash)
+    }
+
+    pub fn stake_lock(offer_announcement_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::StakeLock as u8, offer_announcement_id.into())
+    }
+
+    pub fn refresh(nft_launcher_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Refresh as u8, nft_launcher_id.into())
+    }
+}
+
+impl RewardDistributorReceivedMessagePrefix {
+    pub fn initiate_payout(payout_amount: u64, payout_rounding_error: u128) -> Vec<u8> {
+        prefix_hash(
+            Self::InitiatePayout as u8,
+            clvm_tuple!(payout_amount, payout_rounding_error).tree_hash(),
+        )
+    }
+
+    pub fn withdraw_incentives(reward_slot_epoch_time: u64, committed_value: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::WithdrawIncentives as u8,
+            clvm_tuple!(reward_slot_epoch_time, committed_value).tree_hash(),
+        )
+    }
+
+    pub fn add_entry(payout_puzzle_hash: Bytes32, shares: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::AddEntry as u8,
+            clvm_tuple!(payout_puzzle_hash, shares).tree_hash(),
+        )
+    }
+
+    pub fn remove_entry(payout_puzzle_hash: Bytes32, shares: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::RemoveEntry as u8,
+            clvm_tuple!(payout_puzzle_hash, shares).tree_hash(),
+        )
+    }
+
+    pub fn stake(rewards_to_give_up: u128) -> Vec<u8> {
+        prefix_hash(Self::Stake as u8, rewards_to_give_up.tree_hash())
+    }
+
+    pub fn unstake_nft(nft_launcher_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Unstake as u8, nft_launcher_id.into())
+    }
+
+    pub fn unstake_cat(cat_parent_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Unstake as u8, cat_parent_id.into())
+    }
+}
