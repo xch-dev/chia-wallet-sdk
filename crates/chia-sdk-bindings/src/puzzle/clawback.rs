@@ -41,6 +41,6 @@ impl ClawbackExt for Clawback {
     }
 
     fn puzzle_hash(&self) -> Result<TreeHash> {
-        Ok(self.to_layer().tree_hash())
+        Ok(self.tree_hash())
     }
 }
