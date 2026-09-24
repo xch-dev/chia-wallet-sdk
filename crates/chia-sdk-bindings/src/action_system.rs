@@ -341,14 +341,28 @@ impl Action {
         royalty_puzzle_hash: Bytes32,
         royalty_basis_points: u16,
         amount: u64,
-        parent_id: Option<Id>,
+        parent: Option<NftIdentity>,
     ) -> Result<Self> {
         let ctx = clvm.0.lock().unwrap();
         let hashed: HashedPtr = metadata.as_ptr(&ctx);
 
-        let sdk_action = match &parent_id {
-            Some(parent) => sdk::Action::mint_nft_from_did(
-                parent.0,
+        let sdk_action = match parent {
+            Some(NftIdentity {
+                kind: NftIdentityKind::Did,
+                id,
+            }) => sdk::Action::mint_nft_from_did(
+                id.0,
+                hashed,
+                metadata_updater_puzzle_hash,
+                royalty_puzzle_hash,
+                royalty_basis_points,
+                amount,
+            ),
+            Some(NftIdentity {
+                kind: NftIdentityKind::Nft,
+                id,
+            }) => sdk::Action::mint_nft_from_nft(
+                id.0,
                 hashed,
                 metadata_updater_puzzle_hash,
                 royalty_puzzle_hash,
@@ -376,7 +390,7 @@ impl Action {
             metadata_update_spends.into_iter().map(Into::into).collect();
 
         let transfer =
-            transfer.map(|t| sdk::TransferNftById::new(t.owner_id.map(|o| o.0), t.trade_prices));
+            transfer.map(|t| sdk::TransferNftById::new(t.owner.map(Into::into), t.trade_prices));
 
         Ok(Self(sdk::Action::update_nft(id.0, sdk_spends, transfer)))
     }
@@ -444,6 +458,43 @@ impl Id {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum NftIdentityKind {
+    Did,
+    Nft,
+}
+
+#[derive(Clone, Debug)]
+pub struct NftIdentity {
+    pub kind: NftIdentityKind,
+    pub id: Id,
+}
+
+impl NftIdentity {
+    pub fn did(id: Id) -> Result<Self> {
+        Ok(Self {
+            kind: NftIdentityKind::Did,
+            id,
+        })
+    }
+
+    pub fn nft(id: Id) -> Result<Self> {
+        Ok(Self {
+            kind: NftIdentityKind::Nft,
+            id,
+        })
+    }
+}
+
+impl From<NftIdentity> for sdk::NftIdentity {
+    fn from(value: NftIdentity) -> Self {
+        match value.kind {
+            NftIdentityKind::Did => Self::Did(value.id.0),
+            NftIdentityKind::Nft => Self::Nft(value.id.0),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Outputs {
     inner: sdk::Outputs,
@@ -480,6 +531,29 @@ impl Outputs {
 
 #[derive(Clone)]
 pub struct TransferNftById {
-    pub owner_id: Option<Id>,
+    pub owner: Option<NftIdentity>,
     pub trade_prices: Vec<TradePrice>,
+}
+
+impl TransferNftById {
+    pub fn with_did(did_id: Id, trade_prices: Vec<TradePrice>) -> Result<Self> {
+        Ok(Self {
+            owner: Some(NftIdentity::did(did_id)?),
+            trade_prices,
+        })
+    }
+
+    pub fn with_nft(nft_id: Id, trade_prices: Vec<TradePrice>) -> Result<Self> {
+        Ok(Self {
+            owner: Some(NftIdentity::nft(nft_id)?),
+            trade_prices,
+        })
+    }
+
+    pub fn unassigned(trade_prices: Vec<TradePrice>) -> Result<Self> {
+        Ok(Self {
+            owner: None,
+            trade_prices,
+        })
+    }
 }

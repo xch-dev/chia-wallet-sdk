@@ -2049,10 +2049,10 @@ fn test_clear_signing_nft_offer() -> Result<()> {
         Action::update_nft(
             Id::Existing(nft.info.launcher_id),
             vec![],
-            Some(TransferNftById::new(
-                None,
-                vec![TradePrice::new(1000, SETTLEMENT_PAYMENT_HASH.into())],
-            )),
+            Some(TransferNftById::unassigned(vec![TradePrice::new(
+                1000,
+                SETTLEMENT_PAYMENT_HASH.into(),
+            )])),
         ),
         Action::send(
             Id::Existing(nft.info.launcher_id),
