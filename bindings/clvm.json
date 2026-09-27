@@ -603,14 +603,6 @@
         },
         "return": "Program"
       },
-      "update_data_store_merkle_root": {
-        "doc": "creates a condition that updates a DataLayer store's merkle root hash.",
-        "args": {
-          "new_merkle_root": "Bytes32",
-          "memos": "Vec<Bytes>"
-        },
-        "return": "Program"
-      },
       "parse_child_streamed_asset": {
         "doc": "parses a coin spend to extract the child streamed (vesting) asset state.",
         "args": {
@@ -656,7 +648,7 @@
       "medieval_vault_send_message_delegated_puzzle": {
         "doc": "creates the delegated puzzle for sending a cross-vault message from a medieval vault.",
         "args": {
-          "message": "Bytes",
+          "prefix_and_message": "Bytes",
           "receiver_launcher_id": "Bytes32",
           "my_coin": "Coin",
           "my_info": "MedievalVaultInfo",
@@ -746,13 +738,146 @@
         },
         "return": "Option<Nft>"
       },
-      "parse_vault_transaction": {
-        "doc": "parses a vault spend reveal and its associated coin spends into a structured vault transaction.",
+      "reset": {},
+      "spend_p2_next_reward_distributor_epoch": {
         "args": {
-          "vault": "VaultSpendReveal",
-          "coin_spends": "Vec<CoinSpend>"
+          "cat": "Cat",
+          "info": "P2NextRewardDistributorEpochCoinInfo",
+          "next_epoch_start": "u64",
+          "reward_distributor_inner_puzzle_hash": "Bytes32"
         },
-        "return": "VaultTransaction"
+        "return": "CatSpend"
+      },
+      "mint_datastore": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "metadata": "DatastoreMetadata",
+          "owner_puzzle_hash": "Bytes32",
+          "delegated_puzzles": "Vec<DelegatedPuzzle>"
+        },
+        "return": "MintedDatastore"
+      },
+      "datastore_from_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "delegated_puzzles": "Option<Vec<DelegatedPuzzle>>"
+        },
+        "return": "Option<Datastore>"
+      },
+      "handle_nft_metadata": {
+        "args": {
+          "value": "HandleNftMetadata"
+        },
+        "return": "Program"
+      },
+      "update_datastore_merkle_root": {
+        "args": {
+          "new_merkle_root": "Bytes32",
+          "memos": "Vec<Bytes>"
+        },
+        "return": "Program",
+        "doc": "creates a condition that updates a DataLayer store's merkle root hash."
+      },
+      "reward_distributor_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "catalog_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "catalog_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "CatalogRegistryConstants"
+        },
+        "return": "Option<CatalogRegistry>"
+      },
+      "launch_catalog_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_registration_price": "u64",
+          "constants": "CatalogRegistryConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "CatalogRegistryLaunchResult"
+      },
+      "xchandles_registry_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "xchandles_registry_from_mempool_item": {
+        "args": {
+          "mempool_item": "SpendBundle",
+          "constants": "XchandlesConstants"
+        },
+        "return": "Option<XchandlesRegistry>"
+      },
+      "launch_xchandles_registry": {
+        "args": {
+          "offer": "SpendBundle",
+          "initial_base_registration_price": "u64",
+          "initial_registration_period": "u64",
+          "constants": "XchandlesConstants",
+          "initial_registration_asset_id": "Bytes32",
+          "mainnet": "bool"
+        },
+        "return": "XchandlesRegistryLaunchResult"
+      },
+      "create_security_coin_with_pk": {
+        "args": {
+          "xch_settlement_coin": "Coin",
+          "public_key": "PublicKey"
+        },
+        "return": "Coin"
+      },
+      "create_offer_security_coin_with_key": {
+        "args": {
+          "offer": "SpendBundle",
+          "security_coin_sk": "SecretKey"
+        },
+        "return": "OfferSecurityCoinDetails"
+      },
+      "spend_settlement_cats": {
+        "args": {
+          "offer": "SpendBundle",
+          "asset_id": "Bytes32",
+          "nonce": "Bytes32",
+          "payments": "Vec<Payment>"
+        },
+        "return": "SpendSettlementCatsResult"
+      },
+      "state_scheduler_layer": {
+        "args": {
+          "receiver_singleton_struct_hash": "Bytes32",
+          "prefix_and_message": "Bytes",
+          "inner_puzzle": "Program"
+        },
+        "return": "Program"
       }
     }
   }

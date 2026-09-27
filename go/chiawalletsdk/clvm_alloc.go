@@ -637,7 +637,7 @@ func (o *UpdateNftMetadata) clvmAlloc(c *Clvm) (*Program, error) {
 	return c.UpdateNftMetadata(reveal, sol)
 }
 
-func (o *UpdateDataStoreMerkleRoot) clvmAlloc(c *Clvm) (*Program, error) {
+func (o *UpdateDatastoreMerkleRoot) clvmAlloc(c *Clvm) (*Program, error) {
 	root, err := o.NewMerkleRoot()
 	if err != nil {
 		return nil, err
@@ -646,13 +646,17 @@ func (o *UpdateDataStoreMerkleRoot) clvmAlloc(c *Clvm) (*Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.UpdateDataStoreMerkleRoot(root, memos)
+	return c.UpdateDatastoreMerkleRoot(root, memos)
 }
 
 // ── Memo / metadata types ───────────────────────────────────────────────
 
 func (o *NftMetadata) clvmAlloc(c *Clvm) (*Program, error) {
 	return c.NftMetadata(o)
+}
+
+func (o *HandleNftMetadata) clvmAlloc(c *Clvm) (*Program, error) {
+	return c.HandleNftMetadata(o)
 }
 
 func (o *MipsMemo) clvmAlloc(c *Clvm) (*Program, error) {

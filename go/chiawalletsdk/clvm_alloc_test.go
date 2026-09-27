@@ -500,3 +500,27 @@ func TestAllocRoundtrip(t *testing.T) {
 		t.Fatal("expected deserialized condition to be a pair")
 	}
 }
+
+func TestAllocHandleNftMetadata(t *testing.T) {
+	clvm, _ := NewClvm()
+	defer clvm.Free()
+	name := "example"
+	metadata, err := NewHandleNftMetadata(&name, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Free()
+	program, err := clvm.Alloc(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer program.Free()
+	parsed, err := program.ParseHandleNftMetadata()
+	if err != nil || parsed == nil {
+		t.Fatalf("expected handle metadata, got %v, %v", parsed, err)
+	}
+	defer parsed.Free()
+	if got, err := parsed.DisplayName(); err != nil || got == nil || *got != name {
+		t.Fatalf("expected display name %q, got %v, %v", name, got, err)
+	}
+}

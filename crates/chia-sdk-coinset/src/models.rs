@@ -1,16 +1,16 @@
 use chia_protocol::{BlockRecord, Bytes32, CoinSpend, FullBlock};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{CoinRecord, MempoolItem};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockchainStateResponse {
     pub blockchain_state: Option<BlockchainState>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockchainState {
     pub average_block_time: u64,
     pub block_max_cost: u64,
@@ -28,12 +28,12 @@ pub struct BlockchainState {
     pub sync: SyncState,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct MempoolMinFees {
     pub cost_5000000: u64,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SyncState {
     pub sync_mode: bool,
     pub sync_progress_height: u32,
@@ -41,7 +41,7 @@ pub struct SyncState {
     pub synced: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AdditionsAndRemovalsResponse {
     pub additions: Option<Vec<CoinRecord>>,
     pub removals: Option<Vec<CoinRecord>>,
@@ -49,14 +49,14 @@ pub struct AdditionsAndRemovalsResponse {
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetBlockResponse {
     pub block: Option<FullBlock>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetBlockRecordResponse {
     pub block_record: Option<BlockRecord>,
     pub error: Option<String>,
@@ -65,56 +65,65 @@ pub struct GetBlockRecordResponse {
 
 pub type GetBlockRecordByHeightResponse = GetBlockRecordResponse;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetBlockRecordsResponse {
     pub block_records: Option<Vec<BlockRecord>>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetBlocksResponse {
     pub blocks: Option<Vec<FullBlock>>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetBlockSpendsResponse {
     pub block_spends: Option<Vec<CoinSpend>>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetCoinRecordResponse {
     pub coin_record: Option<CoinRecord>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetCoinRecordsResponse {
     pub coin_records: Option<Vec<CoinRecord>>,
     pub error: Option<String>,
     pub success: bool,
+    /// Set to `true` by coinset when the response was truncated due to the
+    /// server's `scan_max_keys_per_stream` limit. Not present in Chia full
+    /// node responses.
+    pub truncated: Option<bool>,
+    /// Cursor for fetching the next page. Only present when `truncated`
+    /// is `true`. Pass this value back in the request's `cursor` field to
+    /// resume from where the previous response left off.
+    pub next_cursor: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetPuzzleAndSolutionResponse {
     pub coin_solution: Option<CoinSpend>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PushTxResponse {
-    pub status: String,
+    #[serde(default)]
+    pub status: Option<String>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetNetworkInfoResponse {
     pub network_name: Option<String>,
     pub network_prefix: Option<String>,
@@ -123,14 +132,14 @@ pub struct GetNetworkInfoResponse {
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetMempoolItemResponse {
     pub mempool_item: Option<MempoolItem>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetMempoolItemsResponse {
     pub mempool_items: Option<Vec<MempoolItem>>,
     pub error: Option<String>,

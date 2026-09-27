@@ -1215,10 +1215,11 @@ struct GoGen {
     mappings: IndexMap<String, String>,
     classes: HashSet<String>,
     enums: HashSet<String>,
+    constructors: HashSet<String>,
 }
 
 impl GoGen {
-    fn new(mappings: IndexMap<String, String>, classes: HashSet<String>, enums: HashSet<String>) -> Self {
+    fn new(mappings: IndexMap<String, String>, classes: HashSet<String>, enums: HashSet<String>, constructors: HashSet<String>) -> Self {
         Self {
             externs: String::new(),
             body: String::new(),
@@ -1226,6 +1227,7 @@ impl GoGen {
             mappings,
             classes,
             enums,
+            constructors,
         }
     }
 
@@ -1426,10 +1428,13 @@ impl GoGen {
     }
 
     /// Rename a PascalCase Go method name to idiomatic Go conventions.
-    /// Only applies to instance converter methods (To* with no extra args).
+    /// Applies to no-argument instance methods, reserving Close for io.Closer.
     fn go_rename_method(pascal: &str, is_instance: bool, has_args: bool) -> String {
         if !is_instance || has_args {
             return pascal.to_string();
+        }
+        if pascal == "Close" {
+            return "Shutdown".to_string();
         }
         if let Some(rest) = pascal.strip_prefix("To") {
             if !rest.is_empty() && rest.chars().next().unwrap().is_ascii_uppercase() {
@@ -2202,6 +2207,8 @@ func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
             // Static / Factory - generate as package-level function
             let func_name = if mname == "new" {
                 format!("New{class_name}")
+            } else if is_factory && self.constructors.contains(&format!("{class_name}{go_method_name}")) {
+                format!("New{class_name}From{go_method_name}")
             } else if is_factory {
                 format!("New{class_name}{go_method_name}")
             } else {
@@ -3394,7 +3401,15 @@ fn main() {
     eprintln!("Wrote {}", rust_path.display());
 
     // ── Generate Go ────────────────────────────────────────────────────
-    let mut go = GoGen::new(mappings, classes, enums);
+    let constructors = bindings.iter().filter_map(|(name, binding)| {
+        if let Binding::Class { new, methods, .. } = binding {
+            if *new || methods.get("new").is_some_and(|method| !method.stub_only) {
+                return Some(name.clone());
+            }
+        }
+        None
+    }).collect();
+    let mut go = GoGen::new(mappings, classes, enums, constructors);
     go.write_prelude();
 
     for (name, binding) in &bindings {

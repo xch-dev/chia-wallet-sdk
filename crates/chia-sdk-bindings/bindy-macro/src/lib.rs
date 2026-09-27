@@ -25,6 +25,8 @@ struct Bindy {
     #[serde(default)]
     wasm_stubs: IndexMap<String, String>,
     #[serde(default)]
+    wasm_custom_typescript: String,
+    #[serde(default)]
     pyo3: IndexMap<String, String>,
     #[serde(default)]
     pyo3_stubs: IndexMap<String, String>,
@@ -615,12 +617,15 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
             param_mappings.insert(format!("Vec<{name}>"), format!("&{name}ArrayType"));
             param_mappings.insert(name.clone(), format!("&{name}"));
 
-            stubs.insert(
-                format!("Option<Vec<{name}>>"),
-                format!("{name}[] | undefined"),
-            );
-            stubs.insert(format!("Option<{name}>"), format!("{name} | undefined"));
-            stubs.insert(format!("Vec<{name}>"), format!("{name}[]"));
+            stubs
+                .entry(format!("Option<Vec<{name}>>"))
+                .or_insert_with(|| format!("{name}[] | undefined"));
+            stubs
+                .entry(format!("Option<{name}>"))
+                .or_insert_with(|| format!("{name} | undefined"));
+            stubs
+                .entry(format!("Vec<{name}>"))
+                .or_insert_with(|| format!("{name}[]"));
         }
     }
 
@@ -1092,7 +1097,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     .join(" | ");
     let clvm_type = format!("export type ClvmType = {clvm_type_values};");
 
-    let typescript = format!("\n{clvm_type}\n\n{functions}\n{classes}");
+    let custom_typescript = &bindy.wasm_custom_typescript;
+    let typescript = format!("\n{clvm_type}\n\n{functions}\n{classes}\n{custom_typescript}");
 
     output.extend(quote! {
         #[wasm_bindgen]

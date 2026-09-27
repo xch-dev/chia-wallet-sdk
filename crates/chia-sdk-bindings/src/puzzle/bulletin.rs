@@ -4,7 +4,7 @@ use chia_sdk_driver::{Bulletin, BulletinLayer};
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 
-use crate::{Clvm, Program, Spend};
+use crate::{Clvm, Program, Puzzle, Spend};
 
 pub trait BulletinExt {
     fn conditions(&self, clvm: Clvm) -> Result<Vec<Program>>;
@@ -49,4 +49,11 @@ pub fn bulletin_puzzle_hash(hidden_puzzle_hash: Bytes32) -> Result<Bytes32> {
     Ok(BulletinLayer::new(TreeHash::from(hidden_puzzle_hash))
         .tree_hash()
         .into())
+}
+
+#[derive(Clone)]
+pub struct ParsedBulletin {
+    pub bulletin: Bulletin,
+    pub p2_puzzle: Puzzle,
+    pub p2_solution: Program,
 }

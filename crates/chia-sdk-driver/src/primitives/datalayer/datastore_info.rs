@@ -15,7 +15,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use num_bigint::BigInt;
 
-pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
+pub type StandardDatastoreLayers<M = DatastoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
@@ -76,9 +76,14 @@ impl DelegatedPuzzle {
                 }
 
                 // puzzle hash bech32m_decode(oracle_address), not puzzle hash of the whole oracle puzze!
-                let oracle_fee: u64 = BigInt::from_signed_bytes_be(&remaining_memos.remove(0))
-                    .to_u64_digits()
-                    .1[0];
+                let fee_memo = remaining_memos.remove(0);
+                let oracle_fee: u64 = if fee_memo.is_empty() {
+                    0
+                } else {
+                    BigInt::from_signed_bytes_be(&fee_memo)
+                        .try_into()
+                        .map_err(|_| DriverError::InvalidMemo)?
+                };
 
                 Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }
@@ -92,7 +97,7 @@ pub trait MetadataWithRootHash {
     fn root_hash_only(root_hash: Bytes32) -> Self;
 }
 
-impl MetadataWithRootHash for DataStoreMetadata {
+impl MetadataWithRootHash for DatastoreMetadata {
     fn root_hash(&self) -> Bytes32 {
         self.root_hash
     }
@@ -109,7 +114,7 @@ impl MetadataWithRootHash for DataStoreMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct DataStoreMetadata {
+pub struct DatastoreMetadata {
     pub root_hash: Bytes32,
     pub label: Option<String>,
     pub description: Option<String>,
@@ -117,7 +122,7 @@ pub struct DataStoreMetadata {
     pub size_proof: Option<String>,
 }
 
-impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DatastoreMetadata {
     fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
         let (root_hash, items) = <(Bytes32, Vec<(String, Raw<N>)>)>::from_clvm(decoder, node)?;
         let mut metadata = Self::root_hash_only(root_hash);
@@ -136,7 +141,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
     }
 }
 
-impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DatastoreMetadata {
     fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
         let mut items: Vec<(&str, Raw<N>)> = Vec::new();
 
@@ -162,14 +167,14 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
 
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DataStoreInfo<M = DataStoreMetadata> {
+pub struct DatastoreInfo<M = DatastoreMetadata> {
     pub launcher_id: Bytes32,
     pub metadata: M,
     pub owner_puzzle_hash: Bytes32,
     pub delegated_puzzles: Vec<DelegatedPuzzle>,
 }
 
-impl<M> DataStoreInfo<M> {
+impl<M> DatastoreInfo<M> {
     pub fn new(
         launcher_id: Bytes32,
         metadata: M,
@@ -185,7 +190,7 @@ impl<M> DataStoreInfo<M> {
     }
 
     pub fn from_layers_with_delegation_layer(
-        layers: StandardDataStoreLayers<M, DelegationLayer>,
+        layers: StandardDatastoreLayers<M, DelegationLayer>,
         delegated_puzzles: Vec<DelegatedPuzzle>,
     ) -> Self {
         Self {
@@ -196,7 +201,7 @@ impl<M> DataStoreInfo<M> {
         }
     }
 
-    pub fn from_layers_without_delegation_layer<I>(layers: StandardDataStoreLayers<M, I>) -> Self
+    pub fn from_layers_without_delegation_layer<I>(layers: StandardDatastoreLayers<M, I>) -> Self
     where
         I: ToTreeHash,
     {
@@ -211,7 +216,7 @@ impl<M> DataStoreInfo<M> {
     pub fn into_layers_with_delegation_layer(
         self,
         ctx: &mut SpendContext,
-    ) -> Result<StandardDataStoreLayers<M, DelegationLayer>, DriverError> {
+    ) -> Result<StandardDatastoreLayers<M, DelegationLayer>, DriverError> {
         Ok(SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
@@ -230,7 +235,7 @@ impl<M> DataStoreInfo<M> {
     pub fn into_layers_without_delegation_layer<I>(
         self,
         innermost_layer: I,
-    ) -> StandardDataStoreLayers<M, I> {
+    ) -> StandardDatastoreLayers<M, I> {
         SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
@@ -269,6 +274,29 @@ impl<M> DataStoreInfo<M> {
             inner_ph_hash,
         ))
     }
+
+    pub fn delegation_layer_puzzle_hash(
+        &self,
+        ctx: &mut SpendContext,
+    ) -> Result<TreeHash, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        if !self.delegated_puzzles.is_empty() {
+            return Ok(CurriedProgram {
+                program: DELEGATION_LAYER_PUZZLE_HASH,
+                args: DelegationLayerArgs {
+                    mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
+                    launcher_id: self.launcher_id,
+                    owner_puzzle_hash: self.owner_puzzle_hash,
+                    merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?.root(),
+                },
+            }
+            .tree_hash());
+        }
+
+        Ok(self.owner_puzzle_hash.into())
+    }
 }
 
 pub fn get_merkle_tree(
@@ -296,4 +324,28 @@ pub fn get_merkle_tree(
     }
 
     Ok(MerkleTree::new(&leaves))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_oracle_delegated_puzzle_from_memos_zero_fee() -> Result<(), DriverError> {
+        let oracle_puzzle_hash = Bytes32::default();
+        let mut memos = vec![
+            Bytes::new([HintType::OraclePuzzle as u8].into()),
+            oracle_puzzle_hash.into(),
+            Bytes::new(vec![]),
+        ];
+
+        let delegated_puzzle = DelegatedPuzzle::from_memos(&mut memos)?;
+        assert_eq!(
+            delegated_puzzle,
+            DelegatedPuzzle::Oracle(oracle_puzzle_hash, 0)
+        );
+        assert!(memos.is_empty());
+
+        Ok(())
+    }
 }

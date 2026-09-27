@@ -4,12 +4,21 @@ use clvmr::{
 };
 use rue_lir::DebugDialect;
 
+use crate::MAINNET_CONSTANTS;
+
 pub fn run_puzzle(
     allocator: &mut Allocator,
     puzzle: NodePtr,
     solution: NodePtr,
 ) -> Result<NodePtr, EvalErr> {
-    Ok(run_puzzle_with_cost(allocator, puzzle, solution, u64::MAX, false)?.1)
+    Ok(run_puzzle_with_cost(
+        allocator,
+        puzzle,
+        solution,
+        MAINNET_CONSTANTS.max_block_cost_clvm,
+        false,
+    )?
+    .1)
 }
 
 pub fn run_puzzle_with_cost(

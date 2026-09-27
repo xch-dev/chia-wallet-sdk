@@ -8,7 +8,7 @@ use chia_sdk_types::{
         ReserveFinalizer2ndCurryArgs,
     },
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -16,24 +16,28 @@ use crate::{
     ActionLayer, DriverError, Finalizer, Layer, Puzzle, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
-    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
-    SingletonLayer, SpendContext,
+    RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
+    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, SpendContext,
 };
 
 use super::Reserveful;
 
 pub type RewardDistributorLayers = SingletonLayer<ActionLayer<RewardDistributorState, NodePtr>>;
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RoundRewardInfo {
-    pub cumulative_payout: u64,
+    pub cumulative_payout: u128,
     #[clvm(rest)]
-    pub remaining_rewards: u64,
+    pub remaining_rewards: u128,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RoundTimeInfo {
     pub last_update: u64,
@@ -42,12 +46,15 @@ pub struct RoundTimeInfo {
 }
 
 #[must_use]
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[clvm(list)]
 pub struct RewardDistributorState {
     pub total_reserves: u64,
     pub active_shares: u64,
     pub round_reward_info: RoundRewardInfo,
+    #[clvm(rest)]
     pub round_time_info: RoundTimeInfo,
 }
 
@@ -74,12 +81,78 @@ impl Reserveful for RewardDistributorState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[repr(u8)]
-#[clvm(atom)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RewardDistributorType {
-    Manager = 1,
-    Nft = 2,
+    Managed {
+        manager_singleton_launcher_id: Bytes32,
+    },
+    NftCollection {
+        collection_did_launcher_id: Bytes32,
+    },
+    CuratedNft {
+        store_launcher_id: Bytes32,
+        refreshable: bool,
+    },
+    Cat {
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+    },
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        let type_pair: (u8, Raw<N>) = FromClvm::from_clvm(decoder, node)?;
+
+        match type_pair.0 {
+            1 => Ok(RewardDistributorType::Managed {
+                manager_singleton_launcher_id: FromClvm::from_clvm(decoder, type_pair.1.0)?,
+            }),
+            2 => Ok(RewardDistributorType::NftCollection {
+                collection_did_launcher_id: FromClvm::from_clvm(decoder, type_pair.1.0)?,
+            }),
+            3 => {
+                let (store_launcher_id, refreshable): (Bytes32, bool) =
+                    FromClvm::from_clvm(decoder, type_pair.1.0)?;
+                Ok(RewardDistributorType::CuratedNft {
+                    store_launcher_id,
+                    refreshable,
+                })
+            }
+            4 => {
+                let (asset_id, hidden_puzzle_hash): (Bytes32, Option<Bytes32>) =
+                    FromClvm::from_clvm(decoder, type_pair.1.0)?;
+                Ok(RewardDistributorType::Cat {
+                    asset_id,
+                    hidden_puzzle_hash,
+                })
+            }
+            _ => Err(FromClvmError::Custom(format!(
+                "Invalid RewardDistributorType: {}",
+                type_pair.0
+            ))),
+        }
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for RewardDistributorType {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        match self {
+            RewardDistributorType::Managed {
+                manager_singleton_launcher_id,
+            } => (1, manager_singleton_launcher_id).to_clvm(encoder),
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id,
+            } => (2, collection_did_launcher_id).to_clvm(encoder),
+            RewardDistributorType::CuratedNft {
+                store_launcher_id,
+                refreshable,
+            } => (3, (store_launcher_id, refreshable)).to_clvm(encoder),
+            RewardDistributorType::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => (4, (asset_id, hidden_puzzle_hash)).to_clvm(encoder),
+        }
+    }
 }
 
 #[must_use]
@@ -88,11 +161,12 @@ pub enum RewardDistributorType {
 pub struct RewardDistributorConstants {
     pub launcher_id: Bytes32,
     pub reward_distributor_type: RewardDistributorType,
-    pub manager_or_collection_did_launcher_id: Bytes32,
     pub fee_payout_puzzle_hash: Bytes32,
     pub epoch_seconds: u64,
+    pub precision: u64,
     pub max_seconds_offset: u64,
     pub payout_threshold: u64,
+    pub require_payout_approval: bool,
     pub fee_bps: u64,
     pub withdrawal_share_bps: u64,
     pub reserve_asset_id: Bytes32,
@@ -104,11 +178,12 @@ impl RewardDistributorConstants {
     #[allow(clippy::too_many_arguments)]
     pub fn without_launcher_id(
         reward_distributor_type: RewardDistributorType,
-        manager_or_collection_did_launcher_id: Bytes32,
         fee_payout_puzzle_hash: Bytes32,
         epoch_seconds: u64,
+        precision: u64,
         max_seconds_offset: u64,
         payout_threshold: u64,
+        require_payout_approval: bool,
         fee_bps: u64,
         withdrawal_share_bps: u64,
         reserve_asset_id: Bytes32,
@@ -116,11 +191,12 @@ impl RewardDistributorConstants {
         Self {
             launcher_id: Bytes32::default(),
             reward_distributor_type,
-            manager_or_collection_did_launcher_id,
             fee_payout_puzzle_hash,
             epoch_seconds,
+            precision,
             max_seconds_offset,
             payout_threshold,
+            require_payout_approval,
             fee_bps,
             withdrawal_share_bps,
             reserve_asset_id,
@@ -159,8 +235,8 @@ impl RewardDistributorInfo {
         self
     }
 
-    pub fn action_puzzle_hashes(constants: &RewardDistributorConstants) -> [Bytes32; 8] {
-        [
+    pub fn action_puzzle_hashes(constants: &RewardDistributorConstants) -> Vec<Bytes32> {
+        let mut action_puzzle_hashes = vec![
             RewardDistributorAddIncentivesAction::from_constants(constants)
                 .tree_hash()
                 .into(),
@@ -180,30 +256,59 @@ impl RewardDistributorInfo {
                 .tree_hash()
                 .into(),
             match constants.reward_distributor_type {
-                RewardDistributorType::Manager => {
-                    RewardDistributorAddEntryAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id: _,
+                } => RewardDistributorAddEntryAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: _,
                 }
-                RewardDistributorType::Nft => {
-                    RewardDistributorStakeAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                | RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
                 }
+                | RewardDistributorType::Cat {
+                    asset_id: _,
+                    hidden_puzzle_hash: _,
+                } => RewardDistributorStakeAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
             },
             match constants.reward_distributor_type {
-                RewardDistributorType::Manager => {
-                    RewardDistributorRemoveEntryAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id: _,
+                } => RewardDistributorRemoveEntryAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: _,
                 }
-                RewardDistributorType::Nft => {
-                    RewardDistributorUnstakeAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                | RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
                 }
+                | RewardDistributorType::Cat {
+                    asset_id: _,
+                    hidden_puzzle_hash: _,
+                } => RewardDistributorUnstakeAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
             },
-        ]
+        ];
+
+        if let RewardDistributorType::CuratedNft { refreshable, .. } =
+            constants.reward_distributor_type
+            && refreshable
+        {
+            action_puzzle_hashes.push(
+                RewardDistributorRefreshAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
+            );
+        }
+
+        action_puzzle_hashes
     }
 
     pub fn into_layers(

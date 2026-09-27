@@ -4,6 +4,7 @@ use chia_sdk_types::puzzles::{PreventConditionOpcode, Timelock};
 pub enum ParsedWrapper {
     ForceAssertCoinAnnouncement,
     ForceCoinMessage,
+    ForceSingletonRecreation,
     PreventConditionOpcode(PreventConditionOpcode),
     PreventMultipleCreateCoins,
     Timelock(Timelock),

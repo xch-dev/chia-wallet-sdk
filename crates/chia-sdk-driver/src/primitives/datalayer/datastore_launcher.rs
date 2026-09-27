@@ -11,7 +11,7 @@ use clvmr::Allocator;
 
 use crate::{DriverError, Launcher, SpendContext};
 
-use super::{DataStore, DataStoreInfo, DelegatedPuzzle, DlLauncherKvList, get_merkle_tree};
+use super::{Datastore, DatastoreInfo, DelegatedPuzzle, DlLauncherKvList, get_merkle_tree};
 
 impl Launcher {
     pub fn mint_datastore<M>(
@@ -20,7 +20,7 @@ impl Launcher {
         metadata: M,
         owner_puzzle_hash: TreeHash,
         delegated_puzzles: Vec<DelegatedPuzzle>,
-    ) -> Result<(Conditions, DataStore<M>), DriverError>
+    ) -> Result<(Conditions, Datastore<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
@@ -50,7 +50,7 @@ impl Launcher {
         }
         .tree_hash();
 
-        let mut memos = DataStore::<M>::get_recreation_memos(
+        let mut memos = Datastore::<M>::get_recreation_memos(
             Bytes32::default(),
             owner_puzzle_hash,
             delegated_puzzles.clone(),
@@ -74,10 +74,10 @@ impl Launcher {
             parent_amount: launcher_coin.amount,
         });
 
-        let data_store = DataStore {
+        let data_store = Datastore {
             coin: eve_coin,
             proof,
-            info: DataStoreInfo {
+            info: DatastoreInfo {
                 launcher_id,
                 metadata,
                 owner_puzzle_hash: owner_puzzle_hash.into(),
@@ -96,7 +96,7 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        DataStoreMetadata, StandardLayer,
+        DatastoreMetadata, StandardLayer,
         tests::{ByteSize, Description, Label, RootHash},
     };
 
@@ -140,7 +140,7 @@ mod tests {
             delegated_puzzles.push(oracle_delegated_puzzle);
         }
 
-        let metadata = DataStoreMetadata {
+        let metadata = DatastoreMetadata {
             root_hash: RootHash::Zero.value(),
             label: if use_label { Label::Some.value() } else { None },
             description: if use_description {
@@ -167,7 +167,7 @@ mod tests {
         let spends = ctx.take();
         for spend in spends.clone() {
             if spend.coin.coin_id() == datastore.info.launcher_id {
-                let new_datastore = DataStore::from_spend(ctx, &spend, &[])?.unwrap();
+                let new_datastore = Datastore::from_spend(ctx, &spend, &[])?.unwrap();
 
                 assert_eq!(datastore, new_datastore);
             }

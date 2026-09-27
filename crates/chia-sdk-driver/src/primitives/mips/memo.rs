@@ -19,11 +19,11 @@ use chia_sdk_types::{
     MerkleTree, Mod,
     puzzles::{
         BlsMember, BlsMemberPuzzleAssert, BlsTaprootMember, BlsTaprootMemberPuzzleAssert,
-        DelegatedPuzzleFeederArgs, EnforceDelegatedPuzzleWrappers, FixedPuzzleMember,
-        Force1of2RestrictedVariable, IndexWrapperArgs, K1Member, K1MemberPuzzleAssert, MofNArgs,
-        NofNArgs, OneOfNArgs, PasskeyMember, PasskeyMemberPuzzleAssert, PreventConditionOpcode,
-        R1Member, R1MemberPuzzleAssert, RestrictionsArgs, SingletonMember, SingletonMemberWithMode,
-        Timelock,
+        DelegatedPuzzleFeederArgs, EnforceDelegatedPuzzleWrappers, FORCE_SINGLETON_RECREATION_HASH,
+        FixedPuzzleMember, Force1of2RestrictedVariable, IndexWrapperArgs, K1Member,
+        K1MemberPuzzleAssert, MofNArgs, NofNArgs, OneOfNArgs, PasskeyMember,
+        PasskeyMemberPuzzleAssert, PreventConditionOpcode, R1Member, R1MemberPuzzleAssert,
+        RestrictionsArgs, SingletonMember, SingletonMemberWithMode, Timelock,
     },
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
@@ -259,6 +259,13 @@ impl WrapperMemo<NodePtr> {
         }
     }
 
+    pub fn force_singleton_recreation() -> Self {
+        Self {
+            puzzle_hash: FORCE_SINGLETON_RECREATION_HASH.into(),
+            memo: NodePtr::NIL,
+        }
+    }
+
     pub fn timelock(
         allocator: &mut Allocator,
         seconds: u64,
@@ -296,6 +303,10 @@ impl WrapperMemo<NodePtr> {
 
         if self.puzzle_hash == FORCE_COIN_MESSAGE_HASH.into() {
             return Some(ParsedWrapper::ForceCoinMessage);
+        }
+
+        if self.puzzle_hash == FORCE_SINGLETON_RECREATION_HASH.into() {
+            return Some(ParsedWrapper::ForceSingletonRecreation);
         }
 
         if self.puzzle_hash == PREVENT_MULTIPLE_CREATE_COINS_HASH.into() {

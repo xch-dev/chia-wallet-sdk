@@ -312,7 +312,8 @@
       },
       "prevent_vault_side_effects": {
         "doc": "applies all standard vault side-effect prevention restrictions."
-      }
+      },
+      "force_singleton_recreation": {}
     }
   },
   "VaultMint": {
@@ -461,6 +462,12 @@
           "clvm": "Clvm",
           "opcode": "u16",
           "reveal": "bool"
+        }
+      },
+      "force_singleton_recreation": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
         }
       }
     }
@@ -645,5 +652,9 @@
         }
       }
     }
+  },
+  "force_singleton_recreation_restriction": {
+    "type": "function",
+    "return": "Restriction"
   }
 }

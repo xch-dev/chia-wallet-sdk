@@ -38,6 +38,7 @@ impl Deltas {
 
     pub fn set_needed(&mut self, id: Id) {
         self.needed.insert(id);
+        self.items.entry(id).or_default();
     }
 
     pub fn is_needed(&self, id: &Id) -> bool {

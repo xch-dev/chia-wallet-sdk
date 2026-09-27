@@ -2,9 +2,11 @@ package chiawalletsdk
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"sync"
 	"testing"
+	"time"
 )
 
 // ── BLS Cryptography ────────────────────────────────────────────────────
@@ -1123,6 +1125,49 @@ func TestSimulatorTimestamp(t *testing.T) {
 
 // ── Simulator Spending ──────────────────────────────────────────────────
 
+func TestFullNodeSimulatorRpc(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	sim, err := NewFullNodeSimulator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sim.Free()
+
+	server, err := sim.StartServer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	url, err := server.Url()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewRpcClient(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Free()
+
+	response, err := client.GetCoinRecordsByHint(ctx, make([]byte, 32), nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Free()
+	if success, err := response.Success(); err != nil || !success {
+		t.Fatalf("expected successful RPC response, got %v, %v", success, err)
+	}
+	if cursor, err := response.NextCursor(); err != nil || cursor != nil {
+		t.Fatalf("expected no pagination cursor, got %v, %v", cursor, err)
+	}
+	if err := server.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSimulatorSpendXch(t *testing.T) {
 	sim, _ := NewSimulator()
 	defer sim.Free()
@@ -1245,45 +1290,66 @@ func TestDelta(t *testing.T) {
 
 // ── Enums ───────────────────────────────────────────────────────────────
 
-func TestTransferTypeEnum(t *testing.T) {
-	sent, err := NewTransferTypeSent()
+func TestDelegatedPuzzleOracle(t *testing.T) {
+	hash := make([]byte, 32)
+	oracle, err := NewDelegatedPuzzleOracle(hash, 42)
 	if err != nil {
-		t.Fatalf("NewTransferTypeSent: %v", err)
+		t.Fatal(err)
 	}
-	defer sent.Free()
+	defer oracle.Free()
 
-	val, err := sent.ToInt()
+	puzzle, err := NewDelegatedPuzzleFromOracle(hash, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer puzzle.Free()
+	parsed, err := puzzle.Oracle()
+	if err != nil || parsed == nil {
+		t.Fatalf("expected oracle puzzle, got %v, %v", parsed, err)
+	}
+	defer parsed.Free()
+	if fee, err := parsed.OracleFee(); err != nil || fee != 42 {
+		t.Fatalf("expected oracle fee 42, got %d, %v", fee, err)
+	}
+}
+
+func TestUriKindEnum(t *testing.T) {
+	data, err := NewUriKindData()
+	if err != nil {
+		t.Fatalf("NewUriKindData: %v", err)
+	}
+	defer data.Free()
+
+	val, err := data.ToInt()
 	if err != nil {
 		t.Fatalf("ToInt: %v", err)
 	}
-	if val != TransferTypeValueSent {
-		t.Fatalf("expected TransferTypeValueSent (%d), got %d", TransferTypeValueSent, val)
+	if val != UriKindValueData {
+		t.Fatalf("expected UriKindValueData (%d), got %d", UriKindValueData, val)
 	}
 
 	// Roundtrip
-	sent2, err := NewTransferTypeFromInt(val)
+	data2, err := NewUriKindFromInt(val)
 	if err != nil {
-		t.Fatalf("NewTransferTypeFromInt: %v", err)
+		t.Fatalf("NewUriKindFromInt: %v", err)
 	}
-	defer sent2.Free()
+	defer data2.Free()
 
-	val2, _ := sent2.ToInt()
+	val2, _ := data2.ToInt()
 	if val != val2 {
 		t.Fatal("enum roundtrip failed")
 	}
 }
 
-func TestTransferTypeAllVariants(t *testing.T) {
+func TestUriKindAllVariants(t *testing.T) {
 	variants := []struct {
 		name  string
 		value int
-		ctor  func() (*TransferType, error)
+		ctor  func() (*UriKind, error)
 	}{
-		{"Sent", TransferTypeValueSent, NewTransferTypeSent},
-		{"Burned", TransferTypeValueBurned, NewTransferTypeBurned},
-		{"Offered", TransferTypeValueOffered, NewTransferTypeOffered},
-		{"Received", TransferTypeValueReceived, NewTransferTypeReceived},
-		{"Updated", TransferTypeValueUpdated, NewTransferTypeUpdated},
+		{"Data", UriKindValueData, NewUriKindData},
+		{"Metadata", UriKindValueMetadata, NewUriKindMetadata},
+		{"License", UriKindValueLicense, NewUriKindLicense},
 	}
 
 	for _, v := range variants {
@@ -1721,14 +1787,14 @@ func TestActionNftMint(t *testing.T) {
 
 	// Create NFT metadata with Vec<String> parameters
 	metadata, err := NewNftMetadata(
-		1,    // edition number
-		1,    // edition total
+		1,                                       // edition number
+		1,                                       // edition total
 		[]string{"https://example.com/nft.png"}, // data_uris
-		nil, // data_hash
+		nil,                                     // data_hash
 		[]string{"https://example.com/metadata.json"}, // metadata_uris
-		nil, // metadata_hash
+		nil,        // metadata_hash
 		[]string{}, // license_uris (empty)
-		nil, // license_hash
+		nil,        // license_hash
 	)
 	if err != nil {
 		t.Fatalf("NewNftMetadata: %v", err)

@@ -264,10 +264,6 @@
         "doc": "attempts to parse the program as an NFT metadata update condition.",
         "return": "Option<UpdateNftMetadata>"
       },
-      "parse_update_data_store_merkle_root": {
-        "doc": "attempts to parse the program as a DataLayer merkle root update condition.",
-        "return": "Option<UpdateDataStoreMerkleRoot>"
-      },
       "parse_option_metadata": {
         "doc": "attempts to parse the program as option contract metadata.",
         "return": "Option<OptionMetadata>"
@@ -286,6 +282,13 @@
           "launcher_coin": "Coin"
         },
         "return": "Option<RewardDistributorLauncherSolutionInfo>"
+      },
+      "parse_handle_nft_metadata": {
+        "return": "Option<HandleNftMetadata>"
+      },
+      "parse_update_datastore_merkle_root": {
+        "return": "Option<UpdateDatastoreMerkleRoot>",
+        "doc": "attempts to parse the program as a DataLayer merkle root update condition."
       }
     }
   }

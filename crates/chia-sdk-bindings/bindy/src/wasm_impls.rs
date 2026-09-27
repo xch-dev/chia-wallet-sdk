@@ -139,6 +139,19 @@ impl<T> FromRust<u64, T, Wasm> for js_sys::BigInt {
     }
 }
 
+impl<T> IntoRust<i64, T, Wasm> for js_sys::BigInt {
+    fn into_rust(self, context: &T) -> Result<i64> {
+        let bigint: BigInt = self.into_rust(context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<i64, T, Wasm> for js_sys::BigInt {
+    fn from_rust(value: i64, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
 impl<T> IntoRust<u128, T, Wasm> for js_sys::BigInt {
     fn into_rust(self, context: &T) -> Result<u128> {
         let bigint: BigInt = self.into_rust(context)?;

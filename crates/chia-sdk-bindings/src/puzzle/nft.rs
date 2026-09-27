@@ -7,6 +7,7 @@ use chia_sdk_driver::{
     Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SingletonInfo, SpendContext,
 };
 use chia_sdk_types::conditions;
+use chia_sdk_types::puzzles::HandleNftMetadata;
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
 
@@ -149,6 +150,10 @@ pub struct ParsedNft {
 pub trait NftMetadataExt {}
 
 impl NftMetadataExt for NftMetadata {}
+
+pub trait HandleNftMetadataExt {}
+
+impl HandleNftMetadataExt for HandleNftMetadata {}
 
 #[derive(Clone)]
 pub struct NftMint {

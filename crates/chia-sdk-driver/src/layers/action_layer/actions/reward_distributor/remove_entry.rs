@@ -4,16 +4,18 @@ use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
     Conditions, Mod,
     puzzles::{
-        RewardDistributorEntrySlotValue, RewardDistributorRemoveEntryActionArgs,
-        RewardDistributorRemoveEntryActionSolution, RewardDistributorSlotNonce,
+        RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
+        RewardDistributorRemoveEntryActionArgs, RewardDistributorRemoveEntryActionSolution,
+        RewardDistributorSlotNonce,
     },
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Slot, Spend,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorRemoveEntryActionLog,
+    RewardDistributorStateTransition, RewardDistributorType, SingletonAction, Slot, Spend,
     SpendContext,
 };
 
@@ -22,6 +24,7 @@ pub struct RewardDistributorRemoveEntryAction {
     pub launcher_id: Bytes32,
     pub manager_launcher_id: Bytes32,
     pub max_seconds_offset: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorRemoveEntryAction {
@@ -30,6 +33,7 @@ impl ToTreeHash for RewardDistributorRemoveEntryAction {
             self.launcher_id,
             self.manager_launcher_id,
             self.max_seconds_offset,
+            self.precision,
         )
         .curry_tree_hash()
     }
@@ -39,8 +43,14 @@ impl SingletonAction<RewardDistributor> for RewardDistributorRemoveEntryAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
-            manager_launcher_id: constants.manager_or_collection_did_launcher_id,
+            manager_launcher_id: match constants.reward_distributor_type {
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id,
+                } => manager_singleton_launcher_id,
+                _ => Bytes32::default(),
+            },
             max_seconds_offset: constants.max_seconds_offset,
+            precision: constants.precision,
         }
     }
 }
@@ -50,6 +60,7 @@ impl RewardDistributorRemoveEntryAction {
         launcher_id: Bytes32,
         manager_launcher_id: Bytes32,
         max_seconds_offset: u64,
+        precision: u64,
     ) -> RewardDistributorRemoveEntryActionArgs {
         RewardDistributorRemoveEntryActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -62,6 +73,7 @@ impl RewardDistributorRemoveEntryAction {
             )
             .into(),
             max_seconds_offset,
+            precision,
         }
     }
 
@@ -70,6 +82,7 @@ impl RewardDistributorRemoveEntryAction {
             self.launcher_id,
             self.manager_launcher_id,
             self.max_seconds_offset,
+            self.precision,
         ))
     }
 
@@ -85,33 +98,31 @@ impl RewardDistributorRemoveEntryAction {
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
         // compute message that the manager needs to send
-
-        let mut remove_entry_message = clvm_tuple!(
-            entry_slot.info.value.payout_puzzle_hash,
-            entry_slot.info.value.shares
-        )
-        .tree_hash()
-        .to_vec();
-        remove_entry_message.insert(0, b'r');
-
         let remove_entry_conditions = Conditions::new()
             .send_message(
                 18,
-                remove_entry_message.into(),
+                RewardDistributorReceivedMessagePrefix::remove_entry(
+                    entry_slot.info.value.payout_puzzle_hash,
+                    entry_slot.info.value.shares,
+                )
+                .into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             )
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount = entry_slot.info.value.shares
+        let entry_payout_amount_precision = u128::from(entry_slot.info.value.shares)
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
+        let entry_payout_amount =
+            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorRemoveEntryActionSolution {
             manager_singleton_inner_puzzle_hash,
-            entry_payout_amount,
-            entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
-            entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
-            entry_shares: entry_slot.info.value.shares,
+            entry_payout_info: RewardDistributorEntryPayoutInfo {
+                payout_amount: entry_payout_amount,
+                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            },
+            entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
@@ -122,16 +133,17 @@ impl RewardDistributorRemoveEntryAction {
         Ok((remove_entry_conditions, entry_payout_amount))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorRemoveEntryActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorRemoveEntryActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorRemoveEntryActionSolution>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: solution.entry_initial_cumulative_payout,
-            shares: solution.entry_shares,
+        Ok(RewardDistributorRemoveEntryActionLog {
+            spent_entry_slot: params.entry_slot,
+            manager_singleton_inner_puzzle_hash: params.manager_singleton_inner_puzzle_hash,
+            changes,
         })
     }
 }

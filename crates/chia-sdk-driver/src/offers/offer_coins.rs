@@ -131,7 +131,10 @@ impl OfferCoins {
             }
         }
 
-        self.fee += other.fee;
+        self.fee = self
+            .fee
+            .checked_add(other.fee)
+            .ok_or(DriverError::FeeOverflow)?;
 
         Ok(())
     }
@@ -194,7 +197,10 @@ impl OfferCoins {
 
         for condition in conditions {
             if let Some(reserve_fee) = condition.as_reserve_fee() {
-                self.fee += reserve_fee.amount;
+                self.fee = self
+                    .fee
+                    .checked_add(reserve_fee.amount)
+                    .ok_or(DriverError::FeeOverflow)?;
             }
 
             let Some(create_coin) = condition.into_create_coin() else {

@@ -7,7 +7,7 @@ test("ensure Buffer and Uint8Array are used properly", (t) => {
   const hash = treeHashAtom(fromHex(roundtrip));
   t.is(
     hash.toString("hex"),
-    "4b3a43f592f577fcfcb5b0e1f42bec5182c9edc414e1f667528f56e7cf0be11d"
+    "4b3a43f592f577fcfcb5b0e1f42bec5182c9edc414e1f667528f56e7cf0be11d",
   );
 
   const fromUint8Array = Uint8Array.from(fromHex(roundtrip));
@@ -34,6 +34,15 @@ test("alloc", (t) => {
 
   t.is(
     toHex(program.serialize()),
-    "ff80ffb0c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff8d48656c6c6f2c20776f726c6421ff2aff64ff01ff83010203ffa00000000000000000000000000000000000000000000000000000000000000000ff80ff80ffff33ff80ff818fff80ff808080"
+    "ff80ffb0c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff8d48656c6c6f2c20776f726c6421ff2aff64ff01ff83010203ffa00000000000000000000000000000000000000000000000000000000000000000ff80ff80ffff33ff80ff818fff80ff808080",
   );
+});
+
+test("reset clears a clvm for reuse", (t) => {
+  const clvm = new Clvm();
+
+  clvm.atom(new Uint8Array(1024 * 1024));
+  clvm.reset();
+
+  t.is(toHex(clvm.nil().serialize()), "80");
 });

@@ -37,6 +37,9 @@
           "key_bytes": "Bytes"
         }
       },
+      "base_url": {
+        "return": "String"
+      },
       "get_blockchain_state": {
         "doc": "fetches the current blockchain state including peak, sync status, mempool info, and network space.",
         "type": "async",
@@ -117,7 +120,8 @@
           "hint": "Bytes32",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -128,7 +132,8 @@
           "hints": "Vec<Bytes32>",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -139,7 +144,8 @@
           "names": "Vec<Bytes32>",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -150,7 +156,8 @@
           "parent_ids": "Vec<Bytes32>",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -161,7 +168,8 @@
           "puzzle_hash": "Bytes32",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -172,7 +180,8 @@
           "puzzle_hashes": "Vec<Bytes32>",
           "start_height": "Option<u32>",
           "end_height": "Option<u32>",
-          "include_spent_coins": "Option<bool>"
+          "include_spent_coins": "Option<bool>",
+          "cursor": "Option<String>"
         },
         "return": "GetCoinRecordsResponse"
       },
@@ -367,7 +376,9 @@
     "fields": {
       "coin_records": "Option<Vec<CoinRecord>>",
       "error": "Option<String>",
-      "success": "bool"
+      "success": "bool",
+      "truncated": "Option<bool>",
+      "next_cursor": "Option<String>"
     }
   },
   "GetPuzzleAndSolutionResponse": {
@@ -387,7 +398,7 @@
     "new": true,
     "remote": true,
     "fields": {
-      "status": "String",
+      "status": "Option<String>",
       "error": "Option<String>",
       "success": "bool"
     }

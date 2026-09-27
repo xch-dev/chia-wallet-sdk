@@ -325,7 +325,7 @@
       "updater_solution": "Program"
     }
   },
-  "UpdateDataStoreMerkleRoot": {
+  "UpdateDatastoreMerkleRoot": {
     "type": "class",
     "doc": "represents a DataLayer merkle root update condition that sets the new root hash with optional memos.",
     "new": true,

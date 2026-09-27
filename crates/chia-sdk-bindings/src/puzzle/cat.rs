@@ -87,4 +87,5 @@ pub struct ParsedCat {
     pub cat: Cat,
     pub p2_puzzle: Puzzle,
     pub p2_solution: Program,
+    pub revoked: bool,
 }

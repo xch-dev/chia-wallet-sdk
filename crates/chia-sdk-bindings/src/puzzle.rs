@@ -2,9 +2,11 @@ mod bulletin;
 mod cat;
 mod clawback;
 mod clawback_v2;
+mod datastore;
 mod did;
 mod nft;
 mod option;
+mod p2_next_reward_distributor_epoch;
 mod p2_parent_coin;
 mod streamed_asset;
 
@@ -12,9 +14,11 @@ pub use bulletin::*;
 pub use cat::*;
 pub use clawback::*;
 pub use clawback_v2::*;
+pub use datastore::*;
 pub use did::*;
 pub use nft::*;
 pub use option::*;
+pub use p2_next_reward_distributor_epoch::*;
 pub use p2_parent_coin::*;
 pub use streamed_asset::*;
 
@@ -75,15 +79,15 @@ impl Puzzle {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
         let ctx = self.program.0.lock().unwrap();
 
-        let Some((cat, p2_puzzle, p2_solution)) = Cat::parse(&ctx, coin, puzzle, solution.1)?
-        else {
+        let Some(parsed) = Cat::parse(&ctx, coin, puzzle, solution.1)? else {
             return Ok(None);
         };
 
         Ok(Some(ParsedCat {
-            cat,
-            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
-            p2_solution: Program(self.program.0.clone(), p2_solution),
+            cat: parsed.cat,
+            p2_puzzle: Self::new(&self.program.0, parsed.p2_puzzle),
+            p2_solution: Program(self.program.0.clone(), parsed.p2_solution),
+            revoked: parsed.revoked,
         }))
     }
 
@@ -293,12 +297,22 @@ impl Puzzle {
         )?)
     }
 
-    pub fn parse_bulletin(&self, coin: Coin, solution: Program) -> Result<Option<Bulletin>> {
+    pub fn parse_bulletin(&self, coin: Coin, solution: Program) -> Result<Option<ParsedBulletin>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let mut ctx = self.program.0.lock().unwrap();
 
-        Ok(Bulletin::parse(&mut ctx, coin, puzzle, solution.1)?)
+        let Some((bulletin, p2_puzzle, p2_solution)) =
+            Bulletin::parse(&mut ctx, coin, puzzle, solution.1)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedBulletin {
+            bulletin,
+            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+            p2_solution: Program(self.program.0.clone(), p2_solution),
+        }))
     }
 
     pub fn parse_child_p2_parent(

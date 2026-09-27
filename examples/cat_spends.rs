@@ -12,7 +12,8 @@ fn main() -> Result<()> {
 
     // Issue the CAT using the single issuance (genesis by coin id) TAIL.
     let conditions = Conditions::new().create_coin(alice.puzzle_hash, 1_000, memos);
-    let (issue_cat, cats) = Cat::issue_with_coin(ctx, alice.coin.coin_id(), 1_000, conditions)?;
+    let (issue_cat, cats) =
+        Cat::single_issuance(ctx, alice.coin.coin_id(), None, 1_000, conditions)?;
     p2.spend(ctx, alice.coin, issue_cat)?;
     println!("Issued test CAT with asset id {}", cats[0].info.asset_id);
 

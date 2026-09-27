@@ -28,8 +28,14 @@ pub enum DriverError {
     #[error("invalid mod hash")]
     InvalidModHash,
 
+    #[error("metadata updater puzzle hash mismatch")]
+    MetadataUpdaterPuzzleHashMismatch,
+
     #[error("non-standard inner puzzle layer")]
     NonStandardLayer,
+
+    #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
+    InvalidStateSchedule,
 
     #[error("missing child")]
     MissingChild,
@@ -48,6 +54,9 @@ pub enum DriverError {
 
     #[error("expected even oracle fee, but it was odd")]
     OddOracleFee,
+
+    #[error("fee overflow")]
+    FeeOverflow,
 
     #[error("custom driver error: {0}")]
     Custom(String),
@@ -105,6 +114,10 @@ pub enum DriverError {
     NotCompressed,
 
     #[cfg(feature = "offer-compression")]
+    #[error("decompressed output exceeds maximum allowed size")]
+    DecompressionTooLarge,
+
+    #[cfg(feature = "offer-compression")]
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
@@ -124,6 +137,50 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    #[error("missing vault coin spend in transaction reveal")]
-    MissingVaultCoinSpend,
+    #[error("invalid delegated spend format")]
+    InvalidDelegatedSpendFormat,
+
+    #[error("invalid vault message format")]
+    InvalidVaultMessageFormat,
+
+    #[error("puzzle hash mismatch for coin spend")]
+    WrongPuzzleHash,
+
+    #[error("nested clawbacks are not allowed")]
+    NestedClawback,
+
+    #[error("linked spend has unknown custody puzzle but was sent a message")]
+    InvalidLinkedCustody,
+
+    #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
+    UnguaranteedClawBack,
+
+    #[error("the revocation layer of the child does not match the parent")]
+    RevocableChild,
+
+    #[error("conflicting vault launcher ids")]
+    ConflictingVaultLauncherIds,
+
+    #[error("conditions do not match message")]
+    WrongConditions,
+
+    #[error("vault message did not match any custody auth or TAIL invocation")]
+    UnmatchedVaultMessage,
+
+    #[error("missing message for linked custody puzzle")]
+    MissingVaultMessage,
+
+    #[error("multiple vault messages matched the same custody slot")]
+    DuplicateVaultMessage,
+
+    #[error("wrong linked offer launcher id")]
+    WrongLinkedOfferLauncherId,
+
+    #[error("missing required bulletin conditions")]
+    MissingBulletinConditions,
+
+    #[error(
+        "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
+    )]
+    MissingP2ConditionsOrSingletonAssertion,
 }

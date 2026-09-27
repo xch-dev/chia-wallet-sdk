@@ -481,6 +481,21 @@ mod tests {
             uri: "another.com".to_string(),
         }
         .spend(ctx)?;
+
+        let mismatched_updater = ctx.alloc(&())?;
+        let error = run_metadata_updater(
+            ctx,
+            &nft.info.metadata,
+            nft.info.metadata_updater_puzzle_hash,
+            mismatched_updater,
+            metadata_update.solution,
+        )
+        .expect_err("metadata updater puzzle hash should not match");
+        assert!(matches!(
+            error,
+            DriverError::MetadataUpdaterPuzzleHashMismatch
+        ));
+
         let parent_nft = nft;
         let nft = nft.transfer_with_metadata(
             ctx,

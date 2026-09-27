@@ -258,7 +258,7 @@ conditions!(
     UpdateNftMetadata<NodePtr, NodePtr> {
         update_nft_metadata(updater_puzzle_reveal: Program, updater_solution: Program)
     },
-    UpdateDataStoreMerkleRoot {
-        update_data_store_merkle_root(new_merkle_root: Bytes32, memos: Vec<Bytes>)
+    UpdateDatastoreMerkleRoot {
+        update_datastore_merkle_root(new_merkle_root: Bytes32, memos: Vec<Bytes>)
     },
 );

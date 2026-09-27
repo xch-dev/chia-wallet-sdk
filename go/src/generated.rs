@@ -1879,33 +1879,31 @@ pub unsafe extern "C" fn go_signature_list_free(ptr: *mut c_void) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_slot_neigbors_info_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::VaultSpendReveal));
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::SlotNeigborsInfo));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultSpendReveal);
+        let obj = &*(ptr as *const chia_sdk_bindings::SlotNeigborsInfo);
         *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_new(
-    launcher_id_ptr: *const u8, launcher_id_len: usize,
-    custody_hash_ptr: *const u8, custody_hash_len: usize,
-    delegated_spend: *const std::ffi::c_void,
+pub unsafe extern "C" fn go_slot_neigbors_info_new(
+    left_value_ptr: *const u8, left_value_len: usize,
+    right_value_ptr: *const u8, right_value_len: usize,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
-        let inner = chia_sdk_bindings::VaultSpendReveal {
-            launcher_id: { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
-            custody_hash: { if custody_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("custody_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(custody_hash_ptr, custody_hash_len).to_vec(), &bindy::GoContext)? },
-            delegated_spend: { if (delegated_spend).is_null() { return Err(bindy::Error::Custom(format!("delegated_spend must not be null"))); } (*((delegated_spend) as *const chia_sdk_bindings::Spend)).clone() }
+        let inner = chia_sdk_bindings::SlotNeigborsInfo {
+            left_value: { if left_value_ptr.is_null() { return Err(bindy::Error::Custom(format!("left_value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(left_value_ptr, left_value_len).to_vec(), &bindy::GoContext)? },
+            right_value: { if right_value_ptr.is_null() { return Err(bindy::Error::Custom(format!("right_value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(right_value_ptr, right_value_len).to_vec(), &bindy::GoContext)? }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -1913,10 +1911,10 @@ pub unsafe extern "C" fn go_vault_spend_reveal_new(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_get_left_value(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultSpendReveal);
-        let val = obj.launcher_id.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::SlotNeigborsInfo);
+        let val = obj.left_value.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -1927,19 +1925,19 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_set_left_value(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultSpendReveal);
-        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::SlotNeigborsInfo);
+        obj.left_value = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_get_custody_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_get_right_value(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultSpendReveal);
-        let val = obj.custody_hash.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::SlotNeigborsInfo);
+        let val = obj.right_value.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -1950,52 +1948,32 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_set_custody_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_set_right_value(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultSpendReveal);
-        obj.custody_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::SlotNeigborsInfo);
+        obj.right_value = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_get_delegated_spend(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultSpendReveal);
-        let val = obj.delegated_spend.clone();
-        let boxed: Box<chia_sdk_bindings::Spend> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_set_delegated_spend(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultSpendReveal);
-        obj.delegated_spend = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Spend)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_list_len(ptr: *const c_void) -> usize {
+pub unsafe extern "C" fn go_slot_neigbors_info_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
     }
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::VaultSpendReveal>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::SlotNeigborsInfo>);
         list.len()
     })).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_slot_neigbors_info_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
     catch(|| {
         if ptr.is_null() {
             return Err(bindy::Error::Custom("null pointer".to_string()));
         }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::VaultSpendReveal>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::SlotNeigborsInfo>);
         if index >= list.len() {
             return Err(bindy::Error::Custom("index out of bounds".to_string()));
         }
@@ -2005,412 +1983,54 @@ pub unsafe extern "C" fn go_vault_spend_reveal_list_get(ptr: *const c_void, inde
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_spend_reveal_list_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_slot_neigbors_info_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::VaultSpendReveal>));
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::SlotNeigborsInfo>));
         }));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_catalog_slot_value_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::VaultTransaction));
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogSlotValue));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlotValue);
         *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_new(
-    new_custody_hash_ptr: *const u8, new_custody_hash_len: usize,
-    payments_ptrs: *const *const std::ffi::c_void, payments_len: usize,
-    nfts_ptrs: *const *const std::ffi::c_void, nfts_len: usize,
-    drop_coins_ptrs: *const *const std::ffi::c_void, drop_coins_len: usize,
-    fee_paid: u64,
-    total_fee: u64,
-    reserved_fee: u64,
-    p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize,
-    delegated_puzzle_hash_ptr: *const u8, delegated_puzzle_hash_len: usize,
-    out: *mut *mut c_void,
-) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_get_counter(ptr: *const c_void, out: *mut u64) -> i32 {
     catch(|| {
-        let inner = chia_sdk_bindings::VaultTransaction {
-            new_custody_hash: if new_custody_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_custody_hash_ptr, new_custody_hash_len).to_vec(), &bindy::GoContext)?) },
-            payments: { if payments_ptrs.is_null() { return Err(bindy::Error::Custom(format!("payments must not be null"))); } let ptrs = std::slice::from_raw_parts(payments_ptrs, payments_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("payments element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::ParsedPayment)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
-            nfts: { if nfts_ptrs.is_null() { return Err(bindy::Error::Custom(format!("nfts must not be null"))); } let ptrs = std::slice::from_raw_parts(nfts_ptrs, nfts_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("nfts element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::ParsedNftTransfer)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
-            drop_coins: { if drop_coins_ptrs.is_null() { return Err(bindy::Error::Custom(format!("drop_coins must not be null"))); } let ptrs = std::slice::from_raw_parts(drop_coins_ptrs, drop_coins_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("drop_coins element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DropCoin)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
-            fee_paid: bindy::IntoRust::<_, _, bindy::Go>::into_rust(fee_paid, &bindy::GoContext)?,
-            total_fee: bindy::IntoRust::<_, _, bindy::Go>::into_rust(total_fee, &bindy::GoContext)?,
-            reserved_fee: bindy::IntoRust::<_, _, bindy::Go>::into_rust(reserved_fee, &bindy::GoContext)?,
-            p2_puzzle_hash: { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            delegated_puzzle_hash: { if delegated_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(delegated_puzzle_hash_ptr, delegated_puzzle_hash_len).to_vec(), &bindy::GoContext)? }
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_new_custody_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.new_custody_hash.clone();
-        match val {
-Some(v) => {
-let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
-let len = v.len();
-let boxed = v.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-}
-None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_new_custody_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.new_custody_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_payments(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.payments.clone();
-        let list: Vec<chia_sdk_bindings::ParsedPayment> = val;
-let boxed: Box<Vec<chia_sdk_bindings::ParsedPayment>> = Box::new(list);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_payments(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.payments = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::ParsedPayment)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_nfts(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.nfts.clone();
-        let list: Vec<chia_sdk_bindings::ParsedNftTransfer> = val;
-let boxed: Box<Vec<chia_sdk_bindings::ParsedNftTransfer>> = Box::new(list);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_nfts(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.nfts = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::ParsedNftTransfer)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_drop_coins(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.drop_coins.clone();
-        let list: Vec<chia_sdk_bindings::DropCoin> = val;
-let boxed: Box<Vec<chia_sdk_bindings::DropCoin>> = Box::new(list);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_drop_coins(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.drop_coins = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DropCoin)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_fee_paid(ptr: *const c_void, out: *mut u64) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.fee_paid.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlotValue);
+        let val = obj.counter.clone();
         *out = val;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_fee_paid(ptr: *mut c_void, value: u64) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_set_counter(ptr: *mut c_void, value: u64) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.fee_paid = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlotValue);
+        obj.counter = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_total_fee(ptr: *const c_void, out: *mut u64) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_get_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.total_fee.clone();
-        *out = val;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_total_fee(ptr: *mut c_void, value: u64) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.total_fee = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_reserved_fee(ptr: *const c_void, out: *mut u64) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.reserved_fee.clone();
-        *out = val;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_reserved_fee(ptr: *mut c_void, value: u64) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.reserved_fee = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_p_2_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.p2_puzzle_hash.clone();
-        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
-let len = val.len();
-let boxed = val.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_p_2_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.p2_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_get_delegated_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::VaultTransaction);
-        let val = obj.delegated_puzzle_hash.clone();
-        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
-let len = val.len();
-let boxed = val.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_set_delegated_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::VaultTransaction);
-        obj.delegated_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_list_len(ptr: *const c_void) -> usize {
-    if ptr.is_null() {
-        return 0;
-    }
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::VaultTransaction>);
-        list.len()
-    })).unwrap_or(0)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        if ptr.is_null() {
-            return Err(bindy::Error::Custom("null pointer".to_string()));
-        }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::VaultTransaction>);
-        if index >= list.len() {
-            return Err(bindy::Error::Custom("index out of bounds".to_string()));
-        }
-        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_vault_transaction_list_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::VaultTransaction>));
-        }));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::ParsedPayment));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_new(
-    transfer_type: *const std::ffi::c_void,
-    asset_id_ptr: *const u8, asset_id_len: usize,
-    hidden_puzzle_hash_ptr: *const u8, hidden_puzzle_hash_len: usize,
-    p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize,
-    coin: *const std::ffi::c_void,
-    clawback: *const std::ffi::c_void,
-    memos_ptrs: *const *const std::ffi::c_char, memos_lens: *const usize, memos_count: usize,
-    out: *mut *mut c_void,
-) -> i32 {
-    catch(|| {
-        let inner = chia_sdk_bindings::ParsedPayment {
-            transfer_type: { if (transfer_type).is_null() { return Err(bindy::Error::Custom(format!("transfer_type must not be null"))); } (*((transfer_type) as *const chia_sdk_bindings::TransferType)).clone() },
-            asset_id: if asset_id_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)?) },
-            hidden_puzzle_hash: if hidden_puzzle_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(hidden_puzzle_hash_ptr, hidden_puzzle_hash_len).to_vec(), &bindy::GoContext)?) },
-            p2_puzzle_hash: { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            coin: { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() },
-            clawback: if clawback.is_null() { None } else { Some((*((clawback) as *const chia_sdk_bindings::ClawbackV2)).clone()) },
-            memos: { if memos_count > 0 && memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } if memos_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } }
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_transfer_type(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.transfer_type.clone();
-        let boxed: Box<chia_sdk_bindings::TransferType> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_transfer_type(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.transfer_type = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::TransferType)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlotValue);
         let val = obj.asset_id.clone();
-        match val {
-Some(v) => {
-let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
-let len = v.len();
-let boxed = v.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-}
-None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.asset_id = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_hidden_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.hidden_puzzle_hash.clone();
-        match val {
-Some(v) => {
-let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
-let len = v.len();
-let boxed = v.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-}
-None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_hidden_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.hidden_puzzle_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_p_2_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.p2_puzzle_hash.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -2421,93 +2041,78 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_p_2_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_set_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.p2_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlotValue);
+        obj.asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_get_neighbors(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.coin.clone();
-        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlotValue);
+        let val = obj.neighbors.clone();
+        let boxed: Box<chia_sdk_bindings::SlotNeigborsInfo> = Box::new(val);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_set_neighbors(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlotValue);
+        obj.neighbors = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::SlotNeigborsInfo)).clone() };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_clawback(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_new(counter: u64, asset_id_ptr: *const u8, asset_id_len: usize, left_asset_id_ptr: *const u8, left_asset_id_len: usize, right_asset_id_ptr: *const u8, right_asset_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.clawback.clone();
-        match val {
-Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::ClawbackV2>) as *mut std::ffi::c_void,
-None => *out = std::ptr::null_mut(),
-}
+        let result = <chia_sdk_bindings::CatalogSlotValue as chia_sdk_bindings::CatalogSlotValueExt>::new(bindy::IntoRust::<_, _, bindy::Go>::into_rust(counter, &bindy::GoContext)?,
+            { if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if left_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("left_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(left_asset_id_ptr, left_asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if right_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("right_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(right_asset_id_ptr, right_asset_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_clawback(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.clawback = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::ClawbackV2)).clone()) };
+        let result = <chia_sdk_bindings::CatalogSlotValue as chia_sdk_bindings::CatalogSlotValueExt>::value_hash(&*(ptr as *const chia_sdk_bindings::CatalogSlotValue))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_get_memos(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedPayment);
-        let val = obj.memos.clone();
-        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_memos(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.memos = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_list_len(ptr: *const c_void) -> usize {
+pub unsafe extern "C" fn go_catalog_slot_value_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
     }
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedPayment>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogSlotValue>);
         list.len()
     })).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
     catch(|| {
         if ptr.is_null() {
             return Err(bindy::Error::Custom("null pointer".to_string()));
         }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedPayment>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogSlotValue>);
         if index >= list.len() {
             return Err(bindy::Error::Custom("index out of bounds".to_string()));
         }
@@ -2517,88 +2122,93 @@ pub unsafe extern "C" fn go_parsed_payment_list_get(ptr: *const c_void, index: u
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_list_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_catalog_slot_value_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::ParsedPayment>));
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogSlotValue>));
         }));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_catalog_slot_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::ParsedNftTransfer));
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogSlot));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
         *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_new(
-    transfer_type: *const std::ffi::c_void,
-    launcher_id_ptr: *const u8, launcher_id_len: usize,
-    p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize,
-    coin: *const std::ffi::c_void,
-    clawback: *const std::ffi::c_void,
-    memos_ptrs: *const *const std::ffi::c_char, memos_lens: *const usize, memos_count: usize,
-    old_state: *const std::ffi::c_void,
-    new_state: *const std::ffi::c_void,
-    royalty_puzzle_hash_ptr: *const u8, royalty_puzzle_hash_len: usize,
-    royalty_basis_points: u16,
-    includes_unverifiable_updates: i32,
-    out: *mut *mut c_void,
-) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let inner = chia_sdk_bindings::ParsedNftTransfer {
-            transfer_type: { if (transfer_type).is_null() { return Err(bindy::Error::Custom(format!("transfer_type must not be null"))); } (*((transfer_type) as *const chia_sdk_bindings::TransferType)).clone() },
-            launcher_id: { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
-            p2_puzzle_hash: { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            coin: { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() },
-            clawback: if clawback.is_null() { None } else { Some((*((clawback) as *const chia_sdk_bindings::ClawbackV2)).clone()) },
-            memos: { if memos_count > 0 && memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } if memos_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
-            old_state: { if (old_state).is_null() { return Err(bindy::Error::Custom(format!("old_state must not be null"))); } (*((old_state) as *const chia_sdk_bindings::NftState)).clone() },
-            new_state: { if (new_state).is_null() { return Err(bindy::Error::Custom(format!("new_state must not be null"))); } (*((new_state) as *const chia_sdk_bindings::NftState)).clone() },
-            royalty_puzzle_hash: { if royalty_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("royalty_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(royalty_puzzle_hash_ptr, royalty_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            royalty_basis_points: bindy::IntoRust::<_, _, bindy::Go>::into_rust(royalty_basis_points, &bindy::GoContext)?,
-            includes_unverifiable_updates: bindy::IntoRust::<_, _, bindy::Go>::into_rust(includes_unverifiable_updates != 0, &bindy::GoContext)?
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_transfer_type(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.transfer_type.clone();
-        let boxed: Box<chia_sdk_bindings::TransferType> = Box::new(val);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_transfer_type(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.transfer_type = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::TransferType)).clone() };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlot);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlot);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_get_nonce(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
+        let val = obj.nonce.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_set_nonce(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlot);
+        obj.nonce = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
         let val = obj.launcher_id.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
@@ -2610,19 +2220,131 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlot);
         obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_p_2_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_slot_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.p2_puzzle_hash.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogSlot);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogSlot);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_new(proof: *const std::ffi::c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, value: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogSlot::new({ if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::CatalogSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogSlot::value_hash(&*(ptr as *const chia_sdk_bindings::CatalogSlot))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogSlot>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogSlot>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_slot_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogSlot>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistryState));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryState);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_new(
+    cat_maker_puzzle_hash_ptr: *const u8, cat_maker_puzzle_hash_len: usize,
+    registration_price: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CatalogRegistryState {
+            cat_maker_puzzle_hash: { if cat_maker_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("cat_maker_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(cat_maker_puzzle_hash_ptr, cat_maker_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            registration_price: bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_price, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_get_cat_maker_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryState);
+        let val = obj.cat_maker_puzzle_hash.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -2633,41 +2355,376 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_p_2_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_state_set_cat_maker_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.p2_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryState);
+        obj.cat_maker_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_state_get_registration_price(ptr: *const c_void, out: *mut u64) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.coin.clone();
-        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryState);
+        let val = obj.registration_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_set_registration_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryState);
+        obj.registration_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryState>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryState>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistryState>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_spent_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.spent_left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_register_action_log_set_spent_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.spent_left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_clawback(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_register_action_log_get_spent_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.clawback.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.spent_right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_spent_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.spent_right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_created_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.created_left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_created_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.created_left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_created_tail_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.created_tail_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_created_tail_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.created_tail_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_created_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.created_right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_created_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.created_right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_prelauncher_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.prelauncher_full_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_prelauncher_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.prelauncher_full_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_prelauncher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.prelauncher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_prelauncher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.prelauncher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_registered_tail_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.registered_tail_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_registered_tail_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.registered_tail_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_registered_initial_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.registered_initial_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_registered_initial_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.registered_initial_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_get_precommit_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegisterActionLog);
+        let val = obj.precommit_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_set_precommit_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegisterActionLog);
+        obj.precommit_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegisterActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegisterActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_register_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegisterActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        let val = obj.spent_slot.clone();
         match val {
-Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::ClawbackV2>) as *mut std::ffi::c_void,
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogSlotValue>) as *mut std::ffi::c_void,
 None => *out = std::ptr::null_mut(),
 }
         Ok(())
@@ -2675,78 +2732,41 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_clawback(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.clawback = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::ClawbackV2)).clone()) };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog);
+        obj.spent_slot = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone()) };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_memos(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.memos.clone();
-        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        let val = obj.created_slot.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogSlotValue>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_memos(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.memos = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog);
+        obj.created_slot = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::CatalogSlotValue)).clone()) };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_old_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_get_registered_tail_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.old_state.clone();
-        let boxed: Box<chia_sdk_bindings::NftState> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_old_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.old_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::NftState)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_new_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.new_state.clone();
-        let boxed: Box<chia_sdk_bindings::NftState> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_new_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.new_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::NftState)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_royalty_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.royalty_puzzle_hash.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        let val = obj.registered_tail_hash.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -2757,18 +2777,386 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_royalty_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_set_registered_tail_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.royalty_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog);
+        obj.registered_tail_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_royalty_basis_points(ptr: *const c_void, out: *mut u16) -> i32 {
+pub unsafe extern "C" fn go_catalog_refund_action_log_get_registered_initial_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        let val = obj.registered_initial_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_set_registered_initial_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog);
+        obj.registered_initial_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_get_precommit_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRefundActionLog);
+        let val = obj.precommit_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_set_precommit_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRefundActionLog);
+        obj.precommit_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRefundActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRefundActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_refund_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRefundActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogDelegatedStateActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogDelegatedStateActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_get_old_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogDelegatedStateActionLog);
+        let val = obj.old_state.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_set_old_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogDelegatedStateActionLog);
+        obj.old_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogRegistryState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_get_new_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogDelegatedStateActionLog);
+        let val = obj.new_state.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_set_new_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogDelegatedStateActionLog);
+        obj.new_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogRegistryState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogDelegatedStateActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogDelegatedStateActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_delegated_state_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogDelegatedStateActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_get_kind(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogActionLog);
+        let val = obj.kind.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_set_kind(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogActionLog);
+        obj.kind = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_get_register(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogActionLog);
+        let val = obj.register.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogRegisterActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_set_register(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogActionLog);
+        obj.register = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::CatalogRegisterActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_get_refund(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogActionLog);
+        let val = obj.refund.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogRefundActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_set_refund(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogActionLog);
+        obj.refund = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::CatalogRefundActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_get_delegated_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogActionLog);
+        let val = obj.delegated_state.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogDelegatedStateActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_set_delegated_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogActionLog);
+        obj.delegated_state = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::CatalogDelegatedStateActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_get_royalty_address(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        let val = obj.royalty_address.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_set_royalty_address(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
+        obj.royalty_address = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_get_royalty_basis_points(ptr: *const c_void, out: *mut u16) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
         let val = obj.royalty_basis_points.clone();
         *out = val;
         Ok(())
@@ -2776,129 +3164,19 @@ pub unsafe extern "C" fn go_parsed_nft_transfer_get_royalty_basis_points(ptr: *c
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_royalty_basis_points(ptr: *mut c_void, value: u16) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_set_royalty_basis_points(ptr: *mut c_void, value: u16) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
         obj.royalty_basis_points = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_get_includes_unverifiable_updates(ptr: *const c_void, out: *mut i32) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_get_precommit_payout_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::ParsedNftTransfer);
-        let val = obj.includes_unverifiable_updates.clone();
-        *out = if val { 1 } else { 0 };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_includes_unverifiable_updates(ptr: *mut c_void, value: i32) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.includes_unverifiable_updates = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value != 0, &bindy::GoContext)?;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_list_len(ptr: *const c_void) -> usize {
-    if ptr.is_null() {
-        return 0;
-    }
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedNftTransfer>);
-        list.len()
-    })).unwrap_or(0)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        if ptr.is_null() {
-            return Err(bindy::Error::Custom("null pointer".to_string()));
-        }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedNftTransfer>);
-        if index >= list.len() {
-            return Err(bindy::Error::Custom("index out of bounds".to_string()));
-        }
-        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_list_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::ParsedNftTransfer>));
-        }));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::NftState));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::NftState);
-        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_new(
-    parsed_metadata: *const std::ffi::c_void,
-    metadata_updater_puzzle_hash_ptr: *const u8, metadata_updater_puzzle_hash_len: usize,
-    owner_ptr: *const u8, owner_len: usize,
-    out: *mut *mut c_void,
-) -> i32 {
-    catch(|| {
-        let inner = chia_sdk_bindings::NftState {
-            parsed_metadata: if parsed_metadata.is_null() { None } else { Some((*((parsed_metadata) as *const chia_sdk_bindings::NftMetadata)).clone()) },
-            metadata_updater_puzzle_hash: { if metadata_updater_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("metadata_updater_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(metadata_updater_puzzle_hash_ptr, metadata_updater_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            owner: if owner_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_ptr, owner_len).to_vec(), &bindy::GoContext)?) }
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_get_parsed_metadata(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::NftState);
-        let val = obj.parsed_metadata.clone();
-        match val {
-Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::NftMetadata>) as *mut std::ffi::c_void,
-None => *out = std::ptr::null_mut(),
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_set_parsed_metadata(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::NftState);
-        obj.parsed_metadata = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::NftMetadata)).clone()) };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_get_metadata_updater_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::NftState);
-        let val = obj.metadata_updater_puzzle_hash.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        let val = obj.precommit_payout_puzzle_hash.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
 let boxed = val.into_boxed_slice();
@@ -2909,207 +3187,106 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_set_metadata_updater_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_set_precommit_payout_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::NftState);
-        obj.metadata_updater_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
+        obj.precommit_payout_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_get_owner(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_get_relative_block_height(ptr: *const c_void, out: *mut u32) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::NftState);
-        let val = obj.owner.clone();
-        match val {
-Some(v) => {
-let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
-let len = v.len();
-let boxed = v.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-}
-None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_set_owner(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::NftState);
-        obj.owner = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_list_len(ptr: *const c_void) -> usize {
-    if ptr.is_null() {
-        return 0;
-    }
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::NftState>);
-        list.len()
-    })).unwrap_or(0)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        if ptr.is_null() {
-            return Err(bindy::Error::Custom("null pointer".to_string()));
-        }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::NftState>);
-        if index >= list.len() {
-            return Err(bindy::Error::Custom("index out of bounds".to_string()));
-        }
-        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_state_list_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::NftState>));
-        }));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_transfer_type_to_int(ptr: *const c_void, out: *mut i32) -> i32 {
-    catch(|| {
-        let val = &*(ptr as *const chia_sdk_bindings::TransferType);
-        *out = match val {
-            chia_sdk_bindings::TransferType::Sent => 0,
-            chia_sdk_bindings::TransferType::Burned => 1,
-            chia_sdk_bindings::TransferType::Offered => 2,
-            chia_sdk_bindings::TransferType::Received => 3,
-            chia_sdk_bindings::TransferType::Updated => 4,
-        };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_transfer_type_from_int(value: i32, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let val = match value {
-            0 => chia_sdk_bindings::TransferType::Sent,
-            1 => chia_sdk_bindings::TransferType::Burned,
-            2 => chia_sdk_bindings::TransferType::Offered,
-            3 => chia_sdk_bindings::TransferType::Received,
-            4 => chia_sdk_bindings::TransferType::Updated,
-            _ => return Err(bindy::Error::Custom(format!("invalid TransferType value: {value}"))),
-        };
-        *out = Box::into_raw(Box::new(val)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_transfer_type_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::TransferType));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::DropCoin));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::DropCoin);
-        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_new(
-    puzzle_hash_ptr: *const u8, puzzle_hash_len: usize,
-    amount: u64,
-    out: *mut *mut c_void,
-) -> i32 {
-    catch(|| {
-        let inner = chia_sdk_bindings::DropCoin {
-            puzzle_hash: { if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            amount: bindy::IntoRust::<_, _, bindy::Go>::into_rust(amount, &bindy::GoContext)?
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_get_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::DropCoin);
-        let val = obj.puzzle_hash.clone();
-        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
-let len = val.len();
-let boxed = val.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_set_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::DropCoin);
-        obj.puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_get_amount(ptr: *const c_void, out: *mut u64) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::DropCoin);
-        let val = obj.amount.clone();
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        let val = obj.relative_block_height.clone();
         *out = val;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_set_amount(ptr: *mut c_void, value: u64) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_set_relative_block_height(ptr: *mut c_void, value: u32) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::DropCoin);
-        obj.amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
+        obj.relative_block_height = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_list_len(ptr: *const c_void) -> usize {
+pub unsafe extern "C" fn go_catalog_registry_constants_get_price_singleton_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants);
+        let val = obj.price_singleton_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_set_price_singleton_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryConstants);
+        obj.price_singleton_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_get(testnet11: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::CatalogRegistryConstants as chia_sdk_bindings::CatalogRegistryConstantsExt>::get(bindy::IntoRust::<_, _, bindy::Go>::into_rust(testnet11 != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_with_price_singleton(ptr: *const c_void, price_singleton_launcher_id_ptr: *const u8, price_singleton_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::CatalogRegistryConstants as chia_sdk_bindings::CatalogRegistryConstantsExt>::with_price_singleton(&*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants),
+            { if price_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("price_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(price_singleton_launcher_id_ptr, price_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_with_launcher_id(ptr: *const c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::CatalogRegistryConstants as chia_sdk_bindings::CatalogRegistryConstantsExt>::with_launcher_id(&*(ptr as *const chia_sdk_bindings::CatalogRegistryConstants),
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
     }
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::DropCoin>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryConstants>);
         list.len()
     })).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_constants_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
     catch(|| {
         if ptr.is_null() {
             return Err(bindy::Error::Custom("null pointer".to_string()));
         }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::DropCoin>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryConstants>);
         if index >= list.len() {
             return Err(bindy::Error::Custom("index out of bounds".to_string()));
         }
@@ -3119,19 +3296,661 @@ pub unsafe extern "C" fn go_drop_coin_list_get(ptr: *const c_void, index: usize,
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_drop_coin_list_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_catalog_registry_constants_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::DropCoin>));
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistryConstants>));
         }));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_calculate_vault_puzzle_message(delegated_puzzle_hash_ptr: *const u8, delegated_puzzle_hash_len: usize, vault_puzzle_hash_ptr: *const u8, vault_puzzle_hash_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_precommit_value_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogPrecommitValue));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let result = chia_sdk_bindings::calculate_vault_puzzle_message({ if delegated_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(delegated_puzzle_hash_ptr, delegated_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            { if vault_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("vault_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(vault_puzzle_hash_ptr, vault_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitValue);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_get_tail_reveal(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitValue);
+        let val = obj.tail_reveal.clone();
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_set_tail_reveal(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitValue);
+        obj.tail_reveal = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Program)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_get_initial_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitValue);
+        let val = obj.initial_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_set_initial_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitValue);
+        obj.initial_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_get_payment_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitValue);
+        let val = obj.payment_asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_set_payment_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitValue);
+        obj.payment_asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_with_default_cat_maker(clvm: *const std::ffi::c_void, payment_asset_id_ptr: *const u8, payment_asset_id_len: usize, initial_inner_puzzle_hash_ptr: *const u8, initial_inner_puzzle_hash_len: usize, tail_reveal: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogPrecommitValue::with_default_cat_maker({ if (clvm).is_null() { return Err(bindy::Error::Custom(format!("clvm must not be null"))); } (*((clvm) as *const chia_sdk_bindings::Clvm)).clone() },
+            { if payment_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("payment_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payment_asset_id_ptr, payment_asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if initial_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("initial_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(initial_inner_puzzle_hash_ptr, initial_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (tail_reveal).is_null() { return Err(bindy::Error::Custom(format!("tail_reveal must not be null"))); } (*((tail_reveal) as *const chia_sdk_bindings::Program)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::CatalogPrecommitValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogPrecommitValue>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogPrecommitValue>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_value_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogPrecommitValue>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_get_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        let val = obj.asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_set_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin);
+        obj.asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_get_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        let val = obj.inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_set_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin);
+        obj.inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogPrecommitCoin);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogPrecommitValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogPrecommitCoin);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogPrecommitValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_new(clvm: *const std::ffi::c_void, parent_coin_id_ptr: *const u8, parent_coin_id_len: usize, proof: *const std::ffi::c_void, asset_id_ptr: *const u8, asset_id_len: usize, controller_singleton_launcher_id_ptr: *const u8, controller_singleton_launcher_id_len: usize, relative_block_height: u32, payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize, refund_puzzle_hash_ptr: *const u8, refund_puzzle_hash_len: usize, value: *const std::ffi::c_void, precommit_amount: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogPrecommitCoin::new({ if (clvm).is_null() { return Err(bindy::Error::Custom(format!("clvm must not be null"))); } (*((clvm) as *const chia_sdk_bindings::Clvm)).clone() },
+            { if parent_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_coin_id_ptr, parent_coin_id_len).to_vec(), &bindy::GoContext)? },
+            { if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if controller_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("controller_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(controller_singleton_launcher_id_ptr, controller_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(relative_block_height, &bindy::GoContext)?,
+            { if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if refund_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("refund_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(refund_puzzle_hash_ptr, refund_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogPrecommitValue)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(precommit_amount, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::CatalogPrecommitCoin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogPrecommitCoin>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogPrecommitCoin>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_precommit_coin_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogPrecommitCoin>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistryFinishedSpendResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryFinishedSpendResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_new(
+    new_catalog: *const std::ffi::c_void,
+    signature: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CatalogRegistryFinishedSpendResult {
+            new_catalog: { if (new_catalog).is_null() { return Err(bindy::Error::Custom(format!("new_catalog must not be null"))); } (*((new_catalog) as *const chia_sdk_bindings::CatalogRegistry)).clone() },
+            signature: { if (signature).is_null() { return Err(bindy::Error::Custom(format!("signature must not be null"))); } (*((signature) as *const chia_sdk_bindings::Signature)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_get_new_catalog(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryFinishedSpendResult);
+        let val = obj.new_catalog.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogRegistry> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_set_new_catalog(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryFinishedSpendResult);
+        obj.new_catalog = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogRegistry)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_get_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryFinishedSpendResult);
+        let val = obj.signature.clone();
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_set_signature(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryFinishedSpendResult);
+        obj.signature = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Signature)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryFinishedSpendResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryFinishedSpendResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finished_spend_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistryFinishedSpendResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_new(
+    security_signature: *const std::ffi::c_void,
+    security_secret_key: *const std::ffi::c_void,
+    catalog: *const std::ffi::c_void,
+    slots_ptrs: *const *const std::ffi::c_void, slots_len: usize,
+    security_coin: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CatalogRegistryLaunchResult {
+            security_signature: { if (security_signature).is_null() { return Err(bindy::Error::Custom(format!("security_signature must not be null"))); } (*((security_signature) as *const chia_sdk_bindings::Signature)).clone() },
+            security_secret_key: { if (security_secret_key).is_null() { return Err(bindy::Error::Custom(format!("security_secret_key must not be null"))); } (*((security_secret_key) as *const chia_sdk_bindings::SecretKey)).clone() },
+            catalog: { if (catalog).is_null() { return Err(bindy::Error::Custom(format!("catalog must not be null"))); } (*((catalog) as *const chia_sdk_bindings::CatalogRegistry)).clone() },
+            slots: { if slots_ptrs.is_null() { return Err(bindy::Error::Custom(format!("slots must not be null"))); } let ptrs = std::slice::from_raw_parts(slots_ptrs, slots_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("slots element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CatalogSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            security_coin: { if (security_coin).is_null() { return Err(bindy::Error::Custom(format!("security_coin must not be null"))); } (*((security_coin) as *const chia_sdk_bindings::Coin)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_get_security_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        let val = obj.security_signature.clone();
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_set_security_signature(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult);
+        obj.security_signature = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Signature)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_get_security_secret_key(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        let val = obj.security_secret_key.clone();
+        let boxed: Box<chia_sdk_bindings::SecretKey> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_set_security_secret_key(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult);
+        obj.security_secret_key = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::SecretKey)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_get_catalog(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        let val = obj.catalog.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogRegistry> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_set_catalog(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult);
+        obj.catalog = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogRegistry)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_get_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        let val = obj.slots.clone();
+        let list: Vec<chia_sdk_bindings::CatalogSlot> = val;
+let boxed: Box<Vec<chia_sdk_bindings::CatalogSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_set_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult);
+        obj.slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CatalogSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_get_security_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryLaunchResult);
+        let val = obj.security_coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_set_security_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryLaunchResult);
+        obj.security_coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryLaunchResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryLaunchResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_launch_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistryLaunchResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistry));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistry);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::coin(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::proof(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Proof> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::state(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryState> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_constants(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::constants(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::inner_puzzle_hash(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
         let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
 let len = result.len();
 let boxed = result.into_boxed_slice();
@@ -3142,11 +3961,9 @@ let boxed = result.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_calculate_vault_coin_message(delegated_puzzle_hash_ptr: *const u8, delegated_puzzle_hash_len: usize, vault_coin_id_ptr: *const u8, vault_coin_id_len: usize, genesis_challenge_ptr: *const u8, genesis_challenge_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let result = chia_sdk_bindings::calculate_vault_coin_message({ if delegated_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(delegated_puzzle_hash_ptr, delegated_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            { if vault_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("vault_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(vault_coin_id_ptr, vault_coin_id_len).to_vec(), &bindy::GoContext)? },
-            { if genesis_challenge_ptr.is_null() { return Err(bindy::Error::Custom(format!("genesis_challenge must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(genesis_challenge_ptr, genesis_challenge_len).to_vec(), &bindy::GoContext)? })?;
+        let result = chia_sdk_bindings::CatalogRegistry::puzzle_hash(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
         let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
 let len = result.len();
 let boxed = result.into_boxed_slice();
@@ -3157,20 +3974,276 @@ let boxed = result.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_calculate_vault_start_recovery_message(delegated_puzzle_hash_ptr: *const u8, delegated_puzzle_hash_len: usize, left_side_subtree_hash_ptr: *const u8, left_side_subtree_hash_len: usize, recovery_timelock: u64, vault_coin_id_ptr: *const u8, vault_coin_id_len: usize, genesis_challenge_ptr: *const u8, genesis_challenge_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_catalog_registry_child(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let result = chia_sdk_bindings::calculate_vault_start_recovery_message({ if delegated_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(delegated_puzzle_hash_ptr, delegated_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            { if left_side_subtree_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("left_side_subtree_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(left_side_subtree_hash_ptr, left_side_subtree_hash_len).to_vec(), &bindy::GoContext)? },
-            bindy::IntoRust::<_, _, bindy::Go>::into_rust(recovery_timelock, &bindy::GoContext)?,
-            { if vault_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("vault_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(vault_coin_id_ptr, vault_coin_id_len).to_vec(), &bindy::GoContext)? },
-            { if genesis_challenge_ptr.is_null() { return Err(bindy::Error::Custom(format!("genesis_challenge must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(genesis_challenge_ptr, genesis_challenge_len).to_vec(), &bindy::GoContext)? })?;
-        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
-let len = result.len();
-let boxed = result.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
+        let result = chia_sdk_bindings::CatalogRegistry::child(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistry> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_pending_created_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::pending_created_slots(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let list: Vec<chia_sdk_bindings::CatalogSlot> = result;
+let boxed: Box<Vec<chia_sdk_bindings::CatalogSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_pending_spent_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::pending_spent_slots(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let list: Vec<chia_sdk_bindings::CatalogSlotValue> = result;
+let boxed: Box<Vec<chia_sdk_bindings::CatalogSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_pending_logs(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::pending_logs(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let list: Vec<chia_sdk_bindings::CatalogActionLog> = result;
+let boxed: Box<Vec<chia_sdk_bindings::CatalogActionLog>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_pending_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::pending_signature(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_finish_spend(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::finish_spend(&*(ptr as *const chia_sdk_bindings::CatalogRegistry))?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryFinishedSpendResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_register(ptr: *const c_void, tail_hash_ptr: *const u8, tail_hash_len: usize, left_slot: *const std::ffi::c_void, right_slot: *const std::ffi::c_void, precommit_coin: *const std::ffi::c_void, eve_nft_inner_spend: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::register(&*(ptr as *const chia_sdk_bindings::CatalogRegistry),
+            { if tail_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("tail_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(tail_hash_ptr, tail_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (left_slot).is_null() { return Err(bindy::Error::Custom(format!("left_slot must not be null"))); } (*((left_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() },
+            { if (right_slot).is_null() { return Err(bindy::Error::Custom(format!("right_slot must not be null"))); } (*((right_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() },
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::CatalogPrecommitCoin)).clone() },
+            { if (eve_nft_inner_spend).is_null() { return Err(bindy::Error::Custom(format!("eve_nft_inner_spend must not be null"))); } (*((eve_nft_inner_spend) as *const chia_sdk_bindings::Spend)).clone() })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_refund(ptr: *const c_void, tail_hash_ptr: *const u8, tail_hash_len: usize, precommit_coin: *const std::ffi::c_void, neighbors: *const std::ffi::c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::refund(&*(ptr as *const chia_sdk_bindings::CatalogRegistry),
+            { if tail_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("tail_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(tail_hash_ptr, tail_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::CatalogPrecommitCoin)).clone() },
+            if neighbors.is_null() { None } else { Some((*((neighbors) as *const chia_sdk_bindings::SlotNeigborsInfo)).clone()) },
+            if slot.is_null() { None } else { Some((*((slot) as *const chia_sdk_bindings::CatalogSlot)).clone()) })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_delegated_state(ptr: *const c_void, new_state: *const std::ffi::c_void, other_singleton_inner_puzzle_hash_ptr: *const u8, other_singleton_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::delegated_state(&*(ptr as *const chia_sdk_bindings::CatalogRegistry),
+            { if (new_state).is_null() { return Err(bindy::Error::Custom(format!("new_state must not be null"))); } (*((new_state) as *const chia_sdk_bindings::CatalogRegistryState)).clone() },
+            { if other_singleton_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("other_singleton_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(other_singleton_inner_puzzle_hash_ptr, other_singleton_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors(ptr: *const c_void, new_tail_hash_ptr: *const u8, new_tail_hash_len: usize, on_chain_left_slot: *const std::ffi::c_void, on_chain_right_slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::actual_neighbors(&*(ptr as *const chia_sdk_bindings::CatalogRegistry),
+            { if new_tail_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_tail_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_tail_hash_ptr, new_tail_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (on_chain_left_slot).is_null() { return Err(bindy::Error::Custom(format!("on_chain_left_slot must not be null"))); } (*((on_chain_left_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() },
+            { if (on_chain_right_slot).is_null() { return Err(bindy::Error::Custom(format!("on_chain_right_slot must not be null"))); } (*((on_chain_right_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryActualNeighborsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_slot(ptr: *const c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::CatalogRegistry::actual_slot(&*(ptr as *const chia_sdk_bindings::CatalogRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::CatalogSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::CatalogSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistry>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistry>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistry>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CatalogRegistryActualNeighborsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryActualNeighborsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_new(
+    left_slot: *const std::ffi::c_void,
+    right_slot: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CatalogRegistryActualNeighborsResult {
+            left_slot: { if (left_slot).is_null() { return Err(bindy::Error::Custom(format!("left_slot must not be null"))); } (*((left_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() },
+            right_slot: { if (right_slot).is_null() { return Err(bindy::Error::Custom(format!("right_slot must not be null"))); } (*((right_slot) as *const chia_sdk_bindings::CatalogSlot)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_get_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryActualNeighborsResult);
+        let val = obj.left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlot> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_set_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryActualNeighborsResult);
+        obj.left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlot)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_get_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CatalogRegistryActualNeighborsResult);
+        let val = obj.right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::CatalogSlot> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_set_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CatalogRegistryActualNeighborsResult);
+        obj.right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CatalogSlot)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryActualNeighborsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CatalogRegistryActualNeighborsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_catalog_registry_actual_neighbors_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CatalogRegistryActualNeighborsResult>));
+        }));
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -4126,18 +5199,6 @@ pub unsafe extern "C" fn go_clvm_update_nft_metadata(ptr: *const c_void, updater
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_clvm_update_data_store_merkle_root(ptr: *const c_void, new_merkle_root_ptr: *const u8, new_merkle_root_len: usize, memos_ptrs: *const *const u8, memos_lens: *const usize, memos_count: usize, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let result = chia_sdk_bindings::Clvm::update_data_store_merkle_root(&*(ptr as *const chia_sdk_bindings::Clvm),
-            { if new_merkle_root_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_merkle_root must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_merkle_root_ptr, new_merkle_root_len).to_vec(), &bindy::GoContext)? },
-            { if memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? })?;
-        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_clvm_parse_child_streamed_asset(ptr: *const c_void, coin_spend: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Clvm::parse_child_streamed_asset(&*(ptr as *const chia_sdk_bindings::Clvm),
@@ -4202,10 +5263,10 @@ pub unsafe extern "C" fn go_clvm_medieval_vault_rekey_delegated_puzzle(ptr: *con
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_clvm_medieval_vault_send_message_delegated_puzzle(ptr: *const c_void, message_ptr: *const u8, message_len: usize, receiver_launcher_id_ptr: *const u8, receiver_launcher_id_len: usize, my_coin: *const std::ffi::c_void, my_info: *const std::ffi::c_void, genesis_challenge_ptr: *const u8, genesis_challenge_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_clvm_medieval_vault_send_message_delegated_puzzle(ptr: *const c_void, prefix_and_message_ptr: *const u8, prefix_and_message_len: usize, receiver_launcher_id_ptr: *const u8, receiver_launcher_id_len: usize, my_coin: *const std::ffi::c_void, my_info: *const std::ffi::c_void, genesis_challenge_ptr: *const u8, genesis_challenge_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Clvm::medieval_vault_send_message_delegated_puzzle(&*(ptr as *const chia_sdk_bindings::Clvm),
-            { if message_ptr.is_null() { return Err(bindy::Error::Custom(format!("message must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(message_ptr, message_len).to_vec(), &bindy::GoContext)? },
+            { if prefix_and_message_ptr.is_null() { return Err(bindy::Error::Custom(format!("prefix_and_message must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(prefix_and_message_ptr, prefix_and_message_len).to_vec(), &bindy::GoContext)? },
             { if receiver_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("receiver_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(receiver_launcher_id_ptr, receiver_launcher_id_len).to_vec(), &bindy::GoContext)? },
             { if (my_coin).is_null() { return Err(bindy::Error::Custom(format!("my_coin must not be null"))); } (*((my_coin) as *const chia_sdk_bindings::Coin)).clone() },
             { if (my_info).is_null() { return Err(bindy::Error::Custom(format!("my_info must not be null"))); } (*((my_info) as *const chia_sdk_bindings::MedievalVaultInfo)).clone() },
@@ -4344,12 +5405,254 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_clvm_parse_vault_transaction(ptr: *const c_void, vault: *const std::ffi::c_void, coin_spends_ptrs: *const *const std::ffi::c_void, coin_spends_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_clvm_reset(ptr: *const c_void) -> i32 {
     catch(|| {
-        let result = chia_sdk_bindings::Clvm::parse_vault_transaction(&*(ptr as *const chia_sdk_bindings::Clvm),
-            { if (vault).is_null() { return Err(bindy::Error::Custom(format!("vault must not be null"))); } (*((vault) as *const chia_sdk_bindings::VaultSpendReveal)).clone() },
-            { if coin_spends_ptrs.is_null() { return Err(bindy::Error::Custom(format!("coin_spends must not be null"))); } let ptrs = std::slice::from_raw_parts(coin_spends_ptrs, coin_spends_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("coin_spends element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinSpend)).clone()) }).collect::<bindy::Result<Vec<_>>>()? })?;
-        let boxed: Box<chia_sdk_bindings::VaultTransaction> = Box::new(result);
+        let result = chia_sdk_bindings::Clvm::reset(&*(ptr as *const chia_sdk_bindings::Clvm))?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_spend_p_2_next_reward_distributor_epoch(ptr: *const c_void, cat: *const std::ffi::c_void, info: *const std::ffi::c_void, next_epoch_start: u64, reward_distributor_inner_puzzle_hash_ptr: *const u8, reward_distributor_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::spend_p2_next_reward_distributor_epoch(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (cat).is_null() { return Err(bindy::Error::Custom(format!("cat must not be null"))); } (*((cat) as *const chia_sdk_bindings::Cat)).clone() },
+            { if (info).is_null() { return Err(bindy::Error::Custom(format!("info must not be null"))); } (*((info) as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(next_epoch_start, &bindy::GoContext)?,
+            { if reward_distributor_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("reward_distributor_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reward_distributor_inner_puzzle_hash_ptr, reward_distributor_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::CatSpend> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_mint_datastore(ptr: *const c_void, parent_coin_id_ptr: *const u8, parent_coin_id_len: usize, metadata: *const std::ffi::c_void, owner_puzzle_hash_ptr: *const u8, owner_puzzle_hash_len: usize, delegated_puzzles_ptrs: *const *const std::ffi::c_void, delegated_puzzles_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::mint_datastore(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if parent_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_coin_id_ptr, parent_coin_id_len).to_vec(), &bindy::GoContext)? },
+            { if (metadata).is_null() { return Err(bindy::Error::Custom(format!("metadata must not be null"))); } (*((metadata) as *const chia_sdk_bindings::DatastoreMetadata)).clone() },
+            { if owner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_puzzle_hash_ptr, owner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if delegated_puzzles_ptrs.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzles must not be null"))); } let ptrs = std::slice::from_raw_parts(delegated_puzzles_ptrs, delegated_puzzles_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzles element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DelegatedPuzzle)).clone()) }).collect::<bindy::Result<Vec<_>>>()? })?;
+        let boxed: Box<chia_sdk_bindings::MintedDatastore> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_datastore_from_spend(ptr: *const c_void, parent_spend: *const std::ffi::c_void, delegated_puzzles_ptrs: *const *const std::ffi::c_void, delegated_puzzles_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::datastore_from_spend(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (parent_spend).is_null() { return Err(bindy::Error::Custom(format!("parent_spend must not be null"))); } (*((parent_spend) as *const chia_sdk_bindings::CoinSpend)).clone() },
+            if delegated_puzzles_ptrs.is_null() { None } else { Some({ if delegated_puzzles_ptrs.is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzles must not be null"))); } let ptrs = std::slice::from_raw_parts(delegated_puzzles_ptrs, delegated_puzzles_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("delegated_puzzles element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DelegatedPuzzle)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::Datastore>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_handle_nft_metadata(ptr: *const c_void, value: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::handle_nft_metadata(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::HandleNftMetadata)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_update_datastore_merkle_root(ptr: *const c_void, new_merkle_root_ptr: *const u8, new_merkle_root_len: usize, memos_ptrs: *const *const u8, memos_lens: *const usize, memos_count: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::update_datastore_merkle_root(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if new_merkle_root_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_merkle_root must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_merkle_root_ptr, new_merkle_root_len).to_vec(), &bindy::GoContext)? },
+            { if memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? })?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_reward_distributor_from_mempool_item(ptr: *const c_void, mempool_item: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::reward_distributor_from_mempool_item(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (mempool_item).is_null() { return Err(bindy::Error::Custom(format!("mempool_item must not be null"))); } (*((mempool_item) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::RewardDistributorConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributor>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_catalog_registry_from_spend(ptr: *const c_void, spend: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::catalog_registry_from_spend(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (spend).is_null() { return Err(bindy::Error::Custom(format!("spend must not be null"))); } (*((spend) as *const chia_sdk_bindings::CoinSpend)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::CatalogRegistryConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_catalog_registry_from_parent_spend(ptr: *const c_void, parent_spend: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::catalog_registry_from_parent_spend(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (parent_spend).is_null() { return Err(bindy::Error::Custom(format!("parent_spend must not be null"))); } (*((parent_spend) as *const chia_sdk_bindings::CoinSpend)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::CatalogRegistryConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_catalog_registry_from_mempool_item(ptr: *const c_void, mempool_item: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::catalog_registry_from_mempool_item(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (mempool_item).is_null() { return Err(bindy::Error::Custom(format!("mempool_item must not be null"))); } (*((mempool_item) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::CatalogRegistryConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::CatalogRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_launch_catalog_registry(ptr: *const c_void, offer: *const std::ffi::c_void, initial_registration_price: u64, constants: *const std::ffi::c_void, initial_registration_asset_id_ptr: *const u8, initial_registration_asset_id_len: usize, mainnet: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::launch_catalog_registry(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (offer).is_null() { return Err(bindy::Error::Custom(format!("offer must not be null"))); } (*((offer) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(initial_registration_price, &bindy::GoContext)?,
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::CatalogRegistryConstants)).clone() },
+            { if initial_registration_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("initial_registration_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(initial_registration_asset_id_ptr, initial_registration_asset_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(mainnet != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::CatalogRegistryLaunchResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_xchandles_registry_from_spend(ptr: *const c_void, spend: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::xchandles_registry_from_spend(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (spend).is_null() { return Err(bindy::Error::Custom(format!("spend must not be null"))); } (*((spend) as *const chia_sdk_bindings::CoinSpend)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::XchandlesConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_xchandles_registry_from_parent_spend(ptr: *const c_void, parent_spend: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::xchandles_registry_from_parent_spend(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (parent_spend).is_null() { return Err(bindy::Error::Custom(format!("parent_spend must not be null"))); } (*((parent_spend) as *const chia_sdk_bindings::CoinSpend)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::XchandlesConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_xchandles_registry_from_mempool_item(ptr: *const c_void, mempool_item: *const std::ffi::c_void, constants: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::xchandles_registry_from_mempool_item(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (mempool_item).is_null() { return Err(bindy::Error::Custom(format!("mempool_item must not be null"))); } (*((mempool_item) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::XchandlesConstants)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRegistry>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_launch_xchandles_registry(ptr: *const c_void, offer: *const std::ffi::c_void, initial_base_registration_price: u64, initial_registration_period: u64, constants: *const std::ffi::c_void, initial_registration_asset_id_ptr: *const u8, initial_registration_asset_id_len: usize, mainnet: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::launch_xchandles_registry(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (offer).is_null() { return Err(bindy::Error::Custom(format!("offer must not be null"))); } (*((offer) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(initial_base_registration_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(initial_registration_period, &bindy::GoContext)?,
+            { if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::XchandlesConstants)).clone() },
+            { if initial_registration_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("initial_registration_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(initial_registration_asset_id_ptr, initial_registration_asset_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(mainnet != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryLaunchResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_create_security_coin_with_pk(ptr: *const c_void, xch_settlement_coin: *const std::ffi::c_void, public_key: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::create_security_coin_with_pk(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (xch_settlement_coin).is_null() { return Err(bindy::Error::Custom(format!("xch_settlement_coin must not be null"))); } (*((xch_settlement_coin) as *const chia_sdk_bindings::Coin)).clone() },
+            { if (public_key).is_null() { return Err(bindy::Error::Custom(format!("public_key must not be null"))); } (*((public_key) as *const chia_sdk_bindings::PublicKey)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_create_offer_security_coin_with_key(ptr: *const c_void, offer: *const std::ffi::c_void, security_coin_sk: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::create_offer_security_coin_with_key(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (offer).is_null() { return Err(bindy::Error::Custom(format!("offer must not be null"))); } (*((offer) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            { if (security_coin_sk).is_null() { return Err(bindy::Error::Custom(format!("security_coin_sk must not be null"))); } (*((security_coin_sk) as *const chia_sdk_bindings::SecretKey)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::OfferSecurityCoinDetails> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_spend_settlement_cats(ptr: *const c_void, offer: *const std::ffi::c_void, asset_id_ptr: *const u8, asset_id_len: usize, nonce_ptr: *const u8, nonce_len: usize, payments_ptrs: *const *const std::ffi::c_void, payments_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::spend_settlement_cats(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if (offer).is_null() { return Err(bindy::Error::Custom(format!("offer must not be null"))); } (*((offer) as *const chia_sdk_bindings::SpendBundle)).clone() },
+            { if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if nonce_ptr.is_null() { return Err(bindy::Error::Custom(format!("nonce must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(nonce_ptr, nonce_len).to_vec(), &bindy::GoContext)? },
+            { if payments_ptrs.is_null() { return Err(bindy::Error::Custom(format!("payments must not be null"))); } let ptrs = std::slice::from_raw_parts(payments_ptrs, payments_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("payments element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Payment)).clone()) }).collect::<bindy::Result<Vec<_>>>()? })?;
+        let boxed: Box<chia_sdk_bindings::SpendSettlementCatsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_state_scheduler_layer(ptr: *const c_void, receiver_singleton_struct_hash_ptr: *const u8, receiver_singleton_struct_hash_len: usize, prefix_and_message_ptr: *const u8, prefix_and_message_len: usize, inner_puzzle: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::state_scheduler_layer(&*(ptr as *const chia_sdk_bindings::Clvm),
+            { if receiver_singleton_struct_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("receiver_singleton_struct_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(receiver_singleton_struct_hash_ptr, receiver_singleton_struct_hash_len).to_vec(), &bindy::GoContext)? },
+            { if prefix_and_message_ptr.is_null() { return Err(bindy::Error::Custom(format!("prefix_and_message must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(prefix_and_message_ptr, prefix_and_message_len).to_vec(), &bindy::GoContext)? },
+            { if (inner_puzzle).is_null() { return Err(bindy::Error::Custom(format!("inner_puzzle must not be null"))); } (*((inner_puzzle) as *const chia_sdk_bindings::Program)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
@@ -5156,6 +6459,16 @@ pub unsafe extern "C" fn go_clvm_force_coin_message(ptr: *const c_void, out: *mu
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_force_singleton_recreation(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::force_singleton_recreation(&*(ptr as *const chia_sdk_bindings::Clvm))?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_clvm_prevent_condition_opcode(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Clvm::prevent_condition_opcode(&*(ptr as *const chia_sdk_bindings::Clvm))?;
@@ -5249,6 +6562,26 @@ pub unsafe extern "C" fn go_clvm_n_of_n(ptr: *const c_void, out: *mut *mut std::
 pub unsafe extern "C" fn go_clvm_one_of_n(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Clvm::one_of_n(&*(ptr as *const chia_sdk_bindings::Clvm))?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_any_metadata_updater(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::any_metadata_updater(&*(ptr as *const chia_sdk_bindings::Clvm))?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_clvm_state_scheduler_puzzle(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Clvm::state_scheduler_puzzle(&*(ptr as *const chia_sdk_bindings::Clvm))?;
         let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -6117,6 +7450,115 @@ pub unsafe extern "C" fn go_settlement_nft_spend_result_list_free(ptr: *mut c_vo
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::SettlementNftSpendResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::SpendSettlementCatsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::SpendSettlementCatsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_new(
+    created_cats_ptrs: *const *const std::ffi::c_void, created_cats_len: usize,
+    security_conditions_ptrs: *const *const std::ffi::c_void, security_conditions_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::SpendSettlementCatsResult {
+            created_cats: { if created_cats_ptrs.is_null() { return Err(bindy::Error::Custom(format!("created_cats must not be null"))); } let ptrs = std::slice::from_raw_parts(created_cats_ptrs, created_cats_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("created_cats element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Cat)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            security_conditions: { if security_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("security_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(security_conditions_ptrs, security_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("security_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_get_created_cats(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::SpendSettlementCatsResult);
+        let val = obj.created_cats.clone();
+        let list: Vec<chia_sdk_bindings::Cat> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Cat>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_set_created_cats(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::SpendSettlementCatsResult);
+        obj.created_cats = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Cat)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_get_security_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::SpendSettlementCatsResult);
+        let val = obj.security_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_set_security_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::SpendSettlementCatsResult);
+        obj.security_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::SpendSettlementCatsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::SpendSettlementCatsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_spend_settlement_cats_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::SpendSettlementCatsResult>));
         }));
     }
 }
@@ -10544,29 +11986,29 @@ pub unsafe extern "C" fn go_update_nft_metadata_list_free(ptr: *mut c_void) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::UpdateDataStoreMerkleRoot));
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::UpdateDatastoreMerkleRoot));
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDataStoreMerkleRoot);
+        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDatastoreMerkleRoot);
         *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_new(
+pub unsafe extern "C" fn go_update_datastore_merkle_root_new(
     new_merkle_root_ptr: *const u8, new_merkle_root_len: usize,
     memos_ptrs: *const *const u8, memos_lens: *const usize, memos_count: usize,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
-        let inner = chia_sdk_bindings::UpdateDataStoreMerkleRoot {
+        let inner = chia_sdk_bindings::UpdateDatastoreMerkleRoot {
             new_merkle_root: { if new_merkle_root_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_merkle_root must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_merkle_root_ptr, new_merkle_root_len).to_vec(), &bindy::GoContext)? },
             memos: { if memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }
         };
@@ -10576,9 +12018,9 @@ pub unsafe extern "C" fn go_update_data_store_merkle_root_new(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_get_new_merkle_root(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_get_new_merkle_root(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDataStoreMerkleRoot);
+        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDatastoreMerkleRoot);
         let val = obj.new_merkle_root.clone();
         let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
 let len = val.len();
@@ -10590,18 +12032,18 @@ let boxed = val.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_set_new_merkle_root(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_set_new_merkle_root(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::UpdateDataStoreMerkleRoot);
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::UpdateDatastoreMerkleRoot);
         obj.new_merkle_root = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_get_memos(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_get_memos(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDataStoreMerkleRoot);
+        let obj = &*(ptr as *const chia_sdk_bindings::UpdateDatastoreMerkleRoot);
         let val = obj.memos.clone();
         *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
         Ok(())
@@ -10609,32 +12051,32 @@ pub unsafe extern "C" fn go_update_data_store_merkle_root_get_memos(ptr: *const 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_set_memos(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_set_memos(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::UpdateDataStoreMerkleRoot);
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::UpdateDatastoreMerkleRoot);
         obj.memos = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_list_len(ptr: *const c_void) -> usize {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
     }
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::UpdateDataStoreMerkleRoot>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::UpdateDatastoreMerkleRoot>);
         list.len()
     })).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
     catch(|| {
         if ptr.is_null() {
             return Err(bindy::Error::Custom("null pointer".to_string()));
         }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::UpdateDataStoreMerkleRoot>);
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::UpdateDatastoreMerkleRoot>);
         if index >= list.len() {
             return Err(bindy::Error::Custom("index out of bounds".to_string()));
         }
@@ -10644,10 +12086,10 @@ pub unsafe extern "C" fn go_update_data_store_merkle_root_list_get(ptr: *const c
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_update_data_store_merkle_root_list_free(ptr: *mut c_void) {
+pub unsafe extern "C" fn go_update_datastore_merkle_root_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::UpdateDataStoreMerkleRoot>));
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::UpdateDatastoreMerkleRoot>));
         }));
     }
 }
@@ -12858,6 +14300,32 @@ let boxed = result.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_force_singleton_recreation(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::force_singleton_recreation()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_force_singleton_recreation_hash(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::force_singleton_recreation_hash()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_constants_prevent_condition_opcode(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Constants::prevent_condition_opcode()?;
@@ -13118,6 +14586,58 @@ let boxed = result.into_boxed_slice();
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_any_metadata_updater(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::any_metadata_updater()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_any_metadata_updater_hash(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::any_metadata_updater_hash()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_state_scheduler_puzzle(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::state_scheduler_puzzle()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_constants_state_scheduler_puzzle_hash(out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Constants::state_scheduler_puzzle_hash()?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_constants_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
@@ -13148,6 +14668,1076 @@ pub unsafe extern "C" fn go_constants_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::Constants>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::FullNodeSimulator));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulator);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_new(out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::new()?;
+        let boxed: Box<chia_sdk_bindings::FullNodeSimulator> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_with_seed(seed: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::with_seed(bindy::IntoRust::<_, _, bindy::Go>::into_rust(seed, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::FullNodeSimulator> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_with_secret_key(secret_key: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::with_secret_key({ if (secret_key).is_null() { return Err(bindy::Error::Custom(format!("secret_key must not be null"))); } (*((secret_key) as *const chia_sdk_bindings::SecretKey)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::FullNodeSimulator> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_height(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::height(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        *out = result;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_header_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::header_hash(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_header_hash_of(ptr: *const c_void, height: u32, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::header_hash_of(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(height, &bindy::GoContext)?)?;
+        match result {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_insert_coin(ptr: *const c_void, coin: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::insert_coin(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() })?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_new_coin(ptr: *const c_void, puzzle_hash_ptr: *const u8, puzzle_hash_len: usize, amount: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::new_coin(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(amount, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_farming_ph(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_farming_ph(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_master_secret_key(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_master_secret_key(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let boxed: Box<chia_sdk_bindings::SecretKey> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_prefarm_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_prefarm_puzzle_hash(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_set_farming_ph(ptr: *const c_void, puzzle_hash_ptr: *const u8, puzzle_hash_len: usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::set_farming_ph(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_blockchain_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_blockchain_state(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let boxed: Box<chia_sdk_bindings::BlockchainStateResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_network_info(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_network_info(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let boxed: Box<chia_sdk_bindings::GetNetworkInfoResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_aggsig_additional_data(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_aggsig_additional_data(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_block_record(ptr: *const c_void, header_hash_ptr: *const u8, header_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_block_record(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if header_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("header_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(header_hash_ptr, header_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::GetBlockRecordResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_block_record_by_height(ptr: *const c_void, height: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_block_record_by_height(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(height, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::GetBlockRecordResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_block_records(ptr: *const c_void, start: u32, end: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_block_records(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(start, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(end, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::GetBlockRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_additions_and_removals(ptr: *const c_void, header_hash_ptr: *const u8, header_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_additions_and_removals(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if header_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("header_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(header_hash_ptr, header_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::AdditionsAndRemovalsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_block_spends(ptr: *const c_void, header_hash_ptr: *const u8, header_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_block_spends(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if header_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("header_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(header_hash_ptr, header_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::GetBlockSpendsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_record_by_name(ptr: *const c_void, name_ptr: *const u8, name_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_record_by_name(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if name_ptr.is_null() { return Err(bindy::Error::Custom(format!("name must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(name_ptr, name_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_names(ptr: *const c_void, names_ptrs: *const *const u8, names_lens: *const usize, names_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_names(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if names_ptrs.is_null() { return Err(bindy::Error::Custom(format!("names must not be null"))); } let ptrs = std::slice::from_raw_parts(names_ptrs, names_count); let lens = std::slice::from_raw_parts(names_lens, names_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_hint(ptr: *const c_void, hint_ptr: *const u8, hint_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_hint(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if hint_ptr.is_null() { return Err(bindy::Error::Custom(format!("hint must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(hint_ptr, hint_len).to_vec(), &bindy::GoContext)? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_hints(ptr: *const c_void, hints_ptrs: *const *const u8, hints_lens: *const usize, hints_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_hints(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if hints_ptrs.is_null() { return Err(bindy::Error::Custom(format!("hints must not be null"))); } let ptrs = std::slice::from_raw_parts(hints_ptrs, hints_count); let lens = std::slice::from_raw_parts(hints_lens, hints_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_parent_ids(ptr: *const c_void, parent_ids_ptrs: *const *const u8, parent_ids_lens: *const usize, parent_ids_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_parent_ids(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if parent_ids_ptrs.is_null() { return Err(bindy::Error::Custom(format!("parent_ids must not be null"))); } let ptrs = std::slice::from_raw_parts(parent_ids_ptrs, parent_ids_count); let lens = std::slice::from_raw_parts(parent_ids_lens, parent_ids_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_puzzle_hash(ptr: *const c_void, puzzle_hash_ptr: *const u8, puzzle_hash_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_puzzle_hash(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_coin_records_by_puzzle_hashes(ptr: *const c_void, puzzle_hashes_ptrs: *const *const u8, puzzle_hashes_lens: *const usize, puzzle_hashes_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_coin_records_by_puzzle_hashes(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if puzzle_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(puzzle_hashes_ptrs, puzzle_hashes_count); let lens = std::slice::from_raw_parts(puzzle_hashes_lens, puzzle_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
+            if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
+            if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_puzzle_and_solution(ptr: *const c_void, coin_id_ptr: *const u8, coin_id_len: usize, height: u32, height_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_puzzle_and_solution(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(coin_id_ptr, coin_id_len).to_vec(), &bindy::GoContext)? },
+            if height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(height, &bindy::GoContext)?) } else { None })?;
+        let boxed: Box<chia_sdk_bindings::GetPuzzleAndSolutionResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_push_tx(ptr: *const c_void, spend_bundle: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::push_tx(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if (spend_bundle).is_null() { return Err(bindy::Error::Custom(format!("spend_bundle must not be null"))); } (*((spend_bundle) as *const chia_sdk_bindings::SpendBundle)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::PushTxResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_mempool_item_by_tx_id(ptr: *const c_void, tx_id_ptr: *const u8, tx_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_mempool_item_by_tx_id(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if tx_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("tx_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(tx_id_ptr, tx_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::GetMempoolItemResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_get_mempool_items_by_coin_name(ptr: *const c_void, coin_name_ptr: *const u8, coin_name_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::get_mempool_items_by_coin_name(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if coin_name_ptr.is_null() { return Err(bindy::Error::Custom(format!("coin_name must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(coin_name_ptr, coin_name_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::GetMempoolItemsResponse> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_farm_block(ptr: *const c_void, blocks: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::farm_block(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(blocks, &bindy::GoContext)?)?;
+        let list: Vec<chia_sdk_bindings::BlockRecord> = result;
+let boxed: Box<Vec<chia_sdk_bindings::BlockRecord>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_revert_blocks(ptr: *const c_void, blocks: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::revert_blocks(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(blocks, &bindy::GoContext)?)?;
+        *out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_blocks(ptr: *const c_void, num_of_blocks_to_rev: u32, num_of_new_blocks: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::reorg_blocks(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_of_blocks_to_rev, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_of_new_blocks, &bindy::GoContext)?)?;
+        let list: Vec<chia_sdk_bindings::BlockRecord> = result;
+let boxed: Box<Vec<chia_sdk_bindings::BlockRecord>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_drain_events(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::drain_events(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let list: Vec<chia_sdk_bindings::FullNodeSimulatorEvent> = result;
+let boxed: Box<Vec<chia_sdk_bindings::FullNodeSimulatorEvent>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_dump_state(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::dump_state(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator))?;
+        let result: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(result).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_restore_state(ptr: *const c_void, state: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulator::restore_state(&*(ptr as *const chia_sdk_bindings::FullNodeSimulator),
+            { if state.is_null() { return Err(bindy::Error::Custom(format!("state must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(state).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? })?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_start_server(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulator);
+        let result = runtime().block_on(obj.start_server())?;
+        let boxed: Box<chia_sdk_bindings::FullNodeSimulatorServer> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulator>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulator>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::FullNodeSimulator>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::FullNodeSimulatorEvent));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorEvent);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_block(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulatorEvent::block(&*(ptr as *const chia_sdk_bindings::FullNodeSimulatorEvent))?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::FullNodeSimulatorBlockEvent>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_reorg(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulatorEvent::reorg(&*(ptr as *const chia_sdk_bindings::FullNodeSimulatorEvent))?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::FullNodeSimulatorReorgEvent>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorEvent>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorEvent>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_event_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::FullNodeSimulatorEvent>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_get_height(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        let val = obj.height.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_set_height(ptr: *mut c_void, value: u32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        obj.height = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_get_header_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        let val = obj.header_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_set_header_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        obj.header_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_get_previous_header_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        let val = obj.previous_header_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_set_previous_header_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        obj.previous_header_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_get_additions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        let val = obj.additions.clone();
+        let list: Vec<chia_sdk_bindings::CoinRecord> = val;
+let boxed: Box<Vec<chia_sdk_bindings::CoinRecord>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_set_additions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        obj.additions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_get_removals(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        let val = obj.removals.clone();
+        let list: Vec<chia_sdk_bindings::CoinRecord> = val;
+let boxed: Box<Vec<chia_sdk_bindings::CoinRecord>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_set_removals(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorBlockEvent);
+        obj.removals = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorBlockEvent>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorBlockEvent>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_block_event_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::FullNodeSimulatorBlockEvent>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_get_fork_height(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        let val = obj.fork_height.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_set_fork_height(ptr: *mut c_void, value: u32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        obj.fork_height = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_get_old_peak_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        let val = obj.old_peak_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_set_old_peak_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        obj.old_peak_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_get_new_peak_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        let val = obj.new_peak_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_set_new_peak_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        obj.new_peak_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_get_reverted_header_hashes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        let val = obj.reverted_header_hashes.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_set_reverted_header_hashes(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        obj.reverted_header_hashes = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_get_new_header_hashes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        let val = obj.new_header_hashes.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_set_new_header_hashes(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorReorgEvent);
+        obj.new_header_hashes = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorReorgEvent>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorReorgEvent>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_reorg_event_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::FullNodeSimulatorReorgEvent>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::FullNodeSimulatorServer));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorServer);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_get_url(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::FullNodeSimulatorServer);
+        let val = obj.url.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_set_url(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::FullNodeSimulatorServer);
+        obj.url = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_close(ptr: *const c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::FullNodeSimulatorServer::close(&*(ptr as *const chia_sdk_bindings::FullNodeSimulatorServer))?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorServer>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::FullNodeSimulatorServer>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_full_node_simulator_server_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::FullNodeSimulatorServer>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::MerkleProof));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MerkleProof);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_new(
+    path: u32,
+    proof_ptrs: *const *const u8, proof_lens: *const usize, proof_count: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::MerkleProof {
+            path: bindy::IntoRust::<_, _, bindy::Go>::into_rust(path, &bindy::GoContext)?,
+            proof: { if proof_ptrs.is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } let ptrs = std::slice::from_raw_parts(proof_ptrs, proof_count); let lens = std::slice::from_raw_parts(proof_lens, proof_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_get_path(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MerkleProof);
+        let val = obj.path.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_set_path(ptr: *mut c_void, value: u32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::MerkleProof);
+        obj.path = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MerkleProof);
+        let val = obj.proof.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_set_proof(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::MerkleProof);
+        obj.proof = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::MerkleProof>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::MerkleProof>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_merkle_proof_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::MerkleProof>));
         }));
     }
 }
@@ -14067,6 +16657,15 @@ pub unsafe extern "C" fn go_mips_spend_prevent_vault_side_effects(ptr: *const c_
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_mips_spend_force_singleton_recreation(ptr: *const c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::MipsSpend::force_singleton_recreation(&*(ptr as *const chia_sdk_bindings::MipsSpend))?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_mips_spend_list_len(ptr: *const c_void) -> usize {
     if ptr.is_null() {
         return 0;
@@ -14767,6 +17366,16 @@ pub unsafe extern "C" fn go_wrapper_memo_prevent_condition_opcode(clvm: *const s
         let result = chia_sdk_bindings::WrapperMemo::prevent_condition_opcode({ if (clvm).is_null() { return Err(bindy::Error::Custom(format!("clvm must not be null"))); } (*((clvm) as *const chia_sdk_bindings::Clvm)).clone() },
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(opcode, &bindy::GoContext)?,
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(reveal != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::WrapperMemo> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_wrapper_memo_force_singleton_recreation(clvm: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::WrapperMemo::force_singleton_recreation({ if (clvm).is_null() { return Err(bindy::Error::Custom(format!("clvm must not be null"))); } (*((clvm) as *const chia_sdk_bindings::Clvm)).clone() })?;
         let boxed: Box<chia_sdk_bindings::WrapperMemo> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -15512,6 +18121,16 @@ pub unsafe extern "C" fn go_mips_memo_context_list_free(ptr: *mut c_void) {
             drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::MipsMemoContext>));
         }));
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_force_singleton_recreation_restriction(out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::force_singleton_recreation_restriction()?;
+        let boxed: Box<chia_sdk_bindings::Restriction> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -18078,18 +20697,6 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_program_parse_update_data_store_merkle_root(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let result = chia_sdk_bindings::Program::parse_update_data_store_merkle_root(&*(ptr as *const chia_sdk_bindings::Program))?;
-        match result {
-Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::UpdateDataStoreMerkleRoot>) as *mut std::ffi::c_void,
-None => *out = std::ptr::null_mut(),
-}
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_program_parse_option_metadata(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::Program::parse_option_metadata(&*(ptr as *const chia_sdk_bindings::Program))?;
@@ -18132,6 +20739,30 @@ pub unsafe extern "C" fn go_program_parse_reward_distributor_launcher_solution(p
             { if (launcher_coin).is_null() { return Err(bindy::Error::Custom(format!("launcher_coin must not be null"))); } (*((launcher_coin) as *const chia_sdk_bindings::Coin)).clone() })?;
         match result {
 Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorLauncherSolutionInfo>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_program_parse_handle_nft_metadata(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Program::parse_handle_nft_metadata(&*(ptr as *const chia_sdk_bindings::Program))?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::HandleNftMetadata>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_program_parse_update_datastore_merkle_root(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Program::parse_update_datastore_merkle_root(&*(ptr as *const chia_sdk_bindings::Program))?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::UpdateDatastoreMerkleRoot>) as *mut std::ffi::c_void,
 None => *out = std::ptr::null_mut(),
 }
         Ok(())
@@ -18490,7 +21121,7 @@ pub unsafe extern "C" fn go_puzzle_parse_bulletin(ptr: *const c_void, coin: *con
             { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() },
             { if (solution).is_null() { return Err(bindy::Error::Custom(format!("solution must not be null"))); } (*((solution) as *const chia_sdk_bindings::Program)).clone() })?;
         match result {
-Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::Bulletin>) as *mut std::ffi::c_void,
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::ParsedBulletin>) as *mut std::ffi::c_void,
 None => *out = std::ptr::null_mut(),
 }
         Ok(())
@@ -19271,13 +21902,15 @@ pub unsafe extern "C" fn go_parsed_cat_new(
     cat: *const std::ffi::c_void,
     p2_puzzle: *const std::ffi::c_void,
     p2_solution: *const std::ffi::c_void,
+    revoked: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::ParsedCat {
             cat: { if (cat).is_null() { return Err(bindy::Error::Custom(format!("cat must not be null"))); } (*((cat) as *const chia_sdk_bindings::Cat)).clone() },
             p2_puzzle: { if (p2_puzzle).is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle must not be null"))); } (*((p2_puzzle) as *const chia_sdk_bindings::Puzzle)).clone() },
-            p2_solution: { if (p2_solution).is_null() { return Err(bindy::Error::Custom(format!("p2_solution must not be null"))); } (*((p2_solution) as *const chia_sdk_bindings::Program)).clone() }
+            p2_solution: { if (p2_solution).is_null() { return Err(bindy::Error::Custom(format!("p2_solution must not be null"))); } (*((p2_solution) as *const chia_sdk_bindings::Program)).clone() },
+            revoked: bindy::IntoRust::<_, _, bindy::Go>::into_rust(revoked != 0, &bindy::GoContext)?
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -19340,6 +21973,25 @@ pub unsafe extern "C" fn go_parsed_cat_set_p_2_solution(ptr: *mut c_void, value:
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedCat);
         obj.p2_solution = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Program)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_cat_get_revoked(ptr: *const c_void, out: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::ParsedCat);
+        let val = obj.revoked.clone();
+        *out = if val { 1 } else { 0 };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_cat_set_revoked(ptr: *mut c_void, value: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedCat);
+        obj.revoked = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value != 0, &bindy::GoContext)?;
         Ok(())
     })
 }
@@ -24992,34 +27644,1694 @@ pub unsafe extern "C" fn go_p_2_parent_coin_child_parse_result_list_free(ptr: *m
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_type_to_int(ptr: *const c_void, out: *mut i32) -> i32 {
+pub unsafe extern "C" fn go_handle_nft_metadata_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::HandleNftMetadata));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
     catch(|| {
-        let val = &*(ptr as *const chia_sdk_bindings::RewardDistributorType);
-        *out = match val {
-            chia_sdk_bindings::RewardDistributorType::Manager => 0,
-            chia_sdk_bindings::RewardDistributorType::Nft => 1,
-        };
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_type_from_int(value: i32, out: *mut *mut c_void) -> i32 {
+pub unsafe extern "C" fn go_handle_nft_metadata_new(
+    display_name: *const std::ffi::c_char,
+    image_uris_ptrs: *const *const std::ffi::c_char, image_uris_lens: *const usize, image_uris_count: usize,
+    image_hash_ptr: *const u8, image_hash_len: usize,
+    metadata_uris_ptrs: *const *const std::ffi::c_char, metadata_uris_lens: *const usize, metadata_uris_count: usize,
+    metadata_hash_ptr: *const u8, metadata_hash_len: usize,
+    license_uris_ptrs: *const *const std::ffi::c_char, license_uris_lens: *const usize, license_uris_count: usize,
+    license_hash_ptr: *const u8, license_hash_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
     catch(|| {
-        let val = match value {
-            0 => chia_sdk_bindings::RewardDistributorType::Manager,
-            1 => chia_sdk_bindings::RewardDistributorType::Nft,
-            _ => return Err(bindy::Error::Custom(format!("invalid RewardDistributorType value: {value}"))),
+        let inner = chia_sdk_bindings::HandleNftMetadata {
+            display_name: if display_name.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(display_name).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
+            image_uris: { if image_uris_count > 0 && image_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("image_uris must not be null"))); } if image_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(image_uris_ptrs, image_uris_count); let lens = std::slice::from_raw_parts(image_uris_lens, image_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
+            image_hash: if image_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(image_hash_ptr, image_hash_len).to_vec(), &bindy::GoContext)?) },
+            metadata_uris: { if metadata_uris_count > 0 && metadata_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("metadata_uris must not be null"))); } if metadata_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(metadata_uris_ptrs, metadata_uris_count); let lens = std::slice::from_raw_parts(metadata_uris_lens, metadata_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
+            metadata_hash: if metadata_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(metadata_hash_ptr, metadata_hash_len).to_vec(), &bindy::GoContext)?) },
+            license_uris: { if license_uris_count > 0 && license_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("license_uris must not be null"))); } if license_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(license_uris_ptrs, license_uris_count); let lens = std::slice::from_raw_parts(license_uris_lens, license_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
+            license_hash: if license_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(license_hash_ptr, license_hash_len).to_vec(), &bindy::GoContext)?) }
         };
-        *out = Box::into_raw(Box::new(val)) as *mut c_void;
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
     })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_display_name(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.display_name.clone();
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_display_name(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.display_name = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_image_uris(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.image_uris.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_image_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.image_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_image_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.image_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_image_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.image_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_metadata_uris(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.metadata_uris.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_metadata_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.metadata_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_metadata_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.metadata_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_metadata_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.metadata_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_license_uris(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.license_uris.clone();
+        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_license_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.license_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_get_license_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::HandleNftMetadata);
+        let val = obj.license_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_set_license_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::HandleNftMetadata);
+        obj.license_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::HandleNftMetadata>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::HandleNftMetadata>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_handle_nft_metadata_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::HandleNftMetadata>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::ParsedBulletin));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::ParsedBulletin);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_new(
+    bulletin: *const std::ffi::c_void,
+    p2_puzzle: *const std::ffi::c_void,
+    p2_solution: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::ParsedBulletin {
+            bulletin: { if (bulletin).is_null() { return Err(bindy::Error::Custom(format!("bulletin must not be null"))); } (*((bulletin) as *const chia_sdk_bindings::Bulletin)).clone() },
+            p2_puzzle: { if (p2_puzzle).is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle must not be null"))); } (*((p2_puzzle) as *const chia_sdk_bindings::Puzzle)).clone() },
+            p2_solution: { if (p2_solution).is_null() { return Err(bindy::Error::Custom(format!("p2_solution must not be null"))); } (*((p2_solution) as *const chia_sdk_bindings::Program)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_get_bulletin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::ParsedBulletin);
+        let val = obj.bulletin.clone();
+        let boxed: Box<chia_sdk_bindings::Bulletin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_set_bulletin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedBulletin);
+        obj.bulletin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Bulletin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_get_p_2_puzzle(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::ParsedBulletin);
+        let val = obj.p2_puzzle.clone();
+        let boxed: Box<chia_sdk_bindings::Puzzle> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_set_p_2_puzzle(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedBulletin);
+        obj.p2_puzzle = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Puzzle)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_get_p_2_solution(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::ParsedBulletin);
+        let val = obj.p2_solution.clone();
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_set_p_2_solution(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedBulletin);
+        obj.p2_solution = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Program)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedBulletin>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::ParsedBulletin>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_parsed_bulletin_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::ParsedBulletin>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_get_clawback_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        let val = obj.clawback_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_set_clawback_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        obj.clawback_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_get_reward_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        let val = obj.reward_asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_set_reward_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        obj.reward_asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_get_reward_distributor_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        let val = obj.reward_distributor_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_set_reward_distributor_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        obj.reward_distributor_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_get_reward_distributor_first_epoch_start(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        let val = obj.reward_distributor_first_epoch_start.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_set_reward_distributor_first_epoch_start(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        obj.reward_distributor_first_epoch_start = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_get_reward_distributor_epoch_seconds(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        let val = obj.reward_distributor_epoch_seconds.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_set_reward_distributor_epoch_seconds(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo);
+        obj.reward_distributor_epoch_seconds = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_new(clawback_inner_puzzle_hash_ptr: *const u8, clawback_inner_puzzle_hash_len: usize, reward_asset_id_ptr: *const u8, reward_asset_id_len: usize, reward_distributor_launcher_id_ptr: *const u8, reward_distributor_launcher_id_len: usize, reward_distributor_first_epoch_start: u64, reward_distributor_epoch_seconds: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo::new({ if clawback_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("clawback_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(clawback_inner_puzzle_hash_ptr, clawback_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if reward_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("reward_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reward_asset_id_ptr, reward_asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if reward_distributor_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("reward_distributor_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reward_distributor_launcher_id_ptr, reward_distributor_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(reward_distributor_first_epoch_start, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(reward_distributor_epoch_seconds, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_from_constants(constants: *const std::ffi::c_void, reward_distributor_first_epoch_start: u64, clawback_inner_puzzle_hash_ptr: *const u8, clawback_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo::from_constants({ if (constants).is_null() { return Err(bindy::Error::Custom(format!("constants must not be null"))); } (*((constants) as *const chia_sdk_bindings::RewardDistributorConstants)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(reward_distributor_first_epoch_start, &bindy::GoContext)?,
+            { if clawback_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("clawback_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(clawback_inner_puzzle_hash_ptr, clawback_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_clawback_puzzle_hash(ptr: *const c_void, coin_id_ptr: *const u8, coin_id_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo::clawback_puzzle_hash(&*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo),
+            { if coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(coin_id_ptr, coin_id_len).to_vec(), &bindy::GoContext)? })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo::inner_puzzle_hash(&*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo::puzzle_hash(&*(ptr as *const chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_p_2_next_reward_distributor_epoch_coin_info_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::P2NextRewardDistributorEpochCoinInfo>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CuratedDatastoreFields));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CuratedDatastoreFields);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_new(
+    root_hash_ptr: *const u8, root_hash_len: usize,
+    metadata_rest_hash_ptr: *const u8, metadata_rest_hash_len: usize,
+    metadata_updater_hash_hash_ptr: *const u8, metadata_updater_hash_hash_len: usize,
+    inner_puzzle_hash_ptr: *const u8, inner_puzzle_hash_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CuratedDatastoreFields {
+            root_hash: { if root_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("root_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(root_hash_ptr, root_hash_len).to_vec(), &bindy::GoContext)? },
+            metadata_rest_hash: if metadata_rest_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(metadata_rest_hash_ptr, metadata_rest_hash_len).to_vec(), &bindy::GoContext)?) },
+            metadata_updater_hash_hash: { if metadata_updater_hash_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("metadata_updater_hash_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(metadata_updater_hash_hash_ptr, metadata_updater_hash_hash_len).to_vec(), &bindy::GoContext)? },
+            inner_puzzle_hash: { if inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(inner_puzzle_hash_ptr, inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_get_root_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CuratedDatastoreFields);
+        let val = obj.root_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_set_root_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CuratedDatastoreFields);
+        obj.root_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_get_metadata_rest_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CuratedDatastoreFields);
+        let val = obj.metadata_rest_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_set_metadata_rest_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CuratedDatastoreFields);
+        obj.metadata_rest_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_get_metadata_updater_hash_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CuratedDatastoreFields);
+        let val = obj.metadata_updater_hash_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_set_metadata_updater_hash_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CuratedDatastoreFields);
+        obj.metadata_updater_hash_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_get_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CuratedDatastoreFields);
+        let val = obj.inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_set_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CuratedDatastoreFields);
+        obj.inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CuratedDatastoreFields>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CuratedDatastoreFields>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_curated_datastore_fields_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CuratedDatastoreFields>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::DatastoreMetadata));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_new(
+    root_hash_ptr: *const u8, root_hash_len: usize,
+    label: *const std::ffi::c_char,
+    description: *const std::ffi::c_char,
+    bytes: u64, bytes_is_some: i32,
+    size_proof: *const std::ffi::c_char,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::DatastoreMetadata {
+            root_hash: { if root_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("root_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(root_hash_ptr, root_hash_len).to_vec(), &bindy::GoContext)? },
+            label: if label.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(label).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
+            description: if description.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(description).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
+            bytes: if bytes_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(bytes, &bindy::GoContext)?) } else { None },
+            size_proof: if size_proof.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(size_proof).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_get_root_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        let val = obj.root_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_set_root_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DatastoreMetadata);
+        obj.root_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_get_label(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        let val = obj.label.clone();
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_set_label(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DatastoreMetadata);
+        obj.label = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_get_description(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        let val = obj.description.clone();
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_set_description(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DatastoreMetadata);
+        obj.description = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_get_bytes(ptr: *const c_void, out: *mut u64, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        let val = obj.bytes.clone();
+        match val {
+Some(v) => { *out = v; *out_is_some = 1; }
+None => { *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_set_bytes(ptr: *mut c_void, value: u64, value_is_some: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DatastoreMetadata);
+        obj.bytes = if value_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?) } else { None };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_get_size_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DatastoreMetadata);
+        let val = obj.size_proof.clone();
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_set_size_proof(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DatastoreMetadata);
+        obj.size_proof = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DatastoreMetadata>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DatastoreMetadata>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::DatastoreMetadata>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::DelegatedPuzzleOracle));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DelegatedPuzzleOracle);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_new(
+    oracle_puzzle_hash_ptr: *const u8, oracle_puzzle_hash_len: usize,
+    oracle_fee: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::DelegatedPuzzleOracle {
+            oracle_puzzle_hash: { if oracle_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("oracle_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(oracle_puzzle_hash_ptr, oracle_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            oracle_fee: bindy::IntoRust::<_, _, bindy::Go>::into_rust(oracle_fee, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_get_oracle_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DelegatedPuzzleOracle);
+        let val = obj.oracle_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_set_oracle_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DelegatedPuzzleOracle);
+        obj.oracle_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_get_oracle_fee(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DelegatedPuzzleOracle);
+        let val = obj.oracle_fee.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_set_oracle_fee(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DelegatedPuzzleOracle);
+        obj.oracle_fee = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DelegatedPuzzleOracle>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DelegatedPuzzleOracle>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::DelegatedPuzzleOracle>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::DelegatedPuzzle));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DelegatedPuzzle);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_oracle(oracle_puzzle_hash_ptr: *const u8, oracle_puzzle_hash_len: usize, oracle_fee: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::oracle({ if oracle_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("oracle_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(oracle_puzzle_hash_ptr, oracle_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(oracle_fee, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::DelegatedPuzzle> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_admin(puzzle_hash_ptr: *const u8, puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::admin({ if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::DelegatedPuzzle> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_writer(inner_puzzle_hash_ptr: *const u8, inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::writer({ if inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(inner_puzzle_hash_ptr, inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::DelegatedPuzzle> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_admin_from_key(synthetic_key: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::admin_from_key({ if (synthetic_key).is_null() { return Err(bindy::Error::Custom(format!("synthetic_key must not be null"))); } (*((synthetic_key) as *const chia_sdk_bindings::PublicKey)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::DelegatedPuzzle> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_writer_from_key(synthetic_key: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::writer_from_key({ if (synthetic_key).is_null() { return Err(bindy::Error::Custom(format!("synthetic_key must not be null"))); } (*((synthetic_key) as *const chia_sdk_bindings::PublicKey)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::DelegatedPuzzle> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_to_admin(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::to_admin(&*(ptr as *const chia_sdk_bindings::DelegatedPuzzle))?;
+        match result {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_to_writer(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::to_writer(&*(ptr as *const chia_sdk_bindings::DelegatedPuzzle))?;
+        match result {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_to_oracle(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::DelegatedPuzzle as chia_sdk_bindings::DelegatedPuzzleExt>::to_oracle(&*(ptr as *const chia_sdk_bindings::DelegatedPuzzle))?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::DelegatedPuzzleOracle>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DelegatedPuzzle>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DelegatedPuzzle>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_delegated_puzzle_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::DelegatedPuzzle>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::MintedDatastore));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MintedDatastore);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_new(
+    datastore: *const std::ffi::c_void,
+    parent_conditions_ptrs: *const *const std::ffi::c_void, parent_conditions_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::MintedDatastore {
+            datastore: { if (datastore).is_null() { return Err(bindy::Error::Custom(format!("datastore must not be null"))); } (*((datastore) as *const chia_sdk_bindings::Datastore)).clone() },
+            parent_conditions: { if parent_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("parent_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(parent_conditions_ptrs, parent_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("parent_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_get_datastore(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MintedDatastore);
+        let val = obj.datastore.clone();
+        let boxed: Box<chia_sdk_bindings::Datastore> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_set_datastore(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::MintedDatastore);
+        obj.datastore = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Datastore)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_get_parent_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::MintedDatastore);
+        let val = obj.parent_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_set_parent_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::MintedDatastore);
+        obj.parent_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::MintedDatastore>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::MintedDatastore>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_minted_datastore_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::MintedDatastore>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::Datastore));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::Datastore);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::coin(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::proof(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let boxed: Box<chia_sdk_bindings::Proof> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::launcher_id(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_owner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::owner_puzzle_hash(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_metadata(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::metadata(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let boxed: Box<chia_sdk_bindings::DatastoreMetadata> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_root_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::root_hash(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_label(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::label(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        match result {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_description(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::description(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        match result {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_bytes(ptr: *const c_void, out: *mut u64, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::bytes(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        match result {
+Some(v) => { *out = v; *out_is_some = 1; }
+None => { *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_size_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::size_proof(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        match result {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_delegated_puzzles(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::delegated_puzzles(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let list: Vec<chia_sdk_bindings::DelegatedPuzzle> = result;
+let boxed: Box<Vec<chia_sdk_bindings::DelegatedPuzzle>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_curated_fields(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::curated_fields(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        let boxed: Box<chia_sdk_bindings::CuratedDatastoreFields> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_owner_create_coin_condition(ptr: *const c_void, new_owner_puzzle_hash_ptr: *const u8, new_owner_puzzle_hash_len: usize, new_delegated_puzzles_ptrs: *const *const std::ffi::c_void, new_delegated_puzzles_len: usize, hint_delegated_puzzles: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::owner_create_coin_condition(&*(ptr as *const chia_sdk_bindings::Datastore),
+            { if new_owner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_puzzle_hash_ptr, new_owner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if new_delegated_puzzles_ptrs.is_null() { return Err(bindy::Error::Custom(format!("new_delegated_puzzles must not be null"))); } let ptrs = std::slice::from_raw_parts(new_delegated_puzzles_ptrs, new_delegated_puzzles_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("new_delegated_puzzles element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DelegatedPuzzle)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(hint_delegated_puzzles != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_new_metadata_condition(ptr: *const c_void, new_metadata: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::new_metadata_condition(&*(ptr as *const chia_sdk_bindings::Datastore),
+            { if (new_metadata).is_null() { return Err(bindy::Error::Custom(format!("new_metadata must not be null"))); } (*((new_metadata) as *const chia_sdk_bindings::DatastoreMetadata)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Program> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_spend(ptr: *const c_void, inner_spend: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::spend(&*(ptr as *const chia_sdk_bindings::Datastore),
+            { if (inner_spend).is_null() { return Err(bindy::Error::Custom(format!("inner_spend must not be null"))); } (*((inner_spend) as *const chia_sdk_bindings::Spend)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Datastore> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_spend_oracle(ptr: *const c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::spend_oracle(&*(ptr as *const chia_sdk_bindings::Datastore))?;
+        
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_update_metadata_as_owner(ptr: *const c_void, owner_synthetic_key: *const std::ffi::c_void, new_metadata: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::update_metadata_as_owner(&*(ptr as *const chia_sdk_bindings::Datastore),
+            { if (owner_synthetic_key).is_null() { return Err(bindy::Error::Custom(format!("owner_synthetic_key must not be null"))); } (*((owner_synthetic_key) as *const chia_sdk_bindings::PublicKey)).clone() },
+            { if (new_metadata).is_null() { return Err(bindy::Error::Custom(format!("new_metadata must not be null"))); } (*((new_metadata) as *const chia_sdk_bindings::DatastoreMetadata)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::Datastore> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_update_ownership(ptr: *const c_void, new_owner_puzzle_hash_ptr: *const u8, new_owner_puzzle_hash_len: usize, new_delegated_puzzles_ptrs: *const *const std::ffi::c_void, new_delegated_puzzles_len: usize, owner_synthetic_key: *const std::ffi::c_void, admin_synthetic_key: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::Datastore::update_ownership(&*(ptr as *const chia_sdk_bindings::Datastore),
+            { if new_owner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_puzzle_hash_ptr, new_owner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if new_delegated_puzzles_ptrs.is_null() { return Err(bindy::Error::Custom(format!("new_delegated_puzzles must not be null"))); } let ptrs = std::slice::from_raw_parts(new_delegated_puzzles_ptrs, new_delegated_puzzles_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("new_delegated_puzzles element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DelegatedPuzzle)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            if owner_synthetic_key.is_null() { None } else { Some((*((owner_synthetic_key) as *const chia_sdk_bindings::PublicKey)).clone()) },
+            if admin_synthetic_key.is_null() { None } else { Some((*((admin_synthetic_key) as *const chia_sdk_bindings::PublicKey)).clone()) })?;
+        let boxed: Box<chia_sdk_bindings::Datastore> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::Datastore>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::Datastore>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_datastore_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::Datastore>));
+        }));
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_reward_distributor_type_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorType));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorType);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_managed(manager_singleton_launcher_id_ptr: *const u8, manager_singleton_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributorType::managed({ if manager_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("manager_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(manager_singleton_launcher_id_ptr, manager_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_nft_collection(collection_did_launcher_id_ptr: *const u8, collection_did_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributorType::nft_collection({ if collection_did_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("collection_did_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(collection_did_launcher_id_ptr, collection_did_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_curated_nft(store_launcher_id_ptr: *const u8, store_launcher_id_len: usize, refreshable: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributorType::curated_nft({ if store_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("store_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(store_launcher_id_ptr, store_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(refreshable != 0, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_cat(asset_id_ptr: *const u8, asset_id_len: usize, hidden_puzzle_hash_ptr: *const u8, hidden_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributorType::cat({ if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            if hidden_puzzle_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(hidden_puzzle_hash_ptr, hidden_puzzle_hash_len).to_vec(), &bindy::GoContext)?) })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorType>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorType>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_type_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorType>));
+        }));
     }
 }
 
@@ -25035,42 +29347,6 @@ pub unsafe extern "C" fn go_reward_distributor_constants_clone(ptr: *const c_voi
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
         *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_new(
-    launcher_id_ptr: *const u8, launcher_id_len: usize,
-    reward_distributor_type: *const std::ffi::c_void,
-    manager_or_collection_did_launcher_id_ptr: *const u8, manager_or_collection_did_launcher_id_len: usize,
-    fee_payout_puzzle_hash_ptr: *const u8, fee_payout_puzzle_hash_len: usize,
-    epoch_seconds: u64,
-    max_seconds_offset: u64,
-    payout_threshold: u64,
-    fee_bps: u64,
-    withdrawal_share_bps: u64,
-    reserve_asset_id_ptr: *const u8, reserve_asset_id_len: usize,
-    reserve_inner_puzzle_hash_ptr: *const u8, reserve_inner_puzzle_hash_len: usize,
-    reserve_full_puzzle_hash_ptr: *const u8, reserve_full_puzzle_hash_len: usize,
-    out: *mut *mut c_void,
-) -> i32 {
-    catch(|| {
-        let inner = chia_sdk_bindings::RewardDistributorConstants {
-            launcher_id: { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
-            reward_distributor_type: { if (reward_distributor_type).is_null() { return Err(bindy::Error::Custom(format!("reward_distributor_type must not be null"))); } (*((reward_distributor_type) as *const chia_sdk_bindings::RewardDistributorType)).clone() },
-            manager_or_collection_did_launcher_id: { if manager_or_collection_did_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("manager_or_collection_did_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(manager_or_collection_did_launcher_id_ptr, manager_or_collection_did_launcher_id_len).to_vec(), &bindy::GoContext)? },
-            fee_payout_puzzle_hash: { if fee_payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("fee_payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(fee_payout_puzzle_hash_ptr, fee_payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            epoch_seconds: bindy::IntoRust::<_, _, bindy::Go>::into_rust(epoch_seconds, &bindy::GoContext)?,
-            max_seconds_offset: bindy::IntoRust::<_, _, bindy::Go>::into_rust(max_seconds_offset, &bindy::GoContext)?,
-            payout_threshold: bindy::IntoRust::<_, _, bindy::Go>::into_rust(payout_threshold, &bindy::GoContext)?,
-            fee_bps: bindy::IntoRust::<_, _, bindy::Go>::into_rust(fee_bps, &bindy::GoContext)?,
-            withdrawal_share_bps: bindy::IntoRust::<_, _, bindy::Go>::into_rust(withdrawal_share_bps, &bindy::GoContext)?,
-            reserve_asset_id: { if reserve_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("reserve_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reserve_asset_id_ptr, reserve_asset_id_len).to_vec(), &bindy::GoContext)? },
-            reserve_inner_puzzle_hash: { if reserve_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("reserve_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reserve_inner_puzzle_hash_ptr, reserve_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            reserve_full_puzzle_hash: { if reserve_full_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("reserve_full_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reserve_full_puzzle_hash_ptr, reserve_full_puzzle_hash_len).to_vec(), &bindy::GoContext)? }
-        };
-        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
     })
 }
@@ -25094,49 +29370,6 @@ pub unsafe extern "C" fn go_reward_distributor_constants_set_launcher_id(ptr: *m
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
         obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_get_reward_distributor_type(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
-        let val = obj.reward_distributor_type.clone();
-        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_set_reward_distributor_type(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
-        obj.reward_distributor_type = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorType)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_get_manager_or_collection_did_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
-        let val = obj.manager_or_collection_did_launcher_id.clone();
-        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
-let len = val.len();
-let boxed = val.into_boxed_slice();
-*out_ptr = Box::into_raw(boxed) as *mut u8;
-*out_len = len;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_set_manager_or_collection_did_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
-        obj.manager_or_collection_did_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
         Ok(())
     })
 }
@@ -25184,6 +29417,25 @@ pub unsafe extern "C" fn go_reward_distributor_constants_set_epoch_seconds(ptr: 
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_constants_get_precision(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
+        let val = obj.precision.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_constants_set_precision(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
+        obj.precision = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_reward_distributor_constants_get_max_seconds_offset(ptr: *const c_void, out: *mut u64) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
@@ -25217,6 +29469,25 @@ pub unsafe extern "C" fn go_reward_distributor_constants_set_payout_threshold(pt
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
         obj.payout_threshold = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_constants_get_require_payout_approval(ptr: *const c_void, out: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorConstants);
+        let val = obj.require_payout_approval.clone();
+        *out = if val { 1 } else { 0 };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_constants_set_require_payout_approval(ptr: *mut c_void, value: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorConstants);
+        obj.require_payout_approval = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value != 0, &bindy::GoContext)?;
         Ok(())
     })
 }
@@ -25329,14 +29600,15 @@ pub unsafe extern "C" fn go_reward_distributor_constants_set_reserve_full_puzzle
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_constants_without_launcher_id(reward_distributor_type: *const std::ffi::c_void, manager_or_collection_did_launcher_id_ptr: *const u8, manager_or_collection_did_launcher_id_len: usize, fee_payout_puzzle_hash_ptr: *const u8, fee_payout_puzzle_hash_len: usize, epoch_seconds: u64, max_seconds_offset: u64, payout_threshold: u64, fee_bps: u64, withdrawal_share_bps: u64, reserve_asset_id_ptr: *const u8, reserve_asset_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_reward_distributor_constants_without_launcher_id(reward_distributor_type: *const std::ffi::c_void, fee_payout_puzzle_hash_ptr: *const u8, fee_payout_puzzle_hash_len: usize, epoch_seconds: u64, precision: u64, max_seconds_offset: u64, payout_threshold: u64, require_payout_approval: i32, fee_bps: u64, withdrawal_share_bps: u64, reserve_asset_id_ptr: *const u8, reserve_asset_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = <chia_sdk_bindings::RewardDistributorConstants as chia_sdk_bindings::RewardDistributorConstantsExt>::without_launcher_id({ if (reward_distributor_type).is_null() { return Err(bindy::Error::Custom(format!("reward_distributor_type must not be null"))); } (*((reward_distributor_type) as *const chia_sdk_bindings::RewardDistributorType)).clone() },
-            { if manager_or_collection_did_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("manager_or_collection_did_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(manager_or_collection_did_launcher_id_ptr, manager_or_collection_did_launcher_id_len).to_vec(), &bindy::GoContext)? },
             { if fee_payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("fee_payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(fee_payout_puzzle_hash_ptr, fee_payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(epoch_seconds, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(precision, &bindy::GoContext)?,
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(max_seconds_offset, &bindy::GoContext)?,
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(payout_threshold, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(require_payout_approval != 0, &bindy::GoContext)?,
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(fee_bps, &bindy::GoContext)?,
             bindy::IntoRust::<_, _, bindy::Go>::into_rust(withdrawal_share_bps, &bindy::GoContext)?,
             { if reserve_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("reserve_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(reserve_asset_id_ptr, reserve_asset_id_len).to_vec(), &bindy::GoContext)? })?;
@@ -25352,6 +29624,16 @@ pub unsafe extern "C" fn go_reward_distributor_constants_with_launcher_id(ptr: *
         let result = <chia_sdk_bindings::RewardDistributorConstants as chia_sdk_bindings::RewardDistributorConstantsExt>::with_launcher_id(&*(ptr as *const chia_sdk_bindings::RewardDistributorConstants),
             { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? })?;
         let boxed: Box<chia_sdk_bindings::RewardDistributorConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_constants_reward_distributor_type(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorConstants as chia_sdk_bindings::RewardDistributorConstantsExt>::reward_distributor_type(&*(ptr as *const chia_sdk_bindings::RewardDistributorConstants))?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorType> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
@@ -25410,14 +29692,14 @@ pub unsafe extern "C" fn go_round_reward_info_clone(ptr: *const c_void, out: *mu
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_round_reward_info_new(
-    cumulative_payout: u64,
-    remaining_rewards: u64,
+    cumulative_payout_ptr: *const u8, cumulative_payout_len: usize,
+    remaining_rewards_ptr: *const u8, remaining_rewards_len: usize,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::RoundRewardInfo {
-            cumulative_payout: bindy::IntoRust::<_, _, bindy::Go>::into_rust(cumulative_payout, &bindy::GoContext)?,
-            remaining_rewards: bindy::IntoRust::<_, _, bindy::Go>::into_rust(remaining_rewards, &bindy::GoContext)?
+            cumulative_payout: { if cumulative_payout_ptr.is_null() { return Err(bindy::Error::Custom(format!("cumulative_payout must not be null"))); } let bytes = std::slice::from_raw_parts(cumulative_payout_ptr, cumulative_payout_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? },
+            remaining_rewards: { if remaining_rewards_ptr.is_null() { return Err(bindy::Error::Custom(format!("remaining_rewards must not be null"))); } let bytes = std::slice::from_raw_parts(remaining_rewards_ptr, remaining_rewards_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -25425,39 +29707,49 @@ pub unsafe extern "C" fn go_round_reward_info_new(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_round_reward_info_get_cumulative_payout(ptr: *const c_void, out: *mut u64) -> i32 {
+pub unsafe extern "C" fn go_round_reward_info_get_cumulative_payout(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RoundRewardInfo);
         let val = obj.cumulative_payout.clone();
-        *out = val;
+        let big: num_bigint::BigInt = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let bytes = big.to_signed_bytes_be();
+let len = bytes.len();
+let boxed = bytes.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_round_reward_info_set_cumulative_payout(ptr: *mut c_void, value: u64) -> i32 {
+pub unsafe extern "C" fn go_round_reward_info_set_cumulative_payout(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RoundRewardInfo);
-        obj.cumulative_payout = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        obj.cumulative_payout = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let bytes = std::slice::from_raw_parts(value_ptr, value_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? };
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_round_reward_info_get_remaining_rewards(ptr: *const c_void, out: *mut u64) -> i32 {
+pub unsafe extern "C" fn go_round_reward_info_get_remaining_rewards(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RoundRewardInfo);
         let val = obj.remaining_rewards.clone();
-        *out = val;
+        let big: num_bigint::BigInt = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let bytes = big.to_signed_bytes_be();
+let len = bytes.len();
+let boxed = bytes.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_round_reward_info_set_remaining_rewards(ptr: *mut c_void, value: u64) -> i32 {
+pub unsafe extern "C" fn go_round_reward_info_set_remaining_rewards(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RoundRewardInfo);
-        obj.remaining_rewards = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        obj.remaining_rewards = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let bytes = std::slice::from_raw_parts(value_ptr, value_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? };
         Ok(())
     })
 }
@@ -25712,6 +30004,16 @@ pub unsafe extern "C" fn go_reward_distributor_state_set_round_time_info(ptr: *m
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorState);
         obj.round_time_info = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RoundTimeInfo)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_initial(first_epoch_start: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorState as chia_sdk_bindings::RewardDistributorStateExt>::initial(bindy::IntoRust::<_, _, bindy::Go>::into_rust(first_epoch_start, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorState> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
@@ -26005,6 +30307,7 @@ pub unsafe extern "C" fn go_reward_distributor_reward_slot_value_clone(ptr: *con
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_reward_distributor_reward_slot_value_new(
+    counter: u64,
     epoch_start: u64,
     next_epoch_initialized: i32,
     rewards: u64,
@@ -26012,11 +30315,31 @@ pub unsafe extern "C" fn go_reward_distributor_reward_slot_value_new(
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::RewardDistributorRewardSlotValue {
+            counter: bindy::IntoRust::<_, _, bindy::Go>::into_rust(counter, &bindy::GoContext)?,
             epoch_start: bindy::IntoRust::<_, _, bindy::Go>::into_rust(epoch_start, &bindy::GoContext)?,
             next_epoch_initialized: bindy::IntoRust::<_, _, bindy::Go>::into_rust(next_epoch_initialized != 0, &bindy::GoContext)?,
             rewards: bindy::IntoRust::<_, _, bindy::Go>::into_rust(rewards, &bindy::GoContext)?
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_reward_slot_value_get_counter(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRewardSlotValue);
+        let val = obj.counter.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_reward_slot_value_set_counter(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRewardSlotValue);
+        obj.counter = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
         Ok(())
     })
 }
@@ -26617,18 +30940,39 @@ pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_clone(ptr: *cons
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_new(
+    counter: u64,
     payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize,
-    initial_cumulative_payout: u64,
+    initial_cumulative_payout_ptr: *const u8, initial_cumulative_payout_len: usize,
     shares: u64,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::RewardDistributorEntrySlotValue {
+            counter: bindy::IntoRust::<_, _, bindy::Go>::into_rust(counter, &bindy::GoContext)?,
             payout_puzzle_hash: { if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
-            initial_cumulative_payout: bindy::IntoRust::<_, _, bindy::Go>::into_rust(initial_cumulative_payout, &bindy::GoContext)?,
+            initial_cumulative_payout: { if initial_cumulative_payout_ptr.is_null() { return Err(bindy::Error::Custom(format!("initial_cumulative_payout must not be null"))); } let bytes = std::slice::from_raw_parts(initial_cumulative_payout_ptr, initial_cumulative_payout_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? },
             shares: bindy::IntoRust::<_, _, bindy::Go>::into_rust(shares, &bindy::GoContext)?
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_get_counter(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorEntrySlotValue);
+        let val = obj.counter.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_set_counter(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorEntrySlotValue);
+        obj.counter = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
         Ok(())
     })
 }
@@ -26657,20 +31001,25 @@ pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_set_payout_puzzl
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_get_initial_cumulative_payout(ptr: *const c_void, out: *mut u64) -> i32 {
+pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_get_initial_cumulative_payout(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorEntrySlotValue);
         let val = obj.initial_cumulative_payout.clone();
-        *out = val;
+        let big: num_bigint::BigInt = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let bytes = big.to_signed_bytes_be();
+let len = bytes.len();
+let boxed = bytes.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_set_initial_cumulative_payout(ptr: *mut c_void, value: u64) -> i32 {
+pub unsafe extern "C" fn go_reward_distributor_entry_slot_value_set_initial_cumulative_payout(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorEntrySlotValue);
-        obj.initial_cumulative_payout = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        obj.initial_cumulative_payout = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let bytes = std::slice::from_raw_parts(value_ptr, value_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? };
         Ok(())
     })
 }
@@ -27404,7 +31753,7 @@ pub unsafe extern "C" fn go_nft_launcher_proof_new(
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::NftLauncherProof {
-            did_proof: { if (did_proof).is_null() { return Err(bindy::Error::Custom(format!("did_proof must not be null"))); } (*((did_proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            did_proof: { if (did_proof).is_null() { return Err(bindy::Error::Custom(format!("did_proof must not be null"))); } (*((did_proof) as *const chia_sdk_bindings::CompactLineageProof)).clone() },
             intermediary_coin_proofs: { if intermediary_coin_proofs_ptrs.is_null() { return Err(bindy::Error::Custom(format!("intermediary_coin_proofs must not be null"))); } let ptrs = std::slice::from_raw_parts(intermediary_coin_proofs_ptrs, intermediary_coin_proofs_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("intermediary_coin_proofs element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::IntermediaryCoinProof)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
@@ -27417,7 +31766,7 @@ pub unsafe extern "C" fn go_nft_launcher_proof_get_did_proof(ptr: *const c_void,
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::NftLauncherProof);
         let val = obj.did_proof.clone();
-        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+        let boxed: Box<chia_sdk_bindings::CompactLineageProof> = Box::new(val);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
@@ -27427,7 +31776,7 @@ pub unsafe extern "C" fn go_nft_launcher_proof_get_did_proof(ptr: *const c_void,
 pub unsafe extern "C" fn go_nft_launcher_proof_set_did_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::NftLauncherProof);
-        obj.did_proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        obj.did_proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::CompactLineageProof)).clone() };
         Ok(())
     })
 }
@@ -27484,209 +31833,6 @@ pub unsafe extern "C" fn go_nft_launcher_proof_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::NftLauncherProof>));
-        }));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStakeResult));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeResult);
-        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeResult);
-        let val = obj.conditions.clone();
-        let list: Vec<chia_sdk_bindings::Program> = val;
-let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeResult);
-        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_get_notarized_payment(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeResult);
-        let val = obj.notarized_payment.clone();
-        let boxed: Box<chia_sdk_bindings::NotarizedPayment> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_set_notarized_payment(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeResult);
-        obj.notarized_payment = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::NotarizedPayment)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_get_new_nft(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeResult);
-        let val = obj.new_nft.clone();
-        let boxed: Box<chia_sdk_bindings::Nft> = Box::new(val);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_set_new_nft(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeResult);
-        obj.new_nft = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Nft)).clone() };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_list_len(ptr: *const c_void) -> usize {
-    if ptr.is_null() {
-        return 0;
-    }
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeResult>);
-        list.len()
-    })).unwrap_or(0)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        if ptr.is_null() {
-            return Err(bindy::Error::Custom("null pointer".to_string()));
-        }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeResult>);
-        if index >= list.len() {
-            return Err(bindy::Error::Custom("index out of bounds".to_string()));
-        }
-        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake_result_list_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStakeResult>));
-        }));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeResult));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeResult);
-        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeResult);
-        let val = obj.conditions.clone();
-        let list: Vec<chia_sdk_bindings::Program> = val;
-let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeResult);
-        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_get_payment_amount(ptr: *const c_void, out: *mut u64) -> i32 {
-    catch(|| {
-        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeResult);
-        let val = obj.payment_amount.clone();
-        *out = val;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_set_payment_amount(ptr: *mut c_void, value: u64) -> i32 {
-    catch(|| {
-        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeResult);
-        obj.payment_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_list_len(ptr: *const c_void) -> usize {
-    if ptr.is_null() {
-        return 0;
-    }
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeResult>);
-        list.len()
-    })).unwrap_or(0)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
-    catch(|| {
-        if ptr.is_null() {
-            return Err(bindy::Error::Custom("null pointer".to_string()));
-        }
-        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeResult>);
-        if index >= list.len() {
-            return Err(bindy::Error::Custom("index out of bounds".to_string()));
-        }
-        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake_result_list_free(ptr: *mut c_void) {
-    if !ptr.is_null() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorUnstakeResult>));
         }));
     }
 }
@@ -28397,31 +32543,6 @@ pub unsafe extern "C" fn go_reward_distributor_remove_entry(ptr: *const c_void, 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_stake(ptr: *const c_void, current_nft: *const std::ffi::c_void, nft_launcher_proof: *const std::ffi::c_void, entry_custody_puzzle_hash_ptr: *const u8, entry_custody_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let result = chia_sdk_bindings::RewardDistributor::stake(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
-            { if (current_nft).is_null() { return Err(bindy::Error::Custom(format!("current_nft must not be null"))); } (*((current_nft) as *const chia_sdk_bindings::Nft)).clone() },
-            { if (nft_launcher_proof).is_null() { return Err(bindy::Error::Custom(format!("nft_launcher_proof must not be null"))); } (*((nft_launcher_proof) as *const chia_sdk_bindings::NftLauncherProof)).clone() },
-            { if entry_custody_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("entry_custody_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(entry_custody_puzzle_hash_ptr, entry_custody_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
-        let boxed: Box<chia_sdk_bindings::RewardDistributorStakeResult> = Box::new(result);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_reward_distributor_unstake(ptr: *const c_void, entry_slot: *const std::ffi::c_void, locked_nft: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
-    catch(|| {
-        let result = chia_sdk_bindings::RewardDistributor::unstake(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
-            { if (entry_slot).is_null() { return Err(bindy::Error::Custom(format!("entry_slot must not be null"))); } (*((entry_slot) as *const chia_sdk_bindings::EntrySlot)).clone() },
-            { if (locked_nft).is_null() { return Err(bindy::Error::Custom(format!("locked_nft must not be null"))); } (*((locked_nft) as *const chia_sdk_bindings::Nft)).clone() })?;
-        let boxed: Box<chia_sdk_bindings::RewardDistributorUnstakeResult> = Box::new(result);
-*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_reward_distributor_locked_nft_hint(distributor_launcher_id_ptr: *const u8, distributor_launcher_id_len: usize, custody_puzzle_hash_ptr: *const u8, custody_puzzle_hash_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
     catch(|| {
         let result = chia_sdk_bindings::RewardDistributor::locked_nft_hint({ if distributor_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("distributor_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(distributor_launcher_id_ptr, distributor_launcher_id_len).to_vec(), &bindy::GoContext)? },
@@ -28431,6 +32552,116 @@ let len = result.len();
 let boxed = result.into_boxed_slice();
 *out_ptr = Box::into_raw(boxed) as *mut u8;
 *out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_pending_created_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::pending_created_deposit_slots(&*(ptr as *const chia_sdk_bindings::RewardDistributor))?;
+        let list: Vec<chia_sdk_bindings::DepositSlot> = result;
+let boxed: Box<Vec<chia_sdk_bindings::DepositSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_pending_logs(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::pending_logs(&*(ptr as *const chia_sdk_bindings::RewardDistributor))?;
+        let list: Vec<chia_sdk_bindings::RewardDistributorActionLog> = result;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorActionLog>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts(ptr: *const c_void, offered_nfts_ptrs: *const *const std::ffi::c_void, offered_nfts_len: usize, nft_launcher_proofs_ptrs: *const *const std::ffi::c_void, nft_launcher_proofs_len: usize, entry_custody_puzzle_hash_ptr: *const u8, entry_custody_puzzle_hash_len: usize, existing_slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::stake_collection_nfts(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if offered_nfts_ptrs.is_null() { return Err(bindy::Error::Custom(format!("offered_nfts must not be null"))); } let ptrs = std::slice::from_raw_parts(offered_nfts_ptrs, offered_nfts_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("offered_nfts element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if nft_launcher_proofs_ptrs.is_null() { return Err(bindy::Error::Custom(format!("nft_launcher_proofs must not be null"))); } let ptrs = std::slice::from_raw_parts(nft_launcher_proofs_ptrs, nft_launcher_proofs_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("nft_launcher_proofs element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::NftLauncherProof)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if entry_custody_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("entry_custody_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(entry_custody_puzzle_hash_ptr, entry_custody_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            if existing_slot.is_null() { None } else { Some((*((existing_slot) as *const chia_sdk_bindings::EntrySlot)).clone()) })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts(ptr: *const c_void, offered_nfts_ptrs: *const *const std::ffi::c_void, offered_nfts_len: usize, nft_shares_ptr: *const u64, nft_shares_len: usize, inclusion_proofs_ptrs: *const *const std::ffi::c_void, inclusion_proofs_len: usize, entry_custody_puzzle_hash_ptr: *const u8, entry_custody_puzzle_hash_len: usize, existing_slot: *const std::ffi::c_void, dl_root_hash_ptr: *const u8, dl_root_hash_len: usize, dl_metadata_rest_hash_ptr: *const u8, dl_metadata_rest_hash_len: usize, dl_metadata_updater_hash_hash_ptr: *const u8, dl_metadata_updater_hash_hash_len: usize, dl_inner_puzzle_hash_ptr: *const u8, dl_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::stake_curated_nfts(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if offered_nfts_ptrs.is_null() { return Err(bindy::Error::Custom(format!("offered_nfts must not be null"))); } let ptrs = std::slice::from_raw_parts(offered_nfts_ptrs, offered_nfts_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("offered_nfts element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if nft_shares_len > 0 && nft_shares_ptr.is_null() { return Err(bindy::Error::Custom(format!("nft_shares must not be null"))); } if nft_shares_len == 0 { Vec::new() } else { std::slice::from_raw_parts(nft_shares_ptr, nft_shares_len).to_vec() } },
+            { if inclusion_proofs_ptrs.is_null() { return Err(bindy::Error::Custom(format!("inclusion_proofs must not be null"))); } let ptrs = std::slice::from_raw_parts(inclusion_proofs_ptrs, inclusion_proofs_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("inclusion_proofs element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::MerkleProof)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if entry_custody_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("entry_custody_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(entry_custody_puzzle_hash_ptr, entry_custody_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            if existing_slot.is_null() { None } else { Some((*((existing_slot) as *const chia_sdk_bindings::EntrySlot)).clone()) },
+            { if dl_root_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_root_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_root_hash_ptr, dl_root_hash_len).to_vec(), &bindy::GoContext)? },
+            if dl_metadata_rest_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_metadata_rest_hash_ptr, dl_metadata_rest_hash_len).to_vec(), &bindy::GoContext)?) },
+            { if dl_metadata_updater_hash_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_metadata_updater_hash_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_metadata_updater_hash_hash_ptr, dl_metadata_updater_hash_hash_len).to_vec(), &bindy::GoContext)? },
+            { if dl_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_inner_puzzle_hash_ptr, dl_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat(ptr: *const c_void, offered_cat: *const std::ffi::c_void, entry_custody_puzzle_hash_ptr: *const u8, entry_custody_puzzle_hash_len: usize, existing_slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::stake_cat(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if (offered_cat).is_null() { return Err(bindy::Error::Custom(format!("offered_cat must not be null"))); } (*((offered_cat) as *const chia_sdk_bindings::Cat)).clone() },
+            { if entry_custody_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("entry_custody_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(entry_custody_puzzle_hash_ptr, entry_custody_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            if existing_slot.is_null() { None } else { Some((*((existing_slot) as *const chia_sdk_bindings::EntrySlot)).clone()) })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStakeCatResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts(ptr: *const c_void, entry_slot: *const std::ffi::c_void, locked_nfts_ptrs: *const *const std::ffi::c_void, locked_nfts_len: usize, locked_nft_shares_ptr: *const u64, locked_nft_shares_len: usize, deposit_slots_ptrs: *const *const std::ffi::c_void, deposit_slots_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::unstake_locked_nfts(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if (entry_slot).is_null() { return Err(bindy::Error::Custom(format!("entry_slot must not be null"))); } (*((entry_slot) as *const chia_sdk_bindings::EntrySlot)).clone() },
+            { if locked_nfts_ptrs.is_null() { return Err(bindy::Error::Custom(format!("locked_nfts must not be null"))); } let ptrs = std::slice::from_raw_parts(locked_nfts_ptrs, locked_nfts_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("locked_nfts element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if locked_nft_shares_len > 0 && locked_nft_shares_ptr.is_null() { return Err(bindy::Error::Custom(format!("locked_nft_shares must not be null"))); } if locked_nft_shares_len == 0 { Vec::new() } else { std::slice::from_raw_parts(locked_nft_shares_ptr, locked_nft_shares_len).to_vec() } },
+            { if deposit_slots_ptrs.is_null() { return Err(bindy::Error::Custom(format!("deposit_slots must not be null"))); } let ptrs = std::slice::from_raw_parts(deposit_slots_ptrs, deposit_slots_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("deposit_slots element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DepositSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat(ptr: *const c_void, entry_slot: *const std::ffi::c_void, locked_cat: *const std::ffi::c_void, deposit_slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::unstake_locked_cat(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if (entry_slot).is_null() { return Err(bindy::Error::Custom(format!("entry_slot must not be null"))); } (*((entry_slot) as *const chia_sdk_bindings::EntrySlot)).clone() },
+            { if (locked_cat).is_null() { return Err(bindy::Error::Custom(format!("locked_cat must not be null"))); } (*((locked_cat) as *const chia_sdk_bindings::Cat)).clone() },
+            { if (deposit_slot).is_null() { return Err(bindy::Error::Custom(format!("deposit_slot must not be null"))); } (*((deposit_slot) as *const chia_sdk_bindings::DepositSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts(ptr: *const c_void, refresh_nfts_infos_ptrs: *const *const std::ffi::c_void, refresh_nfts_infos_len: usize, dl_root_hash_ptr: *const u8, dl_root_hash_len: usize, dl_metadata_rest_hash_ptr: *const u8, dl_metadata_rest_hash_len: usize, dl_metadata_updater_hash_hash_ptr: *const u8, dl_metadata_updater_hash_hash_len: usize, dl_inner_puzzle_hash_ptr: *const u8, dl_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RewardDistributor::refresh_nfts(&*(ptr as *const chia_sdk_bindings::RewardDistributor),
+            { if refresh_nfts_infos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("refresh_nfts_infos must not be null"))); } let ptrs = std::slice::from_raw_parts(refresh_nfts_infos_ptrs, refresh_nfts_infos_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("refresh_nfts_infos element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RefreshNftsInfo)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            { if dl_root_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_root_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_root_hash_ptr, dl_root_hash_len).to_vec(), &bindy::GoContext)? },
+            if dl_metadata_rest_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_metadata_rest_hash_ptr, dl_metadata_rest_hash_len).to_vec(), &bindy::GoContext)?) },
+            { if dl_metadata_updater_hash_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_metadata_updater_hash_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_metadata_updater_hash_hash_ptr, dl_metadata_updater_hash_hash_len).to_vec(), &bindy::GoContext)? },
+            { if dl_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("dl_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(dl_inner_puzzle_hash_ptr, dl_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRefreshNftsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
     })
 }
@@ -28466,6 +32697,3360 @@ pub unsafe extern "C" fn go_reward_distributor_list_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributor>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStateTransition));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStateTransition);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_get_old_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStateTransition);
+        let val = obj.old_state.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_set_old_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStateTransition);
+        obj.old_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_get_new_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStateTransition);
+        let val = obj.new_state.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_set_new_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStateTransition);
+        obj.new_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStateTransition>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStateTransition>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_state_transition_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStateTransition>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorNftStakeEntry));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNftStakeEntry);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNftStakeEntry);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNftStakeEntry);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_get_shares(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNftStakeEntry);
+        let val = obj.shares.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_set_shares(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNftStakeEntry);
+        obj.shares = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorNftStakeEntry>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorNftStakeEntry>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_nft_stake_entry_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorNftStakeEntry>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorAddEntryActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_get_created_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        let val = obj.created_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_set_created_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        obj.created_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_get_manager_singleton_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        let val = obj.manager_singleton_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_set_manager_singleton_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        obj.manager_singleton_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddEntryActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorAddEntryActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorAddEntryActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_entry_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorAddEntryActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorRemoveEntryActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_get_spent_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        let val = obj.spent_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_set_spent_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        obj.spent_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_get_manager_singleton_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        let val = obj.manager_singleton_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_set_manager_singleton_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        obj.manager_singleton_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRemoveEntryActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRemoveEntryActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRemoveEntryActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_remove_entry_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorRemoveEntryActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorAddIncentivesActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_get_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        let val = obj.amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_set_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        obj.amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_get_manager_fee(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        let val = obj.manager_fee.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_set_manager_fee(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        obj.manager_fee = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorAddIncentivesActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorAddIncentivesActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorAddIncentivesActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_add_incentives_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorAddIncentivesActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_get_spent_reward_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        let val = obj.spent_reward_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRewardSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_set_spent_reward_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        obj.spent_reward_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_get_created_commitment_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        let val = obj.created_commitment_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorCommitmentSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_set_created_commitment_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        obj.created_commitment_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorCommitmentSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_get_created_reward_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        let val = obj.created_reward_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorRewardSlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorRewardSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_set_created_reward_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        obj.created_reward_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_commit_incentives_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_get_spent_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        let val = obj.spent_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_set_spent_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        obj.spent_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_get_created_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        let val = obj.created_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_set_created_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        obj.created_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_get_entry_payout_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        let val = obj.entry_payout_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_set_entry_payout_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        obj.entry_payout_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_get_payout_rounding_error(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        let val = obj.payout_rounding_error.clone();
+        let big: num_bigint::BigInt = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let bytes = big.to_signed_bytes_be();
+let len = bytes.len();
+let boxed = bytes.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_set_payout_rounding_error(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        obj.payout_rounding_error = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let bytes = std::slice::from_raw_parts(value_ptr, value_len); let big = num_bigint::BigInt::from_signed_bytes_be(bytes); bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_initiate_payout_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorNewEpochActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_get_spent_reward_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        let val = obj.spent_reward_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRewardSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_set_spent_reward_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        obj.spent_reward_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_get_created_reward_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        let val = obj.created_reward_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRewardSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_set_created_reward_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        obj.created_reward_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_get_epoch_total_rewards(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        let val = obj.epoch_total_rewards.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_set_epoch_total_rewards(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        obj.epoch_total_rewards = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorNewEpochActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorNewEpochActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorNewEpochActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_new_epoch_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorNewEpochActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorSyncActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorSyncActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_get_update_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorSyncActionLog);
+        let val = obj.update_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_set_update_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorSyncActionLog);
+        obj.update_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorSyncActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorSyncActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorSyncActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorSyncActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_sync_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorSyncActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_get_spent_reward_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        let val = obj.spent_reward_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRewardSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_set_spent_reward_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        obj.spent_reward_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_get_spent_commitment_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        let val = obj.spent_commitment_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorCommitmentSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_set_spent_commitment_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        obj.spent_commitment_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorCommitmentSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_get_created_reward_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        let val = obj.created_reward_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorRewardSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_set_created_reward_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        obj.created_reward_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorRewardSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_withdraw_incentives_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_spent_entry_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.spent_entry_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorEntrySlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorEntrySlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_spent_entry_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.spent_entry_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_created_entry_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.created_entry_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorEntrySlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorEntrySlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_created_entry_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.created_entry_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_spent_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.spent_deposit_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_spent_deposit_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.spent_deposit_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_created_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.created_deposit_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_created_deposit_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.created_deposit_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_nft_entries(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.nft_entries.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorNftStakeEntry> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorNftStakeEntry>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_nft_entries(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.nft_entries = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorNftStakeEntry)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_dl_root_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.dl_root_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_dl_root_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.dl_root_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_dl_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.dl_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_dl_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.dl_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_dl_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.dl_full_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_dl_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.dl_full_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_from_dl_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_spent_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.spent_entry_slot.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorEntrySlotValue>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_spent_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.spent_entry_slot = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_created_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.created_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_created_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.created_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_created_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.created_deposit_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_created_deposit_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.created_deposit_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_cat_amount(ptr: *const c_void, out: *mut u64, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.cat_amount.clone();
+        match val {
+Some(v) => { *out = v; *out_is_some = 1; }
+None => { *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_cat_amount(ptr: *mut c_void, value: u64, value_is_some: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.cat_amount = if value_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?) } else { None };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_nft_entries(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.nft_entries.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v)) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_nft_entries(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.nft_entries = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorNftStakeEntry)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStakeActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_spent_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.spent_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_spent_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.spent_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_created_entry_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.created_entry_slot.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorEntrySlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_created_entry_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.created_entry_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorEntrySlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_spent_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.spent_deposit_slots.clone();
+        let list: Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue> = val;
+let boxed: Box<Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_spent_deposit_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.spent_deposit_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_cat_amount(ptr: *const c_void, out: *mut u64, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.cat_amount.clone();
+        match val {
+Some(v) => { *out = v; *out_is_some = 1; }
+None => { *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_cat_amount(ptr: *mut c_void, value: u64, value_is_some: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.cat_amount = if value_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?) } else { None };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_nft_entries(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.nft_entries.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v)) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_nft_entries(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.nft_entries = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::RewardDistributorNftStakeEntry)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_get_changes(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        let val = obj.changes.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorStateTransition> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_set_changes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeActionLog);
+        obj.changes = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorStateTransition)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorUnstakeActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_kind(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.kind.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_kind(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.kind = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_add_entry(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.add_entry.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorAddEntryActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_add_entry(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.add_entry = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorAddEntryActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_remove_entry(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.remove_entry.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorRemoveEntryActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_remove_entry(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.remove_entry = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorRemoveEntryActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_add_incentives(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.add_incentives.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorAddIncentivesActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_add_incentives(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.add_incentives = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorAddIncentivesActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_commit_incentives(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.commit_incentives.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_commit_incentives(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.commit_incentives = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorCommitIncentivesActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_initiate_payout(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.initiate_payout.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_initiate_payout(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.initiate_payout = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorInitiatePayoutActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_new_epoch(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.new_epoch.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorNewEpochActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_new_epoch(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.new_epoch = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorNewEpochActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_sync(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.sync.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorSyncActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_sync(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.sync = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorSyncActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_withdraw_incentives(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.withdraw_incentives.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_withdraw_incentives(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.withdraw_incentives = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorWithdrawIncentivesActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_refresh_nfts_from_dl(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.refresh_nfts_from_dl.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_refresh_nfts_from_dl(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.refresh_nfts_from_dl = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorRefreshNftsFromDlActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_stake(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.stake.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorStakeActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_stake(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.stake = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorStakeActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_get_unstake(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorActionLog);
+        let val = obj.unstake.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::RewardDistributorUnstakeActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_set_unstake(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorActionLog);
+        obj.unstake = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::RewardDistributorUnstakeActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorDepositSlotValue));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorDepositSlotValue);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_get_payout_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorDepositSlotValue);
+        let val = obj.payout_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_set_payout_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorDepositSlotValue);
+        obj.payout_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_get_shares(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorDepositSlotValue);
+        let val = obj.shares.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_set_shares(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorDepositSlotValue);
+        obj.shares = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_nft(payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize, shares: u64, launcher_id_ptr: *const u8, launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorDepositSlotValue as chia_sdk_bindings::RewardDistributorDepositSlotValueExt>::nft({ if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(shares, &bindy::GoContext)?,
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorDepositSlotValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_cat(payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize, cat_amount: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorDepositSlotValue as chia_sdk_bindings::RewardDistributorDepositSlotValueExt>::cat({ if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(cat_amount, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::RewardDistributorDepositSlotValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorDepositSlotValue as chia_sdk_bindings::RewardDistributorDepositSlotValueExt>::launcher_id(&*(ptr as *const chia_sdk_bindings::RewardDistributorDepositSlotValue))?;
+        match result {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_cat_amount(ptr: *const c_void, out: *mut u64, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::RewardDistributorDepositSlotValue as chia_sdk_bindings::RewardDistributorDepositSlotValueExt>::cat_amount(&*(ptr as *const chia_sdk_bindings::RewardDistributorDepositSlotValue))?;
+        match result {
+Some(v) => { *out = v; *out_is_some = 1; }
+None => { *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_deposit_slot_value_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorDepositSlotValue>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::DepositSlot));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DepositSlot);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DepositSlot);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_get_nonce(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        let val = obj.nonce.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_set_nonce(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DepositSlot);
+        obj.nonce = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DepositSlot);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::DepositSlot);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::RewardDistributorDepositSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::DepositSlot);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_new(proof: *const std::ffi::c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, value: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::DepositSlot::new({ if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::RewardDistributorDepositSlotValue)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::DepositSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::DepositSlot::value_hash(&*(ptr as *const chia_sdk_bindings::DepositSlot))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DepositSlot>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::DepositSlot>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_deposit_slot_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::DepositSlot>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CompactLineageProof));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactLineageProof);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_new(
+    parent_parent_coin_info_ptr: *const u8, parent_parent_coin_info_len: usize,
+    parent_inner_puzzle_hash_ptr: *const u8, parent_inner_puzzle_hash_len: usize,
+    parent_amount: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CompactLineageProof {
+            parent_parent_coin_info: { if parent_parent_coin_info_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_parent_coin_info must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_parent_coin_info_ptr, parent_parent_coin_info_len).to_vec(), &bindy::GoContext)? },
+            parent_inner_puzzle_hash: { if parent_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_inner_puzzle_hash_ptr, parent_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            parent_amount: bindy::IntoRust::<_, _, bindy::Go>::into_rust(parent_amount, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_get_parent_parent_coin_info(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactLineageProof);
+        let val = obj.parent_parent_coin_info.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_set_parent_parent_coin_info(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactLineageProof);
+        obj.parent_parent_coin_info = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_get_parent_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactLineageProof);
+        let val = obj.parent_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_set_parent_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactLineageProof);
+        obj.parent_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_get_parent_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactLineageProof);
+        let val = obj.parent_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_set_parent_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactLineageProof);
+        obj.parent_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_from_lineage_proof(proof: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::CompactLineageProof as chia_sdk_bindings::CompactLineageProofExt>::from_lineage_proof({ if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::CompactLineageProof> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CompactLineageProof>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CompactLineageProof>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_lineage_proof_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CompactLineageProof>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_get_notarized_payments(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        let val = obj.notarized_payments.clone();
+        let list: Vec<chia_sdk_bindings::NotarizedPayment> = val;
+let boxed: Box<Vec<chia_sdk_bindings::NotarizedPayment>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_set_notarized_payments(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        obj.notarized_payments = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::NotarizedPayment)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_get_new_nfts(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        let val = obj.new_nfts.clone();
+        let list: Vec<chia_sdk_bindings::Nft> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Nft>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_set_new_nfts(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult);
+        obj.new_nfts = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_collection_nfts_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStakeCollectionNftsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_get_notarized_payments(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        let val = obj.notarized_payments.clone();
+        let list: Vec<chia_sdk_bindings::NotarizedPayment> = val;
+let boxed: Box<Vec<chia_sdk_bindings::NotarizedPayment>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_set_notarized_payments(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        obj.notarized_payments = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::NotarizedPayment)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_get_new_nfts(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        let val = obj.new_nfts.clone();
+        let list: Vec<chia_sdk_bindings::Nft> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Nft>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_set_new_nfts(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult);
+        obj.new_nfts = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_curated_nfts_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStakeCuratedNftsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCatResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCatResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCatResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCatResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_get_notarized_payment(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCatResult);
+        let val = obj.notarized_payment.clone();
+        let boxed: Box<chia_sdk_bindings::NotarizedPayment> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_set_notarized_payment(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCatResult);
+        obj.notarized_payment = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::NotarizedPayment)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_get_new_cat(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorStakeCatResult);
+        let val = obj.new_cat.clone();
+        let boxed: Box<chia_sdk_bindings::Cat> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_set_new_cat(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorStakeCatResult);
+        obj.new_cat = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Cat)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCatResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorStakeCatResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_stake_cat_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorStakeCatResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_get_payment_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult);
+        let val = obj.payment_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_set_payment_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult);
+        obj.payment_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_nfts_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedNftsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_get_payment_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult);
+        let val = obj.payment_amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_set_payment_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult);
+        obj.payment_amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_unstake_locked_cat_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorUnstakeLockedCatResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_get_new_nfts(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RewardDistributorRefreshNftsResult);
+        let val = obj.new_nfts.clone();
+        let list: Vec<chia_sdk_bindings::Nft> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Nft>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_set_new_nfts(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RewardDistributorRefreshNftsResult);
+        obj.new_nfts = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRefreshNftsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RewardDistributorRefreshNftsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_reward_distributor_refresh_nfts_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RewardDistributorRefreshNftsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::RefreshNftsInfo));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_new(
+    slot: *const std::ffi::c_void,
+    nfts_ptrs: *const *const std::ffi::c_void, nfts_len: usize,
+    nft_shares_delta_ptr: *const i64, nft_shares_delta_len: usize,
+    new_shares_ptr: *const u64, new_shares_len: usize,
+    nft_inclusion_proofs_ptrs: *const *const std::ffi::c_void, nft_inclusion_proofs_len: usize,
+    deposit_slots_ptrs: *const *const std::ffi::c_void, deposit_slots_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::RefreshNftsInfo {
+            slot: { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::EntrySlot)).clone() },
+            nfts: { if nfts_ptrs.is_null() { return Err(bindy::Error::Custom(format!("nfts must not be null"))); } let ptrs = std::slice::from_raw_parts(nfts_ptrs, nfts_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("nfts element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            nft_shares_delta: { if nft_shares_delta_len > 0 && nft_shares_delta_ptr.is_null() { return Err(bindy::Error::Custom(format!("nft_shares_delta must not be null"))); } if nft_shares_delta_len == 0 { Vec::new() } else { std::slice::from_raw_parts(nft_shares_delta_ptr, nft_shares_delta_len).to_vec() } },
+            new_shares: { if new_shares_len > 0 && new_shares_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_shares must not be null"))); } if new_shares_len == 0 { Vec::new() } else { std::slice::from_raw_parts(new_shares_ptr, new_shares_len).to_vec() } },
+            nft_inclusion_proofs: { if nft_inclusion_proofs_ptrs.is_null() { return Err(bindy::Error::Custom(format!("nft_inclusion_proofs must not be null"))); } let ptrs = std::slice::from_raw_parts(nft_inclusion_proofs_ptrs, nft_inclusion_proofs_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("nft_inclusion_proofs element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::MerkleProof)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            deposit_slots: { if deposit_slots_ptrs.is_null() { return Err(bindy::Error::Custom(format!("deposit_slots must not be null"))); } let ptrs = std::slice::from_raw_parts(deposit_slots_ptrs, deposit_slots_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("deposit_slots element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DepositSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.slot.clone();
+        let boxed: Box<chia_sdk_bindings::EntrySlot> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::EntrySlot)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_nfts(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.nfts.clone();
+        let list: Vec<chia_sdk_bindings::Nft> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Nft>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_nfts(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.nfts = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Nft)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_nft_shares_delta(ptr: *const c_void, out_ptr: *mut *mut i64, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.nft_shares_delta.clone();
+        let boxed = val.into_boxed_slice();
+*out_len = boxed.len();
+*out_ptr = Box::into_raw(boxed) as *mut i64;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_nft_shares_delta(ptr: *mut c_void, value_ptr: *const i64, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.nft_shares_delta = { if value_len > 0 && value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_len == 0 { Vec::new() } else { std::slice::from_raw_parts(value_ptr, value_len).to_vec() } };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_new_shares(ptr: *const c_void, out_ptr: *mut *mut u64, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.new_shares.clone();
+        let boxed = val.into_boxed_slice();
+*out_len = boxed.len();
+*out_ptr = Box::into_raw(boxed) as *mut u64;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_new_shares(ptr: *mut c_void, value_ptr: *const u64, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.new_shares = { if value_len > 0 && value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_len == 0 { Vec::new() } else { std::slice::from_raw_parts(value_ptr, value_len).to_vec() } };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_nft_inclusion_proofs(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.nft_inclusion_proofs.clone();
+        let list: Vec<chia_sdk_bindings::MerkleProof> = val;
+let boxed: Box<Vec<chia_sdk_bindings::MerkleProof>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_nft_inclusion_proofs(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.nft_inclusion_proofs = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::MerkleProof)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_get_deposit_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::RefreshNftsInfo);
+        let val = obj.deposit_slots.clone();
+        let list: Vec<chia_sdk_bindings::DepositSlot> = val;
+let boxed: Box<Vec<chia_sdk_bindings::DepositSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_set_deposit_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::RefreshNftsInfo);
+        obj.deposit_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::DepositSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RefreshNftsInfo>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::RefreshNftsInfo>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_refresh_nfts_info_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::RefreshNftsInfo>));
         }));
     }
 }
@@ -28535,6 +36120,17 @@ pub unsafe extern "C" fn go_rpc_client_local_with_url(base_url: *const std::ffi:
             { if key_bytes_ptr.is_null() { return Err(bindy::Error::Custom(format!("key_bytes must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(key_bytes_ptr, key_bytes_len).to_vec(), &bindy::GoContext)? })?;
         let boxed: Box<chia_sdk_bindings::RpcClient> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_rpc_client_base_url(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::RpcClient::base_url(&*(ptr as *const chia_sdk_bindings::RpcClient))?;
+        let result: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(result).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
         Ok(())
     })
 }
@@ -28643,13 +36239,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_record_by_name(ptr: *const c_voi
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hint(ptr: *const c_void, hint_ptr: *const u8, hint_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hint(ptr: *const c_void, hint_ptr: *const u8, hint_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_hint({ if hint_ptr.is_null() { return Err(bindy::Error::Custom(format!("hint must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(hint_ptr, hint_len).to_vec(), &bindy::GoContext)? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -28657,13 +36254,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hint(ptr: *const c_vo
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hints(ptr: *const c_void, hints_ptrs: *const *const u8, hints_lens: *const usize, hints_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hints(ptr: *const c_void, hints_ptrs: *const *const u8, hints_lens: *const usize, hints_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_hints({ if hints_ptrs.is_null() { return Err(bindy::Error::Custom(format!("hints must not be null"))); } let ptrs = std::slice::from_raw_parts(hints_ptrs, hints_count); let lens = std::slice::from_raw_parts(hints_lens, hints_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -28671,13 +36269,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_hints(ptr: *const c_v
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_names(ptr: *const c_void, names_ptrs: *const *const u8, names_lens: *const usize, names_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_names(ptr: *const c_void, names_ptrs: *const *const u8, names_lens: *const usize, names_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_names({ if names_ptrs.is_null() { return Err(bindy::Error::Custom(format!("names must not be null"))); } let ptrs = std::slice::from_raw_parts(names_ptrs, names_count); let lens = std::slice::from_raw_parts(names_lens, names_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -28685,13 +36284,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_names(ptr: *const c_v
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_parent_ids(ptr: *const c_void, parent_ids_ptrs: *const *const u8, parent_ids_lens: *const usize, parent_ids_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_parent_ids(ptr: *const c_void, parent_ids_ptrs: *const *const u8, parent_ids_lens: *const usize, parent_ids_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_parent_ids({ if parent_ids_ptrs.is_null() { return Err(bindy::Error::Custom(format!("parent_ids must not be null"))); } let ptrs = std::slice::from_raw_parts(parent_ids_ptrs, parent_ids_count); let lens = std::slice::from_raw_parts(parent_ids_lens, parent_ids_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -28699,13 +36299,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_parent_ids(ptr: *cons
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_puzzle_hash(ptr: *const c_void, puzzle_hash_ptr: *const u8, puzzle_hash_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_puzzle_hash(ptr: *const c_void, puzzle_hash_ptr: *const u8, puzzle_hash_len: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_puzzle_hash({ if puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(puzzle_hash_ptr, puzzle_hash_len).to_vec(), &bindy::GoContext)? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -28713,13 +36314,14 @@ pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_puzzle_hash(ptr: *con
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_puzzle_hashes(ptr: *const c_void, puzzle_hashes_ptrs: *const *const u8, puzzle_hashes_lens: *const usize, puzzle_hashes_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_rpc_client_get_coin_records_by_puzzle_hashes(ptr: *const c_void, puzzle_hashes_ptrs: *const *const u8, puzzle_hashes_lens: *const usize, puzzle_hashes_count: usize, start_height: u32, start_height_is_some: i32, end_height: u32, end_height_is_some: i32, include_spent_coins: i32, include_spent_coins_is_some: i32, cursor: *const std::ffi::c_char, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::RpcClient);
         let result = runtime().block_on(obj.get_coin_records_by_puzzle_hashes({ if puzzle_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(puzzle_hashes_ptrs, puzzle_hashes_count); let lens = std::slice::from_raw_parts(puzzle_hashes_lens, puzzle_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? },
             if start_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_height, &bindy::GoContext)?) } else { None },
             if end_height_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(end_height, &bindy::GoContext)?) } else { None },
-            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None }))?;
+            if include_spent_coins_is_some != 0 { Some(include_spent_coins != 0) } else { None },
+            if cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }))?;
         let boxed: Box<chia_sdk_bindings::GetCoinRecordsResponse> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -30686,13 +38288,17 @@ pub unsafe extern "C" fn go_get_coin_records_response_new(
     coin_records_ptrs: *const *const std::ffi::c_void, coin_records_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
+    truncated: i32, truncated_is_some: i32,
+    next_cursor: *const std::ffi::c_char,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetCoinRecordsResponse {
             coin_records: if coin_records_ptrs.is_null() { None } else { Some({ if coin_records_ptrs.is_null() { return Err(bindy::Error::Custom(format!("coin_records must not be null"))); } let ptrs = std::slice::from_raw_parts(coin_records_ptrs, coin_records_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("coin_records element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
-            success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
+            success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?,
+            truncated: if truncated_is_some != 0 { Some(truncated != 0) } else { None },
+            next_cursor: if next_cursor.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(next_cursor).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -30762,6 +38368,54 @@ pub unsafe extern "C" fn go_get_coin_records_response_set_success(ptr: *mut c_vo
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetCoinRecordsResponse);
         obj.success = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value != 0, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_get_coin_records_response_get_truncated(ptr: *const c_void, out: *mut i32, out_is_some: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::GetCoinRecordsResponse);
+        let val = obj.truncated.clone();
+        match val {
+Some(v) => { *out = if v { 1 } else { 0 }; *out_is_some = 1; }
+None => { *out = 0; *out_is_some = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_get_coin_records_response_set_truncated(ptr: *mut c_void, value: i32, value_is_some: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::GetCoinRecordsResponse);
+        obj.truncated = if value_is_some != 0 { Some(value != 0) } else { None };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_get_coin_records_response_get_next_cursor(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::GetCoinRecordsResponse);
+        let val = obj.next_cursor.clone();
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_get_coin_records_response_set_next_cursor(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::GetCoinRecordsResponse);
+        obj.next_cursor = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
         Ok(())
     })
 }
@@ -30962,7 +38616,7 @@ pub unsafe extern "C" fn go_push_tx_response_new(
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::PushTxResponse {
-            status: { if status.is_null() { return Err(bindy::Error::Custom(format!("status must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(status).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            status: if status.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(status).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -30976,9 +38630,14 @@ pub unsafe extern "C" fn go_push_tx_response_get_status(ptr: *const c_void, out:
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::PushTxResponse);
         let val = obj.status.clone();
-        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
-let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+        match val {
+Some(v) => {
+let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;
 *out = cstr.into_raw();
+}
+None => *out = std::ptr::null_mut(),
+}
         Ok(())
     })
 }
@@ -30987,7 +38646,7 @@ let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_str
 pub unsafe extern "C" fn go_push_tx_response_set_status(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::PushTxResponse);
-        obj.status = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        obj.status = if value.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) };
         Ok(())
     })
 }
@@ -37073,6 +44732,5119 @@ pub unsafe extern "C" fn go_spend_bundle_cost(coin_spends_ptrs: *const *const st
     catch(|| {
         let result = chia_sdk_bindings::spend_bundle_cost({ if coin_spends_ptrs.is_null() { return Err(bindy::Error::Custom(format!("coin_spends must not be null"))); } let ptrs = std::slice::from_raw_parts(coin_spends_ptrs, coin_spends_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("coin_spends element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinSpend)).clone()) }).collect::<bindy::Result<Vec<_>>>()? })?;
         *out = result;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_get_price(base_price: u64, handle: *const std::ffi::c_char, num_periods: u64, out: *mut u64) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::xchandles_get_price(bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_price, &bindy::GoContext)?,
+            { if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?)?;
+        *out = result;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::CompactCoinProof));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactCoinProof);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_new(
+    parent_coin_info_ptr: *const u8, parent_coin_info_len: usize,
+    inner_puzzle_hash_ptr: *const u8, inner_puzzle_hash_len: usize,
+    amount: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::CompactCoinProof {
+            parent_coin_info: { if parent_coin_info_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_coin_info must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_coin_info_ptr, parent_coin_info_len).to_vec(), &bindy::GoContext)? },
+            inner_puzzle_hash: { if inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(inner_puzzle_hash_ptr, inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            amount: bindy::IntoRust::<_, _, bindy::Go>::into_rust(amount, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_get_parent_coin_info(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactCoinProof);
+        let val = obj.parent_coin_info.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_set_parent_coin_info(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactCoinProof);
+        obj.parent_coin_info = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_get_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactCoinProof);
+        let val = obj.inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_set_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactCoinProof);
+        obj.inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_get_amount(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::CompactCoinProof);
+        let val = obj.amount.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_set_amount(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::CompactCoinProof);
+        obj.amount = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CompactCoinProof>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::CompactCoinProof>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_compact_coin_proof_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::CompactCoinProof>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistryState));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryState);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_get_cat_maker_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryState);
+        let val = obj.cat_maker_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_set_cat_maker_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryState);
+        obj.cat_maker_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_get_pricing_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryState);
+        let val = obj.pricing_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_set_pricing_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryState);
+        obj.pricing_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_get_expired_handle_pricing_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryState);
+        let val = obj.expired_handle_pricing_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_set_expired_handle_pricing_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryState);
+        obj.expired_handle_pricing_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_from(payment_cat_tail_hash_hash_ptr: *const u8, payment_cat_tail_hash_hash_len: usize, base_price: u64, registration_period: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesRegistryState as chia_sdk_bindings::XchandlesRegistryStateExt>::from({ if payment_cat_tail_hash_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payment_cat_tail_hash_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payment_cat_tail_hash_hash_ptr, payment_cat_tail_hash_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryState> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryState>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryState>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistryState>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesConstants));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesConstants);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesConstants);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesConstants);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_get_precommit_payout_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesConstants);
+        let val = obj.precommit_payout_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_set_precommit_payout_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesConstants);
+        obj.precommit_payout_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_get_relative_block_height(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesConstants);
+        let val = obj.relative_block_height.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_set_relative_block_height(ptr: *mut c_void, value: u32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesConstants);
+        obj.relative_block_height = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_get_price_singleton_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesConstants);
+        let val = obj.price_singleton_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_set_price_singleton_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesConstants);
+        obj.price_singleton_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_new(launcher_id_ptr: *const u8, launcher_id_len: usize, precommit_payout_puzzle_hash_ptr: *const u8, precommit_payout_puzzle_hash_len: usize, relative_block_height: u32, price_singleton_launcher_id_ptr: *const u8, price_singleton_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesConstants as chia_sdk_bindings::XchandlesConstantsExt>::new({ if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if precommit_payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("precommit_payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(precommit_payout_puzzle_hash_ptr, precommit_payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(relative_block_height, &bindy::GoContext)?,
+            { if price_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("price_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(price_singleton_launcher_id_ptr, price_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_with_price_singleton(ptr: *const c_void, price_singleton_launcher_id_ptr: *const u8, price_singleton_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesConstants as chia_sdk_bindings::XchandlesConstantsExt>::with_price_singleton(&*(ptr as *const chia_sdk_bindings::XchandlesConstants),
+            { if price_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("price_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(price_singleton_launcher_id_ptr, price_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_with_launcher_id(ptr: *const c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesConstants as chia_sdk_bindings::XchandlesConstantsExt>::with_launcher_id(&*(ptr as *const chia_sdk_bindings::XchandlesConstants),
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesConstants>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesConstants>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_constants_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesConstants>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_counter(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.counter.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_counter(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.counter = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_handle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.handle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_handle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.handle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_neighbors(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.neighbors.clone();
+        let boxed: Box<chia_sdk_bindings::SlotNeigborsInfo> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_neighbors(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.neighbors = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::SlotNeigborsInfo)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_expiration(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.expiration.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_expiration(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.expiration = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_owner_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.owner_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_owner_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.owner_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_get_resolved_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue);
+        let val = obj.resolved_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_set_resolved_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlotValue);
+        obj.resolved_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_new(counter: u64, handle_hash_ptr: *const u8, handle_hash_len: usize, left_handle_hash_ptr: *const u8, left_handle_hash_len: usize, right_handle_hash_ptr: *const u8, right_handle_hash_len: usize, expiration: u64, owner_launcher_id_ptr: *const u8, owner_launcher_id_len: usize, resolved_launcher_id_ptr: *const u8, resolved_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesHandleSlotValue as chia_sdk_bindings::XchandlesHandleSlotValueExt>::new(bindy::IntoRust::<_, _, bindy::Go>::into_rust(counter, &bindy::GoContext)?,
+            { if handle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("handle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(handle_hash_ptr, handle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if left_handle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("left_handle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(left_handle_hash_ptr, left_handle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if right_handle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("right_handle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(right_handle_hash_ptr, right_handle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(expiration, &bindy::GoContext)?,
+            { if owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_launcher_id_ptr, owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(resolved_launcher_id_ptr, resolved_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesHandleSlotValue as chia_sdk_bindings::XchandlesHandleSlotValueExt>::value_hash(&*(ptr as *const chia_sdk_bindings::XchandlesHandleSlotValue))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesHandleSlotValue>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesHandleSlotValue>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesHandleSlotValue>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_get_update_initiator_coin_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        let val = obj.update_initiator_coin_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_set_update_initiator_coin_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue);
+        obj.update_initiator_coin_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_get_min_height(ptr: *const c_void, out: *mut u32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        let val = obj.min_height.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_set_min_height(ptr: *mut c_void, value: u32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue);
+        obj.min_height = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_get_handle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        let val = obj.handle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_set_handle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue);
+        obj.handle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_get_new_owner_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        let val = obj.new_owner_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_set_new_owner_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue);
+        obj.new_owner_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_get_new_resolved_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue);
+        let val = obj.new_resolved_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_set_new_resolved_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlotValue);
+        obj.new_resolved_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_new(update_initiator_coin_id_ptr: *const u8, update_initiator_coin_id_len: usize, min_height: u32, handle_hash_ptr: *const u8, handle_hash_len: usize, new_owner_launcher_id_ptr: *const u8, new_owner_launcher_id_len: usize, new_resolved_launcher_id_ptr: *const u8, new_resolved_launcher_id_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesUpdateSlotValue as chia_sdk_bindings::XchandlesUpdateSlotValueExt>::new({ if update_initiator_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("update_initiator_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(update_initiator_coin_id_ptr, update_initiator_coin_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(min_height, &bindy::GoContext)?,
+            { if handle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("handle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(handle_hash_ptr, handle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if new_owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_launcher_id_ptr, new_owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if new_resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_resolved_launcher_id_ptr, new_resolved_launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlotValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = <chia_sdk_bindings::XchandlesUpdateSlotValue as chia_sdk_bindings::XchandlesUpdateSlotValueExt>::value_hash(&*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlotValue))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesUpdateSlotValue>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesUpdateSlotValue>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesUpdateSlotValue>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesPricingSolution));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPricingSolution);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_new(
+    buy_time: u64,
+    current_expiration: u64,
+    handle: *const std::ffi::c_char,
+    num_periods: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesPricingSolution {
+            buy_time: bindy::IntoRust::<_, _, bindy::Go>::into_rust(buy_time, &bindy::GoContext)?,
+            current_expiration: bindy::IntoRust::<_, _, bindy::Go>::into_rust(current_expiration, &bindy::GoContext)?,
+            handle: { if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            num_periods: bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_get_buy_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPricingSolution);
+        let val = obj.buy_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_set_buy_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPricingSolution);
+        obj.buy_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_get_current_expiration(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPricingSolution);
+        let val = obj.current_expiration.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_set_current_expiration(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPricingSolution);
+        obj.current_expiration = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_get_handle(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPricingSolution);
+        let val = obj.handle.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_set_handle(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPricingSolution);
+        obj.handle = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_get_num_periods(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPricingSolution);
+        let val = obj.num_periods.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_set_num_periods(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPricingSolution);
+        obj.num_periods = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPricingSolution>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPricingSolution>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_pricing_solution_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesPricingSolution>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_new(
+    cat_maker_hash_ptr: *const u8, cat_maker_hash_len: usize,
+    pricing_puzzle_hash_ptr: *const u8, pricing_puzzle_hash_len: usize,
+    pricing_solution: *const std::ffi::c_void,
+    handle: *const std::ffi::c_char,
+    secret_ptr: *const u8, secret_len: usize,
+    owner_launcher_id_ptr: *const u8, owner_launcher_id_len: usize,
+    resolved_launcher_id_ptr: *const u8, resolved_launcher_id_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesPrecommitValueLog {
+            cat_maker_hash: { if cat_maker_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("cat_maker_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(cat_maker_hash_ptr, cat_maker_hash_len).to_vec(), &bindy::GoContext)? },
+            pricing_puzzle_hash: { if pricing_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("pricing_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(pricing_puzzle_hash_ptr, pricing_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            pricing_solution: { if (pricing_solution).is_null() { return Err(bindy::Error::Custom(format!("pricing_solution must not be null"))); } (*((pricing_solution) as *const chia_sdk_bindings::XchandlesPricingSolution)).clone() },
+            handle: { if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            secret: { if secret_ptr.is_null() { return Err(bindy::Error::Custom(format!("secret must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(secret_ptr, secret_len).to_vec(), &bindy::GoContext)? },
+            owner_launcher_id: { if owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_launcher_id_ptr, owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            resolved_launcher_id: { if resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(resolved_launcher_id_ptr, resolved_launcher_id_len).to_vec(), &bindy::GoContext)? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_cat_maker_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.cat_maker_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_cat_maker_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.cat_maker_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_pricing_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.pricing_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_pricing_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.pricing_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_pricing_solution(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.pricing_solution.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesPricingSolution> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_pricing_solution(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.pricing_solution = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPricingSolution)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_handle(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.handle.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_handle(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.handle = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_secret(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.secret.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_secret(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.secret = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_owner_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.owner_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_owner_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.owner_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_get_resolved_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValueLog);
+        let val = obj.resolved_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_set_resolved_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValueLog);
+        obj.resolved_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitValueLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitValueLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesPrecommitValueLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesOracleActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesOracleActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesOracleActionLog);
+        let val = obj.spent_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesOracleActionLog);
+        obj.spent_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesOracleActionLog);
+        let val = obj.created_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesOracleActionLog);
+        obj.created_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesOracleActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesOracleActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_oracle_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesOracleActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesExtendActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendActionLog);
+        let val = obj.spent_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendActionLog);
+        obj.spent_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendActionLog);
+        let val = obj.created_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendActionLog);
+        obj.created_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_get_total_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendActionLog);
+        let val = obj.total_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_set_total_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendActionLog);
+        obj.total_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_get_registered_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendActionLog);
+        let val = obj.registered_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_set_registered_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendActionLog);
+        obj.registered_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExtendActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExtendActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesExtendActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.spent_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.spent_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.created_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.created_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_precommit_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.precommit_value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValueLog> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_precommit_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.precommit_value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValueLog)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_total_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.total_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_total_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.total_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_registered_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.registered_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_registered_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.registered_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_owner_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.owner_full_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_owner_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.owner_full_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_resolved_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.resolved_full_puzzle_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_resolved_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.resolved_full_puzzle_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_owner_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.owner_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_owner_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.owner_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_get_resolved_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExpireActionLog);
+        let val = obj.resolved_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_set_resolved_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExpireActionLog);
+        obj.resolved_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExpireActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExpireActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesExpireActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesInitiateUpdateActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        let val = obj.spent_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        obj.spent_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_get_created_handle_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        let val = obj.created_handle_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_set_created_handle_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        obj.created_handle_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_get_created_update_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        let val = obj.created_update_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_set_created_update_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        obj.created_update_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesUpdateSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_get_initiator_coin_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        let val = obj.initiator_coin_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_set_initiator_coin_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesInitiateUpdateActionLog);
+        obj.initiator_coin_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesInitiateUpdateActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesInitiateUpdateActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_initiate_update_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesInitiateUpdateActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_spent_handle_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.spent_handle_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_spent_handle_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.spent_handle_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_spent_update_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.spent_update_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_spent_update_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.spent_update_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesUpdateSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.created_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.created_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_owner_coin_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.owner_coin_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_owner_coin_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.owner_coin_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_owner_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.owner_full_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_owner_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.owner_full_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_resolved_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.resolved_full_puzzle_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_resolved_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.resolved_full_puzzle_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_owner_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.owner_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_owner_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.owner_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_get_resolved_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        let val = obj.resolved_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_set_resolved_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateActionLog);
+        obj.resolved_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExecuteUpdateActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExecuteUpdateActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesExecuteUpdateActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_get_spent_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        let val = obj.spent_slot.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesHandleSlotValue>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_set_spent_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog);
+        obj.spent_slot = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_get_created_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        let val = obj.created_slot.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesHandleSlotValue>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_set_created_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog);
+        obj.created_slot = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_get_precommit_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        let val = obj.precommit_value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValueLog> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_set_precommit_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog);
+        obj.precommit_value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValueLog)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_get_precommitted_total_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        let val = obj.precommitted_total_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_set_precommitted_total_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog);
+        obj.precommitted_total_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_get_precommitted_registered_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRefundActionLog);
+        let val = obj.precommitted_registered_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_set_precommitted_registered_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRefundActionLog);
+        obj.precommitted_registered_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRefundActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRefundActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_refund_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRefundActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_spent_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.spent_left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_spent_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.spent_left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_spent_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.spent_right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_spent_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.spent_right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_created_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.created_left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_created_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.created_left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_created_handle_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.created_handle_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_created_handle_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.created_handle_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_created_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.created_right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_created_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.created_right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_precommit_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.precommit_value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValueLog> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_precommit_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.precommit_value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValueLog)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_total_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.total_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_total_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.total_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_registered_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.registered_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_registered_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.registered_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_owner_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.owner_full_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_owner_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.owner_full_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_resolved_full_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.resolved_full_puzzle_hash.clone();
+        match val {
+Some(v) => {
+let v: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;
+let len = v.len();
+let boxed = v.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+}
+None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_resolved_full_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.resolved_full_puzzle_hash = if value_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)?) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_owner_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.owner_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_owner_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.owner_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_get_resolved_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegisterActionLog);
+        let val = obj.resolved_inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_set_resolved_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegisterActionLog);
+        obj.resolved_inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegisterActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegisterActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegisterActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesDelegatedStateActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesDelegatedStateActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_get_old_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesDelegatedStateActionLog);
+        let val = obj.old_state.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_set_old_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesDelegatedStateActionLog);
+        obj.old_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesRegistryState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_get_new_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesDelegatedStateActionLog);
+        let val = obj.new_state.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryState> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_set_new_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesDelegatedStateActionLog);
+        obj.new_state = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesRegistryState)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesDelegatedStateActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesDelegatedStateActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_delegated_state_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesDelegatedStateActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesActionLog));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_kind(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.kind.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_kind(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.kind = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_oracle(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.oracle.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesOracleActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_oracle(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.oracle = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesOracleActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_extend(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.extend.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesExtendActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_extend(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.extend = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesExtendActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_expire(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.expire.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesExpireActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_expire(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.expire = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesExpireActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_initiate_update(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.initiate_update.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesInitiateUpdateActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_initiate_update(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.initiate_update = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesInitiateUpdateActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_execute_update(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.execute_update.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesExecuteUpdateActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_execute_update(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.execute_update = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesExecuteUpdateActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_refund(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.refund.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRefundActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_refund(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.refund = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesRefundActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_register(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.register.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRegisterActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_register(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.register = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesRegisterActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_get_delegated_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesActionLog);
+        let val = obj.delegated_state.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesDelegatedStateActionLog>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_set_delegated_state(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesActionLog);
+        obj.delegated_state = if value.is_null() { None } else { Some((*((value) as *const chia_sdk_bindings::XchandlesDelegatedStateActionLog)).clone()) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesActionLog>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesActionLog>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_action_log_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesActionLog>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_get_nonce(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        let val = obj.nonce.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_set_nonce(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot);
+        obj.nonce = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesHandleSlot);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_new(proof: *const std::ffi::c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, value: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesHandleSlot::new({ if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlotValue)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesHandleSlot::value_hash(&*(ptr as *const chia_sdk_bindings::XchandlesHandleSlot))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesHandleSlot>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesHandleSlot>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_handle_slot_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesHandleSlot>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_get_nonce(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        let val = obj.nonce.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_set_nonce(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot);
+        obj.nonce = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_get_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        let val = obj.launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_set_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot);
+        obj.launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlotValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesUpdateSlot);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesUpdateSlotValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_new(proof: *const std::ffi::c_void, launcher_id_ptr: *const u8, launcher_id_len: usize, value: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesUpdateSlot::new({ if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesUpdateSlotValue)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_value_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesUpdateSlot::value_hash(&*(ptr as *const chia_sdk_bindings::XchandlesUpdateSlot))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesUpdateSlot>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesUpdateSlot>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_update_slot_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesUpdateSlot>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_handle(ptr: *const c_void, out: *mut *mut std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.handle.clone();
+        let val: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let cstr = std::ffi::CString::new(val).map_err(|e| bindy::Error::Custom(e.to_string()))?;
+*out = cstr.into_raw();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_handle(ptr: *mut c_void, value: *const std::ffi::c_char) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.handle = { if value.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(value).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_secret(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.secret.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_secret(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.secret = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_owner_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.owner_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_owner_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.owner_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_resolved_launcher_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.resolved_launcher_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_resolved_launcher_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.resolved_launcher_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_payment_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.payment_asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_payment_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.payment_asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_base_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.base_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_base_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.base_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_registration_period(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.registration_period.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_registration_period(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.registration_period = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_buy_time(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.buy_time.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_buy_time(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.buy_time = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_num_periods(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.num_periods.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_num_periods(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.num_periods = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_current_expiration(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.current_expiration.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_current_expiration(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.current_expiration = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_get_use_expire_pricing(ptr: *const c_void, out: *mut i32) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue);
+        let val = obj.use_expire_pricing.clone();
+        *out = if val { 1 } else { 0 };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_set_use_expire_pricing(ptr: *mut c_void, value: i32) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitValue);
+        obj.use_expire_pricing = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value != 0, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_for_normal_registration(handle: *const std::ffi::c_char, secret_ptr: *const u8, secret_len: usize, owner_launcher_id_ptr: *const u8, owner_launcher_id_len: usize, resolved_launcher_id_ptr: *const u8, resolved_launcher_id_len: usize, payment_asset_id_ptr: *const u8, payment_asset_id_len: usize, base_price: u64, registration_period: u64, buy_time: u64, num_periods: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesPrecommitValue::for_normal_registration({ if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            { if secret_ptr.is_null() { return Err(bindy::Error::Custom(format!("secret must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(secret_ptr, secret_len).to_vec(), &bindy::GoContext)? },
+            { if owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_launcher_id_ptr, owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(resolved_launcher_id_ptr, resolved_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if payment_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("payment_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payment_asset_id_ptr, payment_asset_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(buy_time, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_for_expiry_pricing_registration(handle: *const std::ffi::c_char, secret_ptr: *const u8, secret_len: usize, owner_launcher_id_ptr: *const u8, owner_launcher_id_len: usize, resolved_launcher_id_ptr: *const u8, resolved_launcher_id_len: usize, payment_asset_id_ptr: *const u8, payment_asset_id_len: usize, base_price: u64, registration_period: u64, buy_time: u64, current_expiration: u64, num_periods: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesPrecommitValue::for_expiry_pricing_registration({ if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            { if secret_ptr.is_null() { return Err(bindy::Error::Custom(format!("secret must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(secret_ptr, secret_len).to_vec(), &bindy::GoContext)? },
+            { if owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_launcher_id_ptr, owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(resolved_launcher_id_ptr, resolved_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if payment_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("payment_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payment_asset_id_ptr, payment_asset_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(buy_time, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(current_expiration, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValue> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_commitment_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesPrecommitValue::commitment_hash(&*(ptr as *const chia_sdk_bindings::XchandlesPrecommitValue))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitValue>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitValue>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_value_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesPrecommitValue>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_get_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        let val = obj.coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_set_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin);
+        obj.coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_get_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        let val = obj.asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_set_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin);
+        obj.asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_get_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        let val = obj.proof.clone();
+        let boxed: Box<chia_sdk_bindings::LineageProof> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_set_proof(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin);
+        obj.proof = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::LineageProof)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_get_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        let val = obj.inner_puzzle_hash.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_set_inner_puzzle_hash(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin);
+        obj.inner_puzzle_hash = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_get_value(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesPrecommitCoin);
+        let val = obj.value.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitValue> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_set_value(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesPrecommitCoin);
+        obj.value = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValue)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_new(clvm: *const std::ffi::c_void, parent_coin_id_ptr: *const u8, parent_coin_id_len: usize, proof: *const std::ffi::c_void, asset_id_ptr: *const u8, asset_id_len: usize, controller_singleton_launcher_id_ptr: *const u8, controller_singleton_launcher_id_len: usize, relative_block_height: u32, payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize, refund_puzzle_hash_ptr: *const u8, refund_puzzle_hash_len: usize, value: *const std::ffi::c_void, precommit_amount: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesPrecommitCoin::new({ if (clvm).is_null() { return Err(bindy::Error::Custom(format!("clvm must not be null"))); } (*((clvm) as *const chia_sdk_bindings::Clvm)).clone() },
+            { if parent_coin_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("parent_coin_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(parent_coin_id_ptr, parent_coin_id_len).to_vec(), &bindy::GoContext)? },
+            { if (proof).is_null() { return Err(bindy::Error::Custom(format!("proof must not be null"))); } (*((proof) as *const chia_sdk_bindings::LineageProof)).clone() },
+            { if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if controller_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("controller_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(controller_singleton_launcher_id_ptr, controller_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(relative_block_height, &bindy::GoContext)?,
+            { if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if refund_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("refund_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(refund_puzzle_hash_ptr, refund_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValue)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(precommit_amount, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesPrecommitCoin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_puzzle_hash(asset_id_ptr: *const u8, asset_id_len: usize, controller_singleton_launcher_id_ptr: *const u8, controller_singleton_launcher_id_len: usize, relative_block_height: u32, payout_puzzle_hash_ptr: *const u8, payout_puzzle_hash_len: usize, refund_puzzle_hash_ptr: *const u8, refund_puzzle_hash_len: usize, value: *const std::ffi::c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesPrecommitCoin::puzzle_hash({ if asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(asset_id_ptr, asset_id_len).to_vec(), &bindy::GoContext)? },
+            { if controller_singleton_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("controller_singleton_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(controller_singleton_launcher_id_ptr, controller_singleton_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(relative_block_height, &bindy::GoContext)?,
+            { if payout_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("payout_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payout_puzzle_hash_ptr, payout_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if refund_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("refund_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(refund_puzzle_hash_ptr, refund_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesPrecommitValue)).clone() })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitCoin>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesPrecommitCoin>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_precommit_coin_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesPrecommitCoin>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistryFinishedSpendResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryFinishedSpendResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_new(
+    new_registry: *const std::ffi::c_void,
+    signature: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesRegistryFinishedSpendResult {
+            new_registry: { if (new_registry).is_null() { return Err(bindy::Error::Custom(format!("new_registry must not be null"))); } (*((new_registry) as *const chia_sdk_bindings::XchandlesRegistry)).clone() },
+            signature: { if (signature).is_null() { return Err(bindy::Error::Custom(format!("signature must not be null"))); } (*((signature) as *const chia_sdk_bindings::Signature)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_get_new_registry(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryFinishedSpendResult);
+        let val = obj.new_registry.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistry> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_set_new_registry(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryFinishedSpendResult);
+        obj.new_registry = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesRegistry)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_get_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryFinishedSpendResult);
+        let val = obj.signature.clone();
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_set_signature(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryFinishedSpendResult);
+        obj.signature = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Signature)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryFinishedSpendResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryFinishedSpendResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finished_spend_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistryFinishedSpendResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_new(
+    security_signature: *const std::ffi::c_void,
+    security_secret_key: *const std::ffi::c_void,
+    registry: *const std::ffi::c_void,
+    slots_ptrs: *const *const std::ffi::c_void, slots_len: usize,
+    security_coin: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesRegistryLaunchResult {
+            security_signature: { if (security_signature).is_null() { return Err(bindy::Error::Custom(format!("security_signature must not be null"))); } (*((security_signature) as *const chia_sdk_bindings::Signature)).clone() },
+            security_secret_key: { if (security_secret_key).is_null() { return Err(bindy::Error::Custom(format!("security_secret_key must not be null"))); } (*((security_secret_key) as *const chia_sdk_bindings::SecretKey)).clone() },
+            registry: { if (registry).is_null() { return Err(bindy::Error::Custom(format!("registry must not be null"))); } (*((registry) as *const chia_sdk_bindings::XchandlesRegistry)).clone() },
+            slots: { if slots_ptrs.is_null() { return Err(bindy::Error::Custom(format!("slots must not be null"))); } let ptrs = std::slice::from_raw_parts(slots_ptrs, slots_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("slots element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            security_coin: { if (security_coin).is_null() { return Err(bindy::Error::Custom(format!("security_coin must not be null"))); } (*((security_coin) as *const chia_sdk_bindings::Coin)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_get_security_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        let val = obj.security_signature.clone();
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_set_security_signature(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        obj.security_signature = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Signature)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_get_security_secret_key(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        let val = obj.security_secret_key.clone();
+        let boxed: Box<chia_sdk_bindings::SecretKey> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_set_security_secret_key(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        obj.security_secret_key = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::SecretKey)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_get_registry(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        let val = obj.registry.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistry> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_set_registry(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        obj.registry = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesRegistry)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_get_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        let val = obj.slots.clone();
+        let list: Vec<chia_sdk_bindings::XchandlesHandleSlot> = val;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesHandleSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_set_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        obj.slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_get_security_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        let val = obj.security_coin.clone();
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_set_security_coin(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryLaunchResult);
+        obj.security_coin = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::Coin)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryLaunchResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryLaunchResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_launch_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistryLaunchResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistryInfoFromLauncher));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_new(
+    registry: *const std::ffi::c_void,
+    initial_slots_ptrs: *const *const std::ffi::c_void, initial_slots_len: usize,
+    initial_registration_asset_id_ptr: *const u8, initial_registration_asset_id_len: usize,
+    initial_base_price: u64,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesRegistryInfoFromLauncher {
+            registry: { if (registry).is_null() { return Err(bindy::Error::Custom(format!("registry must not be null"))); } (*((registry) as *const chia_sdk_bindings::XchandlesRegistry)).clone() },
+            initial_slots: { if initial_slots_ptrs.is_null() { return Err(bindy::Error::Custom(format!("initial_slots must not be null"))); } let ptrs = std::slice::from_raw_parts(initial_slots_ptrs, initial_slots_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("initial_slots element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            initial_registration_asset_id: { if initial_registration_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("initial_registration_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(initial_registration_asset_id_ptr, initial_registration_asset_id_len).to_vec(), &bindy::GoContext)? },
+            initial_base_price: bindy::IntoRust::<_, _, bindy::Go>::into_rust(initial_base_price, &bindy::GoContext)?
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_get_registry(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        let val = obj.registry.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistry> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_set_registry(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        obj.registry = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesRegistry)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_get_initial_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        let val = obj.initial_slots.clone();
+        let list: Vec<chia_sdk_bindings::XchandlesHandleSlot> = val;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesHandleSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_set_initial_slots(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        obj.initial_slots = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_get_initial_registration_asset_id(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        let val = obj.initial_registration_asset_id.clone();
+        let val: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(val, &bindy::GoContext)?;
+let len = val.len();
+let boxed = val.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_set_initial_registration_asset_id(ptr: *mut c_void, value_ptr: *const u8, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        obj.initial_registration_asset_id = { if value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(value_ptr, value_len).to_vec(), &bindy::GoContext)? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_get_initial_base_price(ptr: *const c_void, out: *mut u64) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        let val = obj.initial_base_price.clone();
+        *out = val;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_set_initial_base_price(ptr: *mut c_void, value: u64) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryInfoFromLauncher);
+        obj.initial_base_price = bindy::IntoRust::<_, _, bindy::Go>::into_rust(value, &bindy::GoContext)?;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryInfoFromLauncher>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryInfoFromLauncher>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_info_from_launcher_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistryInfoFromLauncher>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesTripleConditionsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesTripleConditionsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_new(
+    registry_conditions_ptrs: *const *const std::ffi::c_void, registry_conditions_len: usize,
+    owner_conditions_ptrs: *const *const std::ffi::c_void, owner_conditions_len: usize,
+    resolved_conditions_ptrs: *const *const std::ffi::c_void, resolved_conditions_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesTripleConditionsResult {
+            registry_conditions: { if registry_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("registry_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(registry_conditions_ptrs, registry_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("registry_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            owner_conditions: { if owner_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("owner_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(owner_conditions_ptrs, owner_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("owner_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            resolved_conditions: if resolved_conditions_ptrs.is_null() { None } else { Some({ if resolved_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("resolved_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(resolved_conditions_ptrs, resolved_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("resolved_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_get_registry_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesTripleConditionsResult);
+        let val = obj.registry_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_set_registry_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesTripleConditionsResult);
+        obj.registry_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_get_owner_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesTripleConditionsResult);
+        let val = obj.owner_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_set_owner_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesTripleConditionsResult);
+        obj.owner_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_get_resolved_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesTripleConditionsResult);
+        let val = obj.resolved_conditions.clone();
+        match val {
+Some(v) => *out = Box::into_raw(Box::new(v)) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_set_resolved_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesTripleConditionsResult);
+        obj.resolved_conditions = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesTripleConditionsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesTripleConditionsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_triple_conditions_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesTripleConditionsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesExtendResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_new(
+    conditions_ptrs: *const *const std::ffi::c_void, conditions_len: usize,
+    notarized_payment: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesExtendResult {
+            conditions: { if conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(conditions_ptrs, conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            notarized_payment: { if (notarized_payment).is_null() { return Err(bindy::Error::Custom(format!("notarized_payment must not be null"))); } (*((notarized_payment) as *const chia_sdk_bindings::NotarizedPayment)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_get_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendResult);
+        let val = obj.conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_set_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendResult);
+        obj.conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_get_notarized_payment(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExtendResult);
+        let val = obj.notarized_payment.clone();
+        let boxed: Box<chia_sdk_bindings::NotarizedPayment> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_set_notarized_payment(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExtendResult);
+        obj.notarized_payment = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::NotarizedPayment)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExtendResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExtendResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_extend_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesExtendResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_new(
+    registry_conditions_ptrs: *const *const std::ffi::c_void, registry_conditions_len: usize,
+    old_owner_conditions_ptrs: *const *const std::ffi::c_void, old_owner_conditions_len: usize,
+    new_owner_conditions_ptrs: *const *const std::ffi::c_void, new_owner_conditions_len: usize,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesExecuteUpdateResult {
+            registry_conditions: { if registry_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("registry_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(registry_conditions_ptrs, registry_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("registry_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            old_owner_conditions: { if old_owner_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("old_owner_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(old_owner_conditions_ptrs, old_owner_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("old_owner_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? },
+            new_owner_conditions: { if new_owner_conditions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("new_owner_conditions must not be null"))); } let ptrs = std::slice::from_raw_parts(new_owner_conditions_ptrs, new_owner_conditions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("new_owner_conditions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_get_registry_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        let val = obj.registry_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_set_registry_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        obj.registry_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_get_old_owner_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        let val = obj.old_owner_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_set_old_owner_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        obj.old_owner_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_get_new_owner_conditions(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        let val = obj.new_owner_conditions.clone();
+        let list: Vec<chia_sdk_bindings::Program> = val;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_set_new_owner_conditions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesExecuteUpdateResult);
+        obj.new_owner_conditions = { if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Program)).clone()) }).collect::<bindy::Result<Vec<_>>>()? };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExecuteUpdateResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesExecuteUpdateResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_execute_update_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesExecuteUpdateResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistryActualNeighborsResult));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryActualNeighborsResult);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_new(
+    left_slot: *const std::ffi::c_void,
+    right_slot: *const std::ffi::c_void,
+    out: *mut *mut c_void,
+) -> i32 {
+    catch(|| {
+        let inner = chia_sdk_bindings::XchandlesRegistryActualNeighborsResult {
+            left_slot: { if (left_slot).is_null() { return Err(bindy::Error::Custom(format!("left_slot must not be null"))); } (*((left_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            right_slot: { if (right_slot).is_null() { return Err(bindy::Error::Custom(format!("right_slot must not be null"))); } (*((right_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() }
+        };
+        *out = Box::into_raw(Box::new(inner)) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_get_left_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryActualNeighborsResult);
+        let val = obj.left_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlot> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_set_left_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryActualNeighborsResult);
+        obj.left_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_get_right_slot(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistryActualNeighborsResult);
+        let val = obj.right_slot.clone();
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlot> = Box::new(val);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_set_right_slot(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+    catch(|| {
+        let obj = &mut *(ptr as *mut chia_sdk_bindings::XchandlesRegistryActualNeighborsResult);
+        obj.right_slot = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryActualNeighborsResult>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistryActualNeighborsResult>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors_result_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistryActualNeighborsResult>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr as *mut chia_sdk_bindings::XchandlesRegistry));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_clone(ptr: *const c_void, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        let obj = &*(ptr as *const chia_sdk_bindings::XchandlesRegistry);
+        *out = Box::into_raw(Box::new(obj.clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_coin(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::coin(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Coin> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_proof(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::proof(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Proof> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_state(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::state(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryState> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_constants(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::constants(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::XchandlesConstants> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_inner_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::inner_puzzle_hash(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_puzzle_hash(ptr: *const c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::puzzle_hash(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_child(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::child(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistry> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_created_handle_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_created_handle_slots(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let list: Vec<chia_sdk_bindings::XchandlesHandleSlot> = result;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesHandleSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_created_update_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_created_update_slots(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let list: Vec<chia_sdk_bindings::XchandlesUpdateSlot> = result;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesUpdateSlot>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_spent_handle_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_spent_handle_slots(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let list: Vec<chia_sdk_bindings::XchandlesHandleSlotValue> = result;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesHandleSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_spent_update_slots(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_spent_update_slots(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let list: Vec<chia_sdk_bindings::XchandlesUpdateSlotValue> = result;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesUpdateSlotValue>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_logs(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_logs(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let list: Vec<chia_sdk_bindings::XchandlesActionLog> = result;
+let boxed: Box<Vec<chia_sdk_bindings::XchandlesActionLog>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_pending_signature(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::pending_signature(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::Signature> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_finish_spend(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::finish_spend(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry))?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryFinishedSpendResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_register(ptr: *const c_void, left_slot: *const std::ffi::c_void, right_slot: *const std::ffi::c_void, precommit_coin: *const std::ffi::c_void, base_handle_price: u64, registration_period: u64, start_time: u64, owner_inner_puzzle_hash_ptr: *const u8, owner_inner_puzzle_hash_len: usize, resolved_inner_puzzle_hash_ptr: *const u8, resolved_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::register(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (left_slot).is_null() { return Err(bindy::Error::Custom(format!("left_slot must not be null"))); } (*((left_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if (right_slot).is_null() { return Err(bindy::Error::Custom(format!("right_slot must not be null"))); } (*((right_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::XchandlesPrecommitCoin)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_handle_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_time, &bindy::GoContext)?,
+            { if owner_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("owner_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(owner_inner_puzzle_hash_ptr, owner_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if resolved_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("resolved_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(resolved_inner_puzzle_hash_ptr, resolved_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesTripleConditionsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_refund_with_pricing(ptr: *const c_void, precommit_coin: *const std::ffi::c_void, pricing_puzzle_reveal: *const std::ffi::c_void, pricing_puzzle_solution: *const std::ffi::c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::refund_with_pricing(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::XchandlesPrecommitCoin)).clone() },
+            { if (pricing_puzzle_reveal).is_null() { return Err(bindy::Error::Custom(format!("pricing_puzzle_reveal must not be null"))); } (*((pricing_puzzle_reveal) as *const chia_sdk_bindings::Program)).clone() },
+            { if (pricing_puzzle_solution).is_null() { return Err(bindy::Error::Custom(format!("pricing_puzzle_solution must not be null"))); } (*((pricing_puzzle_solution) as *const chia_sdk_bindings::Program)).clone() },
+            if slot.is_null() { None } else { Some((*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_refund(ptr: *const c_void, precommit_coin: *const std::ffi::c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::refund(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::XchandlesPrecommitCoin)).clone() },
+            if slot.is_null() { None } else { Some((*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone()) })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_extend(ptr: *const c_void, handle: *const std::ffi::c_char, slot: *const std::ffi::c_void, payment_asset_id_ptr: *const u8, payment_asset_id_len: usize, base_handle_price: u64, registration_period: u64, num_periods: u64, buy_time: u64, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::extend(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if handle.is_null() { return Err(bindy::Error::Custom(format!("handle must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(handle).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? },
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if payment_asset_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("payment_asset_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(payment_asset_id_ptr, payment_asset_id_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_handle_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(buy_time, &bindy::GoContext)?)?;
+        let boxed: Box<chia_sdk_bindings::XchandlesExtendResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_expire(ptr: *const c_void, slot: *const std::ffi::c_void, num_periods: u64, base_handle_price: u64, registration_period: u64, precommit_coin: *const std::ffi::c_void, start_time: u64, new_owner_inner_puzzle_hash_ptr: *const u8, new_owner_inner_puzzle_hash_len: usize, new_resolved_inner_puzzle_hash_ptr: *const u8, new_resolved_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::expire(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(num_periods, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(base_handle_price, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_period, &bindy::GoContext)?,
+            { if (precommit_coin).is_null() { return Err(bindy::Error::Custom(format!("precommit_coin must not be null"))); } (*((precommit_coin) as *const chia_sdk_bindings::XchandlesPrecommitCoin)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(start_time, &bindy::GoContext)?,
+            { if new_owner_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_inner_puzzle_hash_ptr, new_owner_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if new_resolved_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_resolved_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_resolved_inner_puzzle_hash_ptr, new_resolved_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesTripleConditionsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_oracle(ptr: *const c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::oracle(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_initiate_update(ptr: *const c_void, slot: *const std::ffi::c_void, new_owner_launcher_id_ptr: *const u8, new_owner_launcher_id_len: usize, new_resolved_launcher_id_ptr: *const u8, new_resolved_launcher_id_len: usize, current_owner: *const std::ffi::c_void, min_height: u32, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::initiate_update(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if new_owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_launcher_id_ptr, new_owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if new_resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_resolved_launcher_id_ptr, new_resolved_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (current_owner).is_null() { return Err(bindy::Error::Custom(format!("current_owner must not be null"))); } (*((current_owner) as *const chia_sdk_bindings::CompactCoinProof)).clone() },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(min_height, &bindy::GoContext)?)?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_execute_update(ptr: *const c_void, handle_slot: *const std::ffi::c_void, update_slot: *const std::ffi::c_void, new_owner_launcher_id_ptr: *const u8, new_owner_launcher_id_len: usize, new_resolved_launcher_id_ptr: *const u8, new_resolved_launcher_id_len: usize, current_owner: *const std::ffi::c_void, new_owner_inner_puzzle_hash_ptr: *const u8, new_owner_inner_puzzle_hash_len: usize, new_resolved_inner_puzzle_hash_ptr: *const u8, new_resolved_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::execute_update(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (handle_slot).is_null() { return Err(bindy::Error::Custom(format!("handle_slot must not be null"))); } (*((handle_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if (update_slot).is_null() { return Err(bindy::Error::Custom(format!("update_slot must not be null"))); } (*((update_slot) as *const chia_sdk_bindings::XchandlesUpdateSlot)).clone() },
+            { if new_owner_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_launcher_id_ptr, new_owner_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if new_resolved_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_resolved_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_resolved_launcher_id_ptr, new_resolved_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (current_owner).is_null() { return Err(bindy::Error::Custom(format!("current_owner must not be null"))); } (*((current_owner) as *const chia_sdk_bindings::CompactCoinProof)).clone() },
+            { if new_owner_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_owner_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_owner_inner_puzzle_hash_ptr, new_owner_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if new_resolved_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_resolved_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_resolved_inner_puzzle_hash_ptr, new_resolved_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesExecuteUpdateResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_delegated_state(ptr: *const c_void, new_state: *const std::ffi::c_void, other_singleton_inner_puzzle_hash_ptr: *const u8, other_singleton_inner_puzzle_hash_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::delegated_state(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (new_state).is_null() { return Err(bindy::Error::Custom(format!("new_state must not be null"))); } (*((new_state) as *const chia_sdk_bindings::XchandlesRegistryState)).clone() },
+            { if other_singleton_inner_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("other_singleton_inner_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(other_singleton_inner_puzzle_hash_ptr, other_singleton_inner_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let list: Vec<chia_sdk_bindings::Program> = result;
+let boxed: Box<Vec<chia_sdk_bindings::Program>> = Box::new(list);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_neighbors(ptr: *const c_void, new_handle_hash_ptr: *const u8, new_handle_hash_len: usize, on_chain_left_slot: *const std::ffi::c_void, on_chain_right_slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::actual_neighbors(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if new_handle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("new_handle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(new_handle_hash_ptr, new_handle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if (on_chain_left_slot).is_null() { return Err(bindy::Error::Custom(format!("on_chain_left_slot must not be null"))); } (*((on_chain_left_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() },
+            { if (on_chain_right_slot).is_null() { return Err(bindy::Error::Custom(format!("on_chain_right_slot must not be null"))); } (*((on_chain_right_slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesRegistryActualNeighborsResult> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_handle_slot(ptr: *const c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::actual_handle_slot(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesHandleSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesHandleSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_actual_update_slot(ptr: *const c_void, slot: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::actual_update_slot(&*(ptr as *const chia_sdk_bindings::XchandlesRegistry),
+            { if (slot).is_null() { return Err(bindy::Error::Custom(format!("slot must not be null"))); } (*((slot) as *const chia_sdk_bindings::XchandlesUpdateSlot)).clone() })?;
+        let boxed: Box<chia_sdk_bindings::XchandlesUpdateSlot> = Box::new(result);
+*out = Box::into_raw(boxed) as *mut std::ffi::c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_parse_launcher_solution(launcher_coin: *const std::ffi::c_void, launcher_solution: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::XchandlesRegistry::parse_launcher_solution({ if (launcher_coin).is_null() { return Err(bindy::Error::Custom(format!("launcher_coin must not be null"))); } (*((launcher_coin) as *const chia_sdk_bindings::Coin)).clone() },
+            { if (launcher_solution).is_null() { return Err(bindy::Error::Custom(format!("launcher_solution must not be null"))); } (*((launcher_solution) as *const chia_sdk_bindings::Program)).clone() })?;
+        match result {
+Some(v) => *out = Box::into_raw(Box::new(v) as Box<chia_sdk_bindings::XchandlesRegistryInfoFromLauncher>) as *mut std::ffi::c_void,
+None => *out = std::ptr::null_mut(),
+}
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistry>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_list_get(ptr: *const c_void, index: usize, out: *mut *mut c_void) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<chia_sdk_bindings::XchandlesRegistry>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out = Box::into_raw(Box::new(list[index].clone())) as *mut c_void;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registry_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<chia_sdk_bindings::XchandlesRegistry>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_singleton_struct_hash(launcher_id_ptr: *const u8, launcher_id_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::singleton_struct_hash({ if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_register_owner_message(precommit_puzzle_hash_ptr: *const u8, precommit_puzzle_hash_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::xchandles_register_owner_message({ if precommit_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("precommit_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(precommit_puzzle_hash_ptr, precommit_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_expire_owner_message(precommit_puzzle_hash_ptr: *const u8, precommit_puzzle_hash_len: usize, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::xchandles_expire_owner_message({ if precommit_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("precommit_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(precommit_puzzle_hash_ptr, precommit_puzzle_hash_len).to_vec(), &bindy::GoContext)? })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_predict_blank_handle_nft_coin_id(launcher_id_ptr: *const u8, launcher_id_len: usize, synthetic_public_key: *const std::ffi::c_void, royalty_puzzle_hash_ptr: *const u8, royalty_puzzle_hash_len: usize, royalty_basis_points: u16, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::predict_blank_handle_nft_coin_id({ if launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(launcher_id_ptr, launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if (synthetic_public_key).is_null() { return Err(bindy::Error::Custom(format!("synthetic_public_key must not be null"))); } (*((synthetic_public_key) as *const chia_sdk_bindings::PublicKey)).clone() },
+            { if royalty_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("royalty_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(royalty_puzzle_hash_ptr, royalty_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(royalty_basis_points, &bindy::GoContext)?)?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_xchandles_registration_delegated_puzzle_hash(registry_launcher_id_ptr: *const u8, registry_launcher_id_len: usize, precommit_puzzle_hash_ptr: *const u8, precommit_puzzle_hash_len: usize, p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize, registration_timestamp: u64, current_expiration: u64, final_handle_nft_metadata: *const std::ffi::c_void, out_ptr: *mut *mut u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        let result = chia_sdk_bindings::xchandles_registration_delegated_puzzle_hash({ if registry_launcher_id_ptr.is_null() { return Err(bindy::Error::Custom(format!("registry_launcher_id must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(registry_launcher_id_ptr, registry_launcher_id_len).to_vec(), &bindy::GoContext)? },
+            { if precommit_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("precommit_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(precommit_puzzle_hash_ptr, precommit_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(registration_timestamp, &bindy::GoContext)?,
+            bindy::IntoRust::<_, _, bindy::Go>::into_rust(current_expiration, &bindy::GoContext)?,
+            { if (final_handle_nft_metadata).is_null() { return Err(bindy::Error::Custom(format!("final_handle_nft_metadata must not be null"))); } (*((final_handle_nft_metadata) as *const chia_sdk_bindings::HandleNftMetadata)).clone() })?;
+        let result: Vec<u8> = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;
+let len = result.len();
+let boxed = result.into_boxed_slice();
+*out_ptr = Box::into_raw(boxed) as *mut u8;
+*out_len = len;
         Ok(())
     })
 }

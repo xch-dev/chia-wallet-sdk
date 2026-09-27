@@ -13,8 +13,9 @@ use clvmr::Allocator;
 
 use crate::{
     ActionLayer, DelegatedStateAction, DriverError, Finalizer, Layer, Puzzle, SingletonAction,
-    SingletonLayer, XchandlesExpireAction, XchandlesExpirePricingPuzzle, XchandlesExtendAction,
-    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+    SingletonLayer, XchandlesExecuteUpdateAction, XchandlesExpireAction,
+    XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesInitiateUpdateAction,
+    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction,
 };
 
 use super::XchandlesRegistry;
@@ -110,7 +111,7 @@ impl XchandlesRegistryInfo {
         self
     }
 
-    pub fn action_puzzle_hashes(constants: &XchandlesConstants) -> [Bytes32; 7] {
+    pub fn action_puzzle_hashes(constants: &XchandlesConstants) -> [Bytes32; 8] {
         [
             XchandlesExpireAction::from_constants(constants)
                 .tree_hash()
@@ -124,7 +125,10 @@ impl XchandlesRegistryInfo {
             XchandlesRegisterAction::from_constants(constants)
                 .tree_hash()
                 .into(),
-            XchandlesUpdateAction::from_constants(constants)
+            XchandlesInitiateUpdateAction::from_constants(constants)
+                .tree_hash()
+                .into(),
+            XchandlesExecuteUpdateAction::from_constants(constants)
                 .tree_hash()
                 .into(),
             XchandlesRefundAction::from_constants(constants)
