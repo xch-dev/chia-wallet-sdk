@@ -29,61 +29,94 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	sdk "github.com/xch-dev/chia-wallet-sdk/go/chiawalletsdk"
 )
 
 func main() {
-	sim, err := sdk.SimulatorNew()
+	sim, err := sdk.NewSimulator()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer sim.Close()
 
-	clvm, err := sdk.ClvmNew()
+	clvm, err := sdk.NewClvm()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer clvm.Close()
 
 	pair, err := sim.Bls(1000)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer pair.Close()
 
-	coin, _ := pair.Coin()
+	coin, err := pair.Coin()
+	if err != nil {
+		panic(err)
+	}
 	defer coin.Close()
-	pk, _ := pair.Pk()
+	pk, err := pair.Pk()
+	if err != nil {
+		panic(err)
+	}
 	defer pk.Close()
-	sk, _ := pair.Sk()
+	sk, err := pair.Sk()
+	if err != nil {
+		panic(err)
+	}
 	defer sk.Close()
-	puzzleHash, _ := pair.PuzzleHash()
+	puzzleHash, err := pair.PuzzleHash()
+	if err != nil {
+		panic(err)
+	}
 
-	createCoin, _ := clvm.CreateCoin(puzzleHash, 900, nil)
+	createCoin, err := clvm.CreateCoin(puzzleHash, 900, nil)
+	if err != nil {
+		panic(err)
+	}
 	defer createCoin.Close()
-	reserveFee, _ := clvm.ReserveFee(100)
+	reserveFee, err := clvm.ReserveFee(100)
+	if err != nil {
+		panic(err)
+	}
 	defer reserveFee.Close()
 
-	spend, _ := clvm.DelegatedSpend([]*sdk.Program{createCoin, reserveFee})
+	spend, err := clvm.DelegatedSpend([]*sdk.Program{createCoin, reserveFee})
+	if err != nil {
+		panic(err)
+	}
 	defer spend.Close()
-	clvm.SpendStandardCoin(coin, pk, spend)
+	if err := clvm.SpendStandardCoin(coin, pk, spend); err != nil {
+		panic(err)
+	}
 
-	coinSpends, _ := clvm.CoinSpends()
-	sim.SpendCoins(coinSpends, []*sdk.SecretKey{sk})
+	coinSpends, err := clvm.CoinSpends()
+	if err != nil {
+		panic(err)
+	}
+	defer sdk.CloseAll(coinSpends)
+	if err := sim.SpendCoins(coinSpends, []*sdk.SecretKey{sk}); err != nil {
+		panic(err)
+	}
 
-	height, _ := sim.Height()
+	height, err := sim.Height()
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("Transaction confirmed at height %d\n", height)
 }
 ```
 
+The transaction example also runs as a [Go example test](chiawalletsdk/example_test.go).
+
 ## Memory Management
 
-Every SDK object wraps a Rust value behind an opaque pointer. Go's garbage collector cannot free these automatically, so you must call `Close()` when done:
+Every SDK object wraps a Rust value behind an opaque pointer. Use `Close()` for deterministic cleanup; a runtime finalizer is only a fallback:
 
 ```go
-clvm, err := sdk.ClvmNew()
+clvm, err := sdk.NewClvm()
 if err != nil {
     log.Fatal(err)
 }
@@ -113,4 +146,8 @@ The `install-lib` target detects your current `GOOS`/`GOARCH` automatically.
 
 ## Concurrency
 
-All SDK objects are safe for concurrent use from multiple goroutines. Each object uses an internal `sync.RWMutex` and pins to an OS thread during FFI calls.
+SDK handles are safe for concurrent use, including when passed as arguments. Field setters and `Close` use exclusive locks; other operations use shared locks. Do not copy handles; use `Clone` when you need another owned handle. Callers must synchronize changes to their own slices and `big.Int` values.
+
+Async calls take `context.Context` first. Cancellation stops the underlying native future before returning a context error. It cannot undo effects that have already completed.
+
+Names such as `CoinID`, `BaseURL`, `RPCClient`, and `DataURIs` follow Go initialism conventions. The earlier spellings remain available for compatibility.

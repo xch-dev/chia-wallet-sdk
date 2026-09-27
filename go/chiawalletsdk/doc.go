@@ -48,13 +48,18 @@
 // # Thread safety
 //
 // All types are safe for concurrent use from multiple goroutines.
-// Each Go wrapper includes a sync.RWMutex that serializes
-// Close/Free against concurrent method calls.
+// Each Go wrapper includes a sync.RWMutex. Calls protect both the receiver
+// and any SDK objects passed as arguments against concurrent Close/Free.
+// Do not copy wrappers; use Clone when another owned handle is needed.
 //
-// Concurrent method calls on the same object are allowed — they
-// acquire a shared read lock and the Rust mutex handles serialization.
-// Close acquires an exclusive write lock, so it blocks until all
-// in-flight method calls complete, then marks the object as closed.
+// Field setters and Close take exclusive locks. Other calls take shared
+// locks; types with interior mutability also synchronize in Rust.
+// Close waits for in-flight uses of the handle, then marks it as closed.
+// Callers must synchronize mutations of their own slices and big.Int values.
+//
+// Async operations accept a context.Context as their first argument.
+// Cancellation stops the native future before returning the context error.
+// It does not undo side effects that have already completed.
 //
 // Methods called on a closed object return an error rather than
 // panicking. Close itself is idempotent and safe to call from

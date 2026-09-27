@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::process::Command;
 use std::{env, fs};
 
 use convert_case::{Case, Casing};
@@ -126,10 +127,8 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
         let base = &ty[..start];
         let inner = &ty[start + 1..end];
         let params: Vec<&str> = inner.split(',').map(str::trim).collect();
-        let mapped_params: Vec<String> = params
-            .iter()
-            .map(|p| apply_mappings(p, mappings))
-            .collect();
+        let mapped_params: Vec<String> =
+            params.iter().map(|p| apply_mappings(p, mappings)).collect();
         let mapped_base = mappings.get(base).map_or(base, String::as_str);
         format!("{}<{}>", mapped_base, mapped_params.join(", "))
     } else {
@@ -137,7 +136,12 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
     }
 }
 
-fn classify(ty: &str, mappings: &IndexMap<String, String>, classes: &HashSet<String>, enums: &HashSet<String>) -> FfiKind {
+fn classify(
+    ty: &str,
+    mappings: &IndexMap<String, String>,
+    classes: &HashSet<String>,
+    enums: &HashSet<String>,
+) -> FfiKind {
     let mapped = apply_mappings(ty, mappings);
     classify_mapped(&mapped, mappings, classes, enums)
 }
@@ -153,8 +157,9 @@ fn classify_mapped(
         "bool" => FfiKind::Bool,
         "String" => FfiKind::Str,
         "Vec<u8>" => FfiKind::Bytes,
-        "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "f32"
-        | "f64" => FfiKind::Prim(mapped.to_string()),
+        "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "f32" | "f64" => {
+            FfiKind::Prim(mapped.to_string())
+        }
         "u128" | "num_bigint::BigInt" => FfiKind::BigInt,
         _ if mapped.starts_with("Option<") => {
             let inner = &mapped[7..mapped.len() - 1];
@@ -176,10 +181,9 @@ fn classify_mapped(
 // ── Loading ────────────────────────────────────────────────────────────────
 
 fn load_bindings(root: &Path) -> (Bindy, IndexMap<String, Binding>) {
-    let source = fs::read_to_string(root.join("bindings.json"))
-        .expect("failed to read bindings.json");
-    let bindy: Bindy =
-        serde_json::from_str(&source).expect("failed to parse bindings.json");
+    let source =
+        fs::read_to_string(root.join("bindings.json")).expect("failed to read bindings.json");
+    let bindy: Bindy = serde_json::from_str(&source).expect("failed to parse bindings.json");
 
     let mut bindings = IndexMap::new();
     let mut dir: Vec<_> = fs::read_dir(root.join("bindings"))
@@ -283,7 +287,12 @@ struct RustGen {
 }
 
 impl RustGen {
-    fn new(entrypoint: &str, mappings: IndexMap<String, String>, classes: HashSet<String>, enums: HashSet<String>) -> Self {
+    fn new(
+        entrypoint: &str,
+        mappings: IndexMap<String, String>,
+        classes: HashSet<String>,
+        enums: HashSet<String>,
+    ) -> Self {
         Self {
             out: String::new(),
             entrypoint: entrypoint.to_string(),
@@ -303,25 +312,33 @@ impl RustGen {
             FfiKind::Bool => format!("{name}: i32"),
             FfiKind::Prim(t) => format!("{name}: {t}"),
             FfiKind::Bytes => format!("{name}_ptr: *const u8, {name}_len: usize"),
-            FfiKind::Str => format!("{name}: *const std::ffi::c_char"),
+            FfiKind::Str => format!("{name}: *const std::ffi::c_char, {name}_len: usize"),
             FfiKind::BigInt => format!("{name}_ptr: *const u8, {name}_len: usize"),
             FfiKind::Class(_) | FfiKind::Enum(_) => format!("{name}: *const std::ffi::c_void"),
             FfiKind::Opt(inner) => match inner.as_ref() {
                 FfiKind::Bytes => format!("{name}_ptr: *const u8, {name}_len: usize"),
-                FfiKind::Str => format!("{name}: *const std::ffi::c_char"),
+                FfiKind::Str => format!("{name}: *const std::ffi::c_char, {name}_len: usize"),
                 FfiKind::Bool => format!("{name}: i32, {name}_is_some: i32"),
                 FfiKind::Prim(t) => format!("{name}: {t}, {name}_is_some: i32"),
                 FfiKind::BigInt => {
                     format!("{name}_ptr: *const u8, {name}_len: usize")
                 }
-                FfiKind::List(list_inner) => self.c_param_decl(name, &FfiKind::List(list_inner.clone())),
+                FfiKind::List(list_inner) => {
+                    self.c_param_decl(name, &FfiKind::List(list_inner.clone()))
+                }
                 // Class and other complex types use opaque pointers (null = None)
                 _ => format!("{name}: *const std::ffi::c_void"),
             },
             FfiKind::List(inner) => match inner.as_ref() {
-                FfiKind::Class(_) | FfiKind::Enum(_) => format!("{name}_ptrs: *const *const std::ffi::c_void, {name}_len: usize"),
-                FfiKind::Bytes => format!("{name}_ptrs: *const *const u8, {name}_lens: *const usize, {name}_count: usize"),
-                FfiKind::Str => format!("{name}_ptrs: *const *const std::ffi::c_char, {name}_lens: *const usize, {name}_count: usize"),
+                FfiKind::Class(_) | FfiKind::Enum(_) => {
+                    format!("{name}_ptrs: *const *const std::ffi::c_void, {name}_len: usize")
+                }
+                FfiKind::Bytes => format!(
+                    "{name}_ptrs: *const *const u8, {name}_lens: *const usize, {name}_count: usize"
+                ),
+                FfiKind::Str => format!(
+                    "{name}_ptrs: *const *const std::ffi::c_char, {name}_lens: *const usize, {name}_count: usize"
+                ),
                 FfiKind::Prim(t) => format!("{name}_ptr: *const {t}, {name}_len: usize"),
                 _ => format!("{name}: *const std::ffi::c_void"),
             },
@@ -334,13 +351,15 @@ impl RustGen {
             FfiKind::Bool => "out: *mut i32".to_string(),
             FfiKind::Prim(t) => format!("out: *mut {t}"),
             FfiKind::Bytes => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
-            FfiKind::Str => "out: *mut *mut std::ffi::c_char".to_string(),
+            FfiKind::Str => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
             FfiKind::BigInt => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
             FfiKind::Class(_) | FfiKind::Enum(_) => "out: *mut *mut std::ffi::c_void".to_string(),
             FfiKind::Opt(inner) => match inner.as_ref() {
-                FfiKind::Class(_) | FfiKind::Enum(_) => "out: *mut *mut std::ffi::c_void".to_string(),
+                FfiKind::Class(_) | FfiKind::Enum(_) => {
+                    "out: *mut *mut std::ffi::c_void".to_string()
+                }
                 FfiKind::Bytes => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
-                FfiKind::Str => "out: *mut *mut std::ffi::c_char".to_string(),
+                FfiKind::Str => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
                 FfiKind::Bool => "out: *mut i32, out_is_some: *mut i32".to_string(),
                 FfiKind::Prim(t) => format!("out: *mut {t}, out_is_some: *mut i32"),
                 FfiKind::BigInt => "out_ptr: *mut *mut u8, out_len: *mut usize".to_string(),
@@ -361,137 +380,74 @@ impl RustGen {
             FfiKind::Bool => format!(
                 "bindy::IntoRust::<_, _, bindy::Go>::into_rust({name} != 0, &bindy::GoContext)?"
             ),
-            FfiKind::Prim(_) => format!(
-                "bindy::IntoRust::<_, _, bindy::Go>::into_rust({name}, &bindy::GoContext)?"
-            ),
+            FfiKind::Prim(_) => {
+                format!("bindy::IntoRust::<_, _, bindy::Go>::into_rust({name}, &bindy::GoContext)?")
+            }
             FfiKind::Bytes => format!(
-                "{{ if {name}_ptr.is_null() {{ return Err(bindy::Error::Custom(\
-                    format!(\"{name} must not be null\"))); }} \
-                    bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                    std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec(), &bindy::GoContext)? }}"
+                "bindy::IntoRust::<_, _, bindy::Go>::into_rust(input_slice({name}_ptr, {name}_len)?.to_vec(), &bindy::GoContext)?"
             ),
             FfiKind::Str => format!(
-                "{{ if {name}.is_null() {{ return Err(bindy::Error::Custom(\
-                    format!(\"{name} must not be null\"))); }} \
-                    bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                    std::ffi::CStr::from_ptr({name}).to_str()\
-                    .map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)? }}"
+                "bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
+                    std::str::from_utf8(input_slice({name} as *const u8, {name}_len)?)\
+                    .map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?"
             ),
             FfiKind::BigInt => format!(
-                "{{ if {name}_ptr.is_null() {{ return Err(bindy::Error::Custom(\
-                    format!(\"{name} must not be null\"))); }} \
-                    let bytes = std::slice::from_raw_parts({name}_ptr, {name}_len); \
-                   let big = num_bigint::BigInt::from_signed_bytes_be(bytes); \
-                   bindy::IntoRust::<_, _, bindy::Go>::into_rust(big, &bindy::GoContext)? }}"
+                "bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
+                    num_bigint::BigInt::from_signed_bytes_be(input_slice({name}_ptr, {name}_len)?), &bindy::GoContext)?"
             ),
-            FfiKind::Class(cls) | FfiKind::Enum(cls) => {
-                format!(
-                    "{{ if ({name}).is_null() {{ return Err(bindy::Error::Custom(\
-                        format!(\"{name} must not be null\"))); }} \
-                        (*(({name}) as *const {ep}::{cls})).clone() }}"
-                )
+            FfiKind::Class(cls) | FfiKind::Enum(cls) => format!(
+                "{{ if {name}.is_null() {{ return Err(bindy::Error::Custom(\
+                    format!(\"{name} must not be null\"))); }} \
+                    (*({name} as *const {ep}::{cls})).clone() }}"
+            ),
+            FfiKind::Opt(inner) => {
+                let inner_type = orig_type
+                    .strip_prefix("Option<")
+                    .and_then(|s| s.strip_suffix('>'))
+                    .unwrap_or(orig_type);
+                let value = self.param_to_rust(name, inner, inner_type);
+                let present = match inner.as_ref() {
+                    FfiKind::Bool | FfiKind::Prim(_) => format!("{name}_is_some != 0"),
+                    FfiKind::Bytes | FfiKind::BigInt => format!("!{name}_ptr.is_null()"),
+                    FfiKind::List(list_inner) => match list_inner.as_ref() {
+                        FfiKind::Class(_) | FfiKind::Enum(_) | FfiKind::Bytes | FfiKind::Str => {
+                            format!("!{name}_ptrs.is_null()")
+                        }
+                        FfiKind::Prim(_) => format!("!{name}_ptr.is_null()"),
+                        _ => format!("!{name}.is_null()"),
+                    },
+                    _ => format!("!{name}.is_null()"),
+                };
+                format!("if {present} {{ Some({value}) }} else {{ None }}")
             }
-            FfiKind::Opt(inner) => match inner.as_ref() {
-                FfiKind::Class(cls) | FfiKind::Enum(cls) => format!(
-                    "if {name}.is_null() {{ None }} else {{ Some((*(({name}) as *const {ep}::{cls})).clone()) }}"
-                ),
-                FfiKind::Bytes => format!(
-                    "if {name}_ptr.is_null() {{ None }} else {{ \
-                        Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                            std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec(), &bindy::GoContext)?) }}"
-                ),
-                FfiKind::Str => format!(
-                    "if {name}.is_null() {{ None }} else {{ \
-                        Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                            std::ffi::CStr::from_ptr({name}).to_str()\
-                            .map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) }}"
-                ),
-                FfiKind::Bool => format!(
-                    "if {name}_is_some != 0 {{ Some({name} != 0) }} else {{ None }}"
-                ),
-                FfiKind::Prim(_) => format!(
-                    "if {name}_is_some != 0 {{ \
-                        Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust({name}, &bindy::GoContext)?) \
-                    }} else {{ None }}"
-                ),
-                FfiKind::BigInt => format!(
-                    "if {name}_ptr.is_null() {{ None }} else {{ \
-                        Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                            std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec(), &bindy::GoContext)?) }}"
-                ),
-                FfiKind::List(list_inner) => {
-                    // Delegate to List reconstruction, wrapped in Option
-                    let list_expr = self.param_to_rust(name, &FfiKind::List(list_inner.clone()), orig_type);
-                    match list_inner.as_ref() {
-                        FfiKind::Class(_) | FfiKind::Enum(_) => format!(
-                            "if {name}_ptrs.is_null() {{ None }} else {{ Some({list_expr}) }}"
-                        ),
-                        FfiKind::Bytes | FfiKind::Str => format!(
-                            "if {name}_count == 0 && {name}_ptrs.is_null() {{ None }} else {{ Some({list_expr}) }}"
-                        ),
-                        FfiKind::Prim(_) => format!(
-                            "if {name}_ptr.is_null() && {name}_len == 0 {{ None }} else {{ Some({list_expr}) }}"
-                        ),
-                        _ => format!(
-                            "if {name}.is_null() {{ None }} else {{ Some({list_expr}) }}"
-                        ),
-                    }
-                },
-                // Other complex types use opaque pointer (null = None)
-                _ => {
-                    let inner_type = if orig_type.starts_with("Option<") {
-                        &orig_type[7..orig_type.len() - 1]
-                    } else {
-                        orig_type
-                    };
-                    format!(
-                        "if {name}.is_null() {{ None }} else {{ \
-                            Some((*({name} as *const {ep}::{inner_type})).clone()) }}"
-                    )
-                },
-            },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Class(cls) | FfiKind::Enum(cls) => format!(
-                    "{{ if {name}_ptrs.is_null() {{ return Err(bindy::Error::Custom(\
-                        format!(\"{name} must not be null\"))); }} \
-                       let ptrs = std::slice::from_raw_parts({name}_ptrs, {name}_len); \
-                       ptrs.iter().map(|p| {{ if (*p).is_null() {{ return Err(bindy::Error::Custom(\
-                           format!(\"{name} element must not be null\"))); }} \
-                           Ok((*((*p) as *const {ep}::{cls})).clone()) \
-                       }}).collect::<bindy::Result<Vec<_>>>()? }}"
+                    "input_slice({name}_ptrs, {name}_len)?.iter().map(|p| {{ \
+                        if p.is_null() {{ return Err(bindy::Error::Custom(\
+                            format!(\"{name} element must not be null\"))); }} \
+                        Ok((*(*p as *const {ep}::{cls})).clone()) \
+                    }}).collect::<bindy::Result<Vec<_>>>()?"
                 ),
                 FfiKind::Bytes => format!(
-                    "{{ if {name}_ptrs.is_null() {{ return Err(bindy::Error::Custom(\
-                        format!(\"{name} must not be null\"))); }} \
-                       let ptrs = std::slice::from_raw_parts({name}_ptrs, {name}_count); \
-                       let lens = std::slice::from_raw_parts({name}_lens, {name}_count); \
-                       ptrs.iter().zip(lens.iter()).map(|(p, l)| \
-                           bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
-                               std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) \
-                       ).collect::<bindy::Result<Vec<_>>>()? }}"
+                    "input_slice({name}_ptrs, {name}_count)?.iter()\
+                        .zip(input_slice({name}_lens, {name}_count)?).map(|(p, l)| \
+                            bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
+                                input_slice(*p, *l)?.to_vec(), &bindy::GoContext)\
+                        ).collect::<bindy::Result<Vec<_>>>()?"
                 ),
                 FfiKind::Str => format!(
-                    "{{ if {name}_count > 0 && {name}_ptrs.is_null() {{ return Err(bindy::Error::Custom(\
-                        format!(\"{name} must not be null\"))); }} \
-                       if {name}_count == 0 {{ Vec::new() }} else {{ \
-                       let ptrs = std::slice::from_raw_parts({name}_ptrs, {name}_count); \
-                       let lens = std::slice::from_raw_parts({name}_lens, {name}_count); \
-                       ptrs.iter().zip(lens.iter()).map(|(p, l)| {{ \
-                           let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) \
-                               .map_err(|e| bindy::Error::Custom(e.to_string()))?; \
-                           Ok(s.to_string()) \
-                       }}).collect::<bindy::Result<Vec<String>>>()? }} }}"
+                    "input_slice({name}_ptrs, {name}_count)?.iter()\
+                        .zip(input_slice({name}_lens, {name}_count)?).map(|(p, l)| {{ \
+                            let s = std::str::from_utf8(input_slice(*p as *const u8, *l)?)\
+                                .map_err(|e| bindy::Error::Custom(e.to_string()))?; \
+                            Ok(s.to_string()) \
+                        }}).collect::<bindy::Result<Vec<String>>>()?"
                 ),
-                FfiKind::Prim(_) => format!(
-                    "{{ if {name}_len > 0 && {name}_ptr.is_null() {{ return Err(bindy::Error::Custom(\
-                        format!(\"{name} must not be null\"))); }} \
-                       if {name}_len == 0 {{ Vec::new() }} else {{ \
-                       std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec() }} }}"
-                ),
+                FfiKind::Prim(_) => format!("input_slice({name}_ptr, {name}_len)?.to_vec()"),
                 _ => format!(
-                    "{{ if ({name}).is_null() {{ return Err(bindy::Error::Custom(\
+                    "{{ if {name}.is_null() {{ return Err(bindy::Error::Custom(\
                         format!(\"{name} must not be null\"))); }} \
-                        (*(({name}) as *const Vec<_>)).clone() }}"
+                        (*({name} as *const Vec<_>)).clone() }}"
                 ),
             },
         }
@@ -513,10 +469,10 @@ impl RustGen {
                     .to_string()
             }
             FfiKind::Str => {
-                "let result: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;\n\
-                 let cstr = std::ffi::CString::new(result).map_err(|e| bindy::Error::Custom(e.to_string()))?;\n\
-                 *out = cstr.into_raw();"
-                    .to_string()
+                "let value: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;\n\
+                 let bytes = value.into_bytes().into_boxed_slice();\n\
+                 *out_len = bytes.len();\n\
+                 *out_ptr = Box::into_raw(bytes) as *mut u8;".to_string()
             }
             FfiKind::BigInt => {
                 "let big: num_bigint::BigInt = bindy::FromRust::<_, _, bindy::Go>::from_rust(result, &bindy::GoContext)?;\n\
@@ -561,13 +517,13 @@ impl RustGen {
                 FfiKind::Str => {
                     "match result {\n\
                      Some(v) => {\n\
-                         let v: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;\n\
-                         let cstr = std::ffi::CString::new(v).map_err(|e| bindy::Error::Custom(e.to_string()))?;\n\
-                         *out = cstr.into_raw();\n\
+                         let value: String = bindy::FromRust::<_, _, bindy::Go>::from_rust(v, &bindy::GoContext)?;\n\
+                         let bytes = value.into_bytes().into_boxed_slice();\n\
+                         *out_len = bytes.len();\n\
+                         *out_ptr = Box::into_raw(bytes) as *mut u8;\n\
                      }\n\
-                     None => *out = std::ptr::null_mut(),\n\
-                     }"
-                        .to_string()
+                     None => { *out_ptr = std::ptr::null_mut(); *out_len = 0; }\n\
+                     }".to_string()
                 }
                 FfiKind::Bool => {
                     "match result {\n\
@@ -647,7 +603,7 @@ impl RustGen {
 #![allow(unused_imports, unused_variables, dead_code)]
 #![allow(improper_ctypes_definitions, unsafe_op_in_unsafe_fn)]
 
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{c_char, c_void};
 use std::sync::OnceLock;
 use chia_sdk_bindings::*;
 
@@ -684,6 +640,45 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+// A null pointer is valid for an empty slice, but Rust's from_raw_parts
+// still requires a non-null pointer, even when the length is zero.
+unsafe fn input_slice<'a, T>(ptr: *const T, len: usize) -> bindy::Result<&'a [T]> {
+    if len == 0 {
+        Ok(&[])
+    } else if ptr.is_null() {
+        Err(bindy::Error::Custom("input must not be null".to_string()))
+    } else {
+        Ok(std::slice::from_raw_parts(ptr, len))
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn go_cancellation_new() -> *mut c_void {
+    Box::into_raw(Box::new(tokio::sync::Notify::new())) as *mut c_void
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_cancellation_cancel(ptr: *const c_void) {
+    // notify_one retains a permit if cancellation arrives before block_on.
+    (&*(ptr as *const tokio::sync::Notify)).notify_one();
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_cancellation_free(ptr: *mut c_void) {
+    drop(Box::from_raw(ptr as *mut tokio::sync::Notify));
+}
+
+unsafe fn block_on<T>(cancel: *const c_void, future: impl std::future::Future<Output = bindy::Result<T>>) -> bindy::Result<T> {
+    let cancel = &*(cancel as *const tokio::sync::Notify);
+    runtime().block_on(async {
+        tokio::select! {
+            biased;
+            () = cancel.notified() => Err(bindy::Error::Custom("operation canceled".to_string())),
+            result = future => result,
+        }
+    })
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_last_error_length() -> i32 {
     LAST_ERROR.with(|e| e.borrow().as_ref().map_or(0, |s| i32::try_from(s.len()).unwrap_or(i32::MAX)))
@@ -711,13 +706,6 @@ pub unsafe extern "C" fn go_last_error_message(buf: *mut c_char, buf_len: i32) -
 pub unsafe extern "C" fn go_free_bytes(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {
         drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr, len)));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_free_string(ptr: *mut c_char) {
-    if !ptr.is_null() {
-        drop(CString::from_raw(ptr));
     }
 }
 
@@ -932,8 +920,9 @@ pub unsafe extern "C" fn go_{snake}_get_{field_snake}(ptr: *const c_void{out_par
                 r#"#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_{snake}_set_{field_snake}(ptr: *mut c_void{set_params}) -> i32 {{
     catch(|| {{
+        let value = {conv};
         let obj = &mut *(ptr as *mut {ep}::{name});
-        obj.{fname} = {conv};
+        obj.{fname} = value;
         Ok(())
     }})
 }}
@@ -956,20 +945,18 @@ pub unsafe extern "C" fn go_{snake}_set_{field_snake}(ptr: *mut c_void{set_param
                 method.kind,
                 MethodKind::Normal | MethodKind::Async | MethodKind::ToString
             );
-            let is_factory = matches!(
-                method.kind,
-                MethodKind::Factory | MethodKind::AsyncFactory
-            );
+            let is_factory = matches!(method.kind, MethodKind::Factory | MethodKind::AsyncFactory);
             let is_constructor = method.kind == MethodKind::Constructor;
 
             // Determine return type
-            let ret_type_str = method.ret.as_deref().unwrap_or(
-                if is_factory || is_constructor {
+            let ret_type_str = method
+                .ret
+                .as_deref()
+                .unwrap_or(if is_factory || is_constructor {
                     "Self"
                 } else {
                     "()"
-                },
-            );
+                });
 
             let ret_kind = if ret_type_str == "Self" {
                 FfiKind::Class(name.to_string())
@@ -979,6 +966,9 @@ pub unsafe extern "C" fn go_{snake}_set_{field_snake}(ptr: *mut c_void{set_param
 
             // Build parameters
             let mut params = Vec::new();
+            if is_async {
+                params.push("cancel: *const c_void".to_string());
+            }
             if is_instance {
                 params.push("ptr: *const c_void".to_string());
             }
@@ -1010,9 +1000,7 @@ pub unsafe extern "C" fn go_{snake}_set_{field_snake}(ptr: *mut c_void{set_param
 
             // Build the call expression
             let fully_qualified = if remote {
-                format!(
-                    "<{ep}::{name} as {ep}::{name}Ext>",
-                )
+                format!("<{ep}::{name} as {ep}::{name}Ext>",)
             } else {
                 format!("{ep}::{name}")
             };
@@ -1022,23 +1010,19 @@ pub unsafe extern "C" fn go_{snake}_set_{field_snake}(ptr: *mut c_void{set_param
                     // Async instance methods use obj.method() pattern
                     format!(
                         "let obj = &*(ptr as *const {ep}::{name});\n        \
-                         let result = runtime().block_on(obj.{mname}({args_str}))?;"
+                         let result = block_on(cancel, obj.{mname}({args_str}))?;"
                     )
                 } else {
                     let args_with_self = if args_str.is_empty() {
                         format!("&*(ptr as *const {ep}::{name})")
                     } else {
-                        format!(
-                            "&*(ptr as *const {ep}::{name}),\n            {args_str}"
-                        )
+                        format!("&*(ptr as *const {ep}::{name}),\n            {args_str}")
                     };
                     format!("let result = {fully_qualified}::{mname}({args_with_self})?;")
                 };
                 self_arg
             } else if is_async {
-                format!(
-                    "let result = runtime().block_on({fully_qualified}::{mname}({args_str}))?;"
-                )
+                format!("let result = block_on(cancel, {fully_qualified}::{mname}({args_str}))?;")
             } else if is_constructor && new {
                 // Constructor is handled by `new` above
                 continue;
@@ -1160,7 +1144,12 @@ pub unsafe extern "C" fn go_{snake}_free(ptr: *mut c_void) {{
         ));
     }
 
-    fn write_function(&mut self, name: &str, args: &IndexMap<String, String>, ret: &Option<String>) {
+    fn write_function(
+        &mut self,
+        name: &str,
+        args: &IndexMap<String, String>,
+        ret: &Option<String>,
+    ) {
         let snake = name.to_case(Case::Snake);
         let ep = &self.entrypoint.clone();
 
@@ -1219,7 +1208,12 @@ struct GoGen {
 }
 
 impl GoGen {
-    fn new(mappings: IndexMap<String, String>, classes: HashSet<String>, enums: HashSet<String>, constructors: HashSet<String>) -> Self {
+    fn new(
+        mappings: IndexMap<String, String>,
+        classes: HashSet<String>,
+        enums: HashSet<String>,
+        constructors: HashSet<String>,
+    ) -> Self {
         Self {
             externs: String::new(),
             body: String::new(),
@@ -1243,7 +1237,11 @@ impl GoGen {
         for ch in pascal.chars() {
             if ch.is_ascii_uppercase() && !cur.is_empty() {
                 // Don't split consecutive uppercase (e.g. "P2" stays together)
-                if cur.chars().last().map_or(false, |c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+                if cur
+                    .chars()
+                    .last()
+                    .map_or(false, |c| c.is_ascii_lowercase() || c.is_ascii_digit())
+                {
                     words.push(cur);
                     cur = String::new();
                 }
@@ -1285,8 +1283,8 @@ impl GoGen {
     /// Generate a smart fallback doc comment for a method based on its signature.
     fn generate_method_doc(
         class_name: &str,
-        method_name: &str,     // original snake_case
-        go_name: &str,         // PascalCase Go name
+        method_name: &str, // original snake_case
+        go_name: &str,     // PascalCase Go name
         method: &Method,
         is_instance: bool,
     ) -> String {
@@ -1295,20 +1293,14 @@ impl GoGen {
                 method.kind,
                 MethodKind::Factory | MethodKind::AsyncFactory | MethodKind::Constructor
             );
-        let is_bool_return = method
-            .ret
-            .as_deref()
-            .map_or(false, |r| r == "bool");
+        let is_bool_return = method.ret.as_deref().map_or(false, |r| r == "bool");
         let has_args = !method.args.is_empty();
 
         // 0. "new" constructors (static kind but named "new")
         if method_name == "new" {
             if has_args {
-                let arg_names: Vec<String> = method
-                    .args
-                    .keys()
-                    .map(|a| a.to_case(Case::Camel))
-                    .collect();
+                let arg_names: Vec<String> =
+                    method.args.keys().map(|a| a.to_case(Case::Camel)).collect();
                 return format!(
                     "creates a new [{class_name}] with the given {}.",
                     arg_names.join(", ")
@@ -1344,41 +1336,29 @@ impl GoGen {
         // 4. Instance actions with args
         if is_instance && has_args {
             let human = Self::humanize(go_name);
-            let arg_names: Vec<String> = method
-                .args
-                .keys()
-                .map(|a| a.to_case(Case::Camel))
-                .collect();
+            let arg_names: Vec<String> =
+                method.args.keys().map(|a| a.to_case(Case::Camel)).collect();
             if has_return {
                 return format!(
                     "computes the {human} for the given {}.",
                     arg_names.join(", ")
                 );
             }
-            return format!(
-                "performs {human} with the given {}.",
-                arg_names.join(", ")
-            );
+            return format!("performs {human} with the given {}.", arg_names.join(", "));
         }
 
         // 5. Static / factory methods with args
         if !is_instance && has_args {
             let human = Self::humanize(go_name);
-            let arg_names: Vec<String> = method
-                .args
-                .keys()
-                .map(|a| a.to_case(Case::Camel))
-                .collect();
+            let arg_names: Vec<String> =
+                method.args.keys().map(|a| a.to_case(Case::Camel)).collect();
             if has_return {
                 return format!(
                     "computes the {human} for the given {}.",
                     arg_names.join(", ")
                 );
             }
-            return format!(
-                "performs {human} with the given {}.",
-                arg_names.join(", ")
-            );
+            return format!("performs {human} with the given {}.", arg_names.join(", "));
         }
 
         // 6. Static, no args, has return
@@ -1402,10 +1382,7 @@ impl GoGen {
         let has_args = !args.is_empty();
 
         if has_args {
-            let arg_names: Vec<String> = args
-                .keys()
-                .map(|a| a.to_case(Case::Camel))
-                .collect();
+            let arg_names: Vec<String> = args.keys().map(|a| a.to_case(Case::Camel)).collect();
             let human = Self::humanize(go_name);
             if has_return {
                 return format!(
@@ -1413,10 +1390,7 @@ impl GoGen {
                     arg_names.join(", ")
                 );
             }
-            return format!(
-                "performs {human} with the given {}.",
-                arg_names.join(", ")
-            );
+            return format!("performs {human} with the given {}.", arg_names.join(", "));
         }
 
         let human = Self::humanize(go_name);
@@ -1442,6 +1416,60 @@ impl GoGen {
             }
         }
         pascal.to_string()
+    }
+
+    fn go_initialisms(name: &str) -> String {
+        name.to_case(Case::Snake)
+            .split('_')
+            .map(|word| match word {
+                "id" => "ID".to_string(),
+                "ids" => "IDs".to_string(),
+                "url" => "URL".to_string(),
+                "urls" => "URLs".to_string(),
+                "uri" => "URI".to_string(),
+                "uris" => "URIs".to_string(),
+                "rpc" | "http" | "https" | "json" | "api" | "tls" | "tcp" | "udp" | "ip" => {
+                    word.to_ascii_uppercase()
+                }
+                _ => word.to_case(Case::Pascal),
+            })
+            .collect()
+    }
+
+    // Add idiomatic spellings without breaking existing Go callers.
+    fn write_type_alias(&mut self, name: &str) {
+        let alias = Self::go_initialisms(name);
+        if alias != name {
+            self.body.push_str(&format!(
+                "// {alias} is the idiomatic Go spelling of [{name}].\ntype {alias} = {name}\n\n"
+            ));
+        }
+    }
+
+    fn write_alias(
+        &mut self,
+        receiver: Option<&str>,
+        name: &str,
+        params: &[String],
+        returns: &str,
+    ) {
+        let alias = Self::go_initialisms(name);
+        if alias == name {
+            return;
+        }
+        let (decl, target) = match receiver {
+            Some(class) => (format!("(o *{class}) "), format!("o.{name}")),
+            None => (String::new(), name.to_string()),
+        };
+        let args = params
+            .iter()
+            .map(|p| p.split_whitespace().next().unwrap())
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.body.push_str(&format!(
+            "// {alias} calls [{name}].\nfunc {decl}{alias}({params}) {returns} {{\n\treturn {target}({args})\n}}\n\n",
+            params = params.join(", "),
+        ));
     }
 
     fn go_type(&self, kind: &FfiKind) -> String {
@@ -1492,7 +1520,10 @@ impl GoGen {
 extern int go_last_error_length();
 extern int go_last_error_message(char* buf, int buf_len);
 extern void go_free_bytes(uint8_t* ptr, size_t len);
-extern void go_free_string(char* ptr);
+// Async cancellation
+extern void* go_cancellation_new();
+extern void go_cancellation_cancel(const void* ptr);
+extern void go_cancellation_free(void* ptr);
 // String list helpers
 extern size_t go_string_list_len(const void* ptr);
 extern int go_string_list_get(const void* ptr, size_t index, const char** out_ptr, size_t* out_len);
@@ -1509,7 +1540,9 @@ extern void go_free_prim_list(void* ptr, size_t len, size_t elem_size);
             "go_last_error_length".to_string(),
             "go_last_error_message".to_string(),
             "go_free_bytes".to_string(),
-            "go_free_string".to_string(),
+            "go_cancellation_new".to_string(),
+            "go_cancellation_cancel".to_string(),
+            "go_cancellation_free".to_string(),
             "go_string_list_len".to_string(),
             "go_string_list_get".to_string(),
             "go_string_list_free".to_string(),
@@ -1531,11 +1564,33 @@ func lastError() error {
 	return fmt.Errorf("%s", string(buf[:length]))
 }
 
+// Keep nil (None) distinct from a present, empty byte slice.
+var emptyByte byte
+
 func bytesToPtr(b []byte) (*C.uint8_t, C.size_t) {
-	if len(b) == 0 {
+	if b == nil {
 		return nil, 0
 	}
+	if len(b) == 0 {
+		return (*C.uint8_t)(unsafe.Pointer(&emptyByte)), 0
+	}
 	return (*C.uint8_t)(unsafe.Pointer(&b[0])), C.size_t(len(b))
+}
+
+// The callback must finish before its native token is freed.
+func newCancellation(ctx context.Context) (unsafe.Pointer, func()) {
+	cancel := C.go_cancellation_new()
+	done := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		C.go_cancellation_cancel(cancel)
+		close(done)
+	})
+	return cancel, func() {
+		if !stop() {
+			<-done
+		}
+		C.go_cancellation_free(cancel)
+	}
 }
 
 func bigIntToSignedBytes(n *big.Int) []byte {
@@ -1587,11 +1642,9 @@ func bigIntFromSignedBytes(b []byte) *big.Int {
         let snake = name.to_case(Case::Snake);
 
         // C extern declarations
+        self.externs.push_str(&format!("\n// {name}\n"));
         self.externs
-            .push_str(&format!("\n// {name}\n"));
-        self.externs.push_str(&format!(
-            "extern void go_{snake}_free(void* ptr);\n"
-        ));
+            .push_str(&format!("extern void go_{snake}_free(void* ptr);\n"));
         self.externs.push_str(&format!(
             "extern int go_{snake}_clone(const void* ptr, void** out);\n"
         ));
@@ -1662,6 +1715,8 @@ func (o *{name}) Clone() (*{name}, error) {{
 "#
         ));
 
+        self.write_type_alias(name);
+
         // Constructor
         if new {
             self.write_constructor(name, fields);
@@ -1691,12 +1746,87 @@ func (o *{name}) Clone() (*{name}, error) {{
         self.externs.push_str(&format!(
             "extern int go_{snake}_list_get(const void* ptr, size_t index, void** out);\n"
         ));
-        self.externs.push_str(&format!(
-            "extern void go_{snake}_list_free(void* ptr);\n"
-        ));
+        self.externs
+            .push_str(&format!("extern void go_{snake}_list_free(void* ptr);\n"));
         self.c_func_names.push(format!("go_{snake}_list_len"));
         self.c_func_names.push(format!("go_{snake}_list_get"));
         self.c_func_names.push(format!("go_{snake}_list_free"));
+    }
+
+    // Lock all participating handles before reading any native pointers. The
+    // common Go helper orders and deduplicates locks, including the receiver.
+    fn handle_guards(
+        &self,
+        receiver: Option<bool>,
+        args: &IndexMap<String, String>,
+        ret: &FfiKind,
+    ) -> String {
+        let error_return = if matches!(ret, FfiKind::Void) {
+            "return".to_string()
+        } else {
+            format!("return {},", self.go_zero(ret))
+        };
+        let mut collect = Vec::new();
+        let mut check = Vec::new();
+        let mut keep_alive = Vec::new();
+        if receiver.is_some() {
+            collect.push(format!("if o == nil {{ {error_return} fmt.Errorf(\"object is nil or already freed\") }}\nlocks = append(locks, &o.mu)"));
+            check.push(format!("if o.ptr == nil {{ {error_return} fmt.Errorf(\"object is nil or already freed\") }}"));
+            keep_alive.push("defer runtime.KeepAlive(o)".to_string());
+        }
+        for (name, ty) in args {
+            let name = name.to_case(Case::Camel);
+            let kind = self.classify(ty);
+            let (inner, optional) = match &kind {
+                FfiKind::Opt(inner) => (inner.as_ref(), true),
+                _ => (&kind, false),
+            };
+            let invalid = format!("{error_return} fmt.Errorf(\"{name} is nil or already freed\")");
+            match inner {
+                FfiKind::Class(_) | FfiKind::Enum(_) => {
+                    if optional {
+                        collect.push(format!(
+                            "if {name} != nil {{ locks = append(locks, &{name}.mu) }}"
+                        ));
+                        check.push(format!(
+                            "if {name} != nil && {name}.ptr == nil {{ {invalid} }}"
+                        ));
+                    } else {
+                        collect.push(format!(
+                            "if {name} == nil {{ {invalid} }}\nlocks = append(locks, &{name}.mu)"
+                        ));
+                        check.push(format!("if {name}.ptr == nil {{ {invalid} }}"));
+                    }
+                    keep_alive.push(format!("defer runtime.KeepAlive({name})"));
+                }
+                FfiKind::List(item)
+                    if matches!(item.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) =>
+                {
+                    collect.push(format!("for _, item := range {name} {{\nif item == nil {{ {invalid} }}\nlocks = append(locks, &item.mu)\n}}"));
+                    check.push(format!(
+                        "for _, item := range {name} {{\nif item.ptr == nil {{ {invalid} }}\n}}"
+                    ));
+                    keep_alive.push(format!("defer runtime.KeepAlive({name})"));
+                }
+                FfiKind::BigInt if !optional => {
+                    check.push(format!("if {name} == nil {{ {error_return} fmt.Errorf(\"{name} must not be nil\") }}"));
+                }
+                _ => {}
+            }
+        }
+        let mut lines = keep_alive;
+        if !collect.is_empty() {
+            lines.push("var locks handleLocks".to_string());
+            lines.extend(collect);
+            let write = if receiver == Some(true) {
+                "&o.mu"
+            } else {
+                "nil"
+            };
+            lines.push(format!("defer lockHandles({write}, locks...)()"));
+        }
+        lines.extend(check);
+        lines.join("\n\t")
     }
 
     fn write_constructor(&mut self, name: &str, fields: &IndexMap<String, String>) {
@@ -1743,54 +1873,18 @@ func (o *{name}) Clone() (*{name}, error) {{
             format!("{call_args_str}, &out")
         };
 
-        // Collect nil checks for binding-type fields and KeepAlive calls
-        let mut nil_check_lines = Vec::new();
-        let mut keep_alive_lines = Vec::new();
-
-        for (fname, ftype) in fields {
-            let fkind = self.classify(ftype);
-            let go_name = fname.to_case(Case::Camel);
-            match &fkind {
-                FfiKind::Class(_) | FfiKind::Enum(_) => {
-                    nil_check_lines.push(format!(
-                        "if {go_name} == nil {{\n\t\treturn nil, fmt.Errorf(\"{go_name} must not be nil\")\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::List(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    nil_check_lines.push(format!(
-                        "for i, item := range {go_name} {{\n\t\tif item == nil {{\n\t\t\treturn nil, fmt.Errorf(\"nil item in {go_name} at index %d\", i)\n\t\t}}\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                _ => {}
-            }
-        }
-
-        let nil_checks_str = if nil_check_lines.is_empty() {
-            String::new()
-        } else {
-            nil_check_lines.join("\n\t") + "\n\t"
-        };
-
-        let keep_alive_str = if keep_alive_lines.is_empty() {
-            String::new()
-        } else {
-            "\n\t".to_string() + &keep_alive_lines.join("\n\t")
-        };
+        let guards = self.handle_guards(None, fields, &FfiKind::Class(name.to_string()));
 
         self.body.push_str(&format!(
             r#"// New{name} creates a new [{name}] with the given field values.
 func New{name}({go_params_str}) (*{name}, error) {{
+	{guards}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	{nil_checks_str}{pre_str}
+	{pre_str}
 	{post_str}
 	var out unsafe.Pointer
-	ret := C.go_{snake}_new({c_call_args}){keep_alive_str}
+	ret := C.go_{snake}_new({c_call_args})
 	if ret != 0 {{
 		return nil, lastError()
 	}}
@@ -1801,6 +1895,12 @@ func New{name}({go_params_str}) (*{name}, error) {{
 
 "#,
         ));
+        self.write_alias(
+            None,
+            &format!("New{name}"),
+            &go_params,
+            &format!("(*{name}, error)"),
+        );
     }
 
     fn write_getter(&mut self, class_name: &str, fname: &str, ftype: &str) {
@@ -1821,7 +1921,8 @@ func New{name}({go_params_str}) (*{name}, error) {{
             "extern int go_{snake}_get_{field_snake}({});\n",
             c_params.join(", ")
         ));
-        self.c_func_names.push(format!("go_{snake}_get_{field_snake}"));
+        self.c_func_names
+            .push(format!("go_{snake}_get_{field_snake}"));
 
         // Go getter
         let (out_decl, call_out, result_expr) = self.c_to_go_output(&kind);
@@ -1851,6 +1952,12 @@ func (o *{class_name}) {go_name}() ({go_ty}, error) {{
 "#,
             zero = self.go_zero(&kind),
         ));
+        self.write_alias(
+            Some(class_name),
+            &go_name,
+            &[],
+            &format!("({go_ty}, error)"),
+        );
     }
 
     fn write_setter(&mut self, class_name: &str, fname: &str, ftype: &str) {
@@ -1867,7 +1974,8 @@ func (o *{class_name}) {go_name}() ({go_ty}, error) {{
             "extern int go_{snake}_set_{field_snake}({});\n",
             c_params.join(", ")
         ));
-        self.c_func_names.push(format!("go_{snake}_set_{field_snake}"));
+        self.c_func_names
+            .push(format!("go_{snake}_set_{field_snake}"));
 
         // Go setter
         let go_ty = self.go_type(&kind);
@@ -1875,36 +1983,18 @@ func (o *{class_name}) {go_name}() ({go_ty}, error) {{
         let pre_str = pre.join("\n\t");
         let post_str = post.join("\n\t");
 
-        // Nil check and KeepAlive for binding-type value
-        let value_nil_check = match &kind {
-            FfiKind::Class(_) | FfiKind::Enum(_) => {
-                "if value == nil {\n\t\treturn fmt.Errorf(\"value must not be nil\")\n\t}\n\t".to_string()
-            }
-            _ => String::new(),
-        };
-
-        let mut keep_alive_lines = vec!["runtime.KeepAlive(o)".to_string()];
-        if matches!(&kind, FfiKind::Class(_) | FfiKind::Enum(_)) {
-            keep_alive_lines.push("runtime.KeepAlive(value)".to_string());
-        }
-        let keep_alive_str = "\n\t".to_string() + &keep_alive_lines.join("\n\t");
+        let fields = IndexMap::from([("value".to_string(), ftype.to_string())]);
+        let guards = self.handle_guards(Some(true), &fields, &FfiKind::Void);
 
         self.body.push_str(&format!(
             r#"// {go_name} updates the {field_pascal} field of the [{class_name}].
 func (o *{class_name}) {go_name}(value {go_ty}) error {{
-	if o == nil {{
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {{
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	{value_nil_check}runtime.LockOSThread()
+	{guards}
+	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	{pre_str}
 	{post_str}
-	ret := C.go_{snake}_set_{field_snake}(o.ptr, {args}){keep_alive_str}
+	ret := C.go_{snake}_set_{field_snake}(o.ptr, {args})
 	if ret != 0 {{
 		return lastError()
 	}}
@@ -1914,6 +2004,12 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
 "#,
             args = args.join(", "),
         ));
+        self.write_alias(
+            Some(class_name),
+            &go_name,
+            &[format!("value {go_ty}")],
+            "error",
+        );
     }
 
     fn write_method(&mut self, class_name: &str, mname: &str, method: &Method) {
@@ -1923,14 +2019,8 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
             method.kind,
             MethodKind::Normal | MethodKind::Async | MethodKind::ToString
         );
-        let is_factory = matches!(
-            method.kind,
-            MethodKind::Factory | MethodKind::AsyncFactory
-        );
-        let is_async = matches!(
-            method.kind,
-            MethodKind::Async | MethodKind::AsyncFactory
-        );
+        let is_factory = matches!(method.kind, MethodKind::Factory | MethodKind::AsyncFactory);
+        let is_async = matches!(method.kind, MethodKind::Async | MethodKind::AsyncFactory);
         let go_method_name = Self::go_rename_method(
             &mname.to_case(Case::Pascal),
             is_instance,
@@ -1953,6 +2043,9 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
 
         // C extern declaration
         let mut c_params = Vec::new();
+        if is_async {
+            c_params.push("const void* cancel".to_string());
+        }
         if is_instance {
             c_params.push("const void* ptr".to_string());
         }
@@ -1973,6 +2066,9 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
         let mut call_args = Vec::new();
         let mut post_call = Vec::new();
 
+        if is_async {
+            call_args.push("cancel".to_string());
+        }
         if is_instance {
             call_args.push("o.ptr".to_string());
         }
@@ -2005,356 +2101,82 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
         let go_params_str = go_params.join(", ");
         let call_args_str = call_args.join(", ");
 
-        // Collect nil checks for binding-type args and KeepAlive calls
-        let err_return_prefix = if matches!(ret_kind, FfiKind::Void) {
+        let return_prefix = if is_void {
             "return".to_string()
         } else {
             format!("return {},", self.go_zero(&ret_kind))
         };
-
-        let mut nil_check_lines = Vec::new();
-        let mut keep_alive_lines = Vec::new();
-
-        if is_instance {
-            keep_alive_lines.push("runtime.KeepAlive(o)".to_string());
-        }
-
-        for (aname, atype) in &method.args {
-            let akind = self.classify(atype);
-            let go_name = aname.to_case(Case::Camel);
-            match &akind {
-                FfiKind::Class(_) | FfiKind::Enum(_) => {
-                    nil_check_lines.push(format!(
-                        "if {go_name} == nil {{\n\t\t{err_return_prefix} fmt.Errorf(\"{go_name} must not be nil\")\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::List(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    nil_check_lines.push(format!(
-                        "for i, item := range {go_name} {{\n\t\tif item == nil {{\n\t\t\t{err_return_prefix} fmt.Errorf(\"nil item in {go_name} at index %d\", i)\n\t\t}}\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                _ => {}
-            }
-        }
-
-        let nil_checks_str = if nil_check_lines.is_empty() {
+        let guards = self.handle_guards(is_instance.then_some(false), &method.args, &ret_kind);
+        let name = if is_instance {
+            go_method_name.clone()
+        } else if mname == "new" {
+            format!("New{class_name}")
+        } else if is_factory
+            && self
+                .constructors
+                .contains(&format!("{class_name}{go_method_name}"))
+        {
+            format!("New{class_name}From{go_method_name}")
+        } else if is_factory {
+            format!("New{class_name}{go_method_name}")
+        } else {
+            format!("{class_name}{go_method_name}")
+        };
+        let receiver = if is_instance {
+            format!("(o *{class_name}) ")
+        } else {
             String::new()
-        } else {
-            nil_check_lines.join("\n\t") + "\n\t"
         };
-
-        let keep_alive_str = if keep_alive_lines.is_empty() {
-            String::new()
+        let returns = if is_void {
+            "error".to_string()
         } else {
-            "\n\t".to_string() + &keep_alive_lines.join("\n\t")
+            format!("({go_ret_ty}, error)")
         };
-
-        // Determine if this is a method or function
-        let method_doc = match &method.doc {
-            Some(d) => format!("// {go_method_name} {d}"),
-            None => {
-                let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, is_instance);
-                format!("// {go_method_name} {doc}")
-            }
-        };
-
-        if is_instance {
-            if is_async {
-                // Async instance methods: goroutine + select for context.Context support
-                if is_void {
-                    self.body.push_str(&format!(
-                        r#"{method_doc}
-func (o *{class_name}) {go_method_name}({go_params_str}) error {{
-	if o == nil {{
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	{nil_checks_str}o.mu.RLock()
-	if o.ptr == nil {{
-		o.mu.RUnlock()
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	type asyncResult struct {{ err error }}
-	ch := make(chan asyncResult, 1)
-	go func() {{
-		defer o.mu.RUnlock()
-		err := func() error {{
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
-			{pre_str}
-			{post_str}
-			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-			if ret != 0 {{
-				return lastError()
-			}}
-			return nil
-		}}()
-		ch <- asyncResult{{err: err}}
-	}}()
-	select {{
-	case <-ctx.Done():
-		return ctx.Err()
-	case r := <-ch:
-		return r.err
-	}}
-}}
-
-"#
-                    ));
-                } else {
-                    self.body.push_str(&format!(
-                        r#"{method_doc}
-func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
-	if o == nil {{
-		return {zero}, fmt.Errorf("object is nil or already freed")
-	}}
-	{nil_checks_str}o.mu.RLock()
-	if o.ptr == nil {{
-		o.mu.RUnlock()
-		return {zero}, fmt.Errorf("object is nil or already freed")
-	}}
-	type asyncResult struct {{
-		val {go_ret_ty}
-		err error
-	}}
-	ch := make(chan asyncResult, 1)
-	go func() {{
-		defer o.mu.RUnlock()
-		val, err := func() ({go_ret_ty}, error) {{
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
-			{pre_str}
-			{post_str}
-			{out_decl}
-			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-			if ret != 0 {{
-				return {zero}, lastError()
-			}}
-			{result_expr}
-		}}()
-		ch <- asyncResult{{val: val, err: err}}
-	}}()
-	select {{
-	case <-ctx.Done():
-		return {zero}, ctx.Err()
-	case r := <-ch:
-		return r.val, r.err
-	}}
-}}
-
-"#,
-                        zero = self.go_zero(&ret_kind),
-                    ));
-                }
-            } else if is_void {
-                self.body.push_str(&format!(
-                    r#"{method_doc}
-func (o *{class_name}) {go_method_name}({go_params_str}) error {{
-	if o == nil {{
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {{
-		return fmt.Errorf("object is nil or already freed")
-	}}
-	{nil_checks_str}runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	{pre_str}
-	{post_str}
-	ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-	if ret != 0 {{
-		return lastError()
-	}}
-	return nil
-}}
-
-"#
-                ));
-            } else {
-                self.body.push_str(&format!(
-                    r#"{method_doc}
-func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
-	if o == nil {{
-		return {zero}, fmt.Errorf("object is nil or already freed")
-	}}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {{
-		return {zero}, fmt.Errorf("object is nil or already freed")
-	}}
-	{nil_checks_str}runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	{pre_str}
-	{post_str}
-	{out_decl}
-	ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-	if ret != 0 {{
-		return {zero}, lastError()
-	}}
-	{result_expr}
-}}
-
-"#,
-                    zero = self.go_zero(&ret_kind),
-                ));
-            }
+        let method_doc = method.doc.clone().unwrap_or_else(|| {
+            Self::generate_method_doc(class_name, mname, &name, method, is_instance)
+        });
+        let (context_check, cancellation, context_error) = if is_async {
+            (
+                format!("if err := ctx.Err(); err != nil {{ {return_prefix} err }}"),
+                "cancel, finish := newCancellation(ctx)\n\tdefer finish()".to_string(),
+                format!("if err := ctx.Err(); err != nil {{ {return_prefix} err }}"),
+            )
         } else {
-            // Static / Factory - generate as package-level function
-            let func_name = if mname == "new" {
-                format!("New{class_name}")
-            } else if is_factory && self.constructors.contains(&format!("{class_name}{go_method_name}")) {
-                format!("New{class_name}From{go_method_name}")
-            } else if is_factory {
-                format!("New{class_name}{go_method_name}")
-            } else {
-                format!("{class_name}{go_method_name}")
-            };
-
-            if is_async {
-                // Async static/factory methods: goroutine + select for context.Context support
-                if is_void {
-                    let static_doc = match &method.doc {
-                        Some(d) => format!("// {func_name} {d}"),
-                        None => {
-                            let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
-                            format!("// {func_name} {doc}")
-                        }
-                    };
-                    self.body.push_str(&format!(
-                        r#"{static_doc}
-func {func_name}({go_params_str}) error {{
-	{nil_checks_str}type asyncResult struct {{ err error }}
-	ch := make(chan asyncResult, 1)
-	go func() {{
-		err := func() error {{
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
-			{pre_str}
-			{post_str}
-			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-			if ret != 0 {{
-				return lastError()
-			}}
-			return nil
-		}}()
-		ch <- asyncResult{{err: err}}
-	}}()
-	select {{
-	case <-ctx.Done():
-		return ctx.Err()
-	case r := <-ch:
-		return r.err
-	}}
+            (String::new(), String::new(), String::new())
+        };
+        let result_expr = if is_void {
+            "return nil".to_string()
+        } else {
+            result_expr
+        };
+        self.body.push_str(&format!(
+            r#"// {name} {method_doc}
+func {receiver}{name}({go_params_str}) {returns} {{
+    {context_check}
+    {guards}
+    {context_check}
+    {cancellation}
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
+    {pre_str}
+    {post_str}
+    {out_decl}
+    ret := C.go_{snake}_{method_snake}({call_args_str})
+    if ret != 0 {{
+        {context_error}
+        {return_prefix} lastError()
+    }}
+    {result_expr}
 }}
 
 "#
-                    ));
-                } else {
-                    let doc = match &method.doc {
-                        Some(d) => format!("// {func_name} {d}"),
-                        None => if is_factory {
-                            format!("// {func_name} creates a new [{class_name}] via the {go_method_name} factory.")
-                        } else {
-                            let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
-                            format!("// {func_name} {doc}")
-                        },
-                    };
-                    self.body.push_str(&format!(
-                        r#"{doc}
-func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
-	{nil_checks_str}type asyncResult struct {{
-		val {go_ret_ty}
-		err error
-	}}
-	ch := make(chan asyncResult, 1)
-	go func() {{
-		val, err := func() ({go_ret_ty}, error) {{
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
-			{pre_str}
-			{post_str}
-			{out_decl}
-			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-			if ret != 0 {{
-				return {zero}, lastError()
-			}}
-			{result_expr}
-		}}()
-		ch <- asyncResult{{val: val, err: err}}
-	}}()
-	select {{
-	case <-ctx.Done():
-		return {zero}, ctx.Err()
-	case r := <-ch:
-		return r.val, r.err
-	}}
-}}
-
-"#,
-                        zero = self.go_zero(&ret_kind),
-                    ));
-                }
-            } else if is_void {
-                let static_doc = match &method.doc {
-                    Some(d) => format!("// {func_name} {d}"),
-                    None => {
-                        let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
-                        format!("// {func_name} {doc}")
-                    }
-                };
-                self.body.push_str(&format!(
-                    r#"{static_doc}
-func {func_name}({go_params_str}) error {{
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	{nil_checks_str}{pre_str}
-	{post_str}
-	ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-	if ret != 0 {{
-		return lastError()
-	}}
-	return nil
-}}
-
-"#
-                ));
-            } else {
-                let doc = match &method.doc {
-                    Some(d) => format!("// {func_name} {d}"),
-                    None => if is_factory {
-                        format!("// {func_name} creates a new [{class_name}] via the {go_method_name} factory.")
-                    } else {
-                        let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
-                        format!("// {func_name} {doc}")
-                    },
-                };
-                self.body.push_str(&format!(
-                    r#"{doc}
-func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	{nil_checks_str}{pre_str}
-	{post_str}
-	{out_decl}
-	ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
-	if ret != 0 {{
-		return {zero}, lastError()
-	}}
-	{result_expr}
-}}
-
-"#,
-                    zero = self.go_zero(&ret_kind),
-                ));
-            }
-        }
-
-        // If return is a class, set finalizer in result_expr
+        ));
+        self.write_alias(
+            is_instance.then_some(class_name),
+            &name,
+            &go_params,
+            &returns,
+        );
     }
 
     fn write_enum(&mut self, name: &str, doc: &Option<String>, values: &[String]) {
@@ -2367,9 +2189,8 @@ func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
         self.externs.push_str(&format!(
             "extern int go_{snake}_from_int(int value, void** out);\n"
         ));
-        self.externs.push_str(&format!(
-            "extern void go_{snake}_free(void* ptr);\n"
-        ));
+        self.externs
+            .push_str(&format!("extern void go_{snake}_free(void* ptr);\n"));
         self.c_func_names.push(format!("go_{snake}_to_int"));
         self.c_func_names.push(format!("go_{snake}_from_int"));
         self.c_func_names.push(format!("go_{snake}_free"));
@@ -2435,18 +2256,31 @@ func (o *{name}) ToInt() (int, error) {{
 "#
         ));
 
+        self.write_type_alias(name);
+
         // Constants for enum values
-        let const_names: Vec<String> = values.iter()
+        let const_names: Vec<String> = values
+            .iter()
             .map(|v| format!("{name}Value{}", v.to_case(Case::Pascal)))
             .collect();
         let max_len = const_names.iter().map(|n| n.len()).max().unwrap_or(0);
-        self.body.push_str(&format!("// Integer constants for [{name}] variants.\nconst (\n"));
+        self.body.push_str(&format!(
+            "// Integer constants for [{name}] variants.\nconst (\n"
+        ));
         for (i, cname) in const_names.iter().enumerate() {
-            self.body.push_str(&format!(
-                "\t{cname:<width$} = {i}\n", width = max_len
-            ));
+            self.body
+                .push_str(&format!("\t{cname:<width$} = {i}\n", width = max_len));
         }
         self.body.push_str(")\n\n");
+
+        for cname in &const_names {
+            let alias = Self::go_initialisms(cname);
+            if alias != *cname {
+                self.body.push_str(&format!(
+                    "// {alias} is an alias for [{cname}].\nconst {alias} = {cname}\n\n"
+                ));
+            }
+        }
 
         // Factory function: New{Name}FromInt
         self.body.push_str(&format!(
@@ -2467,6 +2301,13 @@ func New{name}FromInt(value int) (*{name}, error) {{
 "#
         ));
 
+        self.write_alias(
+            None,
+            &format!("New{name}FromInt"),
+            &["value int".to_string()],
+            &format!("(*{name}, error)"),
+        );
+
         // Convenience factory for each variant
         for (i, v) in values.iter().enumerate() {
             let go_name = v.to_case(Case::Pascal);
@@ -2478,10 +2319,22 @@ func New{name}{go_name}() (*{name}, error) {{
 
 "#
             ));
+            self.write_alias(
+                None,
+                &format!("New{name}{go_name}"),
+                &[],
+                &format!("(*{name}, error)"),
+            );
         }
     }
 
-    fn write_function(&mut self, name: &str, doc: &Option<String>, args: &IndexMap<String, String>, ret: &Option<String>) {
+    fn write_function(
+        &mut self,
+        name: &str,
+        doc: &Option<String>,
+        args: &IndexMap<String, String>,
+        ret: &Option<String>,
+    ) {
         let snake = name.to_case(Case::Snake);
         let go_name = name.to_case(Case::Pascal);
 
@@ -2529,50 +2382,7 @@ func New{name}{go_name}() (*{name}, error) {{
         let pre_str = pre_call.join("\n\t");
         let post_str = post_call.join("\n\t");
 
-        // Collect nil checks for binding-type args and KeepAlive calls
-        let err_return_prefix = if matches!(ret_kind, FfiKind::Void) {
-            "return".to_string()
-        } else {
-            format!("return {},", self.go_zero(&ret_kind))
-        };
-
-        let mut nil_check_lines = Vec::new();
-        let mut keep_alive_lines = Vec::new();
-
-        for (aname, atype) in args {
-            let akind = self.classify(atype);
-            let go_name = aname.to_case(Case::Camel);
-            match &akind {
-                FfiKind::Class(_) | FfiKind::Enum(_) => {
-                    nil_check_lines.push(format!(
-                        "if {go_name} == nil {{\n\t\t{err_return_prefix} fmt.Errorf(\"{go_name} must not be nil\")\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::List(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    nil_check_lines.push(format!(
-                        "for i, item := range {go_name} {{\n\t\tif item == nil {{\n\t\t\t{err_return_prefix} fmt.Errorf(\"nil item in {go_name} at index %d\", i)\n\t\t}}\n\t}}"
-                    ));
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
-                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
-                }
-                _ => {}
-            }
-        }
-
-        let nil_checks_str = if nil_check_lines.is_empty() {
-            String::new()
-        } else {
-            nil_check_lines.join("\n\t") + "\n\t"
-        };
-
-        let keep_alive_str = if keep_alive_lines.is_empty() {
-            String::new()
-        } else {
-            "\n\t".to_string() + &keep_alive_lines.join("\n\t")
-        };
+        let guards = self.handle_guards(None, args, &ret_kind);
 
         let func_doc = match doc {
             Some(d) => format!("// {go_name} {d}"),
@@ -2586,11 +2396,12 @@ func New{name}{go_name}() (*{name}, error) {{
             self.body.push_str(&format!(
                 r#"{func_doc}
 func {go_name}({go_params}) error {{
+	{guards}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	{nil_checks_str}{pre_str}
+	{pre_str}
 	{post_str}
-	ret := C.go_{snake}({call_args}){keep_alive_str}
+	ret := C.go_{snake}({call_args})
 	if ret != 0 {{
 		return lastError()
 	}}
@@ -2605,12 +2416,13 @@ func {go_name}({go_params}) error {{
             self.body.push_str(&format!(
                 r#"{func_doc}
 func {go_name}({go_params}) ({go_ret_ty}, error) {{
+	{guards}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	{nil_checks_str}{pre_str}
+	{pre_str}
 	{post_str}
 	{out_decl}
-	ret := C.go_{snake}({call_args}){keep_alive_str}
+	ret := C.go_{snake}({call_args})
 	if ret != 0 {{
 		return {zero}, lastError()
 	}}
@@ -2623,6 +2435,12 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 zero = self.go_zero(&ret_kind),
             ));
         }
+        let returns = if is_void {
+            "error".to_string()
+        } else {
+            format!("({go_ret_ty}, error)")
+        };
+        self.write_alias(None, &go_name, &go_params, &returns);
     }
 
     // ── C extern helpers ───────────────────────────────────────────────
@@ -2651,14 +2469,14 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
             FfiKind::Bytes | FfiKind::BigInt => {
                 format!("const uint8_t* {name}_ptr, size_t {name}_len")
             }
-            FfiKind::Str => format!("const char* {name}"),
+            FfiKind::Str => format!("const char* {name}, size_t {name}_len"),
             FfiKind::Class(_) | FfiKind::Enum(_) => format!("const void* {name}"),
             FfiKind::Opt(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => format!("const void* {name}"),
                 FfiKind::Bytes | FfiKind::BigInt => {
                     format!("const uint8_t* {name}_ptr, size_t {name}_len")
                 }
-                FfiKind::Str => format!("const char* {name}"),
+                FfiKind::Str => format!("const char* {name}, size_t {name}_len"),
                 FfiKind::Bool => format!("int {name}, int {name}_is_some"),
                 FfiKind::Prim(t) => {
                     let ct = match t.as_str() {
@@ -2672,7 +2490,9 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     };
                     format!("{ct} {name}, int {name}_is_some")
                 }
-                FfiKind::List(list_inner) => self.c_extern_param(name, &FfiKind::List(list_inner.clone())),
+                FfiKind::List(list_inner) => {
+                    self.c_extern_param(name, &FfiKind::List(list_inner.clone()))
+                }
                 // Other complex types: opaque pointer (null = None)
                 _ => format!("const void* {name}"),
             },
@@ -2681,10 +2501,14 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     format!("const void** {name}_ptrs, size_t {name}_len")
                 }
                 FfiKind::Str => {
-                    format!("const char** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count")
+                    format!(
+                        "const char** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count"
+                    )
                 }
                 FfiKind::Bytes => {
-                    format!("const uint8_t** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count")
+                    format!(
+                        "const uint8_t** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count"
+                    )
                 }
                 FfiKind::Prim(t) => {
                     let ct = match t.as_str() {
@@ -2724,16 +2548,28 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 vec![format!("{ct}* out")]
             }
             FfiKind::Bytes | FfiKind::BigInt => {
-                vec!["uint8_t** out_ptr".to_string(), "size_t* out_len".to_string()]
+                vec![
+                    "uint8_t** out_ptr".to_string(),
+                    "size_t* out_len".to_string(),
+                ]
             }
-            FfiKind::Str => vec!["char** out".to_string()],
+            FfiKind::Str => vec![
+                "uint8_t** out_ptr".to_string(),
+                "size_t* out_len".to_string(),
+            ],
             FfiKind::Class(_) | FfiKind::Enum(_) => vec!["void** out".to_string()],
             FfiKind::Opt(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => vec!["void** out".to_string()],
                 FfiKind::Bytes | FfiKind::BigInt => {
-                    vec!["uint8_t** out_ptr".to_string(), "size_t* out_len".to_string()]
+                    vec![
+                        "uint8_t** out_ptr".to_string(),
+                        "size_t* out_len".to_string(),
+                    ]
                 }
-                FfiKind::Str => vec!["char** out".to_string()],
+                FfiKind::Str => vec![
+                    "uint8_t** out_ptr".to_string(),
+                    "size_t* out_len".to_string(),
+                ],
                 FfiKind::Bool => vec!["int* out".to_string(), "int* out_is_some".to_string()],
                 FfiKind::Prim(t) => {
                     let ct = match t.as_str() {
@@ -2772,11 +2608,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
         // Returns (pre_call_statements, call_args, post_call_statements)
         match kind {
             FfiKind::Void => (vec![], vec![], vec![]),
-            FfiKind::Bool => (
-                vec![],
-                vec![format!("boolToInt({name})")],
-                vec![],
-            ),
+            FfiKind::Bool => (vec![], vec![format!("boolToInt({name})")], vec![]),
             FfiKind::Prim(t) => {
                 let ct = match t.as_str() {
                     "u8" => "C.uint8_t",
@@ -2798,9 +2630,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 let ptr_var = format!("{name}Ptr");
                 let len_var = format!("{name}Len");
                 (
-                    vec![format!(
-                        "{ptr_var}, {len_var} := bytesToPtr({name})"
-                    )],
+                    vec![format!("{ptr_var}, {len_var} := bytesToPtr({name})")],
                     vec![ptr_var, len_var],
                     vec![],
                 )
@@ -2809,7 +2639,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 let c_var = format!("c{}", name.to_case(Case::Pascal));
                 (
                     vec![format!("{c_var} := C.CString({name})")],
-                    vec![c_var.clone()],
+                    vec![c_var.clone(), format!("C.size_t(len({name}))")],
                     vec![format!("defer C.free(unsafe.Pointer({c_var}))")],
                 )
             }
@@ -2826,11 +2656,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     vec![],
                 )
             }
-            FfiKind::Class(_) | FfiKind::Enum(_) => (
-                vec![],
-                vec![format!("{name}.ptr")],
-                vec![],
-            ),
+            FfiKind::Class(_) | FfiKind::Enum(_) => (vec![], vec![format!("{name}.ptr")], vec![]),
             FfiKind::Opt(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => {
                     let ptr_var = format!("{name}Ptr");
@@ -2846,9 +2672,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     let ptr_var = format!("{name}Ptr");
                     let len_var = format!("{name}Len");
                     (
-                        vec![format!(
-                            "{ptr_var}, {len_var} := bytesToPtr({name})"
-                        )],
+                        vec![format!("{ptr_var}, {len_var} := bytesToPtr({name})")],
                         vec![ptr_var, len_var],
                         vec![],
                     )
@@ -2857,9 +2681,9 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     let c_var = format!("c{}", name.to_case(Case::Pascal));
                     (
                         vec![format!(
-                            "var {c_var} *C.char\n\tif {name} != nil {{\n\t\t{c_var} = C.CString(*{name})\n\t\tdefer C.free(unsafe.Pointer({c_var}))\n\t}}"
+                            "var {c_var} *C.char\n\tvar {c_var}Len C.size_t\n\tif {name} != nil {{\n\t\t{c_var}Len = C.size_t(len(*{name}))\n\t\t{c_var} = C.CString(*{name})\n\t\tdefer C.free(unsafe.Pointer({c_var}))\n\t}}"
                         )],
-                        vec![c_var],
+                        vec![c_var.clone(), format!("{c_var}Len")],
                         vec![],
                     )
                 }
@@ -2917,13 +2741,32 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         vec![],
                     )
                 }
-                FfiKind::List(list_inner) => self.go_to_c_param(name, &FfiKind::List(list_inner.clone())),
+                FfiKind::List(list_inner) => {
+                    let (mut pre, args, post) =
+                        self.go_to_c_param(name, &FfiKind::List(list_inner.clone()));
+                    let (ptr, element_type) = match list_inner.as_ref() {
+                        FfiKind::Class(_) | FfiKind::Enum(_) => {
+                            (format!("{name}PtrsC"), "unsafe.Pointer".to_string())
+                        }
+                        FfiKind::Str => (format!("{name}PtrsC"), "*C.char".to_string()),
+                        FfiKind::Bytes => (format!("{name}PtrsC"), "*C.uint8_t".to_string()),
+                        FfiKind::Prim(t) => (
+                            format!("{name}Ptr"),
+                            format!(
+                                "C.{}",
+                                match t.as_str() {
+                                    "usize" => "size_t".to_string(),
+                                    _ => format!("{}_t", self.go_type(list_inner)),
+                                }
+                            ),
+                        ),
+                        _ => return (pre, args, post),
+                    };
+                    pre.push(format!("var {name}Empty {element_type}\n\tif {name} != nil && len({name}) == 0 {{ {ptr} = &{name}Empty }}"));
+                    (pre, args, post)
+                }
                 // Other complex types: pass opaque pointer directly
-                _ => (
-                    vec![],
-                    vec![format!("{name}")],
-                    vec![],
-                ),
+                _ => (vec![], vec![format!("{name}")], vec![]),
             },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => {
@@ -2954,10 +2797,12 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     let count_var = format!("{name}Count");
                     (
                         vec![format!(
-                            "{ptrs_var} := make([]*C.char, len({name}))\n\t\
+                            "var {name}Pinner runtime.Pinner\n\t\
+                             defer {name}Pinner.Unpin()\n\t\
+                             {ptrs_var} := make([]*C.char, len({name}))\n\t\
                              {lens_var} := make([]C.size_t, len({name}))\n\t\
                              for i, s := range {name} {{\n\t\t\
-                                 {ptrs_var}[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))\n\t\t\
+                                 if len(s) > 0 {{\n\t\t\t{ptrs_var}[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))\n\t\t\t{name}Pinner.Pin({ptrs_var}[i])\n\t\t}}\n\t\t\
                                  {lens_var}[i] = C.size_t(len(s))\n\t\
                              }}\n\t\
                              var {ptrs_var}C **C.char\n\t\
@@ -2968,11 +2813,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                              }}\n\t\
                              {count_var} := C.size_t(len({name}))"
                         )],
-                        vec![
-                            format!("{ptrs_var}C"),
-                            format!("{lens_var}C"),
-                            count_var,
-                        ],
+                        vec![format!("{ptrs_var}C"), format!("{lens_var}C"), count_var],
                         vec![],
                     )
                 }
@@ -2982,11 +2823,13 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     let count_var = format!("{name}Count");
                     (
                         vec![format!(
-                            "{ptrs_var} := make([]*C.uint8_t, len({name}))\n\t\
+                            "var {name}Pinner runtime.Pinner\n\t\
+                             defer {name}Pinner.Unpin()\n\t\
+                             {ptrs_var} := make([]*C.uint8_t, len({name}))\n\t\
                              {lens_var} := make([]C.size_t, len({name}))\n\t\
                              for i, b := range {name} {{\n\t\t\
                                  if len(b) > 0 {{\n\t\t\t\
-                                     {ptrs_var}[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))\n\t\t\
+                                     {ptrs_var}[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))\n\t\t\t{name}Pinner.Pin({ptrs_var}[i])\n\t\t\
                                  }}\n\t\t\
                                  {lens_var}[i] = C.size_t(len(b))\n\t\
                              }}\n\t\
@@ -2998,11 +2841,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                              }}\n\t\
                              {count_var} := C.size_t(len({name}))"
                         )],
-                        vec![
-                            format!("{ptrs_var}C"),
-                            format!("{lens_var}C"),
-                            count_var,
-                        ],
+                        vec![format!("{ptrs_var}C"), format!("{lens_var}C"), count_var],
                         vec![],
                     )
                 }
@@ -3027,18 +2866,11 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                              }}\n\t\
                              {len_var} := C.size_t(len({name}))"
                         )],
-                        vec![
-                            ptr_var,
-                            len_var,
-                        ],
+                        vec![ptr_var, len_var],
                         vec![],
                     )
                 }
-                _ => (
-                    vec![],
-                    vec![format!("{name}")],
-                    vec![],
-                ),
+                _ => (vec![], vec![format!("{name}")], vec![]),
             },
         }
     }
@@ -3084,10 +2916,10 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     .to_string(),
             ),
             FfiKind::Str => (
-                "var cOut *C.char".to_string(),
-                "&cOut".to_string(),
-                "result := C.GoString(cOut)\n\tC.go_free_string(cOut)\n\treturn result, nil"
-                    .to_string(),
+                "var outPtr *C.uint8_t\n\tvar outLen C.size_t".to_string(),
+                "&outPtr, &outLen".to_string(),
+                "result := C.GoStringN((*C.char)(unsafe.Pointer(outPtr)), C.int(outLen))\n\t\
+                 C.go_free_bytes(outPtr, outLen)\n\treturn result, nil".to_string(),
             ),
             FfiKind::BigInt => (
                 "var outPtr *C.uint8_t\n\tvar outLen C.size_t".to_string(),
@@ -3128,11 +2960,11 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         .to_string(),
                 ),
                 FfiKind::Str => (
-                    "var cOut *C.char".to_string(),
-                    "&cOut".to_string(),
-                    "if cOut == nil {\n\t\treturn nil, nil\n\t}\n\t\
-                     s := C.GoString(cOut)\n\tC.go_free_string(cOut)\n\treturn &s, nil"
-                        .to_string(),
+                    "var outPtr *C.uint8_t\n\tvar outLen C.size_t".to_string(),
+                    "&outPtr, &outLen".to_string(),
+                    "if outPtr == nil {\n\t\treturn nil, nil\n\t}\n\t\
+                     result := C.GoStringN((*C.char)(unsafe.Pointer(outPtr)), C.int(outLen))\n\t\
+                     C.go_free_bytes(outPtr, outLen)\n\treturn &result, nil".to_string(),
                 ),
                 FfiKind::Bool => (
                     "var cOut C.int\n\tvar cOutIsSome C.int".to_string(),
@@ -3312,9 +3144,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
 // ── Main ───────────────────────────────────────────────────────────────────
 
 fn main() {
-    let root = env::args()
-        .nth(1)
-        .unwrap_or_else(|| ".".to_string());
+    let root = env::args().nth(1).unwrap_or_else(|| ".".to_string());
     let root = Path::new(&root);
 
     let (bindy, bindings) = load_bindings(root);
@@ -3347,7 +3177,9 @@ fn main() {
     for (name, binding) in &bindings {
         validate_identifier(name);
         match binding {
-            Binding::Class { fields, methods, .. } => {
+            Binding::Class {
+                fields, methods, ..
+            } => {
                 for fname in fields.keys() {
                     validate_identifier(fname);
                 }
@@ -3372,7 +3204,12 @@ fn main() {
     }
 
     // ── Generate Rust FFI ──────────────────────────────────────────────
-    let mut rust = RustGen::new(&bindy.entrypoint, mappings.clone(), classes.clone(), enums.clone());
+    let mut rust = RustGen::new(
+        &bindy.entrypoint,
+        mappings.clone(),
+        classes.clone(),
+        enums.clone(),
+    );
     rust.write_prelude();
 
     for (name, binding) in &bindings {
@@ -3401,14 +3238,17 @@ fn main() {
     eprintln!("Wrote {}", rust_path.display());
 
     // ── Generate Go ────────────────────────────────────────────────────
-    let constructors = bindings.iter().filter_map(|(name, binding)| {
-        if let Binding::Class { new, methods, .. } = binding {
-            if *new || methods.get("new").is_some_and(|method| !method.stub_only) {
-                return Some(name.clone());
+    let constructors = bindings
+        .iter()
+        .filter_map(|(name, binding)| {
+            if let Binding::Class { new, methods, .. } = binding {
+                if *new || methods.get("new").is_some_and(|method| !method.stub_only) {
+                    return Some(name.clone());
+                }
             }
-        }
-        None
-    }).collect();
+            None
+        })
+        .collect();
     let mut go = GoGen::new(mappings, classes, enums, constructors);
     go.write_prelude();
 
@@ -3436,7 +3276,7 @@ fn main() {
     // Assemble Go file
     let needs_big = go.body.contains("big.Int");
     let mut go_file = String::new();
-    go_file.push_str("// AUTO-GENERATED by go-codegen. DO NOT EDIT.\n");
+    go_file.push_str("// Code generated by go-codegen. DO NOT EDIT.\n");
     go_file.push_str("package chiawalletsdk\n\n");
     go_file.push_str("/*\n");
     go_file.push_str("#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/libs/linux_amd64 -lchia_wallet_sdk_go -lm -ldl -lpthread\n");
@@ -3475,29 +3315,14 @@ fn main() {
     go_file.push_str("\tif b {\n\t\treturn 1\n\t}\n\treturn 0\n}\n");
     go_file.push_str(&go.body);
 
-    // Clean up blank lines with only whitespace and collapse consecutive blank lines (keeps gofmt happy)
-    let mut cleaned = Vec::new();
-    let mut prev_blank = false;
-    for line in go_file.lines() {
-        let is_blank = line.chars().all(|c| c.is_whitespace());
-        if is_blank {
-            if !prev_blank {
-                cleaned.push("");
-            }
-            prev_blank = true;
-        } else {
-            cleaned.push(line);
-            prev_blank = false;
-        }
-    }
-    // Remove trailing empty lines before joining
-    while cleaned.last() == Some(&"") {
-        cleaned.pop();
-    }
-    let go_file = cleaned.join("\n") + "\n";
-
     let go_path = root.join("go/chiawalletsdk/generated.go");
     fs::write(&go_path, &go_file)
         .unwrap_or_else(|e| panic!("failed to write {}: {e}", go_path.display()));
+    let status = Command::new("gofmt")
+        .arg("-w")
+        .arg(&go_path)
+        .status()
+        .expect("failed to run gofmt");
+    assert!(status.success(), "gofmt failed");
     eprintln!("Wrote {}", go_path.display());
 }

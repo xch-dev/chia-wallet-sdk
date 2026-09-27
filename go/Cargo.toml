@@ -42,7 +42,7 @@ test = false
 [dependencies]
 chia-sdk-bindings = { workspace = true, features = ["go"] }
 bindy = { workspace = true, features = ["go"] }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
 num-bigint = { workspace = true }
 
 [target.aarch64-unknown-linux-gnu.dependencies]

@@ -1,6 +1,9 @@
 package chiawalletsdk
 
-import "math/big"
+import (
+	"fmt"
+	"math/big"
+)
 
 // ClvmValue represents any value that can be allocated into the CLVM.
 // Implemented by all binding types that correspond to CLVM-allocatable values,
@@ -15,32 +18,17 @@ type ClvmValue interface {
 type ClvmInt int64
 
 func (v ClvmInt) clvmAlloc(c *Clvm) (*Program, error) {
-	return c.BoundCheckedNumber(float64(v))
+	return c.Int(bigIntToSignedBytes(big.NewInt(int64(v))))
 }
 
 // ClvmBigInt wraps a *big.Int as a CLVM value.
 type ClvmBigInt struct{ V *big.Int }
 
 func (v ClvmBigInt) clvmAlloc(c *Clvm) (*Program, error) {
-	b := v.V.Bytes()
-	if v.V.Sign() < 0 {
-		// Two's complement for negative BigInts: negate, subtract 1, flip bits
-		neg := new(big.Int).Neg(v.V)
-		neg.Sub(neg, big.NewInt(1))
-		raw := neg.Bytes()
-		for i := range raw {
-			raw[i] = ^raw[i]
-		}
-		// Ensure high bit is set (negative)
-		if len(raw) == 0 || raw[0]&0x80 == 0 {
-			raw = append([]byte{0xff}, raw...)
-		}
-		b = raw
-	} else if len(b) > 0 && b[0]&0x80 != 0 {
-		// Positive but high bit set — prepend zero byte
-		b = append([]byte{0x00}, b...)
+	if v.V == nil {
+		return nil, fmt.Errorf("integer must not be nil")
 	}
-	return c.Int(b)
+	return c.Int(bigIntToSignedBytes(v.V))
 }
 
 // ClvmBool wraps a bool as a CLVM value.
@@ -76,25 +64,15 @@ type ClvmList []ClvmValue
 
 func (v ClvmList) clvmAlloc(c *Clvm) (*Program, error) {
 	programs := make([]*Program, len(v))
+	defer CloseAll(programs)
 	for i, item := range v {
 		p, err := c.Alloc(item)
 		if err != nil {
-			// Free already-allocated programs on error
-			for j := 0; j < i; j++ {
-				programs[j].Free()
-			}
 			return nil, err
 		}
 		programs[i] = p
 	}
-	result, err := c.List(programs)
-	if err != nil {
-		for _, p := range programs {
-			p.Free()
-		}
-		return nil, err
-	}
-	return result, nil
+	return c.List(programs)
 }
 
 // ClvmPairValue wraps two ClvmValues as a CLVM cons pair.
@@ -108,18 +86,13 @@ func (v ClvmPairValue) clvmAlloc(c *Clvm) (*Program, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer first.Close()
 	rest, err := c.Alloc(v.Rest)
 	if err != nil {
-		first.Free()
 		return nil, err
 	}
-	result, err := c.Pair(first, rest)
-	if err != nil {
-		first.Free()
-		rest.Free()
-		return nil, err
-	}
-	return result, nil
+	defer rest.Close()
+	return c.Pair(first, rest)
 }
 
 // ── Alloc method ────────────────────────────────────────────────────────
@@ -129,6 +102,9 @@ func (v ClvmPairValue) clvmAlloc(c *Clvm) (*Program, error) {
 // primitive wrappers (ClvmInt, ClvmString, ClvmBytes, ClvmBool, ClvmNil),
 // and composite types (ClvmList, ClvmPairValue).
 func (c *Clvm) Alloc(value ClvmValue) (*Program, error) {
+	if value == nil {
+		return nil, fmt.Errorf("value must not be nil")
+	}
 	return value.clvmAlloc(c)
 }
 
