@@ -11,12 +11,12 @@ use chia_sdk_coinset::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
 use chia_protocol::Bytes;
 
 enum RpcClientImpl {
     Coinset(chia_sdk_coinset::CoinsetClient),
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     FullNode(chia_sdk_coinset::FullNodeClient),
 }
 
@@ -26,7 +26,7 @@ impl ChiaRpcClient for RpcClientImpl {
     fn base_url(&self) -> &str {
         match self {
             RpcClientImpl::Coinset(client) => client.base_url(),
-            #[cfg(any(feature = "napi", feature = "pyo3"))]
+            #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
             RpcClientImpl::FullNode(client) => client.base_url(),
         }
     }
@@ -42,7 +42,7 @@ impl ChiaRpcClient for RpcClientImpl {
     {
         match self {
             RpcClientImpl::Coinset(client) => client.make_post_request(endpoint, body).await,
-            #[cfg(any(feature = "napi", feature = "pyo3"))]
+            #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
             RpcClientImpl::FullNode(client) => client.make_post_request(endpoint, body).await,
         }
     }
@@ -70,14 +70,14 @@ impl RpcClient {
         ))))
     }
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     pub fn local(cert_bytes: Bytes, key_bytes: Bytes) -> Result<Self> {
         Ok(Self(Arc::new(RpcClientImpl::FullNode(
             chia_sdk_coinset::FullNodeClient::new(&cert_bytes, &key_bytes)?,
         ))))
     }
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     pub fn local_with_url(base_url: String, cert_bytes: Bytes, key_bytes: Bytes) -> Result<Self> {
         Ok(Self(Arc::new(RpcClientImpl::FullNode(
             chia_sdk_coinset::FullNodeClient::with_base_url(base_url, &cert_bytes, &key_bytes)?,

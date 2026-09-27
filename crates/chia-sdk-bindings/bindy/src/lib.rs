@@ -7,6 +7,9 @@ mod wasm_impls;
 #[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
+#[cfg(feature = "go")]
+mod go_impls;
+
 use clvmr::error::EvalErr;
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
@@ -16,6 +19,9 @@ pub use wasm_impls::*;
 
 #[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
+
+#[cfg(feature = "go")]
+pub use go_impls::*;
 
 use std::{net::AddrParseError, string::FromUtf8Error};
 
@@ -55,7 +61,7 @@ pub enum Error {
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     #[error("Client error: {0}")]
     Client(#[from] chia_sdk_client::ClientError),
 
@@ -68,7 +74,7 @@ pub enum Error {
     #[error("Reject puzzle solution: {0:?}")]
     RejectPuzzleSolution(RejectPuzzleSolution),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 

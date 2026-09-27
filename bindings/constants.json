@@ -1,6 +1,6 @@
 {
   "Constants": {
     "type": "class",
-    "methods": {}
+    "doc": "provides access to Chia network constants such as genesis challenge, AGG_SIG_ME prefix, and other consensus parameters."
   }
 }
