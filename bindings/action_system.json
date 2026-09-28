@@ -9,6 +9,14 @@
         },
         "type": "constructor"
       },
+      "with_separate_change_puzzle_hash": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "intermediate_puzzle_hash": "Bytes32",
+          "change_puzzle_hash": "Bytes32"
+        }
+      },
       "add_xch": {
         "args": {
           "coin": "Coin"
@@ -19,9 +27,24 @@
           "cat": "Cat"
         }
       },
+      "add_cat_for_revocation": {
+        "args": {
+          "cat": "Cat"
+        }
+      },
+      "add_did": {
+        "args": {
+          "did": "Did"
+        }
+      },
       "add_nft": {
         "args": {
           "nft": "Nft"
+        }
+      },
+      "add_option": {
+        "args": {
+          "option": "OptionContract"
         }
       },
       "p2_puzzle_hashes": {
@@ -61,11 +84,21 @@
       },
       "prepare": {
         "args": {
-          "deltas": "Deltas"
+          "deltas": "Deltas",
+          "relation": "Option<Relation>"
         },
         "return": "FinishedSpends"
       }
     }
+  },
+  "Relation": {
+    "type": "enum",
+    "values": [
+      "Unrelated",
+      "AssertConcurrent",
+      "CoinAnnouncementRing",
+      "CoinAnnouncementHub"
+    ]
   },
   "FinishedSpends": {
     "type": "class",
@@ -102,6 +135,9 @@
       "as_cat": {
         "return": "Option<Cat>"
       },
+      "is_revocation": {
+        "return": "bool"
+      },
       "as_did": {
         "return": "Option<Did>"
       },
@@ -125,11 +161,69 @@
           "memos": "Option<Program>"
         }
       },
+      "burn": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        }
+      },
       "settle": {
         "type": "factory",
         "args": {
           "id": "Id",
           "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "settle_royalty": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "id": "Id",
+          "launcher_id": "Bytes32",
+          "royalty_puzzle_hash": "Bytes32",
+          "royalty_amount": "u64"
+        }
+      },
+      "create_did": {
+        "type": "factory",
+        "args": {
+          "metadata": "Program",
+          "recovery_list_hash": "Option<Bytes32>",
+          "num_verifications_required": "u64",
+          "amount": "u64"
+        }
+      },
+      "create_empty_did": {
+        "type": "factory"
+      },
+      "update_did": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "new_metadata": "Option<Program>",
+          "new_recovery_list_hash": "Option<Bytes32>",
+          "new_num_verifications_required": "Option<u64>",
+          "remove_recovery_list_hash": "Option<bool>"
+        }
+      },
+      "mint_option": {
+        "type": "factory",
+        "args": {
+          "creator_puzzle_hash": "Bytes32",
+          "seconds": "u64",
+          "underlying_id": "Id",
+          "underlying_amount": "u64",
+          "strike_type": "OptionType",
+          "amount": "u64"
+        }
+      },
+      "melt_singleton": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "amount": "u64"
         }
       },
       "issue_cat": {
@@ -277,6 +371,30 @@
           "id": "Id"
         },
         "return": "Nft"
+      },
+      "dids": {
+        "return": "Vec<Id>"
+      },
+      "did": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "Did"
+      },
+      "options": {
+        "return": "Vec<Id>"
+      },
+      "option": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "OptionContract"
+      },
+      "fee": {
+        "return": "u64"
+      },
+      "reserved_fee": {
+        "return": "u64"
       }
     }
   },

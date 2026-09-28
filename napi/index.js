@@ -696,6 +696,7 @@ module.exports.preventConditionOpcodeRestriction = nativeBinding.preventConditio
 module.exports.preventMultipleCreateCoinsRestriction = nativeBinding.preventMultipleCreateCoinsRestriction
 module.exports.preventVaultSideEffectsRestriction = nativeBinding.preventVaultSideEffectsRestriction
 module.exports.r1MemberHash = nativeBinding.r1MemberHash
+module.exports.Relation = nativeBinding.Relation
 module.exports.RestrictionKind = nativeBinding.RestrictionKind
 module.exports.selectCoins = nativeBinding.selectCoins
 module.exports.sha256 = nativeBinding.sha256

@@ -3,7 +3,14 @@
 export declare class Action {
   clone(): Action
   static send(id: Id, puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Action
+  static burn(id: Id, amount: bigint, memos?: Program | undefined | null): Action
   static settle(id: Id, notarizedPayment: NotarizedPayment): Action
+  static settleRoyalty(clvm: Clvm, id: Id, launcherId: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyAmount: bigint): Action
+  static createDid(metadata: Program, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, amount: bigint): Action
+  static createEmptyDid(): Action
+  static updateDid(id: Id, newMetadata?: Program | undefined | null, newRecoveryListHash?: Uint8Array | undefined | null, newNumVerificationsRequired?: bigint | undefined | null, removeRecoveryListHash?: boolean | undefined | null): Action
+  static mintOption(creatorPuzzleHash: Uint8Array, seconds: bigint, underlyingId: Id, underlyingAmount: bigint, strikeType: OptionType, amount: bigint): Action
+  static meltSingleton(id: Id, amount: bigint): Action
   static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
@@ -2264,6 +2271,12 @@ export declare class Outputs {
   cat(id: Id): Array<Cat>
   nfts(): Array<Id>
   nft(id: Id): Nft
+  dids(): Array<Id>
+  did(id: Id): Did
+  options(): Array<Id>
+  option(id: Id): OptionContract
+  fee(): bigint
+  reservedFee(): bigint
 }
 
 export declare class P2NextRewardDistributorEpochCoinInfo {
@@ -2453,6 +2466,7 @@ export declare class PendingSpend {
   conditions(): Array<Program>
   asXch(): Coin | null
   asCat(): Cat | null
+  isRevocation(): boolean
   asDid(): Did | null
   asNft(): Nft | null
   asOption(): OptionContract | null
@@ -3461,9 +3475,13 @@ export declare class SpendBundle {
 export declare class Spends {
   clone(): Spends
   constructor(clvm: Clvm, changePuzzleHash: Uint8Array)
+  static withSeparateChangePuzzleHash(clvm: Clvm, intermediatePuzzleHash: Uint8Array, changePuzzleHash: Uint8Array): Spends
   addXch(coin: Coin): void
   addCat(cat: Cat): void
+  addCatForRevocation(cat: Cat): void
+  addDid(did: Did): void
   addNft(nft: Nft): void
+  addOption(option: OptionContract): void
   p2PuzzleHashes(): Array<Buffer>
   nonSettlementCoinIds(): Array<Buffer>
   addOptionalCondition(condition: Program): void
@@ -3473,7 +3491,7 @@ export declare class Spends {
   selectedAssetIds(): Array<Buffer>
   selectedCatAmount(assetId: Uint8Array): bigint
   apply(actions: Array<Action>): Deltas
-  prepare(deltas: Deltas): FinishedSpends
+  prepare(deltas: Deltas, relation?: Relation | undefined | null): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {
@@ -4168,6 +4186,13 @@ export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare const enum Relation {
+  Unrelated = 0,
+  AssertConcurrent = 1,
+  CoinAnnouncementRing = 2,
+  CoinAnnouncementHub = 3
+}
 
 export declare const enum RestrictionKind {
   MemberCondition = 0,

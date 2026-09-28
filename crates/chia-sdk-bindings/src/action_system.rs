@@ -7,13 +7,33 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
-    self as sdk, Cat, Delta, HashedPtr, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
+    self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext, SpendKind,
 };
 use chia_sdk_types::{Condition, conditions::TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
 use crate::{AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, OptionContract, Program, Spend};
+
+/// Mirrors [`sdk::Relation`], but `None` is renamed since it's a reserved word in Python.
+#[derive(Clone, Copy)]
+pub enum Relation {
+    Unrelated,
+    AssertConcurrent,
+    CoinAnnouncementRing,
+    CoinAnnouncementHub,
+}
+
+impl From<Relation> for sdk::Relation {
+    fn from(value: Relation) -> Self {
+        match value {
+            Relation::Unrelated => sdk::Relation::None,
+            Relation::AssertConcurrent => sdk::Relation::AssertConcurrent,
+            Relation::CoinAnnouncementRing => sdk::Relation::CoinAnnouncementRing,
+            Relation::CoinAnnouncementHub => sdk::Relation::CoinAnnouncementHub,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Spends {
@@ -25,6 +45,20 @@ impl Spends {
     pub fn new(clvm: Clvm, change_puzzle_hash: Bytes32) -> Result<Self> {
         Ok(Self {
             spends: Arc::new(Mutex::new(sdk::Spends::new(change_puzzle_hash))),
+            clvm: clvm.0.clone(),
+        })
+    }
+
+    pub fn with_separate_change_puzzle_hash(
+        clvm: Clvm,
+        intermediate_puzzle_hash: Bytes32,
+        change_puzzle_hash: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self {
+            spends: Arc::new(Mutex::new(sdk::Spends::with_separate_change_puzzle_hash(
+                intermediate_puzzle_hash,
+                change_puzzle_hash,
+            ))),
             clvm: clvm.0.clone(),
         })
     }
@@ -41,10 +75,33 @@ impl Spends {
         Ok(())
     }
 
+    pub fn add_cat_for_revocation(&self, cat: Cat) -> Result<()> {
+        self.spends.lock().unwrap().add_for_revocation(cat)?;
+
+        Ok(())
+    }
+
+    pub fn add_did(&self, did: Did) -> Result<()> {
+        let ctx = self.clvm.lock().unwrap();
+        let sdk_did = did.as_ptr(&ctx);
+        self.spends.lock().unwrap().add(sdk_did);
+
+        Ok(())
+    }
+
     pub fn add_nft(&self, nft: Nft) -> Result<()> {
         let ctx = self.clvm.lock().unwrap();
         let sdk_nft = nft.as_ptr(&ctx);
         self.spends.lock().unwrap().add(sdk_nft);
+
+        Ok(())
+    }
+
+    pub fn add_option(&self, option: OptionContract) -> Result<()> {
+        self.spends
+            .lock()
+            .unwrap()
+            .add(sdk::OptionContract::from(option));
 
         Ok(())
     }
@@ -138,15 +195,22 @@ impl Spends {
         Ok(Deltas(deltas))
     }
 
-    pub fn prepare(&self, deltas: Deltas) -> Result<FinishedSpends> {
+    pub fn prepare(&self, deltas: Deltas, relation: Option<Relation>) -> Result<FinishedSpends> {
         let mut spends = self.spends.lock().unwrap();
 
-        let change_puzzle_hash = spends.change_puzzle_hash;
-        let spends = std::mem::replace(&mut *spends, sdk::Spends::new(change_puzzle_hash));
+        let empty = sdk::Spends::with_separate_change_puzzle_hash(
+            spends.intermediate_puzzle_hash,
+            spends.change_puzzle_hash,
+        );
+        let spends = std::mem::replace(&mut *spends, empty);
 
         let mut ctx = self.clvm.lock().unwrap();
 
-        let spends = spends.prepare(&mut ctx, &deltas.0, Relation::None)?;
+        let spends = spends.prepare(
+            &mut ctx,
+            &deltas.0,
+            relation.map_or(sdk::Relation::None, Into::into),
+        )?;
 
         let mut finished = HashMap::new();
 
@@ -259,9 +323,13 @@ impl PendingSpend {
 
     pub fn as_cat(&self) -> Result<Option<Cat>> {
         match self.asset {
-            sdk::SpendableAsset::Cat(cat) => Ok(Some(cat)),
+            sdk::SpendableAsset::Cat(cat) | sdk::SpendableAsset::RevokedCat(cat) => Ok(Some(cat)),
             _ => Ok(None),
         }
+    }
+
+    pub fn is_revocation(&self) -> Result<bool> {
+        Ok(matches!(self.asset, sdk::SpendableAsset::RevokedCat(_)))
     }
 
     pub fn as_did(&self) -> Result<Option<Did>> {
@@ -299,8 +367,112 @@ impl Action {
         )))
     }
 
+    pub fn burn(id: Id, amount: u64, memos: Option<Program>) -> Result<Self> {
+        Ok(Self(sdk::Action::burn(
+            id.0,
+            amount,
+            memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
+        )))
+    }
+
     pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Result<Self> {
         Ok(Self(sdk::Action::settle(id.0, notarized_payment.into())))
+    }
+
+    pub fn settle_royalty(
+        clvm: Clvm,
+        id: Id,
+        launcher_id: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_amount: u64,
+    ) -> Result<Self> {
+        let mut ctx = clvm.0.lock().unwrap();
+
+        Ok(Self(sdk::Action::settle_royalty(
+            &mut ctx,
+            id.0,
+            launcher_id,
+            royalty_puzzle_hash,
+            royalty_amount,
+        )?))
+    }
+
+    pub fn create_did(
+        metadata: Program,
+        recovery_list_hash: Option<Bytes32>,
+        num_verifications_required: u64,
+        amount: u64,
+    ) -> Result<Self> {
+        let ctx = metadata.0.lock().unwrap();
+
+        Ok(Self(sdk::Action::create_did(
+            recovery_list_hash,
+            num_verifications_required,
+            metadata.as_ptr(&ctx),
+            amount,
+        )))
+    }
+
+    pub fn create_empty_did() -> Result<Self> {
+        Ok(Self(sdk::Action::create_empty_did()))
+    }
+
+    /// Fields that are `None` are left unchanged. The recovery list hash can't be set and removed
+    /// at the same time.
+    pub fn update_did(
+        id: Id,
+        new_metadata: Option<Program>,
+        new_recovery_list_hash: Option<Bytes32>,
+        new_num_verifications_required: Option<u64>,
+        remove_recovery_list_hash: Option<bool>,
+    ) -> Result<Self> {
+        let new_recovery_list_hash = match (
+            new_recovery_list_hash,
+            remove_recovery_list_hash.unwrap_or(false),
+        ) {
+            (Some(_), true) => {
+                return Err(bindy::Error::Custom(
+                    "cannot both set and remove the recovery list hash".to_string(),
+                ));
+            }
+            (Some(hash), false) => Some(Some(hash)),
+            (None, true) => Some(None),
+            (None, false) => None,
+        };
+
+        let new_metadata = new_metadata.map(|metadata| {
+            let ctx = metadata.0.lock().unwrap();
+            metadata.as_ptr(&ctx)
+        });
+
+        Ok(Self(sdk::Action::update_did(
+            id.0,
+            new_recovery_list_hash,
+            new_num_verifications_required,
+            new_metadata,
+        )))
+    }
+
+    pub fn mint_option(
+        creator_puzzle_hash: Bytes32,
+        seconds: u64,
+        underlying_id: Id,
+        underlying_amount: u64,
+        strike_type: OptionType,
+        amount: u64,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::mint_option(
+            creator_puzzle_hash,
+            seconds,
+            underlying_id.0,
+            underlying_amount,
+            strike_type,
+            amount,
+        )))
+    }
+
+    pub fn melt_singleton(id: Id, amount: u64) -> Result<Self> {
+        Ok(Self(sdk::Action::melt_singleton(id.0, amount)))
     }
 
     pub fn issue_cat(
@@ -475,6 +647,42 @@ impl Outputs {
             .copied()
             .ok_or_else(|| bindy::Error::Custom("NFT not found in outputs".to_string()))?;
         Ok(sdk_nft.as_program(&self.clvm))
+    }
+
+    pub fn dids(&self) -> Result<Vec<Id>> {
+        Ok(self.inner.dids.keys().copied().map(Id).collect())
+    }
+
+    pub fn did(&self, id: Id) -> Result<Did> {
+        let sdk_did = self
+            .inner
+            .dids
+            .get(&id.0)
+            .copied()
+            .ok_or_else(|| bindy::Error::Custom("DID not found in outputs".to_string()))?;
+        Ok(sdk_did.as_program(&self.clvm))
+    }
+
+    pub fn options(&self) -> Result<Vec<Id>> {
+        Ok(self.inner.options.keys().copied().map(Id).collect())
+    }
+
+    pub fn option(&self, id: Id) -> Result<OptionContract> {
+        let sdk_option = self
+            .inner
+            .options
+            .get(&id.0)
+            .copied()
+            .ok_or_else(|| bindy::Error::Custom("option not found in outputs".to_string()))?;
+        Ok(sdk_option.into())
+    }
+
+    pub fn fee(&self) -> Result<u64> {
+        Ok(self.inner.fee)
+    }
+
+    pub fn reserved_fee(&self) -> Result<u64> {
+        Ok(self.inner.reserved_fee)
     }
 }
 
