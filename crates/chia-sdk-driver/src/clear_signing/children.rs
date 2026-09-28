@@ -182,13 +182,16 @@ fn calculate_transfer_type(
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let mut reserved_fee = 0;
+        let reserved_fee: u128 = fixed_conditions
+            .iter()
+            .filter_map(|condition| match condition {
+                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
+                _ => None,
+            })
+            .sum();
 
-        for condition in fixed_conditions {
-            if let Condition::ReserveFee(condition) = condition {
-                reserved_fee += condition.amount;
-            }
-        }
+        // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
+        let reserved_fee = u64::try_from(reserved_fee).unwrap_or(u64::MAX);
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
