@@ -4,8 +4,8 @@ use chia_sdk_types::conditions::CreateCoin;
 use clvm_utils::ToTreeHash;
 
 use crate::{
-    Asset, Deltas, DriverError, Id, OptionType, Output, SingletonSpends, SpendAction, SpendContext,
-    SpendKind, Spends,
+    Asset, Delta, Deltas, DriverError, Id, OptionType, Output, SingletonSpends, SpendAction,
+    SpendContext, SpendKind, Spends, check_singleton_amount,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -49,11 +49,11 @@ impl MintOptionAction {
         if matches!(self.underlying_id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
             let parent = &mut spends.xch.items[source];
-            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
+            let parent_coin = parent.asset.coin();
 
             parent.kind.create_coin_with_assertion(
                 ctx,
-                parent_puzzle_hash,
+                parent_coin,
                 &mut spends.xch.payment_assertions,
                 create_coin,
             );
@@ -70,11 +70,11 @@ impl MintOptionAction {
         } else if let Some(cat) = spends.cats.get_mut(&self.underlying_id) {
             let source = cat.output_source(ctx, &output)?;
             let parent = &mut cat.items[source];
-            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
+            let parent_coin = parent.asset.coin();
 
             parent.kind.create_coin_with_assertion(
                 ctx,
-                parent_puzzle_hash,
+                parent_coin,
                 &mut cat.payment_assertions,
                 create_coin,
             );
@@ -91,6 +91,7 @@ impl MintOptionAction {
             return Ok(cat.coin_id());
         } else if let Some(nft) = spends.nfts.get_mut(&self.underlying_id) {
             let source = nft.last_mut()?;
+            check_singleton_amount(source.asset.coin.amount, self.underlying_amount)?;
             source.child_info.destination = Some(create_coin);
 
             let Some(nft) = nft.finalize(
@@ -113,9 +114,9 @@ impl MintOptionAction {
 
 impl SpendAction for MintOptionAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(Id::Xch).output += self.amount;
-        deltas.update(Id::New(index)).input += self.amount;
-        deltas.update(self.underlying_id).output += self.underlying_amount;
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
+        *deltas.update(Id::New(index)) += Delta::new(self.amount, 0);
+        *deltas.update(self.underlying_id) += Delta::new(0, self.underlying_amount);
         deltas.set_needed(self.underlying_id);
         deltas.set_needed(Id::Xch);
     }
@@ -212,6 +213,117 @@ mod tests {
         assert_ne!(sim.coin_state(option.coin.coin_id()), None);
         assert_eq!(option.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(option.coin.amount, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_mint_option_xch_underlying() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(10);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::mint_option(
+                alice.puzzle_hash,
+                100,
+                Id::Xch,
+                5,
+                OptionType::Xch { amount: 3 },
+                1,
+            )],
+        )?;
+
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let option = outputs.options[&Id::New(0)];
+        assert!(
+            sim.coin_state(option.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+        assert_eq!(option.coin.amount, 1);
+
+        let underlying = outputs
+            .xch
+            .iter()
+            .find(|coin| coin.coin_id() == option.info.underlying_coin_id)
+            .expect("missing underlying coin");
+        assert_eq!(underlying.amount, 5);
+        assert!(
+            sim.coin_state(underlying.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+
+        let change: u64 = outputs
+            .xch
+            .iter()
+            .filter(|coin| coin.puzzle_hash == alice.puzzle_hash)
+            .map(|coin| coin.amount)
+            .sum();
+        assert_eq!(change, 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_mint_option_nft_underlying() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(2);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::mint_empty_nft(),
+                Action::mint_option(
+                    alice.puzzle_hash,
+                    100,
+                    Id::New(0),
+                    1,
+                    OptionType::Xch { amount: 3 },
+                    1,
+                ),
+            ],
+        )?;
+
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let option = outputs.options[&Id::New(1)];
+        let nft = outputs.nfts[&Id::New(0)];
+
+        assert_eq!(option.info.underlying_coin_id, nft.coin.coin_id());
+        assert_ne!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert!(
+            sim.coin_state(nft.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+        assert!(
+            sim.coin_state(option.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
 
         Ok(())
     }

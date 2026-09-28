@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 
-use crate::{Deltas, DriverError, HashedPtr, Id, SpendAction, SpendContext, Spends};
+use crate::{Delta, Deltas, DriverError, HashedPtr, Id, SpendAction, SpendContext, Spends};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UpdateDidAction {
@@ -28,8 +28,7 @@ impl UpdateDidAction {
 
 impl SpendAction for UpdateDidAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(self.id).input += 1;
-        deltas.update(self.id).output += 1;
+        *deltas.update(self.id) += Delta::new(1, 1);
         deltas.set_needed(self.id);
     }
 
@@ -114,6 +113,93 @@ mod tests {
         assert_eq!(did.info.metadata, metadata);
         assert_eq!(did.info.p2_puzzle_hash, BURN_PUZZLE_HASH);
         assert_eq!(did.coin.amount, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_update_existing_did_then_send_and_melt() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+        let bob = sim.bls(0);
+        let bob_hint = ctx.hint(bob.puzzle_hash)?;
+        let metadata = ctx.alloc_hashed(&"Hello, world!")?;
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(&mut ctx, &[Action::create_empty_did()])?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&alice.sk))?;
+
+        let did = outputs.dids[&Id::New(0)];
+        let id = Id::Existing(did.info.launcher_id);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(did);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::update_did(id, None, Some(1), Some(metadata)),
+                Action::send(id, bob.puzzle_hash, 1, bob_hint),
+            ],
+        )?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let did = outputs.dids[&id];
+        assert_eq!(did.info.p2_puzzle_hash, bob.puzzle_hash);
+        assert_eq!(did.info.num_verifications_required, 1);
+        assert_eq!(did.info.metadata, metadata);
+        assert!(
+            sim.coin_state(did.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+
+        let actions = [
+            Action::update_did(id, Some(None), None, None),
+            Action::melt_singleton(id, 1),
+        ];
+
+        assert!(Deltas::from_actions(&actions).is_needed(&Id::Xch));
+
+        let mut spends = Spends::new(bob.puzzle_hash);
+        spends.add(did);
+        spends.add(bob.coin);
+
+        let deltas = spends.apply(&mut ctx, &actions)?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { bob.puzzle_hash => bob.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[bob.sk])?;
+
+        assert!(outputs.dids.is_empty());
+        assert_eq!(outputs.xch.len(), 1);
+        assert_eq!(outputs.xch[0].puzzle_hash, bob.puzzle_hash);
+        assert_eq!(outputs.xch[0].amount, 1);
+        assert!(
+            sim.coin_state(did.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_some())
+        );
 
         Ok(())
     }

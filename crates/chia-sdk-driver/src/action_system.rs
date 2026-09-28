@@ -1,3 +1,36 @@
+//! A declarative way to build transactions out of high level [`Action`]s.
+//!
+//! # Lifecycle
+//!
+//! 1. Compute [`Deltas::from_actions`] and use it to select coins. For each [`Id`], select at
+//!    least `output - input` worth of coins, and at least one coin if [`Deltas::is_needed`] is true.
+//! 2. Create [`Spends`] with the change puzzle hash and [`Spends::add`] the selected coins,
+//!    including any settlement coins (for example, when taking an offer).
+//! 3. [`Spends::apply`] the actions. Each action is applied in order and records the coins it
+//!    creates and the conditions it needs.
+//! 4. [`Spends::prepare`] creates change for every asset, attaches the transaction-wide conditions
+//!    (including the reserved fee and settlement payment assertions) to a single spend, and links
+//!    the spends together according to the [`Relation`].
+//! 5. Spend every item in [`Spends::unspent`] with its p2 puzzle, and pass the results to
+//!    [`Spends::spend`], which returns the [`Outputs`]. Alternatively, use
+//!    [`Spends::finish_with_keys`] for standard p2 puzzles.
+//!
+//! # Ids
+//!
+//! [`Id::Xch`] refers to XCH, [`Id::Existing`] refers to an asset id (for CATs) or launcher id (for
+//! singletons) of coins added to the spends, and [`Id::New`] refers to an asset created by the action
+//! at that index in the list passed to [`Spends::apply`].
+//!
+//! # Guarantees
+//!
+//! - Change is calculated from the selected coins and the deltas. If the selected coins can't cover
+//!   the outputs, [`DriverError::InsufficientFunds`](crate::DriverError::InsufficientFunds) is returned
+//!   rather than building a transaction that would be rejected by the mempool.
+//! - Payments created from settlement coins are asserted with a nonce unique to the settlement coin,
+//!   so that the settlement spends can't be removed from the transaction.
+//! - Building the same actions against the same coins always produces the same coin spends.
+//! - With [`Relation::AssertConcurrent`], the spends can't be split into separate transactions.
+
 mod action;
 mod asset;
 mod deltas;
@@ -9,6 +42,9 @@ mod singleton_spends;
 mod spend_kind;
 mod spendable_asset;
 mod spends;
+
+#[cfg(test)]
+mod tests;
 
 pub use action::*;
 pub use asset::*;

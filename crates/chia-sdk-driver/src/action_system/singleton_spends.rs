@@ -123,11 +123,10 @@ where
 
         let hint = ctx.hint(intermediate_puzzle_hash)?;
 
-        source.kind.create_intermediate_coin(CreateCoin::new(
-            intermediate_puzzle_hash,
-            amount,
-            hint,
-        ));
+        source.kind.create_intermediate_coin(
+            source.asset.coin_id(),
+            CreateCoin::new(intermediate_puzzle_hash, amount, hint),
+        );
 
         let child = FungibleSpend::new(
             Coin::new(source.asset.coin_id(), intermediate_puzzle_hash, amount),
@@ -137,8 +136,14 @@ where
         Ok(Some(child))
     }
 
+    /// Finds a spend in the lineage that can create a launcher coin. Settlement spends are skipped,
+    /// since the launcher's announcement must be asserted with a condition.
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
         let Some((index, amount)) = self.lineage.iter().enumerate().find_map(|(index, item)| {
+            if !item.kind.is_conditions() {
+                return None;
+            }
+
             item.kind
                 .find_amount(SINGLETON_LAUNCHER_HASH.into(), &item.asset.constraints())
                 .map(|amount| (index, amount))
@@ -155,12 +160,12 @@ where
     ) -> Result<(usize, Launcher), DriverError> {
         let (index, launcher_amount) = self.launcher_source()?;
 
-        let (create_coin, launcher) =
-            Launcher::create_early(self.lineage[index].asset.coin_id(), launcher_amount);
+        let parent_coin_id = self.lineage[index].asset.coin_id();
+        let (create_coin, launcher) = Launcher::create_early(parent_coin_id, launcher_amount);
 
         self.lineage[index]
             .kind
-            .create_intermediate_coin(create_coin);
+            .create_intermediate_coin(parent_coin_id, create_coin);
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
@@ -281,10 +286,10 @@ impl SingletonAsset for Did {
                     destination.amount,
                     destination.memos,
                 );
-                let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+                let parent_coin = singleton.asset.coin;
                 singleton.kind.create_coin_with_assertion(
                     ctx,
-                    parent_puzzle_hash,
+                    parent_coin,
                     &mut singleton.payment_assertions,
                     create_coin,
                 );
@@ -353,10 +358,10 @@ impl SingletonAsset for Nft {
                 singleton.asset.coin.amount,
                 ctx.hint(intermediate_puzzle_hash)?,
             );
-            let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+            let parent_coin = singleton.asset.coin;
             singleton.kind.create_coin_with_assertion(
                 ctx,
-                parent_puzzle_hash,
+                parent_coin,
                 &mut singleton.payment_assertions,
                 create_coin,
             );
@@ -401,11 +406,11 @@ impl SingletonAsset for Nft {
         nft_info.p2_puzzle_hash = destination.puzzle_hash;
 
         // Create the new NFT coin with the updated info.
-        let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+        let parent_coin = singleton.asset.coin;
 
         singleton.kind.create_coin_with_assertion(
             ctx,
-            parent_puzzle_hash,
+            parent_coin,
             &mut singleton.payment_assertions,
             destination,
         );
@@ -492,10 +497,10 @@ impl SingletonAsset for OptionContract {
         match destination {
             SingletonDestination::CreateCoin(destination) => {
                 // Create the new option contract coin.
-                let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+                let parent_coin = singleton.asset.coin;
                 singleton.kind.create_coin_with_assertion(
                     ctx,
-                    parent_puzzle_hash,
+                    parent_coin,
                     &mut singleton.payment_assertions,
                     destination,
                 );

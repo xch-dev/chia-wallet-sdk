@@ -228,6 +228,12 @@ impl Spends<Unfinished> {
             }))
     }
 
+    /// Attaches the transaction-wide conditions (required and optional conditions, settlement
+    /// payment assertions, and the reserved fee) to the first spend that can emit conditions.
+    ///
+    /// If there is no such spend (for example, when only settlement coins are being spent) and
+    /// there are conditions that must be included, an ephemeral coin is created with the
+    /// intermediate puzzle hash so that it can be spent to emit them.
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
         let mut conditions = self.conditions.required.clone().extend(
             if self.conditions.disable_settlement_assertions {
@@ -237,7 +243,7 @@ impl Spends<Unfinished> {
             },
         );
 
-        let required = !conditions.is_empty();
+        let required = !conditions.is_empty() || self.outputs.reserved_fee > 0;
 
         conditions = conditions.extend(self.conditions.optional.clone());
 
@@ -245,86 +251,71 @@ impl Spends<Unfinished> {
             conditions = conditions.reserve_fee(self.outputs.reserved_fee);
         }
 
-        for (_, spend) in self.iter_conditions_spends() {
-            spend.add_conditions(mem::take(&mut conditions));
+        if let Some((_, spend)) = self.iter_conditions_spends().next() {
+            spend.add_conditions(conditions);
+            return Ok(());
         }
 
         if conditions.is_empty() || !required {
             return Ok(());
         }
 
+        let intermediate_puzzle_hash = self.intermediate_puzzle_hash;
+
         if let Some(index) = self
             .xch
-            .intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+            .intermediate_conditions_source(ctx, intermediate_puzzle_hash)?
+            && try_add_conditions(&mut self.xch.items[index].kind, &mut conditions)
         {
-            match &mut self.xch.items[index].kind {
-                SpendKind::Conditions(spend) => {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-                SpendKind::Settlement(_) => {}
-            }
+            return Ok(());
         }
 
         for cat in self.cats.values_mut() {
             if let Some(index) =
-                cat.intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+                cat.intermediate_conditions_source(ctx, intermediate_puzzle_hash)?
+                && try_add_conditions(&mut cat.items[index].kind, &mut conditions)
             {
-                match &mut cat.items[index].kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                return Ok(());
             }
         }
 
         for did in self.dids.values_mut() {
             if let Some(mut item) =
-                did.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                did.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
         for nft in self.nfts.values_mut() {
             if let Some(mut item) =
-                nft.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                nft.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
         for option in self.options.values_mut() {
             if let Some(mut item) =
-                option.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                option.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
-        if conditions.is_empty() {
-            Ok(())
-        } else {
-            Err(DriverError::CannotEmitConditions)
-        }
+        Err(DriverError::CannotEmitConditions)
     }
 
     fn emit_relation(&mut self, relation: Relation) {
@@ -581,6 +572,16 @@ impl Spends<Finished> {
         }
 
         Ok(self.outputs)
+    }
+}
+
+fn try_add_conditions(kind: &mut SpendKind, conditions: &mut Conditions) -> bool {
+    match kind {
+        SpendKind::Conditions(spend) => {
+            spend.add_conditions(mem::take(conditions));
+            true
+        }
+        SpendKind::Settlement(_) => false,
     }
 }
 

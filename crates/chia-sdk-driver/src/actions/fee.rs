@@ -1,4 +1,4 @@
-use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
+use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
@@ -17,7 +17,7 @@ impl FeeAction {
 
 impl SpendAction for FeeAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
     }
 
     fn spend(

@@ -111,6 +111,8 @@ impl Action {
         ))
     }
 
+    /// Mints an NFT with the DID as the launcher's parent. This does not assign the NFT to the DID;
+    /// follow it with [`Action::update_nft`] and a [`TransferNftById`] to do so.
     pub fn mint_nft_from_did(
         parent_did_id: Id,
         metadata: HashedPtr,

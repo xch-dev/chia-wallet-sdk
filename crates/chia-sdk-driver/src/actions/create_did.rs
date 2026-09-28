@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Asset, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    Asset, Delta, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
     SpendKind, Spends,
 };
 
@@ -37,8 +37,8 @@ impl Default for CreateDidAction {
 
 impl SpendAction for CreateDidAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(Id::New(index)).input += self.amount;
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::New(index)) += Delta::new(self.amount, 0);
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
         deltas.set_needed(Id::Xch);
     }
 

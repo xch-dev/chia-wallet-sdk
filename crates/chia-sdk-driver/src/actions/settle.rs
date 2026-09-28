@@ -2,7 +2,7 @@ use chia_protocol::Coin;
 use chia_puzzle_types::offer::NotarizedPayment;
 use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment};
 
-use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
+use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
 
 #[derive(Debug, Clone)]
 pub struct SettleAction {
@@ -21,14 +21,10 @@ impl SettleAction {
 
 impl SpendAction for SettleAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        let amount: u64 = self
-            .notarized_payment
-            .payments
-            .iter()
-            .map(|p| p.amount)
-            .sum();
+        for payment in &self.notarized_payment.payments {
+            *deltas.update(self.id) += Delta::new(0, payment.amount);
+        }
 
-        deltas.update(self.id).output += amount;
         deltas.set_needed(self.id);
     }
 

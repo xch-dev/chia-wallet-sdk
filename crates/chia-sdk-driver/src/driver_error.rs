@@ -91,6 +91,12 @@ pub enum DriverError {
     #[error("invalid asset id")]
     InvalidAssetId,
 
+    #[error("the selected coins are insufficient to cover the outputs of the transaction")]
+    InsufficientFunds,
+
+    #[error("the amount does not match the amount of the singleton")]
+    SingletonAmountMismatch,
+
     #[error("missing key")]
     MissingKey,
 
