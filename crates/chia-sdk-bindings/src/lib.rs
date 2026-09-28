@@ -90,11 +90,12 @@ pub use chia_sdk_driver::{
     RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
     RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
     RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
-    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
-    StreamingPuzzleInfo, UriKind, VaultInfo, XchandlesConstants, XchandlesDelegatedStateActionLog,
-    XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
-    XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
-    XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,
+    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, RoyaltyInfo,
+    StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo, XchandlesConstants,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
+    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
+    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
+    XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};

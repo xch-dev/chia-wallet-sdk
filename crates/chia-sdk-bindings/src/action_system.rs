@@ -13,7 +13,9 @@ use chia_sdk_types::{Condition, conditions::TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
-use crate::{AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, OptionContract, Program, Spend};
+use crate::{
+    AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Program, Spend,
+};
 
 /// Mirrors [`sdk::Relation`], but `None` is renamed since it's a reserved word in Python.
 #[derive(Clone, Copy)]
@@ -77,6 +79,16 @@ impl Spends {
 
     pub fn add_cat_for_revocation(&self, cat: Cat) -> Result<()> {
         self.spends.lock().unwrap().add_for_revocation(cat)?;
+
+        Ok(())
+    }
+
+    /// Adds the settlement coins offered by the maker, for the taker of an offer.
+    pub fn add_offered_coins(&self, offer: Offer) -> Result<()> {
+        self.spends
+            .lock()
+            .unwrap()
+            .add(offer.inner.offered_coins().clone());
 
         Ok(())
     }
@@ -356,6 +368,12 @@ impl PendingSpend {
 
 #[derive(Clone)]
 pub struct Action(sdk::Action);
+
+impl From<sdk::Action> for Action {
+    fn from(action: sdk::Action) -> Self {
+        Self(action)
+    }
+}
 
 impl Action {
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Option<Program>) -> Result<Self> {

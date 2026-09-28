@@ -1,26 +1,38 @@
 import test from "ava";
 import {
   Action,
+  AssetInfo,
   BlsPair,
+  calculateTradePriceAmounts,
+  calculateTradePrices,
   Cat,
   catPuzzleHash,
   Clvm,
   Coin,
   CoinSpend,
   Constants,
+  decodeOffer,
   Delta,
   Deltas,
+  encodeOffer,
   Id,
   Nft,
   NftMetadata,
+  NotarizedPayment,
+  Offer,
   OptionType,
   Outputs,
+  Payment,
   Relation,
+  RequestedPayments,
   selectCoins,
+  Signature,
   Simulator,
   Spend,
+  SpendBundle,
   Spends,
   standardPuzzleHash,
+  TransferNftById,
 } from "..";
 
 class Wallet {
@@ -597,6 +609,187 @@ test("assert concurrent relation links every spend", (t) => {
 });
 
 const settlementPuzzleHash = Constants.settlementPaymentHash();
+
+test("offer cat for xch", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(14n);
+  const bob = new Wallet(15n);
+
+  alice.addXch(sim, 100n);
+  bob.addXch(sim, 51n);
+
+  const issued = alice.spend(sim, clvm, [Action.singleIssueCat(null, 100n)]);
+  const cat = issued.cat(issued.cats()[0])[0];
+  const assetId = cat.info.assetId;
+  const id = Id.existing(assetId);
+
+  // Alice offers 100 CAT for 50 XCH
+  const requestedPayments = new RequestedPayments(clvm);
+  requestedPayments.addXch(
+    new NotarizedPayment(Offer.nonce([cat.coin.coinId()]), [
+      new Payment(
+        alice.puzzleHash,
+        50n,
+        clvm.list([clvm.atom(alice.puzzleHash)]),
+      ),
+    ]),
+  );
+  const assetInfo = new AssetInfo(clvm);
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addCat(cat);
+  for (const assertion of requestedPayments.assertions(assetInfo)) {
+    makerSpends.addRequiredCondition(assertion);
+  }
+
+  const maker = alice.build(
+    clvm,
+    makerSpends,
+    [Action.send(id, settlementPuzzleHash, 100n)],
+    Relation.AssertConcurrent,
+  );
+
+  const madeOffer = Offer.fromInputSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    requestedPayments,
+    assetInfo,
+  );
+
+  // The offer survives being encoded and decoded
+  const offer = Offer.fromSpendBundle(
+    clvm,
+    decodeOffer(encodeOffer(madeOffer.toSpendBundle())),
+  );
+  t.is(offer.offeredAmounts().cat(assetId), 100n);
+  t.is(offer.offeredCats(assetId).length, 1);
+  t.is(offer.requestedPayments().amounts().xch(), 50n);
+
+  // Bob takes the offer and pays a fee
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    [...offer.requestedPayments().actions(), Action.fee(1n)],
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 50n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+  t.is(bob.balance(sim, id), 100n);
+});
+
+test("offer nft for xch with royalty", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(16n);
+  const bob = new Wallet(17n);
+  const carol = new Wallet(18n);
+
+  alice.addXch(sim, 1n);
+  bob.addXch(sim, 1030n);
+
+  const minted = alice.spend(sim, clvm, [
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      carol.puzzleHash,
+      300,
+      1n,
+    ),
+  ]);
+  const nft = minted.nft(minted.nfts()[0]);
+  const nftId = Id.existing(nft.info.launcherId);
+
+  // Alice offers the NFT for 1000 XCH, revealing the trade price so the royalty is enforced
+  const requestedPayments = new RequestedPayments(clvm);
+  requestedPayments.addXch(
+    new NotarizedPayment(Offer.nonce([nft.coin.coinId()]), [
+      new Payment(alice.puzzleHash, 1000n, null),
+    ]),
+  );
+  const assetInfo = new AssetInfo(clvm);
+  const tradePrices = calculateTradePrices(
+    calculateTradePriceAmounts(requestedPayments.amounts(), 1),
+    assetInfo,
+  );
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addNft(nft);
+  for (const assertion of requestedPayments.assertions(assetInfo)) {
+    makerSpends.addRequiredCondition(assertion);
+  }
+
+  const maker = alice.build(
+    clvm,
+    makerSpends,
+    [
+      Action.updateNft(nftId, [], new TransferNftById(null, tradePrices)),
+      Action.send(nftId, settlementPuzzleHash, 1n),
+    ],
+    Relation.AssertConcurrent,
+  );
+
+  const offer = Offer.fromInputSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    requestedPayments,
+    assetInfo,
+  );
+
+  const royalties = offer.requestedRoyalties();
+  t.is(royalties.length, 1);
+  t.is(royalties[0].basisPoints, 300);
+  t.is(offer.requestedRoyaltyAmounts().xch(), 30n);
+
+  // Bob takes the offer and pays the royalty
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    [
+      ...offer.requestedPayments().actions(),
+      Action.settleRoyalty(
+        clvm,
+        Id.xch(),
+        royalties[0].launcherId,
+        royalties[0].puzzleHash,
+        30n,
+      ),
+    ],
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  const bobNft = taker.outputs.nft(nftId);
+  t.true(Buffer.from(bobNft.info.p2PuzzleHash).equals(bob.puzzleHash));
+  t.is(alice.balance(sim, Id.xch()), 1000n);
+  t.is(carol.balance(sim, Id.xch()), 30n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+});
 
 test("coin announcement relations link spends", (t) => {
   const sim = new Simulator();
