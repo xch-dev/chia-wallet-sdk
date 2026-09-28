@@ -28,23 +28,18 @@ impl RequestedPayments {
     }
 
     pub fn amounts(&self) -> OfferAmounts {
+        fn total(nps: &[NotarizedPayment]) -> u128 {
+            nps.iter()
+                .flat_map(|np| np.payments.iter().map(|p| u128::from(p.amount)))
+                .sum()
+        }
+
         OfferAmounts {
-            xch: self
-                .xch
-                .iter()
-                .flat_map(|np| np.payments.iter().map(|p| p.amount))
-                .sum(),
+            xch: total(&self.xch),
             cats: self
                 .cats
                 .iter()
-                .map(|(&launcher_id, nps)| {
-                    (
-                        launcher_id,
-                        nps.iter()
-                            .flat_map(|np| np.payments.iter().map(|p| p.amount))
-                            .sum(),
-                    )
-                })
+                .map(|(&asset_id, nps)| (asset_id, total(nps)))
                 .collect(),
         }
     }

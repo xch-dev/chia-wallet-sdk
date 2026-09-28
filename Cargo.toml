@@ -164,7 +164,6 @@ napi = { version = "3.3.0", default-features = false }
 napi-derive = { version = "3.2.5" }
 napi-build = "3.0.0-beta.0"
 paste = "1.0.15"
-bigdecimal = "0.4.8"
 k256 = "0.13.4"
 p256 = "0.13.2"
 signature = "2.2.0"

@@ -9,7 +9,7 @@ use chia_sdk_types::conditions::{AssertPuzzleAnnouncement, CreateCoin};
 
 use crate::{
     Asset, Cat, Delta, DriverError, Launcher, OptionLauncher, OptionLauncherInfo, OptionType,
-    Output, OutputSet, SpendContext, SpendKind,
+    Output, OutputSet, SpendContext, SpendKind, coin_amount,
 };
 
 #[derive(Debug, Clone)]
@@ -27,11 +27,11 @@ where
     }
 
     /// The total amount of the coins that were selected (ie, not created by this transaction).
-    pub fn selected_amount(&self) -> u64 {
+    pub fn selected_amount(&self) -> u128 {
         self.items
             .iter()
             .filter(|item| !item.ephemeral)
-            .map(|item| item.asset.amount())
+            .map(|item| u128::from(item.asset.amount()))
             .sum()
     }
 
@@ -295,7 +295,8 @@ where
     /// Creates a change coin for the remaining amount, if there is any.
     ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
-    /// cover the delta outputs, since the transaction would be invalid.
+    /// cover the delta outputs, since the transaction would be invalid. Returns
+    /// [`DriverError::AmountOverflow`] if the change doesn't fit in a single coin.
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
@@ -305,6 +306,7 @@ where
         let change = (self.selected_amount() + delta.input)
             .checked_sub(delta.output)
             .ok_or(DriverError::InsufficientFunds)?;
+        let change = coin_amount(change)?;
 
         if change == 0 {
             return Ok(None);

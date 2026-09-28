@@ -54,15 +54,25 @@ impl Deltas {
 }
 
 /// The amount of an asset that is added to (input) and removed from (output) the transaction.
+///
+/// These are [`u128`] because the total of many coin amounts can exceed [`u64::MAX`], for example
+/// in a malicious offer. Such a transaction fails with [`DriverError::InsufficientFunds`] or
+/// [`DriverError::AmountOverflow`] rather than wrapping around.
+///
+/// [`DriverError::InsufficientFunds`]: crate::DriverError::InsufficientFunds
+/// [`DriverError::AmountOverflow`]: crate::DriverError::AmountOverflow
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Delta {
-    pub input: u64,
-    pub output: u64,
+    pub input: u128,
+    pub output: u128,
 }
 
 impl Delta {
     pub fn new(input: u64, output: u64) -> Self {
-        Self { input, output }
+        Self {
+            input: input.into(),
+            output: output.into(),
+        }
     }
 }
 
