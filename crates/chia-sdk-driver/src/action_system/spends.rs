@@ -1,9 +1,9 @@
 use std::{collections::HashMap, mem};
 
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
+use chia_sdk_types::{Conditions, announcement_id, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{
@@ -319,31 +319,49 @@ impl Spends<Unfinished> {
     }
 
     fn emit_relation(&mut self, relation: Relation) {
-        match relation {
-            Relation::None => {}
-            Relation::AssertConcurrent => {
-                let coin_ids: Vec<Bytes32> = self
-                    .iter_conditions_spends()
-                    .map(|(coin, _)| coin.coin_id())
-                    .collect();
-
-                if coin_ids.len() <= 1 {
-                    return;
-                }
-
-                self.iter_conditions_spends()
-                    .enumerate()
-                    .for_each(|(i, (_, spend))| {
-                        spend.add_conditions(Conditions::new().assert_concurrent_spend(
-                            if i == 0 {
-                                coin_ids[coin_ids.len() - 1]
-                            } else {
-                                coin_ids[i - 1]
-                            },
-                        ));
-                    });
-            }
+        if relation == Relation::None {
+            return;
         }
+
+        let coin_ids: Vec<Bytes32> = self
+            .iter_conditions_spends()
+            .map(|(coin, _)| coin.coin_id())
+            .collect();
+
+        if coin_ids.len() <= 1 {
+            return;
+        }
+
+        let len = coin_ids.len();
+
+        self.iter_conditions_spends()
+            .enumerate()
+            .for_each(|(i, (_, spend))| {
+                let conditions = match relation {
+                    Relation::None => Conditions::new(),
+                    Relation::AssertConcurrent => {
+                        Conditions::new().assert_concurrent_spend(coin_ids[(i + len - 1) % len])
+                    }
+                    Relation::CoinAnnouncementRing => Conditions::new()
+                        .create_coin_announcement(Bytes::default())
+                        .assert_coin_announcement(announcement_id(
+                            coin_ids[(i + 1) % len],
+                            Bytes::default(),
+                        )),
+                    Relation::CoinAnnouncementHub => {
+                        if i == 0 {
+                            Conditions::new().create_coin_announcement(Bytes::default())
+                        } else {
+                            Conditions::new().assert_coin_announcement(announcement_id(
+                                coin_ids[0],
+                                Bytes::default(),
+                            ))
+                        }
+                    }
+                };
+
+                spend.add_conditions(conditions);
+            });
     }
 
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
