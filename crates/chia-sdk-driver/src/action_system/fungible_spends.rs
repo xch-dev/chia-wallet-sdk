@@ -99,7 +99,7 @@ where
                                 GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.coin_id())
                                     .into()
                             }),
-                            item.asset.p2_puzzle_hash().into(),
+                            item.p2_puzzle_hash().into(),
                         )
                         .into(),
                         amount,
@@ -137,7 +137,7 @@ where
             }
 
             item.kind
-                .find_amount(item.asset.p2_puzzle_hash(), &item.asset.constraints())
+                .find_amount(item.p2_puzzle_hash(), &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);
@@ -148,18 +148,14 @@ where
         source.kind.create_intermediate_coin(
             source.asset.coin_id(),
             CreateCoin::new(
-                source.asset.p2_puzzle_hash(),
+                source.p2_puzzle_hash(),
                 amount,
-                source
-                    .asset
-                    .child_memos(ctx, source.asset.p2_puzzle_hash())?,
+                source.asset.child_memos(ctx, source.p2_puzzle_hash())?,
             ),
         );
 
         let child = FungibleSpend::new(
-            source
-                .asset
-                .make_child(source.asset.p2_puzzle_hash(), amount),
+            source.asset.make_child(source.p2_puzzle_hash(), amount),
             true,
         );
 
@@ -281,7 +277,7 @@ where
             launcher_amount,
             OptionLauncherInfo::new(
                 creator_puzzle_hash,
-                source.asset.p2_puzzle_hash(),
+                source.p2_puzzle_hash(),
                 seconds,
                 underlying_amount,
                 strike_type,
@@ -351,6 +347,10 @@ pub struct FungibleSpend<T> {
     /// Whether the coin is created in the same transaction. Ephemeral coins don't count toward
     /// the selected amount, since their value is already accounted for by the action that created them.
     pub ephemeral: bool,
+    /// Whether the coin is spent with its hidden puzzle rather than its p2 puzzle. The outputs of a
+    /// revocation spend are wrapped in the same revocation layer (and hinted with the p2 puzzle hash)
+    /// by [`Spends::prepare`](crate::Spends::prepare), so they remain revocable.
+    pub revoke: bool,
 }
 
 impl<T> FungibleSpend<T>
@@ -368,7 +368,36 @@ where
             asset,
             kind,
             ephemeral,
+            revoke: false,
         }
+    }
+
+    /// A spend of a selected coin with its hidden puzzle, which always emits conditions.
+    ///
+    /// Returns [`DriverError::NotRevocable`] if the asset doesn't have a hidden puzzle.
+    pub fn revocation(asset: T) -> Result<Self, DriverError> {
+        if asset.hidden_puzzle_hash().is_none() {
+            return Err(DriverError::NotRevocable);
+        }
+
+        Ok(Self {
+            asset,
+            kind: SpendKind::conditions(),
+            ephemeral: false,
+            revoke: true,
+        })
+    }
+
+    /// The puzzle hash of the puzzle that authorizes this spend. For revocation spends this is
+    /// the hidden puzzle hash, otherwise it's the p2 puzzle hash of the asset.
+    pub fn p2_puzzle_hash(&self) -> Bytes32 {
+        if self.revoke
+            && let Some(hidden_puzzle_hash) = self.asset.hidden_puzzle_hash()
+        {
+            return hidden_puzzle_hash;
+        }
+
+        self.asset.p2_puzzle_hash()
     }
 }
 
@@ -380,6 +409,7 @@ pub trait FungibleAsset: Clone + Asset {
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
     ) -> Result<Memos, DriverError>;
+    fn hidden_puzzle_hash(&self) -> Option<Bytes32>;
 }
 
 impl FungibleAsset for Coin {
@@ -394,6 +424,10 @@ impl FungibleAsset for Coin {
     ) -> Result<Memos, DriverError> {
         Ok(Memos::None)
     }
+
+    fn hidden_puzzle_hash(&self) -> Option<Bytes32> {
+        None
+    }
 }
 
 impl FungibleAsset for Cat {
@@ -407,5 +441,9 @@ impl FungibleAsset for Cat {
         p2_puzzle_hash: Bytes32,
     ) -> Result<Memos, DriverError> {
         ctx.hint(p2_puzzle_hash)
+    }
+
+    fn hidden_puzzle_hash(&self) -> Option<Bytes32> {
+        self.info.hidden_puzzle_hash
     }
 }

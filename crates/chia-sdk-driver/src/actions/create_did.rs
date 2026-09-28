@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Asset, Delta, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    Delta, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
     SpendKind, Spends,
 };
 
@@ -53,7 +53,7 @@ impl SpendAction for CreateDidAction {
 
         let (parent_conditions, eve_did) = launcher.create_eve_did(
             ctx,
-            source.asset.p2_puzzle_hash(),
+            source.p2_puzzle_hash(),
             self.recovery_list_hash,
             self.num_verifications_required,
             self.metadata,

@@ -143,7 +143,7 @@ impl SpendAction for MintOptionAction {
 
         let (parent_conditions, eve_option) = launcher
             .with_underlying(underlying_coin_id)
-            .mint_eve(ctx, source.asset.p2_puzzle_hash())?;
+            .mint_eve(ctx, source.p2_puzzle_hash())?;
 
         match &mut source.kind {
             SpendKind::Conditions(spend) => {

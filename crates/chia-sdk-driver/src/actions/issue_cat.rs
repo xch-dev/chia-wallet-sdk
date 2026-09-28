@@ -56,11 +56,7 @@ impl SpendAction for IssueCatAction {
             GenesisByCoinIdTailArgs::curry_tree_hash(source.asset.coin_id()).into()
         });
 
-        let cat_info = CatInfo::new(
-            asset_id,
-            self.hidden_puzzle_hash,
-            source.asset.p2_puzzle_hash(),
-        );
+        let cat_info = CatInfo::new(asset_id, self.hidden_puzzle_hash, source.p2_puzzle_hash());
 
         let create_coin = CreateCoin::new(cat_info.puzzle_hash().into(), self.amount, Memos::None);
         let parent_coin = source.asset.coin();

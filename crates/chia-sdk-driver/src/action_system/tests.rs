@@ -1,21 +1,23 @@
 use anyhow::Result;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, CoinSpend, SpendBundle};
+use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment},
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_test::{BlsPair, Simulator, sign_transaction};
+use chia_sdk_test::{BlsPair, BlsPairWithCoin, Simulator, sign_transaction};
 use chia_sdk_types::{Condition, Conditions};
+use clvmr::NodePtr;
 use indexmap::{IndexMap, indexmap};
 use rstest::rstest;
 
 use crate::{
-    Action, AssetInfo, Cat, CatAssetInfo, Deltas, DriverError, HashedPtr, Id, NftAssetInfo, Offer,
-    OfferAmounts, Outputs, Relation, RequestedPayments, RoyaltyInfo, SpendContext, SpendKind,
-    Spends, TransferNftById, calculate_royalty_payments, calculate_trade_price_amounts,
-    calculate_trade_prices,
+    Action, AssetInfo, Cat, CatAssetInfo, Delta, Deltas, DriverError, HashedPtr, Id, NftAssetInfo,
+    Offer, OfferAmounts, Outputs, Puzzle, Relation, RequestedPayments, RoyaltyInfo, Spend,
+    SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById, calculate_royalty_payments,
+    calculate_trade_price_amounts, calculate_trade_prices,
 };
 
 fn keys(puzzle_hash: Bytes32, pk: PublicKey) -> IndexMap<Bytes32, PublicKey> {
@@ -1755,6 +1757,458 @@ fn test_relation_includes_intermediate_spends(
 
     assert_eq!(balance(&sim, alice.puzzle_hash), 3);
     assert_eq!(sim.unspent_coins(alice.puzzle_hash, false).len(), 3);
+
+    Ok(())
+}
+
+struct RevocableCats {
+    tail_spend: Spend,
+    asset_id: Bytes32,
+    cats: Vec<Cat>,
+}
+
+/// The issuer creates a revocable CAT (with their own puzzle hash as the hidden puzzle hash, and a
+/// TAIL they can run at any time), and sends coins of the given amounts to the holder.
+fn issue_revocable_cats(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    issuer: &BlsPairWithCoin,
+    holder: Bytes32,
+    amounts: &[u64],
+) -> Result<RevocableCats> {
+    let total = amounts.iter().sum();
+    let coin = sim.new_coin(issuer.puzzle_hash, total);
+    let tail = ctx.curry(EverythingWithSignatureTailArgs::new(issuer.pk))?;
+    let tail_spend = Spend::new(tail, NodePtr::NIL);
+    let hint = ctx.hint(holder)?;
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(coin);
+
+    let mut actions = vec![Action::issue_cat(
+        tail_spend,
+        Some(issuer.puzzle_hash),
+        total,
+    )];
+    for &amount in amounts {
+        actions.push(Action::send(Id::New(0), holder, amount, hint));
+    }
+
+    let (outputs, coin_spends) = build(
+        ctx,
+        spends,
+        &actions,
+        Relation::None,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+
+    sim.spend_coins(coin_spends, std::slice::from_ref(&issuer.sk))?;
+
+    let cats: Vec<Cat> = outputs.cats[&Id::New(0)]
+        .iter()
+        .filter(|cat| cat.info.p2_puzzle_hash == holder)
+        .copied()
+        .collect();
+    assert_eq!(cats.len(), amounts.len());
+
+    Ok(RevocableCats {
+        tail_spend,
+        asset_id: cats[0].info.asset_id,
+        cats,
+    })
+}
+
+/// Finds the unspent CATs hinted to the puzzle hash, by parsing the parent spends the same way a
+/// wallet would, which relies on the hint to detect the revocation layer after a revocation spend.
+fn hinted_cats(sim: &Simulator, ctx: &mut SpendContext, hint: Bytes32) -> Result<Vec<Cat>> {
+    let mut cats = Vec::new();
+
+    for coin_id in sim.hinted_coins(hint) {
+        let state = sim.coin_state(coin_id).expect("missing coin state");
+
+        if state.spent_height.is_some() {
+            continue;
+        }
+
+        let parent_spend = sim
+            .coin_spend(state.coin.parent_coin_info)
+            .expect("missing parent spend");
+        let puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&parent_spend.solution)?;
+
+        let children = Cat::parse_children(ctx, parent_spend.coin, puzzle, solution)?
+            .expect("parent is not a CAT");
+
+        cats.extend(children.into_iter().filter(|cat| cat.coin == state.coin));
+    }
+
+    Ok(cats)
+}
+
+fn assert_revocable(cat: &Cat, hidden_puzzle_hash: Bytes32, p2_puzzle_hash: Bytes32, amount: u64) {
+    assert_eq!(cat.info.hidden_puzzle_hash, Some(hidden_puzzle_hash));
+    assert_eq!(cat.info.p2_puzzle_hash, p2_puzzle_hash);
+    assert_eq!(cat.coin.amount, amount);
+}
+
+#[test]
+fn test_revoke_non_revocable_cat_is_rejected() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let (outputs, _) = build(
+        &mut ctx,
+        spends,
+        &[Action::single_issue_cat(None, 1)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    assert!(matches!(
+        spends.add_for_revocation(outputs.cats[&Id::New(0)][0]),
+        Err(DriverError::NotRevocable)
+    ));
+    assert!(spends.cats.is_empty());
+
+    Ok(())
+}
+
+#[rstest]
+fn test_revoke_and_send(#[values(false, true)] fee: bool) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(1);
+    let bob = BlsPair::new(1);
+    let carol = BlsPair::new(2);
+    let carol_hint = ctx.hint(carol.puzzle_hash)?;
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[10])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    // The issuer revokes Bob's coin and sends it to Carol
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(revocable.cats[0])?;
+
+    let mut actions = vec![Action::send(id, carol.puzzle_hash, 10, carol_hint)];
+
+    if fee {
+        spends.add(issuer.coin);
+        actions.push(Action::fee(1));
+    }
+
+    let deltas = spends.apply(&mut ctx, &actions)?;
+    let finished = spends.clone().prepare(&mut ctx, &deltas, Relation::None)?;
+    let unspent = finished.unspent();
+    assert!(matches!(
+        unspent[unspent.len() - 1].0,
+        SpendableAsset::RevokedCat(_)
+    ));
+    assert_eq!(
+        unspent[unspent.len() - 1].0.p2_puzzle_hash(),
+        issuer.puzzle_hash
+    );
+
+    let outputs = spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&issuer.sk))?;
+
+    assert_eq!(outputs.cats[&id].len(), 1);
+    assert_revocable(
+        &outputs.cats[&id][0],
+        issuer.puzzle_hash,
+        carol.puzzle_hash,
+        10,
+    );
+
+    // Carol's wallet finds the coin by its hint, and it's still revocable
+    let carol_cats = hinted_cats(&sim, &mut ctx, carol.puzzle_hash)?;
+    assert_eq!(carol_cats, outputs.cats[&id]);
+    assert_eq!(cat_balance(&sim, &carol_cats[0], carol.puzzle_hash), 10);
+    assert_eq!(cat_balance(&sim, &carol_cats[0], bob.puzzle_hash), 0);
+    assert_eq!(balance(&sim, issuer.puzzle_hash), u64::from(!fee));
+
+    // And the issuer can revoke it again
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(carol_cats[0])?;
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[],
+        Relation::None,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    assert_revocable(
+        &outputs.cats[&id][0],
+        issuer.puzzle_hash,
+        issuer.puzzle_hash,
+        10,
+    );
+    assert_eq!(
+        hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?,
+        outputs.cats[&id]
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[case::single(&[10])]
+#[case::multiple(&[3, 3, 4])]
+fn test_revoke_without_actions_returns_change(
+    #[case] amounts: &[u64],
+    #[values(false, true)] fee: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(1);
+    let bob = BlsPair::new(1);
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, amounts)?;
+    let id = Id::Existing(revocable.asset_id);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    for &cat in &revocable.cats {
+        spends.add_for_revocation(cat)?;
+    }
+
+    let mut actions = Vec::new();
+
+    if fee {
+        spends.add(issuer.coin);
+        actions.push(Action::fee(1));
+    }
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &actions,
+        Relation::AssertConcurrent,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    // Everything is returned to the issuer as a single change coin, which is still revocable
+    assert_eq!(outputs.cats[&id].len(), 1);
+    assert_revocable(
+        &outputs.cats[&id][0],
+        issuer.puzzle_hash,
+        issuer.puzzle_hash,
+        10,
+    );
+    assert_eq!(
+        hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?,
+        outputs.cats[&id]
+    );
+    assert_eq!(cat_balance(&sim, &revocable.cats[0], bob.puzzle_hash), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_revoke_partial_send_with_change() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let carol = BlsPair::new(2);
+    let carol_hint = ctx.hint(carol.puzzle_hash)?;
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[10])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(revocable.cats[0])?;
+
+    let (_, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(id, carol.puzzle_hash, 4, carol_hint)],
+        Relation::None,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    let carol_cats = hinted_cats(&sim, &mut ctx, carol.puzzle_hash)?;
+    assert_eq!(carol_cats.len(), 1);
+    assert_revocable(&carol_cats[0], issuer.puzzle_hash, carol.puzzle_hash, 4);
+
+    let issuer_cats = hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?;
+    assert_eq!(issuer_cats.len(), 1);
+    assert_revocable(&issuer_cats[0], issuer.puzzle_hash, issuer.puzzle_hash, 6);
+
+    Ok(())
+}
+
+#[test]
+fn test_revoke_with_duplicate_outputs() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let issuer_hint = ctx.hint(issuer.puzzle_hash)?;
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[2])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(revocable.cats[0])?;
+
+    // The payment and the change are identical, so an intermediate coin (owned by the issuer,
+    // since it's created by the revocation spend) must create one of them.
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(id, issuer.puzzle_hash, 1, issuer_hint)],
+        Relation::AssertConcurrent,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    assert_eq!(coin_spends.len(), 2);
+
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    let issuer_cats = hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?;
+    assert_eq!(issuer_cats.len(), 2);
+    assert_ne!(issuer_cats[0].coin, issuer_cats[1].coin);
+
+    for cat in &issuer_cats {
+        assert_revocable(cat, issuer.puzzle_hash, issuer.puzzle_hash, 1);
+        assert!(outputs.cats[&id].contains(cat));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_revoke_and_melt() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[10])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(issuer.coin);
+    spends.add_for_revocation(revocable.cats[0])?;
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::run_tail(
+            id,
+            revocable.tail_spend,
+            Delta::new(0, 10),
+        )],
+        Relation::AssertConcurrent,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    // The melted value is returned to the issuer as XCH, and no CAT is left
+    assert!(outputs.cats.get(&id).is_none_or(Vec::is_empty));
+    assert_eq!(balance(&sim, issuer.puzzle_hash), 10);
+    assert!(hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?.is_empty());
+    assert_eq!(cat_balance(&sim, &revocable.cats[0], bob.puzzle_hash), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_revoke_partial_melt_and_send() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let carol = BlsPair::new(2);
+    let carol_hint = ctx.hint(carol.puzzle_hash)?;
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[10])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(issuer.coin);
+    spends.add_for_revocation(revocable.cats[0])?;
+
+    let (_, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::run_tail(id, revocable.tail_spend, Delta::new(0, 3)),
+            Action::send(id, carol.puzzle_hash, 4, carol_hint),
+        ],
+        Relation::AssertConcurrent,
+        &keys(issuer.puzzle_hash, issuer.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk])?;
+
+    assert_eq!(balance(&sim, issuer.puzzle_hash), 3);
+
+    let carol_cats = hinted_cats(&sim, &mut ctx, carol.puzzle_hash)?;
+    assert_eq!(carol_cats.len(), 1);
+    assert_revocable(&carol_cats[0], issuer.puzzle_hash, carol.puzzle_hash, 4);
+
+    let issuer_cats = hinted_cats(&sim, &mut ctx, issuer.puzzle_hash)?;
+    assert_eq!(issuer_cats.len(), 1);
+    assert_revocable(&issuer_cats[0], issuer.puzzle_hash, issuer.puzzle_hash, 3);
+
+    Ok(())
+}
+
+#[test]
+fn test_revoke_alongside_normal_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let carol = BlsPair::new(2);
+    let carol_hint = ctx.hint(carol.puzzle_hash)?;
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[5, 6])?;
+    let id = Id::Existing(revocable.asset_id);
+
+    // Bob spends one of his coins normally, and the issuer revokes the other, in the same CAT ring
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(revocable.cats[0]);
+    spends.add_for_revocation(revocable.cats[1])?;
+
+    let (_, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(id, carol.puzzle_hash, 11, carol_hint)],
+        Relation::AssertConcurrent,
+        &indexmap! {
+            issuer.puzzle_hash => issuer.pk,
+            bob.puzzle_hash => bob.pk,
+        },
+    )?;
+    sim.spend_coins(coin_spends, &[issuer.sk, bob.sk])?;
+
+    let carol_cats = hinted_cats(&sim, &mut ctx, carol.puzzle_hash)?;
+    assert_eq!(carol_cats.len(), 1);
+    assert_revocable(&carol_cats[0], issuer.puzzle_hash, carol.puzzle_hash, 11);
+    assert!(hinted_cats(&sim, &mut ctx, bob.puzzle_hash)?.is_empty());
 
     Ok(())
 }
