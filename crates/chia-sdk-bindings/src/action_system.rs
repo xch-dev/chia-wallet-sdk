@@ -95,7 +95,7 @@ impl Spends {
         Ok(())
     }
 
-    pub fn selected_xch_amount(&self) -> Result<u64> {
+    pub fn selected_xch_amount(&self) -> Result<u128> {
         Ok(self.spends.lock().unwrap().xch.selected_amount())
     }
 
@@ -110,7 +110,7 @@ impl Spends {
             .collect())
     }
 
-    pub fn selected_cat_amount(&self, asset_id: Bytes32) -> Result<u64> {
+    pub fn selected_cat_amount(&self, asset_id: Bytes32) -> Result<u128> {
         Ok(self
             .spends
             .lock()

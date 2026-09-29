@@ -1,4 +1,3 @@
-use bigdecimal::{BigDecimal, RoundingMode, ToPrimitive};
 use chia_protocol::Bytes32;
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
@@ -6,6 +5,7 @@ use chia_sdk_types::conditions::TradePrice;
 
 use crate::{
     AssetInfo, CatAssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext,
+    coin_amount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,15 +58,16 @@ pub fn calculate_trade_price_amounts(
     }
 }
 
+/// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`].
 pub fn calculate_trade_prices(
     trade_price_amounts: &OfferAmounts,
     asset_info: &AssetInfo,
-) -> Vec<TradePrice> {
+) -> Result<Vec<TradePrice>, DriverError> {
     let mut trade_prices = Vec::new();
 
     if trade_price_amounts.xch > 0 {
         trade_prices.push(TradePrice::new(
-            trade_price_amounts.xch,
+            coin_amount(trade_price_amounts.xch)?,
             SETTLEMENT_PAYMENT_HASH.into(),
         ));
     }
@@ -86,12 +87,14 @@ pub fn calculate_trade_prices(
         .puzzle_hash()
         .into();
 
-        trade_prices.push(TradePrice::new(amount, puzzle_hash));
+        trade_prices.push(TradePrice::new(coin_amount(amount)?, puzzle_hash));
     }
 
-    trade_prices
+    Ok(trade_prices)
 }
 
+/// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in
+/// a [`u64`].
 pub fn calculate_royalty_payments(
     ctx: &mut SpendContext,
     trade_prices: &OfferAmounts,
@@ -100,14 +103,20 @@ pub fn calculate_royalty_payments(
     let mut payments = RequestedPayments::new();
 
     for royalty in royalties {
-        let amount = calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
+        let amount = coin_amount(calculate_nft_royalty(
+            coin_amount(trade_prices.xch)?,
+            royalty.basis_points,
+        ))?;
 
         if amount > 0 {
             payments.xch.push(royalty.payment(ctx, amount)?);
         }
 
         for (&asset_id, &amount) in &trade_prices.cats {
-            let amount = calculate_nft_royalty(amount, royalty.basis_points);
+            let amount = coin_amount(calculate_nft_royalty(
+                coin_amount(amount)?,
+                royalty.basis_points,
+            ))?;
 
             if amount > 0 {
                 payments
@@ -122,42 +131,32 @@ pub fn calculate_royalty_payments(
     Ok(payments)
 }
 
+/// The total royalty owed for each asset. Fails with [`DriverError::AmountOverflow`] if a trade
+/// price doesn't fit in a [`u64`], since it couldn't be used in a trade price condition.
 pub fn calculate_royalty_amounts(
     trade_prices: &OfferAmounts,
     royalties: &[RoyaltyInfo],
-) -> OfferAmounts {
+) -> Result<OfferAmounts, DriverError> {
     let mut amounts = OfferAmounts::new();
 
     for royalty in royalties {
-        amounts.xch += calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
+        amounts.xch += calculate_nft_royalty(coin_amount(trade_prices.xch)?, royalty.basis_points);
 
         for (&asset_id, &amount) in &trade_prices.cats {
             *amounts.cats.entry(asset_id).or_default() +=
-                calculate_nft_royalty(amount, royalty.basis_points);
+                calculate_nft_royalty(coin_amount(amount)?, royalty.basis_points);
         }
     }
 
-    amounts
+    Ok(amounts)
 }
 
-pub fn calculate_nft_trace_price(amount: u64, royalty_nft_count: usize) -> u64 {
-    let amount = BigDecimal::from(amount);
-    let royalty_nft_count = BigDecimal::from(royalty_nft_count as u64);
-    floor(amount / royalty_nft_count)
-        .to_u64()
-        .expect("out of bounds")
+/// The trade price of each royalty NFT, which is zero if there are none.
+pub fn calculate_nft_trace_price(amount: u128, royalty_nft_count: usize) -> u128 {
+    amount.checked_div(royalty_nft_count as u128).unwrap_or(0)
 }
 
-pub fn calculate_nft_royalty(trade_price: u64, royalty_percentage: u16) -> u64 {
-    let trade_price = BigDecimal::from(trade_price);
-    let royalty_percentage = BigDecimal::from(royalty_percentage);
-    let percent = royalty_percentage / BigDecimal::from(10_000);
-    floor(trade_price * percent)
-        .to_u64()
-        .expect("out of bounds")
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn floor(amount: BigDecimal) -> BigDecimal {
-    amount.with_scale_round(0, RoundingMode::Floor)
+/// Royalties above 100% are representable on chain, so the royalty can exceed the trade price.
+pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u128 {
+    u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
 }

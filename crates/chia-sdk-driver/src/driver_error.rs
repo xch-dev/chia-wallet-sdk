@@ -100,6 +100,9 @@ pub enum DriverError {
     #[error("the CAT does not have a revocation layer")]
     NotRevocable,
 
+    #[error("the amount is too large to fit in a coin")]
+    AmountOverflow,
+
     #[error("missing key")]
     MissingKey,
 

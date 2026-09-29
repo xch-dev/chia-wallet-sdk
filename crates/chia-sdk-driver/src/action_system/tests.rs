@@ -16,8 +16,8 @@ use rstest::rstest;
 use crate::{
     Action, AssetInfo, Cat, CatAssetInfo, Delta, Deltas, DriverError, HashedPtr, Id, NftAssetInfo,
     Offer, OfferAmounts, Outputs, Puzzle, Relation, RequestedPayments, RoyaltyInfo, Spend,
-    SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById, calculate_royalty_payments,
-    calculate_trade_price_amounts, calculate_trade_prices,
+    SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById, calculate_royalty_amounts,
+    calculate_royalty_payments, calculate_trade_price_amounts, calculate_trade_prices, coin_amount,
 };
 
 fn keys(puzzle_hash: Bytes32, pk: PublicKey) -> IndexMap<Bytes32, PublicKey> {
@@ -97,6 +97,48 @@ fn test_insufficient_xch_is_rejected() {
     assert!(matches!(result, Err(DriverError::InsufficientFunds)));
 }
 
+#[rstest]
+#[case::change_fits(u64::MAX, Some(u64::MAX))]
+#[case::change_overflows(1, None)]
+fn test_selected_amount_above_u64_max(
+    #[case] amount: u64,
+    #[case] change: Option<u64>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(u64::MAX);
+    let second_coin = sim.new_coin(alice.puzzle_hash, u64::MAX);
+    let bob = BlsPair::new(1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+    spends.add(second_coin);
+    assert_eq!(spends.xch.selected_amount(), 2 * u128::from(u64::MAX));
+
+    let result = build(
+        &mut ctx,
+        spends,
+        &[Action::send(Id::Xch, bob.puzzle_hash, amount, Memos::None)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    );
+
+    // The change must be exact, otherwise the remainder would silently become a fee
+    let Some(change) = change else {
+        assert!(matches!(result, Err(DriverError::AmountOverflow)));
+        return Ok(());
+    };
+
+    let (_, coin_spends) = result?;
+    sim.spend_coins(coin_spends, std::slice::from_ref(&alice.sk))?;
+
+    assert_eq!(balance(&sim, bob.puzzle_hash), amount);
+    assert_eq!(balance(&sim, alice.puzzle_hash), change);
+
+    Ok(())
+}
+
 #[test]
 fn test_insufficient_xch_for_fee_is_rejected() {
     let mut sim = Simulator::new();
@@ -146,6 +188,30 @@ fn test_insufficient_cat_is_rejected() -> Result<()> {
     assert!(matches!(result, Err(DriverError::InsufficientFunds)));
 
     Ok(())
+}
+
+#[test]
+fn test_overflowing_amounts_are_rejected() {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let result = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::send(Id::Xch, alice.puzzle_hash, u64::MAX, Memos::None),
+            Action::send(Id::Xch, alice.puzzle_hash, 2, Memos::None),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    );
+
+    assert!(matches!(result, Err(DriverError::InsufficientFunds)));
 }
 
 #[test]
@@ -798,7 +864,7 @@ fn test_offer_nft_for_xch_with_royalty() -> Result<()> {
     let trade_prices = calculate_trade_prices(
         &calculate_trade_price_amounts(&requested_payments.amounts(), 1),
         &asset_info,
-    );
+    )?;
 
     let mut spends = Spends::new(alice.puzzle_hash);
     spends.add(nft);
@@ -830,7 +896,7 @@ fn test_offer_nft_for_xch_with_royalty() -> Result<()> {
         asset_info,
     )?;
 
-    let royalties = offer.requested_royalty_amounts();
+    let royalties = offer.requested_royalty_amounts()?;
     assert_eq!(royalties.xch, 30);
 
     // Bob takes the offer and pays the royalty
@@ -844,7 +910,7 @@ fn test_offer_nft_for_xch_with_royalty() -> Result<()> {
         Id::Xch,
         nft.info.launcher_id,
         carol.puzzle_hash,
-        royalties.xch,
+        coin_amount(royalties.xch)?,
     )?);
 
     let (outputs, coin_spends) = build(
@@ -903,7 +969,7 @@ fn test_offer_nft_without_royalty_payment_fails() -> Result<()> {
     let trade_prices = calculate_trade_prices(
         &calculate_trade_price_amounts(&requested_payments.amounts(), 1),
         &asset_info,
-    );
+    )?;
 
     let mut spends = Spends::new(alice.puzzle_hash);
     spends.add(nft);
@@ -1339,7 +1405,7 @@ fn test_offer_royalty_nfts_and_cat_for_xch_and_cat() -> Result<()> {
     let trade_prices = calculate_trade_prices(
         &calculate_trade_price_amounts(&requested_payments.amounts(), 2),
         &asset_info,
-    );
+    )?;
 
     let mut spends = Spends::new(alice.puzzle_hash);
     spends.add(first_nft);
@@ -1391,7 +1457,7 @@ fn test_offer_royalty_nfts_and_cat_for_xch_and_cat() -> Result<()> {
     )?;
 
     // Each NFT has a trade price of 500 XCH and 100 CAT.
-    let royalties = offer.requested_royalty_amounts();
+    let royalties = offer.requested_royalty_amounts()?;
     assert_eq!(royalties.xch, 15 + 25);
     assert_eq!(royalties.cats[&bob_asset_id], 3 + 5);
 
@@ -1539,13 +1605,13 @@ fn test_offer_xch_for_royalty_nft() -> Result<()> {
     )?;
 
     assert_eq!(offer.offered_coins().amounts().xch, 1000);
-    assert_eq!(offer.offered_royalty_amounts().xch, 30);
+    assert_eq!(offer.offered_royalty_amounts()?.xch, 30);
 
     // Bob takes the offer, revealing the trade price to the NFT so it can assert the royalty
     let trade_prices = calculate_trade_prices(
         &calculate_trade_price_amounts(&offer.offered_coins().amounts(), 1),
         offer.asset_info(),
-    );
+    )?;
 
     let mut spends = Spends::new(bob.puzzle_hash);
     spends.add(offer.offered_coins().clone());
@@ -1578,6 +1644,116 @@ fn test_offer_xch_for_royalty_nft() -> Result<()> {
     assert_eq!(balance(&sim, bob.puzzle_hash), 1000);
     assert_eq!(balance(&sim, carol.puzzle_hash), 30);
     assert_eq!(balance(&sim, alice.puzzle_hash), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_offer_with_overflowing_amounts() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1);
+    let bob = sim.bls(100);
+    let alice_hint = ctx.hint(alice.puzzle_hash)?;
+
+    // Alice mints an NFT with the maximum royalty (655.35%)
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::mint_empty_royalty_nft(alice.puzzle_hash, u16::MAX)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    sim.spend_coins(coin_spends, std::slice::from_ref(&alice.sk))?;
+
+    let nft = outputs.nfts[&Id::New(0)];
+
+    // Alice offers it for more XCH than can exist
+    let mut requested_payments = RequestedPayments::new();
+    requested_payments.xch.push(NotarizedPayment::new(
+        Offer::nonce(vec![nft.coin.coin_id()]),
+        vec![
+            Payment::new(alice.puzzle_hash, u64::MAX, alice_hint),
+            Payment::new(alice.puzzle_hash, u64::MAX, alice_hint),
+        ],
+    ));
+    let asset_info = AssetInfo::new();
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(nft);
+    spends.conditions.required = spends
+        .conditions
+        .required
+        .extend(requested_payments.assertions(&mut ctx, &asset_info)?);
+
+    let (_, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(
+            Id::Existing(nft.info.launcher_id),
+            SETTLEMENT_PAYMENT_HASH.into(),
+            1,
+            Memos::None,
+        )],
+        Relation::AssertConcurrent,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    let signature = sign_transaction(&coin_spends, &[alice.sk])?;
+    let offer = Offer::from_input_spend_bundle(
+        &mut ctx,
+        SpendBundle::new(coin_spends, signature),
+        requested_payments,
+        asset_info,
+    )?;
+
+    // A taker parsing the offer sees the exact totals, and an error for royalties it can't pay
+    let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+    let offer = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+
+    let total = 2 * u128::from(u64::MAX);
+    assert_eq!(offer.requested_payments().amounts().xch, total);
+    assert_eq!(offer.arbitrage().offered.xch, total);
+    assert!(matches!(
+        offer.requested_royalty_amounts(),
+        Err(DriverError::AmountOverflow)
+    ));
+
+    // A trade price that fits can still have a royalty which doesn't fit in a single payment
+    let trade_prices = OfferAmounts {
+        xch: u64::MAX.into(),
+        cats: IndexMap::new(),
+    };
+    let royalties = offer.requested_royalties();
+    assert_eq!(
+        calculate_royalty_amounts(&trade_prices, &royalties)?.xch,
+        u128::from(u64::MAX) * 65_535 / 10_000
+    );
+    assert!(matches!(
+        calculate_royalty_payments(&mut ctx, &trade_prices, &royalties),
+        Err(DriverError::AmountOverflow)
+    ));
+
+    // And the offer can't be taken
+    let mut spends = Spends::new(bob.puzzle_hash);
+    spends.add(offer.offered_coins().clone());
+    spends.add(bob.coin);
+
+    assert!(matches!(
+        build(
+            &mut ctx,
+            spends,
+            &offer.requested_payments().actions(),
+            Relation::AssertConcurrent,
+            &keys(bob.puzzle_hash, bob.pk),
+        ),
+        Err(DriverError::InsufficientFunds)
+    ));
 
     Ok(())
 }

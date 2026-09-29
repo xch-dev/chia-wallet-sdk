@@ -42,7 +42,7 @@
       },
       "disable_settlement_assertions": {},
       "selected_xch_amount": {
-        "return": "u64"
+        "return": "u128"
       },
       "selected_asset_ids": {
         "return": "Vec<Bytes32>"
@@ -51,7 +51,7 @@
         "args": {
           "asset_id": "Bytes32"
         },
-        "return": "u64"
+        "return": "u128"
       },
       "apply": {
         "args": {
@@ -215,8 +215,8 @@
     "new": true,
     "remote": true,
     "fields": {
-      "input": "u64",
-      "output": "u64"
+      "input": "u128",
+      "output": "u128"
     }
   },
   "Id": {
