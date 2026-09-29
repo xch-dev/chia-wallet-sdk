@@ -2,9 +2,12 @@ use chia_protocol::Bytes32;
 
 use crate::{Delta, Deltas, DriverError, HashedPtr, Id, SpendAction, SpendContext, Spends};
 
+/// Created by [`Action::update_did`](crate::Action::update_did). Fields that are `None` are left
+/// unchanged.
 #[derive(Debug, Clone, Copy)]
 pub struct UpdateDidAction {
     pub id: Id,
+    /// The new recovery list hash, where `Some(None)` removes it.
     pub new_recovery_list_hash: Option<Option<Bytes32>>,
     pub new_num_verifications_required: Option<u64>,
     pub new_metadata: Option<HashedPtr>,

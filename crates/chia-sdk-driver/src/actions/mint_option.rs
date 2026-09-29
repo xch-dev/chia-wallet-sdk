@@ -8,13 +8,21 @@ use crate::{
     SpendContext, SpendKind, Spends, check_singleton_amount,
 };
 
+/// Created by [`Action::mint_option`](crate::Action::mint_option). The option can be referred to as
+/// [`Id::New`] with the index of this action.
 #[derive(Debug, Clone, Copy)]
 pub struct MintOptionAction {
+    /// The puzzle hash that the strike is paid to, and that can take the underlying asset back
+    /// after the option expires.
     pub creator_puzzle_hash: Bytes32,
+    /// The timestamp at which the option expires.
     pub seconds: u64,
+    /// The asset locked in the option, which can be XCH, a CAT, or an NFT.
     pub underlying_id: Id,
     pub underlying_amount: u64,
+    /// What must be paid to the creator to exercise the option.
     pub strike_type: OptionType,
+    /// The amount of the option coin, which must be odd.
     pub amount: u64,
 }
 

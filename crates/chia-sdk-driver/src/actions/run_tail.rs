@@ -2,10 +2,13 @@ use chia_sdk_types::Conditions;
 
 use crate::{Delta, Deltas, DriverError, Id, Spend, SpendAction, SpendContext, SpendKind, Spends};
 
+/// Created by [`Action::run_tail`](crate::Action::run_tail).
 #[derive(Debug, Clone, Copy)]
 pub struct RunTailAction {
     pub id: Id,
+    /// The spend of the CAT's TAIL, which must allow the change in supply.
     pub tail_spend: Spend,
+    /// The amount issued (input) and melted into XCH (output).
     pub supply_delta: Delta,
 }
 

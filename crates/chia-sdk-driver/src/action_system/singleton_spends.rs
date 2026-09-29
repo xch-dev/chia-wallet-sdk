@@ -13,12 +13,18 @@ use crate::{
     OptionContract, OutputSet, SingletonInfo, Spend, SpendContext, SpendKind, run_metadata_updater,
 };
 
+/// The spends of a singleton in the transaction.
+///
+/// A singleton can be spent more than once in the same transaction, for example to update a DID
+/// before sending it, or to move an NFT out of a settlement coin so that it can emit conditions.
 #[derive(Debug, Clone)]
 pub struct SingletonSpends<A>
 where
     A: SingletonAsset,
 {
+    /// The spends in order, each of which creates the next. Actions apply to the last spend.
     pub lineage: Vec<SingletonSpend<A>>,
+    /// Whether the singleton was created in the same transaction.
     pub ephemeral: bool,
 }
 
@@ -33,6 +39,7 @@ where
         }
     }
 
+    /// The latest spend in the lineage.
     pub fn last(&self) -> Result<&SingletonSpend<A>, DriverError> {
         self.lineage.last().ok_or(DriverError::NoSourceForOutput)
     }
@@ -54,6 +61,9 @@ where
         Ok(last)
     }
 
+    /// The index of a settlement spend of the singleton, so that it can make notarized payments.
+    /// If the latest spend isn't a settlement spend, the singleton is sent to the settlement
+    /// payments puzzle, and the child's spend is added to the lineage.
     pub fn last_or_create_settlement(
         &mut self,
         ctx: &mut SpendContext,
@@ -86,6 +96,11 @@ where
         Ok(self.lineage.len() - 1)
     }
 
+    /// Recreates (or melts) the singleton from the last spend, adding spends to the lineage until
+    /// every pending update has been applied. Returns the final singleton, or `None` if it was
+    /// melted or already recreated.
+    ///
+    /// If an action didn't choose a destination, the singleton is sent to the change puzzle hash.
     pub fn finalize(
         &mut self,
         ctx: &mut SpendContext,
@@ -117,6 +132,8 @@ where
         Ok(asset)
     }
 
+    /// Creates an XCH coin with the intermediate puzzle hash from a spend in the lineage, which can
+    /// emit conditions when no other spend can. Returns `None` if no spend can create one.
     pub fn intermediate_fungible_xch_spend(
         &mut self,
         ctx: &mut SpendContext,
@@ -165,6 +182,8 @@ where
         Ok((index, amount))
     }
 
+    /// Like [`FungibleSpends::create_launcher`](crate::FungibleSpends::create_launcher), but from a
+    /// spend of the singleton.
     pub fn create_launcher(
         &mut self,
         singleton_amount: u64,
@@ -182,14 +201,19 @@ where
     }
 }
 
+/// A single spend of a singleton.
 #[derive(Debug, Clone)]
 pub struct SingletonSpend<A>
 where
     A: SingletonAsset,
 {
     pub asset: A,
+    /// What the singleton's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,
+    /// The changes that the actions have made to the singleton's child, which are applied when the
+    /// spend is finalized.
     pub child_info: A::ChildInfo,
+    /// Assertions for the payments made by this spend, if it's a settlement spend.
     pub payment_assertions: Vec<AssertPuzzleAnnouncement>,
 }
 
@@ -197,6 +221,7 @@ impl<A> SingletonSpend<A>
 where
     A: SingletonAsset,
 {
+    /// A spend of the singleton with its p2 puzzle, with no changes to its child yet.
     pub fn new(asset: A) -> Self {
         let kind = if asset.p2_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
             SpendKind::settlement()
@@ -238,11 +263,19 @@ impl SingletonSpend<Nft> {
     }
 }
 
+/// A singleton that can be spent by the action system.
 pub trait SingletonAsset: Debug + Clone + Asset {
+    /// The changes that actions can make to the singleton's child.
     type ChildInfo: Debug + Clone;
 
+    /// The child info for a spend that leaves the singleton unchanged.
     fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo;
+
+    /// Whether the child has pending changes that require it to be spent again.
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool;
+
+    /// Adds the conditions that recreate (or melt) the singleton to the spend, and returns the
+    /// spend of the child, or `None` if the singleton was melted.
     fn finalize(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
@@ -280,7 +313,8 @@ impl SingletonAsset for Did {
         let current_info = singleton.asset.info;
         let child_info = &singleton.child_info;
 
-        // If the DID layer has changed, we need to perform an update spend to ensure wallets can properly sync the coin.
+        // If the DID layer has changed, the DID is recreated with its current p2 puzzle hash first,
+        // so that wallets can sync the update before it's sent elsewhere.
         let needs_update = current_info.recovery_list_hash != child_info.recovery_list_hash
             || current_info.num_verifications_required != child_info.num_verifications_required
             || current_info.metadata != child_info.metadata;
@@ -329,15 +363,13 @@ impl SingletonAsset for Did {
                     create_coin,
                 );
 
-                // Create a new singleton spend with the child and the new spend kind.
-                // This will only be added to the lineage if an additional spend is required.
+                // This is only added to the lineage if an additional spend is required.
                 let mut new_spend = SingletonSpend::new(
                     singleton
                         .asset
                         .child_with(child_info, singleton.asset.coin.amount),
                 );
 
-                // Signal that an additional spend is required.
                 new_spend.child_info.needs_update = needs_update;
 
                 if needs_update {
@@ -436,7 +468,6 @@ impl SingletonAsset for Nft {
         let mut nft_info = singleton.asset.info;
         nft_info.p2_puzzle_hash = destination.puzzle_hash;
 
-        // Create the new NFT coin with the updated info.
         let parent_coin = singleton.asset.coin;
 
         singleton.kind.create_coin_with_assertion(
@@ -479,7 +510,6 @@ impl SingletonAsset for Nft {
             }
         }
 
-        // Create a new singleton spend with the child and the new spend kind.
         let mut spend = SingletonSpend::new(
             singleton
                 .asset
@@ -527,7 +557,6 @@ impl SingletonAsset for OptionContract {
 
         match destination {
             SingletonDestination::CreateCoin(destination) => {
-                // Create the new option contract coin.
                 let parent_coin = singleton.asset.coin;
                 singleton.kind.create_coin_with_assertion(
                     ctx,
@@ -536,14 +565,13 @@ impl SingletonAsset for OptionContract {
                     destination,
                 );
 
-                // Create a new singleton spend with the child and the new spend kind.
                 Ok(Some(SingletonSpend::new(singleton.asset.child(
                     destination.puzzle_hash,
                     singleton.asset.coin.amount,
                 ))))
             }
             SingletonDestination::Melt => {
-                // We need to emit a message to the underlying coin to exercise the option and melt it.
+                // Melting the option exercises it, which requires a message to the underlying coin.
                 let message = singleton.asset.info.underlying_delegated_puzzle_hash.into();
                 let data = ctx.alloc(&singleton.asset.info.underlying_coin_id)?;
 
@@ -566,32 +594,50 @@ impl SingletonAsset for OptionContract {
     }
 }
 
+/// Where a singleton goes when it's spent.
 #[derive(Debug, Clone, Copy)]
 pub enum SingletonDestination {
+    /// Recreates the singleton with the inner puzzle hash and amount of the condition.
     CreateCoin(CreateCoin<NodePtr>),
+    /// Melts the singleton, which returns its amount to the transaction as XCH.
     Melt,
 }
 
+/// The changes that actions have made to a DID's child.
 #[derive(Debug, Clone)]
 pub struct ChildDidInfo {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
+    /// Where the DID is sent, or `None` to send it to the change puzzle hash.
     pub destination: Option<SingletonDestination>,
+    /// Not read by the action system. The child's spend kind is determined by its p2 puzzle hash.
     pub new_spend_kind: SpendKind,
+    /// Whether the child is an update spend, which must be spent again to reach the destination.
     pub needs_update: bool,
 }
 
+/// The changes that actions have made to an NFT's child.
 #[derive(Debug, Clone)]
 pub struct ChildNftInfo {
+    /// Metadata updater spends that haven't been applied yet. Each spend of the NFT applies one,
+    /// in order.
     pub metadata_update_spends: Vec<Spend>,
+    /// A transfer to (or away from) a DID that hasn't been applied yet.
     pub transfer_condition: Option<TransferNft>,
+    /// Where the NFT is sent after every update is applied, or `None` to send it to the change
+    /// puzzle hash.
     pub destination: Option<CreateCoin<NodePtr>>,
+    /// Not read by the action system. The child's spend kind is determined by its p2 puzzle hash.
     pub new_spend_kind: SpendKind,
 }
 
+/// The changes that actions have made to an option contract's child.
 #[derive(Debug, Clone)]
 pub struct ChildOptionInfo {
+    /// Where the option is sent (or [`SingletonDestination::Melt`] to exercise it), or `None` to
+    /// send it to the change puzzle hash.
     pub destination: Option<SingletonDestination>,
+    /// Not read by the action system. The child's spend kind is determined by its p2 puzzle hash.
     pub new_spend_kind: SpendKind,
 }

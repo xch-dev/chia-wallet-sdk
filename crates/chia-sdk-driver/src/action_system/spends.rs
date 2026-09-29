@@ -13,6 +13,11 @@ use crate::{
     StandardLayer,
 };
 
+/// The coins being spent in a transaction, and what each of them will output.
+///
+/// Coins are [added](Spends::add), then [actions are applied](Spends::apply), and then the spends
+/// are [prepared](Spends::prepare) and [spent](Spends::spend). See the
+/// [module documentation](crate::action_system) for details.
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Spends<S = Unfinished> {
@@ -21,38 +26,61 @@ pub struct Spends<S = Unfinished> {
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
     pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
+    /// The p2 puzzle hash of coins that are created and spent within the transaction, for example
+    /// to emit conditions when no other spend can. The caller must be able to spend it.
     pub intermediate_puzzle_hash: Bytes32,
+    /// The p2 puzzle hash that change and unsent singletons are sent to.
     pub change_puzzle_hash: Bytes32,
+    /// The coins created so far, which are returned when the transaction is finished.
     pub outputs: Outputs,
+    /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
+    /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
     _state: S,
 }
 
+/// Conditions that aren't tied to a specific coin, such as the assertions of an offer's requested
+/// payments.
 #[derive(Debug, Default, Clone)]
 pub struct ConditionConfig {
+    /// Conditions that are only included if there's already a spend that can emit them.
     pub optional: Conditions,
+    /// Conditions that must be included, even if an intermediate coin has to be created to emit them.
     pub required: Conditions,
+    /// Skips the assertions of payments made by settlement coins. This is only safe if something
+    /// else ties the settlement spends to the transaction, since otherwise they could be removed.
     pub disable_settlement_assertions: bool,
 }
 
+/// The coins created by a transaction.
 #[derive(Debug, Default, Clone)]
 pub struct Outputs {
+    /// The XCH coins created by the actions, and the change. Intermediate coins aren't included.
     pub xch: Vec<Coin>,
+    /// The CAT coins created by the actions, and the change. Intermediate coins aren't included.
     pub cats: IndexMap<Id, Vec<Cat>>,
+    /// The final coin of each DID that wasn't melted.
     pub dids: IndexMap<Id, Did>,
+    /// The final coin of each NFT.
     pub nfts: IndexMap<Id, Nft>,
+    /// The final coin of each option contract that wasn't exercised.
     pub options: IndexMap<Id, OptionContract>,
+    /// The total fee paid by [`Action::fee`](crate::Action::fee).
     pub fee: u64,
+    /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
 }
 
+/// The state of [`Spends`] while actions are being applied.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Unfinished;
 
+/// The state of [`Spends`] after [`Spends::prepare`], when only the p2 spends remain to be provided.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Finished;
 
 impl Spends<Unfinished> {
+    /// Uses the change puzzle hash for intermediate coins as well.
     pub fn new(change_puzzle_hash: Bytes32) -> Self {
         Self::with_separate_change_puzzle_hash(change_puzzle_hash, change_puzzle_hash)
     }
@@ -75,6 +103,8 @@ impl Spends<Unfinished> {
         }
     }
 
+    /// Adds a coin to be spent with its p2 puzzle. Coins with the settlement payments puzzle as their
+    /// p2 puzzle (for example, when taking an offer) are spent as settlement spends.
     pub fn add(&mut self, asset: impl AddAsset) {
         asset.add(self);
     }
@@ -100,6 +130,8 @@ impl Spends<Unfinished> {
         Ok(())
     }
 
+    /// Applies each action in order, and returns the [`Deltas`] of the actions for
+    /// [`Spends::prepare`].
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
@@ -405,6 +437,8 @@ impl Spends<Unfinished> {
         Ok(())
     }
 
+    /// The puzzle hashes of every puzzle that the caller needs to be able to spend, including the
+    /// intermediate puzzle hash.
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = vec![self.intermediate_puzzle_hash];
 
@@ -439,6 +473,7 @@ impl Spends<Unfinished> {
         p2_puzzle_hashes
     }
 
+    /// The ids of the coins that are spent with conditions, rather than as settlement coins.
     pub fn non_settlement_coin_ids(&self) -> Vec<Bytes32> {
         let mut coin_ids = Vec::new();
 
@@ -483,6 +518,10 @@ impl Spends<Unfinished> {
         coin_ids
     }
 
+    /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
+    /// together according to the [`Relation`], and wraps the outputs of revocation spends.
+    ///
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas.
     pub fn prepare(
         mut self,
         ctx: &mut SpendContext,
@@ -508,6 +547,9 @@ impl Spends<Unfinished> {
         })
     }
 
+    /// Prepares the spends, and spends every coin with the standard puzzle (using the synthetic key
+    /// for its p2 puzzle hash), or with the settlement payments puzzle for settlement coins.
+    /// Returns [`DriverError::MissingKey`] if a key is missing.
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
@@ -547,6 +589,8 @@ impl Spends<Unfinished> {
 }
 
 impl Spends<Finished> {
+    /// Every coin that the caller needs to provide the p2 spend for, along with what the p2 puzzle
+    /// must output.
     pub fn unspent(&self) -> Vec<(SpendableAsset, SpendKind)> {
         let mut result = Vec::new();
 
@@ -586,6 +630,8 @@ impl Spends<Finished> {
         result
     }
 
+    /// Spends every coin with the p2 spends, keyed by coin id, and returns the [`Outputs`].
+    /// Returns [`DriverError::MissingSpend`] if a p2 spend is missing.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -654,6 +700,7 @@ fn try_add_conditions(kind: &mut SpendKind, conditions: &mut Conditions) -> bool
     }
 }
 
+/// An asset that can be added to [`Spends`] with [`Spends::add`].
 pub trait AddAsset {
     fn add(self, spends: &mut Spends);
 }

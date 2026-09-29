@@ -12,34 +12,56 @@ use crate::{
     UpdateNftAction,
 };
 
+/// The puzzle hash that coins are sent to by [`Action::burn`]. There's no known puzzle with this
+/// hash, so the coins can never be spent.
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
     "000000000000000000000000000000000000000000000000000000000000dead"
 ));
 
+/// A high level operation to include in a transaction. Use the constructors on this type to create
+/// them, and [`Spends::apply`] to apply them.
 #[derive(Debug, Clone)]
 pub enum Action {
+    /// See [`Action::send`].
     Send(SendAction),
+    /// See [`Action::settle`].
     Settle(SettleAction),
+    /// See [`Action::create_did`].
     CreateDid(CreateDidAction),
+    /// See [`Action::update_did`].
     UpdateDid(UpdateDidAction),
+    /// See [`Action::mint_nft`].
     MintNft(MintNftAction),
+    /// See [`Action::update_nft`].
     UpdateNft(UpdateNftAction),
+    /// See [`Action::issue_cat`].
     IssueCat(IssueCatAction),
+    /// See [`Action::run_tail`].
     RunTail(RunTailAction),
+    /// See [`Action::mint_option`].
     MintOption(MintOptionAction),
+    /// See [`Action::melt_singleton`].
     MeltSingleton(MeltSingletonAction),
+    /// See [`Action::fee`].
     Fee(FeeAction),
 }
 
 impl Action {
+    /// Creates a coin of the asset with the puzzle hash and amount. The memos are used as given, so
+    /// payments of CATs and singletons should be hinted with the puzzle hash for wallets to find them.
+    ///
+    /// For a singleton, this sets where it's sent, and the amount must be the singleton's amount.
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
         Self::Send(SendAction::new(id, puzzle_hash, amount, memos))
     }
 
+    /// Makes a notarized payment from a settlement coin of the asset, such as a payment requested by
+    /// an offer being taken.
     pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Self {
         Self::Settle(SettleAction::new(id, notarized_payment))
     }
 
+    /// Pays an NFT royalty from a settlement coin of the asset, with the NFT's launcher id as the nonce.
     pub fn settle_royalty(
         ctx: &mut SpendContext,
         id: Id,
@@ -58,10 +80,13 @@ impl Action {
         ))
     }
 
+    /// Sends the amount to [`BURN_PUZZLE_HASH`], so that it can never be spent.
     pub fn burn(id: Id, amount: u64, memos: Memos) -> Self {
         Self::Send(SendAction::new(id, BURN_PUZZLE_HASH, amount, memos))
     }
 
+    /// Creates a DID from an XCH coin, with the given amount. Unless it's sent elsewhere, the DID is
+    /// sent to the change puzzle hash.
     pub fn create_did(
         recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
@@ -76,10 +101,13 @@ impl Action {
         ))
     }
 
+    /// Creates a DID with no recovery list, empty metadata, and an amount of 1.
     pub fn create_empty_did() -> Self {
         Self::CreateDid(CreateDidAction::default())
     }
 
+    /// Updates the DID's recovery list hash (`Some(None)` removes it), number of verifications
+    /// required, or metadata. Fields that are `None` are left unchanged.
     pub fn update_did(
         id: Id,
         new_recovery_list_hash: Option<Option<Bytes32>>,
@@ -94,6 +122,8 @@ impl Action {
         ))
     }
 
+    /// Mints an NFT from an XCH coin, with the given amount. Unless it's sent elsewhere, the NFT is
+    /// sent to the change puzzle hash.
     pub fn mint_nft(
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
@@ -131,10 +161,12 @@ impl Action {
         ))
     }
 
+    /// Mints an NFT with empty metadata, no royalty, and an amount of 1.
     pub fn mint_empty_nft() -> Self {
         Self::mint_nft(HashedPtr::NIL, Bytes32::default(), Bytes32::default(), 0, 1)
     }
 
+    /// Like [`Action::mint_empty_nft`], but with the DID as the launcher's parent.
     pub fn mint_empty_nft_from_did(parent_did_id: Id) -> Self {
         Self::mint_nft_from_did(
             parent_did_id,
@@ -146,6 +178,7 @@ impl Action {
         )
     }
 
+    /// Like [`Action::mint_empty_nft`], but with a royalty.
     pub fn mint_empty_royalty_nft(royalty_puzzle_hash: Bytes32, royalty_basis_points: u16) -> Self {
         Self::mint_nft(
             HashedPtr::NIL,
@@ -156,6 +189,7 @@ impl Action {
         )
     }
 
+    /// Like [`Action::mint_empty_royalty_nft`], but with the DID as the launcher's parent.
     pub fn mint_empty_royalty_nft_from_did(
         parent_did_id: Id,
         royalty_puzzle_hash: Bytes32,
@@ -192,6 +226,8 @@ impl Action {
         ))
     }
 
+    /// Issues a CAT with a single issuance TAIL, which is derived from the coin that issues it, so
+    /// no more of the CAT can ever be issued.
     pub fn single_issue_cat(hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
         Self::IssueCat(IssueCatAction::new(
             TailIssuance::Single,
@@ -200,10 +236,16 @@ impl Action {
         ))
     }
 
+    /// Runs the TAIL of an existing CAT, to issue more of it (`supply_delta.input`) or melt some of
+    /// it into XCH (`supply_delta.output`).
     pub fn run_tail(id: Id, tail_spend: Spend, supply_delta: Delta) -> Self {
         Self::RunTail(RunTailAction::new(id, tail_spend, supply_delta))
     }
 
+    /// Mints an option contract from an XCH coin, and locks `underlying_amount` of the underlying
+    /// asset in a coin that the option controls. Before the `seconds` timestamp, the owner can
+    /// exercise the option by paying the strike to the creator. After it, the creator can take the
+    /// underlying asset back.
     pub fn mint_option(
         creator_puzzle_hash: Bytes32,
         seconds: u64,
@@ -222,18 +264,28 @@ impl Action {
         ))
     }
 
+    /// Melts a DID or option contract. The amount must be the singleton's amount, which is returned
+    /// to the transaction as XCH.
+    ///
+    /// Melting an option authorizes its underlying coin to be exercised, but spending that coin and
+    /// paying the strike to the creator must be done separately.
     pub fn melt_singleton(id: Id, amount: u64) -> Self {
         Self::MeltSingleton(MeltSingletonAction::new(id, amount))
     }
 
+    /// Pays a fee to the farmer, which is asserted with a `RESERVE_FEE` condition.
     pub fn fee(amount: u64) -> Self {
         Self::Fee(FeeAction::new(amount))
     }
 }
 
+/// An operation that can be applied to [`Spends`]. The index is the position of the action in the
+/// list, which is how [`Id::New`] refers to the assets it creates.
 pub trait SpendAction {
+    /// Adds the amounts that the action adds to and removes from the transaction to the deltas.
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize);
 
+    /// Applies the action to the spends.
     fn spend(
         &self,
         ctx: &mut SpendContext,

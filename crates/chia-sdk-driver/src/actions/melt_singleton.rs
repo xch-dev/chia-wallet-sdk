@@ -3,9 +3,11 @@ use crate::{
     check_singleton_amount,
 };
 
+/// Created by [`Action::melt_singleton`](crate::Action::melt_singleton).
 #[derive(Debug, Clone, Copy)]
 pub struct MeltSingletonAction {
     pub id: Id,
+    /// The amount of the singleton, which is returned to the transaction as XCH.
     pub amount: u64,
 }
 

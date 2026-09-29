@@ -5,11 +5,14 @@ use crate::{
     SpendKind, Spends,
 };
 
+/// Created by [`Action::create_did`](crate::Action::create_did). The DID can be referred to as
+/// [`Id::New`](crate::Id::New) with the index of this action.
 #[derive(Debug, Clone, Copy)]
 pub struct CreateDidAction {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
+    /// The amount of the DID coin, which must be odd.
     pub amount: u64,
 }
 

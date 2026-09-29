@@ -23,6 +23,9 @@ impl Deltas {
         Self::default()
     }
 
+    /// Calculates the deltas of a list of actions, which must be the same list (in the same order)
+    /// that is later passed to [`Spends::apply`](crate::Spends::apply), since [`Id::New`] refers to
+    /// actions by index.
     pub fn from_actions(actions: &[Action]) -> Self {
         let mut deltas = Self::new();
         for (index, action) in actions.iter().enumerate() {
@@ -31,6 +34,7 @@ impl Deltas {
         deltas
     }
 
+    /// Every id that the actions refer to, including those with a zero delta.
     pub fn ids(&self) -> impl Iterator<Item = &Id> {
         self.items.keys()
     }
@@ -39,15 +43,18 @@ impl Deltas {
         self.items.get(id)
     }
 
+    /// The delta for the id, which is created as zero if it doesn't exist yet.
     pub fn update(&mut self, id: Id) -> &mut Delta {
         self.items.entry(id).or_default()
     }
 
+    /// Marks that at least one coin of the asset must be selected, even if the delta is zero.
     pub fn set_needed(&mut self, id: Id) {
         self.needed.insert(id);
         self.items.entry(id).or_default();
     }
 
+    /// Whether at least one coin of the asset must be selected, even if the delta is zero.
     pub fn is_needed(&self, id: &Id) -> bool {
         self.needed.contains(id)
     }
@@ -63,7 +70,9 @@ impl Deltas {
 /// [`DriverError::AmountOverflow`]: crate::DriverError::AmountOverflow
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Delta {
+    /// The amount the actions add, for example by issuing a CAT or melting a singleton into XCH.
     pub input: u128,
+    /// The amount the actions remove, for example by sending it or paying a fee.
     pub output: u128,
 }
 

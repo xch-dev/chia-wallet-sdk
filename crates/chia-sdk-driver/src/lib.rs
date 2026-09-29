@@ -3,7 +3,7 @@
 #![allow(clippy::large_stack_arrays)]
 #![doc = include_str!("../docs.md")]
 
-mod action_system;
+pub mod action_system;
 mod actions;
 mod clear_signing;
 mod driver_error;
