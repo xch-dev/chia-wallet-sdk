@@ -29,7 +29,9 @@
 //! - Payments created from settlement coins are asserted with a nonce unique to the settlement coin,
 //!   so that the settlement spends can't be removed from the transaction.
 //! - Building the same actions against the same coins always produces the same coin spends.
-//! - With [`Relation::AssertConcurrent`], the spends can't be split into separate transactions.
+//! - With [`Relation::AssertConcurrent`] or [`Relation::CoinAnnouncementRing`], the spends can't be
+//!   split into separate transactions. With [`Relation::CoinAnnouncementHub`], every spend requires
+//!   the first spend, but the first spend can be included without the others.
 
 mod action;
 mod asset;

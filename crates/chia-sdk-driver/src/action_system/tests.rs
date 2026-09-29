@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chia_bls::PublicKey;
+use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     Memos,
@@ -1576,6 +1576,185 @@ fn test_offer_xch_for_royalty_nft() -> Result<()> {
     assert_eq!(balance(&sim, bob.puzzle_hash), 1000);
     assert_eq!(balance(&sim, carol.puzzle_hash), 30);
     assert_eq!(balance(&sim, alice.puzzle_hash), 0);
+
+    Ok(())
+}
+
+fn is_relation_condition(condition: &Condition) -> bool {
+    matches!(
+        condition,
+        Condition::AssertConcurrentSpend(_)
+            | Condition::CreateCoinAnnouncement(_)
+            | Condition::AssertCoinAnnouncement(_)
+    )
+}
+
+/// Whether the bundle is still valid with the given coin's spend removed.
+fn is_valid_without(
+    sim: &Simulator,
+    coin_spends: &[CoinSpend],
+    coin_id: Bytes32,
+    sk: &SecretKey,
+) -> bool {
+    let partial: Vec<CoinSpend> = coin_spends
+        .iter()
+        .filter(|cs| cs.coin.coin_id() != coin_id)
+        .cloned()
+        .collect();
+
+    sim.clone()
+        .spend_coins(partial, std::slice::from_ref(sk))
+        .is_ok()
+}
+
+#[rstest]
+#[case::none(Relation::None, [true, true, true])]
+#[case::assert_concurrent(Relation::AssertConcurrent, [false, false, false])]
+#[case::ring(Relation::CoinAnnouncementRing, [false, false, false])]
+#[case::hub(Relation::CoinAnnouncementHub, [false, true, true])]
+fn test_relation_split_resistance(
+    #[case] relation: Relation,
+    #[case] splittable: [bool; 3],
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    // The extra coins have no value, so removing any spend leaves the rest balanced, and only the
+    // relation can prevent the transaction from being split.
+    let alice = sim.bls(5);
+    let bob = BlsPair::new(1);
+    let coins = [
+        alice.coin,
+        sim.new_coin(alice.puzzle_hash, 0),
+        sim.new_coin(alice.puzzle_hash, 0),
+    ];
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    for coin in coins {
+        spends.add(coin);
+    }
+
+    let (_, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(Id::Xch, bob.puzzle_hash, 3, Memos::None)],
+        relation,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    assert_eq!(coin_spends.len(), 3);
+
+    for (coin, splittable) in coins.iter().zip(splittable) {
+        assert_eq!(
+            is_valid_without(&sim, &coin_spends, coin.coin_id(), &alice.sk),
+            splittable
+        );
+    }
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, bob.puzzle_hash), 3);
+    assert_eq!(balance(&sim, alice.puzzle_hash), 2);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_relation_single_spend_adds_nothing(
+    #[values(
+        Relation::None,
+        Relation::AssertConcurrent,
+        Relation::CoinAnnouncementRing,
+        Relation::CoinAnnouncementHub
+    )]
+    relation: Relation,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(5);
+    let bob = BlsPair::new(1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let actions = [Action::send(Id::Xch, bob.puzzle_hash, 3, Memos::None)];
+    let deltas = spends.apply(&mut ctx, &actions)?;
+    let emitted = emitted_conditions(&mut ctx, &spends, &deltas, relation)?;
+
+    assert_eq!(emitted.len(), 1);
+    assert_eq!(count_conditions(&emitted, is_relation_condition), 0);
+
+    spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        relation,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+    sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+    assert_eq!(balance(&sim, bob.puzzle_hash), 3);
+
+    Ok(())
+}
+
+#[rstest]
+#[case::assert_concurrent(Relation::AssertConcurrent, false)]
+#[case::ring(Relation::CoinAnnouncementRing, false)]
+#[case::hub(Relation::CoinAnnouncementHub, true)]
+fn test_relation_includes_intermediate_spends(
+    #[case] relation: Relation,
+    #[case] intermediate_splittable: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(3);
+    let other = sim.new_coin(alice.puzzle_hash, 0);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+    spends.add(other);
+
+    // The two payments and the change are identical, but there are only two parent coins, so an
+    // intermediate coin is created and spent.
+    let actions = [
+        Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+        Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+    ];
+    let deltas = spends.apply(&mut ctx, &actions)?;
+    let emitted = emitted_conditions(&mut ctx, &spends, &deltas, relation)?;
+
+    assert_eq!(emitted.len(), 3);
+    for (_, conditions) in &emitted {
+        assert!(conditions.iter().any(is_relation_condition));
+    }
+
+    spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        relation,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+    let coin_spends = ctx.take();
+
+    let intermediate = coin_spends
+        .iter()
+        .find(|cs| {
+            cs.coin.coin_id() != alice.coin.coin_id() && cs.coin.coin_id() != other.coin_id()
+        })
+        .expect("missing intermediate spend")
+        .coin;
+
+    assert_eq!(
+        is_valid_without(&sim, &coin_spends, intermediate.coin_id(), &alice.sk),
+        intermediate_splittable
+    );
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 3);
+    assert_eq!(sim.unspent_coins(alice.puzzle_hash, false).len(), 3);
 
     Ok(())
 }
