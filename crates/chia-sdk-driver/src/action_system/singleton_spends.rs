@@ -37,10 +37,21 @@ where
         self.lineage.last().ok_or(DriverError::NoSourceForOutput)
     }
 
+    /// The latest spend in the lineage, for an action to modify.
+    ///
+    /// Returns [`DriverError::NoSourceForOutput`] if the singleton has already been recreated or
+    /// melted (for example, by locking it in an option), since the action would have no effect.
     pub fn last_mut(&mut self) -> Result<&mut SingletonSpend<A>, DriverError> {
-        self.lineage
+        let last = self
+            .lineage
             .last_mut()
-            .ok_or(DriverError::NoSourceForOutput)
+            .ok_or(DriverError::NoSourceForOutput)?;
+
+        if !last.kind.missing_singleton_output() {
+            return Err(DriverError::NoSourceForOutput);
+        }
+
+        Ok(last)
     }
 
     pub fn last_or_create_settlement(
@@ -199,6 +210,30 @@ where
             kind,
             child_info,
             payment_assertions: Vec::new(),
+        }
+    }
+}
+
+impl SingletonSpend<Nft> {
+    /// The child that a settlement spend of the NFT is moved to, so that the child can emit the
+    /// transfer and metadata update conditions that the settlement spend can't.
+    pub fn intermediate_child(&self, intermediate_puzzle_hash: Bytes32) -> Nft {
+        let info = NftInfo {
+            p2_puzzle_hash: intermediate_puzzle_hash,
+            ..self.asset.info
+        };
+
+        self.asset.child_with(info, self.asset.coin.amount)
+    }
+
+    /// The puzzle hash of the NFT coin that will emit the pending transfer condition.
+    pub fn transfer_puzzle_hash(&self, intermediate_puzzle_hash: Bytes32) -> Bytes32 {
+        if self.kind.is_conditions() {
+            self.asset.coin.puzzle_hash
+        } else {
+            self.intermediate_child(intermediate_puzzle_hash)
+                .coin
+                .puzzle_hash
         }
     }
 }
@@ -366,16 +401,8 @@ impl SingletonAsset for Nft {
                 create_coin,
             );
 
-            let new_info = NftInfo {
-                p2_puzzle_hash: intermediate_puzzle_hash,
-                ..singleton.asset.info
-            };
-
-            let mut spend = SingletonSpend::new(
-                singleton
-                    .asset
-                    .child_with(new_info, singleton.asset.coin.amount),
-            );
+            let mut spend =
+                SingletonSpend::new(singleton.intermediate_child(intermediate_puzzle_hash));
 
             spend.child_info = singleton.child_info.clone();
 

@@ -26,10 +26,18 @@ impl SpendAction for FeeAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        spends.outputs.fee += self.amount;
+        spends.outputs.fee = spends
+            .outputs
+            .fee
+            .checked_add(self.amount)
+            .ok_or(DriverError::AmountOverflow)?;
 
         if self.reserved {
-            spends.outputs.reserved_fee += self.amount;
+            spends.outputs.reserved_fee = spends
+                .outputs
+                .reserved_fee
+                .checked_add(self.amount)
+                .ok_or(DriverError::AmountOverflow)?;
         }
 
         Ok(())
