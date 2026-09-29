@@ -171,6 +171,8 @@ impl Action {
         )
     }
 
+    /// Updates the NFT's metadata and/or transfers it to a DID (or removes it from a DID). The
+    /// metadata update spends are run in order, each against the result of the previous one.
     pub fn update_nft(
         id: Id,
         metadata_update_spends: Vec<Spend>,
@@ -179,6 +181,9 @@ impl Action {
         Self::UpdateNft(UpdateNftAction::new(id, metadata_update_spends, transfer))
     }
 
+    /// Issues a CAT with the given TAIL. The CAT can be referred to as [`Id::New`] with the index of
+    /// this action, unless coins of the same asset id are already in the [`Spends`]. In that case
+    /// the issued coin joins their ring, and must be referred to as [`Id::Existing`] instead.
     pub fn issue_cat(tail_spend: Spend, hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
         Self::IssueCat(IssueCatAction::new(
             TailIssuance::Multiple(tail_spend),

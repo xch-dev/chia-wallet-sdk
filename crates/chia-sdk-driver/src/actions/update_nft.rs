@@ -92,7 +92,7 @@ impl SpendAction for UpdateNftAction {
                         spend.add_conditions(
                             Conditions::new()
                                 .assert_puzzle_announcement(assignment_puzzle_announcement_id(
-                                    nft.asset.coin.puzzle_hash,
+                                    nft.transfer_puzzle_hash(spends.intermediate_puzzle_hash),
                                     &transfer_condition,
                                 ))
                                 .create_puzzle_announcement(nft.asset.info.launcher_id.into()),
@@ -214,10 +214,10 @@ mod tests {
         ];
         metadata
             .data_uris
-            .insert(0, "https://example.com/3".to_string());
+            .insert(0, "https://example.com/2".to_string());
         metadata
             .data_uris
-            .insert(0, "https://example.com/2".to_string());
+            .insert(0, "https://example.com/3".to_string());
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);

@@ -15,9 +15,10 @@ use rstest::rstest;
 
 use crate::{
     Action, AssetInfo, Cat, CatAssetInfo, Delta, Deltas, DriverError, HashedPtr, Id, NftAssetInfo,
-    Offer, OfferAmounts, Outputs, Puzzle, Relation, RequestedPayments, RoyaltyInfo, Spend,
-    SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById, calculate_royalty_amounts,
-    calculate_royalty_payments, calculate_trade_price_amounts, calculate_trade_prices, coin_amount,
+    Offer, OfferAmounts, OptionType, Outputs, Puzzle, Relation, RequestedPayments, RoyaltyInfo,
+    Spend, SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById,
+    calculate_royalty_amounts, calculate_royalty_payments, calculate_trade_price_amounts,
+    calculate_trade_prices, coin_amount,
 };
 
 fn keys(puzzle_hash: Bytes32, pk: PublicKey) -> IndexMap<Bytes32, PublicKey> {
@@ -2387,4 +2388,109 @@ fn test_revoke_alongside_normal_spend() -> Result<()> {
     assert!(hinted_cats(&sim, &mut ctx, bob.puzzle_hash)?.is_empty());
 
     Ok(())
+}
+
+#[test]
+fn test_assign_settlement_nft_to_did() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(2);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::create_empty_did(),
+            Action::mint_empty_nft(),
+            Action::send(Id::New(1), SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+    sim.spend_coins(coin_spends, std::slice::from_ref(&alice.sk))?;
+
+    let did = outputs.dids[&Id::New(0)];
+    let nft = outputs.nfts[&Id::New(1)];
+    assert_eq!(nft.info.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+
+    // The NFT is taken from the settlement coin (as when taking an offer) and assigned to the DID
+    let did_id = Id::Existing(did.info.launcher_id);
+    let nft_id = Id::Existing(nft.info.launcher_id);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(did);
+    spends.add(nft);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::update_nft(
+            nft_id,
+            vec![],
+            Some(TransferNftById::new(Some(did_id), vec![])),
+        )],
+        Relation::AssertConcurrent,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    let nft = outputs.nfts[&nft_id];
+    assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
+    assert_eq!(nft.info.current_owner, Some(did.info.launcher_id));
+    assert!(
+        sim.coin_state(nft.coin.coin_id())
+            .is_some_and(|state| state.spent_height.is_none())
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[case::send(Action::send(Id::New(0), BlsPair::new(1).puzzle_hash, 1, Memos::None))]
+#[case::update(Action::update_nft(Id::New(0), vec![], Some(TransferNftById::new(None, vec![]))))]
+fn test_nft_actions_after_locking_in_option_are_rejected(#[case] action: Action) {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(2);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let result = spends.apply(
+        &mut ctx,
+        &[
+            Action::mint_empty_nft(),
+            Action::mint_option(
+                alice.puzzle_hash,
+                100,
+                Id::New(0),
+                1,
+                OptionType::Xch { amount: 3 },
+                1,
+            ),
+            action,
+        ],
+    );
+
+    assert!(matches!(result, Err(DriverError::NoSourceForOutput)));
+}
+
+#[test]
+fn test_overflowing_fees_are_rejected() {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let result = spends.apply(&mut ctx, &[Action::fee(u64::MAX), Action::fee(1)]);
+
+    assert!(matches!(result, Err(DriverError::AmountOverflow)));
 }
