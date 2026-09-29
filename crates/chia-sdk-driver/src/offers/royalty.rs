@@ -8,7 +8,7 @@ use crate::{
     coin_amount,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoyaltyInfo {
     pub launcher_id: Bytes32,
     pub puzzle_hash: Bytes32,
@@ -91,6 +91,13 @@ pub fn calculate_trade_prices(
     }
 
     Ok(trade_prices)
+}
+
+pub fn payable_trade_prices(
+    trade_prices: &[TradePrice],
+    _royalty_basis_points: u16,
+) -> Vec<TradePrice> {
+    trade_prices.to_vec()
 }
 
 /// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in
