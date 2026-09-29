@@ -48,12 +48,12 @@ sha3 = { workspace = true, optional = true }
 indexmap = { workspace = true }
 chia_streamable_macro = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
 getrandom = { workspace = true }
 bip39 = { workspace = true }
 
 [dev-dependencies]
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-utils = { workspace = true }
 anyhow = { workspace = true }

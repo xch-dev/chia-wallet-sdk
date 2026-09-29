@@ -26,6 +26,7 @@ where
         Self::default()
     }
 
+    /// The total amount of the coins that were selected (ie, not created by this transaction).
     pub fn selected_amount(&self) -> u64 {
         self.items
             .iter()
@@ -79,7 +80,7 @@ where
             return Ok(index);
         }
 
-        self.intermediate_source(ctx)
+        self.intermediate_conditions_child(ctx)
     }
 
     pub fn cat_issuance_source(
@@ -88,29 +89,53 @@ where
         asset_id: Option<Bytes32>,
         amount: u64,
     ) -> Result<usize, DriverError> {
+        // The eve CAT inherits the p2 puzzle of the source, and needs to emit conditions to run the TAIL.
         if let Some(index) = self.items.iter().position(|item| {
-            item.kind.is_allowed(
-                &Output::new(
-                    CatArgs::curry_tree_hash(
-                        asset_id.unwrap_or_else(|| {
-                            GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.coin_id()).into()
-                        }),
-                        item.asset.p2_puzzle_hash().into(),
-                    )
-                    .into(),
-                    amount,
-                ),
-                &item.asset.constraints(),
-            )
+            item.kind.is_conditions()
+                && item.kind.is_allowed(
+                    &Output::new(
+                        CatArgs::curry_tree_hash(
+                            asset_id.unwrap_or_else(|| {
+                                GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.coin_id())
+                                    .into()
+                            }),
+                            item.asset.p2_puzzle_hash().into(),
+                        )
+                        .into(),
+                        amount,
+                    ),
+                    &item.asset.constraints(),
+                )
         }) {
             return Ok(index);
         }
 
-        self.intermediate_source(ctx)
+        self.intermediate_conditions_child(ctx)
     }
 
+    /// Creates an ephemeral child of the first item that can create one, with the same p2 puzzle hash.
     pub fn intermediate_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
+        self.intermediate_child_where(ctx, |_| true)
+    }
+
+    /// Like [`FungibleSpends::intermediate_source`], but the child is guaranteed to be able to emit conditions.
+    fn intermediate_conditions_child(
+        &mut self,
+        ctx: &mut SpendContext,
+    ) -> Result<usize, DriverError> {
+        self.intermediate_child_where(ctx, SpendKind::is_conditions)
+    }
+
+    fn intermediate_child_where(
+        &mut self,
+        ctx: &mut SpendContext,
+        predicate: impl Fn(&SpendKind) -> bool,
+    ) -> Result<usize, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            if !predicate(&item.kind) {
+                return None;
+            }
+
             item.kind
                 .find_amount(item.asset.p2_puzzle_hash(), &item.asset.constraints())
                 .map(|amount| (index, amount))
@@ -120,13 +145,16 @@ where
 
         let source = &mut self.items[index];
 
-        source.kind.create_intermediate_coin(CreateCoin::new(
-            source.asset.p2_puzzle_hash(),
-            amount,
-            source
-                .asset
-                .child_memos(ctx, source.asset.p2_puzzle_hash())?,
-        ));
+        source.kind.create_intermediate_coin(
+            source.asset.coin_id(),
+            CreateCoin::new(
+                source.asset.p2_puzzle_hash(),
+                amount,
+                source
+                    .asset
+                    .child_memos(ctx, source.asset.p2_puzzle_hash())?,
+            ),
+        );
 
         let child = FungibleSpend::new(
             source
@@ -151,11 +179,10 @@ where
 
         let source = &mut self.items[index];
 
-        source.kind.create_intermediate_coin(CreateCoin::new(
-            SETTLEMENT_PAYMENT_HASH.into(),
-            amount,
-            Memos::None,
-        ));
+        source.kind.create_intermediate_coin(
+            source.asset.coin_id(),
+            CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), amount, Memos::None),
+        );
 
         let child = FungibleSpend::new(
             source
@@ -186,11 +213,10 @@ where
 
         let hint = ctx.hint(intermediate_puzzle_hash)?;
 
-        source.kind.create_intermediate_coin(CreateCoin::new(
-            intermediate_puzzle_hash,
-            amount,
-            hint,
-        ));
+        source.kind.create_intermediate_coin(
+            source.asset.coin_id(),
+            CreateCoin::new(intermediate_puzzle_hash, amount, hint),
+        );
 
         let child = FungibleSpend::new(
             source.asset.make_child(intermediate_puzzle_hash, amount),
@@ -202,8 +228,14 @@ where
         Ok(Some(self.items.len() - 1))
     }
 
+    /// Finds a spend that can create a launcher coin. Launchers are created by a spend that must
+    /// also emit conditions to assert the launcher's announcement, so settlement spends are skipped.
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            if !item.kind.is_conditions() {
+                return None;
+            }
+
             item.kind
                 .find_amount(SINGLETON_LAUNCHER_HASH.into(), &item.asset.constraints())
                 .map(|amount| (index, amount))
@@ -220,10 +252,12 @@ where
     ) -> Result<(usize, Launcher), DriverError> {
         let (index, launcher_amount) = self.launcher_source()?;
 
-        let (create_coin, launcher) =
-            Launcher::create_early(self.items[index].asset.coin_id(), launcher_amount);
+        let parent_coin_id = self.items[index].asset.coin_id();
+        let (create_coin, launcher) = Launcher::create_early(parent_coin_id, launcher_amount);
 
-        self.items[index].kind.create_intermediate_coin(create_coin);
+        self.items[index]
+            .kind
+            .create_intermediate_coin(parent_coin_id, create_coin);
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
@@ -255,18 +289,26 @@ where
             singleton_amount,
         )?;
 
-        source.kind.create_intermediate_coin(create_coin);
+        source
+            .kind
+            .create_intermediate_coin(source.asset.coin_id(), create_coin);
 
         Ok((index, launcher))
     }
 
+    /// Creates a change coin for the remaining amount, if there is any.
+    ///
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
+    /// cover the delta outputs, since the transaction would be invalid.
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
         delta: &Delta,
         change_puzzle_hash: Bytes32,
     ) -> Result<Option<A>, DriverError> {
-        let change = (self.selected_amount() + delta.input).saturating_sub(delta.output);
+        let change = (self.selected_amount() + delta.input)
+            .checked_sub(delta.output)
+            .ok_or(DriverError::InsufficientFunds)?;
 
         if change == 0 {
             return Ok(None);
@@ -276,7 +318,7 @@ where
         let source = self.output_source(ctx, &output)?;
         let item = &mut self.items[source];
 
-        let parent_puzzle_hash = item.asset.full_puzzle_hash();
+        let parent_coin = item.asset.coin();
         let create_coin = CreateCoin::new(
             change_puzzle_hash,
             change,
@@ -284,7 +326,7 @@ where
         );
         item.kind.create_coin_with_assertion(
             ctx,
-            parent_puzzle_hash,
+            parent_coin,
             &mut self.payment_assertions,
             create_coin,
         );
@@ -306,6 +348,8 @@ impl<A> Default for FungibleSpends<A> {
 pub struct FungibleSpend<T> {
     pub asset: T,
     pub kind: SpendKind,
+    /// Whether the coin is created in the same transaction. Ephemeral coins don't count toward
+    /// the selected amount, since their value is already accounted for by the action that created them.
     pub ephemeral: bool,
 }
 

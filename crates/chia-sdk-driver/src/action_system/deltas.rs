@@ -5,6 +5,13 @@ use std::{
 
 use crate::{Action, Id, SpendAction};
 
+/// The total amount of each asset that the actions consume and produce.
+///
+/// This is intended to be calculated before coin selection, so that the caller knows how much of
+/// each asset needs to be added to the [`Spends`](crate::Spends) before the actions are applied.
+/// For each id, the caller should select at least `output - input` worth of coins. If the result
+/// is zero but [`Deltas::is_needed`] returns true, at least one coin must still be selected (for
+/// example, the singleton being updated, or an XCH coin to create a launcher from).
 #[derive(Debug, Default, Clone)]
 pub struct Deltas {
     items: HashMap<Id, Delta>,
@@ -46,7 +53,8 @@ impl Deltas {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+/// The amount of an asset that is added to (input) and removed from (output) the transaction.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Delta {
     pub input: u64,
     pub output: u64,

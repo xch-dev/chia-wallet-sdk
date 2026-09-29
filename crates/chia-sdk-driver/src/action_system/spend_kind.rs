@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_sdk_types::{
     Conditions,
@@ -6,8 +6,6 @@ use chia_sdk_types::{
     payment_assertion, tree_hash_notarized_payment,
 };
 use clvmr::{Allocator, NodePtr};
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha20Rng;
 
 use crate::{Output, OutputConstraints, OutputSet};
 
@@ -40,10 +38,18 @@ impl SpendKind {
         matches!(self, Self::Settlement(_))
     }
 
+    /// Creates a coin from the parent and, if the parent is a settlement coin, records an
+    /// assertion that the payment was made.
+    ///
+    /// Settlement payments are notarized with the parent coin id as the nonce. Settlement coins
+    /// can be spent by anyone, so if two settlement coins with the same puzzle hash made the same
+    /// payment with the same nonce, their announcements would be identical. A single assertion
+    /// would then be satisfied by either coin, and a third party could remove one of the spends
+    /// from the bundle and claim the coin for themselves.
     pub fn create_coin_with_assertion(
         &mut self,
         allocator: &Allocator,
-        parent_puzzle_hash: Bytes32,
+        parent_coin: Coin,
         payment_assertions: &mut Vec<AssertPuzzleAnnouncement>,
         create_coin: CreateCoin<NodePtr>,
     ) {
@@ -52,9 +58,8 @@ impl SpendKind {
                 spend.add_conditions(Conditions::new().with(create_coin));
             }
             SpendKind::Settlement(spend) => {
-                // TODO: Use nil for the nonce from the payment
                 let notarized_payment = NotarizedPayment::new(
-                    Bytes32::default(),
+                    parent_coin.coin_id(),
                     vec![Payment::new(
                         create_coin.puzzle_hash,
                         create_coin.amount,
@@ -62,7 +67,7 @@ impl SpendKind {
                     )],
                 );
                 payment_assertions.push(payment_assertion(
-                    parent_puzzle_hash,
+                    parent_coin.puzzle_hash,
                     tree_hash_notarized_payment(allocator, &notarized_payment),
                 ));
                 spend.add_notarized_payment(notarized_payment);
@@ -70,20 +75,28 @@ impl SpendKind {
         }
     }
 
-    pub fn create_intermediate_coin(&mut self, create_coin: CreateCoin<NodePtr>) {
+    /// Creates an ephemeral coin from the parent, which will be spent in the same transaction.
+    ///
+    /// Unlike [`SpendKind::create_coin_with_assertion`], no payment assertion is needed, since
+    /// the child spend can't exist without the parent spend.
+    pub fn create_intermediate_coin(
+        &mut self,
+        parent_coin_id: Bytes32,
+        create_coin: CreateCoin<NodePtr>,
+    ) {
         match self {
             Self::Conditions(spend) => {
                 spend.add_conditions(Conditions::new().with(create_coin));
             }
             Self::Settlement(spend) => {
-                spend.add_notarized_payment(NotarizedPayment {
-                    nonce: Bytes32::new(ChaCha20Rng::from_os_rng().random()),
-                    payments: vec![Payment::new(
+                spend.add_notarized_payment(NotarizedPayment::new(
+                    parent_coin_id,
+                    vec![Payment::new(
                         create_coin.puzzle_hash,
                         create_coin.amount,
                         create_coin.memos,
                     )],
-                });
+                ));
             }
         }
     }
