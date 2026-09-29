@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, conditions::TradePrice, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
@@ -13,7 +13,8 @@ use indexmap::IndexSet;
 use crate::{
     Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
     OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
-    calculate_royalty_amounts, calculate_trade_price_amounts,
+    calculate_royalty_amounts, calculate_royalty_payments, calculate_trade_price_amounts,
+    calculate_trade_prices,
 };
 
 /// The tree hash of the retired `settlement_payments_old.clsp` puzzle. Offers that use it are
@@ -187,6 +188,24 @@ impl Offer {
         let royalties = self.requested_royalties();
         let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
+    }
+
+    pub fn requested_royalty_payments(
+        &self,
+        ctx: &mut SpendContext,
+    ) -> Result<RequestedPayments, DriverError> {
+        let requested_amounts = self.requested_payments.amounts();
+        let royalties = self.requested_royalties();
+        let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
+        calculate_royalty_payments(ctx, &trade_prices, &royalties)
+    }
+
+    pub fn requested_nft_trade_prices(&self, _launcher_id: Bytes32) -> Vec<TradePrice> {
+        calculate_trade_prices(
+            &calculate_trade_price_amounts(&self.offered_coins.amounts(), 1),
+            &self.asset_info,
+        )
+        .unwrap_or_default()
     }
 
     pub fn arbitrage(&self) -> Arbitrage {

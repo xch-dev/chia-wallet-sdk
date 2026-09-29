@@ -240,6 +240,12 @@ pub enum DriverError {
     #[error("CAT spends can't be included with an auction that has an XCH reserve")]
     UnexpectedAuctionCatSpends,
 
+    #[error("nft {0} has a trade price whose royalty rounds to zero, so it can't be settled")]
+    ZeroRoyaltyPayment(Bytes32),
+
+    #[error("trade price is paid in an unknown asset with settlement puzzle hash {0}")]
+    UnknownTradePriceAsset(Bytes32),
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
