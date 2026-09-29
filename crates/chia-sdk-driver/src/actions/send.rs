@@ -7,9 +7,11 @@ use crate::{
     Spends,
 };
 
+/// Created by [`Action::send`](crate::Action::send) or [`Action::burn`](crate::Action::burn).
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
     pub id: Id,
+    /// The p2 puzzle hash of the coin to create. Outer layers (such as the CAT layer) are added.
     pub puzzle_hash: Bytes32,
     pub amount: u64,
     pub memos: Memos,

@@ -1,8 +1,11 @@
 use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 
+/// Created by [`Action::fee`](crate::Action::fee).
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
     pub amount: u64,
+    /// Whether the fee is asserted with a `RESERVE_FEE` condition. Otherwise, the amount is still
+    /// left over as a fee, but isn't asserted.
     pub reserved: bool,
 }
 

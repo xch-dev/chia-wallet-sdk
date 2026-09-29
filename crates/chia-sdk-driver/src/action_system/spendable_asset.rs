@@ -2,14 +2,20 @@ use chia_protocol::{Bytes32, Coin};
 
 use crate::{Cat, Did, Nft, OptionContract};
 
+/// A coin that needs to be spent by the caller, as returned by [`Spends::unspent`](crate::Spends::unspent).
 #[derive(Debug, Clone, Copy)]
 pub enum SpendableAsset {
+    /// An XCH coin.
     Xch(Coin),
+    /// A CAT that is spent with its p2 puzzle.
     Cat(Cat),
-    /// A revocable CAT that is being spent with its hidden puzzle rather than its p2 puzzle.
+    /// A revocable CAT that is spent with its hidden puzzle rather than its p2 puzzle.
     RevokedCat(Cat),
+    /// A DID singleton.
     Did(Did),
+    /// An NFT singleton.
     Nft(Nft),
+    /// An option contract singleton.
     Option(OptionContract),
 }
 
@@ -30,6 +36,7 @@ impl SpendableAsset {
         }
     }
 
+    /// The coin being spent, including its outer puzzle hash.
     pub fn coin(&self) -> Coin {
         match self {
             Self::Xch(coin) => *coin,

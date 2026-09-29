@@ -15,9 +15,12 @@ mod settlement_spend;
 pub use conditions_spend::*;
 pub use settlement_spend::*;
 
+/// What a coin's p2 puzzle will output when it's spent, as built up by the actions.
 #[derive(Debug, Clone)]
 pub enum SpendKind {
+    /// The p2 puzzle outputs arbitrary conditions, such as the standard puzzle.
     Conditions(ConditionsSpend),
+    /// The p2 puzzle is the settlement payments puzzle, which can only make notarized payments.
     Settlement(SettlementSpend),
 }
 
@@ -101,6 +104,7 @@ impl SpendKind {
         }
     }
 
+    /// A spend of the same kind with nothing in it yet, for the child of a singleton.
     #[must_use]
     pub fn empty_copy(&self) -> Self {
         match self {

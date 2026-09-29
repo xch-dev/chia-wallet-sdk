@@ -12,9 +12,14 @@ use crate::{
     Output, OutputSet, SpendContext, SpendKind, coin_amount,
 };
 
+/// The spends of every coin of a fungible asset (XCH, or a single CAT) in the transaction.
 #[derive(Debug, Clone)]
 pub struct FungibleSpends<A> {
+    /// The selected coins, followed by any intermediate coins created by the transaction. All CAT
+    /// spends of the same asset are part of the same ring.
     pub items: Vec<FungibleSpend<A>>,
+    /// Assertions for the payments made by settlement spends of this asset, which are attached to
+    /// a conditions spend by [`Spends::prepare`](crate::Spends::prepare).
     pub payment_assertions: Vec<AssertPuzzleAnnouncement>,
 }
 
@@ -35,6 +40,8 @@ where
             .sum()
     }
 
+    /// Finds a spend that can create the output, or creates an intermediate coin to create it from
+    /// if none can (for example, because they all create an identical coin already).
     pub fn output_source(
         &mut self,
         ctx: &mut SpendContext,
@@ -51,6 +58,8 @@ where
         self.intermediate_source(ctx)
     }
 
+    /// Finds a settlement spend that can make every payment in the notarized payment, or creates an
+    /// intermediate settlement coin to make it from.
     pub fn notarized_payment_source(
         &mut self,
         notarized_payment: &NotarizedPayment,
@@ -71,6 +80,8 @@ where
             .ok_or(DriverError::NoSourceForOutput)
     }
 
+    /// Finds a spend that can run a TAIL, or creates an intermediate coin to run it from if every
+    /// conditions spend already runs one.
     pub fn run_tail_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
         if let Some(index) = self
             .items
@@ -83,6 +94,9 @@ where
         self.intermediate_conditions_child(ctx)
     }
 
+    /// Finds a spend that can create the eve CAT of an issuance, or creates an intermediate coin to
+    /// issue it from. For a single issuance (`asset_id` of `None`), the asset id is derived from the
+    /// parent coin, so it's different for each candidate spend.
     pub fn cat_issuance_source(
         &mut self,
         ctx: &mut SpendContext,
@@ -164,6 +178,9 @@ where
         Ok(self.items.len() - 1)
     }
 
+    /// Creates an intermediate settlement coin from the first spend that can create one, for a
+    /// notarized payment that no settlement spend can make without duplicating one of its outputs.
+    /// Returns `None` if no spend can create one.
     pub fn intermediate_settlement_source(&mut self) -> Result<Option<usize>, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
@@ -192,6 +209,8 @@ where
         Ok(Some(self.items.len() - 1))
     }
 
+    /// Creates an intermediate coin with the intermediate puzzle hash, which can emit conditions
+    /// when no other spend can. Returns `None` if no spend can create one.
     pub fn intermediate_conditions_source(
         &mut self,
         ctx: &mut SpendContext,
@@ -242,6 +261,8 @@ where
         Ok((index, amount))
     }
 
+    /// Creates a singleton launcher from a conditions spend. The caller must add the conditions
+    /// that spend the launcher to the spend at the returned index.
     pub fn create_launcher(
         &mut self,
         singleton_amount: u64,
@@ -258,6 +279,8 @@ where
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
 
+    /// Like [`FungibleSpends::create_launcher`], but for an option contract. The option is owned by
+    /// the p2 puzzle hash of the spend that creates the launcher.
     pub fn create_option_launcher(
         &mut self,
         ctx: &mut SpendContext,
@@ -342,9 +365,11 @@ impl<A> Default for FungibleSpends<A> {
     }
 }
 
+/// The spend of a single coin of a fungible asset.
 #[derive(Debug, Clone)]
 pub struct FungibleSpend<T> {
     pub asset: T,
+    /// What the coin's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,
     /// Whether the coin is created in the same transaction. Ephemeral coins don't count toward
     /// the selected amount, since their value is already accounted for by the action that created them.
@@ -359,6 +384,8 @@ impl<T> FungibleSpend<T>
 where
     T: FungibleAsset,
 {
+    /// A spend of the coin with its p2 puzzle. Coins with the settlement payments puzzle as their p2
+    /// puzzle are spent as settlement spends.
     pub fn new(asset: T, ephemeral: bool) -> Self {
         let kind = if asset.p2_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
             SpendKind::settlement()
@@ -403,14 +430,22 @@ where
     }
 }
 
+/// An asset whose coins can be split and combined freely.
 pub trait FungibleAsset: Clone + Asset {
+    /// The child of the coin with the given p2 puzzle hash and amount, which has the same outer
+    /// puzzles as the coin.
     #[must_use]
     fn make_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self;
+
+    /// The memos for a child with the given p2 puzzle hash, so that wallets can find it. CATs are
+    /// hinted with the p2 puzzle hash, since their puzzle hash is wrapped in the CAT layer.
     fn child_memos(
         &self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
     ) -> Result<Memos, DriverError>;
+
+    /// The hidden puzzle hash of a revocable CAT, which can be used to revoke it.
     fn hidden_puzzle_hash(&self) -> Option<Bytes32>;
 }
 

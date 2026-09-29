@@ -8,15 +8,21 @@ use crate::{
     SpendContext, SpendKind, Spends,
 };
 
+/// The TAIL that a CAT is issued with.
 #[derive(Debug, Clone, Copy)]
 pub enum TailIssuance {
+    /// A TAIL derived from the coin that issues the CAT, so that no more can be issued later.
     Single,
+    /// A spend of any TAIL, whose puzzle hash is the asset id.
     Multiple(Spend),
 }
 
+/// Created by [`Action::issue_cat`](crate::Action::issue_cat) or
+/// [`Action::single_issue_cat`](crate::Action::single_issue_cat).
 #[derive(Debug, Clone, Copy)]
 pub struct IssueCatAction {
     pub issuance: TailIssuance,
+    /// The hidden puzzle hash of the revocation layer, or `None` for a CAT that can't be revoked.
     pub hidden_puzzle_hash: Option<Bytes32>,
     pub amount: u64,
 }

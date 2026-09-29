@@ -7,6 +7,7 @@ use clvmr::NodePtr;
 
 use crate::{DriverError, Output, OutputSet, SpendContext};
 
+/// The conditions that a p2 puzzle will output, and the coins they create.
 #[derive(Debug, Default, Clone)]
 pub struct ConditionsSpend {
     conditions: Conditions,
@@ -18,6 +19,7 @@ impl ConditionsSpend {
         Self::default()
     }
 
+    /// Appends the conditions, and records any coins they create as outputs of the spend.
     pub fn add_conditions(&mut self, conditions: Conditions) {
         for condition in conditions {
             if let Some(create_coin) = condition.as_create_coin() {
@@ -60,6 +62,7 @@ impl ConditionsSpend {
         Ok(())
     }
 
+    /// The conditions for the p2 puzzle to output.
     pub fn finish(self) -> Conditions {
         self.conditions
     }

@@ -8,9 +8,14 @@ use crate::{
     Spends, assignment_puzzle_announcement_id,
 };
 
+/// Assigns an NFT to a DID in the same transaction, or removes it from its current DID.
 #[derive(Debug, Default, Clone)]
 pub struct TransferNftById {
+    /// The DID to assign the NFT to, which must be spent in the same transaction, or `None` to
+    /// remove the NFT from its current DID.
     pub did_id: Option<Id>,
+    /// The trade prices of the NFT, which determine the royalties that must be paid when it's
+    /// transferred as part of an offer.
     pub trade_prices: Vec<TradePrice>,
 }
 
@@ -23,9 +28,12 @@ impl TransferNftById {
     }
 }
 
+/// Created by [`Action::update_nft`](crate::Action::update_nft).
 #[derive(Debug, Clone)]
 pub struct UpdateNftAction {
     pub id: Id,
+    /// Spends of the metadata updater puzzle, which are run in order. Each one requires a separate
+    /// spend of the NFT.
     pub metadata_update_spends: Vec<Spend>,
     pub transfer: Option<TransferNftById>,
 }

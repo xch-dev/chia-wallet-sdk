@@ -5,13 +5,20 @@ use crate::{
     SpendKind, Spends,
 };
 
+/// Created by [`Action::mint_nft`](crate::Action::mint_nft) and the related constructors. The NFT
+/// can be referred to as [`Id::New`] with the index of this action.
 #[derive(Debug, Clone, Copy)]
 pub struct MintNftAction {
+    /// [`Id::Xch`] to mint the NFT from an XCH coin, or the id of a DID to mint it from the DID's
+    /// spend. Minting from a DID doesn't assign the NFT to it.
     pub parent_id: Id,
     pub metadata: HashedPtr,
     pub metadata_updater_puzzle_hash: Bytes32,
+    /// The puzzle hash that royalties are paid to when the NFT is traded.
     pub royalty_puzzle_hash: Bytes32,
+    /// The royalty percentage, where 100 basis points is 1%.
     pub royalty_basis_points: u16,
+    /// The amount of the NFT coin, which must be odd.
     pub amount: u64,
 }
 

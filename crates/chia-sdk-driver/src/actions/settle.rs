@@ -4,9 +4,12 @@ use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment};
 
 use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
 
+/// Created by [`Action::settle`](crate::Action::settle) or
+/// [`Action::settle_royalty`](crate::Action::settle_royalty).
 #[derive(Debug, Clone)]
 pub struct SettleAction {
     pub id: Id,
+    /// The payments to make from a settlement coin, and the nonce they're notarized with.
     pub notarized_payment: NotarizedPayment,
 }
 
