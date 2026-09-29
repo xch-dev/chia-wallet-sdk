@@ -13,7 +13,15 @@
 //!    the spends together according to the [`Relation`].
 //! 5. Spend every item in [`Spends::unspent`] with its p2 puzzle, and pass the results to
 //!    [`Spends::spend`], which returns the [`Outputs`]. Alternatively, use
-//!    [`Spends::finish_with_keys`] for standard p2 puzzles.
+//!    [`Spends::finish_with_keys`] for standard p2 puzzles. A [`SpendableAsset::RevokedCat`] must
+//!    be spent with its hidden puzzle, whose hash is returned by [`SpendableAsset::p2_puzzle_hash`].
+//!
+//! # Revocation
+//!
+//! Revocable CATs added with [`Spends::add_for_revocation`] are spent with their hidden puzzle. The
+//! actions apply to them like any other CAT, so they can be sent, melted with a TAIL, or left alone
+//! (in which case the value is returned to the change puzzle hash). Every coin they create is wrapped
+//! in the same revocation layer and hinted with its p2 puzzle hash, so revoked value stays revocable.
 //!
 //! # Ids
 //!

@@ -79,6 +79,27 @@ impl Spends<Unfinished> {
         asset.add(self);
     }
 
+    /// Adds a revocable CAT to be spent with its hidden puzzle (ie, revoked by the issuer), rather
+    /// than its p2 puzzle. The spend must be authorized by the hidden puzzle hash, which is
+    /// reported as the p2 puzzle hash of [`SpendableAsset::RevokedCat`].
+    ///
+    /// Everything created by the revocation spend (payments, change, and intermediate coins) is
+    /// wrapped in the same revocation layer and hinted with its p2 puzzle hash, so the outputs
+    /// remain revocable. Any value that isn't sent elsewhere is returned to the change puzzle hash.
+    ///
+    /// Returns [`DriverError::NotRevocable`] if the CAT doesn't have a hidden puzzle.
+    pub fn add_for_revocation(&mut self, cat: Cat) -> Result<(), DriverError> {
+        let spend = FungibleSpend::revocation(cat)?;
+
+        self.cats
+            .entry(Id::Existing(cat.info.asset_id))
+            .or_default()
+            .items
+            .push(spend);
+
+        Ok(())
+    }
+
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
@@ -364,16 +385,36 @@ impl Spends<Unfinished> {
             });
     }
 
+    fn wrap_revocation_outputs(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
+        for cat in self.cats.values_mut() {
+            for item in &mut cat.items {
+                if !item.revoke {
+                    continue;
+                }
+
+                let (Some(hidden_puzzle_hash), SpendKind::Conditions(spend)) =
+                    (item.asset.info.hidden_puzzle_hash, &mut item.kind)
+                else {
+                    continue;
+                };
+
+                spend.wrap_for_revocation(ctx, hidden_puzzle_hash)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = vec![self.intermediate_puzzle_hash];
 
         for item in &self.xch.items {
-            p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            p2_puzzle_hashes.push(item.p2_puzzle_hash());
         }
 
         for (_, cat) in &self.cats {
             for item in &cat.items {
-                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+                p2_puzzle_hashes.push(item.p2_puzzle_hash());
             }
         }
 
@@ -451,6 +492,7 @@ impl Spends<Unfinished> {
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
+        self.wrap_revocation_outputs(ctx)?;
 
         Ok(Spends {
             xch: self.xch,
@@ -514,7 +556,12 @@ impl Spends<Finished> {
 
         for cat in self.cats.values() {
             for item in &cat.items {
-                result.push((SpendableAsset::Cat(item.asset), item.kind.clone()));
+                let asset = if item.revoke {
+                    SpendableAsset::RevokedCat(item.asset)
+                } else {
+                    SpendableAsset::Cat(item.asset)
+                };
+                result.push((asset, item.kind.clone()));
             }
         }
 
@@ -557,7 +604,11 @@ impl Spends<Finished> {
                 let spend = coin_spends
                     .remove(&item.asset.coin_id())
                     .ok_or(DriverError::MissingSpend)?;
-                cat_spends.push(CatSpend::new(item.asset, spend));
+                cat_spends.push(if item.revoke {
+                    CatSpend::revoke(item.asset, spend)
+                } else {
+                    CatSpend::new(item.asset, spend)
+                });
             }
             Cat::spend_all(ctx, &cat_spends)?;
         }

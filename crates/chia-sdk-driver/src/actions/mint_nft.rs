@@ -69,7 +69,7 @@ impl SpendAction for MintNftAction {
         let (p2_puzzle_hash, source_kind, launcher) = if matches!(self.parent_id, Id::Xch) {
             let (source, launcher) = spends.xch.create_launcher(self.amount)?;
             let source = &mut spends.xch.items[source];
-            (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
+            (source.p2_puzzle_hash(), &mut source.kind, launcher)
         } else {
             let did = spends
                 .dids

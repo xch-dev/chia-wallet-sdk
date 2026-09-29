@@ -97,6 +97,9 @@ pub enum DriverError {
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
 
+    #[error("the CAT does not have a revocation layer")]
+    NotRevocable,
+
     #[error("missing key")]
     MissingKey,
 
