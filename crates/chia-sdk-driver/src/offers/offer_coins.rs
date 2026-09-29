@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::{Condition, conditions::TradePrice, run_puzzle};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 use crate::{
     AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo,
     OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
-    Spends,
+    RequestedPayments, Spends,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -20,6 +20,8 @@ pub struct OfferCoins {
     pub nfts: IndexMap<Bytes32, Nft>,
     pub options: IndexMap<Bytes32, OptionContract>,
     pub fee: u64,
+    pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
+    pub settled_payments: RequestedPayments,
 }
 
 impl OfferCoins {
