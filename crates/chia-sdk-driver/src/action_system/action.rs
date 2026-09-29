@@ -171,6 +171,8 @@ impl Action {
         )
     }
 
+    /// Updates the NFT's metadata and/or transfers it to a DID (or removes it from a DID). The
+    /// metadata update spends are run in order, each against the result of the previous one.
     pub fn update_nft(
         id: Id,
         metadata_update_spends: Vec<Spend>,

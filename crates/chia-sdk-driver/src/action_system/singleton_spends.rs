@@ -413,7 +413,11 @@ impl SingletonAsset for Nft {
 
         let mut new_child_info = singleton.child_info.clone();
 
-        let metadata_update_spend = new_child_info.metadata_update_spends.pop();
+        let metadata_update_spend = if new_child_info.metadata_update_spends.is_empty() {
+            None
+        } else {
+            Some(new_child_info.metadata_update_spends.remove(0))
+        };
         let transfer_condition = new_child_info.transfer_condition.take();
         let needs_additional_spend = Self::needs_additional_spend(&new_child_info);
 

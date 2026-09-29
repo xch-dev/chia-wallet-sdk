@@ -214,10 +214,10 @@ mod tests {
         ];
         metadata
             .data_uris
-            .insert(0, "https://example.com/3".to_string());
+            .insert(0, "https://example.com/2".to_string());
         metadata
             .data_uris
-            .insert(0, "https://example.com/2".to_string());
+            .insert(0, "https://example.com/3".to_string());
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
