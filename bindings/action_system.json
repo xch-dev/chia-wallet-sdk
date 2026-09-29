@@ -32,6 +32,11 @@
           "cat": "Cat"
         }
       },
+      "add_offered_coins": {
+        "args": {
+          "offer": "Offer"
+        }
+      },
       "add_did": {
         "args": {
           "did": "Did"

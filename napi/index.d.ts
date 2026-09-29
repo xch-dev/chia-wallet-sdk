@@ -246,6 +246,18 @@ export declare class AssertSecondsRelative {
   set seconds(value: bigint)
 }
 
+export declare class AssetInfo {
+  clone(): AssetInfo
+  constructor(clvm: Clvm)
+  insertCat(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null): void
+  insertNft(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): void
+  insertOption(launcherId: Uint8Array, underlyingCoinId: Uint8Array, underlyingDelegatedPuzzleHash: Uint8Array): void
+  catAssetIds(): Array<Buffer>
+  catHiddenPuzzleHash(assetId: Uint8Array): Buffer | null
+  nftLauncherIds(): Array<Buffer>
+  nftRoyalty(launcherId: Uint8Array): RoyaltyInfo | null
+}
+
 export declare class BlockchainState {
   clone(): BlockchainState
   constructor(averageBlockTime: bigint, blockMaxCost: bigint, difficulty: bigint, genesisChallengeInitialized: boolean, mempoolCost: bigint, mempoolFees: bigint, mempoolMaxTotalCost: bigint, mempoolMinFees: MempoolMinFees, mempoolSize: number, nodeId: Uint8Array, peak: BlockRecord, space: bigint, subSlotIters: bigint, sync: SyncState)
@@ -2146,6 +2158,35 @@ export declare class NotarizedPayment {
   set payments(value: Array<Payment>)
 }
 
+export declare class Offer {
+  clone(): Offer
+  static fromInputSpendBundle(clvm: Clvm, spendBundle: SpendBundle, requestedPayments: RequestedPayments, assetInfo: AssetInfo): Offer
+  static fromSpendBundle(clvm: Clvm, spendBundle: SpendBundle): Offer
+  toSpendBundle(): SpendBundle
+  take(spendBundle: SpendBundle): SpendBundle
+  static nonce(coinIds: Array<Uint8Array>): Buffer
+  requestedPayments(): RequestedPayments
+  assetInfo(): AssetInfo
+  offeredAmounts(): OfferAmounts
+  offeredXch(): Array<Coin>
+  offeredCats(assetId: Uint8Array): Array<Cat>
+  offeredNftLauncherIds(): Array<Buffer>
+  offeredRoyalties(): Array<RoyaltyInfo>
+  requestedRoyalties(): Array<RoyaltyInfo>
+  offeredRoyaltyAmounts(): OfferAmounts
+  requestedRoyaltyAmounts(): OfferAmounts
+}
+
+export declare class OfferAmounts {
+  clone(): OfferAmounts
+  constructor()
+  xch(): bigint
+  setXch(amount: bigint): void
+  assetIds(): Array<Buffer>
+  cat(assetId: Uint8Array): bigint
+  setCat(assetId: Uint8Array, amount: bigint): void
+}
+
 export declare class OfferSecurityCoinDetails {
   clone(): OfferSecurityCoinDetails
   constructor(securityCoin: Coin, securityCoinSk: SecretKey)
@@ -2719,6 +2760,25 @@ export declare class Remark {
   constructor(rest: Program)
   get rest(): Program
   set rest(value: Program)
+}
+
+export declare class RequestedPayments {
+  clone(): RequestedPayments
+  constructor(clvm: Clvm)
+  addXch(notarizedPayment: NotarizedPayment): void
+  addCat(assetId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  addNft(launcherId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  addOption(launcherId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  xch(): Array<NotarizedPayment>
+  catAssetIds(): Array<Buffer>
+  cats(assetId: Uint8Array): Array<NotarizedPayment>
+  nftLauncherIds(): Array<Buffer>
+  nfts(launcherId: Uint8Array): Array<NotarizedPayment>
+  optionLauncherIds(): Array<Buffer>
+  options(launcherId: Uint8Array): Array<NotarizedPayment>
+  amounts(): OfferAmounts
+  actions(): Array<Action>
+  assertions(assetInfo: AssetInfo): Array<Program>
 }
 
 export declare class ReserveFee {
@@ -3323,6 +3383,17 @@ export declare class RoundTimeInfo {
   set epochEnd(value: bigint)
 }
 
+export declare class RoyaltyInfo {
+  clone(): RoyaltyInfo
+  constructor(launcherId: Uint8Array, puzzleHash: Uint8Array, basisPoints: number)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get basisPoints(): number
+  set basisPoints(value: number)
+}
+
 export declare class RpcClient {
   clone(): RpcClient
   constructor(coinsetUrl: string)
@@ -3479,6 +3550,7 @@ export declare class Spends {
   addXch(coin: Coin): void
   addCat(cat: Cat): void
   addCatForRevocation(cat: Cat): void
+  addOfferedCoins(offer: Offer): void
   addDid(did: Did): void
   addNft(nft: Nft): void
   addOption(option: OptionContract): void
@@ -4150,6 +4222,12 @@ export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey
 export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
+
+export declare function calculateRoyaltyPayments(clvm: Clvm, tradePrices: OfferAmounts, royalties: Array<RoyaltyInfo>): RequestedPayments
+
+export declare function calculateTradePriceAmounts(amounts: OfferAmounts, royaltyNftCount: number): OfferAmounts
+
+export declare function calculateTradePrices(tradePriceAmounts: OfferAmounts, assetInfo: AssetInfo): Array<TradePrice>
 
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Buffer
 
