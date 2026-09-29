@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::TradePrice, run_puzzle};
 use clvm_traits::FromClvm;
@@ -8,8 +9,8 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo, OfferAmounts,
-    OptionAssetInfo, OptionContract, Outputs, Puzzle, RequestedPayments, Spends,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Layer, Nft, NftAssetInfo, OfferAmounts,
+    OptionAssetInfo, OptionContract, Outputs, Puzzle, RequestedPayments, SettlementLayer, Spends,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -19,7 +20,11 @@ pub struct OfferCoins {
     pub nfts: IndexMap<Bytes32, Nft>,
     pub options: IndexMap<Bytes32, OptionContract>,
     pub fee: u64,
+    /// The trade prices each offered NFT revealed when it was spent into settlement. Its royalty
+    /// transfer program asserts a royalty payment for each of them.
     pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
+    /// Payments already made by settlement spends in the offer, such as royalties paid up front
+    /// for requested NFTs.
     pub settled_payments: RequestedPayments,
 }
 
@@ -132,6 +137,9 @@ impl OfferCoins {
             }
         }
 
+        self.nft_trade_prices.extend(other.nft_trade_prices);
+        self.settled_payments.extend(other.settled_payments);
+
         for (launcher_id, option) in other.options {
             if self.options.insert(launcher_id, option).is_some() {
                 return Err(DriverError::ConflictingOfferInputs);
@@ -170,11 +178,25 @@ impl OfferCoins {
             }
         }
 
-        if let Some(nft) = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+        if let Some((_, p2_puzzle, p2_solution)) =
+            Nft::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && let Some(nft) =
+                Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
             && !spent_coin_ids.contains(&nft.coin.coin_id())
             && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
+            let output = run_puzzle(allocator, p2_puzzle.ptr(), p2_solution)?;
+            let trade_prices = Vec::<Condition>::from_clvm(allocator, output)?
+                .into_iter()
+                .find_map(|condition| match condition {
+                    Condition::TransferNft(transfer) => Some(transfer.trade_prices),
+                    _ => None,
+                })
+                .unwrap_or_default();
+
             self.nfts.insert(nft.info.launcher_id, nft);
+            self.nft_trade_prices
+                .insert(nft.info.launcher_id, trade_prices);
 
             let info = NftAssetInfo::new(
                 nft.info.metadata,
@@ -197,6 +219,27 @@ impl OfferCoins {
                 option.info.underlying_delegated_puzzle_hash,
             );
             asset_info.insert_option(option.info.launcher_id, info)?;
+        }
+
+        // Settled payments are informational, so ones that can't be parsed are ignored rather
+        // than rejecting a spend that's otherwise valid
+        if SettlementLayer::parse_puzzle(allocator, parent_puzzle)?.is_some() {
+            if let Ok(solution) = SettlementPaymentsSolution::from_clvm(allocator, parent_solution)
+            {
+                self.settled_payments
+                    .xch
+                    .extend(solution.notarized_payments);
+            }
+        } else if let Some(cat) =
+            Cat::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?.is_some()
+            && let Ok(solution) = SettlementPaymentsSolution::from_clvm(allocator, cat.p2_solution)
+        {
+            self.settled_payments
+                .cats
+                .entry(cat.cat.info.asset_id)
+                .or_default()
+                .extend(solution.notarized_payments);
         }
 
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;

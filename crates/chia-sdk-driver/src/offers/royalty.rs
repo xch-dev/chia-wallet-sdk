@@ -93,11 +93,19 @@ pub fn calculate_trade_prices(
     Ok(trade_prices)
 }
 
+/// Returns the trade prices an NFT can reveal while still being possible to take.
+///
+/// The NFT asserts a royalty payment for each trade price it reveals, but settlement payments must
+/// be positive, so trade prices whose royalty rounds down to zero are left out.
 pub fn payable_trade_prices(
     trade_prices: &[TradePrice],
-    _royalty_basis_points: u16,
+    royalty_basis_points: u16,
 ) -> Vec<TradePrice> {
-    trade_prices.to_vec()
+    trade_prices
+        .iter()
+        .filter(|trade_price| calculate_nft_royalty(trade_price.amount, royalty_basis_points) > 0)
+        .copied()
+        .collect()
 }
 
 /// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in

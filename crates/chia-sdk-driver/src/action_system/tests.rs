@@ -1713,17 +1713,15 @@ fn test_offer_with_overflowing_amounts() -> Result<()> {
         asset_info,
     )?;
 
-    // A taker parsing the offer sees the exact totals, and an error for royalties it can't pay
+    // A taker parsing the offer sees the exact totals. The NFT didn't reveal any trade prices, so
+    // it doesn't assert any royalties.
     let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
     let offer = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
 
     let total = 2 * u128::from(u64::MAX);
     assert_eq!(offer.requested_payments().amounts().xch, total);
     assert_eq!(offer.arbitrage().offered.xch, total);
-    assert!(matches!(
-        offer.requested_royalty_amounts(),
-        Err(DriverError::AmountOverflow)
-    ));
+    assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
 
     // A trade price that fits can still have a royalty which doesn't fit in a single payment
     let trade_prices = OfferAmounts {
