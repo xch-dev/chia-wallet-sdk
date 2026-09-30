@@ -83,6 +83,9 @@
       "parse_nft_metadata": {
         "return": "Option<NftMetadata>"
       },
+      "parse_mips_memo": {
+        "return": "Option<MipsMemo>"
+      },
       "parse_handle_nft_metadata": {
         "return": "Option<HandleNftMetadata>"
       },

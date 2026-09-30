@@ -1919,6 +1919,7 @@ export declare class MemberConfig {
 
 export declare class MemberMemo {
   clone(): MemberMemo
+  parse(ctx: MipsMemoContext): ParsedMember | null
   static k1(clvm: Clvm, publicKey: K1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static r1(clvm: Clvm, publicKey: R1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static bls(clvm: Clvm, publicKey: PublicKey, fastForward: boolean, taproot: boolean, reveal: boolean): MemberMemo
@@ -2431,6 +2432,20 @@ export declare class ParsedDidSpend {
   set solution(value: Program)
 }
 
+export declare class ParsedMember {
+  clone(): ParsedMember
+  asK1(): K1PublicKey | null
+  asR1(): R1PublicKey | null
+  asBls(): PublicKey | null
+  asBlsTaproot(): PublicKey | null
+  asPasskey(): R1PublicKey | null
+  asSingleton(): Buffer | null
+  singletonMode(): number | null
+  asFixedPuzzle(): Buffer | null
+  asCustom(): Program | null
+  fastForward(): boolean
+}
+
 export declare class ParsedNft {
   clone(): ParsedNft
   constructor(nft: Nft, p2Puzzle: Puzzle, p2Solution: Program)
@@ -2469,6 +2484,24 @@ export declare class ParsedOptionInfo {
   set info(value: OptionInfo)
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
+}
+
+export declare class ParsedRestriction {
+  clone(): ParsedRestriction
+  asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
+  asEnforceDelegatedPuzzleWrappers(): Array<WrapperMemo> | null
+  asTimelock(): bigint | null
+}
+
+export declare class ParsedWrapper {
+  clone(): ParsedWrapper
+  isForceCoinAnnouncement(): boolean
+  isForceCoinMessage(): boolean
+  isForceSingletonRecreation(): boolean
+  asPreventConditionOpcode(): number | null
+  isPreventMultipleCreateCoins(): boolean
+  asTimelock(): bigint | null
+  asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
 }
 
 export declare class Payment {
@@ -2548,6 +2581,7 @@ export declare class Program {
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
+  parseMipsMemo(): MipsMemo | null
   parseHandleNftMetadata(): HandleNftMetadata | null
   parseRemark(): Remark | null
   parseAggSigParent(): AggSigParent | null
@@ -2823,6 +2857,7 @@ export declare class Restriction {
 
 export declare class RestrictionMemo {
   clone(): RestrictionMemo
+  parse(ctx: MipsMemoContext): ParsedRestriction | null
   static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): RestrictionMemo
   static enforceDelegatedPuzzleWrappers(clvm: Clvm, wrapperMemos: Array<WrapperMemo>): RestrictionMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): RestrictionMemo
@@ -3780,6 +3815,7 @@ export type VDFProof = VdfProof
 
 export declare class WrapperMemo {
   clone(): WrapperMemo
+  parse(ctx: MipsMemoContext): ParsedWrapper | null
   static preventVaultSideEffects(clvm: Clvm, reveal: boolean): Array<WrapperMemo>
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo
