@@ -333,6 +333,12 @@
       "memo": "Program"
     },
     "methods": {
+      "parse": {
+        "args": {
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedRestriction>"
+      },
       "force_1_of_2_restricted_variable": {
         "type": "factory",
         "args": {
@@ -368,6 +374,12 @@
       "memo": "Program"
     },
     "methods": {
+      "parse": {
+        "args": {
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedWrapper>"
+      },
       "prevent_vault_side_effects": {
         "type": "static",
         "args": {
@@ -462,6 +474,12 @@
       "memo": "Program"
     },
     "methods": {
+      "parse": {
+        "args": {
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedMember>"
+      },
       "k1": {
         "type": "factory",
         "args": {
@@ -571,6 +589,81 @@
         "args": {
           "mode": "u8"
         }
+      }
+    }
+  },
+  "ParsedMember": {
+    "type": "class",
+    "methods": {
+      "as_k1": {
+        "return": "Option<K1PublicKey>"
+      },
+      "as_r1": {
+        "return": "Option<R1PublicKey>"
+      },
+      "as_bls": {
+        "return": "Option<PublicKey>"
+      },
+      "as_bls_taproot": {
+        "return": "Option<PublicKey>"
+      },
+      "as_passkey": {
+        "return": "Option<R1PublicKey>"
+      },
+      "as_singleton": {
+        "return": "Option<Bytes32>"
+      },
+      "singleton_mode": {
+        "return": "Option<u8>"
+      },
+      "as_fixed_puzzle": {
+        "return": "Option<Bytes32>"
+      },
+      "as_custom": {
+        "return": "Option<Program>"
+      },
+      "fast_forward": {
+        "return": "bool"
+      }
+    }
+  },
+  "ParsedRestriction": {
+    "type": "class",
+    "methods": {
+      "as_force_1_of_2_restricted_variable": {
+        "return": "Option<Force1of2RestrictedVariableMemo>"
+      },
+      "as_enforce_delegated_puzzle_wrappers": {
+        "return": "Option<Vec<WrapperMemo>>"
+      },
+      "as_timelock": {
+        "return": "Option<u64>"
+      }
+    }
+  },
+  "ParsedWrapper": {
+    "type": "class",
+    "methods": {
+      "is_force_coin_announcement": {
+        "return": "bool"
+      },
+      "is_force_coin_message": {
+        "return": "bool"
+      },
+      "is_force_singleton_recreation": {
+        "return": "bool"
+      },
+      "as_prevent_condition_opcode": {
+        "return": "Option<u16>"
+      },
+      "is_prevent_multiple_create_coins": {
+        "return": "bool"
+      },
+      "as_timelock": {
+        "return": "Option<u64>"
+      },
+      "as_force_1_of_2_restricted_variable": {
+        "return": "Option<Force1of2RestrictedVariableMemo>"
       }
     }
   }
