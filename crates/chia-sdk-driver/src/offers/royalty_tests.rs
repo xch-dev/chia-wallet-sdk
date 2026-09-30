@@ -39,6 +39,7 @@ use crate::{
 const ROYALTY_A: Bytes32 = Bytes32::new([1; 32]);
 const ROYALTY_B: Bytes32 = Bytes32::new([2; 32]);
 const ROYALTY_C: Bytes32 = Bytes32::new([3; 32]);
+const HIDDEN_PUZZLE_HASH: Bytes32 = Bytes32::new([7; 32]);
 
 fn keys(pair: &BlsPair) -> IndexMap<Bytes32, PublicKey> {
     indexmap! { pair.puzzle_hash => pair.pk }
@@ -78,16 +79,39 @@ fn is_validation_error(error: &anyhow::Error, code: ErrorCode) -> bool {
     )
 }
 
+fn revocable_cat_trade_price(asset_id: Bytes32, amount: u64) -> TradePrice {
+    TradePrice::new(
+        amount,
+        CatInfo::new(
+            asset_id,
+            Some(HIDDEN_PUZZLE_HASH),
+            SETTLEMENT_PAYMENT_HASH.into(),
+        )
+        .puzzle_hash()
+        .into(),
+    )
+}
+
 #[derive(Clone, Copy)]
 enum Price {
     Xch(u64),
     Cat(u64),
+    RevocableCat(u64),
+}
+
+impl Price {
+    fn amount(self) -> u64 {
+        match self {
+            Self::Xch(amount) | Self::Cat(amount) | Self::RevocableCat(amount) => amount,
+        }
+    }
 }
 
 struct Tester {
     sim: Simulator,
     ctx: SpendContext,
     next_seed: u64,
+    cats: IndexMap<Bytes32, CatAssetInfo>,
 }
 
 impl Tester {
@@ -96,6 +120,7 @@ impl Tester {
             sim: Simulator::new(),
             ctx: SpendContext::new(),
             next_seed: 100,
+            cats: IndexMap::new(),
         }
     }
 
@@ -164,6 +189,19 @@ impl Tester {
     }
 
     fn issue_cat(&mut self, owner: &BlsPair, amount: u64) -> anyhow::Result<Cat> {
+        self.issue_cat_with(owner, amount, None)
+    }
+
+    fn issue_revocable_cat(&mut self, owner: &BlsPair, amount: u64) -> anyhow::Result<Cat> {
+        self.issue_cat_with(owner, amount, Some(HIDDEN_PUZZLE_HASH))
+    }
+
+    fn issue_cat_with(
+        &mut self,
+        owner: &BlsPair,
+        amount: u64,
+        hidden_puzzle_hash: Option<Bytes32>,
+    ) -> anyhow::Result<Cat> {
         let coin = self.fund(owner, amount);
         let hint = self.ctx.hint(owner.puzzle_hash)?;
         let mut spends = Spends::new(owner.puzzle_hash);
@@ -172,7 +210,7 @@ impl Tester {
         let (outputs, coin_spends) = self.build(
             spends,
             &[
-                Action::single_issue_cat(None, amount),
+                Action::single_issue_cat(hidden_puzzle_hash, amount),
                 Action::send(Id::New(0), owner.puzzle_hash, amount, hint),
             ],
             Relation::None,
@@ -182,11 +220,16 @@ impl Tester {
         self.sim
             .spend_coins(coin_spends, slice::from_ref(&owner.sk))?;
 
-        Ok(outputs.cats[&Id::New(0)]
+        let cat = outputs.cats[&Id::New(0)]
             .iter()
             .copied()
             .find(|cat| cat.info.p2_puzzle_hash == owner.puzzle_hash && cat.coin.amount == amount)
-            .expect("issued cat"))
+            .expect("issued cat");
+
+        self.cats
+            .insert(cat.info.asset_id, CatAssetInfo::new(hidden_puzzle_hash));
+
+        Ok(cat)
     }
 
     fn requested_payments(
@@ -218,7 +261,8 @@ impl Tester {
                     vec![Payment::new(maker.puzzle_hash, coin_amount(amount)?, hint)],
                 )],
             );
-            asset_info.insert_cat(asset_id, CatAssetInfo::new(None))?;
+            let info = self.cats.get(&asset_id).copied().unwrap_or_default();
+            asset_info.insert_cat(asset_id, info)?;
         }
 
         Ok((requested_payments, asset_info))
@@ -290,11 +334,24 @@ impl Tester {
 
     /// Offers fungible assets for an NFT, paying its royalty on the offered price up front.
     fn bid(&mut self, maker: &BlsPair, nft: &Nft, price: Price) -> anyhow::Result<SpendBundle> {
-        let amount = match price {
-            Price::Xch(amount) | Price::Cat(amount) => amount,
-        };
-        let royalty = coin_amount(calculate_nft_royalty(amount, nft.info.royalty_basis_points))?;
-        self.bid_with_royalty(maker, nft, price, royalty)
+        self.bid_in_assets(maker, nft, &[price])
+    }
+
+    /// Offers fungible assets for an NFT, paying its royalty on each offered price up front.
+    fn bid_in_assets(
+        &mut self,
+        maker: &BlsPair,
+        nft: &Nft,
+        prices: &[Price],
+    ) -> anyhow::Result<SpendBundle> {
+        let mut with_royalties = Vec::new();
+
+        for &price in prices {
+            let royalty = calculate_nft_royalty(price.amount(), nft.info.royalty_basis_points);
+            with_royalties.push((price, coin_amount(royalty)?));
+        }
+
+        self.bid_with_royalties(maker, nft, &with_royalties)
     }
 
     fn bid_with_royalty(
@@ -304,39 +361,61 @@ impl Tester {
         price: Price,
         royalty: u64,
     ) -> anyhow::Result<SpendBundle> {
+        self.bid_with_royalties(maker, nft, &[(price, royalty)])
+    }
+
+    fn bid_with_royalties(
+        &mut self,
+        maker: &BlsPair,
+        nft: &Nft,
+        prices: &[(Price, u64)],
+    ) -> anyhow::Result<SpendBundle> {
         let launcher_id = nft.info.launcher_id;
         let mut spends = Spends::new(maker.puzzle_hash);
+        let mut actions = Vec::new();
+        let mut coin_ids = Vec::new();
 
-        let (id, amount, nonce) = match price {
-            Price::Xch(amount) => {
-                let coin = self.fund(maker, amount + royalty);
-                spends.add(coin);
-                (Id::Xch, amount, coin.coin_id())
-            }
-            Price::Cat(amount) => {
-                let cat = self.issue_cat(maker, amount + royalty)?;
-                spends.add(cat);
-                (Id::Existing(cat.info.asset_id), amount, cat.coin.coin_id())
-            }
-        };
+        for &(price, royalty) in prices {
+            let total = price.amount() + royalty;
 
-        let mut actions = vec![Action::send(
-            id,
-            SETTLEMENT_PAYMENT_HASH.into(),
-            amount,
-            Memos::None,
-        )];
+            let (id, coin_id) = match price {
+                Price::Xch(_) => {
+                    let coin = self.fund(maker, total);
+                    spends.add(coin);
+                    (Id::Xch, coin.coin_id())
+                }
+                Price::Cat(_) => {
+                    let cat = self.issue_cat(maker, total)?;
+                    spends.add(cat);
+                    (Id::Existing(cat.info.asset_id), cat.coin.coin_id())
+                }
+                Price::RevocableCat(_) => {
+                    let cat = self.issue_revocable_cat(maker, total)?;
+                    spends.add(cat);
+                    (Id::Existing(cat.info.asset_id), cat.coin.coin_id())
+                }
+            };
 
-        if royalty > 0 {
-            actions.push(Action::settle_royalty(
-                &mut self.ctx,
+            coin_ids.push(coin_id);
+            actions.push(Action::send(
                 id,
-                launcher_id,
-                nft.info.royalty_puzzle_hash,
-                royalty,
-            )?);
+                SETTLEMENT_PAYMENT_HASH.into(),
+                price.amount(),
+                Memos::None,
+            ));
+
+            if royalty > 0 {
+                actions.push(Action::settle_royalty(
+                    &mut self.ctx,
+                    id,
+                    launcher_id,
+                    nft.info.royalty_puzzle_hash,
+                    royalty,
+                )?);
+            }
         }
 
+        let nonce = Offer::nonce(coin_ids);
         let hint = self.ctx.hint(maker.puzzle_hash)?;
         let mut requested_payments = RequestedPayments::new();
         requested_payments.nfts.insert(
@@ -695,6 +774,34 @@ fn test_offered_nft_without_known_trade_prices() -> anyhow::Result<()> {
             .actions()
             .is_empty()
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_royalty_larger_than_a_coin_is_rejected() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+
+    // Royalties above 100% are allowed, so a trade price that fits in a coin can have a royalty
+    // that doesn't
+    let nft = t.mint_nft(&alice, ROYALTY_A, u16::MAX)?;
+    let offer = t.sell_nfts_with(&alice, &[nft], &xch(1), |_, _| {
+        vec![xch_trade_price(u64::MAX)]
+    })?;
+    let offer = t.aggregate(&[offer])?;
+
+    assert_eq!(
+        offer.requested_royalty_amounts()?,
+        OfferAmounts {
+            xch: u128::from(u64::MAX) * 65_535 / 10_000,
+            cats: IndexMap::new(),
+        }
+    );
+    assert!(matches!(
+        offer.requested_royalty_payments(&mut t.ctx),
+        Err(DriverError::AmountOverflow)
+    ));
 
     Ok(())
 }
@@ -1517,6 +1624,227 @@ fn test_aggregate_sale_and_bid_for_same_nft() -> anyhow::Result<()> {
     assert_eq!(t.balance(alice.puzzle_hash), 1000);
     assert_eq!(t.balance(carol.puzzle_hash), 450);
     assert_eq!(t.balance(ROYALTY_A), 50 + 75);
+
+    Ok(())
+}
+
+#[test]
+fn test_sell_nft_for_revocable_cat() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+
+    // The hidden puzzle hash changes the CAT's settlement puzzle hash
+    let bob_cat = t.issue_revocable_cat(&bob, 1030)?;
+    let asset_id = bob_cat.info.asset_id;
+    let nft = t.mint_nft(&alice, ROYALTY_A, 300)?;
+    let offer = t.sell_nfts(&alice, &[nft], &cat(asset_id, 1000))?;
+    let offer = t.aggregate(&[offer])?;
+
+    assert_eq!(offer.requested_royalty_amounts()?, cat(asset_id, 30));
+
+    t.take(&bob, &offer, |spends| spends.add(bob_cat))?;
+
+    assert!(t.owns_nft(&nft, bob.puzzle_hash));
+    assert_eq!(t.cat_balance(&bob_cat, alice.puzzle_hash), 1000);
+    assert_eq!(t.cat_balance(&bob_cat, ROYALTY_A), 30);
+    assert_eq!(t.cat_balance(&bob_cat, bob.puzzle_hash), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_bid_for_nft_with_revocable_cat() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+
+    let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
+    let offer = t.bid(&alice, &nft, Price::RevocableCat(1000))?;
+    let offer = t.aggregate(&[offer])?;
+    let (&asset_id, cats) = offer.offered_coins().cats.first().expect("offered cat");
+    let alice_cat = cats[0];
+
+    assert_eq!(offer.offered_royalty_amounts()?, cat(asset_id, 30));
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft.info.launcher_id),
+        vec![revocable_cat_trade_price(asset_id, 1000)]
+    );
+
+    t.take(&bob, &offer, |spends| spends.add(nft))?;
+
+    assert!(t.owns_nft(&nft, alice.puzzle_hash));
+    assert_eq!(t.cat_balance(&alice_cat, bob.puzzle_hash), 1000);
+    assert_eq!(t.cat_balance(&alice_cat, ROYALTY_A), 30);
+
+    Ok(())
+}
+
+#[test]
+fn test_aggregate_identical_royalties_for_different_nfts() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+    let carol = t.pair();
+
+    // Both NFTs pay the same royalty to the same address, but each asserts its own payment
+    let alice_nft = t.mint_nft(&alice, ROYALTY_A, 500)?;
+    let bob_nft = t.mint_nft(&bob, ROYALTY_A, 500)?;
+    let alice_offer = t.sell_nfts(&alice, &[alice_nft], &xch(10_000))?;
+    let bob_offer = t.sell_nfts(&bob, &[bob_nft], &xch(10_000))?;
+    let offer = t.aggregate(&[alice_offer, bob_offer])?;
+
+    assert_eq!(offer.requested_royalty_amounts()?, xch(500 + 500));
+
+    let coin = t.fund(&carol, 21_000);
+    t.take(&carol, &offer, |spends| spends.add(coin))?;
+
+    assert!(t.owns_nft(&alice_nft, carol.puzzle_hash));
+    assert!(t.owns_nft(&bob_nft, carol.puzzle_hash));
+    assert_eq!(t.balance(ROYALTY_A), 1000);
+    assert_eq!(t.balance(carol.puzzle_hash), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_extend_bids() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+    let carol = t.pair();
+
+    let first_nft = t.mint_nft(&carol, ROYALTY_A, 500)?;
+    let second_nft = t.mint_nft(&carol, ROYALTY_B, 1000)?;
+    let alice_offer = t.bid(&alice, &first_nft, Price::Xch(10_000))?;
+    let bob_offer = t.bid(&bob, &second_nft, Price::Xch(30_000))?;
+
+    // Extending parsed offers keeps each bidder's prepaid royalties
+    let mut offer = t.aggregate(&[alice_offer])?;
+    offer.extend(t.aggregate(&[bob_offer])?)?;
+
+    assert_eq!(offer.offered_royalty_amounts()?, xch(500 + 3000));
+    assert_eq!(
+        offer.requested_nft_trade_prices(first_nft.info.launcher_id),
+        vec![xch_trade_price(10_000)]
+    );
+    assert_eq!(
+        offer.requested_nft_trade_prices(second_nft.info.launcher_id),
+        vec![xch_trade_price(30_000)]
+    );
+
+    t.take(&carol, &offer, |spends| {
+        spends.add(first_nft);
+        spends.add(second_nft);
+    })?;
+
+    assert!(t.owns_nft(&first_nft, alice.puzzle_hash));
+    assert!(t.owns_nft(&second_nft, bob.puzzle_hash));
+    assert_eq!(t.balance(carol.puzzle_hash), 40_000);
+    assert_eq!(t.balance(ROYALTY_A), 500);
+    assert_eq!(t.balance(ROYALTY_B), 3000);
+
+    Ok(())
+}
+
+#[test]
+fn test_bid_for_nft_in_two_assets() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+
+    // Alice prepays a royalty in each asset, so the NFT reveals a trade price for each
+    let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
+    let offer = t.bid_in_assets(&alice, &nft, &[Price::Xch(1000), Price::Cat(2000)])?;
+    let offer = t.aggregate(&[offer])?;
+    let (&asset_id, cats) = offer.offered_coins().cats.first().expect("offered cat");
+    let alice_cat = cats[0];
+
+    assert_eq!(
+        offer.offered_royalty_amounts()?,
+        OfferAmounts {
+            xch: 30,
+            cats: indexmap! { asset_id => 60 },
+        }
+    );
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft.info.launcher_id),
+        vec![xch_trade_price(1000), cat_trade_price(asset_id, 2000)]
+    );
+
+    t.take(&bob, &offer, |spends| spends.add(nft))?;
+
+    assert!(t.owns_nft(&nft, alice.puzzle_hash));
+    assert_eq!(t.balance(bob.puzzle_hash), 1000);
+    assert_eq!(t.cat_balance(&alice_cat, bob.puzzle_hash), 2000);
+    assert_eq!(t.balance(ROYALTY_A), 30);
+    assert_eq!(t.cat_balance(&alice_cat, ROYALTY_A), 60);
+
+    Ok(())
+}
+
+#[test]
+fn test_smallest_trade_price_for_prepaid_royalty() -> anyhow::Result<()> {
+    let launcher_id = Bytes32::new([4; 32]);
+
+    let trade_prices = |basis_points: u16, royalty: u64| -> anyhow::Result<Vec<TradePrice>> {
+        let mut offered_coins = OfferCoins::new();
+        offered_coins.settled_payments.xch = vec![NotarizedPayment::new(
+            launcher_id,
+            vec![Payment::new(ROYALTY_A, royalty, Memos::None)],
+        )];
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.nfts.insert(launcher_id, Vec::new());
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_nft(
+            launcher_id,
+            NftAssetInfo::new(HashedPtr::NIL, Bytes32::default(), ROYALTY_A, basis_points),
+        )?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        Ok(offer.requested_nft_trade_prices(launcher_id))
+    };
+
+    // Exact, rounded, 100%, and above 100%
+    assert_eq!(trade_prices(300, 30)?, vec![xch_trade_price(1000)]);
+    assert_eq!(trade_prices(300, 31)?, vec![xch_trade_price(1034)]);
+    assert_eq!(trade_prices(10_000, 7)?, vec![xch_trade_price(7)]);
+    assert_eq!(trade_prices(20_000, 8)?, vec![xch_trade_price(4)]);
+
+    // At 200% every royalty is even, and a 0.01% royalty of u64::MAX needs a larger trade price
+    assert_eq!(trade_prices(20_000, 7)?, Vec::new());
+    assert_eq!(trade_prices(1, u64::MAX)?, Vec::new());
+
+    // Otherwise, the trade price is the smallest one that produces exactly the royalty
+    for basis_points in [1, 3, 250, 300, 9999, 10_000, 10_001, 65_535] {
+        for royalty in (1..=200).chain([u64::MAX / 7, u64::MAX]) {
+            let trade_prices = trade_prices(basis_points, royalty)?;
+
+            // Up to 100%, each unit of trade price adds at most one unit of royalty
+            if basis_points <= 10_000 && royalty <= 200 {
+                assert_eq!(trade_prices.len(), 1);
+            }
+
+            for trade_price in trade_prices {
+                let amount = trade_price.amount;
+                assert_eq!(
+                    calculate_nft_royalty(amount, basis_points),
+                    u128::from(royalty)
+                );
+                assert!(
+                    amount == 0 || calculate_nft_royalty(amount - 1, basis_points) < royalty.into()
+                );
+            }
+        }
+    }
 
     Ok(())
 }
