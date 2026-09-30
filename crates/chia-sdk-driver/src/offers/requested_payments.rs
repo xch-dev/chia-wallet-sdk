@@ -83,16 +83,7 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let default = CatAssetInfo::default();
-            let info = asset_info.cat(asset_id).unwrap_or(&default);
-
-            let puzzle_hash = CatInfo::new(
-                asset_id,
-                info.hidden_puzzle_hash,
-                SETTLEMENT_PAYMENT_HASH.into(),
-            )
-            .puzzle_hash()
-            .into();
+            let puzzle_hash = asset_info.settlement_puzzle_hash(Id::Existing(asset_id));
 
             for notarized_payment in notarized_payments {
                 assertions.push(payment_assertion(

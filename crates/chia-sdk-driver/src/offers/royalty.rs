@@ -4,8 +4,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
 use crate::{
-    AssetInfo, CatAssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext,
-    coin_amount,
+    AssetInfo, DriverError, Id, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,17 +76,10 @@ pub fn calculate_trade_prices(
             continue;
         }
 
-        let default = CatAssetInfo::default();
-        let info = asset_info.cat(asset_id).unwrap_or(&default);
-        let puzzle_hash = CatInfo::new(
-            asset_id,
-            info.hidden_puzzle_hash,
-            SETTLEMENT_PAYMENT_HASH.into(),
-        )
-        .puzzle_hash()
-        .into();
-
-        trade_prices.push(TradePrice::new(coin_amount(amount)?, puzzle_hash));
+        trade_prices.push(TradePrice::new(
+            coin_amount(amount)?,
+            asset_info.settlement_puzzle_hash(Id::Existing(asset_id)),
+        ));
     }
 
     Ok(trade_prices)
