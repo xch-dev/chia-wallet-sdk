@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use chia_protocol::Bytes32;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 
-use crate::{DriverError, HashedPtr};
+use crate::{CatInfo, DriverError, HashedPtr, Id};
 
 #[derive(Debug, Default, Clone)]
 pub struct AssetInfo {
@@ -38,6 +39,31 @@ impl AssetInfo {
 
     pub fn option(&self, launcher_id: Bytes32) -> Option<&OptionAssetInfo> {
         self.options.get(&launcher_id)
+    }
+
+    /// The puzzle hash of settlement coins for XCH or a CAT.
+    pub fn settlement_puzzle_hash(&self, asset: Id) -> Bytes32 {
+        let Id::Existing(asset_id) = asset else {
+            return SETTLEMENT_PAYMENT_HASH.into();
+        };
+
+        let hidden_puzzle_hash = self.cat(asset_id).and_then(|info| info.hidden_puzzle_hash);
+
+        CatInfo::new(asset_id, hidden_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into())
+            .puzzle_hash()
+            .into()
+    }
+
+    /// The XCH or known CAT whose settlement coins have the given puzzle hash.
+    pub fn settlement_asset(&self, settlement_puzzle_hash: Bytes32) -> Option<Id> {
+        if settlement_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+            return Some(Id::Xch);
+        }
+
+        self.cats
+            .keys()
+            .map(|&asset_id| Id::Existing(asset_id))
+            .find(|&asset| self.settlement_puzzle_hash(asset) == settlement_puzzle_hash)
     }
 
     pub fn insert_cat(&mut self, asset_id: Bytes32, info: CatAssetInfo) -> Result<(), DriverError> {

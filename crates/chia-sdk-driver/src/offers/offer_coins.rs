@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Layer, Nft, NftAssetInfo,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Id, Layer, Nft, NftAssetInfo,
     OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
     RequestedPayments, SettlementLayer, Spends,
 };
@@ -23,6 +23,8 @@ pub struct OfferCoins {
     pub fee: u64,
     /// The trade prices each offered NFT revealed when it was spent into settlement. Its royalty
     /// transfer program asserts a royalty payment for each of them.
+    ///
+    /// Keyed by launcher id like `nfts`, and only has entries for NFTs in it.
     pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
     /// Payments already made by settlement spends in the offer, such as royalties paid up front
     /// for requested NFTs.
@@ -194,30 +196,24 @@ impl OfferCoins {
             }
         }
 
-        let nft = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?;
+        let nft =
+            Nft::parse_child_with_transfer(allocator, parent_coin, parent_puzzle, parent_solution)?;
 
-        if let Some(nft) = nft {
+        if let Some((nft, _)) = &nft {
             check_not_old_settlement(nft.info.p2_puzzle_hash)?;
         }
 
-        if let Some(nft) = nft
-            && let Some((_, p2_puzzle, p2_solution)) =
-                Nft::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+        if let Some((nft, transfer)) = nft
             && !spent_coin_ids.contains(&nft.coin.coin_id())
             && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
-            let output = run_puzzle(allocator, p2_puzzle.ptr(), p2_solution)?;
-            let trade_prices = Vec::<Condition>::from_clvm(allocator, output)?
-                .into_iter()
-                .find_map(|condition| match condition {
-                    Condition::TransferNft(transfer) => Some(transfer.trade_prices),
-                    _ => None,
-                })
-                .unwrap_or_default();
-
             self.nfts.insert(nft.info.launcher_id, nft);
-            self.nft_trade_prices
-                .insert(nft.info.launcher_id, trade_prices);
+            self.nft_trade_prices.insert(
+                nft.info.launcher_id,
+                transfer
+                    .map(|transfer| transfer.trade_prices)
+                    .unwrap_or_default(),
+            );
 
             let info = NftAssetInfo::new(
                 nft.info.metadata,
@@ -250,22 +246,13 @@ impl OfferCoins {
 
         // Settled payments are informational, so ones that can't be parsed are ignored rather
         // than rejecting a spend that's otherwise valid
-        if SettlementLayer::parse_puzzle(allocator, parent_puzzle)?.is_some() {
-            if let Ok(solution) = SettlementPaymentsSolution::from_clvm(allocator, parent_solution)
-            {
-                self.settled_payments
-                    .xch
-                    .extend(solution.notarized_payments);
-            }
-        } else if let Some(cat) =
-            Cat::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
-            && SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?.is_some()
-            && let Ok(solution) = SettlementPaymentsSolution::from_clvm(allocator, cat.p2_solution)
+        if let Some((asset, settlement_solution)) =
+            settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && let Ok(solution) =
+                SettlementPaymentsSolution::from_clvm(allocator, settlement_solution)
         {
             self.settled_payments
-                .cats
-                .entry(cat.cat.info.asset_id)
-                .or_default()
+                .fungible_mut(asset)
                 .extend(solution.notarized_payments);
         }
 
@@ -309,6 +296,26 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     }
 
     Ok(())
+}
+
+/// The asset and settlement solution of a spend of an XCH or CAT settlement coin.
+fn settlement_spend(
+    allocator: &Allocator,
+    coin: Coin,
+    puzzle: Puzzle,
+    solution: NodePtr,
+) -> Result<Option<(Id, NodePtr)>, DriverError> {
+    if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
+        return Ok(Some((Id::Xch, solution)));
+    }
+
+    let Some(cat) = Cat::parse(allocator, coin, puzzle, solution)? else {
+        return Ok(None);
+    };
+
+    Ok(SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?
+        .is_some()
+        .then_some((Id::Existing(cat.cat.info.asset_id), cat.p2_solution)))
 }
 
 impl AddAsset for OfferCoins {
