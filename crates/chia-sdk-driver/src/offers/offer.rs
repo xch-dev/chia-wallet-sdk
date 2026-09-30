@@ -241,8 +241,8 @@ impl Offer {
     /// Returns the trade prices a requested NFT should reveal when the taker spends it into
     /// settlement, so that it asserts exactly the royalties the offer already paid for it.
     ///
-    /// Prepaid royalties that no trade price could produce are left out, since the NFT can't
-    /// assert them.
+    /// Prepaid royalties that no trade price could produce, or that are paid in a CAT without
+    /// asset info, are left out, since the NFT can't assert them.
     ///
     /// An NFT that's also offered only passes through settlement, so the taker shouldn't
     /// transfer it or reveal any trade prices for it.
@@ -256,7 +256,7 @@ impl Offer {
                 let amount = calculate_min_trade_price(royalty, nft.royalty_basis_points)?;
                 Some(TradePrice::new(
                     amount,
-                    self.asset_info.settlement_puzzle_hash(asset),
+                    self.asset_info.settlement_puzzle_hash(asset).ok()?,
                 ))
             })
             .collect()

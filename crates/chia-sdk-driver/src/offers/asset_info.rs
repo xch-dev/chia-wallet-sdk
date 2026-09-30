@@ -41,17 +41,23 @@ impl AssetInfo {
         self.options.get(&launcher_id)
     }
 
-    /// The puzzle hash of settlement coins for XCH or a CAT.
-    pub fn settlement_puzzle_hash(&self, asset: Id) -> Bytes32 {
+    /// The puzzle hash of settlement coins for XCH or a CAT. Fails with
+    /// [`DriverError::MissingAssetInfo`] for an unknown CAT, since its hidden puzzle hash affects
+    /// the puzzle hash.
+    pub fn settlement_puzzle_hash(&self, asset: Id) -> Result<Bytes32, DriverError> {
         let Id::Existing(asset_id) = asset else {
-            return SETTLEMENT_PAYMENT_HASH.into();
+            return Ok(SETTLEMENT_PAYMENT_HASH.into());
         };
 
-        let hidden_puzzle_hash = self.cat(asset_id).and_then(|info| info.hidden_puzzle_hash);
+        let info = self.cat(asset_id).ok_or(DriverError::MissingAssetInfo)?;
 
-        CatInfo::new(asset_id, hidden_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into())
-            .puzzle_hash()
-            .into()
+        Ok(CatInfo::new(
+            asset_id,
+            info.hidden_puzzle_hash,
+            SETTLEMENT_PAYMENT_HASH.into(),
+        )
+        .puzzle_hash()
+        .into())
     }
 
     /// The XCH or known CAT whose settlement coins have the given puzzle hash.
@@ -63,7 +69,7 @@ impl AssetInfo {
         self.cats
             .keys()
             .map(|&asset_id| Id::Existing(asset_id))
-            .find(|&asset| self.settlement_puzzle_hash(asset) == settlement_puzzle_hash)
+            .find(|&asset| self.settlement_puzzle_hash(asset).ok() == Some(settlement_puzzle_hash))
     }
 
     pub fn insert_cat(&mut self, asset_id: Bytes32, info: CatAssetInfo) -> Result<(), DriverError> {
