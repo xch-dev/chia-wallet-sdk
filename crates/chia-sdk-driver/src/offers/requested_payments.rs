@@ -44,6 +44,30 @@ impl RequestedPayments {
         }
     }
 
+    /// The XCH or CAT payments for an asset.
+    pub fn fungible_mut(&mut self, asset: Id) -> &mut Vec<NotarizedPayment> {
+        match asset {
+            Id::Existing(asset_id) => self.cats.entry(asset_id).or_default(),
+            _ => &mut self.xch,
+        }
+    }
+
+    /// Each XCH and CAT payment, along with its asset.
+    pub fn fungible(&self) -> impl Iterator<Item = (Id, &NotarizedPayment)> {
+        self.xch
+            .iter()
+            .map(|notarized_payment| (Id::Xch, notarized_payment))
+            .chain(
+                self.cats
+                    .iter()
+                    .flat_map(|(&asset_id, notarized_payments)| {
+                        notarized_payments.iter().map(move |notarized_payment| {
+                            (Id::Existing(asset_id), notarized_payment)
+                        })
+                    }),
+            )
+    }
+
     pub fn assertions(
         &self,
         ctx: &mut SpendContext,

@@ -3,7 +3,7 @@ use std::ops::Add;
 use chia_protocol::Bytes32;
 use indexmap::IndexMap;
 
-use crate::DriverError;
+use crate::{DriverError, Id};
 
 #[derive(Debug, Default, Clone)]
 pub struct Arbitrage {
@@ -52,6 +52,16 @@ pub struct OfferAmounts {
 impl OfferAmounts {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Adds an amount of XCH or a CAT to its total.
+    pub fn add_amount(&mut self, asset: Id, amount: u128) {
+        let total = match asset {
+            Id::Existing(asset_id) => self.cats.entry(asset_id).or_default(),
+            _ => &mut self.xch,
+        };
+
+        *total += amount;
     }
 }
 
