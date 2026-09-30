@@ -257,6 +257,18 @@ impl Nft {
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
+        Self::parse_child_with_transfer(allocator, parent_coin, parent_puzzle, parent_solution)
+            .map(|parsed| parsed.map(|(nft, _)| nft))
+    }
+
+    /// Like [`Nft::parse_child`], but also returns the transfer condition revealed by the parent's
+    /// p2 spend, if any.
+    pub(crate) fn parse_child_with_transfer(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+    ) -> Result<Option<(Self, Option<TransferNft>)>, DriverError> {
         let Some((parent_info, p2_puzzle)) = NftInfo::parse(allocator, parent_puzzle)? else {
             return Ok(None);
         };
@@ -267,10 +279,12 @@ impl Nft {
                 .inner_solution
                 .inner_solution;
 
-        let (info, create_coin) =
-            parent_info.child_from_p2_spend(allocator, Spend::new(p2_puzzle.ptr(), p2_solution))?;
+        let (info, create_coin, transfer) = parent_info.child_and_transfer_from_p2_spend(
+            allocator,
+            Spend::new(p2_puzzle.ptr(), p2_solution),
+        )?;
 
-        Ok(Some(Self {
+        let nft = Self {
             coin: Coin::new(
                 parent_coin.coin_id(),
                 info.puzzle_hash().into(),
@@ -282,7 +296,9 @@ impl Nft {
                 parent_amount: parent_coin.amount,
             }),
             info,
-        }))
+        };
+
+        Ok(Some((nft, transfer)))
     }
 
     /// Parses an [`Nft`] and its p2 spend from a coin spend.

@@ -1,7 +1,11 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
-use chia_sdk_types::{Condition, Mod, conditions::CreateCoin, run_puzzle};
+use chia_sdk_types::{
+    Condition, Mod,
+    conditions::{CreateCoin, TransferNft},
+    run_puzzle,
+};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -156,6 +160,17 @@ impl NftInfo {
         allocator: &mut Allocator,
         spend: Spend,
     ) -> Result<(Self, CreateCoin<NodePtr>), DriverError> {
+        self.child_and_transfer_from_p2_spend(allocator, spend)
+            .map(|(info, create_coin, _)| (info, create_coin))
+    }
+
+    /// Like [`NftInfo::child_from_p2_spend`], but also returns the transfer condition revealed by
+    /// the p2 spend, if any.
+    pub(crate) fn child_and_transfer_from_p2_spend(
+        &self,
+        allocator: &mut Allocator,
+        spend: Spend,
+    ) -> Result<(Self, CreateCoin<NodePtr>, Option<TransferNft>), DriverError> {
         let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
@@ -184,7 +199,7 @@ impl NftInfo {
 
         let mut info = *self;
 
-        if let Some(new_owner) = new_owner {
+        if let Some(new_owner) = &new_owner {
             info.current_owner = new_owner.launcher_id;
         }
 
@@ -202,7 +217,7 @@ impl NftInfo {
 
         info.p2_puzzle_hash = create_coin.puzzle_hash;
 
-        Ok((info, create_coin))
+        Ok((info, create_coin, new_owner))
     }
 }
 

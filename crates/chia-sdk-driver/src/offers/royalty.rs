@@ -175,3 +175,17 @@ pub fn calculate_nft_trace_price(amount: u128, royalty_nft_count: usize) -> u128
 pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u128 {
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
 }
+
+/// Returns the smallest trade price whose royalty is exactly `royalty`, if there is one.
+pub(crate) fn calculate_min_trade_price(royalty: u64, royalty_basis_points: u16) -> Option<u64> {
+    if royalty_basis_points == 0 {
+        return None;
+    }
+
+    let trade_price =
+        u64::try_from((u128::from(royalty) * 10_000).div_ceil(u128::from(royalty_basis_points)))
+            .ok()?;
+
+    (calculate_nft_royalty(trade_price, royalty_basis_points) == u128::from(royalty))
+        .then_some(trade_price)
+}
