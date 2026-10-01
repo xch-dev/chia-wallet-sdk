@@ -46,12 +46,12 @@ pub fn calculate_trade_price_amounts(
     }
 
     OfferAmounts {
-        xch: calculate_nft_trace_price(amounts.xch, royalty_nft_count),
+        xch: calculate_nft_trade_price(amounts.xch, royalty_nft_count),
         cats: amounts
             .cats
             .iter()
             .map(|(&asset_id, &amount)| {
-                let amount = calculate_nft_trace_price(amount, royalty_nft_count);
+                let amount = calculate_nft_trade_price(amount, royalty_nft_count);
                 (asset_id, amount)
             })
             .collect(),
@@ -152,7 +152,7 @@ pub fn calculate_royalty_amounts(
 }
 
 /// The trade price of each royalty NFT, which is zero if there are none.
-pub fn calculate_nft_trace_price(amount: u128, royalty_nft_count: usize) -> u128 {
+pub fn calculate_nft_trade_price(amount: u128, royalty_nft_count: usize) -> u128 {
     amount.checked_div(royalty_nft_count as u128).unwrap_or(0)
 }
 
