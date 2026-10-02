@@ -224,9 +224,7 @@ impl XchandlesRegisterAction {
         })
     }
 
-    /// Historical factor-pricing register path. Prefer
-    /// [`Self::spend_with_pricing`] when the precommit committed the deployed
-    /// expiry-pricing puzzle.
+    /// Factor-pricing register. Matches `State.Pricing_Puzzle_Hash`.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -267,11 +265,11 @@ impl XchandlesRegisterAction {
         )
     }
 
-    /// Register using an explicit pricing puzzle reveal and solution.
+    /// Register with an explicit pricing puzzle reveal and solution.
     ///
-    /// Used for the deployed expiry-pricing precommit (ordinary
-    /// `current_expiration = 0`) so the reveal matches the commitment instead
-    /// of silently substituting factor pricing.
+    /// The reveal tree hash must equal `State.Pricing_Puzzle_Hash` (factor
+    /// pricing on the deployed registry). Do not pass the expiry-pricing
+    /// puzzle; that hash is only valid for `expire`.
     #[allow(clippy::too_many_arguments)]
     pub fn spend_with_pricing(
         self,
@@ -368,7 +366,7 @@ impl XchandlesRegisterAction {
         ))
     }
 
-    /// Curry the deployed expiry-pricing puzzle for an ordinary-register reveal.
+    /// Curry the deployed expiry-pricing puzzle (expire/refund reveals).
     pub fn expiry_pricing_puzzle(
         ctx: &mut SpendContext,
         base_handle_price: u64,

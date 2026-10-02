@@ -4044,8 +4044,6 @@ export declare class XchandlesPrecommitValue {
   set numPeriods(value: bigint)
   get currentExpiration(): bigint
   set currentExpiration(value: bigint)
-  get useExpirePricing(): boolean
-  set useExpirePricing(value: boolean)
 }
 
 export declare class XchandlesPrecommitValueLog {
