@@ -1,8 +1,10 @@
-use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
-use chia_protocol::{Bytes, Bytes32};
+use crate::{
+    DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext, SpendWithConditions,
+};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
-    Condition, MerkleTree,
+    Condition, Conditions, MerkleTree,
     conditions::Remark,
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2_CURRIED_PUZZLE_HASH, P2CurriedArgs,
@@ -92,11 +94,27 @@ impl Clawback {
             }
         }
         for &clawback in &metadatas {
-            if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
+            if puzhashes.contains(&clawback.tree_hash().to_bytes()) {
                 outputs.push(clawback);
             }
         }
         Ok(Some(outputs))
+    }
+
+    pub fn parse_child(
+        allocator: &mut Allocator,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+        expected_puzzle_hash: Bytes32,
+    ) -> Result<Option<Self>, DriverError> {
+        let Some(children) = Self::parse_children(allocator, parent_puzzle, parent_solution)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(children
+            .into_iter()
+            .find(|clawback| clawback.tree_hash() == expected_puzzle_hash.into()))
     }
 
     pub fn receiver_path_puzzle_hash(&self) -> TreeHash {
@@ -138,6 +156,11 @@ impl Clawback {
             self.receiver_path_puzzle_hash().into(),
             self.sender_path_puzzle_hash().into(),
         ])
+    }
+
+    // Alias of to_layer(), to make handling between V1 and V2 more consistent.
+    pub fn into_1_of_n(&self) -> P2OneOfManyLayer {
+        self.to_layer()
     }
 
     pub fn to_layer(&self) -> P2OneOfManyLayer {
@@ -198,6 +221,82 @@ impl Clawback {
         P2OneOfManyLayer::new(merkle_tree.root())
             .construct_spend(ctx, P2OneOfManySolution::new(proof, puzzle, solution))
     }
+
+    // Receiver claim: create full-amount coin to receiver_puzzle_hash with a discovery hint.
+    pub fn claim_spend<I>(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        inner: &I,
+        conditions: Conditions,
+    ) -> Result<Spend, DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let hint = ctx.hint(self.receiver_puzzle_hash)?;
+
+        let inner_spend = inner.spend_with_conditions(
+            ctx,
+            conditions.create_coin(self.receiver_puzzle_hash, coin.amount, hint),
+        )?;
+
+        self.receiver_spend(ctx, inner_spend)
+    }
+
+    pub fn claim_coin_spend<I>(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        inner: &I,
+        conditions: Conditions,
+    ) -> Result<(), DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let spend = self.claim_spend(ctx, coin, inner, conditions)?;
+        ctx.spend(coin, spend)
+    }
+
+    // Sender claw-back: create full-amount coin to sender_puzzle_hash with a discovery hint.
+    pub fn clawback_spend<I>(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        inner: &I,
+        conditions: Conditions,
+    ) -> Result<Spend, DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let hint = ctx.hint(self.sender_puzzle_hash)?;
+
+        let inner_spend = inner.spend_with_conditions(
+            ctx,
+            conditions.create_coin(self.sender_puzzle_hash, coin.amount, hint),
+        )?;
+
+        self.sender_spend(ctx, inner_spend)
+    }
+
+    pub fn clawback_coin_spend<I>(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        inner: &I,
+        conditions: Conditions,
+    ) -> Result<(), DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let spend = self.clawback_spend(ctx, coin, inner, conditions)?;
+        ctx.spend(coin, spend)
+    }
+}
+
+impl ToTreeHash for Clawback {
+    fn tree_hash(&self) -> TreeHash {
+        self.to_layer().tree_hash()
+    }
 }
 
 #[cfg(test)]
@@ -207,7 +306,6 @@ mod tests {
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
     use clvm_traits::ToClvm;
 
     use crate::{SpendWithConditions, StandardLayer};
@@ -216,7 +314,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::similar_names)]
-    fn test_clawback_coin_claim() -> anyhow::Result<()> {
+    fn test_clawback_v1_parse_and_claim() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -231,7 +329,7 @@ mod tests {
             sender_puzzle_hash: alice.puzzle_hash,
             receiver_puzzle_hash: bob.puzzle_hash,
         };
-        let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
+        let clawback_puzzle_hash = clawback.tree_hash().into();
         let coin = alice.coin;
         let conditions = Conditions::new()
             .create_coin(clawback_puzzle_hash, 1, Memos::None)
@@ -263,11 +361,54 @@ mod tests {
         assert_eq!(children.len(), 1);
         assert_eq!(children[0], clawback);
 
+        let parsed = Clawback::parse_child(ctx, puzzle, solution, clawback_puzzle_hash)?
+            .expect("parse_child should find the clawback");
+        assert_eq!(parsed, clawback);
+        assert!(Clawback::parse_child(ctx, puzzle, solution, Bytes32::default())?.is_none());
+
         let bob_inner = bob_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
         let receiver_spend = clawback.receiver_spend(ctx, bob_inner)?;
         ctx.spend(clawback_coin, receiver_spend)?;
 
         sim.spend_coins(ctx.take(), &[bob.sk])?;
+
+        Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)]
+    fn test_clawback_v1_claim() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+        let bob_p2 = StandardLayer::new(bob.pk);
+
+        let clawback = Clawback {
+            timelock: 1,
+            sender_puzzle_hash: alice.puzzle_hash,
+            receiver_puzzle_hash: bob.puzzle_hash,
+        };
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let conditions = Conditions::new()
+            .create_coin(clawback_puzzle_hash, 1, Memos::None)
+            .with(clawback.get_remark_condition(ctx)?);
+
+        alice_p2.spend(ctx, alice.coin, conditions)?;
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        clawback.claim_coin_spend(ctx, clawback_coin, &bob_p2, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[bob.sk])?;
+
+        assert!(sim
+            .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+            .is_some());
 
         Ok(())
     }
@@ -291,7 +432,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::similar_names)]
-    fn test_clawback_coin_clawback() -> anyhow::Result<()> {
+    fn test_clawback_v1_sender_spend() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -303,7 +444,7 @@ mod tests {
             sender_puzzle_hash: alice.puzzle_hash,
             receiver_puzzle_hash: Bytes32::default(),
         };
-        let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
+        let clawback_puzzle_hash = clawback.tree_hash().into();
 
         alice_p2.spend(
             ctx,
@@ -319,6 +460,41 @@ mod tests {
         ctx.spend(clawback_coin, sender_spend)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)]
+    fn test_clawback_v1_clawback() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let clawback = Clawback {
+            timelock: u64::MAX,
+            sender_puzzle_hash: alice.puzzle_hash,
+            receiver_puzzle_hash: Bytes32::default(),
+        };
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let conditions = Conditions::new()
+            .create_coin(clawback_puzzle_hash, 1, Memos::None)
+            .with(clawback.get_remark_condition(ctx)?);
+
+        alice_p2.spend(ctx, alice.coin, conditions)?;
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        clawback.clawback_coin_spend(ctx, clawback_coin, &alice_p2, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert!(sim
+            .coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
+            .is_some());
 
         Ok(())
     }
