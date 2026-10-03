@@ -44,8 +44,8 @@
 mod protocol;
 pub use protocol::{
     aggregate_sender_sks, compute_input_hash, compute_shared_secret_from_tweak,
-    derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk, derive_output_tweak,
-    puzzle_hash_for_pk,
+    compute_tweak_point, derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk,
+    derive_output_tweak, puzzle_hash_for_pk,
 };
 mod block_tweak_data;
 pub use block_tweak_data::tweak_data_from_block_spends;

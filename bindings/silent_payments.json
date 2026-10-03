@@ -237,6 +237,14 @@
         },
         "return": "ScalarField"
       },
+      "compute_tweak_point": {
+        "type": "static",
+        "args": {
+          "coin_ids": "Vec<Bytes32>",
+          "aggregated_sender_pk": "PublicKey"
+        },
+        "return": "Option<PublicKey>"
+      },
       "aggregate_sender_sks": {
         "type": "static",
         "args": {

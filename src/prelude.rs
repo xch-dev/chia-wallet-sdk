@@ -40,7 +40,8 @@ pub use chia_sdk_utils::silent_payments::{
 #[cfg(feature = "chip-0057")]
 pub use chia_sdk_driver::silent_payments::{
     DetectedSpCoin, K_MAX_DEFAULT, OutputMeta, SilentPaymentScan, SyntheticPublicKey,
-    SyntheticSecretKey, TweakData, scan_from_tweaks, tweak_data_from_block_spends,
+    SyntheticSecretKey, TweakData, compute_tweak_point, scan_from_tweaks,
+    tweak_data_from_block_spends,
 };
 
 #[cfg(feature = "chip-0057")]

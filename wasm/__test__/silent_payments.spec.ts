@@ -27,8 +27,10 @@ import test from "ava";
 import {
   Action,
   Clvm,
+  fromHex,
   LabelRegistry,
   Mnemonic,
+  PublicKey,
   setPanicHook,
   SilentPaymentKeys,
   SilentPaymentNetwork,
@@ -249,4 +251,37 @@ test("wasm: key derivation from the mnemonic is hardened (TV8)", (t) => {
 // CHIP-0057 "Kmax": the output limit is available without duplicating it.
 test("wasm: SilentPayments.kMax() is the output limit", (t) => {
   t.is(SilentPayments.kMax(), 2400);
+});
+
+// The tweak point T = input_hash * A_sum of a spend group. Values are those of
+// vector_4_multi_input in the CHIP's machine-readable vectors.
+test("wasm: computeTweakPoint (vector 4)", (t) => {
+  const aSumPk = PublicKey.fromBytes(
+    fromHex(
+      "a223ab27f801044cd98c8314014b8073347b0e5aae43c69b78b5ca2a562ee9f799b8efad179b34da1b306ca4d62bad40",
+    ),
+  );
+  const coinIds = [
+    fromHex("2b9857e0307ebfbe51829e3be8c992ae57f6a8debe06a5deab429ddae83a8c1a"),
+    fromHex("209bb03a4cd165785e6149bc6dcb27e35829006f02ec927ab5a20521fd27d21a"),
+  ];
+  const expected =
+    "82caa41f9b5e0675cea58072185286e956ec209f1df3a2c23b832c45b8bdd139bab6230e3d5ddc663d269440931bafeb";
+
+  const point = SilentPayments.computeTweakPoint(coinIds, aSumPk);
+  t.truthy(point);
+  t.is(toHex(point!.toBytes()), expected);
+  // The smaller coin id is used, whatever the order.
+  const reversed = SilentPayments.computeTweakPoint(
+    [coinIds[1], coinIds[0]],
+    aSumPk,
+  );
+  t.is(toHex(reversed!.toBytes()), expected);
+
+  // A group whose keys sum to the identity element has no tweak point.
+  t.falsy(SilentPayments.computeTweakPoint(coinIds, PublicKey.infinity()));
+  // No coin ids is an error.
+  t.throws(() => SilentPayments.computeTweakPoint([], aSumPk), {
+    message: /requires an xch input/,
+  });
 });

@@ -43,12 +43,12 @@
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{Condition, run_puzzle, silent_payments::ScalarField};
+use chia_sdk_types::{Condition, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
-use crate::silent_payments::{OutputMeta, TweakData, compute_input_hash};
+use crate::silent_payments::{OutputMeta, TweakData, compute_tweak_point};
 use crate::{DriverError, Layer, Puzzle, StandardLayer};
 
 /// Parsed-standard-puzzle row carried between stages.
@@ -60,20 +60,20 @@ struct StandardSpend {
 }
 
 /// Build a [`TweakData`] from a real (or simulator) block's coin spends and
-/// additions.
+/// additions: one tweak point per spend group (see
+/// [`crate::silent_payments::compute_tweak_point`]) and one [`OutputMeta`] per
+/// addition.
 ///
-/// Returns `Err(DriverError)` only on protocol-level corruption (e.g., a
-/// downstream invariant in [`compute_input_hash`] failing); non-standard
-/// puzzle reveals skip silently, never panicking or erroring.
+/// Spends of puzzles other than the standard puzzle are skipped silently,
+/// without panicking or returning an error.
 ///
-/// See module-level docs for the grouping algorithm and ordering contract.
+/// See module-level docs for how the spend groups are formed and for the order
+/// of the tweak points.
 ///
 /// # Errors
 ///
-/// Returns [`DriverError`] from downstream protocol primitives. The current
-/// implementation never produces an error in practice; the `Result` return
-/// shape reserves room for future protocol-level validation without an
-/// API break.
+/// The current implementation never returns an error; the `Result` return
+/// type leaves room for validation to be added without an API break.
 pub fn tweak_data_from_block_spends(
     coin_spends: &[CoinSpend],
     additions: &[Coin],
@@ -162,13 +162,9 @@ pub fn tweak_data_from_block_spends(
         for &i in &group[1..] {
             a_sum += &standard_spends[i].synthetic_pk;
         }
-        // CHIP-0057 `ScanForSilentPayment`: skip the group if its keys sum to the
-        // identity element, or if its input hash is zero.
-        if a_sum.is_inf() {
-            continue;
-        }
-        let input_hash = compute_input_hash(&coin_ids, &a_sum);
-        let Some(tweak_point) = group_tweak_point(&a_sum, &input_hash) else {
+        // A group whose keys sum to the identity element, or whose input hash is
+        // zero, has no tweak point (CHIP-0057 "Tweak Points").
+        let Some(tweak_point) = compute_tweak_point(&coin_ids, &a_sum) else {
             continue;
         };
         if seen.insert(tweak_point.to_bytes()) {
@@ -191,21 +187,6 @@ pub fn tweak_data_from_block_spends(
         tweak_points,
         outputs,
     })
-}
-
-/// The tweak point `T = input_hash * A_sum` of a spend group (CHIP-0057 "Tweak
-/// Points"), or `None` for a group that scanners skip: one whose keys sum to the
-/// identity element, or whose input hash is zero.
-fn group_tweak_point(a_sum: &PublicKey, input_hash: &ScalarField) -> Option<PublicKey> {
-    if a_sum.is_inf() || input_hash.is_zero() {
-        return None;
-    }
-    let mut tweak_point = *a_sum;
-    tweak_point.scalar_multiply(input_hash.as_bytes());
-    if tweak_point.is_inf() {
-        return None;
-    }
-    Some(tweak_point)
 }
 
 /// Iterative Tarjan strongly-connected-components over a directed graph
@@ -289,6 +270,10 @@ fn iterative_tarjan_scc(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::silent_payments::compute_input_hash;
+    use crate::silent_payments::protocol::tweak_point_from_input_hash;
+    use chia_sdk_types::silent_payments::ScalarField;
 
     use chia_protocol::{Coin, Program};
     use chia_puzzle_types::standard::StandardArgs;
@@ -755,7 +740,8 @@ mod tests {
             "only the two single-input groups yield a tweak point"
         );
         for (pk, id) in [(pk_a, id_a), (pk_b, id_b)] {
-            let expected = group_tweak_point(&pk, &compute_input_hash(&[id], &pk)).unwrap();
+            let expected =
+                tweak_point_from_input_hash(&pk, &compute_input_hash(&[id], &pk)).unwrap();
             assert!(td.tweak_points.contains(&expected));
         }
     }
@@ -766,15 +752,15 @@ mod tests {
     fn group_with_zero_input_hash_is_skipped() {
         let pk = chia_bls::SecretKey::from_seed(&[0x22u8; 32]).public_key();
         let zero = ScalarField::from_bytes_raw([0u8; 32]);
-        assert!(group_tweak_point(&pk, &zero).is_none());
+        assert!(tweak_point_from_input_hash(&pk, &zero).is_none());
 
         let one = {
             let mut bytes = [0u8; 32];
             bytes[31] = 1;
             ScalarField::from_bytes_raw(bytes)
         };
-        assert_eq!(group_tweak_point(&pk, &one), Some(pk));
-        assert!(group_tweak_point(&PublicKey::default(), &one).is_none());
+        assert_eq!(tweak_point_from_input_hash(&pk, &one), Some(pk));
+        assert!(tweak_point_from_input_hash(&PublicKey::default(), &one).is_none());
     }
 
     /// A spend that is not an eligible spend: its puzzle is `1` (which returns
@@ -806,7 +792,7 @@ mod tests {
                     a_sum += key;
                 }
                 let coin_ids: Vec<Bytes32> = group.iter().map(|(_, id)| *id).collect();
-                group_tweak_point(&a_sum, &compute_input_hash(&coin_ids, &a_sum))
+                tweak_point_from_input_hash(&a_sum, &compute_input_hash(&coin_ids, &a_sum))
                     .unwrap()
                     .to_bytes()
             })

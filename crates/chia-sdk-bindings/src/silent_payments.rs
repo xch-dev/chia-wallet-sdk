@@ -516,6 +516,27 @@ impl SilentPayments {
         Ok(chia_sdk_driver::compute_input_hash(&coin_ids, &aggregated_sender_pk).into())
     }
 
+    /// The tweak point of a spend group, `T = input_hash * A_sum` (CHIP-0057
+    /// "Tweak Points"), from the coin ids of the group and the sum of its
+    /// synthetic public keys. This is what a server computes for light
+    /// clients, one per spend group.
+    ///
+    /// Returns nothing for a group that is left out of a block's tweak points:
+    /// one whose key sum is the identity element, or whose input hash is zero.
+    /// An empty `coin_ids` is an error.
+    pub fn compute_tweak_point(
+        coin_ids: Vec<Bytes32>,
+        aggregated_sender_pk: PublicKey,
+    ) -> Result<Option<PublicKey>> {
+        if coin_ids.is_empty() {
+            return Err(chia_sdk_driver::DriverError::SilentPaymentNoXchInputs.into());
+        }
+        Ok(chia_sdk_driver::compute_tweak_point(
+            &coin_ids,
+            &aggregated_sender_pk,
+        ))
+    }
+
     /// The sum of the sender's synthetic secret keys mod r, one term per coin
     /// of the spend group. Fails if the sum is zero.
     pub fn aggregate_sender_sks(sks: Vec<SecretKey>) -> Result<SecretKey> {
@@ -627,5 +648,33 @@ mod tests {
         let k_max = SilentPayments::k_max().unwrap();
         assert_eq!(k_max, 2400);
         assert_eq!(k_max as usize, chia_sdk_driver::K_MAX_DEFAULT);
+    }
+
+    /// The tweak point facade: a point for a normal group, nothing for an
+    /// identity key sum, and an error (not a panic) for no coin ids.
+    #[test]
+    fn compute_tweak_point_facade() {
+        let sender_pk = SecretKey::from_seed(&[7u8; 32]).public_key();
+        let coin_ids = vec![Bytes32::new([0x11; 32])];
+
+        let point = SilentPayments::compute_tweak_point(coin_ids.clone(), sender_pk)
+            .unwrap()
+            .expect("a tweak point");
+        assert_eq!(
+            Some(point),
+            chia_sdk_driver::compute_tweak_point(&coin_ids, &sender_pk)
+        );
+
+        assert!(
+            SilentPayments::compute_tweak_point(coin_ids, PublicKey::default())
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(
+            SilentPayments::compute_tweak_point(Vec::new(), sender_pk),
+            Err(bindy::Error::Driver(
+                chia_sdk_driver::DriverError::SilentPaymentNoXchInputs
+            ))
+        ));
     }
 }

@@ -14,6 +14,7 @@
 //!
 //! - [`aggregate_sender_sks`] — `Σ sk_i mod r` over the wallet's synthetic SKs.
 //! - [`compute_input_hash`] — `tagged_hash(CHIA_SP_INPUTS, coin_id_min ‖ serialize(A_sum)) mod r`.
+//! - [`compute_tweak_point`] — the tweak point of a spend group: `input_hash * A_sum`.
 //! - [`derive_one_time_puzzle_hash`] — the sender's analog of the receiver's scan loop:
 //!   `aggregated_sender_sk * input_hash * scan_pk → shared_secret → t_k → onetime_pk → puzzle_hash`.
 //!
@@ -205,6 +206,53 @@ pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey
 
     let hash = tagged_hash(CHIA_SP_INPUTS, &data);
     ScalarField::from_bytes_unsigned(hash)
+}
+
+/// Compute the tweak point of a spend group: `T = input_hash * A_sum`
+/// (CHIP-0057 "Tweak Points").
+///
+/// The tweak point is everything a scanner needs from the inputs of a spend
+/// group: its shared secret is `SHA256(serialize(b_scan * T))`. This is the
+/// function a full node or indexing server uses to produce tweak points for
+/// light clients, and what [`super::tweak_data_from_block_spends`] computes for
+/// every spend group of a block.
+///
+/// `coin_ids` are the coin ids of all coins of the group (the smallest one is
+/// selected) and `aggregated_sender_pk` is `A_sum`, the sum of their synthetic
+/// public keys with one term per coin.
+///
+/// Returns `None` for a group that is left out of a block's tweak points: one
+/// whose `A_sum` is the identity element, or whose `input_hash` is zero. It
+/// also returns `None` for an empty `coin_ids`, since a group has at least one
+/// coin.
+#[must_use]
+pub fn compute_tweak_point(
+    coin_ids: &[Bytes32],
+    aggregated_sender_pk: &PublicKey,
+) -> Option<PublicKey> {
+    if coin_ids.is_empty() || aggregated_sender_pk.is_inf() {
+        return None;
+    }
+    let input_hash = compute_input_hash(coin_ids, aggregated_sender_pk);
+    tweak_point_from_input_hash(aggregated_sender_pk, &input_hash)
+}
+
+/// `input_hash * A_sum`, or `None` if `A_sum` is the identity element or
+/// `input_hash` is zero. Split out of [`compute_tweak_point`] so that the
+/// zero input hash rule can be tested.
+pub(super) fn tweak_point_from_input_hash(
+    a_sum: &PublicKey,
+    input_hash: &ScalarField,
+) -> Option<PublicKey> {
+    if a_sum.is_inf() || input_hash.is_zero() {
+        return None;
+    }
+    let mut tweak_point = *a_sum;
+    tweak_point.scalar_multiply(input_hash.as_bytes());
+    if tweak_point.is_inf() {
+        return None;
+    }
+    Some(tweak_point)
 }
 
 /// Derive the on-chain standard-p2 puzzle hash for the recipient's k-th output
@@ -619,6 +667,75 @@ mod tests {
         assert_eq!(
             one_time_puzzle_hash_from_tweak(&spend_pk, &t).unwrap(),
             Bytes32::from(TV1_PUZZLE_HASH)
+        );
+    }
+
+    // ─── compute_tweak_point (CHIP-0057 "Tweak Points") ──────────────────
+
+    /// `tweak_point` of `vector_1_single_output` in the CHIP's
+    /// machine-readable vectors (one input).
+    const TV1_TWEAK_POINT: [u8; 48] = hex!(
+        "b9662882e0596df3c5af1d27b85d62677bb5389a6a1c1f4a1485034804b0ec60"
+        "749e57a7f1e9712176dfab60298ff292"
+    );
+    /// `a_sum_pk`, the two coin ids and `tweak_point` of `vector_4_multi_input`.
+    const TV4_A_SUM: [u8; 48] = hex!(
+        "a223ab27f801044cd98c8314014b8073347b0e5aae43c69b78b5ca2a562ee9f7"
+        "99b8efad179b34da1b306ca4d62bad40"
+    );
+    const TV4_COIN_ID_0: [u8; 32] =
+        hex!("2b9857e0307ebfbe51829e3be8c992ae57f6a8debe06a5deab429ddae83a8c1a");
+    const TV4_COIN_ID_1: [u8; 32] =
+        hex!("209bb03a4cd165785e6149bc6dcb27e35829006f02ec927ab5a20521fd27d21a");
+    const TV4_TWEAK_POINT: [u8; 48] = hex!(
+        "82caa41f9b5e0675cea58072185286e956ec209f1df3a2c23b832c45b8bdd139"
+        "bab6230e3d5ddc663d269440931bafeb"
+    );
+
+    #[test]
+    fn compute_tweak_point_matches_the_vectors() {
+        let a = PublicKey::from_bytes(&TV1_A_SUM).unwrap();
+        let point = compute_tweak_point(&[Bytes32::new(TV1_COIN_ID)], &a).unwrap();
+        assert_eq!(point.to_bytes(), TV1_TWEAK_POINT);
+        // It is the point the scanner multiplies by its scan key.
+        assert_eq!(point, tv1_tweak_point());
+        assert_eq!(
+            compute_shared_secret_from_tweak(&scan_sk(), &point),
+            TV1_SHARED_SECRET
+        );
+
+        // Two inputs: the smaller coin id is used, whatever the order.
+        let a_sum = PublicKey::from_bytes(&TV4_A_SUM).unwrap();
+        let ids = [Bytes32::new(TV4_COIN_ID_0), Bytes32::new(TV4_COIN_ID_1)];
+        let reversed = [ids[1], ids[0]];
+        for coin_ids in [ids, reversed] {
+            assert_eq!(
+                compute_tweak_point(&coin_ids, &a_sum).unwrap().to_bytes(),
+                TV4_TWEAK_POINT
+            );
+        }
+    }
+
+    /// Groups that are left out of a block's tweak points yield `None`: an
+    /// identity key sum, and a zero input hash (which cannot be produced from
+    /// a real hash, so the helper is given the zero scalar).
+    #[test]
+    fn compute_tweak_point_leaves_out_skipped_groups() {
+        let coin_ids = [Bytes32::new(TV1_COIN_ID)];
+        let a = PublicKey::from_bytes(&TV1_A_SUM).unwrap();
+
+        assert!(compute_tweak_point(&coin_ids, &PublicKey::default()).is_none());
+        assert!(compute_tweak_point(&[], &a).is_none());
+
+        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+        assert!(tweak_point_from_input_hash(&a, &zero).is_none());
+        let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
+        assert!(tweak_point_from_input_hash(&PublicKey::default(), &input_hash).is_none());
+        assert_eq!(
+            tweak_point_from_input_hash(&a, &input_hash)
+                .unwrap()
+                .to_bytes(),
+            TV1_TWEAK_POINT
         );
     }
 }

@@ -180,6 +180,40 @@ def test_sender_primitives_tv4():
     )
 
 
+def test_compute_tweak_point():
+    """The tweak point T = input_hash * A_sum of a spend group.
+
+    Values are those of vector_4_multi_input in the CHIP's machine-readable
+    vectors.
+    """
+    a_sum_pk = PublicKey.from_bytes(
+        bytes.fromhex(
+            "a223ab27f801044cd98c8314014b8073347b0e5aae43c69b78b5ca2a562ee9f7"
+            "99b8efad179b34da1b306ca4d62bad40"
+        )
+    )
+    coin_ids = [
+        bytes.fromhex("2b9857e0307ebfbe51829e3be8c992ae57f6a8debe06a5deab429ddae83a8c1a"),
+        bytes.fromhex("209bb03a4cd165785e6149bc6dcb27e35829006f02ec927ab5a20521fd27d21a"),
+    ]
+    expected = (
+        "82caa41f9b5e0675cea58072185286e956ec209f1df3a2c23b832c45b8bdd139"
+        "bab6230e3d5ddc663d269440931bafeb"
+    )
+    point = SilentPayments.compute_tweak_point(coin_ids, a_sum_pk)
+    assert point is not None
+    assert point.to_bytes().hex() == expected
+    # The smaller coin id is used, whatever the order.
+    reversed_point = SilentPayments.compute_tweak_point(coin_ids[::-1], a_sum_pk)
+    assert reversed_point.to_bytes().hex() == expected
+
+    # A group whose keys sum to the identity element has no tweak point.
+    assert SilentPayments.compute_tweak_point(coin_ids, PublicKey.infinity()) is None
+    # No coin ids is an error.
+    with pytest.raises(BaseException, match="requires an xch input"):
+        SilentPayments.compute_tweak_point([], a_sum_pk)
+
+
 def test_zero_key_sum_is_rejected():
     """Secret keys that sum to zero mod r make the sender fail (keys 1 and r - 1)."""
     one = SecretKey.from_bytes((1).to_bytes(32, "big"))
