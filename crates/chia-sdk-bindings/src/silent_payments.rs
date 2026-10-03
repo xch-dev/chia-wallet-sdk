@@ -502,7 +502,7 @@ mod tests {
         );
         assert!(
             err.to_string()
-                .contains("silent payment requires at least one wallet-controlled XCH input"),
+                .contains("silent payment requires an xch input"),
             "error display must carry the SilentPaymentNoXchInputs message, got {err}"
         );
     }
