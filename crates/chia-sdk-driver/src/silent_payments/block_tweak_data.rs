@@ -810,4 +810,142 @@ mod tests {
         assert_eq!(group_tweak_point(&pk, &one), Some(pk));
         assert!(group_tweak_point(&PublicKey::default(), &one).is_none());
     }
+
+    /// A spend that is not an eligible spend: its puzzle is `1` (which returns
+    /// its solution), so it can output any conditions, but it is not the
+    /// standard puzzle.
+    fn build_non_standard_coin_spend(
+        parent_coin_info: Bytes32,
+        amount: u64,
+        conditions: &Conditions,
+    ) -> CoinSpend {
+        let mut ctx = SpendContext::new();
+        let puzzle = ctx.alloc(&1u8).expect("alloc puzzle");
+        let solution = ctx.alloc(conditions).expect("alloc solution");
+        let puzzle_hash: Bytes32 = ctx.tree_hash(puzzle).into();
+        CoinSpend::new(
+            Coin::new(parent_coin_info, puzzle_hash, amount),
+            ctx.serialize(&puzzle).expect("serialize puzzle"),
+            ctx.serialize(&solution).expect("serialize solution"),
+        )
+    }
+
+    /// The tweak points of the given single-input and multi-input groups.
+    fn expected_points(groups: &[&[(PublicKey, Bytes32)]]) -> Vec<[u8; 48]> {
+        groups
+            .iter()
+            .map(|group| {
+                let mut a_sum = group[0].0;
+                for (key, _) in &group[1..] {
+                    a_sum += key;
+                }
+                let coin_ids: Vec<Bytes32> = group.iter().map(|(_, id)| *id).collect();
+                group_tweak_point(&a_sum, &compute_input_hash(&coin_ids, &a_sum))
+                    .unwrap()
+                    .to_bytes()
+            })
+            .collect()
+    }
+
+    fn sorted_points(td: &TweakData) -> Vec<[u8; 48]> {
+        let mut points: Vec<[u8; 48]> = td.tweak_points.iter().map(PublicKey::to_bytes).collect();
+        points.sort_unstable();
+        points
+    }
+
+    /// CHIP-0057 "Required Behaviors": a spend that is not an eligible spend
+    /// contributes no key, no coin id, and no edge, even when it outputs
+    /// `ASSERT_CONCURRENT_SPEND` conditions.
+    ///
+    /// Coins `a` and `b` form a cycle. A non-standard coin `x` asserts `a` and
+    /// is asserted by `a`, which would put it in the cycle if it counted. The
+    /// tweak points are exactly those of the block without `x`.
+    #[test]
+    fn non_eligible_spend_contributes_nothing() {
+        let pk_a = chia_bls::SecretKey::from_seed(&[0x31u8; 32]).public_key();
+        let pk_b = chia_bls::SecretKey::from_seed(&[0x32u8; 32]).public_key();
+        let parent_a: Bytes32 = [0xa1u8; 32].into();
+        let parent_b: Bytes32 = [0xb1u8; 32].into();
+        let parent_x: Bytes32 = [0xc1u8; 32].into();
+        let id_a = Coin::new(parent_a, StandardArgs::curry_tree_hash(pk_a).into(), 1).coin_id();
+        let id_b = Coin::new(parent_b, StandardArgs::curry_tree_hash(pk_b).into(), 1).coin_id();
+
+        // `x` asserts `a`. Its coin id does not depend on its solution.
+        let spend_x = build_non_standard_coin_spend(
+            parent_x,
+            1,
+            &Conditions::new().assert_concurrent_spend(id_a),
+        );
+        let id_x = spend_x.coin.coin_id();
+        assert_ne!(spend_x.coin.puzzle_hash, Bytes32::default());
+
+        let spend_a = build_standard_coin_spend(
+            pk_a,
+            parent_a,
+            1,
+            Conditions::new()
+                .assert_concurrent_spend(id_b)
+                .assert_concurrent_spend(id_x),
+        );
+        let spend_b = build_standard_coin_spend(
+            pk_b,
+            parent_b,
+            1,
+            Conditions::new().assert_concurrent_spend(id_a),
+        );
+
+        let with_x =
+            tweak_data_from_block_spends(&[spend_x, spend_a.clone(), spend_b.clone()], &[])
+                .unwrap();
+        let without_x = tweak_data_from_block_spends(&[spend_a, spend_b], &[]).unwrap();
+
+        let mut expected = expected_points(&[
+            &[(pk_a, id_a)],
+            &[(pk_b, id_b)],
+            &[(pk_a, id_a), (pk_b, id_b)],
+        ]);
+        expected.sort_unstable();
+        assert_eq!(sorted_points(&with_x), expected);
+        assert_eq!(sorted_points(&without_x), expected);
+    }
+
+    /// CHIP-0057 sender requirement 5: a cycle that passes through a coin that
+    /// is not an eligible spend does not bind the eligible coins on either
+    /// side of it. With `a -> x -> b -> a` and `x` non-standard, `a` and `b`
+    /// are single-input groups only.
+    #[test]
+    fn cycle_through_non_eligible_spend_does_not_bind() {
+        let pk_a = chia_bls::SecretKey::from_seed(&[0x33u8; 32]).public_key();
+        let pk_b = chia_bls::SecretKey::from_seed(&[0x34u8; 32]).public_key();
+        let parent_a: Bytes32 = [0xa2u8; 32].into();
+        let parent_b: Bytes32 = [0xb2u8; 32].into();
+        let parent_x: Bytes32 = [0xc2u8; 32].into();
+        let id_a = Coin::new(parent_a, StandardArgs::curry_tree_hash(pk_a).into(), 1).coin_id();
+        let id_b = Coin::new(parent_b, StandardArgs::curry_tree_hash(pk_b).into(), 1).coin_id();
+
+        let spend_x = build_non_standard_coin_spend(
+            parent_x,
+            1,
+            &Conditions::new().assert_concurrent_spend(id_b),
+        );
+        let id_x = spend_x.coin.coin_id();
+        let spend_a = build_standard_coin_spend(
+            pk_a,
+            parent_a,
+            1,
+            Conditions::new().assert_concurrent_spend(id_x),
+        );
+        let spend_b = build_standard_coin_spend(
+            pk_b,
+            parent_b,
+            1,
+            Conditions::new().assert_concurrent_spend(id_a),
+        );
+
+        let td = tweak_data_from_block_spends(&[spend_a, spend_x, spend_b], &[]).unwrap();
+
+        let mut expected = expected_points(&[&[(pk_a, id_a)], &[(pk_b, id_b)]]);
+        expected.sort_unstable();
+        assert_eq!(sorted_points(&td), expected);
+    }
 }

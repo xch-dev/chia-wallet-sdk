@@ -808,3 +808,64 @@ fn test_simulator_e2e_change_address() -> Result<()> {
     );
     Ok(())
 }
+
+/// CHIP-0057 "Required Behaviors": a spend that asserts a group member's coin
+/// id without being asserted back is not part of that group, and the payment is
+/// still detected.
+///
+/// A two-input silent payment and an unrelated third-party spend land in the
+/// same block. The third party's coin outputs `ASSERT_CONCURRENT_SPEND` naming
+/// one of the sender's coins, which is a one-way edge into the sender's cycle.
+#[test]
+fn test_one_way_assertion_does_not_join_the_group() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+    let a = sim.bls(600);
+    let b = sim.bls(600);
+    let third_party = sim.bls(50);
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(a.puzzle_hash);
+    spends.add(a.coin);
+    spends.add(b.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address, 1000, Memos::None)],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&a, &b]);
+    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+
+    // The third party's spend, in the same block.
+    StandardLayer::new(third_party.pk).spend(
+        &mut ctx,
+        third_party.coin,
+        Conditions::new()
+            .assert_concurrent_spend(a.coin.coin_id())
+            .create_coin(third_party.puzzle_hash, 50, Memos::None),
+    )?;
+
+    sim.spend_coins(
+        ctx.take(),
+        &[a.sk.clone(), b.sk.clone(), third_party.sk.clone()],
+    )?;
+    assert_eq!(sim.block_spends(height_before).len(), 3);
+
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    assert_eq!(
+        tweak_data.tweak_points.len(),
+        4,
+        "three single-input groups and the sender's two-coin group"
+    );
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].amount, 1000);
+    Ok(())
+}

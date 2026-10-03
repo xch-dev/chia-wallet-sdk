@@ -1180,4 +1180,55 @@ mod tests {
             assert_eq!(detections.last().unwrap().k, K_MAX - 1);
         }
     }
+
+    /// CHIP-0057 "Required Behaviors": a matching output that wallet policy
+    /// filters out still advances `k`.
+    ///
+    /// The scanner applies no policy: it reports every match and decides
+    /// whether to continue from the match alone. A wallet filters the returned
+    /// detections afterwards, so a dust output at k = 0 (here, 0 mojos) cannot
+    /// hide the outputs at k = 1 and k = 2.
+    #[test]
+    fn filtered_match_still_advances_k() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
+        let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
+
+        let amounts = [0u64, 5_000, 1];
+        let outputs: Vec<OutputMeta> = amounts
+            .iter()
+            .zip(0u32..)
+            .map(|(&amount, k)| OutputMeta {
+                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
+                    &b_spend_pub,
+                    &derive_output_tweak(&shared_secret, k),
+                )),
+                coin_id: [u8::try_from(k).unwrap(); 32].into(),
+                amount,
+                parent_coin_id: [0u8; 32].into(),
+            })
+            .collect();
+        let data = TweakData {
+            tweak_points: vec![tp],
+            outputs,
+        };
+
+        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+        assert_eq!(
+            detections
+                .iter()
+                .map(|d| (d.k, d.amount))
+                .collect::<Vec<_>>(),
+            vec![(0, 0), (1, 5_000), (2, 1)]
+        );
+
+        // The wallet's dust filter runs on the result.
+        let kept: Vec<u32> = detections
+            .iter()
+            .filter(|d| d.amount >= 1_000)
+            .map(|d| d.k)
+            .collect();
+        assert_eq!(kept, vec![1]);
+    }
 }

@@ -605,4 +605,143 @@ mod tests {
             SilentPaymentNetwork::Testnet
         );
     }
+
+    // ─── CHIP-0057 "Required Behaviors": addresses ─────────────────────────
+
+    fn tv1_payload() -> Vec<u8> {
+        let mut payload = Vec::with_capacity(96);
+        payload.extend_from_slice(&TV1_SCAN_PK_BYTES);
+        payload.extend_from_slice(&TV1_SPEND_PK_BYTES);
+        payload
+    }
+
+    /// A version 0 address whose payload is not exactly 96 bytes is rejected,
+    /// whether it is shorter or longer.
+    #[test]
+    fn decode_v0_payload_must_be_exactly_96_bytes() {
+        for len in [0usize, 48, 95, 97, 106, 192] {
+            let mut payload = tv1_payload();
+            payload.resize(len, 0x42);
+            let s = encode_with_version(0, &payload, "spxch");
+            assert_eq!(
+                SilentPaymentAddress::decode(&s),
+                Err(SilentPaymentError::PayloadLength(len)),
+                "v0 payload of {len} bytes"
+            );
+        }
+    }
+
+    /// Every version from 1 through 30 with extra payload bytes is accepted,
+    /// using the first 96 bytes; without extra bytes it is accepted as well.
+    #[test]
+    fn decode_versions_1_through_30_use_the_first_96_bytes() {
+        for version in 1..=30u8 {
+            for extra in [0usize, 1, 40] {
+                let mut payload = tv1_payload();
+                payload.resize(96 + extra, 0xa5);
+                let s = encode_with_version(version, &payload, "tspxch");
+                let decoded = SilentPaymentAddress::decode(&s)
+                    .unwrap_or_else(|e| panic!("v{version} with {extra} extra bytes: {e}"));
+                assert_eq!(decoded.scan_pk, pk(TV1_SCAN_PK_BYTES));
+                assert_eq!(decoded.spend_pk, pk(TV1_SPEND_PK_BYTES));
+                assert_eq!(decoded.network, SilentPaymentNetwork::Testnet);
+            }
+        }
+    }
+
+    /// A version 31 address is rejected whatever its payload.
+    #[test]
+    fn decode_version_31_rejected_for_any_payload() {
+        for extra in [0usize, 10] {
+            let mut payload = tv1_payload();
+            payload.resize(96 + extra, 0);
+            let s = encode_with_version(31, &payload, "spxch");
+            assert_eq!(
+                SilentPaymentAddress::decode(&s),
+                Err(SilentPaymentError::ReservedAddressVersion)
+            );
+        }
+    }
+
+    /// An address in which either key is not a valid G1 element is rejected:
+    /// here, 48 bytes that are not a canonical compressed point at all.
+    #[test]
+    fn decode_invalid_point_encoding_rejected() {
+        for bad_first in [true, false] {
+            let mut payload = Vec::with_capacity(96);
+            if bad_first {
+                payload.extend_from_slice(&[0xff; 48]);
+                payload.extend_from_slice(&TV1_SPEND_PK_BYTES);
+            } else {
+                payload.extend_from_slice(&TV1_SCAN_PK_BYTES);
+                payload.extend_from_slice(&[0xff; 48]);
+            }
+            let s = encode_with_version(0, &payload, "spxch");
+            assert_eq!(
+                SilentPaymentAddress::decode(&s),
+                Err(SilentPaymentError::InvalidPublicKey)
+            );
+        }
+    }
+
+    /// CHIP-0057 "Silent Payment Address": when the payload is converted from
+    /// 5-bit to 8-bit groups, leftover padding bits must be zero. A 96-byte
+    /// payload is 153 full groups plus 3 bits, so the last group carries two
+    /// padding bits.
+    #[test]
+    fn decode_nonzero_padding_rejected() {
+        let mut groups = bech32::convert_bits(&tv1_payload(), 8, 5, true).unwrap();
+        assert_eq!(groups.len(), 154);
+        assert_eq!(groups[153] & 0b11, 0, "an encoder writes zero padding");
+
+        let encode = |groups: &[u8]| {
+            let mut data = vec![u5::try_from_u8(0).unwrap()];
+            data.extend(groups.iter().map(|g| u5::try_from_u8(*g).unwrap()));
+            bech32::encode("spxch", data, Variant::Bech32m).unwrap()
+        };
+        assert!(SilentPaymentAddress::decode(&encode(&groups)).is_ok());
+
+        // Non-zero padding bits.
+        for padding in 1..=3u8 {
+            groups[153] = (groups[153] & !0b11) | padding;
+            let result = SilentPaymentAddress::decode(&encode(&groups));
+            assert!(
+                matches!(result, Err(SilentPaymentError::Bech32(_))),
+                "padding bits {padding:#04b} must be rejected, got {result:?}"
+            );
+        }
+
+        // A whole surplus 5-bit group is not valid padding either.
+        groups[153] &= !0b11;
+        groups.push(0);
+        let result = SilentPaymentAddress::decode(&encode(&groups));
+        assert!(
+            matches!(result, Err(SilentPaymentError::Bech32(_))),
+            "a surplus group must be rejected, got {result:?}"
+        );
+    }
+
+    /// CHIP-0057 "Address Versioning": addresses up to 1,023 characters are
+    /// accepted (the 90-character limit of BIP-173 does not apply). A v1
+    /// address with a 631-byte payload is exactly 1,023 characters long.
+    #[test]
+    fn decode_accepts_addresses_up_to_1023_characters() {
+        let mut payload = tv1_payload();
+        payload.resize(631, 0x11);
+        let s = encode_with_version(1, &payload, "spxch");
+        assert_eq!(s.len(), SP_ADDRESS_MAX_LENGTH);
+
+        let decoded = SilentPaymentAddress::decode(&s).unwrap();
+        assert_eq!(decoded.scan_pk, pk(TV1_SCAN_PK_BYTES));
+        assert_eq!(decoded.spend_pk, pk(TV1_SPEND_PK_BYTES));
+
+        // One more payload byte pushes it past the limit.
+        payload.push(0x11);
+        let s = encode_with_version(1, &payload, "spxch");
+        assert!(s.len() > SP_ADDRESS_MAX_LENGTH);
+        assert_eq!(
+            SilentPaymentAddress::decode(&s),
+            Err(SilentPaymentError::AddressTooLong(s.len()))
+        );
+    }
 }
