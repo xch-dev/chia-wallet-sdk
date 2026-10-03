@@ -128,25 +128,20 @@ impl Spends<Unfinished> {
         asset.add(self);
     }
 
-    /// Register the silent-payment synthetic key maps that
-    /// [`Spends::finish_with_keys`]'s chip-0057 branch consumes to derive each
-    /// pending one-time puzzle hash.
+    /// Register the synthetic keys from which [`Spends::prepare`] derives the outputs of the
+    /// silent payment sends that have been applied.
     ///
-    /// The maps are keyed by each spent XCH coin's `p2_puzzle_hash` and the
-    /// values are [`crate::silent_payments::SyntheticPublicKey`] /
-    /// [`crate::silent_payments::SyntheticSecretKey`] — the newtype wrappers
-    /// that make passing a raw wallet key a compile error. Construct them via
-    /// `SyntheticSecretKey::from_raw` (synthesizes for you) or
-    /// `from_synthetic_unchecked` when the key is already synthetic. The
-    /// `from_synthetic_unchecked` escape hatch is covered at finish time by the
-    /// runtime check in `sp_finish_branch`
-    /// (`curry_tree_hash(pk) == coin p2_puzzle_hash` + `sk.public_key() == pk`),
-    /// which rejects a mis-wrapped key before any signing.
+    /// The maps are keyed by p2 puzzle hash and must cover every XCH coin the transaction spends
+    /// with the standard puzzle. That includes intermediate coins, which have the puzzle hash of
+    /// the coin that creates them, so the keys of the selected coins are normally enough.
     ///
-    /// Chainable; matches the `add_*` builder precedent on `Spends`. The PK and
-    /// SK maps are co-dependent (the SK map must cover every key in the PK map
-    /// for the SP flow), so they are accepted together — splitting would invite
-    /// mismatch.
+    /// The values are [`crate::silent_payments::SyntheticPublicKey`] /
+    /// [`crate::silent_payments::SyntheticSecretKey`], newtypes that make passing a raw wallet
+    /// key a compile error. Construct them with `from_raw` (which derives the synthetic key) or
+    /// with `from_synthetic_unchecked` when the key is already synthetic. Either way,
+    /// [`Spends::prepare`] checks every key against its coin
+    /// (`curry_tree_hash(pk) == p2_puzzle_hash` and `sk.public_key() == pk`) and returns
+    /// [`DriverError::SilentPaymentKeyNotSynthetic`] on a mismatch.
     ///
     /// `secret_keys` carries secret key material, which is held by `Spends`
     /// (and by every clone of it) until the outputs have been derived in
@@ -651,19 +646,9 @@ impl Spends<Unfinished> {
     /// for its p2 puzzle hash), or with the settlement payments puzzle for settlement coins.
     /// Returns [`DriverError::MissingKey`] if a key is missing.
     ///
-    /// Privacy warning: under chip-0057, when `silent_payments_pending` is non-empty
-    /// (i.e. at least one `Action::silent_payment_send` has been applied), the
-    /// chip-0057 SP branch runs inside
-    /// [`Spends::prepare`] (called below) so the derived `CreateCoin`
-    /// conditions feed into the parents' `payment_assertions` before
-    /// `emit_conditions`. The branch consumes
-    /// `Spends::silent_payment_synthetic_sks` (registered via
-    /// [`Spends::with_silent_payment_keys`]) and emits the recipient's one-time
-    /// puzzle hash on the recorded parent. Memos travel in `CreateCoin.memos`
-    /// in plaintext, visible to anyone holding the recipient's scan key. The
-    /// 32-byte first-memo hint guard fired at apply time
-    /// (`DriverError::SilentPaymentMemoHintForbidden`) — no further memo guard
-    /// fires here.
+    /// With the `chip-0057` feature, if a silent payment send has been applied, its outputs are
+    /// derived and emitted by [`Spends::prepare`] from the keys registered with
+    /// `Spends::with_silent_payment_keys`.
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
@@ -1054,12 +1039,12 @@ mod tests {
 
     use crate::{Action, Id, Relation, SpendContext, SpendKind, Spends};
 
-    /// Pinning test for `Relation::AssertConcurrent` — verifies the exact
-    /// closed-cycle opcode-64 emission shape that CHIP-0057 Pass 2b scanners
-    /// depend on. Drift in `emit_relation`'s implementation away from the
-    /// closed cycle will silently break SP scanner detection for cross-
-    /// derivation-index multi-input sends; this test fires before any such
-    /// regression can ship.
+    /// Pinning test for `Relation::AssertConcurrent` — verifies the closed
+    /// `ASSERT_CONCURRENT_SPEND` cycle that CHIP-0057 scanners rely on to form
+    /// multi-input spend groups ("Inputs for Shared Secret Derivation": each
+    /// coin outputs exactly one such condition, naming its predecessor). If
+    /// `emit_relation` drifted away from the closed cycle, multi-input silent
+    /// payments would stop being detected.
     ///
     /// NOT `#[cfg(feature = "chip-0057")]` gated: `Relation` is general-
     /// purpose; SP is one consumer.

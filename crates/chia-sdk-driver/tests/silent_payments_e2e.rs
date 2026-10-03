@@ -152,8 +152,8 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
     Ok(())
 }
 
-/// Multi-input unlabeled SP send round-trip: TWO distinct-puzzle-hash XCH
-/// inputs sent to ONE unlabeled SP address with `Relation::AssertConcurrent`.
+/// Multi-input unlabeled SP send round-trip: two XCH inputs with different
+/// keys sent to one unlabeled SP address with `Relation::AssertConcurrent`.
 ///
 /// This drives the real receiver grouping path: the sender aggregates both
 /// inputs' synthetic SKs, the `AssertConcurrent` cycle binds the two coins into

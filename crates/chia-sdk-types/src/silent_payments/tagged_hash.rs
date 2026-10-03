@@ -11,13 +11,13 @@
 
 use chia_sha2::Sha256;
 
-/// Tag for the `input_hash` scalar (CHIP-0057 §"Inputs hash").
+/// Tag for the `input_hash` scalar (CHIP-0057 "Tagged Hash").
 pub const CHIA_SP_INPUTS: &str = "Chia_SP/Inputs";
 
-/// Tag for the `t_k` output-tweak scalar (CHIP-0057 §"Output tweak").
+/// Tag for the `t_k` output-tweak scalar (CHIP-0057 "Tagged Hash").
 pub const CHIA_SP_SHARED_SECRET: &str = "Chia_SP/SharedSecret";
 
-/// Tag for the `label_scalar` (CHIP-0057 §"Labels").
+/// Tag for the `label_scalar` (CHIP-0057 "Tagged Hash", "Label Generation").
 pub const CHIA_SP_LABEL: &str = "Chia_SP/Label";
 
 /// Compute `SHA256(SHA256(tag) || SHA256(tag) || data)` using `chia-sha2`.

@@ -271,7 +271,7 @@ mod silent_payment_tests {
         let scan_pk = recipient.scan_pk;
         let spend_pk = recipient.spend_pk;
 
-        // Apply + finish via the new unified API.
+        // Apply + finish.
         let mut spends = Spends::new(alice.puzzle_hash);
         spends.add(alice.coin);
 
@@ -474,11 +474,8 @@ mod silent_payment_tests {
             spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
 
         // Independent reconstruction of the expected puzzle hash via the
-        // free functions — exactly the path the scanner would follow after the
-        // cycle binding (opcode-64 SCC) provides the input set.
-        //
-        // Vec intermediate (clippy::cloned_ref_to_slice_refs precedent):
-        // satisfies clippy on the slice construction.
+        // free functions — exactly the path the scanner would follow once the
+        // `ASSERT_CONCURRENT_SPEND` cycle has given it the input set.
         let sender_sks = vec![alice.sk.clone(), bob.sk.clone()];
         let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
         let agg_pk = aggregated_sender_sk.public_key();

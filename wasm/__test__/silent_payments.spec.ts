@@ -4,8 +4,7 @@
 //
 // Mirrors napi/__test__/silent_payments_e2e.spec.ts
 // structurally; the only differences are imports from `../pkg` and the
-// setPanicHook() call at module load per wasm-pack convention (matches
-// wasm/__test__/wasm.spec.ts:14 precedent).
+// setPanicHook() call at module load per wasm-pack convention.
 //
 // TweakData is constructed on the Rust side (via Simulator.tweakDataFromBlock)
 // and crossed the FFI boundary unchanged. This is the first runtime test of
@@ -107,7 +106,6 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   sim.spendCoins(clvm.coinSpends(), [senderSyntheticSk]);
 
   // Extract TweakData via the bindings helper.
-  // THIS IS THE NEW FFI SURFACE.
   const tweakData = sim.tweakDataFromBlock(heightBefore);
   t.is(
     tweakData.tweakPoints.length,

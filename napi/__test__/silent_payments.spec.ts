@@ -30,7 +30,7 @@ import {
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-// SC2 — address round-trip via byte-equality on scan_pk/spend_pk
+// Address round-trip via byte-equality on scan_pk/spend_pk
 test("silent-payment address round-trip (TV1 mainnet)", (t) => {
   const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
@@ -45,7 +45,7 @@ test("silent-payment address round-trip (TV1 mainnet)", (t) => {
   t.is(decoded.network, SilentPaymentNetwork.Mainnet);
 });
 
-// SC2 supplementary — testnet HRP discriminator round-trips correctly
+// The testnet HRP discriminator round-trips correctly
 test("silent-payment address round-trip (TV1 testnet)", (t) => {
   const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
@@ -60,9 +60,8 @@ test("silent-payment address round-trip (TV1 testnet)", (t) => {
   t.deepEqual(decoded.scanPk.toBytes(), keys.scanPk().toBytes());
 });
 
-// SC3 — Action.silentPaymentSend TS construction smoke (the dedicated SP-send
-// surface; replaces the old opaque-handle destination class).
-test("Action.silentPaymentSend composes from a SilentPaymentAddress (SC3)", (t) => {
+// Action.silentPaymentSend construction smoke test.
+test("Action.silentPaymentSend composes from a SilentPaymentAddress", (t) => {
   const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
   const address = keys.unlabeledAddress(SilentPaymentNetwork.Mainnet);

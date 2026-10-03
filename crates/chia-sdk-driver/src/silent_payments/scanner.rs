@@ -1,24 +1,22 @@
 //! Transport-agnostic silent-payment scanner.
 //!
-//! Implements CHIP-0057's wallet-side detection: given a [`TweakData`] (pre-computed
-//! tweak points + candidate output metadata), iterate `k = 0, 1, 2, ...` per spend
-//! group, derive the candidate one-time puzzle hash, and emit a [`DetectedSpCoin`]
-//! whenever it matches one of the candidate outputs.
+//! Implements the `ScanForSilentPayment` procedure of CHIP-0057 ("Scanning a
+//! Spend Group") on top of tweak points ("Tweak Points"): given a [`TweakData`]
+//! (one tweak point per spend group, plus the candidate outputs), iterate
+//! `k = 0, 1, 2, ...` per spend group, derive the candidate one-time puzzle
+//! hashes, and emit a [`DetectedSpCoin`] for every output coin that matches.
 //!
-//! Two CHIP-mandated guards the reference impl is missing:
+//! The scanner needs the scan secret key and the spend public key only.
 //!
-//! - **CHIP §459 identity-element skip:** if `tweak_point.is_inf()`, skip silently.
-//!   Without this, an adversarial indexer can produce a predictable shared secret
-//!   and force false positives.
-//! - **CHIP §416 `K_max` cap:** bounded `for k in 0..k_max` (not `loop { ... }`)
-//!   prevents DOS by forged matches. Default `K_MAX_DEFAULT = 2400` per CHIP §446
-//!   (the Chia mempool maximum number of silent-payment outputs per spend bundle).
+//! Rules taken from the CHIP:
 //!
-//! The labeled-detection branch (the CHIP-0057 labeled k-termination rule) is
-//! interleaved with the unlabeled branch below: at each `k` the scanner first
-//! checks the unlabeled candidate, then iterates the registered labels; the `k`
-//! loop terminates only when BOTH the unlabeled candidate AND every labeled
-//! candidate miss.
+//! - a tweak point that is the identity element, or is outside the prime-order
+//!   subgroup, is skipped ("Tweak Points", "Edge Cases");
+//! - at each `k` the unlabeled candidate is checked first, then the change
+//!   label `m = 0`, then the registered labels; the first match decides, and
+//!   every coin with the matched puzzle hash is recorded;
+//! - the group is abandoned at the first `k` with no match, at a zero tweak, or
+//!   when `k` reaches `K_max` ("Kmax: Maximum Outputs Per Spend Group").
 
 use std::collections::HashMap;
 
@@ -387,11 +385,10 @@ mod tests {
     const TV3_LABEL_SCALAR: [u8; 32] =
         hex!("48fa440acca87f501b9984b5d23327d0b7766a4baa913dfb3001d412c48ce465");
 
-    /// CHIP §459 identity-element guard: a `TweakData` containing
-    /// `PublicKey::default()` (identity element) is skipped silently — no
-    /// panic, no detections. Without this guard, the predictable shared
-    /// secret derived from the identity element would enable false-positive
-    /// detections at attacker-supplied puzzle hashes.
+    /// CHIP-0057 "Edge Cases": a tweak point that is the identity element is
+    /// skipped — no panic, no detections. The shared secret derived from the
+    /// identity element is a public constant, so anyone could otherwise make
+    /// the scanner report outputs.
     #[test]
     fn identity_tweak_point_skipped() {
         // PublicKey::default() is the BLS12-381 G1 identity element.
@@ -477,29 +474,13 @@ mod tests {
         );
     }
 
-    /// Bespoke `k = 1` vector.
-    ///
-    /// All CHIP TVs hit `k = 0`, so a naive `ser32(k) = k.to_le_bytes()`
-    /// implementation would pass them all. This test pins a `k = 1` detection
-    /// so a little-endian regression is caught.
-    ///
-    /// Construction (in-test derivation path):
-    /// compute the `k = 1` expected `puzzle_hash` from TV1's `shared_secret`
-    /// using the SDK's own protocol primitives, then build a `TweakData`
-    /// carrying that `puzzle_hash` plus TV1's `k = 0` `puzzle_hash` (to keep
-    /// the k-termination rule from firing at k=0). The asymmetry between
-    /// `k = 0` (which any impl gets right) and `k = 1` (which only the
-    /// correct big-endian `ser32` impl gets right) catches endianness
-    /// regressions: under a little-endian `ser32`, the in-test
-    /// `derive_output_tweak` would compute a different `t_1` and the
-    /// pre-computed `expected_ph` would NOT match what the scanner finds
-    /// for `k = 1`. Note that the scanner uses the same primitive, so a
-    /// regression in `derive_output_tweak` would propagate to both sides;
-    /// the residual guarantee is that the scanner's k=1 detection at the
-    /// derived puzzle hash works at all, which exercises the full
-    /// `ser32 → onetime_pk → puzzle_hash → onetime_sk` chain at `k = 1`.
+    /// Detection at `k = 1`: the scanner finds the `k = 0` output, continues,
+    /// and finds the `k = 1` output, whose one-time key is `(b_spend + t_1) mod
+    /// r`. The expected values are derived in the test from TV1's shared
+    /// secret; the pinned `k = 1` values of CHIP-0057 Test Vector 6 are checked
+    /// in `tests/silent_payments_vectors.rs`.
     #[test]
-    fn bespoke_k1_detection() {
+    fn k1_detection() {
         let b_scan = sk(TV1_SCAN_SK);
         let b_spend = sk(TV1_SPEND_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
@@ -544,10 +525,7 @@ mod tests {
         sorted.sort_by_key(|d| d.k);
         assert_eq!(sorted[0].k, 0);
         assert!(sorted[0].label.is_none());
-        assert_eq!(
-            sorted[1].k, 1,
-            "k=1 must be detected — catches ser32 LE regression"
-        );
+        assert_eq!(sorted[1].k, 1, "k=1 must be detected");
         assert!(sorted[1].label.is_none());
         assert_eq!(sorted[1].puzzle_hash, expected_ph_k1);
         assert_eq!(
@@ -617,18 +595,10 @@ mod tests {
         assert_eq!(sorted[1].label, Some(1), "k=1 is m=1");
     }
 
-    /// When both an unlabeled candidate AND a labeled candidate would match at
-    /// the same k, the scanner emits the unlabeled
-    /// detection (`label = None`). The labeled branch is `if !found { ... }`-
-    /// guarded so it only runs when the unlabeled branch missed. Mirrors
-    /// `sp-client/scanner.rs::test_scan_block_unlabeled_preferred`.
-    ///
-    /// We verify this property indirectly: with `m = 1` registered AND TV1's
-    /// unlabeled output present, the scanner emits exactly ONE detection (the
-    /// unlabeled one). If the labeled branch were not guarded by `if !found`,
-    /// the labeled branch could iterate `label_map.iter()` after the unlabeled
-    /// match and produce extra detections; the assertion `detections.len() == 1`
-    /// + `label.is_none()` catches that regression.
+    /// The unlabeled candidate is checked before any label at each `k`, and a
+    /// match ends the checks for that `k`: with `m = 1` registered and TV1's
+    /// unlabeled output present, the scanner emits exactly one detection, with
+    /// `label = None`.
     #[test]
     fn unlabeled_preferred_over_labeled_at_same_k() {
         let b_scan = sk(TV1_SCAN_SK);
@@ -662,9 +632,10 @@ mod tests {
         );
     }
 
-    /// CHIP §416 DOS guard: a `TweakData` with many forged matches
-    /// (one per k from 0..N) where N >> `k_max` must terminate at `k_max` and
-    /// produce at most `k_max` detections.
+    /// The `k_max` cap bounds the work a single spend group can cause: a
+    /// `TweakData` with a matching output at every k from 0 to N, where
+    /// N >> `k_max`, must terminate at `k_max` and produce at most `k_max`
+    /// detections.
     ///
     /// Construction: for each k ∈ [0, 9999], compute the `puzzle_hash` the
     /// scanner WILL derive at that k for TV1's keys + `tweak_point`. Stuff all

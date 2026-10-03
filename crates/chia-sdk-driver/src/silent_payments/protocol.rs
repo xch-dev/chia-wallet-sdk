@@ -36,12 +36,12 @@ use crate::DriverError;
 ///
 /// `shared_secret = SHA256(serialize(scan_sk * tweak_point))`.
 ///
-/// The 48-byte compressed BLS12-381 G1 serialization is fed to SHA-256
-/// directly per CHIP-0057 §169 and `~/silent-payments/crates/sp-common/src/ecdh.rs`.
+/// The 48-byte compressed G1 serialization of the point is hashed with
+/// SHA-256 (CHIP-0057 "Scanning a Spend Group" and "Tweak Points").
 ///
-/// `tweak_point` must not be the identity element (the scanner guards this
-/// upstream — `PublicKey::is_inf()`); this function is the cheap inner
-/// primitive and does not re-check.
+/// `tweak_point` must be a non-identity element of the prime-order subgroup.
+/// [`super::scan_from_tweaks`] checks this before calling; this function is
+/// the inner primitive and does not check again.
 #[must_use]
 pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &PublicKey) -> [u8; 32] {
     // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
@@ -58,9 +58,8 @@ pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &Publi
 ///
 /// `t_k = ScalarField::from_bytes_unsigned(tagged_hash(CHIA_SP_SHARED_SECRET, shared_secret ‖ ser32(k)))`
 ///
-/// `ser32(k)` is BIG-endian per CHIP-0057 §169. The `to_be_bytes` choice is
-/// invisible from TV1/TV3/TV4 (all `k = 0`); the bespoke `k = 1` test below
-/// catches a `to_le_bytes` regression.
+/// `ser32(k)` is big-endian (CHIP-0057 "Definitions"). Test Vector 6 pins
+/// `k = 1`, which a little-endian encoding would get wrong.
 #[must_use]
 pub fn derive_output_tweak(shared_secret: &[u8; 32], k: u32) -> ScalarField {
     let mut data = [0u8; 36];
@@ -173,8 +172,8 @@ fn is_zero_key(sk: &SecretKey) -> bool {
 /// Returns a [`ScalarField`] reduced unsigned mod-r. The scalar is used both
 /// (a) by the sender to derive each output's per-output tweak (via
 /// [`derive_output_tweak`] downstream of the ECDH path); and (b) by the receiver
-/// reconstructing the same group via the `Relation::AssertConcurrent` cycle
-/// (opcode 64 SCC) the SDK emits on multi-input bundles.
+/// reconstructing the same group from the `ASSERT_CONCURRENT_SPEND` cycle that
+/// `Relation::AssertConcurrent` emits on multi-input bundles.
 ///
 /// # Panics
 /// Panics if `coin_ids` is empty. This is an internal invariant, not a
@@ -496,14 +495,12 @@ mod tests {
         );
     }
 
-    /// At k=1 the derivation matches the `bespoke_k1_detection` in-test
-    /// computation.
+    /// At k=1 the sender's derivation agrees with the receiver's.
     ///
-    /// Re-derives the expected puzzle hash via the same protocol-primitive
-    /// chain (`compute_shared_secret_from_tweak`, `derive_output_tweak(.., 1)`,
+    /// Re-derives the expected puzzle hash via the receiver-side chain
+    /// (`compute_shared_secret_from_tweak`, `derive_output_tweak(.., 1)`,
     /// `derive_onetime_pk`, `puzzle_hash_for_pk`) over the TV1 inputs, then
     /// asserts byte-equality against `derive_one_time_puzzle_hash(.., k=1)`.
-    /// Catches `ser32(k)` endianness regressions because TV1/TV3/TV4 are all k=0.
     #[test]
     fn derive_one_time_puzzle_hash_k1_round_trip() {
         // b_*-style shorthand keeps clippy::similar_names quiet without an

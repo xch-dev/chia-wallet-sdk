@@ -21,7 +21,8 @@ pub const SP_ADDRESS_MAX_LENGTH: usize = 1023;
 
 /// Network discriminator for silent-payment addresses.
 ///
-/// Each network maps to a fixed HRP per CHIP-0057 §153, §206:
+/// Each network maps to a fixed human-readable part (CHIP-0057 "Silent Payment
+/// Address"):
 /// - `Mainnet` → `"spxch"`
 /// - `Testnet` → `"tspxch"`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -323,8 +324,8 @@ mod tests {
 
     #[test]
     fn decode_xch_hrp_rejected() {
-        // Standard Chia address from crates/chia-sdk-utils/src/bech32.rs:126 — bech32m, valid,
-        // but HRP is "xch" not "spxch".
+        // A standard Chia address: valid bech32m, but the HRP is "xch", not
+        // "spxch".
         let result = SilentPaymentAddress::decode(
             "xch1a0t57qn6uhe7tzjlxlhwy2qgmuxvvft8gnfzmg5detg0q9f3yc3s2apz0h",
         );
@@ -357,10 +358,8 @@ mod tests {
 
     #[test]
     fn decode_bech32_not_bech32m_rejected() {
-        // Bitcoin SegWit v0 address from crates/chia-sdk-utils/src/bech32.rs:139 — valid bech32
-        // (the V0 variant) but NOT bech32m. The wrapper Bech32::decode returns
-        // Bech32Error::InvalidFormat for any non-bech32m variant, which surfaces
-        // through SilentPaymentError::Bech32(_).
+        // A Bitcoin SegWit v0 address: valid bech32, but not bech32m, which is
+        // reported as SilentPaymentError::Bech32(Bech32Error::InvalidFormat).
         let result = SilentPaymentAddress::decode("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq");
         assert!(
             matches!(result, Err(SilentPaymentError::Bech32(_))),
@@ -388,7 +387,7 @@ mod tests {
         // BLS12-381 compressed-infinity is `0xc0 || [0u8; 47]`. Whether
         // PublicKey::from_bytes accepts this (returning the identity point)
         // or rejects it is chia-bls-internal; either way, the address must
-        // be rejected — CHIP §215 forbids identity-element halves.
+        // be rejected (CHIP-0057 "Silent Payment Address").
         let mut payload = vec![0u8; 96];
         payload[0] = 0xc0; // BLS compressed-infinity flag
         payload[48..].copy_from_slice(&TV1_SPEND_PK_BYTES);
@@ -396,7 +395,7 @@ mod tests {
         let result = SilentPaymentAddress::decode(&s);
         // Either IdentityPublicKey (if chia-bls decodes infinity successfully)
         // or InvalidPublicKey (if chia-bls rejects the encoding). Both satisfy
-        // the CHIP §215 rejection requirement.
+        // the requirement.
         assert!(
             matches!(
                 result,

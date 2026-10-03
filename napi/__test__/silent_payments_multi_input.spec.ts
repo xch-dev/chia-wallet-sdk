@@ -51,7 +51,7 @@ test("napi: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
 
   // Two XCH coins with different BLS pairs. The Relation
   // cycle binding ties them together so the receiver scanner can re-group
-  // them via Pass 2b SCC over opcode-64 AssertConcurrentSpend edges.
+  // them as a strongly connected component of ASSERT_CONCURRENT_SPEND edges.
   //
   // withSilentPaymentKeys synthesizes the registered RAW key via
   // derive_synthetic internally, so each coin must live at its SYNTHETIC
@@ -113,9 +113,9 @@ test("napi: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
 
   sim.spendCoins(clvm.coinSpends(), [sender1SyntheticSk, sender2SyntheticSk]);
 
-  // Entry point: drive TweakData construction through the new
-  // helper, not the older Simulator.tweakDataFromBlock path. The
-  // Simulator facade exposes block_spends / block_outputs.
+  // Build the TweakData with SilentPayments.tweakDataFromBlockSpends over the
+  // block's spends and outputs, as a wallet reading real blocks would, rather
+  // than with the Simulator.tweakDataFromBlock shortcut.
   const blockSpends = sim.blockSpends(heightBefore);
   const blockAdditions = sim.blockOutputs(heightBefore);
   const tweakData = SilentPayments.tweakDataFromBlockSpends(

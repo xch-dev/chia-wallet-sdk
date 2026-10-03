@@ -1,68 +1,45 @@
-//! Real-block CHIP-0057 [`TweakData`] builder for any post-decompression caller.
+//! Builds a CHIP-0057 [`TweakData`] from the coin spends and additions of a
+//! block.
 //!
-//! Given a block's `Vec<CoinSpend>` (removals with puzzle reveals + solutions)
-//! and `Vec<Coin>` (additions list), groups standard-puzzle spends into the
-//! CHIP-0057 transaction-group shape that scanners detect against, then emits
-//! one `tweak_point = input_hash * A_sum` per group plus paired
-//! [`OutputMeta`] per addition. Generator decompression is the caller's
-//! responsibility — the helper accepts the natural post-decompression shape so
-//! it stays a pure function with no `chia-consensus` dependency.
+//! Given a block's `Vec<CoinSpend>` (removals with puzzle reveals and
+//! solutions) and `Vec<Coin>` (additions), this forms the block's spend groups
+//! as in the `ScanBlock` procedure of CHIP-0057 ("Scanning a Block") and emits
+//! one tweak point `T = input_hash * A_sum` per group ("Tweak Points"), plus
+//! one [`OutputMeta`] per addition. Decompressing the block generator is the
+//! caller's responsibility; the function takes the spends as they come out of
+//! it, so it is a pure function with no `chia-consensus` dependency.
 //!
-//! ## Grouping algorithm
+//! ## Spend groups
 //!
-//! Two grouping passes run independently over the full set of standard
-//! removals, mirroring the CHIP-0057 `ScanBlock` procedure (Pass 1 +
-//! Pass 2). The passes are **additive and overlapping**, not a partition:
-//! every standard-puzzle spend can appear in more than one candidate group, and
-//! no pass consumes or excludes a coin from any other pass. A single coin always
-//! contributes its own Pass-1 singleton, and may additionally appear in a Pass-2
-//! concurrent-spend SCC.
+//! - **Eligible spends.** Each [`CoinSpend`] is parsed with
+//!   [`StandardLayer::parse_puzzle`]. A spend whose puzzle is anything other
+//!   than the standard puzzle (CAT, NFT, any other puzzle) is ignored from then
+//!   on: it contributes no key, no coin id, and no edge.
+//! - **Pass 1 — single-input groups.** Every eligible spend on its own is a
+//!   spend group.
+//! - **Pass 2 — multi-input groups.** Every eligible spend is run to extract
+//!   its conditions. Each `ASSERT_CONCURRENT_SPEND` condition naming another
+//!   eligible spend of the block is a directed edge, and every strongly
+//!   connected component of two or more spends is a spend group. Strongly
+//!   connected components, not weakly connected ones, are used: a third party
+//!   that asserts a coin of a group without being asserted back has an edge
+//!   into the group but is not part of it, so it cannot change the group's
+//!   `A_sum`.
 //!
-//! - **Stage 1 — defensive standard-puzzle filter.** Each [`CoinSpend`] is
-//!   parsed via [`StandardLayer::parse_puzzle`]; non-standard puzzles (CAT,
-//!   NFT, arbitrary mod hashes) skip silently.
-//! - **Pass 1 — per-spend singletons.** Every standard-puzzle spend `i` emits a
-//!   singleton candidate group `[i]`. This is the sole single-input detector (a
-//!   lone coin never forms a Pass-2 SCC of size >= 2), so it runs
-//!   unconditionally for all spends.
-//! - **Pass 2 — `AssertConcurrentSpend` SCC over ALL removals.** Every
-//!   standard-puzzle spend's puzzle+solution is executed via
-//!   [`chia_sdk_types::run_puzzle`] to extract conditions; opcode-64
-//!   `AssertConcurrentSpend` targets become directed edges in a graph over
-//!   **all** standard-puzzle spends; iterative Tarjan SCC then groups spends that
-//!   form a closed cycle, and each SCC of size 2 or more is emitted as an
-//!   additional candidate group. The cycle pattern is exactly what the sender
-//!   emits for any multi-input send via `Relation::AssertConcurrent` — including
-//!   multiple inputs that happen to share a puzzle hash, since the sender binds
-//!   every set of two or more spent coins into one cycle. A multi-input
-//!   set that does not carry such a cycle is, by design, not a detectable shape.
-//!   Strongly-connected (not weakly-connected) grouping is what defends against
-//!   third-party "pollution" assertions pointing at a legitimate-send coin: a
-//!   polluter has a forward edge into the cycle but no return edge, so it stays
-//!   in its own trivial SCC and does not corrupt the legitimate group's `A_sum`.
-//! - **Stage 3 — per-group aggregation + tweak emission.** Each candidate group
-//!   computes `A_sum = Σ synthetic_key`,
-//!   `input_hash = compute_input_hash(coin_ids, A_sum)`,
-//!   `tweak_point = A_sum.scalar_multiply(input_hash)`. BLS12-381
-//!   identity-element results are suppressed (CHIP §459). Because the passes
-//!   overlap, distinct candidate groups can produce a byte-identical
-//!   `tweak_point`; identical results are de-duplicated by the 48-byte compressed
-//!   point, keeping the first occurrence. Groups that share a coin but differ in
-//!   membership produce different points and both survive — dedup is byte-equality
-//!   only, never by coin overlap.
-//! - **Stage 4 — outputs.** Each addition becomes one [`OutputMeta`] (no
-//!   grouping — outputs land flat in `TweakData.outputs`).
+//! The two passes overlap: a coin of a multi-input group also forms a
+//! single-input group.
 //!
-//! ## Group emission order (load-bearing for byte-equality tests)
+//! ## Tweak points
 //!
-//! Candidate groups are produced in this stable total order, then de-duplicated
-//! by compressed-point bytes keeping the first occurrence:
+//! For each group, `A_sum` is the sum of the synthetic keys (one term per
+//! coin) and `input_hash` is computed from the smallest coin id and `A_sum`.
+//! Groups whose `A_sum` is the identity element, or whose `input_hash` is
+//! zero, yield no tweak point ("Edge Cases"). Byte-identical tweak points are
+//! emitted once.
 //!
-//! 1. Pass 1 singletons in `coin_spends` input order.
-//! 2. Pass 2 SCCs (size >= 2) in Tarjan finishing order.
-//!
-//! Cross-call regression tests (including the simulator-helper round-trip
-//! oracle) depend on this ordering being stable across runs.
+//! Tweak points are emitted in a stable order: the single-input groups in
+//! `coin_spends` order, then the multi-input groups in the order the strongly
+//! connected components are found.
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
@@ -103,7 +80,7 @@ pub fn tweak_data_from_block_spends(
 ) -> Result<TweakData, DriverError> {
     let mut allocator = Allocator::new();
 
-    // Stage 1 — defensive standard-puzzle filter.
+    // Eligible spends: those whose puzzle reveal is the standard puzzle.
     let mut standard_spends: Vec<StandardSpend> = Vec::new();
     for spend in coin_spends {
         let Ok(puzzle_ptr) = spend.puzzle_reveal.to_clvm(&mut allocator) else {
@@ -136,10 +113,8 @@ pub fn tweak_data_from_block_spends(
         groups.push(vec![i]);
     }
 
-    // Pass 2 — `AssertConcurrentSpend` SCC over ALL standard spends. The graph
-    // and the coin-id->position map cover every spend index, so a cycle spanning
-    // distinct puzzle hashes (including multiple inputs that share a puzzle hash)
-    // still forms a single SCC.
+    // Pass 2 — strongly connected components of the `ASSERT_CONCURRENT_SPEND`
+    // graph over all eligible spends.
     if !standard_spends.is_empty() {
         // Coin-id -> graph-node-position map over every standard spend.
         let coin_id_to_pos: IndexMap<Bytes32, usize> = standard_spends
@@ -174,7 +149,7 @@ pub fn tweak_data_from_block_spends(
         }
     }
 
-    // Stage 3 — per-group aggregation + tweak_point emission, de-duplicated by
+    // Per-group aggregation and tweak point emission, de-duplicated by
     // the 48-byte compressed point (keeping the first occurrence to preserve the
     // documented emission order). Overlapping passes (a coin's singleton plus its
     // SCC membership) can yield byte-identical points; only byte-equal duplicates
@@ -201,7 +176,7 @@ pub fn tweak_data_from_block_spends(
         }
     }
 
-    // Stage 4 — pair additions with OutputMeta (no grouping; flat Vec).
+    // One OutputMeta per addition.
     let outputs: Vec<OutputMeta> = additions
         .iter()
         .map(|coin| OutputMeta {
@@ -364,7 +339,7 @@ mod tests {
     }
 
     /// A `CoinSpend` whose puzzle reveal is not the standard p2 puzzle skips
-    /// silently at Stage 1; no tweak point is emitted and the helper does not
+    /// silently; no tweak point is emitted and the helper does not
     /// error.
     #[test]
     fn test_non_standard_puzzle_skip() {
@@ -381,7 +356,8 @@ mod tests {
 
     /// A standard-puzzle spend whose synthetic key is the BLS12-381 identity
     /// element yields `A_sum = identity` and therefore `tweak_point = identity`;
-    /// the CHIP §459 guard suppresses emission so `tweak_points` stays empty.
+    /// such a group is skipped (CHIP-0057 "Edge Cases"), so `tweak_points` stays
+    /// empty.
     #[test]
     fn test_identity_element_guard() {
         let identity_pk = PublicKey::default();
@@ -454,7 +430,7 @@ mod tests {
         let parent_b: Bytes32 = [0x66u8; 32].into();
 
         // Same synthetic key -> identical puzzle hash. Pre-compute coin ids so
-        // each spend can assert the other (the cyclic opcode-64 binding).
+        // each spend can assert the other (the `ASSERT_CONCURRENT_SPEND` cycle).
         let puzzle_hash: Bytes32 = StandardArgs::curry_tree_hash(alice_public).into();
         let coin_a = Coin::new(parent_a, puzzle_hash, 100);
         let coin_b = Coin::new(parent_b, puzzle_hash, 200);
@@ -590,22 +566,17 @@ mod tests {
         );
     }
 
-    /// Regression for mixed-puzzle-hash multi-input fragmentation.
+    /// Three coins bound by one `ASSERT_CONCURRENT_SPEND` cycle, two of which
+    /// share a synthetic key (and therefore a puzzle hash). The cycle is the
+    /// shape the sender emits: each coin asserts its predecessor, and coin 0
+    /// closes the cycle to the last coin.
     ///
-    /// Three coins bound by ONE `AssertConcurrent` cycle: two coins share `PH_x`
-    /// (both curried over the SAME synthetic key, so identical puzzle hash) and a
-    /// third sits at `PH_y`. The cycle is the exact shape the sender emits — each
-    /// coin asserts its predecessor, coin 0 closes the cycle to coin N-1.
-    ///
-    /// The Pass-2 SCC is built over ALL standard removals, so all three coins
-    /// form one strongly connected component and the aggregate
-    /// `A_sum = pk_dup + pk_dup + pk_solo` over all three coin ids is emitted as
-    /// a `tweak_point`. We compute that 3-coin-aggregate point by hand and assert
-    /// it is PRESENT in the output. Building the graph over every removal (rather
-    /// than excluding any same-puzzle-hash subset) is what lets the `PH_y` coin's
-    /// edge into a `PH_x` coin resolve and close the 3-coin cycle.
+    /// All three coins form one strongly connected component, and its tweak
+    /// point uses `A_sum = pk_dup + pk_dup + pk_solo` (one term per coin, even
+    /// though two coins share a key) over all three coin ids. That point is
+    /// computed by hand and must be present in the output.
     #[test]
-    fn test_bug1_mixed_ph_multi_input_full_cycle_detected() {
+    fn three_coin_cycle_with_a_shared_key_forms_one_group() {
         // Two coins at PH_x share one synthetic key; the third uses a different
         // key (PH_y).
         let sk_dup = chia_bls::SecretKey::from_seed(&[0x11u8; 32]);
@@ -679,20 +650,15 @@ mod tests {
         );
     }
 
-    /// Regression for a single-input send sharing a puzzle hash with an
-    /// unrelated coin.
+    /// Two coins with the same synthetic key (and therefore the same puzzle
+    /// hash) and no `ASSERT_CONCURRENT_SPEND` binding: one is the input of a
+    /// single-input silent payment, the other an unrelated coin.
     ///
-    /// Two coins curried over the SAME synthetic key (identical puzzle hash) with
-    /// NO `AssertConcurrent` binding: one is a single-input SP send's input, the
-    /// other an unrelated standard coin. The SP input must still be detected via
-    /// its Pass-1 singleton (`A_sum = K_send` over its single coin id).
-    ///
-    /// Because Pass 1 emits a singleton for EVERY standard spend unconditionally,
-    /// a single-input send is detected even when it collides on puzzle hash with
-    /// an unrelated coin. With no cycle present, Pass 2 forms no SCC of size >= 2,
-    /// so the only detectable shape is each coin's own singleton.
+    /// Sharing a puzzle hash does not group coins. Each coin is its own
+    /// single-input group, so the payment's input yields the tweak point with
+    /// `A_sum = K_send` over its own coin id, and no multi-input group exists.
     #[test]
-    fn test_bug2_single_input_sharing_ph_detected_via_singleton() {
+    fn coins_sharing_a_puzzle_hash_without_a_cycle_stay_single_input_groups() {
         let sk_send = chia_bls::SecretKey::from_seed(&[0x44u8; 32]);
         let pk_send = sk_send.public_key();
 

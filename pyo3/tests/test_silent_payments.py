@@ -1,8 +1,6 @@
 """pyo3 raw-key SP send + scan-from-tweaks E2E, plus the raw-key contract.
 
-Mirrors napi/__test__/silent_payments_e2e.spec.ts
-in snake_case. This is the first non-trivial pytest in pyo3/tests/; no
-conftest.py is introduced until a second consumer needs shared fixtures.
+Mirrors napi/__test__/silent_payments_e2e.spec.ts in snake_case.
 
 Cross-language coverage is scoped to the unlabeled flow; labeled detection is
 exercised by the Rust-side E2E tests in
@@ -265,7 +263,7 @@ def test_unlabeled_e2e():
     )
 
     deltas = spends.apply(actions)
-    finished = spends.prepare(deltas)
+    finished = spends.prepare(deltas, None)
 
     # Standard-puzzle-spend the sender's XCH input. The coin is curried over the
     # SYNTHETIC key, so spend + sign with the synthetic key pair.
@@ -282,7 +280,6 @@ def test_unlabeled_e2e():
     sim.spend_coins(clvm.coin_spends(), [sender_synthetic_sk])
 
     # Extract TweakData via the bindings helper.
-    # THIS IS THE NEW FFI SURFACE.
     tweak_data = sim.tweak_data_from_block(height_before)
     assert len(tweak_data.tweak_points) == 1, "one SP transaction -> one tweak_point"
     assert len(tweak_data.outputs) >= 1, "at least the recipient's output is present"
@@ -369,7 +366,7 @@ def test_multi_input_e2e():
 
     # Two XCH coins with different BLS pairs. The Relation
     # cycle binding ties them together so the receiver scanner can re-group
-    # them via Pass 2b SCC over opcode-64 AssertConcurrentSpend edges.
+    # them as a strongly connected component of ASSERT_CONCURRENT_SPEND edges.
     #
     # with_silent_payment_keys synthesizes the registered RAW key via
     # derive_synthetic internally, so each coin must live at its SYNTHETIC
@@ -428,9 +425,9 @@ def test_multi_input_e2e():
 
     sim.spend_coins(clvm.coin_spends(), [sender1_synthetic_sk, sender2_synthetic_sk])
 
-    # Entry point: drive TweakData construction through the new
-    # helper, not the older Simulator.tweak_data_from_block path. The
-    # Simulator facade exposes block_spends / block_outputs.
+    # Build the TweakData with SilentPayments.tweak_data_from_block_spends
+    # over the block's spends and outputs, as a wallet reading real blocks
+    # would, rather than with the Simulator.tweak_data_from_block shortcut.
     block_spends = sim.block_spends(height_before)
     block_outputs = sim.block_outputs(height_before)
     tweak_data = SilentPayments.tweak_data_from_block_spends(
@@ -496,7 +493,7 @@ def test_raw_key_not_synthetic_errors():
     # the runtime guard fires inside prepare() — the typed SilentPaymentKeyNotSynthetic
     # error crosses the FFI boundary as a raised exception.
     with pytest.raises(BaseException, match="key not synthetic"):
-        spends.prepare(deltas)
+        spends.prepare(deltas, None)
 
     # No spend bundle was produced on the failed path.
     assert len(clvm.coin_spends()) == 0, "no coin spends produced on the failed path"

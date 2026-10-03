@@ -43,7 +43,7 @@ pub enum SilentPaymentError {
     IdentityPublicKey,
 
     /// `SilentPaymentKeys::labeled_address(0)` was called. `m = 0` is reserved
-    /// as the change label (CHIP §125-§130) and must not appear in a publicly-
+    /// as the change label (CHIP-0057 "Change Detection") and must not appear in a publicly-
     /// shared address.
     #[error("label index 0 is reserved for change outputs and cannot be exposed")]
     ReservedChangeLabel,

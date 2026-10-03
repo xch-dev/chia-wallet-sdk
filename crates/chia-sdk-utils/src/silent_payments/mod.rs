@@ -31,12 +31,9 @@ pub use labels::*;
 
 /// Compute the CHIP-0057 label scalar and label public key for label index `m`.
 ///
-/// Public reach-through over [`labels::generate_label`] (which is `pub(crate)`
-/// so cross-module consumers in this crate can reach it but external callers
-/// must go through this wrapper).
-///
-/// Used by `chia-sdk-driver`'s silent-payment scanner to compute the labeled
-/// `onetime_sk = base_onetime_sk + label_scalar` for labeled detections.
+/// `label_scalar = int(tagged_hash("Chia_SP/Label", ser256(b_scan) || ser32(m)))
+/// mod r` and `label_pk = label_scalar * G` (CHIP-0057 "Label Generation"). The
+/// scanner adds the scalar to the output tweak of a labeled detection.
 ///
 /// `m = 0` (the change label) is accepted here; only
 /// [`SilentPaymentKeys::labeled_address`] rejects it, to keep the change address

@@ -102,7 +102,6 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   sim.spendCoins(clvm.coinSpends(), [senderSyntheticSk]);
 
   // Extract TweakData via the bindings helper.
-  // THIS IS THE NEW FFI SURFACE.
   const tweakData = sim.tweakDataFromBlock(heightBefore);
   t.is(
     tweakData.tweakPoints.length,

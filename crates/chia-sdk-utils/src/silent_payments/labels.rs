@@ -1,7 +1,7 @@
 //! Label generation and label-index ↔ label-pubkey registry for CHIP-0057
 //! silent payments.
 //!
-//! Per CHIP-0057 §125-§130:
+//! CHIP-0057 "Label Generation":
 //! ```text
 //! label_data    = ser256(b_scan) || ser32(m)
 //! label_scalar  = int(tagged_hash("Chia_SP/Label", label_data)) mod r

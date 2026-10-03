@@ -519,12 +519,12 @@ impl SilentPayments {
     ///
     /// Delegates to the driver-side
     /// `chia_sdk_driver::silent_payments::tweak_data_from_block_spends`, which
-    /// implements same-puzzle-hash bucketing and iterative Tarjan SCC over
-    /// opcode-64 `AssertConcurrentSpend` edges to recover transaction-group
-    /// shape from a flat list of spends. Non-standard puzzles (CAT, NFT,
-    /// arbitrary mod hashes) skip silently; BLS12-381 identity-element tweak
-    /// points are suppressed (CHIP §459). See the driver-side module docs for
-    /// the full grouping algorithm.
+    /// forms the block's spend groups as in CHIP-0057 "Scanning a Block":
+    /// every standard-puzzle spend on its own, plus every strongly connected
+    /// component of two or more standard-puzzle spends in the
+    /// `ASSERT_CONCURRENT_SPEND` graph. Spends of other puzzles (CAT, NFT, ...)
+    /// are ignored, and groups whose keys sum to the identity element yield no
+    /// tweak point.
     pub fn tweak_data_from_block_spends(
         coin_spends: Vec<CoinSpend>,
         additions: Vec<Coin>,
@@ -542,8 +542,8 @@ mod tests {
     use super::*;
     use chia_bls::SecretKey;
 
-    /// ISSUE-1 boundary proof: an empty `coin_ids` list passed to the
-    /// FFI-reachable `compute_input_hash` facade returns `Err` (a typed
+    /// An empty `coin_ids` list passed to the FFI-reachable
+    /// `compute_input_hash` facade returns `Err` (a typed
     /// `DriverError::SilentPaymentNoXchInputs`) instead of panicking across the
     /// FFI boundary. The test process must NOT abort — `is_err()` is the proof
     /// that the guard intercepts the empty slice before the driver `assert!`.

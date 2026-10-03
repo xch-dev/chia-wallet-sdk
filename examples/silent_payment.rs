@@ -120,10 +120,9 @@ fn main() -> Result<()> {
     // ─── Multi-input SP send demo ────────────────────────────────────────
     // Same recipient, two sender coins bound by Relation::AssertConcurrent.
     // Demonstrates the canonical multi-input flow that downstream wallets
-    // use when assembling multi-coin SP sends — the receive-side scanner
-    // re-groups the inputs via Pass 2b SCC over opcode-64
-    // AssertConcurrentSpend edges so a single TweakData tweak_point
-    // emerges for the multi-input transaction.
+    // use when assembling multi-coin SP sends — the receive side re-groups the
+    // inputs as a strongly connected component of the ASSERT_CONCURRENT_SPEND
+    // graph, which yields the tweak point of the multi-input group.
 
     let sender_a = sim.bls(500);
     let sender_b = sim.bls(500);
