@@ -39,11 +39,12 @@ import {
   Simulator,
   Spends,
   standardPuzzleHash,
+  toHex,
 } from "../pkg";
 
 setPanicHook();
 
-const TV1_MNEMONIC =
+const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const K_MAX_DEFAULT = 2400;
 
@@ -52,7 +53,7 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const clvm = new Clvm();
 
   // Recipient: deterministic mnemonic so the test is reproducible.
-  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TV1_MNEMONIC));
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   const recipientAddress = recipient.unlabeledAddress(
     SilentPaymentNetwork.Testnet,
   );
@@ -184,7 +185,7 @@ test("wasm: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   const sim = new Simulator();
   const clvm = new Clvm();
 
-  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TV1_MNEMONIC));
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   const recipientAddress = recipient.unlabeledAddress(
     SilentPaymentNetwork.Testnet,
   );
@@ -223,4 +224,26 @@ test("wasm: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
 
   // No spend bundle was produced.
   t.is(clvm.coinSpends().length, 0, "no coin spends produced on the failed path");
+});
+
+// CHIP-0057 Test Vector 8: hardened derivation at m/12381n/8444n/12n/0n (scan)
+// and m/12381n/8444n/13n/0n (spend) from the BIP-39 test mnemonic.
+test("wasm: key derivation from the mnemonic is hardened (TV8)", (t) => {
+  const keys = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
+  t.is(
+    toHex(keys.scanSk().toBytes()),
+    "0c474f92e8945069c200bb09302d1e569a9b52f59cc04a27874b1bca2adeca9f",
+  );
+  t.is(
+    toHex(keys.spendSk().toBytes()),
+    "4f8acf271744cf7050197623569e1603b0193f84b958b5d5f1ce8fd18c908e7b",
+  );
+  t.is(
+    keys.unlabeledAddress(SilentPaymentNetwork.Mainnet).encode(),
+    "spxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjryvvu9l2",
+  );
+  t.is(
+    keys.unlabeledAddress(SilentPaymentNetwork.Testnet).encode(),
+    "tspxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjrycwanlf",
+  );
 });

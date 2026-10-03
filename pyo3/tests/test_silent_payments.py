@@ -40,9 +40,9 @@ from chia_wallet_sdk import (
     standard_puzzle_hash,
 )
 
-# BIP-39 TV1 — matches the AVA + Rust e2e fixtures so cross-language
-# test outputs are byte-identical.
-TV1_MNEMONIC = (
+# The BIP-39 test mnemonic (CHIP-0057 Test Vector 8) — matches the AVA + Rust
+# e2e fixtures so cross-language test outputs are byte-identical.
+TEST_MNEMONIC = (
     "abandon abandon abandon abandon abandon abandon "
     "abandon abandon abandon abandon abandon about"
 )
@@ -57,6 +57,40 @@ def tv1_keys():
     return SilentPaymentKeys.from_secret_keys(
         SecretKey.from_bytes(bytes.fromhex(TV1_SCAN_SK)),
         SecretKey.from_bytes(bytes.fromhex(TV1_SPEND_SK)),
+    )
+
+
+def test_key_derivation_tv8():
+    """Hardened derivation from the mnemonic, against CHIP-0057 Test Vector 8."""
+    keys = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    assert (
+        keys.scan_sk().to_bytes().hex()
+        == "0c474f92e8945069c200bb09302d1e569a9b52f59cc04a27874b1bca2adeca9f"
+    )
+    assert (
+        keys.spend_sk().to_bytes().hex()
+        == "4f8acf271744cf7050197623569e1603b0193f84b958b5d5f1ce8fd18c908e7b"
+    )
+    assert (
+        keys.unlabeled_address(SilentPaymentNetwork.Mainnet).encode()
+        == "spxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjryvvu9l2"
+    )
+    assert (
+        keys.unlabeled_address(SilentPaymentNetwork.Testnet).encode()
+        == "tspxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjrycwanlf"
+    )
+
+
+def test_given_keys_tv5_addresses():
+    """Addresses of the given TV1 keys, against CHIP-0057 Test Vector 5."""
+    keys = tv1_keys()
+    assert (
+        keys.unlabeled_address(SilentPaymentNetwork.Mainnet).encode()
+        == "spxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfdzhutqqe9az04d3y7cfnd8me9mlnyg828j5z96urn2evjvy72f7m7me3ughqsvd62zyvj5nztf6uwsmqrz7f"
+    )
+    assert (
+        keys.labeled_address(SilentPaymentNetwork.Testnet, 1).encode()
+        == "tspxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfd9jj2rac2q707npyfumq4wzqwkl79ksppyt5t58gecmqyj4396tzwlglqtamuqwwusfd6t8pkaq5cgn3xqq3"
     )
 
 
@@ -106,7 +140,7 @@ def test_unlabeled_e2e():
     clvm = Clvm()
 
     # Recipient: deterministic mnemonic.
-    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TV1_MNEMONIC))
+    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
     recipient_address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
 
     # Sender: fresh BLS pair from simulator (used only for its key pair).
@@ -238,7 +272,7 @@ def test_multi_input_e2e():
     sim = Simulator()
     clvm = Clvm()
 
-    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TV1_MNEMONIC))
+    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
     recipient_address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
 
     # Two XCH coins with different BLS pairs. The Relation
@@ -348,7 +382,7 @@ def test_raw_key_not_synthetic_errors():
     sim = Simulator()
     clvm = Clvm()
 
-    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TV1_MNEMONIC))
+    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
     recipient_address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
 
     sender = sim.bls(1_000)

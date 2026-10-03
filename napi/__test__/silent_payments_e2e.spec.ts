@@ -35,7 +35,7 @@ import {
   standardPuzzleHash,
 } from "..";
 
-const TV1_MNEMONIC =
+const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const K_MAX_DEFAULT = 2400;
 
@@ -45,7 +45,7 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
 
   // Recipient: deterministic mnemonic so the test is reproducible
   // (matches the silent_payments.spec.ts fixture).
-  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TV1_MNEMONIC));
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   const recipientAddress = recipient.unlabeledAddress(
     SilentPaymentNetwork.Testnet,
   );
@@ -179,7 +179,7 @@ test("napi: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   const sim = new Simulator();
   const clvm = new Clvm();
 
-  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TV1_MNEMONIC));
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   const recipientAddress = recipient.unlabeledAddress(
     SilentPaymentNetwork.Testnet,
   );

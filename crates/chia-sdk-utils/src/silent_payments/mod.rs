@@ -1,9 +1,10 @@
 //! Silent payments (CHIP-0057) — wallet-facing key derivation and bech32m address encoding.
 //!
 //! This module contains the public types a wallet author uses to:
-//!   - derive `(scan_sk, spend_sk)` from a BIP-39 mnemonic at the CHIP-0057
-//!     paths `m/12381/8444/12/0` and `m/12381/8444/13/0` ([`SilentPaymentKeys::from_mnemonic`]),
-//!   - build a watch-only / key-import setup from raw secret keys
+//!   - derive `(scan_sk, spend_sk)` from a BIP-39 mnemonic with hardened
+//!     derivation at the CHIP-0057 paths `m/12381n/8444n/12n/0n` and
+//!     `m/12381n/8444n/13n/0n` ([`SilentPaymentKeys::from_mnemonic`]),
+//!   - build the key bundle from explicit secret keys
 //!     ([`SilentPaymentKeys::from_secret_keys`]),
 //!   - encode and decode silent-payment addresses as bech32m with HRP
 //!     `spxch` (mainnet) / `tspxch` (testnet) over the 96-byte

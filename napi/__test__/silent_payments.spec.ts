@@ -6,10 +6,8 @@
 // or canonical-form normalizations that might re-shape the textual address
 // without changing the underlying key material.
 //
-// Mnemonic fixture is the BIP-39 standard test vector — also used by the
-// Rust-side `from_mnemonic_tv1_scan_pk_matches` test at
-// crates/chia-sdk-utils/src/silent_payments/keys.rs:152 — so this AVA test
-// transitively pins the same CHIP TV1 bytes that the Rust test does.
+// The mnemonic fixture is the BIP-39 standard test vector, whose hardened
+// derivation is pinned by CHIP-0057 Test Vector 8 (see the TV8 test below).
 
 import test from "ava";
 import {
@@ -24,12 +22,12 @@ import {
   toHex,
 } from "..";
 
-const TV1_MNEMONIC =
+const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 // SC2 — address round-trip via byte-equality on scan_pk/spend_pk
 test("silent-payment address round-trip (TV1 mainnet)", (t) => {
-  const mnemonic = new Mnemonic(TV1_MNEMONIC);
+  const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
   const address = keys.unlabeledAddress(SilentPaymentNetwork.Mainnet);
   const encoded = address.encode();
@@ -44,7 +42,7 @@ test("silent-payment address round-trip (TV1 mainnet)", (t) => {
 
 // SC2 supplementary — testnet HRP discriminator round-trips correctly
 test("silent-payment address round-trip (TV1 testnet)", (t) => {
-  const mnemonic = new Mnemonic(TV1_MNEMONIC);
+  const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
   const address = keys.unlabeledAddress(SilentPaymentNetwork.Testnet);
   const encoded = address.encode();
@@ -60,7 +58,7 @@ test("silent-payment address round-trip (TV1 testnet)", (t) => {
 // SC3 — Action.silentPaymentSend TS construction smoke (the dedicated SP-send
 // surface; replaces the old opaque-handle destination class).
 test("Action.silentPaymentSend composes from a SilentPaymentAddress (SC3)", (t) => {
-  const mnemonic = new Mnemonic(TV1_MNEMONIC);
+  const mnemonic = new Mnemonic(TEST_MNEMONIC);
   const keys = SilentPaymentKeys.fromMnemonic(mnemonic);
   const address = keys.unlabeledAddress(SilentPaymentNetwork.Mainnet);
 
@@ -123,4 +121,39 @@ test("label generation and change address (TV3, TV7)", (t) => {
   t.throws(() => keys.labeledAddress(SilentPaymentNetwork.Mainnet, 0), {
     message: /reserved for change/,
   });
+});
+
+// CHIP-0057 Test Vector 8: hardened derivation at m/12381n/8444n/12n/0n (scan)
+// and m/12381n/8444n/13n/0n (spend) from the BIP-39 test mnemonic.
+test("key derivation from the mnemonic is hardened (TV8)", (t) => {
+  const keys = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
+  t.is(
+    toHex(keys.scanSk().toBytes()),
+    "0c474f92e8945069c200bb09302d1e569a9b52f59cc04a27874b1bca2adeca9f",
+  );
+  t.is(
+    toHex(keys.spendSk().toBytes()),
+    "4f8acf271744cf7050197623569e1603b0193f84b958b5d5f1ce8fd18c908e7b",
+  );
+  t.is(
+    keys.unlabeledAddress(SilentPaymentNetwork.Mainnet).encode(),
+    "spxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjryvvu9l2",
+  );
+  t.is(
+    keys.unlabeledAddress(SilentPaymentNetwork.Testnet).encode(),
+    "tspxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjrycwanlf",
+  );
+});
+
+// CHIP-0057 Test Vector 5: addresses of the given TV1 keys.
+test("addresses of the given TV1 keys (TV5)", (t) => {
+  const keys = tv1Keys();
+  t.is(
+    keys.unlabeledAddress(SilentPaymentNetwork.Mainnet).encode(),
+    "spxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfdzhutqqe9az04d3y7cfnd8me9mlnyg828j5z96urn2evjvy72f7m7me3ughqsvd62zyvj5nztf6uwsmqrz7f",
+  );
+  t.is(
+    keys.labeledAddress(SilentPaymentNetwork.Testnet, 1).encode(),
+    "tspxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfd9jj2rac2q707npyfumq4wzqwkl79ksppyt5t58gecmqyj4396tzwlglqtamuqwwusfd6t8pkaq5cgn3xqq3",
+  );
 });

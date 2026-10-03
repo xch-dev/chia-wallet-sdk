@@ -36,9 +36,10 @@ use chia_sdk_types::silent_payments::GROUP_ORDER;
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, SilentPaymentNetwork};
 use indexmap::indexmap;
 
-/// Stable BIP-39 test-vector mnemonic — matches the cross-language AVA fixture
-/// for deterministic seeds.
-const TV1_MNEMONIC: &str =
+/// The BIP-39 test mnemonic — matches the cross-language AVA fixture for
+/// deterministic seeds. The recipient keys are derived from it with hardened
+/// derivation (CHIP-0057 Test Vector 8).
+const TEST_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 /// Shared setup: fresh [`Simulator`] + [`SpendContext`] + sender BLS pair (with
@@ -51,7 +52,7 @@ fn setup_e2e() -> Result<(Simulator, SpendContext, BlsPairWithCoin, SilentPaymen
     let mut sim = Simulator::new();
     let ctx = SpendContext::new();
     let sender = sim.bls(1_000);
-    let mnemonic = Mnemonic::parse(TV1_MNEMONIC)?;
+    let mnemonic = Mnemonic::parse(TEST_MNEMONIC)?;
     let recipient = SilentPaymentKeys::from_mnemonic(&mnemonic);
     Ok((sim, ctx, sender, recipient))
 }
@@ -175,7 +176,7 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     let a = sim.bls(600);
     let b = sim.bls(600);
 
-    let mnemonic = Mnemonic::parse(TV1_MNEMONIC)?;
+    let mnemonic = Mnemonic::parse(TEST_MNEMONIC)?;
     let recipient = SilentPaymentKeys::from_mnemonic(&mnemonic);
     let recipient_address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
     let height_before = sim.height();
@@ -275,7 +276,7 @@ fn test_simulator_e2e_multi_input_mixed_asset_rejected() -> Result<()> {
     let mut ctx = SpendContext::new();
     let a = sim.bls(600);
     let b = sim.bls(600);
-    let mnemonic = Mnemonic::parse(TV1_MNEMONIC)?;
+    let mnemonic = Mnemonic::parse(TEST_MNEMONIC)?;
     let recipient = SilentPaymentKeys::from_mnemonic(&mnemonic);
     let recipient_address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
 
@@ -493,7 +494,7 @@ fn multi_input_with_identical_sends(
     let mut ctx = SpendContext::new();
     let a = sim.bls(600);
     let b = sim.bls(600);
-    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TV1_MNEMONIC)?);
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
     let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
     let height_before = sim.height();
 
@@ -721,7 +722,7 @@ fn test_zero_key_sum_makes_the_sender_fail() -> Result<()> {
     let coin1 = sim.new_coin(ph1, 600);
     let coin2 = sim.new_coin(ph2, 600);
 
-    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TV1_MNEMONIC)?);
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
     let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
 
     let mut spends = Spends::new(ph1);

@@ -33,7 +33,7 @@ import {
 
 setPanicHook();
 
-const TV1_MNEMONIC =
+const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const K_MAX_DEFAULT = 2400;
 
@@ -49,7 +49,7 @@ test("wasm: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
   const sim = new Simulator();
   const clvm = new Clvm();
 
-  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TV1_MNEMONIC));
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   const recipientAddress = recipient.unlabeledAddress(
     SilentPaymentNetwork.Testnet,
   );

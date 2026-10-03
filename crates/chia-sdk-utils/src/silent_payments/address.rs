@@ -177,11 +177,7 @@ mod tests {
     use super::*;
     use hex_literal::hex;
 
-    // ─── TV1 (CHIP-0057 test vector 1) ─────────────────────────────────────
-    // BIP-39 test mnemonic: "abandon abandon abandon abandon abandon abandon
-    //                       abandon abandon abandon abandon abandon about"
-    // SCAN_PATH:  m/12381/8444/12/0
-    // SPEND_PATH: m/12381/8444/13/0
+    // ─── TV1 (CHIP-0057 test vector 1; the recipient keys are given values) ─
 
     const TV1_SCAN_PK_BYTES: [u8; 48] = hex!(
         "a04f404bfbfdc9311736899fe32d2275bb007814510c3523529487ad75736075"

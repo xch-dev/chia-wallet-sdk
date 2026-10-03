@@ -21,10 +21,10 @@ use chia_puzzle_types::DeriveSynthetic;
 use chia_wallet_sdk::prelude::*;
 use indexmap::indexmap;
 
-/// BIP-39 TV1 mnemonic — stable, well-known, deterministic across runs.
-/// Matches the fixture used by the CHIP-0057 test vectors and the SDK's
-/// silent-payments unit + binding tests.
-const TV1_MNEMONIC: &str =
+/// The BIP-39 test mnemonic — stable, well-known, deterministic across runs.
+/// The recipient keys are derived from it with hardened derivation, as in
+/// CHIP-0057 Test Vector 8.
+const TEST_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 fn main() -> Result<()> {
@@ -32,7 +32,7 @@ fn main() -> Result<()> {
     let mut sim = Simulator::new();
     let ctx = &mut SpendContext::new();
     let sender = sim.bls(1_000);
-    let mnemonic = Mnemonic::parse(TV1_MNEMONIC)?;
+    let mnemonic = Mnemonic::parse(TEST_MNEMONIC)?;
     let recipient = SilentPaymentKeys::from_mnemonic(&mnemonic);
 
     // Derive both an unlabeled and a labeled (m=1) address from the same keys.
