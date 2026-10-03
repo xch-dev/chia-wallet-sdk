@@ -635,6 +635,7 @@ module.exports.SettlementNftSpendResult = nativeBinding.SettlementNftSpendResult
 module.exports.Signature = nativeBinding.Signature
 module.exports.SilentPaymentAddress = nativeBinding.SilentPaymentAddress
 module.exports.SilentPaymentKeys = nativeBinding.SilentPaymentKeys
+module.exports.SilentPaymentLabel = nativeBinding.SilentPaymentLabel
 module.exports.SilentPaymentRegisteredKey = nativeBinding.SilentPaymentRegisteredKey
 module.exports.SilentPaymentRegisteredSecretKey = nativeBinding.SilentPaymentRegisteredSecretKey
 module.exports.SilentPayments = nativeBinding.SilentPayments

@@ -1381,7 +1381,9 @@ export declare class DepositSlot {
 
 export declare class DetectedSpCoin {
   clone(): DetectedSpCoin
-  constructor(coinId: Uint8Array, puzzleHash: Uint8Array, amount: bigint, parentCoinId: Uint8Array, onetimeSk: SecretKey, k: number, label?: number | undefined | null)
+  coin(): Coin
+  onetimeSk(spendSk: SecretKey): SecretKey
+  constructor(coinId: Uint8Array, puzzleHash: Uint8Array, amount: bigint, parentCoinId: Uint8Array, k: number, label: number | undefined | null, tweak: ScalarField)
   get coinId(): Buffer
   set coinId(value: Uint8Array)
   get puzzleHash(): Buffer
@@ -1390,12 +1392,12 @@ export declare class DetectedSpCoin {
   set amount(value: bigint)
   get parentCoinId(): Buffer
   set parentCoinId(value: Uint8Array)
-  get onetimeSk(): SecretKey
-  set onetimeSk(value: SecretKey)
   get k(): number
   set k(value: number)
   get label(): number | null
   set label(value?: number | undefined | null)
+  get tweak(): ScalarField
+  set tweak(value: ScalarField)
 }
 
 export declare class Did {
@@ -3585,6 +3587,16 @@ export declare class SilentPaymentKeys {
   spendPk(): PublicKey
   unlabeledAddress(network: SilentPaymentNetwork): SilentPaymentAddress
   labeledAddress(network: SilentPaymentNetwork, m: number): SilentPaymentAddress
+  changeAddress(network: SilentPaymentNetwork): SilentPaymentAddress
+}
+
+export declare class SilentPaymentLabel {
+  clone(): SilentPaymentLabel
+  constructor(scalar: ScalarField, publicKey: PublicKey)
+  get scalar(): ScalarField
+  set scalar(value: ScalarField)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
 }
 
 export declare class SilentPaymentRegisteredKey {
@@ -3607,10 +3619,12 @@ export declare class SilentPaymentRegisteredSecretKey {
 
 export declare class SilentPayments {
   clone(): SilentPayments
-  static scanFromTweaks(scanSk: SecretKey, spendSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSpCoin>
-  static deriveOneTimePuzzleHash(scanPk: PublicKey, spendPk: PublicKey, aggregatedSenderSk: ScalarField, inputHash: ScalarField, k: number): Buffer
+  static scanFromTweaks(scanSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSpCoin>
+  static generateLabel(scanSk: SecretKey, m: number): SilentPaymentLabel
+  static deriveOnetimeSk(spendSk: SecretKey, tweak: ScalarField): SecretKey
+  static deriveOneTimePuzzleHash(scanPk: PublicKey, spendPk: PublicKey, aggregatedSenderSk: SecretKey, inputHash: ScalarField, k: number): Buffer
   static computeInputHash(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): ScalarField
-  static aggregateSenderSks(sks: Array<SecretKey>): ScalarField
+  static aggregateSenderSks(sks: Array<SecretKey>): SecretKey
   static tweakDataFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): TweakData
 }
 
