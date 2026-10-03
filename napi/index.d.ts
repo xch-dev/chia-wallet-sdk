@@ -3619,11 +3619,13 @@ export declare class SilentPaymentRegisteredSecretKey {
 
 export declare class SilentPayments {
   clone(): SilentPayments
+  static kMax(): number
   static scanFromTweaks(scanSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSpCoin>
   static generateLabel(scanSk: SecretKey, m: number): SilentPaymentLabel
   static deriveOnetimeSk(spendSk: SecretKey, tweak: ScalarField): SecretKey
   static deriveOneTimePuzzleHash(scanPk: PublicKey, spendPk: PublicKey, aggregatedSenderSk: SecretKey, inputHash: ScalarField, k: number): Buffer
   static computeInputHash(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): ScalarField
+  static computeTweakPoint(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): PublicKey | null
   static aggregateSenderSks(sks: Array<SecretKey>): SecretKey
   static tweakDataFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): TweakData
 }
