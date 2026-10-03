@@ -86,81 +86,111 @@ pub fn scan_from_tweaks(
     let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX);
 
     for tweak_point in &data.tweak_points {
-        // CHIP §459 guard: skip identity-element tweak points.
+        // CHIP-0057 "Edge Cases": skip identity-element tweak points.
         if tweak_point.is_inf() {
             continue;
         }
 
         let shared_secret = compute_shared_secret_from_tweak(scan_sk, tweak_point);
 
-        for k in 0..k_bound {
-            let output_tweak = derive_output_tweak(&shared_secret, k);
-            let candidate_pk = derive_onetime_pk(spend_pk, &output_tweak);
-            let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
-
-            let mut found = false;
-
-            if output_phs.contains(&candidate_hash)
-                && let Some(out) = data
-                    .outputs
-                    .iter()
-                    .find(|o| o.puzzle_hash == candidate_hash)
-            {
-                let onetime_sk = derive_onetime_sk(spend_sk, &output_tweak);
-                detected.push(DetectedSpCoin {
-                    coin_id: out.coin_id,
-                    puzzle_hash: out.puzzle_hash,
-                    amount: out.amount,
-                    parent_coin_id: out.parent_coin_id,
-                    onetime_sk,
-                    k,
-                    label: None,
-                });
-                found = true;
-            }
-
-            // Labeled-detection branch. Only runs when the
-            // unlabeled candidate at this k missed; otherwise the unlabeled
-            // detection is preferred (matches sp-client's
-            // test_scan_block_unlabeled_preferred).
-            if !found && let Some(label_map) = labels {
-                for (m, label_pk) in label_map.iter() {
-                    let labeled_pk = candidate_pk + label_pk;
-                    let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
-                    if output_phs.contains(&labeled_hash)
-                        && let Some(out) =
-                            data.outputs.iter().find(|o| o.puzzle_hash == labeled_hash)
-                    {
-                        let base_sk = derive_onetime_sk(spend_sk, &output_tweak);
-                        let (label_scalar, _) = generate_label(scan_sk, m);
-                        let base_scalar = ScalarField::from_bytes_raw(base_sk.to_bytes());
-                        let labeled_scalar = base_scalar.add(&label_scalar);
-                        let labeled_sk = SecretKey::from_bytes(labeled_scalar.as_bytes())
-                            .expect("labeled scalar < r by ScalarField boundary");
-                        detected.push(DetectedSpCoin {
-                            coin_id: out.coin_id,
-                            puzzle_hash: out.puzzle_hash,
-                            amount: out.amount,
-                            parent_coin_id: out.parent_coin_id,
-                            onetime_sk: labeled_sk,
-                            k,
-                            label: Some(m),
-                        });
-                        found = true;
-                        break; // first labeled match wins for this k
-                    }
-                }
-            }
-
-            // Termination rule: break the k loop only when
-            // NEITHER unlabeled NOR any labeled candidate matched at this k.
-            if !found {
-                break;
-            }
-        }
+        scan_group(
+            |k| derive_output_tweak(&shared_secret, k),
+            scan_sk,
+            spend_sk,
+            spend_pk,
+            data,
+            &output_phs,
+            labels,
+            k_bound,
+            &mut detected,
+        );
     }
 
     detected
+}
+
+/// The `k` loop of the CHIP-0057 `ScanForSilentPayment` procedure for one spend
+/// group. `tweak_for_k` yields the output tweak `t_k`; it is a parameter so that
+/// the zero-tweak rule can be tested.
+#[allow(clippy::similar_names, clippy::too_many_arguments)]
+fn scan_group(
+    tweak_for_k: impl Fn(u32) -> ScalarField,
+    scan_sk: &SecretKey,
+    spend_sk: &SecretKey,
+    spend_pk: &PublicKey,
+    data: &TweakData,
+    output_phs: &HashSet<Bytes32>,
+    labels: Option<&LabelRegistry>,
+    k_bound: u32,
+    detected: &mut Vec<DetectedSpCoin>,
+) {
+    for k in 0..k_bound {
+        let output_tweak = tweak_for_k(k);
+
+        // CHIP-0057 "Edge Cases": a zero tweak stops the scan of this group.
+        if output_tweak.is_zero() {
+            break;
+        }
+
+        let candidate_pk = derive_onetime_pk(spend_pk, &output_tweak);
+        let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
+
+        let mut found = false;
+
+        if output_phs.contains(&candidate_hash)
+            && let Some(out) = data
+                .outputs
+                .iter()
+                .find(|o| o.puzzle_hash == candidate_hash)
+        {
+            let onetime_sk = derive_onetime_sk(spend_sk, &output_tweak);
+            detected.push(DetectedSpCoin {
+                coin_id: out.coin_id,
+                puzzle_hash: out.puzzle_hash,
+                amount: out.amount,
+                parent_coin_id: out.parent_coin_id,
+                onetime_sk,
+                k,
+                label: None,
+            });
+            found = true;
+        }
+
+        // Labeled candidates are only checked when the unlabeled candidate at
+        // this k missed.
+        if !found && let Some(label_map) = labels {
+            for (m, label_pk) in label_map.iter() {
+                let labeled_pk = candidate_pk + label_pk;
+                let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
+                if output_phs.contains(&labeled_hash)
+                    && let Some(out) = data.outputs.iter().find(|o| o.puzzle_hash == labeled_hash)
+                {
+                    let base_sk = derive_onetime_sk(spend_sk, &output_tweak);
+                    let (label_scalar, _) = generate_label(scan_sk, m);
+                    let base_scalar = ScalarField::from_bytes_raw(base_sk.to_bytes());
+                    let labeled_scalar = base_scalar.add(&label_scalar);
+                    let labeled_sk = SecretKey::from_bytes(labeled_scalar.as_bytes())
+                        .expect("labeled scalar < r by ScalarField boundary");
+                    detected.push(DetectedSpCoin {
+                        coin_id: out.coin_id,
+                        puzzle_hash: out.puzzle_hash,
+                        amount: out.amount,
+                        parent_coin_id: out.parent_coin_id,
+                        onetime_sk: labeled_sk,
+                        k,
+                        label: Some(m),
+                    });
+                    found = true;
+                    break; // first labeled match wins for this k
+                }
+            }
+        }
+
+        // Stop at the first index with no match.
+        if !found {
+            break;
+        }
+    }
 }
 
 /// Convenience trait that lets a [`SilentPaymentKeys`] bundle drive the
@@ -730,5 +760,72 @@ mod tests {
             method_result[0].onetime_sk.to_bytes()
         );
         assert_eq!(free_fn_result[0].label, method_result[0].label);
+    }
+
+    /// CHIP-0057 "Edge Cases", zero scalars: a zero tweak `t_k` stops the scan of
+    /// the group, even when later indices would match. A hash that reduces to
+    /// zero cannot be produced on demand, so the tweak sequence is injected.
+    #[test]
+    fn zero_tweak_stops_scanning_the_group() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend = sk(TV1_SPEND_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
+        let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
+
+        // Outputs at k = 0, 1 and 2.
+        let outputs: Vec<OutputMeta> = (0..3u8)
+            .map(|k| OutputMeta {
+                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
+                    &b_spend_pub,
+                    &derive_output_tweak(&shared_secret, u32::from(k)),
+                )),
+                coin_id: [k; 32].into(),
+                amount: 1,
+                parent_coin_id: [0u8; 32].into(),
+            })
+            .collect();
+        let data = TweakData {
+            tweak_points: vec![tp],
+            outputs,
+        };
+        let output_phs: HashSet<Bytes32> = data.outputs.iter().map(|o| o.puzzle_hash).collect();
+
+        // With the real tweaks all three outputs are found.
+        let mut detected = Vec::new();
+        scan_group(
+            |k| derive_output_tweak(&shared_secret, k),
+            &b_scan,
+            &b_spend,
+            &b_spend_pub,
+            &data,
+            &output_phs,
+            None,
+            2400,
+            &mut detected,
+        );
+        assert_eq!(detected.len(), 3);
+
+        // With t_1 == 0 the scan stops after k = 0.
+        let mut detected = Vec::new();
+        scan_group(
+            |k| {
+                if k == 1 {
+                    ScalarField::from_bytes_raw([0u8; 32])
+                } else {
+                    derive_output_tweak(&shared_secret, k)
+                }
+            },
+            &b_scan,
+            &b_spend,
+            &b_spend_pub,
+            &data,
+            &output_phs,
+            None,
+            2400,
+            &mut detected,
+        );
+        assert_eq!(detected.len(), 1);
+        assert_eq!(detected[0].k, 0);
     }
 }

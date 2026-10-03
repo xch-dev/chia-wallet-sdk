@@ -30,6 +30,8 @@ use chia_sdk_types::silent_payments::{
 };
 use chia_sha2::Sha256;
 
+use crate::DriverError;
+
 /// Compute the wallet-side ECDH shared secret for a pre-computed tweak point.
 ///
 /// `shared_secret = SHA256(serialize(scan_sk * tweak_point))`.
@@ -130,33 +132,27 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
 // The Spends-level multi-party / coverage gates check key PRESENCE only; they
 // do not validate synthetic-ness.
 
-/// Aggregate synthetic sender secret keys via mod-r addition.
+/// Aggregate synthetic sender secret keys via mod-r addition: `a_sum = Σ sk_i mod r`,
+/// with one term per coin of the spend group.
 ///
-/// Returns `Σ sk_i mod r` as a [`ScalarField`]. The empty-slice case returns
-/// the zero scalar (callers must additionally check `is_empty()` if zero is
-/// not a sensible aggregate).
+/// # Errors
 ///
-/// Each input SK is fed through [`ScalarField::from_bytes_raw`] (NOT
-/// `from_bytes_unsigned`) because `chia_bls::SecretKey` is already constrained
-/// to `< r` by construction. The addition then reduces mod r. There is a
-/// `1/r ≈ 2^-255` chance the sum is zero (cosmic-ray-level probability);
-/// callers that downstream call `SecretKey::from_bytes(self.as_bytes())` must
-/// accept this vanishing risk.
+/// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero (which
+/// includes the empty slice). CHIP-0057 ("Sending", "Edge Cases") requires the
+/// sender to fail in that case: ECDH with a zero key yields the identity point,
+/// and with it a shared secret that anyone can compute.
 ///
-/// Privacy warning: this function takes secret-key material. The resulting
-/// [`ScalarField`] is sensitive — wallets must treat it like an SK (zeroize on
-/// drop, do not log). Consumers further compose this with
-/// [`derive_one_time_puzzle_hash`] which emits an on-chain puzzle hash whose
-/// recipient holds the scan key; memos attached at the action layer are
-/// visible to anyone holding the recipient's scan key.
-#[must_use]
-pub fn aggregate_sender_sks(sks: &[SecretKey]) -> ScalarField {
+/// The result is secret key material and must be handled like a secret key.
+pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<ScalarField, DriverError> {
     let mut sum = ScalarField::from_bytes_raw([0u8; 32]);
     for sk in sks {
         let sk_scalar = ScalarField::from_bytes_raw(sk.to_bytes());
         sum = sum.add(&sk_scalar);
     }
-    sum
+    if sum.is_zero() {
+        return Err(DriverError::SilentPaymentZeroKeySum);
+    }
+    Ok(sum)
 }
 
 /// Compute the per-spend-group input-hash scalar.
@@ -228,33 +224,60 @@ pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey
 /// with the scan key — the action-layer memo-hint guard prevents the standard
 /// wallet from promoting a 32-byte first memo to a `puzzle_hash` hint and
 /// defeating the privacy gain.
-#[must_use]
+///
+/// # Errors
+///
+/// Follows the failure cases of the CHIP-0057 `SendSilentPayment` procedure:
+/// [`DriverError::SilentPaymentZeroKeySum`] if `aggregated_sender_sk` is zero,
+/// [`DriverError::SilentPaymentZeroInputHash`] if `input_hash` is zero, and
+/// [`DriverError::SilentPaymentZeroTweak`] if the output tweak `t_k` is zero.
 pub fn derive_one_time_puzzle_hash(
     scan_pk: &PublicKey,
     spend_pk: &PublicKey,
     aggregated_sender_sk: &ScalarField,
     input_hash: &ScalarField,
     k: u32,
-) -> Bytes32 {
-    // Step 1: tweak_scalar = aggregated_sender_sk * input_hash (mod r).
-    // This is the sender-side analog of the receiver's tweak_point construction.
-    let tweak_scalar = aggregated_sender_sk.mul(input_hash);
+) -> Result<Bytes32, DriverError> {
+    let shared_secret = sender_shared_secret(scan_pk, aggregated_sender_sk, input_hash)?;
+    let t_k = derive_output_tweak(&shared_secret, k);
+    one_time_puzzle_hash_from_tweak(spend_pk, &t_k)
+}
 
-    // Step 2: ECDH over scan_pk. shared_secret = SHA256(tweak_scalar * scan_pk).
+/// The sender's side of the ECDH: `SHA256(serialize((input_hash * a_sum) * B_scan))`.
+///
+/// Fails if `a_sum` or `input_hash` is zero, as the CHIP-0057 `SendSilentPayment`
+/// procedure requires.
+fn sender_shared_secret(
+    scan_pk: &PublicKey,
+    aggregated_sender_sk: &ScalarField,
+    input_hash: &ScalarField,
+) -> Result<[u8; 32], DriverError> {
+    if aggregated_sender_sk.is_zero() {
+        return Err(DriverError::SilentPaymentZeroKeySum);
+    }
+    if input_hash.is_zero() {
+        return Err(DriverError::SilentPaymentZeroInputHash);
+    }
+
+    let tweak_scalar = aggregated_sender_sk.mul(input_hash);
     let mut point = *scan_pk;
     point.scalar_multiply(tweak_scalar.as_bytes());
     let mut h = Sha256::new();
     h.update(point.to_bytes());
-    let shared_secret: [u8; 32] = h.finalize();
+    Ok(h.finalize())
+}
 
-    // Step 3: t_k = derive_output_tweak(shared_secret, k).
-    let t_k = derive_output_tweak(&shared_secret, k);
-
-    // Step 4: onetime_pk = spend_pk + t_k * G.
-    let onetime_pk = derive_onetime_pk(spend_pk, &t_k);
-
-    // Step 5: puzzle_hash = curry(onetime_pk.derive_synthetic()).
-    puzzle_hash_for_pk(&onetime_pk)
+/// `puzzle_hash_for_pk(B_m + t_k * G)`, failing if `t_k` is zero (the one-time
+/// key would then equal the address's own spend key).
+fn one_time_puzzle_hash_from_tweak(
+    spend_pk: &PublicKey,
+    t_k: &ScalarField,
+) -> Result<Bytes32, DriverError> {
+    if t_k.is_zero() {
+        return Err(DriverError::SilentPaymentZeroTweak);
+    }
+    let onetime_pk = derive_onetime_pk(spend_pk, t_k);
+    Ok(puzzle_hash_for_pk(&onetime_pk))
 }
 
 #[cfg(test)]
@@ -374,7 +397,7 @@ mod tests {
         let sk0 = SecretKey::from_bytes(&TV4_SENDER_SK_0).expect("TV4 sender SK 0 < r");
         let sk1 = SecretKey::from_bytes(&TV4_SENDER_SK_1).expect("TV4 sender SK 1 < r");
 
-        let aggregated = aggregate_sender_sks(&[sk0, sk1]);
+        let aggregated = aggregate_sender_sks(&[sk0, sk1]).expect("non-zero sum");
 
         assert_eq!(
             *aggregated.as_bytes(),
@@ -449,7 +472,8 @@ mod tests {
         let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
 
         let result =
-            derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &aggregated_sender_sk, &input_hash, 0);
+            derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &aggregated_sender_sk, &input_hash, 0)
+                .expect("TV1 derivation");
 
         assert_eq!(
             *result.as_ref(),
@@ -493,12 +517,100 @@ mod tests {
 
         // Sender-side derivation under test:
         let sender_ph =
-            derive_one_time_puzzle_hash(&b_scan_pub, &b_spend_pub, &a_sum_sk, &input_hash, 1);
+            derive_one_time_puzzle_hash(&b_scan_pub, &b_spend_pub, &a_sum_sk, &input_hash, 1)
+                .expect("k=1 derivation");
 
         assert_eq!(
             *sender_ph.as_ref(),
             *expected_ph.as_ref(),
             "k=1 round-trip: sender and receiver derivations must agree byte-for-byte"
+        );
+    }
+
+    // ─── CHIP-0057 "Edge Cases": zero key sum and zero scalars ───────────
+
+    /// `r - sk`, the additive inverse of a secret key mod r.
+    fn negate(sk: &SecretKey) -> SecretKey {
+        use chia_sdk_types::silent_payments::GROUP_ORDER;
+
+        let bytes = sk.to_bytes();
+        let mut out = [0u8; 32];
+        let mut borrow = 0u16;
+        for i in (0..32).rev() {
+            let lhs = u16::from(GROUP_ORDER[i]);
+            let rhs = u16::from(bytes[i]) + borrow;
+            if lhs >= rhs {
+                out[i] = u8::try_from(lhs - rhs).unwrap();
+                borrow = 0;
+            } else {
+                out[i] = u8::try_from(lhs + 256 - rhs).unwrap();
+                borrow = 1;
+            }
+        }
+        SecretKey::from_bytes(&out).expect("r - sk is below r")
+    }
+
+    /// Secret keys `a` and `r - a` sum to zero mod r: the sender must fail.
+    #[test]
+    fn aggregate_sender_sks_rejects_zero_sum() {
+        let a = SecretKey::from_seed(&[1u8; 32]);
+        let minus_a = negate(&a);
+        assert!((a.public_key() + &minus_a.public_key()).is_inf());
+
+        let result = aggregate_sender_sks(&[a, minus_a]);
+        assert!(matches!(result, Err(DriverError::SilentPaymentZeroKeySum)));
+    }
+
+    /// No keys at all also sum to zero.
+    #[test]
+    fn aggregate_sender_sks_rejects_empty() {
+        let result = aggregate_sender_sks(&[]);
+        assert!(matches!(result, Err(DriverError::SilentPaymentZeroKeySum)));
+    }
+
+    /// A zero key sum handed directly to the derivation is rejected as well.
+    #[test]
+    fn derive_one_time_puzzle_hash_rejects_zero_key_sum() {
+        let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).unwrap();
+        let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
+        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+        let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
+
+        let result = derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &zero, &input_hash, 0);
+        assert!(matches!(result, Err(DriverError::SilentPaymentZeroKeySum)));
+    }
+
+    /// `input_hash == 0` makes the sender fail. A hash that reduces to zero
+    /// cannot be produced on demand, so the zero scalar is passed in directly.
+    #[test]
+    fn derive_one_time_puzzle_hash_rejects_zero_input_hash() {
+        let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).unwrap();
+        let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
+        let a_sum = ScalarField::from_bytes_raw(TV1_AGGREGATED_SENDER_SK);
+        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+
+        let result = derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &a_sum, &zero, 0);
+        assert!(matches!(
+            result,
+            Err(DriverError::SilentPaymentZeroInputHash)
+        ));
+    }
+
+    /// `t_k == 0` makes the sender fail. As above, the zero tweak is passed to
+    /// the helper that `derive_one_time_puzzle_hash` runs on every tweak.
+    #[test]
+    fn one_time_puzzle_hash_rejects_zero_tweak() {
+        let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
+        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+
+        let result = one_time_puzzle_hash_from_tweak(&spend_pk, &zero);
+        assert!(matches!(result, Err(DriverError::SilentPaymentZeroTweak)));
+
+        // A non-zero tweak passes and matches the public composition.
+        let t = derive_output_tweak(&TV1_SHARED_SECRET, 0);
+        assert_eq!(
+            one_time_puzzle_hash_from_tweak(&spend_pk, &t).unwrap(),
+            Bytes32::from(TV1_PUZZLE_HASH)
         );
     }
 }

@@ -427,7 +427,7 @@ impl SilentPayments {
             &agg,
             &ih,
             k,
-        ))
+        )?)
     }
 
     pub fn compute_input_hash(
@@ -441,7 +441,7 @@ impl SilentPayments {
     }
 
     pub fn aggregate_sender_sks(sks: Vec<SecretKey>) -> Result<ScalarField> {
-        Ok(chia_sdk_driver::aggregate_sender_sks(&sks).into())
+        Ok(chia_sdk_driver::aggregate_sender_sks(&sks)?.into())
     }
 
     /// Build a `TweakData` from a real-block `Vec<CoinSpend>` + `Vec<Coin>`

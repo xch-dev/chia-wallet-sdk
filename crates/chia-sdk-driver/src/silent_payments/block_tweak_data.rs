@@ -66,7 +66,7 @@
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::{Condition, run_puzzle, silent_payments::ScalarField};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
@@ -187,12 +187,15 @@ pub fn tweak_data_from_block_spends(
         for &i in &group[1..] {
             a_sum += &standard_spends[i].synthetic_pk;
         }
-        let input_hash = compute_input_hash(&coin_ids, &a_sum);
-        let mut tweak_point = a_sum;
-        tweak_point.scalar_multiply(&input_hash.to_bytes());
-        if tweak_point.is_inf() {
+        // CHIP-0057 `ScanForSilentPayment`: skip the group if its keys sum to the
+        // identity element, or if its input hash is zero.
+        if a_sum.is_inf() {
             continue;
         }
+        let input_hash = compute_input_hash(&coin_ids, &a_sum);
+        let Some(tweak_point) = group_tweak_point(&a_sum, &input_hash) else {
+            continue;
+        };
         if seen.insert(tweak_point.to_bytes()) {
             tweak_points.push(tweak_point);
         }
@@ -213,6 +216,21 @@ pub fn tweak_data_from_block_spends(
         tweak_points,
         outputs,
     })
+}
+
+/// The tweak point `T = input_hash * A_sum` of a spend group (CHIP-0057 "Tweak
+/// Points"), or `None` for a group that scanners skip: one whose keys sum to the
+/// identity element, or whose input hash is zero.
+fn group_tweak_point(a_sum: &PublicKey, input_hash: &ScalarField) -> Option<PublicKey> {
+    if a_sum.is_inf() || input_hash.is_zero() {
+        return None;
+    }
+    let mut tweak_point = *a_sum;
+    tweak_point.scalar_multiply(input_hash.as_bytes());
+    if tweak_point.is_inf() {
+        return None;
+    }
+    Some(tweak_point)
 }
 
 /// Iterative Tarjan strongly-connected-components over a directed graph
@@ -711,5 +729,85 @@ mod tests {
             "the single-input send's Pass-1 singleton tweak_point must be present despite the \
              puzzle-hash collision",
         );
+    }
+
+    /// `r - sk`, the additive inverse of a secret key mod r.
+    fn negate(sk: &chia_bls::SecretKey) -> chia_bls::SecretKey {
+        use chia_sdk_types::silent_payments::GROUP_ORDER;
+
+        let bytes = sk.to_bytes();
+        let mut out = [0u8; 32];
+        let mut borrow = 0u16;
+        for i in (0..32).rev() {
+            let lhs = u16::from(GROUP_ORDER[i]);
+            let rhs = u16::from(bytes[i]) + borrow;
+            if lhs >= rhs {
+                out[i] = u8::try_from(lhs - rhs).unwrap();
+                borrow = 0;
+            } else {
+                out[i] = u8::try_from(lhs + 256 - rhs).unwrap();
+                borrow = 1;
+            }
+        }
+        chia_bls::SecretKey::from_bytes(&out).expect("r - sk is below r")
+    }
+
+    /// CHIP-0057 "Edge Cases", scanner side: a spend group whose public keys
+    /// sum to the identity element is skipped. Two coins with keys `a` and
+    /// `r - a` bound in a cycle yield their two single-input tweak points, but
+    /// none for the multi-input group.
+    #[test]
+    fn group_with_identity_key_sum_is_skipped() {
+        let a = chia_bls::SecretKey::from_seed(&[0x21u8; 32]);
+        let minus_a = negate(&a);
+        let pk_a = a.public_key();
+        let pk_b = minus_a.public_key();
+        assert!((pk_a + &pk_b).is_inf());
+
+        let parent_a: Bytes32 = [0x71u8; 32].into();
+        let parent_b: Bytes32 = [0x72u8; 32].into();
+        let id_a = Coin::new(parent_a, StandardArgs::curry_tree_hash(pk_a).into(), 1).coin_id();
+        let id_b = Coin::new(parent_b, StandardArgs::curry_tree_hash(pk_b).into(), 1).coin_id();
+
+        let spend_a = build_standard_coin_spend(
+            pk_a,
+            parent_a,
+            1,
+            Conditions::new().assert_concurrent_spend(id_b),
+        );
+        let spend_b = build_standard_coin_spend(
+            pk_b,
+            parent_b,
+            1,
+            Conditions::new().assert_concurrent_spend(id_a),
+        );
+
+        let td = tweak_data_from_block_spends(&[spend_a, spend_b], &[]).expect("ok");
+        assert_eq!(
+            td.tweak_points.len(),
+            2,
+            "only the two single-input groups yield a tweak point"
+        );
+        for (pk, id) in [(pk_a, id_a), (pk_b, id_b)] {
+            let expected = group_tweak_point(&pk, &compute_input_hash(&[id], &pk)).unwrap();
+            assert!(td.tweak_points.contains(&expected));
+        }
+    }
+
+    /// A group whose input hash is zero is skipped. A hash that reduces to zero
+    /// cannot be produced on demand, so the helper is given the zero scalar.
+    #[test]
+    fn group_with_zero_input_hash_is_skipped() {
+        let pk = chia_bls::SecretKey::from_seed(&[0x22u8; 32]).public_key();
+        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+        assert!(group_tweak_point(&pk, &zero).is_none());
+
+        let one = {
+            let mut bytes = [0u8; 32];
+            bytes[31] = 1;
+            ScalarField::from_bytes_raw(bytes)
+        };
+        assert_eq!(group_tweak_point(&pk, &one), Some(pk));
+        assert!(group_tweak_point(&PublicKey::default(), &one).is_none());
     }
 }

@@ -280,13 +280,18 @@ mod silent_payment_tests {
         // construction; functionally identical to passing one SK through
         // aggregate_sender_sks).
         let alice_sks = vec![alice.sk.clone()];
-        let aggregated_sender_sk = aggregate_sender_sks(&alice_sks);
+        let aggregated_sender_sk = aggregate_sender_sks(&alice_sks)?;
         let agg_pk = SecretKey::from_bytes(aggregated_sender_sk.as_bytes())
             .expect("aggregated SK < r")
             .public_key();
         let input_hash = compute_input_hash(&[alice.coin.coin_id()], &agg_pk);
-        let expected_ph =
-            derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &aggregated_sender_sk, &input_hash, 0);
+        let expected_ph = derive_one_time_puzzle_hash(
+            &scan_pk,
+            &spend_pk,
+            &aggregated_sender_sk,
+            &input_hash,
+            0,
+        )?;
 
         // Assert: at least one xch output matches expected_ph + amount 1.
         // outputs.xch may also include change (alice.coin amount > 1).
@@ -460,14 +465,19 @@ mod silent_payment_tests {
         // Vec intermediate (clippy::cloned_ref_to_slice_refs precedent):
         // satisfies clippy on the slice construction.
         let sender_sks = vec![alice.sk.clone(), bob.sk.clone()];
-        let aggregated_sender_sk = aggregate_sender_sks(&sender_sks);
+        let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
         let agg_pk = SecretKey::from_bytes(aggregated_sender_sk.as_bytes())
             .expect("aggregated SK < r")
             .public_key();
         let coin_ids = vec![alice.coin.coin_id(), bob.coin.coin_id()];
         let input_hash = compute_input_hash(&coin_ids, &agg_pk);
-        let expected_ph =
-            derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &aggregated_sender_sk, &input_hash, 0);
+        let expected_ph = derive_one_time_puzzle_hash(
+            &scan_pk,
+            &spend_pk,
+            &aggregated_sender_sk,
+            &input_hash,
+            0,
+        )?;
 
         let found = outputs
             .xch

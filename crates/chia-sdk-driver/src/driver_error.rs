@@ -213,6 +213,25 @@ pub enum DriverError {
     #[error("silent payment requires an xch input")]
     SilentPaymentNoXchInputs,
 
+    /// The secret keys of the silent-payment spend group sum to zero mod r.
+    /// ECDH with a zero key yields the identity point and a shared secret that
+    /// anyone can compute, so CHIP-0057 requires the sender to fail.
+    #[cfg(feature = "chip-0057")]
+    #[error("aggregated sender key sum is zero - invalid for ECDH")]
+    SilentPaymentZeroKeySum,
+
+    /// The silent-payment input hash reduced to zero mod r, which would make
+    /// the shared secret independent of the sender's keys.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment input hash is zero")]
+    SilentPaymentZeroInputHash,
+
+    /// A silent-payment output tweak reduced to zero mod r, which would make
+    /// the one-time key equal to the address's own spend key.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment output tweak is zero")]
+    SilentPaymentZeroTweak,
+
     /// The first memo was exactly 32 bytes, which the standard wallet promotes
     /// to a `puzzle_hash` hint and indexes — exposing the one-time puzzle hash
     /// and defeating silent-payment privacy. Prefix the payload with a sentinel

@@ -20,6 +20,7 @@
 use anyhow::Result;
 use bip39::Mnemonic;
 use chia_protocol::Coin;
+use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_sdk_driver::silent_payments::{
     K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, scan_from_tweaks,
@@ -31,6 +32,7 @@ use chia_sdk_driver::{
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator};
 use chia_sdk_types::Conditions;
+use chia_sdk_types::silent_payments::GROUP_ORDER;
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, SilentPaymentNetwork};
 use indexmap::indexmap;
 
@@ -696,5 +698,73 @@ fn test_intermediate_coin_without_key_errors() -> Result<()> {
         ),
         "expected SilentPaymentIntermediateKeyMissing, got {result:?}"
     );
+    Ok(())
+}
+
+/// `r - sk`, the additive inverse of a secret key mod r.
+fn negate(sk: &chia_bls::SecretKey) -> chia_bls::SecretKey {
+    let bytes = sk.to_bytes();
+    let mut out = [0u8; 32];
+    let mut borrow = 0u16;
+    for i in (0..32).rev() {
+        let lhs = u16::from(GROUP_ORDER[i]);
+        let rhs = u16::from(bytes[i]) + borrow;
+        if lhs >= rhs {
+            out[i] = u8::try_from(lhs - rhs).unwrap();
+            borrow = 0;
+        } else {
+            out[i] = u8::try_from(lhs + 256 - rhs).unwrap();
+            borrow = 1;
+        }
+    }
+    chia_bls::SecretKey::from_bytes(&out).expect("r - sk is below r")
+}
+
+/// CHIP-0057 "Edge Cases": a spend group whose secret keys sum to zero mod r
+/// makes the sender fail. Two inputs with keys `a` and `r - a`.
+#[test]
+fn test_zero_key_sum_makes_the_sender_fail() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let sk1 = chia_bls::SecretKey::from_seed(&[1u8; 32]);
+    let sk2 = negate(&sk1);
+    let pk1 = sk1.public_key();
+    let pk2 = sk2.public_key();
+    assert!((pk1 + &pk2).is_inf(), "the two keys must cancel out");
+
+    let ph1: chia_protocol::Bytes32 = StandardArgs::curry_tree_hash(pk1).into();
+    let ph2: chia_protocol::Bytes32 = StandardArgs::curry_tree_hash(pk2).into();
+    let coin1 = sim.new_coin(ph1, 600);
+    let coin2 = sim.new_coin(ph2, 600);
+
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TV1_MNEMONIC)?);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+
+    let mut spends = Spends::new(ph1);
+    spends.add(coin1);
+    spends.add(coin2);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address, 1000, Memos::None)],
+    )?;
+    spends.with_silent_payment_keys(
+        indexmap! {
+            ph1 => SyntheticPublicKey::from_synthetic_unchecked(pk1),
+            ph2 => SyntheticPublicKey::from_synthetic_unchecked(pk2),
+        },
+        indexmap! {
+            ph1 => SyntheticSecretKey::from_synthetic_unchecked(sk1),
+            ph2 => SyntheticSecretKey::from_synthetic_unchecked(sk2),
+        },
+    );
+    let pk_map = indexmap! { ph1 => pk1, ph2 => pk2 };
+
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentZeroKeySum)),
+        "expected SilentPaymentZeroKeySum, got {result:?}"
+    );
+    assert!(ctx.take().is_empty(), "no coin spends may be produced");
     Ok(())
 }

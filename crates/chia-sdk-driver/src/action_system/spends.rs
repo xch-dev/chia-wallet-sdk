@@ -721,6 +721,9 @@ impl Spends<Unfinished> {
 ///    of its coin.
 /// 7. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
 ///    outside the group.
+/// 8. [`DriverError::SilentPaymentZeroKeySum`] if the secret keys of the group sum to zero, and
+///    [`DriverError::SilentPaymentZeroInputHash`] / [`DriverError::SilentPaymentZeroTweak`] if
+///    one of the derived scalars is zero.
 ///
 /// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
 /// that were actually bound together once the transaction is complete.
@@ -823,14 +826,17 @@ fn sp_finish_branch(
         return Err(DriverError::SilentPaymentParentNotEligible);
     }
 
-    // The aggregated public key is derived from the secret key sum rather than by adding the
-    // public keys; the two are equal.
-    let aggregated_sender_sk = aggregate_sender_sks(&sender_sks);
+    // `aggregate_sender_sks` fails if the keys sum to zero mod r. The aggregated public key is
+    // derived from the secret key sum rather than by adding the public keys; the two are equal.
+    let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
     let agg_pk = SecretKey::from_bytes(aggregated_sender_sk.as_bytes())
-        .expect("ScalarField guarantees < r; zero aggregate has vanishing probability")
+        .expect("a ScalarField sum is below the group order")
         .public_key();
 
     let input_hash = compute_input_hash(&group_coin_ids, &agg_pk);
+    if input_hash.is_zero() {
+        return Err(DriverError::SilentPaymentZeroInputHash);
+    }
 
     // Take the pending outputs so that they can be iterated while `spends` is mutated.
     let pending = std::mem::take(&mut spends.silent_payments_pending);
@@ -842,7 +848,7 @@ fn sp_finish_branch(
             &aggregated_sender_sk,
             &input_hash,
             p.k,
-        );
+        )?;
 
         let create_coin = CreateCoin::new(ph, p.amount, p.memos);
 
