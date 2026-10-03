@@ -28,8 +28,7 @@ use chia_sdk_types::silent_payments::ScalarField;
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, generate_label};
 
 use super::protocol::{
-    compute_shared_secret_from_tweak, derive_onetime_pk, derive_onetime_sk, derive_output_tweak,
-    puzzle_hash_for_pk,
+    compute_shared_secret_from_tweak, derive_onetime_pk, derive_output_tweak, puzzle_hash_for_pk,
 };
 use super::types::{DetectedSpCoin, TweakData};
 
@@ -42,39 +41,28 @@ use super::types::{DetectedSpCoin, TweakData};
 /// environments) but should not exceed this in production scans.
 pub const K_MAX_DEFAULT: usize = 2400;
 
-/// Scan a block's worth of tweak points + candidate outputs for silent
-/// payments addressed to this wallet.
+/// Scan tweak points and candidate outputs for silent payments addressed to
+/// this wallet (CHIP-0057 `ScanForSilentPayment`, driven by tweak points).
 ///
-/// For each `tweak_point` in `data.tweak_points`, performs one ECDH operation
-/// (`scan_sk * tweak_point`, hashed to a 32-byte shared secret) and iterates
-/// `k = 0, 1, 2, ...` up to `k_max`, deriving the candidate one-time puzzle
-/// hash and checking against `data.outputs`. Labeled detection (per `labels`)
-/// is interleaved per the CHIP-0057 labeled k-termination rule.
+/// Scanning needs only the scan secret key and the spend public key, never the
+/// spend secret key, so it can run on a watch-only device. Each detection
+/// carries the combined tweak `(t_k + label_scalar) mod r`; the holder of the
+/// spend secret key turns it into the one-time key with
+/// [`DetectedSpCoin::onetime_sk`] (or [`super::derive_onetime_sk`]).
 ///
-/// **CHIP §459 guard:** identity-element tweak points are skipped silently —
-/// they produce a predictable shared secret that would otherwise enable
-/// false-positive detections.
+/// For each tweak point `T`, one ECDH is performed (`scan_sk * T`, hashed to
+/// the shared secret) and `k = 0, 1, 2, ...` is iterated up to `k_max`. At each
+/// `k` the unlabeled candidate is checked first, then each label in `labels`;
+/// the group is abandoned at the first `k` where nothing matches.
 ///
-/// **CHIP §416 `K_max` cap:** the `k_max` parameter bounds the per-spend-group
-/// iteration count so an adversarial tweak source cannot force unbounded
-/// scanning. Default value: [`K_MAX_DEFAULT`].
-///
-/// **Termination:** the `k` loop stops at the first miss (`if !found { break; }`)
-/// — except labeled detections continue if either an unlabeled OR any labeled
-/// candidate matches at the current `k`.
-//
-// `clippy::similar_names` on the `spend_sk` / `spend_pk` parameter pair is
-// genuinely unavoidable here: the function signature's `&PublicKey, &SecretKey`
-// parameter pair triggers clippy::similar_names, and the labeled-detection
-// branch below references both names directly — local rebinding would either
-// break the signature or break the labeled-branch's structural expectations.
-// The single-byte difference (`sk` vs `pk`) is below clippy's similarity
-// threshold. Allowed at function scope only, not at module scope.
-#[allow(clippy::similar_names)]
+/// Tweak points are taken from another party, so each one is checked to be a
+/// non-identity element of the prime-order subgroup before it is multiplied by
+/// the scan key (CHIP-0057 "Tweak Points"); points that fail are skipped.
+/// Outputs are matched against all of `data.outputs` (CHIP-0057 "Output
+/// Matching Scope").
 #[must_use]
 pub fn scan_from_tweaks(
     scan_sk: &SecretKey,
-    spend_sk: &SecretKey,
     spend_pk: &PublicKey,
     data: &TweakData,
     labels: Option<&LabelRegistry>,
@@ -86,8 +74,9 @@ pub fn scan_from_tweaks(
     let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX);
 
     for tweak_point in &data.tweak_points {
-        // CHIP-0057 "Edge Cases": skip identity-element tweak points.
-        if tweak_point.is_inf() {
+        // CHIP-0057 "Tweak Points" / "Edge Cases": never multiply the scan key
+        // by the identity element or by a point outside the prime-order subgroup.
+        if tweak_point.is_inf() || !tweak_point.is_valid() {
             continue;
         }
 
@@ -96,7 +85,6 @@ pub fn scan_from_tweaks(
         scan_group(
             |k| derive_output_tweak(&shared_secret, k),
             scan_sk,
-            spend_sk,
             spend_pk,
             data,
             &output_phs,
@@ -112,11 +100,10 @@ pub fn scan_from_tweaks(
 /// The `k` loop of the CHIP-0057 `ScanForSilentPayment` procedure for one spend
 /// group. `tweak_for_k` yields the output tweak `t_k`; it is a parameter so that
 /// the zero-tweak rule can be tested.
-#[allow(clippy::similar_names, clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn scan_group(
     tweak_for_k: impl Fn(u32) -> ScalarField,
     scan_sk: &SecretKey,
-    spend_sk: &SecretKey,
     spend_pk: &PublicKey,
     data: &TweakData,
     output_phs: &HashSet<Bytes32>,
@@ -143,15 +130,14 @@ fn scan_group(
                 .iter()
                 .find(|o| o.puzzle_hash == candidate_hash)
         {
-            let onetime_sk = derive_onetime_sk(spend_sk, &output_tweak);
             detected.push(DetectedSpCoin {
                 coin_id: out.coin_id,
                 puzzle_hash: out.puzzle_hash,
                 amount: out.amount,
                 parent_coin_id: out.parent_coin_id,
-                onetime_sk,
                 k,
                 label: None,
+                tweak: output_tweak,
             });
             found = true;
         }
@@ -165,20 +151,17 @@ fn scan_group(
                 if output_phs.contains(&labeled_hash)
                     && let Some(out) = data.outputs.iter().find(|o| o.puzzle_hash == labeled_hash)
                 {
-                    let base_sk = derive_onetime_sk(spend_sk, &output_tweak);
+                    // The label scalar is derived from the scan key, so the
+                    // combined tweak needs no spend key either.
                     let (label_scalar, _) = generate_label(scan_sk, m);
-                    let base_scalar = ScalarField::from_bytes_raw(base_sk.to_bytes());
-                    let labeled_scalar = base_scalar.add(&label_scalar);
-                    let labeled_sk = SecretKey::from_bytes(labeled_scalar.as_bytes())
-                        .expect("labeled scalar < r by ScalarField boundary");
                     detected.push(DetectedSpCoin {
                         coin_id: out.coin_id,
                         puzzle_hash: out.puzzle_hash,
                         amount: out.amount,
                         parent_coin_id: out.parent_coin_id,
-                        onetime_sk: labeled_sk,
                         k,
                         label: Some(m),
+                        tweak: output_tweak.add(&label_scalar),
                     });
                     found = true;
                     break; // first labeled match wins for this k
@@ -193,19 +176,17 @@ fn scan_group(
     }
 }
 
-/// Convenience trait that lets a [`SilentPaymentKeys`] bundle drive the
-/// scanner via a single method call, avoiding the four-key-argument
-/// boilerplate of [`scan_from_tweaks`].
+/// Lets a [`SilentPaymentKeys`] bundle drive the scanner with a single method
+/// call.
 ///
-/// The orphan rule prevents inherent methods on `SilentPaymentKeys` from
-/// `chia-sdk-driver` (the type is defined in `chia-sdk-utils`), so the SDK
-/// exposes the bundled flow as a driver-side trait. Wallet authors who
-/// prefer the raw-args flow — for example, hardware-split signers where
-/// `spend_sk` lives on a device — call [`scan_from_tweaks`] directly.
+/// The type is defined in `chia-sdk-utils`, so the bundled flow is exposed as a
+/// trait here. A watch-only scanner, which holds the scan secret key and the
+/// spend public key but not the spend secret key, cannot build a
+/// [`SilentPaymentKeys`] and calls [`scan_from_tweaks`] directly.
 pub trait SilentPaymentScan {
     /// Scan `tweak_data` for silent-payment outputs addressed to this key
     /// bundle. Equivalent to calling [`scan_from_tweaks`] with this bundle's
-    /// `scan_sk`, `spend_sk`, `spend_pk`.
+    /// `scan_sk` and `spend_pk`; the spend secret key is not used.
     fn scan(
         &self,
         tweak_data: &TweakData,
@@ -221,19 +202,13 @@ impl SilentPaymentScan for SilentPaymentKeys {
         labels: Option<&LabelRegistry>,
         k_max: usize,
     ) -> Vec<DetectedSpCoin> {
-        scan_from_tweaks(
-            self.scan_sk(),
-            self.spend_sk(),
-            self.spend_pk(),
-            tweak_data,
-            labels,
-            k_max,
-        )
+        scan_from_tweaks(self.scan_sk(), self.spend_pk(), tweak_data, labels, k_max)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::protocol::derive_onetime_sk;
     use super::super::types::OutputMeta;
     use super::*;
     use hex_literal::hex;
@@ -260,6 +235,8 @@ mod tests {
         hex!("23adba149dd9000d65e0f8e21b6975364cbe89a63caf56533df4b7664c21fbf5");
     const TV1_ONETIME_SK: [u8; 32] =
         hex!("3c399c61ae130724903b3b650e936ff042b7646764289a33519e17100a89db37");
+    const TV1_T0: [u8; 32] =
+        hex!("5c560301c50fa309ad43d0f82cd1af143f6e3769659c80e8c14a072331582ab1");
 
     // ─── TV4 pinned bytes (CHIP-0057 test vector 4 — multi-input) ──────────
 
@@ -310,7 +287,6 @@ mod tests {
 
         let detections = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
-            &sk(TV1_SPEND_SK),
             &pk(TV1_SPEND_PK),
             &data,
             None,
@@ -324,8 +300,10 @@ mod tests {
         assert_eq!(detection.puzzle_hash, Bytes32::from(TV1_PUZZLE_HASH));
         assert_eq!(detection.coin_id, Bytes32::from(TV1_COIN_ID));
         assert_eq!(detection.amount, 1000);
+        // The detection carries t_0; the one-time key needs the spend key.
+        assert_eq!(detection.tweak.to_bytes(), TV1_T0, "TV1 t_0 mismatch");
         assert_eq!(
-            detection.onetime_sk.to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
             TV1_ONETIME_SK,
             "TV1 onetime_sk mismatch"
         );
@@ -352,7 +330,6 @@ mod tests {
 
         let detections = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
-            &sk(TV1_SPEND_SK),
             &pk(TV1_SPEND_PK),
             &data,
             None,
@@ -365,7 +342,7 @@ mod tests {
         assert!(detection.label.is_none());
         assert_eq!(detection.puzzle_hash, Bytes32::from(TV4_PUZZLE_HASH));
         assert_eq!(
-            detection.onetime_sk.to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
             TV4_ONETIME_SK,
             "TV4 onetime_sk mismatch"
         );
@@ -381,6 +358,10 @@ mod tests {
         hex!("ba271d218d487e8e5dc994a09a8580e1e8a0559a615bd5805cff11b5a343441c");
     const TV3_LABELED_ONETIME_SK: [u8; 32] =
         hex!("58fc619583ff32e8e6e5cbe8587f4e1a395a04d538b132e5787d634cb64852dc");
+    const TV3_T0: [u8; 32] =
+        hex!("301e842ace534f7de854dcc5a48a656d7e9a6d8b8f93db9fb8277f4d1889bdf1");
+    const TV3_LABEL_SCALAR: [u8; 32] =
+        hex!("48fa440acca87f501b9984b5d23327d0b7766a4baa913dfb3001d412c48ce465");
 
     /// CHIP §459 identity-element guard: a `TweakData` containing
     /// `PublicKey::default()` (identity element) is skipped silently — no
@@ -408,7 +389,6 @@ mod tests {
 
         let detections = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
-            &sk(TV1_SPEND_SK),
             &pk(TV1_SPEND_PK),
             &data,
             None,
@@ -446,7 +426,6 @@ mod tests {
 
         let detections = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
-            &sk(TV1_SPEND_SK),
             &pk(TV1_SPEND_PK),
             &data,
             Some(&labels),
@@ -462,8 +441,13 @@ mod tests {
         assert_eq!(detection.k, 0);
         assert_eq!(detection.label, Some(1), "TV3 is m=1");
         assert_eq!(detection.puzzle_hash, Bytes32::from(TV3_PUZZLE_HASH));
+        // The combined tweak is (t_0 + label_scalar) mod r, so the signer needs
+        // only the spend key (CHIP-0057 "Spending").
+        let expected_tweak =
+            ScalarField::from_bytes_raw(TV3_T0).add(&ScalarField::from_bytes_raw(TV3_LABEL_SCALAR));
+        assert_eq!(detection.tweak.to_bytes(), expected_tweak.to_bytes());
         assert_eq!(
-            detection.onetime_sk.to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
             TV3_LABELED_ONETIME_SK,
             "TV3 labeled onetime_sk mismatch"
         );
@@ -529,8 +513,7 @@ mod tests {
             ],
         };
 
-        let detections =
-            scan_from_tweaks(&b_scan, &b_spend, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
 
         assert_eq!(detections.len(), 2, "expected k=0 + k=1 detection");
         let mut sorted = detections.clone();
@@ -544,7 +527,7 @@ mod tests {
         assert!(sorted[1].label.is_none());
         assert_eq!(sorted[1].puzzle_hash, expected_ph_k1);
         assert_eq!(
-            sorted[1].onetime_sk.to_bytes(),
+            sorted[1].onetime_sk(&b_spend).to_bytes(),
             expected_secret_k1.to_bytes(),
             "k=1 onetime_sk must equal (b_spend + t_1) mod r"
         );
@@ -557,7 +540,6 @@ mod tests {
     #[test]
     fn labeled_k_termination_rule() {
         let b_scan = sk(TV1_SCAN_SK);
-        let b_spend = sk(TV1_SPEND_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
 
@@ -595,14 +577,8 @@ mod tests {
             ],
         };
 
-        let detections = scan_from_tweaks(
-            &b_scan,
-            &b_spend,
-            &b_spend_pub,
-            &data,
-            Some(&labels),
-            K_MAX_DEFAULT,
-        );
+        let detections =
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
 
         assert_eq!(
             detections.len(),
@@ -632,7 +608,6 @@ mod tests {
     #[test]
     fn unlabeled_preferred_over_labeled_at_same_k() {
         let b_scan = sk(TV1_SCAN_SK);
-        let b_spend = sk(TV1_SPEND_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
 
@@ -649,14 +624,8 @@ mod tests {
             }],
         };
 
-        let detections = scan_from_tweaks(
-            &b_scan,
-            &b_spend,
-            &b_spend_pub,
-            &data,
-            Some(&labels),
-            K_MAX_DEFAULT,
-        );
+        let detections =
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
 
         assert_eq!(
             detections.len(),
@@ -684,7 +653,6 @@ mod tests {
         const K_MAX_TEST: usize = 32;
 
         let b_scan = sk(TV1_SCAN_SK);
-        let b_spend = sk(TV1_SPEND_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
 
@@ -709,7 +677,7 @@ mod tests {
             outputs,
         };
 
-        let detections = scan_from_tweaks(&b_scan, &b_spend, &b_spend_pub, &data, None, K_MAX_TEST);
+        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_TEST);
 
         assert!(
             detections.len() <= K_MAX_TEST,
@@ -723,7 +691,7 @@ mod tests {
     /// free function `scan_from_tweaks`. Demonstrates the two API surfaces
     /// coexist — the trait method exists for callers who hold a bundled
     /// `SilentPaymentKeys`, while the free function is the entry point for
-    /// hardware-split signers where `spend_sk` lives on a device.
+    /// watch-only scanners that hold no spend secret key.
     #[test]
     fn silent_payment_keys_scan_method_matches_free_fn_tv1() {
         use chia_sdk_utils::silent_payments::SilentPaymentKeys;
@@ -740,7 +708,6 @@ mod tests {
 
         let free_fn_result = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
-            &sk(TV1_SPEND_SK),
             &pk(TV1_SPEND_PK),
             &data,
             None,
@@ -756,8 +723,8 @@ mod tests {
         assert_eq!(free_fn_result[0].puzzle_hash, method_result[0].puzzle_hash);
         assert_eq!(free_fn_result[0].k, method_result[0].k);
         assert_eq!(
-            free_fn_result[0].onetime_sk.to_bytes(),
-            method_result[0].onetime_sk.to_bytes()
+            free_fn_result[0].tweak.to_bytes(),
+            method_result[0].tweak.to_bytes()
         );
         assert_eq!(free_fn_result[0].label, method_result[0].label);
     }
@@ -768,7 +735,6 @@ mod tests {
     #[test]
     fn zero_tweak_stops_scanning_the_group() {
         let b_scan = sk(TV1_SCAN_SK);
-        let b_spend = sk(TV1_SPEND_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
@@ -796,7 +762,6 @@ mod tests {
         scan_group(
             |k| derive_output_tweak(&shared_secret, k),
             &b_scan,
-            &b_spend,
             &b_spend_pub,
             &data,
             &output_phs,
@@ -817,7 +782,6 @@ mod tests {
                 }
             },
             &b_scan,
-            &b_spend,
             &b_spend_pub,
             &data,
             &output_phs,
@@ -827,5 +791,123 @@ mod tests {
         );
         assert_eq!(detected.len(), 1);
         assert_eq!(detected[0].k, 0);
+    }
+
+    /// A watch-only scanner holds `b_scan` and `B_spend` only. Its detections
+    /// carry the combined tweak, which is handed (here as 32 bytes) to a signer
+    /// that holds `b_spend`; the signer's one-time key controls the detected
+    /// puzzle hash. Covers an unlabeled and a labeled output (CHIP-0057
+    /// "Spending": the signer needs only `b_spend`).
+    #[test]
+    fn watch_only_detection_is_completed_by_the_spend_key() {
+        let mut labels = LabelRegistry::new();
+        labels.register(&sk(TV1_SCAN_SK), 1);
+
+        let data = TweakData {
+            tweak_points: vec![
+                tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH),
+                tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH),
+            ],
+            outputs: vec![
+                OutputMeta {
+                    puzzle_hash: TV1_PUZZLE_HASH.into(),
+                    coin_id: TV1_COIN_ID.into(),
+                    amount: 1000,
+                    parent_coin_id: [1u8; 32].into(),
+                },
+                OutputMeta {
+                    puzzle_hash: TV3_PUZZLE_HASH.into(),
+                    coin_id: TV3_COIN_ID.into(),
+                    amount: 500,
+                    parent_coin_id: [3u8; 32].into(),
+                },
+            ],
+        };
+
+        // Scanner side: no spend secret key in sight.
+        let detections = scan_from_tweaks(
+            &sk(TV1_SCAN_SK),
+            &pk(TV1_SPEND_PK),
+            &data,
+            Some(&labels),
+            K_MAX_DEFAULT,
+        );
+        assert_eq!(detections.len(), 2);
+        let handed_over: Vec<([u8; 32], Bytes32)> = detections
+            .iter()
+            .map(|d| (d.tweak.to_bytes(), d.puzzle_hash))
+            .collect();
+        assert_eq!(detections[0].coin().puzzle_hash, detections[0].puzzle_hash);
+        assert_eq!(detections[0].coin().amount, 1000);
+        assert_eq!(detections[0].coin().parent_coin_info, [1u8; 32].into());
+
+        // Signer side: the spend secret key and the tweak are enough.
+        let b_spend = sk(TV1_SPEND_SK);
+        let expected = [TV1_ONETIME_SK, TV3_LABELED_ONETIME_SK];
+        for ((tweak, puzzle_hash), expected_sk) in handed_over.into_iter().zip(expected) {
+            let onetime_sk = derive_onetime_sk(&b_spend, &ScalarField::from_bytes_unsigned(tweak));
+            assert_eq!(onetime_sk.to_bytes(), expected_sk);
+            assert_eq!(puzzle_hash_for_pk(&onetime_sk.public_key()), puzzle_hash);
+        }
+    }
+
+    /// CHIP-0057 "Tweak Points": a tweak point supplied by another party must
+    /// be a non-identity element of the prime-order subgroup before the scan
+    /// key is multiplied by it. A point on the curve but outside the subgroup
+    /// is skipped, and does not stop the valid tweak point after it from being
+    /// scanned.
+    #[test]
+    fn tweak_point_outside_the_subgroup_is_skipped() {
+        // Find a compressed encoding that decodes to a curve point outside G1.
+        // The cofactor of G1 is large, so almost every curve point qualifies.
+        let off_subgroup = (1..=u8::MAX)
+            .find_map(|x| {
+                let mut bytes = [0u8; 48];
+                bytes[0] = 0x80;
+                bytes[47] = x;
+                PublicKey::from_bytes_unchecked(&bytes)
+                    .ok()
+                    .filter(|p| !p.is_valid())
+            })
+            .expect("a curve point outside the prime-order subgroup");
+        assert!(!off_subgroup.is_inf());
+
+        let output = OutputMeta {
+            puzzle_hash: TV1_PUZZLE_HASH.into(),
+            coin_id: TV1_COIN_ID.into(),
+            amount: 1000,
+            parent_coin_id: [0u8; 32].into(),
+        };
+
+        // Any output the invalid point would "pay" must not be reported: build
+        // the puzzle hash a scanner would derive from it if it did not check.
+        let leaked_secret = compute_shared_secret_from_tweak(&sk(TV1_SCAN_SK), &off_subgroup);
+        let leaked_ph = puzzle_hash_for_pk(&derive_onetime_pk(
+            &pk(TV1_SPEND_PK),
+            &derive_output_tweak(&leaked_secret, 0),
+        ));
+
+        let data = TweakData {
+            tweak_points: vec![off_subgroup, tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH)],
+            outputs: vec![
+                OutputMeta {
+                    puzzle_hash: leaked_ph,
+                    coin_id: [9u8; 32].into(),
+                    amount: 1,
+                    parent_coin_id: [0u8; 32].into(),
+                },
+                output,
+            ],
+        };
+
+        let detections = scan_from_tweaks(
+            &sk(TV1_SCAN_SK),
+            &pk(TV1_SPEND_PK),
+            &data,
+            None,
+            K_MAX_DEFAULT,
+        );
+        assert_eq!(detections.len(), 1);
+        assert_eq!(detections[0].puzzle_hash, Bytes32::from(TV1_PUZZLE_HASH));
     }
 }

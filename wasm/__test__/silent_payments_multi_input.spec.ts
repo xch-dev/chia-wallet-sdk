@@ -142,7 +142,6 @@ test("wasm: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
   const labels = new LabelRegistry();
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
-    recipient.spendSk(),
     recipient.spendPk(),
     tweakData,
     labels,

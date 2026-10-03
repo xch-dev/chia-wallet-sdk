@@ -118,7 +118,6 @@ def test_unlabeled_e2e():
     labels = LabelRegistry()
     detections = SilentPayments.scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         tweak_data,
         labels,
@@ -135,7 +134,9 @@ def test_unlabeled_e2e():
     # marshals correctly" — the cross-language client not only reads
     # tweak_points but can complete the full send -> farm -> extract ->
     # scan -> SPEND round-trip.
-    onetime_sk = detections[0].onetime_sk
+    # The detection carries only the combined tweak; the spend secret key is
+    # first needed here, to derive the one-time key.
+    onetime_sk = detections[0].onetime_sk(recipient.spend_sk())
     synthetic_sk = onetime_sk.derive_synthetic()
     synthetic_pk = synthetic_sk.public_key()
 
@@ -269,7 +270,6 @@ def test_multi_input_e2e():
     labels = LabelRegistry()
     detections = SilentPayments.scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         tweak_data,
         labels,

@@ -124,9 +124,20 @@
       "puzzle_hash": "Bytes32",
       "amount": "u64",
       "parent_coin_id": "Bytes32",
-      "onetime_sk": "SecretKey",
       "k": "u32",
-      "label": "Option<u32>"
+      "label": "Option<u32>",
+      "tweak": "ScalarField"
+    },
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      },
+      "onetime_sk": {
+        "args": {
+          "spend_sk": "SecretKey"
+        },
+        "return": "SecretKey"
+      }
     }
   },
   "ScalarField": {
@@ -166,13 +177,20 @@
         "type": "static",
         "args": {
           "scan_sk": "SecretKey",
-          "spend_sk": "SecretKey",
           "spend_pk": "PublicKey",
           "data": "TweakData",
           "labels": "LabelRegistry",
           "k_max": "u32"
         },
         "return": "Vec<DetectedSpCoin>"
+      },
+      "derive_onetime_sk": {
+        "type": "static",
+        "args": {
+          "spend_sk": "SecretKey",
+          "tweak": "ScalarField"
+        },
+        "return": "SecretKey"
       },
       "derive_one_time_puzzle_hash": {
         "type": "static",

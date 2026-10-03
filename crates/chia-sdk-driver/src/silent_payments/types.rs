@@ -10,12 +10,16 @@
 //!   the scanner matches against, plus the bookkeeping fields the wallet needs
 //!   to act on a detected coin without re-parsing the block.
 //! - [`DetectedSpCoin`] is the scanner's output — one entry per detected coin,
-//!   carrying enough information for the wallet to compose a follow-on spend.
+//!   carrying the coin and the tweak from which the holder of the spend secret
+//!   key derives the one-time key.
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
+use chia_sdk_types::silent_payments::ScalarField;
 use clvmr::NodePtr;
+
+use super::protocol::derive_onetime_sk;
 
 /// Transport-agnostic input to the silent-payment scanner.
 ///
@@ -49,21 +53,51 @@ pub struct OutputMeta {
     pub parent_coin_id: Bytes32,
 }
 
-/// A silent-payment coin detected by `scan_from_tweaks`, carrying enough
-/// information for the wallet to immediately compose a follow-on spend.
+/// A silent-payment coin detected by `scan_from_tweaks`.
+///
+/// A detection is produced from the scan secret key and the spend public key
+/// alone, so it does not contain a spendable key. It carries the output coin,
+/// the index `k`, the label (if any), and the combined tweak that the holder of
+/// the spend secret key needs to derive the one-time key (CHIP-0057,
+/// "Spending"). Use [`DetectedSpCoin::onetime_sk`] for that step.
+#[allow(missing_copy_implementations)]
 #[derive(Clone, Debug)]
 pub struct DetectedSpCoin {
     pub coin_id: Bytes32,
     pub puzzle_hash: Bytes32,
     pub amount: u64,
     pub parent_coin_id: Bytes32,
-    /// The one-time secret key for this output — `(b_spend + t_k) mod r` for
-    /// unlabeled detections; `(b_spend + t_k + label_scalar) mod r` for labeled.
-    pub onetime_sk: SecretKey,
     /// The `k` counter at which this output was detected within its spend group.
     pub k: u32,
-    /// `None` for unlabeled detections; `Some(m)` for label-index `m`.
+    /// `None` for unlabeled detections; `Some(m)` for label index `m`.
     pub label: Option<u32>,
+    /// The combined tweak: `t_k` for an unlabeled detection, and
+    /// `(t_k + label_scalar) mod r` for a labeled one. The one-time secret key
+    /// is `(b_spend + tweak) mod r`.
+    ///
+    /// The tweak cannot spend the coin without the spend secret key, but
+    /// together with the address it links the coin to the recipient, so it must
+    /// be kept private.
+    pub tweak: ScalarField,
+}
+
+impl DetectedSpCoin {
+    /// The detected output coin.
+    #[must_use]
+    pub fn coin(&self) -> Coin {
+        Coin::new(self.parent_coin_id, self.puzzle_hash, self.amount)
+    }
+
+    /// Derive the one-time secret key of the detected coin from the recipient's
+    /// spend secret key: `(b_spend + tweak) mod r`.
+    ///
+    /// This is the only step of receiving a silent payment that needs the spend
+    /// secret key. The coin is locked to the standard puzzle, so it is spent
+    /// with the synthetic key of the result (`derive_synthetic()`).
+    #[must_use]
+    pub fn onetime_sk(&self, spend_sk: &SecretKey) -> SecretKey {
+        derive_onetime_sk(spend_sk, &self.tweak)
+    }
 }
 
 /// Per-output deterministic state recorded at apply time, consumed at finish

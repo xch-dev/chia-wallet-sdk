@@ -2,9 +2,10 @@
 //!
 //! chip-0057 is enabled unconditionally on this crate's chia-sdk-{driver,utils,
 //! types,test} dependencies, so the facade carries no cargo feature of its own
-//! and no `#[cfg(feature = "chip-0057")]` attributes. The four free-function
-//! primitives (`scan_from_tweaks`, `derive_one_time_puzzle_hash`,
-//! `compute_input_hash`, `aggregate_sender_sks`) are surfaced as static methods
+//! and no `#[cfg(feature = "chip-0057")]` attributes. The free-function
+//! primitives (`scan_from_tweaks`, `derive_onetime_sk`,
+//! `derive_one_time_puzzle_hash`, `compute_input_hash`, `aggregate_sender_sks`,
+//! `tweak_data_from_block_spends`) are surfaced as static methods
 //! on a zero-field `SilentPayments` namespace class — the same shape used by
 //! the `Constants` and `Clvm` facades elsewhere in this crate. `ScalarField`
 //! is exposed as its own bindy class (not type-grouped to `{bytes}`) so the
@@ -266,33 +267,6 @@ impl From<TweakData> for chia_sdk_driver::TweakData {
     }
 }
 
-// ─── DetectedSpCoin (7-field class — return type of scan_from_tweaks) ────
-
-#[derive(Clone)]
-pub struct DetectedSpCoin {
-    pub coin_id: Bytes32,
-    pub puzzle_hash: Bytes32,
-    pub amount: u64,
-    pub parent_coin_id: Bytes32,
-    pub onetime_sk: SecretKey,
-    pub k: u32,
-    pub label: Option<u32>,
-}
-
-impl From<chia_sdk_driver::DetectedSpCoin> for DetectedSpCoin {
-    fn from(value: chia_sdk_driver::DetectedSpCoin) -> Self {
-        Self {
-            coin_id: value.coin_id,
-            puzzle_hash: value.puzzle_hash,
-            amount: value.amount,
-            parent_coin_id: value.parent_coin_id,
-            onetime_sk: value.onetime_sk,
-            k: value.k,
-            label: value.label,
-        }
-    }
-}
-
 // ─── ScalarField (own class, NOT type-grouped to {bytes}) ────────────────
 
 /// CHIP-0057 mod-r scalar with unsigned reduction at construction.
@@ -334,12 +308,59 @@ impl From<ScalarField> for chia_sdk_types::silent_payments::ScalarField {
     }
 }
 
-// ─── SilentPayments (zero-field namespace with 4 statics) ────────────────
+// ─── DetectedSpCoin (return type of scan_from_tweaks) ────────────────────
 
-/// Static-functions namespace. Hosts the four free-fn protocol primitives —
-/// `scanFromTweaks`, `deriveOneTimePuzzleHash`, `computeInputHash`, and
-/// `aggregateSenderSks` — under one class name. Mirrors the namespace shape
-/// used by `Constants` and `Clvm` elsewhere in the facade.
+/// A detected silent-payment coin. Produced from the scan secret key and the
+/// spend public key alone: it carries the combined tweak
+/// `(t_k + label_scalar) mod r`, not a spendable key. Call `onetime_sk` with
+/// the spend secret key to obtain the one-time key.
+#[derive(Clone)]
+pub struct DetectedSpCoin {
+    pub coin_id: Bytes32,
+    pub puzzle_hash: Bytes32,
+    pub amount: u64,
+    pub parent_coin_id: Bytes32,
+    pub k: u32,
+    pub label: Option<u32>,
+    pub tweak: ScalarField,
+}
+
+impl DetectedSpCoin {
+    /// The detected output coin.
+    pub fn coin(&self) -> Result<Coin> {
+        Ok(Coin::new(
+            self.parent_coin_id,
+            self.puzzle_hash,
+            self.amount,
+        ))
+    }
+
+    /// The one-time secret key of the coin: `(spend_sk + tweak) mod r`. The
+    /// coin is spent with the synthetic key of the result.
+    pub fn onetime_sk(&self, spend_sk: SecretKey) -> Result<SecretKey> {
+        Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &self.tweak.0))
+    }
+}
+
+impl From<chia_sdk_driver::DetectedSpCoin> for DetectedSpCoin {
+    fn from(value: chia_sdk_driver::DetectedSpCoin) -> Self {
+        Self {
+            coin_id: value.coin_id,
+            puzzle_hash: value.puzzle_hash,
+            amount: value.amount,
+            parent_coin_id: value.parent_coin_id,
+            k: value.k,
+            label: value.label,
+            tweak: value.tweak.into(),
+        }
+    }
+}
+
+// ─── SilentPayments (zero-field namespace of statics) ────────────────────
+
+/// Static-functions namespace. Hosts the free-fn protocol primitives under one
+/// class name. Mirrors the namespace shape used by `Constants` and `Clvm`
+/// elsewhere in the facade.
 #[derive(Clone)]
 pub struct SilentPayments;
 
@@ -382,18 +403,15 @@ pub struct SilentPaymentRegisteredSecretKey {
 impl SilentPayments {
     /// Detect silent-payment outputs in a `TweakData` blob.
     ///
-    /// Privacy warning: requires the scan secret key — anyone with this key
-    /// sees every payment to the wallet.
-    //
-    // Facade param names follow the `b_scan` / `b_spend` / `b_spend_pub`
-    // shorthand established by `chia_sdk_driver::silent_payments::scanner.rs`
-    // tests to avoid clippy::similar_names without an `#[allow]` attribute.
-    // The bindy JSON declares the public arg names (`scan_sk`, `spend_sk`,
-    // `spend_pk`) which become the call-site names; bindy passes them
-    // positionally so the facade is free to rename internally.
+    /// Needs only the scan secret key and the spend public key, so it can run
+    /// on a watch-only device. Each detection carries the combined tweak; the
+    /// holder of the spend secret key turns it into the one-time key with
+    /// `DetectedSpCoin.onetime_sk` or `SilentPayments.derive_onetime_sk`.
+    ///
+    /// Privacy warning: anyone with the scan secret key sees every payment to
+    /// the wallet.
     pub fn scan_from_tweaks(
         b_scan: SecretKey,
-        b_spend: SecretKey,
         b_spend_pub: PublicKey,
         data: TweakData,
         labels: LabelRegistry,
@@ -403,13 +421,19 @@ impl SilentPayments {
         let driver_labels: chia_sdk_utils::silent_payments::LabelRegistry = labels.into();
         let detections = chia_sdk_driver::scan_from_tweaks(
             &b_scan,
-            &b_spend,
             &b_spend_pub,
             &driver_data,
             Some(&driver_labels),
             k_max as usize,
         );
         Ok(detections.into_iter().map(Into::into).collect())
+    }
+
+    /// The one-time secret key for a detection's combined tweak:
+    /// `(spend_sk + tweak) mod r`. This is the only step of receiving a silent
+    /// payment that needs the spend secret key.
+    pub fn derive_onetime_sk(spend_sk: SecretKey, tweak: ScalarField) -> Result<SecretKey> {
+        Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &tweak.0))
     }
 
     pub fn derive_one_time_puzzle_hash(

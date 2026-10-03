@@ -129,7 +129,6 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const labels = new LabelRegistry();
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
-    recipient.spendSk(),
     recipient.spendPk(),
     tweakData,
     labels,
@@ -144,7 +143,9 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
 
   // derive_synthetic + standard-puzzle-spend the
   // detected coin from TypeScript-on-wasm.
-  const onetimeSk = detections[0].onetimeSk;
+  // The detection carries only the combined tweak; the spend secret key is
+  // first needed here, to derive the one-time key.
+  const onetimeSk = detections[0].onetimeSk(recipient.spendSk());
   const syntheticSk = onetimeSk.deriveSynthetic();
   const syntheticPk = syntheticSk.publicKey();
 

@@ -125,7 +125,6 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const labels = new LabelRegistry();
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
-    recipient.spendSk(),
     recipient.spendPk(),
     tweakData,
     labels,
@@ -142,7 +141,9 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   // "Vec<PublicKey> marshals correctly" — the cross-language client
   // not only reads tweak_points but can complete the full
   // send → farm → extract → scan → SPEND round-trip.
-  const onetimeSk = detections[0].onetimeSk;
+  // The detection carries only the combined tweak; the spend secret key is
+  // first needed here, to derive the one-time key.
+  const onetimeSk = detections[0].onetimeSk(recipient.spendSk());
   const syntheticSk = onetimeSk.deriveSynthetic();
   const syntheticPk = syntheticSk.publicKey();
 

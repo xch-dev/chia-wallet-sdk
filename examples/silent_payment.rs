@@ -3,8 +3,8 @@
 //! Mirrors `examples/cat_spends.rs`: simulator setup → sender BLS pair →
 //! recipient SP keys (BIP-39 mnemonic) → two SP sends in one tx (unlabeled +
 //! labeled m=1) → farm → extract `TweakData` via `tweak_data_from_simulator_block`
-//! → scan → detect both outputs → spend each via `StandardLayer` after
-//! `.derive_synthetic()` (Stages 1-5), plus a multi-input section (Stages
+//! → scan (scan key only) → detect both outputs → derive each one-time key with
+//! the spend key and spend via `StandardLayer` (Stages 1-5), plus a multi-input section (Stages
 //! 6-9) demonstrating the `tweak_data_from_block_spends` helper over the
 //! simulator's block accessors with `Relation::AssertConcurrent` cycle
 //! binding for two XCH inputs.
@@ -98,12 +98,13 @@ fn main() -> Result<()> {
         );
     }
 
-    // 5. Spend: for each detected coin, derive the synthetic secret key from
-    //    onetime_sk (mandatory — the puzzle currys StandardArgs(synthetic_key),
-    //    so signing with the raw onetime_sk would produce an invalid signature),
-    //    then spend via StandardLayer leaving (amount - 1) and a 1-mojo fee.
+    // 5. Spend: scanning needed only the scan secret key and the spend public
+    //    key. The spend secret key is first used here, to turn each detection
+    //    into its one-time key. The coin is locked to the standard puzzle, so it
+    //    is spent with the synthetic key of the one-time key, leaving
+    //    (amount - 1) and a 1-mojo fee.
     for d in &detections {
-        let synthetic_secret = d.onetime_sk.derive_synthetic();
+        let synthetic_secret = d.onetime_sk(recipient.spend_sk()).derive_synthetic();
         let conditions = Conditions::new()
             .create_coin(sender.puzzle_hash, d.amount - 1, Memos::None)
             .reserve_fee(1);
@@ -185,7 +186,7 @@ fn main() -> Result<()> {
 
     // Stage 9: spend the detected multi-input coin.
     for d in &detections_multi {
-        let synthetic_secret = d.onetime_sk.derive_synthetic();
+        let synthetic_secret = d.onetime_sk(recipient.spend_sk()).derive_synthetic();
         let conditions = Conditions::new()
             .create_coin(sender_a.puzzle_hash, d.amount - 1, Memos::None)
             .reserve_fee(1);

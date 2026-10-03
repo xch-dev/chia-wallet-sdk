@@ -64,7 +64,8 @@ fn setup_e2e() -> Result<(Simulator, SpendContext, BlsPairWithCoin, SilentPaymen
 /// 3. `k == 0` (first output to this `scan_pk` in the tx).
 /// 4. `amount == 100`.
 /// 5. The detected coin spends successfully via [`StandardLayer`] after
-///    applying [`DeriveSynthetic::derive_synthetic`] to the `onetime_sk`.
+///    deriving the one-time key from the detection with the spend secret key
+///    and applying [`DeriveSynthetic::derive_synthetic`] to it.
 #[test]
 fn test_simulator_e2e_unlabeled() -> Result<()> {
     let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
@@ -113,7 +114,6 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
     // Scan: recipient detects the coin via `scan_from_tweaks` (free-fn form).
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         None,
@@ -125,8 +125,9 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
     assert_eq!(detected.k, 0, "first output -> k=0");
     assert_eq!(detected.amount, 100);
 
-    // Spend the detected coin: derive_synthetic() then StandardLayer.
-    let synthetic_secret = detected.onetime_sk.derive_synthetic();
+    // Spend the detected coin. Scanning used only the scan secret key and the
+    // spend public key; the spend secret key is first needed here.
+    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -222,7 +223,6 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         None,
@@ -240,7 +240,7 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     assert_eq!(detected.amount, 1000);
 
     // Spend the detected coin.
-    let synthetic_secret = detected.onetime_sk.derive_synthetic();
+    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(a.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -352,7 +352,6 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         Some(&labels),
@@ -363,10 +362,10 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     assert_eq!(detected.label, Some(1), "labeled at m=1");
     assert_eq!(detected.amount, 200);
 
-    // Follow-on spend (labeled): the scanner already absorbed `label_scalar`
-    // into `onetime_sk`, so `derive_synthetic()` works identically to the
-    // unlabeled case (per the scanner's `labeled_sk = base_sk + label_scalar`).
-    let synthetic_secret = detected.onetime_sk.derive_synthetic();
+    // Follow-on spend (labeled): the detection's tweak already includes the
+    // label scalar, so the one-time key is derived exactly as in the unlabeled
+    // case.
+    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -448,7 +447,6 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         Some(&labels),
@@ -529,7 +527,6 @@ fn multi_input_with_identical_sends(
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         None,
@@ -605,7 +602,6 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
         recipient.scan_sk(),
-        recipient.spend_sk(),
         recipient.spend_pk(),
         &tweak_data,
         None,
@@ -621,7 +617,6 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
         let single = tweak_data_from_block_spends(std::slice::from_ref(&spend), &block_outputs)?;
         let detections = scan_from_tweaks(
             recipient.scan_sk(),
-            recipient.spend_sk(),
             recipient.spend_pk(),
             &single,
             None,
