@@ -20,7 +20,7 @@
 //! loop terminates only when BOTH the unlabeled candidate AND every labeled
 //! candidate miss.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
@@ -30,7 +30,7 @@ use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, generate
 use super::protocol::{
     compute_shared_secret_from_tweak, derive_onetime_pk, derive_output_tweak, puzzle_hash_for_pk,
 };
-use super::types::{DetectedSpCoin, TweakData};
+use super::types::{DetectedSpCoin, OutputMeta, TweakData};
 
 /// Default per-spend-group iteration cap per CHIP-0057 §446.
 ///
@@ -53,7 +53,9 @@ pub const K_MAX_DEFAULT: usize = 2400;
 /// For each tweak point `T`, one ECDH is performed (`scan_sk * T`, hashed to
 /// the shared secret) and `k = 0, 1, 2, ...` is iterated up to `k_max`. At each
 /// `k` the unlabeled candidate is checked first, then each label in `labels`;
-/// the group is abandoned at the first `k` where nothing matches.
+/// the group is abandoned at the first `k` where nothing matches. Every coin
+/// with a matching puzzle hash is reported, since several output coins can
+/// share one one-time puzzle hash (CHIP-0057 "Outputs Sharing a Puzzle Hash").
 ///
 /// Tweak points are taken from another party, so each one is checked to be a
 /// non-identity element of the prime-order subgroup before it is multiplied by
@@ -68,7 +70,7 @@ pub fn scan_from_tweaks(
     labels: Option<&LabelRegistry>,
     k_max: usize,
 ) -> Vec<DetectedSpCoin> {
-    let output_phs: HashSet<Bytes32> = data.outputs.iter().map(|o| o.puzzle_hash).collect();
+    let outputs = index_outputs(&data.outputs);
     let mut detected = Vec::new();
 
     let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX);
@@ -86,8 +88,7 @@ pub fn scan_from_tweaks(
             |k| derive_output_tweak(&shared_secret, k),
             scan_sk,
             spend_pk,
-            data,
-            &output_phs,
+            &outputs,
             labels,
             k_bound,
             &mut detected,
@@ -97,20 +98,44 @@ pub fn scan_from_tweaks(
     detected
 }
 
+/// The candidate outputs by puzzle hash. Several coins can share one puzzle
+/// hash (they differ in parent or amount), and all of them are spendable with
+/// the same one-time key.
+fn index_outputs(outputs: &[OutputMeta]) -> HashMap<Bytes32, Vec<&OutputMeta>> {
+    let mut index: HashMap<Bytes32, Vec<&OutputMeta>> = HashMap::new();
+    for output in outputs {
+        index.entry(output.puzzle_hash).or_default().push(output);
+    }
+    index
+}
+
 /// The `k` loop of the CHIP-0057 `ScanForSilentPayment` procedure for one spend
 /// group. `tweak_for_k` yields the output tweak `t_k`; it is a parameter so that
 /// the zero-tweak rule can be tested.
-#[allow(clippy::too_many_arguments)]
 fn scan_group(
     tweak_for_k: impl Fn(u32) -> ScalarField,
     scan_sk: &SecretKey,
     spend_pk: &PublicKey,
-    data: &TweakData,
-    output_phs: &HashSet<Bytes32>,
+    outputs: &HashMap<Bytes32, Vec<&OutputMeta>>,
     labels: Option<&LabelRegistry>,
     k_bound: u32,
     detected: &mut Vec<DetectedSpCoin>,
 ) {
+    // Record a detection for every coin with the matched puzzle hash.
+    let mut record = |coins: &[&OutputMeta], k: u32, label: Option<u32>, tweak: ScalarField| {
+        for coin in coins {
+            detected.push(DetectedSpCoin {
+                coin_id: coin.coin_id,
+                puzzle_hash: coin.puzzle_hash,
+                amount: coin.amount,
+                parent_coin_id: coin.parent_coin_id,
+                k,
+                label,
+                tweak,
+            });
+        }
+    };
+
     for k in 0..k_bound {
         let output_tweak = tweak_for_k(k);
 
@@ -122,49 +147,25 @@ fn scan_group(
         let candidate_pk = derive_onetime_pk(spend_pk, &output_tweak);
         let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
 
-        let mut found = false;
-
-        if output_phs.contains(&candidate_hash)
-            && let Some(out) = data
-                .outputs
-                .iter()
-                .find(|o| o.puzzle_hash == candidate_hash)
-        {
-            detected.push(DetectedSpCoin {
-                coin_id: out.coin_id,
-                puzzle_hash: out.puzzle_hash,
-                amount: out.amount,
-                parent_coin_id: out.parent_coin_id,
-                k,
-                label: None,
-                tweak: output_tweak,
-            });
-            found = true;
+        if let Some(coins) = outputs.get(&candidate_hash) {
+            record(coins, k, None, output_tweak);
+            continue;
         }
 
         // Labeled candidates are only checked when the unlabeled candidate at
-        // this k missed.
-        if !found && let Some(label_map) = labels {
+        // this k missed. The first label that matches wins for this k.
+        let mut found = false;
+        if let Some(label_map) = labels {
             for (m, label_pk) in label_map.iter() {
                 let labeled_pk = candidate_pk + label_pk;
                 let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
-                if output_phs.contains(&labeled_hash)
-                    && let Some(out) = data.outputs.iter().find(|o| o.puzzle_hash == labeled_hash)
-                {
+                if let Some(coins) = outputs.get(&labeled_hash) {
                     // The label scalar is derived from the scan key, so the
                     // combined tweak needs no spend key either.
                     let (label_scalar, _) = generate_label(scan_sk, m);
-                    detected.push(DetectedSpCoin {
-                        coin_id: out.coin_id,
-                        puzzle_hash: out.puzzle_hash,
-                        amount: out.amount,
-                        parent_coin_id: out.parent_coin_id,
-                        k,
-                        label: Some(m),
-                        tweak: output_tweak.add(&label_scalar),
-                    });
+                    record(coins, k, Some(m), output_tweak.add(&label_scalar));
                     found = true;
-                    break; // first labeled match wins for this k
+                    break;
                 }
             }
         }
@@ -209,7 +210,6 @@ impl SilentPaymentScan for SilentPaymentKeys {
 #[cfg(test)]
 mod tests {
     use super::super::protocol::derive_onetime_sk;
-    use super::super::types::OutputMeta;
     use super::*;
     use hex_literal::hex;
 
@@ -755,7 +755,7 @@ mod tests {
             tweak_points: vec![tp],
             outputs,
         };
-        let output_phs: HashSet<Bytes32> = data.outputs.iter().map(|o| o.puzzle_hash).collect();
+        let outputs = index_outputs(&data.outputs);
 
         // With the real tweaks all three outputs are found.
         let mut detected = Vec::new();
@@ -763,8 +763,7 @@ mod tests {
             |k| derive_output_tweak(&shared_secret, k),
             &b_scan,
             &b_spend_pub,
-            &data,
-            &output_phs,
+            &outputs,
             None,
             2400,
             &mut detected,
@@ -783,8 +782,7 @@ mod tests {
             },
             &b_scan,
             &b_spend_pub,
-            &data,
-            &output_phs,
+            &outputs,
             None,
             2400,
             &mut detected,
@@ -909,5 +907,105 @@ mod tests {
         );
         assert_eq!(detections.len(), 1);
         assert_eq!(detections[0].puzzle_hash, Bytes32::from(TV1_PUZZLE_HASH));
+    }
+
+    /// CHIP-0057 "Outputs Sharing a Puzzle Hash": two output coins with the
+    /// same one-time puzzle hash (different parents and amounts) are both
+    /// reported, with the same `k` and tweak, and scanning continues to the
+    /// next index.
+    #[test]
+    fn all_coins_sharing_a_puzzle_hash_are_reported() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
+        let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
+        let ph_k1 = puzzle_hash_for_pk(&derive_onetime_pk(
+            &b_spend_pub,
+            &derive_output_tweak(&shared_secret, 1),
+        ));
+
+        let data = TweakData {
+            tweak_points: vec![tp],
+            outputs: vec![
+                OutputMeta {
+                    puzzle_hash: TV1_PUZZLE_HASH.into(),
+                    coin_id: [1u8; 32].into(),
+                    amount: 100,
+                    parent_coin_id: [0xaau8; 32].into(),
+                },
+                OutputMeta {
+                    puzzle_hash: [0x99u8; 32].into(),
+                    coin_id: [9u8; 32].into(),
+                    amount: 5,
+                    parent_coin_id: [0xaau8; 32].into(),
+                },
+                OutputMeta {
+                    puzzle_hash: TV1_PUZZLE_HASH.into(),
+                    coin_id: [2u8; 32].into(),
+                    amount: 200,
+                    parent_coin_id: [0xbbu8; 32].into(),
+                },
+                OutputMeta {
+                    puzzle_hash: ph_k1,
+                    coin_id: [3u8; 32].into(),
+                    amount: 300,
+                    parent_coin_id: [0xaau8; 32].into(),
+                },
+            ],
+        };
+
+        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+
+        let found: Vec<(Bytes32, u64, u32)> = detections
+            .iter()
+            .map(|d| (d.coin_id, d.amount, d.k))
+            .collect();
+        assert_eq!(
+            found,
+            vec![
+                ([1u8; 32].into(), 100, 0),
+                ([2u8; 32].into(), 200, 0),
+                ([3u8; 32].into(), 300, 1),
+            ]
+        );
+        assert_eq!(detections[0].tweak, detections[1].tweak);
+        assert_eq!(detections[0].tweak.to_bytes(), TV1_T0);
+    }
+
+    /// The same holds for a labeled output: every coin with the labeled
+    /// puzzle hash is reported under that label.
+    #[test]
+    fn all_coins_sharing_a_labeled_puzzle_hash_are_reported() {
+        let mut labels = LabelRegistry::new();
+        labels.register(&sk(TV1_SCAN_SK), 1);
+
+        let coin = |id: u8, amount: u64| OutputMeta {
+            puzzle_hash: TV3_PUZZLE_HASH.into(),
+            coin_id: [id; 32].into(),
+            amount,
+            parent_coin_id: [id; 32].into(),
+        };
+        let data = TweakData {
+            tweak_points: vec![tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH)],
+            outputs: vec![coin(1, 10), coin(2, 20), coin(3, 30)],
+        };
+
+        let detections = scan_from_tweaks(
+            &sk(TV1_SCAN_SK),
+            &pk(TV1_SPEND_PK),
+            &data,
+            Some(&labels),
+            K_MAX_DEFAULT,
+        );
+        assert_eq!(detections.len(), 3);
+        for (detection, amount) in detections.iter().zip([10, 20, 30]) {
+            assert_eq!(detection.amount, amount);
+            assert_eq!(detection.k, 0);
+            assert_eq!(detection.label, Some(1));
+            assert_eq!(
+                detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+                TV3_LABELED_ONETIME_SK
+            );
+        }
     }
 }
