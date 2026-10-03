@@ -6,7 +6,8 @@ use chia_bls::{DerivableKey, PublicKey, SecretKey};
 use chia_sdk_types::silent_payments::{SCAN_PATH, SPEND_PATH};
 
 use super::{
-    SilentPaymentAddress, SilentPaymentError, SilentPaymentNetwork, labels::generate_label,
+    SilentPaymentAddress, SilentPaymentError, SilentPaymentNetwork,
+    labels::{CHANGE_LABEL, generate_label},
 };
 
 /// The wallet-author-facing key bundle for CHIP-0057 silent payments.
@@ -108,25 +109,40 @@ impl SilentPaymentKeys {
 
     /// Build a labeled bech32m silent-payment sub-address.
     ///
-    /// `m = 0` is the reserved change label (CHIP §125-§130) and is rejected
-    /// at this public boundary — never expose a change address publicly. Use
-    /// `m ∈ [1, u32::MAX - 1]` for end-user-facing labels (treat `u32::MAX`
-    /// as reserved per the CHIP draft).
+    /// `m = 0` is the reserved change label (CHIP-0057 "Change Detection")
+    /// and is rejected here, so that the change address is never handed out by
+    /// accident; the wallet obtains it with [`Self::change_address`]. Use
+    /// `m >= 1` for labels that are handed out.
     pub fn labeled_address(
         &self,
         network: SilentPaymentNetwork,
         m: u32,
     ) -> Result<SilentPaymentAddress, SilentPaymentError> {
-        if m == 0 {
+        if m == CHANGE_LABEL {
             return Err(SilentPaymentError::ReservedChangeLabel);
         }
+        Ok(self.address_for_label(network, m))
+    }
+
+    /// The wallet's own change address: `(B_scan, B_0)`, using the reserved
+    /// change label `m = 0` (CHIP-0057 "Change Detection").
+    ///
+    /// **Never share this address.** It exists so that the wallet can send
+    /// change back to itself and recognize it as change when scanning (the
+    /// scanner always checks label 0 and reports it as `Some(0)`). If anyone
+    /// else learned it, they could create payments that the wallet would
+    /// wrongly identify as its own change. Use
+    /// [`Self::unlabeled_address`] or [`Self::labeled_address`] for addresses
+    /// that are handed out.
+    #[must_use]
+    pub fn change_address(&self, network: SilentPaymentNetwork) -> SilentPaymentAddress {
+        self.address_for_label(network, CHANGE_LABEL)
+    }
+
+    fn address_for_label(&self, network: SilentPaymentNetwork, m: u32) -> SilentPaymentAddress {
         let (_scalar, label_pk) = generate_label(&self.scan_sk, m);
         let labeled_spend_pk = &self.spend_pk + &label_pk;
-        Ok(SilentPaymentAddress::new(
-            self.scan_pk,
-            labeled_spend_pk,
-            network,
-        ))
+        SilentPaymentAddress::new(self.scan_pk, labeled_spend_pk, network)
     }
 }
 

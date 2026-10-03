@@ -63,6 +63,12 @@
           "m": "u32"
         },
         "return": "SilentPaymentAddress"
+      },
+      "change_address": {
+        "args": {
+          "network": "SilentPaymentNetwork"
+        },
+        "return": "SilentPaymentAddress"
       }
     }
   },
@@ -154,6 +160,14 @@
       }
     }
   },
+  "SilentPaymentLabel": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "scalar": "ScalarField",
+      "public_key": "PublicKey"
+    }
+  },
   "SilentPaymentRegisteredKey": {
     "type": "class",
     "new": true,
@@ -183,6 +197,14 @@
           "k_max": "u32"
         },
         "return": "Vec<DetectedSpCoin>"
+      },
+      "generate_label": {
+        "type": "static",
+        "args": {
+          "scan_sk": "SecretKey",
+          "m": "u32"
+        },
+        "return": "SilentPaymentLabel"
       },
       "derive_onetime_sk": {
         "type": "static",

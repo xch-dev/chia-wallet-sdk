@@ -148,6 +148,15 @@ impl SilentPaymentKeys {
     ) -> Result<SilentPaymentAddress> {
         Ok(self.0.labeled_address(network.into(), m)?.into())
     }
+
+    /// The wallet's own change address (reserved label `m = 0`).
+    ///
+    /// Never share this address: anyone who knows it can create payments that
+    /// the wallet identifies as its own change. The scanner always checks the
+    /// change label and reports it as label 0.
+    pub fn change_address(&self, network: SilentPaymentNetwork) -> Result<SilentPaymentAddress> {
+        Ok(self.0.change_address(network.into()).into())
+    }
 }
 
 // ─── LabelRegistry (full register/forward/lookup/len/is_empty API) ───────
@@ -356,6 +365,20 @@ impl From<chia_sdk_driver::DetectedSpCoin> for DetectedSpCoin {
     }
 }
 
+// ─── SilentPaymentLabel (return type of generate_label) ──────────────────
+
+/// A CHIP-0057 label: `scalar = int(tagged_hash("Chia_SP/Label", ser256(b_scan)
+/// || ser32(m))) mod r` and `public_key = scalar * G`. The labeled spend key is
+/// `B_m = B_spend + public_key`.
+///
+/// The scalar is derived from the scan secret key and links a labeled address
+/// to the wallet's other addresses, so it must be kept private.
+#[derive(Clone)]
+pub struct SilentPaymentLabel {
+    pub scalar: ScalarField,
+    pub public_key: PublicKey,
+}
+
 // ─── SilentPayments (zero-field namespace of statics) ────────────────────
 
 /// Static-functions namespace. Hosts the free-fn protocol primitives under one
@@ -403,6 +426,9 @@ pub struct SilentPaymentRegisteredSecretKey {
 impl SilentPayments {
     /// Detect silent-payment outputs in a `TweakData` blob.
     ///
+    /// The change label `m = 0` is always checked, whether or not it is in
+    /// `labels`, and a match is reported as label 0.
+    ///
     /// Needs only the scan secret key and the spend public key, so it can run
     /// on a watch-only device. Each detection carries the combined tweak; the
     /// holder of the spend secret key turns it into the one-time key with
@@ -427,6 +453,16 @@ impl SilentPayments {
             k_max as usize,
         );
         Ok(detections.into_iter().map(Into::into).collect())
+    }
+
+    /// Compute the label scalar and label public key for label index `m`
+    /// (CHIP-0057 "Label Generation"). `m = 0` is the reserved change label.
+    pub fn generate_label(scan_sk: SecretKey, m: u32) -> Result<SilentPaymentLabel> {
+        let (scalar, public_key) = chia_sdk_utils::silent_payments::generate_label(&scan_sk, m);
+        Ok(SilentPaymentLabel {
+            scalar: scalar.into(),
+            public_key,
+        })
     }
 
     /// The one-time secret key for a detection's combined tweak:

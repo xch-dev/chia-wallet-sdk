@@ -29,6 +29,7 @@ from chia_wallet_sdk import (
     Clvm,
     LabelRegistry,
     Mnemonic,
+    SecretKey,
     SilentPaymentKeys,
     SilentPaymentNetwork,
     SilentPaymentRegisteredKey,
@@ -46,6 +47,58 @@ TV1_MNEMONIC = (
     "abandon abandon abandon abandon abandon about"
 )
 K_MAX_DEFAULT = 2400
+
+# CHIP-0057 test vectors 1-7 treat the recipient keys as given values.
+TV1_SCAN_SK = "132567e4dec19a4f50d9e9a549f16283dfb5aa4ad1ffdb6a505fcfcc56a690f6"
+TV1_SPEND_SK = "53d140b312a0e16316314274eb6398e15706d100fe8a754990540febd931b087"
+
+
+def tv1_keys():
+    return SilentPaymentKeys.from_secret_keys(
+        SecretKey.from_bytes(bytes.fromhex(TV1_SCAN_SK)),
+        SecretKey.from_bytes(bytes.fromhex(TV1_SPEND_SK)),
+    )
+
+
+def test_labels_and_change_address():
+    """Label generation and the change address, against CHIP-0057 TV3 and TV7."""
+    keys = tv1_keys()
+
+    # TV3: label m = 1.
+    label = SilentPayments.generate_label(keys.scan_sk(), 1)
+    assert (
+        label.scalar.to_bytes().hex()
+        == "48fa440acca87f501b9984b5d23327d0b7766a4baa913dfb3001d412c48ce465"
+    )
+    assert (
+        label.public_key.to_bytes().hex()
+        == "a6dcff3646739745ef7f3ba8e51808dac13765fa9d5e73386d3fbd7841e0773e"
+        "02a0f8d91baf57d337954322bd06d80c"
+    )
+    labeled = keys.labeled_address(SilentPaymentNetwork.Mainnet, 1)
+    assert (
+        labeled.spend_pk.to_bytes().hex()
+        == "965250fb8503cff4c244f360ab84075bfe2da01091745d0e8ce36024ab12e962"
+        "77d1f02fbbe01cee412dd2ce1b7414c2"
+    )
+
+    # TV7: the change label m = 0.
+    change_label = SilentPayments.generate_label(keys.scan_sk(), 0)
+    assert (
+        change_label.scalar.to_bytes().hex()
+        == "3106829938a8b73a652a9a31c6c76a37e32f67f924a50e3649291d6904f22082"
+    )
+    change = keys.change_address(SilentPaymentNetwork.Mainnet)
+    assert change.scan_pk.to_bytes() == keys.scan_pk().to_bytes()
+    assert (
+        change.spend_pk.to_bytes().hex()
+        == "a2c089434a6abae657b8e3a868f3d1b94299b141f3da6a6788f966b0856d6802"
+        "2bd58459d964b7514111529647ebd7e8"
+    )
+
+    # The change address is only available through change_address.
+    with pytest.raises(BaseException, match="reserved for change"):
+        keys.labeled_address(SilentPaymentNetwork.Mainnet, 0)
 
 
 def test_unlabeled_e2e():

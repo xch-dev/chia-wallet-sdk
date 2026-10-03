@@ -9,16 +9,22 @@
 //! B_m           = B_spend + label_pk
 //! ```
 //!
-//! `m = 0` is the change-label sentinel. It is REJECTED at the public boundary
-//! ([`super::SilentPaymentKeys::labeled_address`]) but accepted internally by
-//! [`generate_label`] and [`LabelRegistry::register`] because the scanner
-//! legitimately needs to register the change label to detect its own change
-//! outputs.
+//! `m = 0` ([`CHANGE_LABEL`]) is reserved for the wallet's own change. The
+//! scanner always checks it, whether or not it is registered, and the wallet
+//! obtains its change address with
+//! [`super::SilentPaymentKeys::change_address`].
+//! [`super::SilentPaymentKeys::labeled_address`] rejects it so that the change
+//! address is never handed out by accident; [`generate_label`] and
+//! [`LabelRegistry::register`] accept it.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_sdk_types::silent_payments::{CHIA_SP_LABEL, ScalarField, tagged_hash};
+
+/// The label index reserved for the wallet's own change outputs (CHIP-0057
+/// "Change Detection"). An address with this label must never be handed out.
+pub const CHANGE_LABEL: u32 = 0;
 
 /// Compute the label scalar and label public key for label index `m`.
 ///
@@ -51,7 +57,7 @@ pub(crate) fn generate_label(scan_sk: &SecretKey, m: u32) -> (ScalarField, Publi
 /// 100 KB.
 #[derive(Clone, Debug, Default)]
 pub struct LabelRegistry {
-    forward: HashMap<u32, PublicKey>,
+    forward: BTreeMap<u32, PublicKey>,
     reverse: HashMap<[u8; 48], u32>,
 }
 
@@ -64,9 +70,8 @@ impl LabelRegistry {
 
     /// Register label `m` against scan secret key `scan_sk`.
     ///
-    /// `m = 0` is accepted here — the public-API change-label rejection lives
-    /// in [`super::SilentPaymentKeys::labeled_address`]. Scanner code needs the
-    /// change label registered internally to detect change outputs.
+    /// `m = 0` is accepted but has no effect on scanning: the scanner always
+    /// checks the change label.
     pub fn register(&mut self, scan_sk: &SecretKey, m: u32) {
         let (_scalar, label_pk) = generate_label(scan_sk, m);
         let bytes = label_pk.to_bytes();
@@ -99,8 +104,8 @@ impl LabelRegistry {
         self.forward.is_empty()
     }
 
-    /// Iterate registered `(m, label_pk)` pairs. Useful for the scanner's
-    /// labeled-detection branch.
+    /// Iterate registered `(m, label_pk)` pairs in ascending order of `m`, so
+    /// that the scanner checks labels in a deterministic order.
     pub fn iter(&self) -> impl Iterator<Item = (u32, &PublicKey)> {
         self.forward.iter().map(|(&m, pk)| (m, pk))
     }
@@ -223,5 +228,55 @@ mod tests {
         assert_eq!(reg.forward(42), None);
         assert!(reg.is_empty());
         assert_eq!(reg.len(), 0);
+    }
+
+    #[test]
+    fn registry_iterates_in_ascending_label_order() {
+        let scan_sk = sk(TV1_B_SCAN);
+        let mut reg = LabelRegistry::new();
+        for m in [7u32, 2, 100, 1, 0] {
+            reg.register(&scan_sk, m);
+        }
+        let order: Vec<u32> = reg.iter().map(|(m, _)| m).collect();
+        assert_eq!(order, vec![0, 1, 2, 7, 100]);
+    }
+
+    // ─── CHIP-0057 Test Vector 7: change label (m = 0) ─────────────────────
+
+    const TV7_LABEL_SCALAR: [u8; 32] =
+        hex!("3106829938a8b73a652a9a31c6c76a37e32f67f924a50e3649291d6904f22082");
+    const TV7_LABEL_PK: [u8; 48] = hex!(
+        "8314ad1fd7b1dc75d97e025a6d9af28af6ed21e11093a1103ea338c7e496d133"
+        "d4f2bd863b47b9a2839ef1ff2d0e6a9f"
+    );
+    const TV7_B_0: [u8; 48] = hex!(
+        "a2c089434a6abae657b8e3a868f3d1b94299b141f3da6a6788f966b0856d6802"
+        "2bd58459d964b7514111529647ebd7e8"
+    );
+
+    #[test]
+    fn tv7_change_label_matches() {
+        let (scalar, label_pk) = generate_label(&sk(TV1_B_SCAN), CHANGE_LABEL);
+        assert_eq!(scalar.to_bytes(), TV7_LABEL_SCALAR);
+        assert_eq!(label_pk.to_bytes(), TV7_LABEL_PK);
+        assert_eq!((&pk(TV1_B_SPEND_PK) + &label_pk).to_bytes(), TV7_B_0);
+    }
+
+    /// The wallet's own change address is `(B_scan, B_0)`. It is available only
+    /// through the explicitly named `change_address`; `labeled_address(0)`
+    /// stays rejected so that it is not handed out by accident.
+    #[test]
+    fn tv7_change_address() {
+        use super::super::{SilentPaymentError, SilentPaymentKeys, SilentPaymentNetwork};
+        let keys = SilentPaymentKeys::from_secret_keys(sk(TV1_B_SCAN), sk(TV1_B_SPEND));
+
+        let change = keys.change_address(SilentPaymentNetwork::Mainnet);
+        assert_eq!(change.scan_pk, *keys.scan_pk());
+        assert_eq!(change.spend_pk.to_bytes(), TV7_B_0);
+
+        assert_eq!(
+            keys.labeled_address(SilentPaymentNetwork::Mainnet, CHANGE_LABEL),
+            Err(SilentPaymentError::ReservedChangeLabel)
+        );
     }
 }

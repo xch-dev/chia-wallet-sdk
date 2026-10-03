@@ -37,9 +37,9 @@ pub use labels::*;
 /// Used by `chia-sdk-driver`'s silent-payment scanner to compute the labeled
 /// `onetime_sk = base_onetime_sk + label_scalar` for labeled detections.
 ///
-/// `m = 0` is accepted here — the public-API change-label rejection lives in
-/// [`SilentPaymentKeys::labeled_address`]. The change label (`m = 0`) is used
-/// internally to register own-change detection.
+/// `m = 0` (the change label) is accepted here; only
+/// [`SilentPaymentKeys::labeled_address`] rejects it, to keep the change address
+/// from being handed out.
 #[must_use]
 pub fn generate_label(
     scan_sk: &chia_bls::SecretKey,

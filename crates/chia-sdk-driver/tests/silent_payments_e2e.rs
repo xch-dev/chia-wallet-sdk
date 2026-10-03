@@ -388,21 +388,10 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     Ok(())
 }
 
-/// `m=0` self-change consistency: the SDK does NOT auto-emit `m=0` self-change
-/// outputs. This test documents the actual contract:
-///
-/// 1. `LabelRegistry::register(scan_sk, 0)` is callable internally (per
-///    `chia-sdk-utils/src/silent_payments/labels.rs`).
-/// 2. A self-send to one's own UNLABELED address detects normally with
-///    `label: None` — the `m=0` registry entry does NOT promote the detection.
-/// 3. The labeled detection branch in `scan_from_tweaks` only runs when no
-///    unlabeled match is found at the current `k` (per the scanner's
-///    `if !found` ordering) — so registering `m=0` cannot spuriously hijack
-///    unlabeled detections.
-///
-/// `labeled_address(0)` returns `Err(ReservedChangeLabel)` at the public
-/// boundary: `m=0` is reserved for wallet-author-managed internal change
-/// tracking, not a public address shape.
+/// A payment to the wallet's own UNLABELED address is reported as unlabeled
+/// (`label: None`) even though the scanner always checks the change label and
+/// the caller has registered it as well: the unlabeled candidate is checked
+/// first, so the change label cannot hijack ordinary incoming payments.
 #[test]
 fn test_simulator_e2e_m0_self_change() -> Result<()> {
     let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
@@ -438,9 +427,8 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
 
-    // Register m=0 in the recipient's LabelRegistry — internal-only API path.
-    // This MUST be possible AND MUST NOT corrupt unlabeled detection of the
-    // self-send below.
+    // Registering m=0 is allowed and redundant; it must not change how the
+    // unlabeled payment below is reported.
     let mut labels = LabelRegistry::new();
     labels.register(recipient.scan_sk(), 0);
 
@@ -761,5 +749,61 @@ fn test_zero_key_sum_makes_the_sender_fail() -> Result<()> {
         "expected SilentPaymentZeroKeySum, got {result:?}"
     );
     assert!(ctx.take().is_empty(), "no coin spends may be produced");
+    Ok(())
+}
+
+/// Change sent to the wallet's own change address (reserved label m = 0) is
+/// detected and reported as label 0 without registering any label, and is
+/// spendable with the key derived from the detection (CHIP-0057 "Change
+/// Detection").
+#[test]
+fn test_simulator_e2e_change_address() -> Result<()> {
+    let (mut sim, mut ctx, sender, wallet) = setup_e2e()?;
+    let change_address = wallet.change_address(SilentPaymentNetwork::Testnet);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(
+            change_address,
+            250,
+            Memos::None,
+        )],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
+
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    let detections = scan_from_tweaks(
+        wallet.scan_sk(),
+        wallet.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(detections.len(), 1);
+    let detected = &detections[0];
+    assert_eq!(detected.label, Some(0), "change is reported as label 0");
+    assert_eq!(detected.amount, 250);
+
+    let synthetic_secret = detected.onetime_sk(wallet.spend_sk()).derive_synthetic();
+    let conditions = Conditions::new()
+        .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
+        .reserve_fee(1);
+    StandardLayer::new(synthetic_secret.public_key()).spend(
+        &mut ctx,
+        detected.coin(),
+        conditions,
+    )?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&synthetic_secret))?;
+    assert!(
+        sim.coin_state(detected.coin_id)
+            .expect("detected coin in state")
+            .spent_height
+            .is_some()
+    );
     Ok(())
 }

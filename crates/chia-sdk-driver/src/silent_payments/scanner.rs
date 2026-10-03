@@ -25,7 +25,9 @@ use std::collections::HashMap;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
 use chia_sdk_types::silent_payments::ScalarField;
-use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, generate_label};
+use chia_sdk_utils::silent_payments::{
+    CHANGE_LABEL, LabelRegistry, SilentPaymentKeys, generate_label,
+};
 
 use super::protocol::{
     compute_shared_secret_from_tweak, derive_onetime_pk, derive_output_tweak, puzzle_hash_for_pk,
@@ -52,8 +54,10 @@ pub const K_MAX_DEFAULT: usize = 2400;
 ///
 /// For each tweak point `T`, one ECDH is performed (`scan_sk * T`, hashed to
 /// the shared secret) and `k = 0, 1, 2, ...` is iterated up to `k_max`. At each
-/// `k` the unlabeled candidate is checked first, then each label in `labels`;
-/// the group is abandoned at the first `k` where nothing matches. Every coin
+/// `k` the unlabeled candidate is checked first, then the change label `m = 0`
+/// (always, whether or not it is in `labels`; a match is reported as
+/// `Some(0)`), then each label in `labels` in ascending order. The group is
+/// abandoned at the first `k` where nothing matches. Every coin
 /// with a matching puzzle hash is reported, since several output coins can
 /// share one one-time puzzle hash (CHIP-0057 "Outputs Sharing a Puzzle Hash").
 ///
@@ -71,6 +75,7 @@ pub fn scan_from_tweaks(
     k_max: usize,
 ) -> Vec<DetectedSpCoin> {
     let outputs = index_outputs(&data.outputs);
+    let labels = label_set(scan_sk, labels);
     let mut detected = Vec::new();
 
     let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX);
@@ -89,13 +94,30 @@ pub fn scan_from_tweaks(
             scan_sk,
             spend_pk,
             &outputs,
-            labels,
+            &labels,
             k_bound,
             &mut detected,
         );
     }
 
     detected
+}
+
+/// The labels to scan for: the change label `m = 0`, which is always included
+/// (CHIP-0057 "Scanning a Spend Group": the label set should always contain
+/// it), followed by the caller's labels in ascending order of `m`.
+fn label_set(scan_sk: &SecretKey, labels: Option<&LabelRegistry>) -> Vec<(u32, PublicKey)> {
+    let (_, change_label_pk) = generate_label(scan_sk, CHANGE_LABEL);
+    let mut set = vec![(CHANGE_LABEL, change_label_pk)];
+    if let Some(registry) = labels {
+        set.extend(
+            registry
+                .iter()
+                .filter(|(m, _)| *m != CHANGE_LABEL)
+                .map(|(m, label_pk)| (m, *label_pk)),
+        );
+    }
+    set
 }
 
 /// The candidate outputs by puzzle hash. Several coins can share one puzzle
@@ -117,7 +139,7 @@ fn scan_group(
     scan_sk: &SecretKey,
     spend_pk: &PublicKey,
     outputs: &HashMap<Bytes32, Vec<&OutputMeta>>,
-    labels: Option<&LabelRegistry>,
+    labels: &[(u32, PublicKey)],
     k_bound: u32,
     detected: &mut Vec<DetectedSpCoin>,
 ) {
@@ -153,20 +175,19 @@ fn scan_group(
         }
 
         // Labeled candidates are only checked when the unlabeled candidate at
-        // this k missed. The first label that matches wins for this k.
+        // this k missed. The first label that matches wins for this k; the
+        // change label is checked first, then the others in ascending order.
         let mut found = false;
-        if let Some(label_map) = labels {
-            for (m, label_pk) in label_map.iter() {
-                let labeled_pk = candidate_pk + label_pk;
-                let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
-                if let Some(coins) = outputs.get(&labeled_hash) {
-                    // The label scalar is derived from the scan key, so the
-                    // combined tweak needs no spend key either.
-                    let (label_scalar, _) = generate_label(scan_sk, m);
-                    record(coins, k, Some(m), output_tweak.add(&label_scalar));
-                    found = true;
-                    break;
-                }
+        for &(m, label_pk) in labels {
+            let labeled_pk = candidate_pk + &label_pk;
+            let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
+            if let Some(coins) = outputs.get(&labeled_hash) {
+                // The label scalar is derived from the scan key, so the
+                // combined tweak needs no spend key either.
+                let (label_scalar, _) = generate_label(scan_sk, m);
+                record(coins, k, Some(m), output_tweak.add(&label_scalar));
+                found = true;
+                break;
             }
         }
 
@@ -764,7 +785,7 @@ mod tests {
             &b_scan,
             &b_spend_pub,
             &outputs,
-            None,
+            &[],
             2400,
             &mut detected,
         );
@@ -783,7 +804,7 @@ mod tests {
             &b_scan,
             &b_spend_pub,
             &outputs,
-            None,
+            &[],
             2400,
             &mut detected,
         );
@@ -1007,5 +1028,120 @@ mod tests {
                 TV3_LABELED_ONETIME_SK
             );
         }
+    }
+
+    // ─── CHIP-0057 Test Vector 7: change output (label m = 0) ──────────────
+
+    const TV7_COIN_ID: [u8; 32] =
+        hex!("10f36babd97f3da5027238f336ac15a0f12dfb10bc77191711de7eafba964c9f");
+    const TV7_INPUT_HASH: [u8; 32] =
+        hex!("620c82f4fd9faf8a41d7ed8025dbda3857797c0bc5f31f4c34e460ddc4a89e79");
+    const TV7_PUZZLE_HASH: [u8; 32] =
+        hex!("6e0d9f029ea7e8129bf4839d7e805dac5da5b9af5f51fe0374547ac24f8f5257");
+    const TV7_UNLABELED_CANDIDATE: [u8; 32] =
+        hex!("980d14e591ef9db6d449eae11c7c43b3f753f07c79da105a06f27f75a2384dc1");
+    const TV7_ONETIME_SK: [u8; 32] =
+        hex!("254f5ce70b4870c4a9b2811bb36b0e79910a88b839a1c6771ab2d222cb0fd42a");
+
+    fn tv7_data() -> TweakData {
+        TweakData {
+            tweak_points: vec![tweak_point_from(TV1_A_SUM, TV7_INPUT_HASH)],
+            outputs: vec![OutputMeta {
+                puzzle_hash: TV7_PUZZLE_HASH.into(),
+                coin_id: TV7_COIN_ID.into(),
+                amount: 700,
+                parent_coin_id: [0u8; 32].into(),
+            }],
+        }
+    }
+
+    /// The scanner always checks the change label, so the TV7 output is found
+    /// and reported as label 0 without the caller registering anything.
+    #[test]
+    fn tv7_change_output_is_found_without_registering_labels() {
+        for labels in [None, Some(&LabelRegistry::new())] {
+            let detections = scan_from_tweaks(
+                &sk(TV1_SCAN_SK),
+                &pk(TV1_SPEND_PK),
+                &tv7_data(),
+                labels,
+                K_MAX_DEFAULT,
+            );
+            assert_eq!(detections.len(), 1);
+            assert_eq!(detections[0].k, 0);
+            assert_eq!(detections[0].label, Some(0));
+            assert_eq!(detections[0].puzzle_hash, Bytes32::from(TV7_PUZZLE_HASH));
+            assert_eq!(
+                detections[0].onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+                TV7_ONETIME_SK
+            );
+        }
+    }
+
+    /// Registering label 0 explicitly, alongside another label, changes
+    /// nothing: the output is reported once, as label 0.
+    #[test]
+    fn tv7_change_output_with_registered_labels() {
+        let mut labels = LabelRegistry::new();
+        labels.register(&sk(TV1_SCAN_SK), 1);
+        labels.register(&sk(TV1_SCAN_SK), 0);
+
+        let detections = scan_from_tweaks(
+            &sk(TV1_SCAN_SK),
+            &pk(TV1_SPEND_PK),
+            &tv7_data(),
+            Some(&labels),
+            K_MAX_DEFAULT,
+        );
+        assert_eq!(detections.len(), 1);
+        assert_eq!(detections[0].label, Some(0));
+    }
+
+    /// TV7 verification: with an empty label set the output is not found,
+    /// because the unlabeled candidate puzzle hash at k = 0 is not on chain.
+    /// `scan_from_tweaks` never scans with an empty label set, so this goes
+    /// through the per-group loop directly.
+    #[test]
+    fn tv7_empty_label_set_does_not_find_the_change_output() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let data = tv7_data();
+        let shared_secret = compute_shared_secret_from_tweak(&b_scan, &data.tweak_points[0]);
+
+        let unlabeled = puzzle_hash_for_pk(&derive_onetime_pk(
+            &b_spend_pub,
+            &derive_output_tweak(&shared_secret, 0),
+        ));
+        assert_eq!(unlabeled, Bytes32::from(TV7_UNLABELED_CANDIDATE));
+
+        let outputs = index_outputs(&data.outputs);
+        let mut detected = Vec::new();
+        scan_group(
+            |k| derive_output_tweak(&shared_secret, k),
+            &b_scan,
+            &b_spend_pub,
+            &outputs,
+            &[],
+            2400,
+            &mut detected,
+        );
+        assert!(detected.is_empty());
+    }
+
+    /// The label set always starts with the change label, followed by the
+    /// registered labels in ascending order, without duplicating label 0.
+    #[test]
+    fn label_set_always_contains_the_change_label_first() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let order = |labels: Option<&LabelRegistry>| -> Vec<u32> {
+            label_set(&b_scan, labels).iter().map(|(m, _)| *m).collect()
+        };
+        assert_eq!(order(None), vec![0]);
+
+        let mut labels = LabelRegistry::new();
+        for m in [5, 0, 2] {
+            labels.register(&b_scan, m);
+        }
+        assert_eq!(order(Some(&labels)), vec![0, 2, 5]);
     }
 }
