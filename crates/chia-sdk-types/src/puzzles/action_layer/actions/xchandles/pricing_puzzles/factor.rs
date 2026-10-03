@@ -6,29 +6,28 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const XCHANDLES_FACTOR_PRICING_PUZZLE: [u8; 475] = hex!(
+pub const XCHANDLES_FACTOR_PRICING_PUZZLE: [u8; 397] = hex!(
+    // Rue
     "
     ff02ffff01ff02ffff03ffff15ff7fff8080ffff01ff04ffff12ff7fff05ffff
-    02ff06ffff04ff02ffff04ffff0dff5f80ffff04ffff02ff04ffff04ff02ffff
-    04ff5fff80808080ff808080808080ffff12ff7fff0b8080ffff01ff088080ff
-    0180ffff04ffff01ffff02ffff03ff05ffff01ff02ffff03ffff22ffff15ffff
-    0cff05ff80ffff010180ffff016080ffff15ffff017bffff0cff05ff80ffff01
-    01808080ffff01ff02ff04ffff04ff02ffff04ffff0cff05ffff010180ff8080
-    8080ffff01ff02ffff03ffff22ffff15ffff0cff05ff80ffff010180ffff012f
-    80ffff15ffff013affff0cff05ff80ffff0101808080ffff01ff10ffff0101ff
-    ff02ff04ffff04ff02ffff04ffff0cff05ffff010180ff8080808080ffff01ff
-    088080ff018080ff0180ff8080ff0180ff05ffff14ffff02ffff03ffff15ff05
-    ffff010280ffff01ff02ffff03ffff15ff05ffff010480ffff01ff02ffff03ff
-    ff09ff05ffff010580ffff01ff0110ffff01ff02ffff03ffff15ff05ffff011f
-    80ffff01ff0880ffff01ff010280ff018080ff0180ffff01ff02ffff03ffff09
-    ff05ffff010380ffff01ff01820080ffff01ff014080ff018080ff0180ffff01
-    ff088080ff0180ffff03ff0bffff0102ffff0101808080ff018080
+    13ffff02ffff03ffff15ffff0dff5f80ffff010280ffff01ff03ffff15ffff0d
+    ff5f80ffff010480ffff03ffff09ffff0dff5f80ffff010580ffff0110ffff02
+    ffff03ffff15ffff0dff5f80ffff013f80ffff01ff0880ffff01ff010280ff01
+    8080ffff03ffff09ffff0dff5f80ffff010380ffff01820080ffff01408080ff
+    ff01ff088080ff0180ffff03ffff02ff02ffff04ff02ff5f8080ffff0102ffff
+    0101808080ffff12ff7fff0b8080ffff01ff088080ff0180ffff04ffff01ff02
+    ffff03ff03ffff01ff02ffff01ff02ffff03ffff22ffff15ff04ffff016080ff
+    ff15ffff017bff048080ffff01ff02ff05ffff04ff05ff068080ffff01ff02ff
+    ff03ffff22ffff15ff04ffff012f80ffff15ffff013aff048080ffff01ff10ff
+    ff02ff05ffff04ff05ff068080ffff010180ffff01ff088080ff018080ff0180
+    ffff04ffff04ffff0cff03ff80ffff010180ffff0cff03ffff01018080ff0180
+    80ffff018080ff0180ff018080
     "
 );
 
 pub const XCHANDLES_FACTOR_PRICING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    a7edc890e6c256e4e729e826e7b45ad0616ec8d431e4e051ee68ddf4cae868bb
+    8876f129e711da8776b746cc07ae65f8336e8b1b7f08169de55a200ab287d1a2
     "
 ));
 
@@ -40,6 +39,15 @@ pub struct XchandlesFactorPricingPuzzleArgs {
 }
 
 impl XchandlesFactorPricingPuzzleArgs {
+    /// Canonical `XCHandles` handle grammar: 3-63 lowercase ASCII letters and digits.
+    pub fn is_valid_handle(handle: &str) -> bool {
+        let len = handle.len();
+        (3..=63).contains(&len)
+            && handle
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    }
+
     pub fn get_price(base_price: u64, handle: &str, num_periods: u64) -> u64 {
         base_price
             * match handle.len() {
@@ -74,5 +82,61 @@ impl Mod for XchandlesFactorPricingPuzzleArgs {
 
     fn mod_hash() -> TreeHash {
         XCHANDLES_FACTOR_PRICING_PUZZLE_HASH
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_valid_handle_grammar() {
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("abc"));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle("a1b"));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
+            &"a".repeat(63)
+        ));
+        assert!(XchandlesFactorPricingPuzzleArgs::is_valid_handle(
+            "ashorttermmindgetsinthewayofalongtermgrind"
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_handle_grammar() {
+        for handle in [
+            "",
+            "a",
+            "aa",
+            &*"a".repeat(64),
+            "ABC",
+            "yak@test",
+            "foo bar",
+            "café",
+        ] {
+            assert!(
+                !XchandlesFactorPricingPuzzleArgs::is_valid_handle(handle),
+                "expected invalid: {handle:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn digit_and_multi_period_pricing_unchanged() {
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "abc", 1),
+            640
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "ab1", 1),
+            320
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "example", 3),
+            30
+        );
+        assert_eq!(
+            XchandlesFactorPricingPuzzleArgs::get_price(5, "example1", 2),
+            10
+        );
     }
 }

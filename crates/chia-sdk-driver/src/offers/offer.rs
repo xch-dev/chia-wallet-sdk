@@ -129,14 +129,18 @@ impl Offer {
             .collect()
     }
 
-    pub fn offered_royalty_amounts(&self) -> OfferAmounts {
+    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
+    /// [`u64`], in which case the royalties can't be paid.
+    pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let offered_amounts = self.offered_coins.amounts();
         let royalties = self.offered_royalties();
         let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
     }
 
-    pub fn requested_royalty_amounts(&self) -> OfferAmounts {
+    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
+    /// [`u64`], in which case the royalties can't be paid.
+    pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let requested_amounts = self.requested_payments.amounts();
         let royalties = self.requested_royalties();
         let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
@@ -487,7 +491,7 @@ mod tests {
             &mut ctx,
             &[Action::send(
                 Id::Existing(alice_nft.info.launcher_id),
-                Bytes32::new(SETTLEMENT_PAYMENT_HASH),
+                SETTLEMENT_PAYMENT_HASH.into(),
                 1,
                 Memos::None,
             )],

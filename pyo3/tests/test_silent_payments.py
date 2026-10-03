@@ -169,12 +169,12 @@ def test_multi_input_e2e():
     """pyo3 multi-input SP send + scan-from-tweaks E2E.
 
     Mirrors `test_unlabeled_e2e` but with 2 sender coins,
-    `Relation.assert_concurrent()` on `prepare`, and TweakData built via the
+    `Relation.AssertConcurrent` on `prepare`, and TweakData built via the
     new `SilentPayments.tweak_data_from_block_spends` helper over
     `sim.block_spends(h) + sim.block_outputs(h)`.
 
     Exercises the full binding surface end-to-end: the `Relation`
-    opaque-handle, the extended `Spends.prepare(deltas, relation)`
+    enum, the `Spends.prepare(deltas, relation)`
     signature, the `SilentPayments.tweak_data_from_block_spends`
     static method, and the `Simulator.block_spends` /
     `Simulator.block_outputs` facade additions.
@@ -228,10 +228,10 @@ def test_multi_input_e2e():
 
     deltas = spends.apply(actions)
 
-    # Pass Relation.assert_concurrent() so the driver-side gate
+    # Pass Relation.AssertConcurrent so the driver-side gate
     # (non_ephemeral_xch_count >= 2) is satisfied. Without it,
     # DriverError::SilentPaymentRequiresInputBinding fires inside prepare().
-    finished = spends.prepare(deltas, Relation.assert_concurrent())
+    finished = spends.prepare(deltas, Relation.AssertConcurrent)
 
     # Each coin is curried over its SYNTHETIC key; spend + sign with the
     # synthetic key pair.

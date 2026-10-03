@@ -79,7 +79,7 @@ pub fn parse_children(
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(reveals, ctx, *condition, false);
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount);
+                            calculate_transfer_type(reveals, &memos, condition.amount)?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -103,7 +103,7 @@ pub fn parse_children(
 
                             let memos = parse_memos(reveals, ctx, *condition, true);
                             let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount);
+                                calculate_transfer_type(reveals, &memos, condition.amount)?;
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Nft(nft),
@@ -113,7 +113,7 @@ pub fn parse_children(
                         } else {
                             let memos = parse_memos(reveals, ctx, *condition, false);
                             let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount);
+                                calculate_transfer_type(reveals, &memos, condition.amount)?;
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Xch(Coin::new(
@@ -147,7 +147,7 @@ pub fn parse_children(
                             true,
                         );
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount);
+                            calculate_transfer_type(reveals, &memos, condition.amount)?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Cat(cat),
@@ -172,8 +172,8 @@ fn calculate_transfer_type(
     reveals: &Reveals,
     memos: &ParsedMemos,
     input_amount: u64,
-) -> TransferType {
-    if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
+) -> Result<TransferType, DriverError> {
+    Ok(if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
@@ -182,21 +182,24 @@ fn calculate_transfer_type(
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let mut reserved_fee = 0;
+        let reserved_fee: u128 = fixed_conditions
+            .iter()
+            .filter_map(|condition| match condition {
+                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
+                _ => None,
+            })
+            .sum();
 
-        for condition in fixed_conditions {
-            if let Condition::ReserveFee(condition) = condition {
-                reserved_fee += condition.amount;
-            }
-        }
+        let reserved_fee: u64 = reserved_fee.try_into()?;
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
+            // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
             settlement_amount: input_amount.saturating_sub(reserved_fee),
         })
     } else {
         TransferType::Sent
-    }
+    })
 }

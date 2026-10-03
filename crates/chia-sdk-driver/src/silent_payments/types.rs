@@ -13,7 +13,7 @@
 //!   carrying enough information for the wallet to compose a follow-on spend.
 
 use chia_bls::{PublicKey, SecretKey};
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use clvmr::NodePtr;
 
@@ -78,8 +78,7 @@ pub(crate) struct SilentPaymentPending {
     pub scan_pk: PublicKey,
     pub spend_pk: PublicKey,
     pub parent_xch_index: usize,
-    pub parent_coin_id: Bytes32,
-    pub parent_puzzle_hash: Bytes32,
+    pub parent_coin: Coin,
     pub k: u32,
     pub amount: u64,
     pub memos: Memos<NodePtr>,

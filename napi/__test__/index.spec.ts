@@ -7,6 +7,7 @@ import {
   Constants,
   curryTreeHash,
   fromHex,
+  HandleNftMetadata,
   NftMetadata,
   NftMint,
   PublicKey,
@@ -19,16 +20,16 @@ test("calculate coin id", (t) => {
   const coinId = new Coin(
     fromHex("4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),
     fromHex("dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986"),
-    100n
+    100n,
   ).coinId();
 
   t.true(
     bytesEqual(
       coinId,
       fromHex(
-        "fd3e669c27be9d634fe79f1f7d7d8aaacc3597b855cffea1d708f4642f1d542a"
-      )
-    )
+        "fd3e669c27be9d634fe79f1f7d7d8aaacc3597b855cffea1d708f4642f1d542a",
+      ),
+    ),
   );
 });
 
@@ -222,7 +223,7 @@ test("curry tree hash", (t) => {
 
   const treeHash = curryTreeHash(
     clvm.nil().treeHash(),
-    items.map((i) => clvm.alloc(i).treeHash())
+    items.map((i) => clvm.alloc(i).treeHash()),
   );
   const expected = ptr.treeHash();
 
@@ -242,7 +243,7 @@ test("mint and spend nft", (t) => {
     ["https://example.com"],
     null,
     ["https://example.com"],
-    null
+    null,
   );
 
   const result = clvm.mintNfts(alice.coin.coinId(), [
@@ -251,13 +252,13 @@ test("mint and spend nft", (t) => {
       Constants.nftMetadataUpdaterDefaultHash(),
       alice.puzzleHash,
       alice.puzzleHash,
-      300
+      300,
     ),
   ]);
 
   const spend = clvm.standardSpend(
     alice.pk,
-    clvm.delegatedSpend(result.parentConditions)
+    clvm.delegatedSpend(result.parentConditions),
   );
 
   clvm.spendCoin(alice.coin, spend);
@@ -268,7 +269,7 @@ test("mint and spend nft", (t) => {
     alice.pk,
     clvm.delegatedSpend([
       clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-    ])
+    ]),
   );
 
   clvm.spendNft(result.nfts[0], innerSpend);
@@ -282,8 +283,8 @@ test("mint and spend nft", (t) => {
       clvm
         .nftMetadata(result.nfts[0].info.metadata.parseNftMetadata()!)
         .serialize(),
-      result.nfts[0].info.metadata.serialize()
-    )
+      result.nfts[0].info.metadata.serialize(),
+    ),
   );
 
   t.is(spendBundleCost(coinSpends), 61_437_425n);
@@ -305,6 +306,43 @@ test("create and parse condition", (t) => {
       ?.toList()
       ?.map((memo) => memo.toAtom())
       .filter((memo) => memo !== null),
-    [puzzleHash]
+    [puzzleHash],
   );
+});
+
+test("handle nft metadata nil and populated encodings", (t) => {
+  const clvm = new Clvm();
+
+  const blank = new HandleNftMetadata(null, [], null, [], null, [], null);
+  const blankProgram = clvm.handleNftMetadata(blank);
+  t.is(toHex(blankProgram.serialize()), "80");
+  t.deepEqual(blankProgram.parseHandleNftMetadata()?.displayName, null);
+  t.deepEqual(blankProgram.parseHandleNftMetadata()?.imageUris, []);
+
+  const imageHash = fromHex("11".repeat(32));
+  const metadataHash = fromHex("22".repeat(32));
+  const licenseHash = fromHex("33".repeat(32));
+  const populated = new HandleNftMetadata(
+    "alice",
+    ["https://example.com/a.png"],
+    imageHash,
+    ["https://example.com/a.json"],
+    metadataHash,
+    ["https://example.com/license.txt"],
+    licenseHash,
+  );
+  const populatedProgram = clvm.handleNftMetadata(populated);
+  t.is(
+    toHex(populatedProgram.serialize()),
+    "ffff82646e85616c696365ffff75ff9968747470733a2f2f6578616d706c652e636f6d2f612e706e6780ffff68a01111111111111111111111111111111111111111111111111111111111111111ffff826d75ff9a68747470733a2f2f6578616d706c652e636f6d2f612e6a736f6e80ffff826d68a02222222222222222222222222222222222222222222222222222222222222222ffff826c75ff9f68747470733a2f2f6578616d706c652e636f6d2f6c6963656e73652e74787480ffff826c68a0333333333333333333333333333333333333333333333333333333333333333380",
+  );
+
+  const parsed = populatedProgram.parseHandleNftMetadata();
+  t.is(parsed?.displayName, "alice");
+  t.deepEqual(parsed?.imageUris, ["https://example.com/a.png"]);
+  t.true(parsed !== null && bytesEqual(parsed.imageHash!, imageHash));
+  t.deepEqual(parsed?.metadataUris, ["https://example.com/a.json"]);
+  t.true(parsed !== null && bytesEqual(parsed.metadataHash!, metadataHash));
+  t.deepEqual(parsed?.licenseUris, ["https://example.com/license.txt"]);
+  t.true(parsed !== null && bytesEqual(parsed.licenseHash!, licenseHash));
 });

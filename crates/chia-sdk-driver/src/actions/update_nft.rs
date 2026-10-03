@@ -4,13 +4,18 @@ use chia_sdk_types::{
 };
 
 use crate::{
-    Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind, Spends,
-    assignment_puzzle_announcement_id,
+    Delta, Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind,
+    Spends, assignment_puzzle_announcement_id,
 };
 
+/// Assigns an NFT to a DID in the same transaction, or removes it from its current DID.
 #[derive(Debug, Default, Clone)]
 pub struct TransferNftById {
+    /// The DID to assign the NFT to, which must be spent in the same transaction, or `None` to
+    /// remove the NFT from its current DID.
     pub did_id: Option<Id>,
+    /// The trade prices of the NFT, which determine the royalties that must be paid when it's
+    /// transferred as part of an offer.
     pub trade_prices: Vec<TradePrice>,
 }
 
@@ -23,9 +28,12 @@ impl TransferNftById {
     }
 }
 
+/// Created by [`Action::update_nft`](crate::Action::update_nft).
 #[derive(Debug, Clone)]
 pub struct UpdateNftAction {
     pub id: Id,
+    /// Spends of the metadata updater puzzle, which are run in order. Each one requires a separate
+    /// spend of the NFT.
     pub metadata_update_spends: Vec<Spend>,
     pub transfer: Option<TransferNftById>,
 }
@@ -46,15 +54,13 @@ impl UpdateNftAction {
 
 impl SpendAction for UpdateNftAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(self.id).input += 1;
-        deltas.update(self.id).output += 1;
+        *deltas.update(self.id) += Delta::new(1, 1);
         deltas.set_needed(self.id);
 
         if let Some(transfer) = &self.transfer
             && let Some(did_id) = transfer.did_id
         {
-            deltas.update(did_id).input += 1;
-            deltas.update(did_id).output += 1;
+            *deltas.update(did_id) += Delta::new(1, 1);
             deltas.set_needed(did_id);
         }
     }
@@ -94,7 +100,7 @@ impl SpendAction for UpdateNftAction {
                         spend.add_conditions(
                             Conditions::new()
                                 .assert_puzzle_announcement(assignment_puzzle_announcement_id(
-                                    nft.asset.coin.puzzle_hash,
+                                    nft.transfer_puzzle_hash(spends.intermediate_puzzle_hash),
                                     &transfer_condition,
                                 ))
                                 .create_puzzle_announcement(nft.asset.info.launcher_id.into()),
@@ -216,10 +222,10 @@ mod tests {
         ];
         metadata
             .data_uris
-            .insert(0, "https://example.com/3".to_string());
+            .insert(0, "https://example.com/2".to_string());
         metadata
             .data_uris
-            .insert(0, "https://example.com/2".to_string());
+            .insert(0, "https://example.com/3".to_string());
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
@@ -296,6 +302,106 @@ mod tests {
         assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
         assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(nft.info.current_owner, Some(did.info.launcher_id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_assign_existing_nft_and_send() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(2);
+        let bob = sim.bls(0);
+        let bob_hint = ctx.hint(bob.puzzle_hash)?;
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::create_empty_did(), Action::mint_empty_nft()],
+        )?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&alice.sk))?;
+
+        let did = outputs.dids[&Id::New(0)];
+        let nft = outputs.nfts[&Id::New(1)];
+        let did_id = Id::Existing(did.info.launcher_id);
+        let nft_id = Id::Existing(nft.info.launcher_id);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(did);
+        spends.add(nft);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::update_nft(
+                    nft_id,
+                    Vec::new(),
+                    Some(TransferNftById::new(Some(did_id), vec![])),
+                ),
+                Action::send(nft_id, bob.puzzle_hash, 1, bob_hint),
+            ],
+        )?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let did = outputs.dids[&did_id];
+        assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert!(
+            sim.coin_state(did.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+
+        let nft = outputs.nfts[&nft_id];
+        assert_eq!(nft.info.p2_puzzle_hash, bob.puzzle_hash);
+        assert_eq!(nft.info.current_owner, Some(did.info.launcher_id));
+        assert!(
+            sim.coin_state(nft.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+
+        let mut spends = Spends::new(bob.puzzle_hash);
+        spends.add(nft);
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::update_nft(
+                nft_id,
+                Vec::new(),
+                Some(TransferNftById::new(None, vec![])),
+            )],
+        )?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { bob.puzzle_hash => bob.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[bob.sk])?;
+
+        let nft = outputs.nfts[&nft_id];
+        assert_eq!(nft.info.p2_puzzle_hash, bob.puzzle_hash);
+        assert_eq!(nft.info.current_owner, None);
+        assert!(
+            sim.coin_state(nft.coin.coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
 
         Ok(())
     }

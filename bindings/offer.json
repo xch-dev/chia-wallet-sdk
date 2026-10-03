@@ -29,5 +29,268 @@
       "amount": "u64",
       "memos": "Option<Program>"
     }
+  },
+  "RoyaltyInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "puzzle_hash": "Bytes32",
+      "basis_points": "u16"
+    }
+  },
+  "RequestedPayments": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "add_xch": {
+        "args": {
+          "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "add_cat": {
+        "args": {
+          "asset_id": "Bytes32",
+          "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "add_nft": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "add_option": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "xch": {
+        "return": "Vec<NotarizedPayment>"
+      },
+      "cat_asset_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "cats": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "Vec<NotarizedPayment>"
+      },
+      "nft_launcher_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "nfts": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Vec<NotarizedPayment>"
+      },
+      "option_launcher_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "options": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Vec<NotarizedPayment>"
+      },
+      "amounts": {
+        "return": "OfferAmounts"
+      },
+      "actions": {
+        "return": "Vec<Action>"
+      },
+      "assertions": {
+        "args": {
+          "asset_info": "AssetInfo"
+        },
+        "return": "Vec<Program>"
+      }
+    }
+  },
+  "AssetInfo": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "insert_cat": {
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Option<Bytes32>"
+        }
+      },
+      "insert_nft": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "metadata": "Program",
+          "metadata_updater_puzzle_hash": "Bytes32",
+          "royalty_puzzle_hash": "Bytes32",
+          "royalty_basis_points": "u16"
+        }
+      },
+      "insert_option": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "underlying_coin_id": "Bytes32",
+          "underlying_delegated_puzzle_hash": "Bytes32"
+        }
+      },
+      "cat_asset_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "cat_hidden_puzzle_hash": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "Option<Bytes32>"
+      },
+      "nft_launcher_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "nft_royalty": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Option<RoyaltyInfo>"
+      }
+    }
+  },
+  "OfferAmounts": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "xch": {
+        "return": "u128"
+      },
+      "set_xch": {
+        "args": {
+          "amount": "u128"
+        }
+      },
+      "asset_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "cat": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "u128"
+      },
+      "set_cat": {
+        "args": {
+          "asset_id": "Bytes32",
+          "amount": "u128"
+        }
+      }
+    }
+  },
+  "Offer": {
+    "type": "class",
+    "methods": {
+      "from_input_spend_bundle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "spend_bundle": "SpendBundle",
+          "requested_payments": "RequestedPayments",
+          "asset_info": "AssetInfo"
+        }
+      },
+      "from_spend_bundle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "spend_bundle": "SpendBundle"
+        }
+      },
+      "to_spend_bundle": {
+        "return": "SpendBundle"
+      },
+      "take": {
+        "args": {
+          "spend_bundle": "SpendBundle"
+        },
+        "return": "SpendBundle"
+      },
+      "nonce": {
+        "type": "static",
+        "args": {
+          "coin_ids": "Vec<Bytes32>"
+        },
+        "return": "Bytes32"
+      },
+      "requested_payments": {
+        "return": "RequestedPayments"
+      },
+      "asset_info": {
+        "return": "AssetInfo"
+      },
+      "offered_amounts": {
+        "return": "OfferAmounts"
+      },
+      "offered_xch": {
+        "return": "Vec<Coin>"
+      },
+      "offered_cats": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "Vec<Cat>"
+      },
+      "offered_nft_launcher_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "offered_royalties": {
+        "return": "Vec<RoyaltyInfo>"
+      },
+      "requested_royalties": {
+        "return": "Vec<RoyaltyInfo>"
+      },
+      "offered_royalty_amounts": {
+        "return": "OfferAmounts"
+      },
+      "requested_royalty_amounts": {
+        "return": "OfferAmounts"
+      }
+    }
+  },
+  "calculate_trade_price_amounts": {
+    "type": "function",
+    "args": {
+      "amounts": "OfferAmounts",
+      "royalty_nft_count": "u32"
+    },
+    "return": "OfferAmounts"
+  },
+  "calculate_trade_prices": {
+    "type": "function",
+    "args": {
+      "trade_price_amounts": "OfferAmounts",
+      "asset_info": "AssetInfo"
+    },
+    "return": "Vec<TradePrice>"
+  },
+  "calculate_royalty_payments": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "trade_prices": "OfferAmounts",
+      "royalties": "Vec<RoyaltyInfo>"
+    },
+    "return": "RequestedPayments"
   }
 }

@@ -21,15 +21,15 @@ test("mints and transfers an nft", (t) => {
   const { did, parentConditions: didParentConditions } = createDid(
     clvm,
     alice.coin.coinId(),
-    alice.pk
+    alice.pk,
   );
 
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
     clvm.delegatedSpend(
-      didParentConditions.concat([clvm.createCoin(alice.puzzleHash, 0n)])
-    )
+      didParentConditions.concat([clvm.createCoin(alice.puzzleHash, 0n)]),
+    ),
   );
 
   // Mint an NFT
@@ -45,14 +45,14 @@ test("mints and transfers an nft", (t) => {
       alice.puzzleHash,
       alice.puzzleHash,
       300,
-      null
+      null,
     ),
   ]);
 
   clvm.spendStandardCoin(
     mintCoin,
     alice.pk,
-    clvm.delegatedSpend(mintParentConditions)
+    clvm.delegatedSpend(mintParentConditions),
   );
 
   // Assign the NFT to the DID by spending both
@@ -63,8 +63,8 @@ test("mints and transfers an nft", (t) => {
       clvm.delegatedSpend([
         clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
         clvm.transferNft(did.info.launcherId, [], did.info.innerPuzzleHash()),
-      ])
-    )
+      ]),
+    ),
   );
 
   clvm.spendDid(
@@ -74,8 +74,8 @@ test("mints and transfers an nft", (t) => {
       clvm.delegatedSpend([
         clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
         clvm.createPuzzleAnnouncement(nft.info.launcherId),
-      ])
-    )
+      ]),
+    ),
   );
 
   sim.spendCoins(clvm.coinSpends(), [alice.sk]);
@@ -93,15 +93,15 @@ test("mints 5 nfts", (t) => {
   const { did, parentConditions: didParentConditions } = createDid(
     clvm,
     alice.coin.coinId(),
-    alice.pk
+    alice.pk,
   );
 
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
     clvm.delegatedSpend(
-      didParentConditions.concat([clvm.createCoin(alice.puzzleHash, 0n)])
-    )
+      didParentConditions.concat([clvm.createCoin(alice.puzzleHash, 0n)]),
+    ),
   );
 
   // Mint 5 NFTs
@@ -118,15 +118,15 @@ test("mints 5 nfts", (t) => {
           alice.puzzleHash,
           alice.puzzleHash,
           300,
-          null
-        )
-    )
+          null,
+        ),
+    ),
   );
 
   clvm.spendStandardCoin(
     mintCoin,
     alice.pk,
-    clvm.delegatedSpend(mintParentConditions)
+    clvm.delegatedSpend(mintParentConditions),
   );
 
   // Transfer all of the NFTs to the same p2 puzzle hash
@@ -137,8 +137,8 @@ test("mints 5 nfts", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-        ])
-      )
+        ]),
+      ),
     );
   }
 
@@ -150,7 +150,7 @@ test("mints 5 nfts", (t) => {
 function createDid(
   clvm: Clvm,
   parentCoinId: Buffer,
-  pk: PublicKey
+  pk: PublicKey,
 ): CreatedDid {
   const p2PuzzleHash = standardPuzzleHash(pk);
   const eveDid = clvm.createEveDid(parentCoinId, p2PuzzleHash);
@@ -163,14 +163,14 @@ function createDid(
         clvm.createCoin(
           eveDid.did.info.innerPuzzleHash(),
           1n,
-          clvm.alloc([p2PuzzleHash])
+          clvm.alloc([p2PuzzleHash]),
         ),
-      ])
-    )
+      ]),
+    ),
   );
 
   return new CreatedDid(
     eveDid.did.child(p2PuzzleHash, eveDid.did.info.metadata),
-    eveDid.parentConditions
+    eveDid.parentConditions,
   );
 }

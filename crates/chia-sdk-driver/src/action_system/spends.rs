@@ -3,9 +3,9 @@ use std::{collections::HashMap, mem};
 use chia_bls::PublicKey;
 #[cfg(feature = "chip-0057")]
 use chia_bls::SecretKey;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
+use chia_sdk_types::{Conditions, announcement_id, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{
@@ -15,6 +15,11 @@ use crate::{
     StandardLayer,
 };
 
+/// The coins being spent in a transaction, and what each of them will output.
+///
+/// Coins are [added](Spends::add), then [actions are applied](Spends::apply), and then the spends
+/// are [prepared](Spends::prepare) and [spent](Spends::spend). See the
+/// [module documentation](crate::action_system) for details.
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Spends<S = Unfinished> {
@@ -23,9 +28,15 @@ pub struct Spends<S = Unfinished> {
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
     pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
+    /// The p2 puzzle hash of coins that are created and spent within the transaction, for example
+    /// to emit conditions when no other spend can. The caller must be able to spend it.
     pub intermediate_puzzle_hash: Bytes32,
+    /// The p2 puzzle hash that change and unsent singletons are sent to.
     pub change_puzzle_hash: Bytes32,
+    /// The coins created so far, which are returned when the transaction is finished.
     pub outputs: Outputs,
+    /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
+    /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
     #[cfg(feature = "chip-0057")]
     pub(crate) silent_payment_counters: std::collections::HashMap<[u8; 48], u32>,
@@ -38,31 +49,48 @@ pub struct Spends<S = Unfinished> {
     _state: S,
 }
 
+/// Conditions that aren't tied to a specific coin, such as the assertions of an offer's requested
+/// payments.
 #[derive(Debug, Default, Clone)]
 pub struct ConditionConfig {
+    /// Conditions that are only included if there's already a spend that can emit them.
     pub optional: Conditions,
+    /// Conditions that must be included, even if an intermediate coin has to be created to emit them.
     pub required: Conditions,
+    /// Skips the assertions of payments made by settlement coins. This is only safe if something
+    /// else ties the settlement spends to the transaction, since otherwise they could be removed.
     pub disable_settlement_assertions: bool,
 }
 
+/// The coins created by a transaction.
 #[derive(Debug, Default, Clone)]
 pub struct Outputs {
+    /// The XCH coins created by the actions, and the change. Intermediate coins aren't included.
     pub xch: Vec<Coin>,
+    /// The CAT coins created by the actions, and the change. Intermediate coins aren't included.
     pub cats: IndexMap<Id, Vec<Cat>>,
+    /// The final coin of each DID that wasn't melted.
     pub dids: IndexMap<Id, Did>,
+    /// The final coin of each NFT.
     pub nfts: IndexMap<Id, Nft>,
+    /// The final coin of each option contract that wasn't exercised.
     pub options: IndexMap<Id, OptionContract>,
+    /// The total fee paid by [`Action::fee`](crate::Action::fee).
     pub fee: u64,
+    /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
 }
 
+/// The state of [`Spends`] while actions are being applied.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Unfinished;
 
+/// The state of [`Spends`] after [`Spends::prepare`], when only the p2 spends remain to be provided.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Finished;
 
 impl Spends<Unfinished> {
+    /// Uses the change puzzle hash for intermediate coins as well.
     pub fn new(change_puzzle_hash: Bytes32) -> Self {
         Self::with_separate_change_puzzle_hash(change_puzzle_hash, change_puzzle_hash)
     }
@@ -93,6 +121,8 @@ impl Spends<Unfinished> {
         }
     }
 
+    /// Adds a coin to be spent with its p2 puzzle. Coins with the settlement payments puzzle as their
+    /// p2 puzzle (for example, when taking an offer) are spent as settlement spends.
     pub fn add(&mut self, asset: impl AddAsset) {
         asset.add(self);
     }
@@ -141,6 +171,29 @@ impl Spends<Unfinished> {
         self
     }
 
+    /// Adds a revocable CAT to be spent with its hidden puzzle (ie, revoked by the issuer), rather
+    /// than its p2 puzzle. The spend must be authorized by the hidden puzzle hash, which is
+    /// reported as the p2 puzzle hash of [`SpendableAsset::RevokedCat`].
+    ///
+    /// Everything created by the revocation spend (payments, change, and intermediate coins) is
+    /// wrapped in the same revocation layer and hinted with its p2 puzzle hash, so the outputs
+    /// remain revocable. Any value that isn't sent elsewhere is returned to the change puzzle hash.
+    ///
+    /// Returns [`DriverError::NotRevocable`] if the CAT doesn't have a hidden puzzle.
+    pub fn add_for_revocation(&mut self, cat: Cat) -> Result<(), DriverError> {
+        let spend = FungibleSpend::revocation(cat)?;
+
+        self.cats
+            .entry(Id::Existing(cat.info.asset_id))
+            .or_default()
+            .items
+            .push(spend);
+
+        Ok(())
+    }
+
+    /// Applies each action in order, and returns the [`Deltas`] of the actions for
+    /// [`Spends::prepare`].
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
@@ -290,6 +343,12 @@ impl Spends<Unfinished> {
             }))
     }
 
+    /// Attaches the transaction-wide conditions (required and optional conditions, settlement
+    /// payment assertions, and the reserved fee) to the first spend that can emit conditions.
+    ///
+    /// If there is no such spend (for example, when only settlement coins are being spent) and
+    /// there are conditions that must be included, an ephemeral coin is created with the
+    /// intermediate puzzle hash so that it can be spent to emit them.
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
         let mut conditions = self.conditions.required.clone().extend(
             if self.conditions.disable_settlement_assertions {
@@ -299,7 +358,7 @@ impl Spends<Unfinished> {
             },
         );
 
-        let required = !conditions.is_empty();
+        let required = !conditions.is_empty() || self.outputs.reserved_fee > 0;
 
         conditions = conditions.extend(self.conditions.optional.clone());
 
@@ -307,126 +366,151 @@ impl Spends<Unfinished> {
             conditions = conditions.reserve_fee(self.outputs.reserved_fee);
         }
 
-        for (_, spend) in self.iter_conditions_spends() {
-            spend.add_conditions(mem::take(&mut conditions));
+        if let Some((_, spend)) = self.iter_conditions_spends().next() {
+            spend.add_conditions(conditions);
+            return Ok(());
         }
 
         if conditions.is_empty() || !required {
             return Ok(());
         }
 
+        let intermediate_puzzle_hash = self.intermediate_puzzle_hash;
+
         if let Some(index) = self
             .xch
-            .intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+            .intermediate_conditions_source(ctx, intermediate_puzzle_hash)?
+            && try_add_conditions(&mut self.xch.items[index].kind, &mut conditions)
         {
-            match &mut self.xch.items[index].kind {
-                SpendKind::Conditions(spend) => {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-                SpendKind::Settlement(_) => {}
-            }
+            return Ok(());
         }
 
         for cat in self.cats.values_mut() {
             if let Some(index) =
-                cat.intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+                cat.intermediate_conditions_source(ctx, intermediate_puzzle_hash)?
+                && try_add_conditions(&mut cat.items[index].kind, &mut conditions)
             {
-                match &mut cat.items[index].kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                return Ok(());
             }
         }
 
         for did in self.dids.values_mut() {
             if let Some(mut item) =
-                did.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                did.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
         for nft in self.nfts.values_mut() {
             if let Some(mut item) =
-                nft.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                nft.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
         for option in self.options.values_mut() {
             if let Some(mut item) =
-                option.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+                option.intermediate_fungible_xch_spend(ctx, intermediate_puzzle_hash)?
             {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(mem::take(&mut conditions));
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
+                let emitted = try_add_conditions(&mut item.kind, &mut conditions);
                 self.xch.items.push(item);
+                if emitted {
+                    return Ok(());
+                }
             }
         }
 
-        if conditions.is_empty() {
-            Ok(())
-        } else {
-            Err(DriverError::CannotEmitConditions)
-        }
+        Err(DriverError::CannotEmitConditions)
     }
 
     fn emit_relation(&mut self, relation: Relation) {
-        match relation {
-            Relation::None => {}
-            Relation::AssertConcurrent => {
-                let coin_ids: Vec<Bytes32> = self
-                    .iter_conditions_spends()
-                    .map(|(coin, _)| coin.coin_id())
-                    .collect();
-
-                if coin_ids.len() <= 1 {
-                    return;
-                }
-
-                self.iter_conditions_spends()
-                    .enumerate()
-                    .for_each(|(i, (_, spend))| {
-                        spend.add_conditions(Conditions::new().assert_concurrent_spend(
-                            if i == 0 {
-                                coin_ids[coin_ids.len() - 1]
-                            } else {
-                                coin_ids[i - 1]
-                            },
-                        ));
-                    });
-            }
+        if relation == Relation::None {
+            return;
         }
+
+        let coin_ids: Vec<Bytes32> = self
+            .iter_conditions_spends()
+            .map(|(coin, _)| coin.coin_id())
+            .collect();
+
+        if coin_ids.len() <= 1 {
+            return;
+        }
+
+        let len = coin_ids.len();
+
+        self.iter_conditions_spends()
+            .enumerate()
+            .for_each(|(i, (_, spend))| {
+                let conditions = match relation {
+                    Relation::None => Conditions::new(),
+                    Relation::AssertConcurrent => {
+                        Conditions::new().assert_concurrent_spend(coin_ids[(i + len - 1) % len])
+                    }
+                    Relation::CoinAnnouncementRing => Conditions::new()
+                        .create_coin_announcement(Bytes::default())
+                        .assert_coin_announcement(announcement_id(
+                            coin_ids[(i + 1) % len],
+                            Bytes::default(),
+                        )),
+                    Relation::CoinAnnouncementHub => {
+                        if i == 0 {
+                            Conditions::new().create_coin_announcement(Bytes::default())
+                        } else {
+                            Conditions::new().assert_coin_announcement(announcement_id(
+                                coin_ids[0],
+                                Bytes::default(),
+                            ))
+                        }
+                    }
+                };
+
+                spend.add_conditions(conditions);
+            });
     }
 
+    fn wrap_revocation_outputs(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
+        for cat in self.cats.values_mut() {
+            for item in &mut cat.items {
+                if !item.revoke {
+                    continue;
+                }
+
+                let (Some(hidden_puzzle_hash), SpendKind::Conditions(spend)) =
+                    (item.asset.info.hidden_puzzle_hash, &mut item.kind)
+                else {
+                    continue;
+                };
+
+                spend.wrap_for_revocation(ctx, hidden_puzzle_hash)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// The puzzle hashes of every puzzle that the caller needs to be able to spend, including the
+    /// intermediate puzzle hash.
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = vec![self.intermediate_puzzle_hash];
 
         for item in &self.xch.items {
-            p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            p2_puzzle_hashes.push(item.p2_puzzle_hash());
         }
 
         for (_, cat) in &self.cats {
             for item in &cat.items {
-                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+                p2_puzzle_hashes.push(item.p2_puzzle_hash());
             }
         }
 
@@ -451,6 +535,7 @@ impl Spends<Unfinished> {
         p2_puzzle_hashes
     }
 
+    /// The ids of the coins that are spent with conditions, rather than as settlement coins.
     pub fn non_settlement_coin_ids(&self) -> Vec<Bytes32> {
         let mut coin_ids = Vec::new();
 
@@ -495,6 +580,10 @@ impl Spends<Unfinished> {
         coin_ids
     }
 
+    /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
+    /// together according to the [`Relation`], and wraps the outputs of revocation spends.
+    ///
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas.
     pub fn prepare(
         mut self,
         ctx: &mut SpendContext,
@@ -513,6 +602,7 @@ impl Spends<Unfinished> {
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
+        self.wrap_revocation_outputs(ctx)?;
 
         Ok(Spends {
             xch: self.xch,
@@ -536,8 +626,9 @@ impl Spends<Unfinished> {
         })
     }
 
-    /// Finish the spend with synthetic public keys, producing the final
-    /// [`Outputs`].
+    /// Prepares the spends, and spends every coin with the standard puzzle (using the synthetic key
+    /// for its p2 puzzle hash), or with the settlement payments puzzle for settlement coins.
+    /// Returns [`DriverError::MissingKey`] if a key is missing.
     ///
     /// Privacy warning: under chip-0057, when `silent_payments_pending` is non-empty
     /// (i.e. at least one `Action::silent_payment_send` has been applied), the
@@ -723,23 +814,22 @@ fn sp_finish_branch(
         let create_coin = CreateCoin::new(ph, p.amount, p.memos);
 
         // Emit the CreateCoin condition on the recorded parent. The
-        // p.parent_puzzle_hash was captured at apply time via
-        // parent.asset.full_puzzle_hash().
+        // p.parent_coin was captured at apply time via parent.asset.coin().
         let parent = &mut spends.xch.items[p.parent_xch_index];
         parent.kind.create_coin_with_assertion(
             ctx,
-            p.parent_puzzle_hash,
+            p.parent_coin,
             &mut spends.xch.payment_assertions,
             create_coin,
         );
 
-        // Record the resulting output coin (parent_coin_id was captured at
+        // Record the resulting output coin (parent_coin was captured at
         // apply time when the parent was selected, before any intermediate
         // ephemeral coins could shift indices).
         spends
             .outputs
             .xch
-            .push(Coin::new(p.parent_coin_id, ph, p.amount));
+            .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
     }
 
     // No SP-specific concurrent binding is emitted here. The XCH-only invariant
@@ -752,6 +842,8 @@ fn sp_finish_branch(
 }
 
 impl Spends<Finished> {
+    /// Every coin that the caller needs to provide the p2 spend for, along with what the p2 puzzle
+    /// must output.
     pub fn unspent(&self) -> Vec<(SpendableAsset, SpendKind)> {
         let mut result = Vec::new();
 
@@ -761,7 +853,12 @@ impl Spends<Finished> {
 
         for cat in self.cats.values() {
             for item in &cat.items {
-                result.push((SpendableAsset::Cat(item.asset), item.kind.clone()));
+                let asset = if item.revoke {
+                    SpendableAsset::RevokedCat(item.asset)
+                } else {
+                    SpendableAsset::Cat(item.asset)
+                };
+                result.push((asset, item.kind.clone()));
             }
         }
 
@@ -786,6 +883,8 @@ impl Spends<Finished> {
         result
     }
 
+    /// Spends every coin with the p2 spends, keyed by coin id, and returns the [`Outputs`].
+    /// Returns [`DriverError::MissingSpend`] if a p2 spend is missing.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -804,7 +903,11 @@ impl Spends<Finished> {
                 let spend = coin_spends
                     .remove(&item.asset.coin_id())
                     .ok_or(DriverError::MissingSpend)?;
-                cat_spends.push(CatSpend::new(item.asset, spend));
+                cat_spends.push(if item.revoke {
+                    CatSpend::revoke(item.asset, spend)
+                } else {
+                    CatSpend::new(item.asset, spend)
+                });
             }
             Cat::spend_all(ctx, &cat_spends)?;
         }
@@ -840,6 +943,17 @@ impl Spends<Finished> {
     }
 }
 
+fn try_add_conditions(kind: &mut SpendKind, conditions: &mut Conditions) -> bool {
+    match kind {
+        SpendKind::Conditions(spend) => {
+            spend.add_conditions(mem::take(conditions));
+            true
+        }
+        SpendKind::Settlement(_) => false,
+    }
+}
+
+/// An asset that can be added to [`Spends`] with [`Spends::add`].
 pub trait AddAsset {
     fn add(self, spends: &mut Spends);
 }

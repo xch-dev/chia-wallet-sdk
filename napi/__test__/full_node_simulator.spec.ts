@@ -7,8 +7,8 @@ import {
   FullNodeSimulator,
   RpcClient,
   SecretKey,
-  SpendBundle,
   Signature,
+  SpendBundle,
   standardPuzzleHash,
 } from "../index.js";
 
@@ -25,15 +25,15 @@ test("full node simulator exposes prefarm rewards", (t) => {
   t.true(prefarmRecords.every((record) => !record.spent));
   t.is(
     prefarmRecords.reduce((sum, record) => sum + record.coin.amount, 0n),
-    21_000_000_000_000_000_000n
+    21_000_000_000_000_000_000n,
   );
 
   const genesis = sim.getBlockRecordByHeight(0).blockRecord!;
   t.is(genesis.rewardClaimsIncorporated?.length, 2);
   t.true(
     genesis.rewardClaimsIncorporated!.every((coin) =>
-      bytesEqual(coin.puzzleHash, prefarmPuzzleHash)
-    )
+      bytesEqual(coin.puzzleHash, prefarmPuzzleHash),
+    ),
   );
 });
 
@@ -43,7 +43,7 @@ test("full node simulator derives prefarm from explicit secret key", (t) => {
     .deriveHardenedPath([12381, 8444, 2, 1])
     .deriveSynthetic();
   const expectedPrefarmPuzzleHash = standardPuzzleHash(
-    expectedPrefarmSecretKey.publicKey()
+    expectedPrefarmSecretKey.publicKey(),
   );
 
   const sim = FullNodeSimulator.withSecretKey(rootSecretKey);
@@ -54,8 +54,8 @@ test("full node simulator derives prefarm from explicit secret key", (t) => {
   t.true(
     bytesEqual(
       derivedPrefarmSecretKey.toBytes(),
-      expectedPrefarmSecretKey.toBytes()
-    )
+      expectedPrefarmSecretKey.toBytes(),
+    ),
   );
   t.true(bytesEqual(sim.getPrefarmPuzzleHash(), expectedPrefarmPuzzleHash));
 });
@@ -87,10 +87,12 @@ test("full node simulator push tx waits for manual farming", (t) => {
       new CoinSpend(
         coin,
         puzzle.serialize(),
-        clvm.parse(`((51 0x${Buffer.from(puzzleHash).toString("hex")} 99))`).serialize()
+        clvm
+          .parse(`((51 0x${Buffer.from(puzzleHash).toString("hex")} 99))`)
+          .serialize(),
       ),
     ],
-    Signature.infinity()
+    Signature.infinity(),
   );
 
   t.true(sim.pushTx(spendBundle).success);
@@ -122,10 +124,10 @@ test("full node simulator can serve rpc over http", async (t) => {
           puzzle.serialize(),
           clvm
             .parse(`((51 0x${Buffer.from(puzzleHash).toString("hex")} 99))`)
-            .serialize()
+            .serialize(),
         ),
       ],
-      Signature.infinity()
+      Signature.infinity(),
     );
 
     const pushResponse = await rpc.pushTx(spendBundle);

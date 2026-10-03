@@ -2,11 +2,14 @@ use chia_protocol::Coin;
 use chia_puzzle_types::offer::NotarizedPayment;
 use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment};
 
-use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
+use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
 
+/// Created by [`Action::settle`](crate::Action::settle) or
+/// [`Action::settle_royalty`](crate::Action::settle_royalty).
 #[derive(Debug, Clone)]
 pub struct SettleAction {
     pub id: Id,
+    /// The payments to make from a settlement coin, and the nonce they're notarized with.
     pub notarized_payment: NotarizedPayment,
 }
 
@@ -21,14 +24,10 @@ impl SettleAction {
 
 impl SpendAction for SettleAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        let amount: u64 = self
-            .notarized_payment
-            .payments
-            .iter()
-            .map(|p| p.amount)
-            .sum();
+        for payment in &self.notarized_payment.payments {
+            *deltas.update(self.id) += Delta::new(0, payment.amount);
+        }
 
-        deltas.update(self.id).output += amount;
         deltas.set_needed(self.id);
     }
 
@@ -184,12 +183,7 @@ mod tests {
             &mut ctx,
             &[
                 Action::send(Id::Xch, alice.puzzle_hash, 0, Memos::None),
-                Action::send(
-                    Id::Xch,
-                    Bytes32::new(SETTLEMENT_PAYMENT_HASH),
-                    1,
-                    Memos::None,
-                ),
+                Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
             ],
         )?;
 

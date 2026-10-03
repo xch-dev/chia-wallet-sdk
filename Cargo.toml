@@ -1,6 +1,6 @@
 [package]
 name = "chia-wallet-sdk"
-version = "0.34.0"
+version = "0.36.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "An unofficial SDK for building Chia wallets."
@@ -110,19 +110,19 @@ hex-literal = { workspace = true }
 indexmap = { workspace = true }
 
 [workspace.dependencies]
-chia-wallet-sdk = { version = "0.34.0", path = "." }
-chia-sdk-client = { version = "0.34.0", path = "./crates/chia-sdk-client" }
-chia-sdk-driver = { version = "0.34.0", path = "./crates/chia-sdk-driver" }
-chia-sdk-signer = { version = "0.34.0", path = "./crates/chia-sdk-signer" }
-chia-sdk-test = { version = "0.34.0", path = "./crates/chia-sdk-test" }
-chia-sdk-types = { version = "0.34.0", path = "./crates/chia-sdk-types" }
-chia-sdk-derive = { version = "0.34.0", path = "./crates/chia-sdk-types/derive" }
-chia-sdk-utils = { version = "0.34.0", path = "./crates/chia-sdk-utils" }
-chia-sdk-coinset = { version = "0.34.0", path = "./crates/chia-sdk-coinset" }
-chia-sdk-daemon = { version = "0.34.0", path = "./crates/chia-sdk-daemon" }
-chia-sdk-bindings = { version = "0.34.0", path = "./crates/chia-sdk-bindings" }
-bindy = { version = "0.34.0", path = "./crates/chia-sdk-bindings/bindy" }
-bindy-macro = { version = "0.34.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
+chia-wallet-sdk = { version = "0.36.0", path = "." }
+chia-sdk-client = { version = "0.36.0", path = "./crates/chia-sdk-client" }
+chia-sdk-driver = { version = "0.36.0", path = "./crates/chia-sdk-driver" }
+chia-sdk-signer = { version = "0.36.0", path = "./crates/chia-sdk-signer" }
+chia-sdk-test = { version = "0.36.0", path = "./crates/chia-sdk-test" }
+chia-sdk-types = { version = "0.36.0", path = "./crates/chia-sdk-types" }
+chia-sdk-derive = { version = "0.36.0", path = "./crates/chia-sdk-types/derive" }
+chia-sdk-utils = { version = "0.36.0", path = "./crates/chia-sdk-utils" }
+chia-sdk-coinset = { version = "0.36.0", path = "./crates/chia-sdk-coinset" }
+chia-sdk-daemon = { version = "0.36.0", path = "./crates/chia-sdk-daemon" }
+chia-sdk-bindings = { version = "0.36.0", path = "./crates/chia-sdk-bindings" }
+bindy = { version = "0.36.0", path = "./crates/chia-sdk-bindings/bindy" }
+bindy-macro = { version = "0.36.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
 chia-ssl = "0.42.1"
 chia-protocol = "0.36.1"
 chia-consensus = "0.36.1"
@@ -167,7 +167,6 @@ napi = { version = "3.3.0", default-features = false }
 napi-derive = { version = "3.2.5" }
 napi-build = "3.0.0-beta.0"
 paste = "1.0.15"
-bigdecimal = "0.4.8"
 k256 = "0.13.4"
 p256 = "0.13.2"
 signature = "2.2.0"

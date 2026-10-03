@@ -11,9 +11,10 @@ use chia_sdk_driver::{self as sdk, InnerPuzzleSpend, MofN, SpendContext, mips_pu
 use chia_sdk_types::{
     Mod,
     puzzles::{
-        BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, Force1of2RestrictedVariable,
-        Force1of2RestrictedVariableSolution, K1Member, K1MemberPuzzleAssert,
-        K1MemberPuzzleAssertSolution, K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
+        BlsMember, BlsMemberPuzzleAssert, FORCE_SINGLETON_RECREATION_HASH, FixedPuzzleMember,
+        Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution,
+        ForceSingletonRecreationMod, K1Member, K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution,
+        K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
         PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
@@ -442,6 +443,20 @@ impl MipsSpend {
 
         self.spend.lock().unwrap().restrictions.insert(
             PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
+            sdk::Spend::new(puzzle, solution),
+        );
+
+        Ok(())
+    }
+
+    pub fn force_singleton_recreation(&self) -> Result<()> {
+        let mut ctx = self.clvm.lock().unwrap();
+
+        let puzzle = ctx.alloc_mod::<ForceSingletonRecreationMod>()?;
+        let solution = ctx.alloc(&NodePtr::NIL)?;
+
+        self.spend.lock().unwrap().restrictions.insert(
+            FORCE_SINGLETON_RECREATION_HASH.into(),
             sdk::Spend::new(puzzle, solution),
         );
 

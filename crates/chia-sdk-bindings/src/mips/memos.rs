@@ -8,10 +8,17 @@ use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
 use chia_protocol::Bytes32;
-use chia_sdk_driver as sdk;
+use chia_sdk_driver::{self as sdk, DriverError, SpendContext};
+use clvm_traits::FromClvm;
 use clvm_utils::TreeHash;
 
 use crate::{Clvm, K1PublicKey, Program, R1PublicKey};
+
+type SharedContext = Arc<Mutex<SpendContext>>;
+
+fn to_u32(value: usize) -> Result<u32> {
+    Ok(u32::try_from(value).map_err(DriverError::from)?)
+}
 
 #[derive(Clone)]
 pub struct MipsMemo {
@@ -25,6 +32,12 @@ impl From<MipsMemo> for sdk::MipsMemo {
 }
 
 impl MipsMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::MipsMemo) -> Result<Self> {
+        Ok(Self {
+            inner_puzzle: InnerPuzzleMemo::from_sdk(clvm, value.inner_puzzle)?,
+        })
+    }
+
     pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
         Ok(sdk::MipsMemo::from(self.clone()).inner_puzzle_hash())
     }
@@ -48,6 +61,18 @@ impl From<InnerPuzzleMemo> for sdk::InnerPuzzleMemo {
 }
 
 impl InnerPuzzleMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::InnerPuzzleMemo) -> Result<Self> {
+        Ok(Self {
+            nonce: to_u32(value.nonce)?,
+            restrictions: value
+                .restrictions
+                .into_iter()
+                .map(|restriction| RestrictionMemo::from_sdk(clvm, restriction))
+                .collect::<Result<_>>()?,
+            kind: MemoKind::from_sdk(clvm, value.kind)?,
+        })
+    }
+
     pub fn inner_puzzle_hash(&self, top_level: bool) -> Result<TreeHash> {
         Ok(sdk::InnerPuzzleMemo::from(self.clone()).inner_puzzle_hash(top_level))
     }
@@ -61,6 +86,47 @@ pub struct RestrictionMemo {
 }
 
 impl RestrictionMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::RestrictionMemo) -> Result<Self> {
+        Ok(Self {
+            member_condition_validator: value.member_condition_validator,
+            puzzle_hash: value.puzzle_hash,
+            memo: Program(clvm.clone(), value.memo),
+        })
+    }
+
+    pub fn parse(&self, ctx: MipsMemoContext) -> Result<Option<ParsedRestriction>> {
+        let clvm = &self.memo.0;
+
+        let allocator = clvm.lock().unwrap();
+        let ctx = ctx.0.lock().unwrap();
+
+        let Some(parsed) = sdk::RestrictionMemo::from(self.clone()).parse(&allocator, &ctx) else {
+            return Ok(None);
+        };
+
+        Ok(Some(match parsed {
+            sdk::ParsedRestriction::Force1of2RestrictedVariable(_) => {
+                let memo =
+                    sdk::Force1of2RestrictedVariableMemo::from_clvm(&**allocator, self.memo.1)
+                        .map_err(DriverError::from)?;
+                ParsedRestriction::Force1of2RestrictedVariable(
+                    Force1of2RestrictedVariableMemo::from_sdk(memo)?,
+                )
+            }
+            sdk::ParsedRestriction::EnforceDelegatedPuzzleWrappers(_, wrappers) => {
+                ParsedRestriction::EnforceDelegatedPuzzleWrappers(
+                    wrappers
+                        .into_iter()
+                        .map(|wrapper| WrapperMemo::from_sdk(clvm, wrapper))
+                        .collect(),
+                )
+            }
+            sdk::ParsedRestriction::Timelock(timelock) => {
+                ParsedRestriction::Timelock(timelock.seconds)
+            }
+        }))
+    }
+
     pub fn force_1_of_2_restricted_variable(
         clvm: Clvm,
         left_side_subtree_hash: Bytes32,
@@ -130,6 +196,43 @@ pub struct WrapperMemo {
 }
 
 impl WrapperMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::WrapperMemo) -> Self {
+        Self {
+            puzzle_hash: value.puzzle_hash,
+            memo: Program(clvm.clone(), value.memo),
+        }
+    }
+
+    pub fn parse(&self, ctx: MipsMemoContext) -> Result<Option<ParsedWrapper>> {
+        let allocator = self.memo.0.lock().unwrap();
+        let ctx = ctx.0.lock().unwrap();
+
+        let Some(parsed) = sdk::WrapperMemo::from(self.clone()).parse(&allocator, &ctx) else {
+            return Ok(None);
+        };
+
+        Ok(Some(match parsed {
+            sdk::ParsedWrapper::ForceAssertCoinAnnouncement => ParsedWrapper::ForceCoinAnnouncement,
+            sdk::ParsedWrapper::ForceCoinMessage => ParsedWrapper::ForceCoinMessage,
+            sdk::ParsedWrapper::ForceSingletonRecreation => ParsedWrapper::ForceSingletonRecreation,
+            sdk::ParsedWrapper::PreventConditionOpcode(wrapper) => {
+                ParsedWrapper::PreventConditionOpcode(wrapper.condition_opcode)
+            }
+            sdk::ParsedWrapper::PreventMultipleCreateCoins => {
+                ParsedWrapper::PreventMultipleCreateCoins
+            }
+            sdk::ParsedWrapper::Timelock(wrapper) => ParsedWrapper::Timelock(wrapper.seconds),
+            sdk::ParsedWrapper::Force1of2RestrictedVariable(_) => {
+                let memo =
+                    sdk::Force1of2RestrictedVariableMemo::from_clvm(&**allocator, self.memo.1)
+                        .map_err(DriverError::from)?;
+                ParsedWrapper::Force1of2RestrictedVariable(
+                    Force1of2RestrictedVariableMemo::from_sdk(memo)?,
+                )
+            }
+        }))
+    }
+
     pub fn prevent_vault_side_effects(clvm: Clvm, reveal: bool) -> Result<Vec<Self>> {
         Ok(vec![
             Self::prevent_condition_opcode(clvm.clone(), CREATE_COIN_ANNOUNCEMENT, reveal)?,
@@ -141,7 +244,7 @@ impl WrapperMemo {
     }
 
     pub fn force_coin_announcement(clvm: Clvm) -> Result<Self> {
-        let wrapper = sdk::WrapperMemo::force_coin_message();
+        let wrapper = sdk::WrapperMemo::force_assert_coin_announcement();
         Ok(Self {
             puzzle_hash: wrapper.puzzle_hash,
             memo: Program(clvm.0.clone(), wrapper.memo),
@@ -158,6 +261,14 @@ impl WrapperMemo {
 
     pub fn prevent_multiple_create_coins(clvm: Clvm) -> Result<Self> {
         let wrapper = sdk::WrapperMemo::prevent_multiple_create_coins();
+        Ok(Self {
+            puzzle_hash: wrapper.puzzle_hash,
+            memo: Program(clvm.0.clone(), wrapper.memo),
+        })
+    }
+
+    pub fn force_singleton_recreation(clvm: Clvm) -> Result<Self> {
+        let wrapper = sdk::WrapperMemo::force_singleton_recreation();
         Ok(Self {
             puzzle_hash: wrapper.puzzle_hash,
             memo: Program(clvm.0.clone(), wrapper.memo),
@@ -197,6 +308,17 @@ pub struct Force1of2RestrictedVariableMemo {
     pub delegated_puzzle_validator_list_hash: Bytes32,
 }
 
+impl Force1of2RestrictedVariableMemo {
+    pub(crate) fn from_sdk(value: sdk::Force1of2RestrictedVariableMemo) -> Result<Self> {
+        Ok(Self {
+            left_side_subtree_hash: value.left_side_subtree_hash,
+            nonce: to_u32(value.nonce)?,
+            member_validator_list_hash: value.member_validator_list_hash,
+            delegated_puzzle_validator_list_hash: value.delegated_puzzle_validator_list_hash,
+        })
+    }
+}
+
 impl From<Force1of2RestrictedVariableMemo> for sdk::Force1of2RestrictedVariableMemo {
     fn from(value: Force1of2RestrictedVariableMemo) -> Self {
         Self::new(
@@ -214,6 +336,13 @@ pub enum MemoKind {
 }
 
 impl MemoKind {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::MemoKind) -> Result<Self> {
+        Ok(match value {
+            sdk::MemoKind::Member(member) => Self::Member(MemberMemo::from_sdk(clvm, member)),
+            sdk::MemoKind::MofN(m_of_n) => Self::MofN(MofNMemo::from_sdk(clvm, m_of_n)?),
+        })
+    }
+
     pub fn member(member: MemberMemo) -> Result<Self> {
         Ok(Self::Member(member))
     }
@@ -259,6 +388,23 @@ pub struct MemberMemo {
 }
 
 impl MemberMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::MemberMemo) -> Self {
+        Self {
+            puzzle_hash: value.puzzle_hash,
+            memo: Program(clvm.clone(), value.memo),
+        }
+    }
+
+    pub fn parse(&self, ctx: MipsMemoContext) -> Result<Option<ParsedMember>> {
+        let parsed = {
+            let allocator = self.memo.0.lock().unwrap();
+            let ctx = ctx.0.lock().unwrap();
+            sdk::MemberMemo::from(self.clone()).parse(&allocator, &ctx)
+        };
+
+        Ok(parsed.map(|parsed| ParsedMember::from_sdk(&self.memo.0, parsed)))
+    }
+
     pub fn k1(
         clvm: Clvm,
         public_key: K1PublicKey,
@@ -362,6 +508,17 @@ impl From<MofNMemo> for sdk::MofNMemo {
 }
 
 impl MofNMemo {
+    pub(crate) fn from_sdk(clvm: &SharedContext, value: sdk::MofNMemo) -> Result<Self> {
+        Ok(Self {
+            required: to_u32(value.required)?,
+            items: value
+                .items
+                .into_iter()
+                .map(|item| InnerPuzzleMemo::from_sdk(clvm, item))
+                .collect::<Result<_>>()?,
+        })
+    }
+
     pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
         Ok(sdk::MofNMemo::from(self.clone()).inner_puzzle_hash())
     }
@@ -415,5 +572,252 @@ impl MipsMemoContext {
         let mut ctx = self.0.lock().unwrap();
         ctx.singleton_modes.push(mode);
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub enum ParsedMember {
+    K1 {
+        public_key: K1PublicKey,
+        fast_forward: bool,
+    },
+    R1 {
+        public_key: R1PublicKey,
+        fast_forward: bool,
+    },
+    Bls {
+        public_key: PublicKey,
+        fast_forward: bool,
+    },
+    BlsTaproot {
+        synthetic_key: PublicKey,
+        fast_forward: bool,
+    },
+    Passkey {
+        public_key: R1PublicKey,
+        fast_forward: bool,
+    },
+    Singleton {
+        launcher_id: Bytes32,
+        mode: Option<u8>,
+    },
+    FixedPuzzle(Bytes32),
+    Custom(Program),
+}
+
+impl ParsedMember {
+    fn from_sdk(clvm: &SharedContext, value: sdk::ParsedMember) -> Self {
+        match value {
+            sdk::ParsedMember::K1(member) => Self::K1 {
+                public_key: K1PublicKey(member.public_key),
+                fast_forward: false,
+            },
+            sdk::ParsedMember::K1PuzzleAssert(member) => Self::K1 {
+                public_key: K1PublicKey(member.public_key),
+                fast_forward: true,
+            },
+            sdk::ParsedMember::R1(member) => Self::R1 {
+                public_key: R1PublicKey(member.public_key),
+                fast_forward: false,
+            },
+            sdk::ParsedMember::R1PuzzleAssert(member) => Self::R1 {
+                public_key: R1PublicKey(member.public_key),
+                fast_forward: true,
+            },
+            sdk::ParsedMember::Bls(member) => Self::Bls {
+                public_key: member.public_key,
+                fast_forward: false,
+            },
+            sdk::ParsedMember::BlsPuzzleAssert(member) => Self::Bls {
+                public_key: member.public_key,
+                fast_forward: true,
+            },
+            sdk::ParsedMember::BlsTaproot(member) => Self::BlsTaproot {
+                synthetic_key: member.synthetic_key,
+                fast_forward: false,
+            },
+            sdk::ParsedMember::BlsTaprootPuzzleAssert(member) => Self::BlsTaproot {
+                synthetic_key: member.synthetic_key,
+                fast_forward: true,
+            },
+            sdk::ParsedMember::Passkey(member) => Self::Passkey {
+                public_key: R1PublicKey(member.public_key),
+                fast_forward: false,
+            },
+            sdk::ParsedMember::PasskeyPuzzleAssert(member) => Self::Passkey {
+                public_key: R1PublicKey(member.public_key),
+                fast_forward: true,
+            },
+            sdk::ParsedMember::Singleton(member) => Self::Singleton {
+                launcher_id: member.singleton_struct.launcher_id,
+                mode: None,
+            },
+            sdk::ParsedMember::SingletonWithMode(member) => Self::Singleton {
+                launcher_id: member.singleton_struct.launcher_id,
+                mode: Some(member.mode),
+            },
+            sdk::ParsedMember::FixedPuzzle(member) => Self::FixedPuzzle(member.fixed_puzzle_hash),
+            sdk::ParsedMember::Custom(puzzle) => Self::Custom(Program(clvm.clone(), puzzle)),
+        }
+    }
+
+    pub fn as_k1(&self) -> Result<Option<K1PublicKey>> {
+        match self {
+            Self::K1 { public_key, .. } => Ok(Some(*public_key)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_r1(&self) -> Result<Option<R1PublicKey>> {
+        match self {
+            Self::R1 { public_key, .. } => Ok(Some(*public_key)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_bls(&self) -> Result<Option<PublicKey>> {
+        match self {
+            Self::Bls { public_key, .. } => Ok(Some(*public_key)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_bls_taproot(&self) -> Result<Option<PublicKey>> {
+        match self {
+            Self::BlsTaproot { synthetic_key, .. } => Ok(Some(*synthetic_key)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_passkey(&self) -> Result<Option<R1PublicKey>> {
+        match self {
+            Self::Passkey { public_key, .. } => Ok(Some(*public_key)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_singleton(&self) -> Result<Option<Bytes32>> {
+        match self {
+            Self::Singleton { launcher_id, .. } => Ok(Some(*launcher_id)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn singleton_mode(&self) -> Result<Option<u8>> {
+        match self {
+            Self::Singleton { mode, .. } => Ok(*mode),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_fixed_puzzle(&self) -> Result<Option<Bytes32>> {
+        match self {
+            Self::FixedPuzzle(puzzle_hash) => Ok(Some(*puzzle_hash)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_custom(&self) -> Result<Option<Program>> {
+        match self {
+            Self::Custom(puzzle) => Ok(Some(puzzle.clone())),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn fast_forward(&self) -> Result<bool> {
+        Ok(match self {
+            Self::K1 { fast_forward, .. }
+            | Self::R1 { fast_forward, .. }
+            | Self::Bls { fast_forward, .. }
+            | Self::BlsTaproot { fast_forward, .. }
+            | Self::Passkey { fast_forward, .. } => *fast_forward,
+            // Mode 0b010_010 is the one used when constructing a fast forward singleton member.
+            Self::Singleton { mode, .. } => *mode == Some(0b010_010),
+            Self::FixedPuzzle(_) | Self::Custom(_) => false,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub enum ParsedRestriction {
+    Force1of2RestrictedVariable(Force1of2RestrictedVariableMemo),
+    EnforceDelegatedPuzzleWrappers(Vec<WrapperMemo>),
+    Timelock(u64),
+}
+
+impl ParsedRestriction {
+    pub fn as_force_1_of_2_restricted_variable(
+        &self,
+    ) -> Result<Option<Force1of2RestrictedVariableMemo>> {
+        match self {
+            Self::Force1of2RestrictedVariable(memo) => Ok(Some(memo.clone())),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_enforce_delegated_puzzle_wrappers(&self) -> Result<Option<Vec<WrapperMemo>>> {
+        match self {
+            Self::EnforceDelegatedPuzzleWrappers(wrappers) => Ok(Some(wrappers.clone())),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_timelock(&self) -> Result<Option<u64>> {
+        match self {
+            Self::Timelock(seconds) => Ok(Some(*seconds)),
+            _ => Ok(None),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ParsedWrapper {
+    ForceCoinAnnouncement,
+    ForceCoinMessage,
+    ForceSingletonRecreation,
+    PreventConditionOpcode(u16),
+    PreventMultipleCreateCoins,
+    Timelock(u64),
+    Force1of2RestrictedVariable(Force1of2RestrictedVariableMemo),
+}
+
+impl ParsedWrapper {
+    pub fn is_force_coin_announcement(&self) -> Result<bool> {
+        Ok(matches!(self, Self::ForceCoinAnnouncement))
+    }
+
+    pub fn is_force_coin_message(&self) -> Result<bool> {
+        Ok(matches!(self, Self::ForceCoinMessage))
+    }
+
+    pub fn is_force_singleton_recreation(&self) -> Result<bool> {
+        Ok(matches!(self, Self::ForceSingletonRecreation))
+    }
+
+    pub fn as_prevent_condition_opcode(&self) -> Result<Option<u16>> {
+        match self {
+            Self::PreventConditionOpcode(opcode) => Ok(Some(*opcode)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn is_prevent_multiple_create_coins(&self) -> Result<bool> {
+        Ok(matches!(self, Self::PreventMultipleCreateCoins))
+    }
+
+    pub fn as_timelock(&self) -> Result<Option<u64>> {
+        match self {
+            Self::Timelock(seconds) => Ok(Some(*seconds)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_force_1_of_2_restricted_variable(
+        &self,
+    ) -> Result<Option<Force1of2RestrictedVariableMemo>> {
+        match self {
+            Self::Force1of2RestrictedVariable(memo) => Ok(Some(memo.clone())),
+            _ => Ok(None),
+        }
     }
 }

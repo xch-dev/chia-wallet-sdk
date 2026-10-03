@@ -29,6 +29,7 @@ pub fn build_linked_offer(
         external_payments: vec![],
     };
     let mut has_offer = false;
+    let mut reserved_fee = 0_u128;
     let mut found_puzzle_assertions: Option<HashSet<Bytes32>> = None;
 
     for spend in spends {
@@ -43,13 +44,12 @@ pub fn build_linked_offer(
                 return Err(DriverError::WrongLinkedOfferLauncherId);
             }
 
-            let mut reserved_fee = 0;
             let mut puzzle_assertions = HashSet::new();
 
             for condition in &info.fixed_conditions {
                 match condition {
                     Condition::ReserveFee(condition) => {
-                        reserved_fee += condition.amount;
+                        reserved_fee += u128::from(condition.amount);
                     }
                     Condition::AssertPuzzleAnnouncement(condition) => {
                         puzzle_assertions.insert(condition.announcement_id);
@@ -57,8 +57,6 @@ pub fn build_linked_offer(
                     _ => {}
                 }
             }
-
-            linked_offer.reserved_fee += reserved_fee;
 
             if let Some(found_puzzle_assertions) = &mut found_puzzle_assertions {
                 *found_puzzle_assertions = found_puzzle_assertions
@@ -70,6 +68,9 @@ pub fn build_linked_offer(
             }
         }
     }
+
+    // Reserved fees that don't fit in a u64 can never be satisfied on chain.
+    linked_offer.reserved_fee = reserved_fee.try_into()?;
 
     if let Some(found_puzzle_assertions) = found_puzzle_assertions {
         let mut offer_facts = Facts::default();

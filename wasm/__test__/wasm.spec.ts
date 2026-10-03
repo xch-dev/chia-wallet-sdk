@@ -4,7 +4,15 @@ import {
   Clvm,
   CreateCoin,
   fromHex,
+  InnerPuzzleMemo,
+  K1Pair,
+  MemberMemo,
+  MemoKind,
+  MipsMemo,
+  MipsMemoContext,
+  MofNMemo,
   PublicKey,
+  RestrictionMemo,
   RunCatTail,
   setPanicHook,
   Signature,
@@ -95,3 +103,47 @@ test("alloc", (t) => {
     "ff80ffb0c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff8d48656c6c6f2c20776f726c6421ff2aff64ff01ff83010203ffa00000000000000000000000000000000000000000000000000000000000000000ff80ff80ffff33ff80ff818fff80ff808080"
   );
 });
+
+test("mips memo round trip and parse", (t) => {
+  const clvm = new Clvm();
+  const keys = K1Pair.manyFromSeed(1n, 2).map((pair) => pair.pk);
+
+  const memo = new MipsMemo(
+    new InnerPuzzleMemo(
+      0,
+      [],
+      MemoKind.mOfN(
+        new MofNMemo(
+          1,
+          keys.map(
+            (key, i) =>
+              new InnerPuzzleMemo(
+                0,
+                i === 1 ? [RestrictionMemo.timelock(clvm, 3600n, true)] : [],
+                MemoKind.member(MemberMemo.k1(clvm, key, true, true)),
+              ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  const bytes = clvm.alloc([clvm.mipsMemo(memo)]).serialize();
+  const parsed = clvm.deserialize(bytes).first().parseMipsMemo();
+
+  t.not(parsed, undefined);
+  t.is(toHex(parsed!.innerPuzzleHash()), toHex(memo.innerPuzzleHash()));
+  t.is(toHex(clvm.alloc([clvm.mipsMemo(parsed!)]).serialize()), toHex(bytes));
+
+  const ctx = new MipsMemoContext();
+  const [first, second] = parsed!.innerPuzzle.kind.asMOfN()!.items;
+
+  const member = first.kind.asMember()!.parse(ctx);
+  t.is(toHex(member!.asK1()!.toBytes()), toHex(keys[0].toBytes()));
+  t.is(member!.asR1(), undefined);
+  t.true(member!.fastForward());
+
+  const restriction = second.restrictions[0].parse(ctx);
+  t.is(restriction?.asTimelock(), 3600n);
+
+  t.is(clvm.alloc(["CHIP-0042", clvm.nil()]).parseMipsMemo(), undefined);});

@@ -6,8 +6,8 @@
 // TweakData is constructed by SilentPayments.tweakDataFromBlockSpends
 // over sim.blockSpends(h) + sim.blockOutputs(h) (the
 // facade additions), driven by a 2-coin SP send whose driver-side
-// gate is satisfied by spends.prepare(deltas, Relation.assertConcurrent())
-// (the extended signature + opaque-handle binding).
+// gate is satisfied by spends.prepare(deltas, Relation.AssertConcurrent)
+// (the binding-level `Relation` enum).
 
 import test from "ava";
 import {
@@ -90,10 +90,10 @@ test("napi: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
 
   const deltas = spends.apply(actions);
 
-  // Pass Relation.assertConcurrent() so the driver-side gate
+  // Pass Relation.AssertConcurrent so the driver-side gate
   // (non_ephemeral_xch_count >= 2) is satisfied. Without it,
   // DriverError::SilentPaymentRequiresInputBinding fires inside prepare().
-  const finished = spends.prepare(deltas, Relation.assertConcurrent());
+  const finished = spends.prepare(deltas, Relation.AssertConcurrent);
 
   // Each coin is curried over its SYNTHETIC key; spend + sign with the
   // synthetic key pair.

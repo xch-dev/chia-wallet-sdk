@@ -4,19 +4,25 @@ use chia_sdk_types::{Conditions, conditions::CreateCoin};
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, Cat, CatInfo, Deltas, DriverError, FungibleSpend, Id, Spend, SpendAction, SpendContext,
-    SpendKind, Spends,
+    Asset, Cat, CatInfo, Delta, Deltas, DriverError, FungibleSpend, Id, Spend, SpendAction,
+    SpendContext, SpendKind, Spends,
 };
 
+/// The TAIL that a CAT is issued with.
 #[derive(Debug, Clone, Copy)]
 pub enum TailIssuance {
+    /// A TAIL derived from the coin that issues the CAT, so that no more can be issued later.
     Single,
+    /// A spend of any TAIL, whose puzzle hash is the asset id.
     Multiple(Spend),
 }
 
+/// Created by [`Action::issue_cat`](crate::Action::issue_cat) or
+/// [`Action::single_issue_cat`](crate::Action::single_issue_cat).
 #[derive(Debug, Clone, Copy)]
 pub struct IssueCatAction {
     pub issuance: TailIssuance,
+    /// The hidden puzzle hash of the revocation layer, or `None` for a CAT that can't be revoked.
     pub hidden_puzzle_hash: Option<Bytes32>,
     pub amount: u64,
 }
@@ -33,8 +39,8 @@ impl IssueCatAction {
 
 impl SpendAction for IssueCatAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(Id::New(index)).input += self.amount;
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::New(index)) += Delta::new(self.amount, 0);
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
         deltas.set_needed(Id::Xch);
     }
 
@@ -56,18 +62,14 @@ impl SpendAction for IssueCatAction {
             GenesisByCoinIdTailArgs::curry_tree_hash(source.asset.coin_id()).into()
         });
 
-        let cat_info = CatInfo::new(
-            asset_id,
-            self.hidden_puzzle_hash,
-            source.asset.p2_puzzle_hash(),
-        );
+        let cat_info = CatInfo::new(asset_id, self.hidden_puzzle_hash, source.p2_puzzle_hash());
 
         let create_coin = CreateCoin::new(cat_info.puzzle_hash().into(), self.amount, Memos::None);
-        let parent_puzzle_hash = source.asset.full_puzzle_hash();
+        let parent_coin = source.asset.coin();
 
         source.kind.create_coin_with_assertion(
             ctx,
-            parent_puzzle_hash,
+            parent_coin,
             &mut spends.xch.payment_assertions,
             create_coin,
         );
@@ -82,13 +84,18 @@ impl SpendAction for IssueCatAction {
             cat_info,
         );
 
-        let id = if spends.cats.contains_key(&Id::Existing(asset_id)) {
+        // If coins of this asset are already being spent, the eve CAT joins their ring and change is
+        // calculated for them together. The issued amount is only in the deltas under `Id::New(index)`,
+        // so the eve CAT is treated as selected (non-ephemeral) to account for it in the change.
+        let merged = spends.cats.contains_key(&Id::Existing(asset_id));
+
+        let id = if merged {
             Id::Existing(asset_id)
         } else {
             Id::New(index)
         };
 
-        let mut cat_spend = FungibleSpend::new(eve_cat, true);
+        let mut cat_spend = FungibleSpend::new(eve_cat, !merged);
 
         let tail_spend = match self.issuance {
             TailIssuance::Single => {
@@ -196,6 +203,82 @@ mod tests {
         assert_ne!(sim.coin_state(cat.coin.coin_id()), None);
         assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(cat.coin.amount, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_issue_more_of_existing_cat() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(10);
+        let bob = chia_sdk_test::BlsPair::new(1);
+        let bob_hint = ctx.hint(bob.puzzle_hash)?;
+
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
+        let tail_spend = Spend::new(tail, NodePtr::NIL);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let deltas = spends.apply(&mut ctx, &[Action::issue_cat(tail_spend, None, 10)])?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&alice.sk))?;
+
+        let cat = outputs.cats[&Id::New(0)][0];
+        let id = Id::Existing(cat.info.asset_id);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(sim.new_coin(alice.puzzle_hash, 5));
+        spends.add(cat);
+
+        // Only part of the combined 15 is sent, so the rest must come back as change rather than being melted.
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::issue_cat(tail_spend, None, 5),
+                Action::send(id, bob.puzzle_hash, 12, bob_hint),
+            ],
+        )?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert!(!outputs.cats.contains_key(&Id::New(0)));
+
+        let cats = &outputs.cats[&id];
+        let sent: u64 = cats
+            .iter()
+            .filter(|cat| cat.info.p2_puzzle_hash == bob.puzzle_hash)
+            .map(|cat| cat.coin.amount)
+            .sum();
+        let change: u64 = cats
+            .iter()
+            .filter(|cat| cat.info.p2_puzzle_hash == alice.puzzle_hash)
+            .map(|cat| cat.coin.amount)
+            .sum();
+
+        assert_eq!(sent, 12);
+        assert_eq!(change, 3);
+
+        for cat in cats {
+            assert!(
+                sim.coin_state(cat.coin.coin_id())
+                    .is_some_and(|state| state.spent_height.is_none())
+            );
+        }
 
         Ok(())
     }

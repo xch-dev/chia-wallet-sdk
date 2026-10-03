@@ -1,8 +1,13 @@
-use crate::{Deltas, DriverError, Id, SingletonDestination, SpendAction, SpendContext, Spends};
+use crate::{
+    Delta, Deltas, DriverError, Id, SingletonDestination, SpendAction, SpendContext, Spends,
+    check_singleton_amount,
+};
 
+/// Created by [`Action::melt_singleton`](crate::Action::melt_singleton).
 #[derive(Debug, Clone, Copy)]
 pub struct MeltSingletonAction {
     pub id: Id,
+    /// The amount of the singleton, which is returned to the transaction as XCH.
     pub amount: u64,
 }
 
@@ -15,8 +20,14 @@ impl MeltSingletonAction {
 impl SpendAction for MeltSingletonAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
         deltas.set_needed(self.id);
-        deltas.update(self.id).output += self.amount;
-        deltas.update(Id::Xch).input += self.amount;
+        *deltas.update(self.id) += Delta::new(0, self.amount);
+        *deltas.update(Id::Xch) += Delta::new(self.amount, 0);
+
+        // The singleton can't create an odd coin alongside the melt condition, so the melted value
+        // must be returned as change through an XCH coin in the transaction.
+        if self.amount > 0 {
+            deltas.set_needed(Id::Xch);
+        }
     }
 
     fn spend(
@@ -27,9 +38,11 @@ impl SpendAction for MeltSingletonAction {
     ) -> Result<(), DriverError> {
         if let Some(did) = spends.dids.get_mut(&self.id) {
             let source = did.last_mut()?;
+            check_singleton_amount(source.asset.coin.amount, self.amount)?;
             source.child_info.destination = Some(SingletonDestination::Melt);
         } else if let Some(option) = spends.options.get_mut(&self.id) {
             let source = option.last_mut()?;
+            check_singleton_amount(source.asset.coin.amount, self.amount)?;
             source.child_info.destination = Some(SingletonDestination::Melt);
         } else {
             return Err(DriverError::InvalidAssetId);
@@ -83,6 +96,48 @@ mod tests {
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
+    }
+
+    #[test]
+    fn test_action_melt_singleton_amount_mismatch() {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let result = spends.apply(
+            &mut ctx,
+            &[
+                Action::create_empty_did(),
+                Action::melt_singleton(Id::New(0), 3),
+            ],
+        );
+
+        assert!(matches!(result, Err(DriverError::SingletonAmountMismatch)));
+    }
+
+    #[test]
+    fn test_action_melt_nft_is_rejected() {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        let result = spends.apply(
+            &mut ctx,
+            &[
+                Action::mint_empty_nft(),
+                Action::melt_singleton(Id::New(0), 1),
+            ],
+        );
+
+        assert!(matches!(result, Err(DriverError::InvalidAssetId)));
     }
 
     #[rstest]

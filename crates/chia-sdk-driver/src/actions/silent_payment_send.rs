@@ -2,8 +2,8 @@ use chia_puzzle_types::Memos;
 use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 use crate::{
-    Asset, BURN_PUZZLE_HASH, Deltas, DriverError, Id, Output, SpendAction, SpendContext, Spends,
-    silent_payments::SilentPaymentPending,
+    Asset, BURN_PUZZLE_HASH, Delta, Deltas, DriverError, Id, Output, SpendAction, SpendContext,
+    Spends, silent_payments::SilentPaymentPending,
 };
 
 /// CHIP-0057 silent-payment send action (chip-0057-gated). Structurally
@@ -31,7 +31,7 @@ impl SilentPaymentSendAction {
 
 impl SpendAction for SilentPaymentSendAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
         deltas.set_needed(Id::Xch);
     }
 
@@ -71,9 +71,7 @@ fn spend_silent_payment(
     //    Bytes32::default() prevents a plausible-looking all-zeros collision.
     let output = Output::new(BURN_PUZZLE_HASH, amount);
     let source = spends.xch.output_source(ctx, &output)?;
-    let parent = &spends.xch.items[source];
-    let parent_coin_id = parent.asset.coin_id();
-    let parent_puzzle_hash = parent.asset.full_puzzle_hash();
+    let parent_coin = spends.xch.items[source].asset.coin();
 
     // 2. Per-scan_pk k counter. Keyed by 48-byte compressed scan_pk so
     //    distinct sub-addresses (labeled vs unlabeled) of the same recipient
@@ -93,8 +91,7 @@ fn spend_silent_payment(
         scan_pk: recipient.scan_pk,
         spend_pk: recipient.spend_pk,
         parent_xch_index: source,
-        parent_coin_id,
-        parent_puzzle_hash,
+        parent_coin,
         k,
         amount,
         memos,

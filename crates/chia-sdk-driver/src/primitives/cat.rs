@@ -222,7 +222,7 @@ impl Cat {
                     prev_subtotal: prev_subtotals[index].try_into()?,
                     // If the TAIL was revealed, we need to add the extra delta needed to net the spend to zero
                     extra_delta: if run_tail_index.is_some_and(|i| i == index) {
-                        -total_delta.try_into()?
+                        (-total_delta).try_into()?
                     } else {
                         0
                     },

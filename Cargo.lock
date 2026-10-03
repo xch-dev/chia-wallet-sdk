@@ -278,19 +278,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
-name = "bigdecimal"
-version = "0.4.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a22f228ab7a1b23027ccc6c350b72868017af7ea8356fbdf19f8d991c690013"
-dependencies = [
- "autocfg",
- "libm",
- "num-bigint",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "binascii"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "bindy"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "bip39",
  "chia-bls 0.36.1",
@@ -387,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "bindy-macro"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "chia-sdk-bindings",
  "convert_case",
@@ -638,7 +625,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-bindings"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "bindy",
  "bip39",
@@ -674,7 +661,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-cli"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "chia-wallet-sdk",
@@ -683,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "aws-lc-rs",
  "chia-protocol",
@@ -703,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-coinset"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "chia-protocol",
  "chia-traits 0.36.1",
@@ -717,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-daemon"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "chia-sdk-client",
  "chia-sdk-coinset",
@@ -733,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-derive"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "convert_case",
  "quote",
@@ -742,10 +729,9 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
  "bip39",
  "chia-bls 0.36.1",
  "chia-consensus",
@@ -768,17 +754,19 @@ dependencies = [
  "hex",
  "hex-literal",
  "indexmap",
+ "itertools 0.13.0",
  "num-bigint",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rstest 0.22.0",
+ "serde",
  "sha3",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "chia-sdk-signer"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.36.1",
@@ -802,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-test"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -845,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-types"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.36.1",
@@ -869,12 +857,13 @@ dependencies = [
  "rue-compiler",
  "rue-lir",
  "rue-options",
+ "serde",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "chia-sdk-utils"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "bech32",
  "bip39",
@@ -986,7 +975,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "bip39",
@@ -1031,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-py"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -1045,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-wasm"
-version = "0.34.0"
+version = "0.36.0"
 dependencies = [
  "bindy",
  "bindy-macro",

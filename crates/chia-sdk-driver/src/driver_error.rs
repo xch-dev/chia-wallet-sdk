@@ -34,6 +34,9 @@ pub enum DriverError {
     #[error("non-standard inner puzzle layer")]
     NonStandardLayer,
 
+    #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
+    InvalidStateSchedule,
+
     #[error("missing child")]
     MissingChild,
 
@@ -87,6 +90,18 @@ pub enum DriverError {
 
     #[error("invalid asset id")]
     InvalidAssetId,
+
+    #[error("the selected coins are insufficient to cover the outputs of the transaction")]
+    InsufficientFunds,
+
+    #[error("the amount does not match the amount of the singleton")]
+    SingletonAmountMismatch,
+
+    #[error("the CAT does not have a revocation layer")]
+    NotRevocable,
+
+    #[error("the amount is too large to fit in a coin")]
+    AmountOverflow,
 
     #[error("missing key")]
     MissingKey,

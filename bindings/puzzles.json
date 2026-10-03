@@ -282,6 +282,20 @@
       "license_hash": "Option<Bytes32>"
     }
   },
+  "HandleNftMetadata": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "display_name": "Option<String>",
+      "image_uris": "Vec<String>",
+      "image_hash": "Option<Bytes32>",
+      "metadata_uris": "Vec<String>",
+      "metadata_hash": "Option<Bytes32>",
+      "license_uris": "Vec<String>",
+      "license_hash": "Option<Bytes32>"
+    }
+  },
   "MetadataUpdate": {
     "type": "class",
     "new": true,
@@ -293,7 +307,11 @@
   },
   "UriKind": {
     "type": "enum",
-    "values": ["Data", "Metadata", "License"]
+    "values": [
+      "Data",
+      "Metadata",
+      "License"
+    ]
   },
   "NftMint": {
     "type": "class",
@@ -894,6 +912,215 @@
     "fields": {
       "p2_parent_coin": "P2ParentCoin",
       "memos": "Vec<Bytes>"
+    }
+  },
+  "P2NextRewardDistributorEpochCoinInfo": {
+    "type": "class",
+    "fields": {
+      "clawback_inner_puzzle_hash": "Bytes32",
+      "reward_asset_id": "Bytes32",
+      "reward_distributor_launcher_id": "Bytes32",
+      "reward_distributor_first_epoch_start": "u64",
+      "reward_distributor_epoch_seconds": "u64"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "clawback_inner_puzzle_hash": "Bytes32",
+          "reward_asset_id": "Bytes32",
+          "reward_distributor_launcher_id": "Bytes32",
+          "reward_distributor_first_epoch_start": "u64",
+          "reward_distributor_epoch_seconds": "u64"
+        }
+      },
+      "from_constants": {
+        "type": "factory",
+        "args": {
+          "constants": "RewardDistributorConstants",
+          "reward_distributor_first_epoch_start": "u64",
+          "clawback_inner_puzzle_hash": "Bytes32"
+        }
+      },
+      "clawback_puzzle_hash": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Bytes32"
+      },
+      "inner_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "CuratedDatastoreFields": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "root_hash": "Bytes32",
+      "metadata_rest_hash": "Option<Bytes32>",
+      "metadata_updater_hash_hash": "Bytes32",
+      "inner_puzzle_hash": "Bytes32"
+    }
+  },
+  "DatastoreMetadata": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
+      "root_hash": "Bytes32",
+      "label": "Option<String>",
+      "description": "Option<String>",
+      "bytes": "Option<u64>",
+      "size_proof": "Option<String>"
+    }
+  },
+  "DelegatedPuzzleOracle": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "oracle_puzzle_hash": "Bytes32",
+      "oracle_fee": "u64"
+    }
+  },
+  "DelegatedPuzzle": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "oracle": {
+        "type": "factory",
+        "args": {
+          "oracle_puzzle_hash": "Bytes32",
+          "oracle_fee": "u64"
+        },
+        "return": "DelegatedPuzzle"
+      },
+      "admin": {
+        "type": "factory",
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "DelegatedPuzzle"
+      },
+      "writer": {
+        "type": "factory",
+        "args": {
+          "inner_puzzle_hash": "Bytes32"
+        },
+        "return": "DelegatedPuzzle"
+      },
+      "admin_from_key": {
+        "type": "factory",
+        "args": {
+          "synthetic_key": "PublicKey"
+        },
+        "return": "DelegatedPuzzle"
+      },
+      "writer_from_key": {
+        "type": "factory",
+        "args": {
+          "synthetic_key": "PublicKey"
+        },
+        "return": "DelegatedPuzzle"
+      },
+      "to_admin": {
+        "return": "Option<Bytes32>"
+      },
+      "to_writer": {
+        "return": "Option<Bytes32>"
+      },
+      "to_oracle": {
+        "return": "Option<DelegatedPuzzleOracle>"
+      }
+    }
+  },
+  "MintedDatastore": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "datastore": "Datastore",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "Datastore": {
+    "type": "class",
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      },
+      "proof": {
+        "return": "Proof"
+      },
+      "launcher_id": {
+        "return": "Bytes32"
+      },
+      "owner_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "metadata": {
+        "return": "DatastoreMetadata"
+      },
+      "root_hash": {
+        "return": "Bytes32"
+      },
+      "label": {
+        "return": "Option<String>"
+      },
+      "description": {
+        "return": "Option<String>"
+      },
+      "bytes": {
+        "return": "Option<u64>"
+      },
+      "size_proof": {
+        "return": "Option<String>"
+      },
+      "delegated_puzzles": {
+        "return": "Vec<DelegatedPuzzle>"
+      },
+      "curated_fields": {
+        "return": "CuratedDatastoreFields"
+      },
+      "owner_create_coin_condition": {
+        "args": {
+          "new_owner_puzzle_hash": "Bytes32",
+          "new_delegated_puzzles": "Vec<DelegatedPuzzle>",
+          "hint_delegated_puzzles": "bool"
+        },
+        "return": "Program"
+      },
+      "new_metadata_condition": {
+        "args": {
+          "new_metadata": "DatastoreMetadata"
+        },
+        "return": "Program"
+      },
+      "spend": {
+        "args": {
+          "inner_spend": "Spend"
+        },
+        "return": "Datastore"
+      },
+      "spend_oracle": {},
+      "update_metadata_as_owner": {
+        "args": {
+          "owner_synthetic_key": "PublicKey",
+          "new_metadata": "DatastoreMetadata"
+        },
+        "return": "Datastore"
+      },
+      "update_ownership": {
+        "args": {
+          "new_owner_puzzle_hash": "Bytes32",
+          "new_delegated_puzzles": "Vec<DelegatedPuzzle>",
+          "owner_synthetic_key": "Option<PublicKey>",
+          "admin_synthetic_key": "Option<PublicKey>"
+        },
+        "return": "Datastore"
+      }
     }
   }
 }
