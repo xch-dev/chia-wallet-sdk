@@ -590,18 +590,36 @@ impl Spends<Unfinished> {
         deltas: &Deltas,
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
-        // chip-0057 silent-payment derivation branch — runs FIRST so the
-        // emitted `CreateCoin` conditions land on the parents'
-        // `payment_assertions` before `emit_conditions` fires below. No-op
-        // when no `Action::silent_payment_send` has been applied.
+        // CHIP-0057: derive and emit the silent payment outputs before the change is created, so
+        // that the outputs keep the position a normal payment would have. This is a no-op unless
+        // an `Action::silent_payment_send` has been applied.
         #[cfg(feature = "chip-0057")]
-        if !self.silent_payments_pending.is_empty() {
-            sp_finish_branch(ctx, &mut self, relation)?;
-        }
+        let silent_payment_group = if self.silent_payments_pending.is_empty() {
+            None
+        } else {
+            Some(sp_finish_branch(ctx, &mut self, deltas, relation)?)
+        };
 
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
+
+        // CHIP-0057: the outputs above were derived from a predicted spend group. If the coins
+        // that `emit_relation` actually bound differ from it, a scanner would not find the
+        // payment, so fail instead of returning an undetectable one.
+        #[cfg(feature = "chip-0057")]
+        if let Some(mut expected) = silent_payment_group {
+            let mut actual: Vec<Bytes32> = self
+                .iter_conditions_spends()
+                .map(|(coin, _)| coin.coin_id())
+                .collect();
+            expected.sort_unstable();
+            actual.sort_unstable();
+            if expected != actual {
+                return Err(DriverError::SilentPaymentInputSetChanged);
+            }
+        }
+
         self.wrap_revocation_outputs(ctx)?;
 
         Ok(Spends {
@@ -681,31 +699,38 @@ impl Spends<Unfinished> {
     }
 }
 
-/// Chip-0057 finish-time SP branch: runs the one-time-puzzle-hash derivation
-/// pipeline for the silent-payment outputs recorded at apply time. Invoked from
-/// [`Spends::finish_with_keys`].
+/// CHIP-0057 silent payment derivation, run by [`Spends::prepare`] when at least one
+/// `Action::silent_payment_send` has been applied.
 ///
-/// Gate ordering (cheapest / most fundamental first):
-/// 1. [`DriverError::SilentPaymentRequiresInputBinding`] — fires first on `≥2`
-///    non-ephemeral XCH inputs with `Relation != AssertConcurrent`.
-/// 2. [`DriverError::SilentPaymentKeysNotRegistered`] — fires if
-///    `with_silent_payment_keys` was not called.
-/// 3. [`DriverError::SilentPaymentMultiPartyUnsupported`] — SK-coverage check.
-/// 4. Per-input synthetic-key check — [`DriverError::SilentPaymentKeyNotSynthetic`]
-///    if `StandardArgs::curry_tree_hash(registered_pk) != ph` or
-///    `sk.public_key() != registered_pk` (runs for single-input too).
-/// 5. [`DriverError::SilentPaymentNoXchInputs`] — collected SK set empty.
+/// The one-time puzzle hashes are derived from the *spend group* a scanner will reconstruct
+/// (CHIP-0057, "Inputs for Shared Secret Derivation"): every coin that is spent with the standard
+/// puzzle in this transaction, including intermediate (ephemeral) coins that are created and spent
+/// inside it. With two or more such coins, [`Relation::AssertConcurrent`] binds all of them into
+/// one `ASSERT_CONCURRENT_SPEND` cycle, and the key sum and coin id set used here cover exactly
+/// that cycle, with one term per coin.
 ///
-/// After gates pass: aggregate sender SKs, recover aggregated PK, compute
-/// `input_hash`, per-pending derive one-time puzzle hash + push `CreateCoin`
-/// via `create_coin_with_assertion` onto the recorded parent's
-/// `payment_assertions`, push the resulting Coin to `outputs.xch`.
+/// Checks, in order:
+/// 1. [`DriverError::SilentPaymentMixedAssetBundle`] if a CAT, DID, NFT or option is spent.
+/// 2. [`DriverError::SilentPaymentRequiresInputBinding`] if the group has two or more coins and
+///    the relation is not [`Relation::AssertConcurrent`].
+/// 3. [`DriverError::SilentPaymentKeysNotRegistered`] if no keys were registered.
+/// 4. [`DriverError::SilentPaymentNoXchInputs`] if no coin is spent with the standard puzzle.
+/// 5. [`DriverError::SilentPaymentMultiPartyUnsupported`] if a selected coin has no secret key,
+///    or [`DriverError::SilentPaymentIntermediateKeyMissing`] if an intermediate coin has none.
+/// 6. [`DriverError::SilentPaymentKeyNotSynthetic`] if a registered key is not the synthetic key
+///    of its coin.
+/// 7. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
+///    outside the group.
+///
+/// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
+/// that were actually bound together once the transaction is complete.
 #[cfg(feature = "chip-0057")]
 fn sp_finish_branch(
     ctx: &mut SpendContext,
     spends: &mut Spends,
+    deltas: &Deltas,
     relation: Relation,
-) -> Result<(), DriverError> {
+) -> Result<Vec<Bytes32>, DriverError> {
     use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_types::conditions::CreateCoin;
 
@@ -713,12 +738,9 @@ fn sp_finish_branch(
         aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash,
     };
 
-    // GATE 0 (XCH-only invariant): silent-payment send bundles must not co-spend
-    // any non-XCH asset. Fires UNIFORMLY regardless of XCH input count (a
-    // single-input SP + CAT is technically detectable via the receiver's Pass-1
-    // singleton, but the invariant is uniform — mixed-asset SP bundles are
-    // unsupported and fail loudly). This is the FIRST check, before any
-    // derivation or key work. The four non-XCH spend maps must all be empty.
+    // Version 0 of CHIP-0057 covers XCH held in the standard puzzle only. Spends of other assets
+    // are not eligible spends, and a cycle that passes through one would not bind the coins on
+    // either side of it, so they are rejected outright.
     if !spends.cats.is_empty()
         || !spends.dids.is_empty()
         || !spends.nfts.is_empty()
@@ -727,81 +749,92 @@ fn sp_finish_branch(
         return Err(DriverError::SilentPaymentMixedAssetBundle);
     }
 
-    // GATE 1: SilentPaymentRequiresInputBinding fires first among the input
-    // gates; multi-input atomic-binding is more fundamental than
-    // key-registration. With GATE 0 above, cats/dids/nfts/options are guaranteed
-    // empty for any SP finish that reaches here, so the AssertConcurrent cycle
-    // (built later in `prepare` over `iter_conditions_spends`) threads only XCH
-    // conditions-spends — binding exactly the non-ephemeral XCH input set the
-    // receiver reconstructs.
-    let non_ephemeral_xch_count = spends.xch.items.iter().filter(|i| !i.ephemeral).count();
-    if non_ephemeral_xch_count >= 2 && !matches!(relation, Relation::AssertConcurrent) {
+    // The spend group is every XCH coin that will be spent with conditions once the transaction
+    // is complete. Creating the change can add one more intermediate coin (when every existing
+    // spend already creates a coin identical to the change), so the change is created on a copy
+    // first to learn the final set. Silent payment outputs have unique puzzle hashes, so emitting
+    // them below does not alter what `create_change` does afterwards.
+    let group: Vec<SilentPaymentGroupCoin> = {
+        let mut xch = spends.xch.clone();
+        xch.create_change(
+            ctx,
+            deltas.get(&Id::Xch).unwrap_or(&Delta::default()),
+            spends.change_puzzle_hash,
+        )?;
+        xch.items
+            .iter()
+            .filter(|item| item.kind.is_conditions())
+            .map(|item| SilentPaymentGroupCoin {
+                coin_id: item.asset.coin_id(),
+                p2_puzzle_hash: item.p2_puzzle_hash(),
+                ephemeral: item.ephemeral,
+            })
+            .collect()
+    };
+
+    // `emit_relation` binds every conditions spend (ephemeral ones included) into one cycle, but
+    // only for `Relation::AssertConcurrent`. Without it, two or more coins would be separate
+    // single-input groups, and outputs derived from their combined keys would be undetectable.
+    if group.len() >= 2 && !matches!(relation, Relation::AssertConcurrent) {
         return Err(DriverError::SilentPaymentRequiresInputBinding);
     }
 
-    // GATE 2: keys must be registered.
     let Some(secret_keys) = spends.silent_payment_synthetic_sks.as_ref() else {
         return Err(DriverError::SilentPaymentKeysNotRegistered);
     };
-    // The synthetic-key check needs the registered PK map alongside the SK map;
-    // bind it once here (a second immutable borrow of a distinct field) so the
-    // per-input synthetic-ness check below does not re-borrow `spends` while
-    // `secret_keys` is live.
     let synthetic_pks = spends.silent_payment_synthetic_pks.as_ref();
 
-    // Step 2 + 3: collect XCH input coin ids + verify SK coverage.
-    // Iterating non-ephemeral xch.items only: ephemeral items are intermediate
-    // coins created within this spend group and are not wallet-controlled inputs
-    // whose SKs the sender holds.
-    let mut xch_input_ids: Vec<Bytes32> = Vec::with_capacity(spends.xch.items.len());
-    let mut sender_sks: Vec<SecretKey> = Vec::with_capacity(spends.xch.items.len());
-    for item in spends.xch.items.iter().filter(|i| !i.ephemeral) {
-        let ph = item.asset.p2_puzzle_hash();
-        let Some(sk) = secret_keys.get(&ph) else {
-            return Err(DriverError::SilentPaymentMultiPartyUnsupported);
-        };
-        // Synthetic-key check: reject raw (un-synthesized) or inconsistent keys BEFORE signing.
-        // The IndexMap key `ph` is the coin's p2_puzzle_hash; for a correctly-synthetic
-        // registered pk, curry_tree_hash(pk) == ph by construction (validates against the
-        // ACTUAL coin, so default AND custom-hidden synthetic keys pass, raw keys fail).
-        // sk.public_key() == pk pins sk/pk map consistency. Runs for every non-ephemeral
-        // XCH input, single-input included.
-        let Some(pk) = synthetic_pks.and_then(|m| m.get(&ph)) else {
-            return Err(DriverError::SilentPaymentKeyNotSynthetic);
-        };
-        if Bytes32::from(StandardArgs::curry_tree_hash(*pk)) != ph || sk.public_key() != *pk {
-            return Err(DriverError::SilentPaymentKeyNotSynthetic);
-        }
-        sender_sks.push(sk.clone());
-        xch_input_ids.push(item.asset.coin_id());
-    }
-
-    // Step 4: no-inputs guard. Only fires if every XCH item is ephemeral.
-    if sender_sks.is_empty() {
+    if group.is_empty() {
         return Err(DriverError::SilentPaymentNoXchInputs);
     }
 
-    // Step 5 + 6: aggregate + recover the aggregated PK.
-    // The aggregated PK is recovered via SecretKey::from_bytes round-trip on
-    // the ScalarField bytes, NOT by hand-summing the input PKs (which would
-    // diverge from the SK sum on mod-r wraparound). The .expect is acceptable
-    // because ScalarField guarantees the bytes are < r and the zero-aggregate
-    // probability is ~ 2^-255.
+    // One secret key and one coin id per coin in the group, even when coins share a key (an
+    // intermediate coin has the puzzle hash, and therefore the key, of the coin that created it).
+    let mut group_coin_ids: Vec<Bytes32> = Vec::with_capacity(group.len());
+    let mut sender_sks: Vec<SecretKey> = Vec::with_capacity(group.len());
+    for coin in &group {
+        let Some(sk) = secret_keys.get(&coin.p2_puzzle_hash) else {
+            return Err(if coin.ephemeral {
+                DriverError::SilentPaymentIntermediateKeyMissing
+            } else {
+                DriverError::SilentPaymentMultiPartyUnsupported
+            });
+        };
+        // The registered public key must curry to the coin's puzzle hash, which also proves the
+        // coin is locked to the standard puzzle, and must belong to the registered secret key.
+        let Some(pk) = synthetic_pks.and_then(|m| m.get(&coin.p2_puzzle_hash)) else {
+            return Err(DriverError::SilentPaymentKeyNotSynthetic);
+        };
+        if Bytes32::from(StandardArgs::curry_tree_hash(*pk)) != coin.p2_puzzle_hash
+            || sk.public_key() != *pk
+        {
+            return Err(DriverError::SilentPaymentKeyNotSynthetic);
+        }
+        sender_sks.push(sk.clone());
+        group_coin_ids.push(coin.coin_id);
+    }
+
+    // Every silent payment output must be created by a coin of the group.
+    if spends
+        .silent_payments_pending
+        .iter()
+        .any(|pending| !group_coin_ids.contains(&pending.parent_coin.coin_id()))
+    {
+        return Err(DriverError::SilentPaymentParentNotEligible);
+    }
+
+    // The aggregated public key is derived from the secret key sum rather than by adding the
+    // public keys; the two are equal.
     let aggregated_sender_sk = aggregate_sender_sks(&sender_sks);
     let agg_pk = SecretKey::from_bytes(aggregated_sender_sk.as_bytes())
         .expect("ScalarField guarantees < r; zero aggregate has vanishing probability")
         .public_key();
 
-    // Step 7: input_hash binding over lex-min coin_id + aggregated PK.
-    let input_hash = compute_input_hash(&xch_input_ids, &agg_pk);
+    let input_hash = compute_input_hash(&group_coin_ids, &agg_pk);
 
-    // Borrow-checker workaround: take ownership of the pending Vec so the
-    // per-pending loop can iterate it while mutating spends.xch.items and
-    // spends.outputs.xch freely. After this take, silent_payments_pending is
-    // an empty Vec; prepare() does not re-read it.
+    // Take the pending outputs so that they can be iterated while `spends` is mutated.
     let pending = std::mem::take(&mut spends.silent_payments_pending);
 
-    // Step 8: per-pending derivation + CreateCoin emission.
     for p in &pending {
         let ph = derive_one_time_puzzle_hash(
             &p.scan_pk,
@@ -813,8 +846,6 @@ fn sp_finish_branch(
 
         let create_coin = CreateCoin::new(ph, p.amount, p.memos);
 
-        // Emit the CreateCoin condition on the recorded parent. The
-        // p.parent_coin was captured at apply time via parent.asset.coin().
         let parent = &mut spends.xch.items[p.parent_xch_index];
         parent.kind.create_coin_with_assertion(
             ctx,
@@ -823,22 +854,24 @@ fn sp_finish_branch(
             create_coin,
         );
 
-        // Record the resulting output coin (parent_coin was captured at
-        // apply time when the parent was selected, before any intermediate
-        // ephemeral coins could shift indices).
         spends
             .outputs
             .xch
             .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
     }
 
-    // No SP-specific concurrent binding is emitted here. The XCH-only invariant
-    // (GATE 0) guarantees the bundle contains only XCH conditions-spends, so the
-    // general `emit_relation` AssertConcurrent cycle (run later in `prepare`)
-    // binds exactly the non-ephemeral XCH input set that `compute_input_hash`
-    // above hashed — which is precisely the strongly connected component the
-    // receiver reconstructs over standard-puzzle spends.
-    Ok(())
+    // No silent-payment-specific binding is emitted. The `ASSERT_CONCURRENT_SPEND` cycle that
+    // `emit_relation` adds for `Relation::AssertConcurrent` covers every conditions spend, which
+    // is the group the values above were computed over.
+    Ok(group_coin_ids)
+}
+
+/// A coin of the silent payment spend group.
+#[cfg(feature = "chip-0057")]
+struct SilentPaymentGroupCoin {
+    coin_id: Bytes32,
+    p2_puzzle_hash: Bytes32,
+    ephemeral: bool,
 }
 
 impl Spends<Finished> {

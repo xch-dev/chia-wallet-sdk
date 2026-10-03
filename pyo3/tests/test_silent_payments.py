@@ -187,7 +187,7 @@ def test_multi_input_e2e():
     recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TV1_MNEMONIC))
     recipient_address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
 
-    # Two non-ephemeral XCH coins with different BLS pairs. The Relation
+    # Two XCH coins with different BLS pairs. The Relation
     # cycle binding ties them together so the receiver scanner can re-group
     # them via Pass 2b SCC over opcode-64 AssertConcurrentSpend edges.
     #
@@ -229,7 +229,7 @@ def test_multi_input_e2e():
     deltas = spends.apply(actions)
 
     # Pass Relation.AssertConcurrent so the driver-side gate
-    # (non_ephemeral_xch_count >= 2) is satisfied. Without it,
+    # (two or more spent XCH coins) is satisfied. Without it,
     # DriverError::SilentPaymentRequiresInputBinding fires inside prepare().
     finished = spends.prepare(deltas, Relation.AssertConcurrent)
 

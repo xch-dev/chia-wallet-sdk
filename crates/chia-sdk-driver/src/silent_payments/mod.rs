@@ -16,21 +16,22 @@
 //! constructs `TweakData` from its wire messages without breaking this module's
 //! shape.
 //!
-//! # Multi-input send constraint
+//! # Spend groups on the send side
 //!
-//! A multi-input silent-payment bundle must consist of distinct-puzzle-hash,
-//! non-ephemeral XCH inputs only — no CAT, DID, NFT, or intermediate
-//! (ephemeral) coins. The sender binds those inputs into one strongly connected
-//! component with [`crate::Relation::AssertConcurrent`], and the receiver
-//! reconstructs the spend group as the set of same-`AssertConcurrent`-cycle
-//! coins. For the receiver's reconstructed input set to equal the sender's exact
-//! input set — and therefore for the two `input_hash` values to agree — the
-//! `AssertConcurrent` cycle must span precisely the XCH inputs the sender
-//! aggregated. If the cycle includes any other coin, the receiver's `input_hash`
-//! diverges from the sender's and the output coin is undetectable by the
-//! recipient. this implementation enforces this documented constraint; sending to a silent-payment
-//! destination across mixed asset types or with extra cycle members is out of
-//! scope.
+//! A silent payment is derived from a *spend group* (CHIP-0057, "Inputs for
+//! Shared Secret Derivation"): a single standard-puzzle coin, or two or more
+//! standard-puzzle coins bound into one `ASSERT_CONCURRENT_SPEND` cycle. Sender
+//! and scanner must compute the key sum and the smallest coin id over exactly
+//! the same coins.
+//!
+//! [`crate::Spends`] derives the outputs from every XCH coin the transaction
+//! spends with the standard puzzle, including intermediate (ephemeral) coins
+//! that are created and spent inside it, with one term per coin. When there are
+//! two or more such coins the transaction must be prepared with
+//! [`crate::Relation::AssertConcurrent`], which binds all of them into one
+//! cycle. A silent payment cannot be combined with spends of other assets (CAT,
+//! DID, NFT, option) in the same [`crate::Spends`], and its outputs are always
+//! created by a coin of the group.
 //!
 //! All scalar reduction in this module flows through
 //! [`chia_sdk_types::silent_payments::ScalarField`], which enforces the

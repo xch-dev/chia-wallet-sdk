@@ -23,8 +23,11 @@ use chia_protocol::Coin;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_sdk_driver::silent_payments::{
     K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, scan_from_tweaks,
+    tweak_data_from_block_spends,
 };
-use chia_sdk_driver::{Action, DriverError, Relation, SpendContext, Spends, StandardLayer};
+use chia_sdk_driver::{
+    Action, DriverError, FungibleSpend, Id, Relation, SpendContext, Spends, StandardLayer,
+};
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator};
 use chia_sdk_types::Conditions;
@@ -154,7 +157,7 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
 /// `input_hash` over the same input set.
 ///
 /// Asserts:
-/// 1. The `AssertConcurrent` runtime gate is satisfied (2 non-ephemeral XCH
+/// 1. The `AssertConcurrent` runtime gate is satisfied (2 spent XCH
 ///    inputs + `Relation::AssertConcurrent`) — `finish_with_keys` does NOT error
 ///    with `SilentPaymentRequiresInputBinding`.
 /// 2. Exactly one detection at the expected one-time puzzle hash.
@@ -206,7 +209,7 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     };
     spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
 
-    // MUST be AssertConcurrent for 2+ non-ephemeral XCH inputs — otherwise the
+    // MUST be AssertConcurrent when 2+ XCH coins are spent — otherwise the
     // runtime gate errors with SilentPaymentRequiresInputBinding.
     spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
 
@@ -458,5 +461,240 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     );
     assert_eq!(detected.amount, 300);
 
+    Ok(())
+}
+
+/// Registers the raw `sim.bls()` keys of the senders as the silent payment keys
+/// (the fixture coins are curried over the raw key) and returns the public key
+/// map for `finish_with_keys`.
+fn register_keys(
+    spends: &mut Spends,
+    senders: &[&BlsPairWithCoin],
+) -> indexmap::IndexMap<chia_protocol::Bytes32, chia_bls::PublicKey> {
+    spends.with_silent_payment_keys(
+        senders
+            .iter()
+            .map(|s| {
+                (
+                    s.puzzle_hash,
+                    SyntheticPublicKey::from_synthetic_unchecked(s.pk),
+                )
+            })
+            .collect(),
+        senders
+            .iter()
+            .map(|s| {
+                (
+                    s.puzzle_hash,
+                    SyntheticSecretKey::from_synthetic_unchecked(s.sk.clone()),
+                )
+            })
+            .collect(),
+    );
+    senders.iter().map(|s| (s.puzzle_hash, s.pk)).collect()
+}
+
+/// Two XCH inputs, `identical_sends` ordinary sends of the same amount to the
+/// same puzzle hash, and one silent payment, bound with
+/// `Relation::AssertConcurrent`. Returns the number of intermediate coins in the
+/// transaction and the recipient's detections.
+fn multi_input_with_identical_sends(
+    identical_sends: usize,
+) -> Result<(usize, Vec<chia_sdk_driver::silent_payments::DetectedSpCoin>)> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+    let a = sim.bls(600);
+    let b = sim.bls(600);
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TV1_MNEMONIC)?);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(a.puzzle_hash);
+    spends.add(a.coin);
+    spends.add(b.coin);
+
+    let other: chia_protocol::Bytes32 = [0x77u8; 32].into();
+    let mut actions = vec![Action::send(Id::Xch, other, 10, Memos::None); identical_sends];
+    actions.push(Action::silent_payment_send(address, 1000, Memos::None));
+    let deltas = spends.apply(&mut ctx, &actions)?;
+
+    let ephemeral = spends.xch.items.iter().filter(|i| i.ephemeral).count();
+
+    let pk_map = register_keys(&mut spends, &[&a, &b]);
+    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    sim.spend_coins(ctx.take(), &[a.sk.clone(), b.sk.clone()])?;
+
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    Ok((ephemeral, detections))
+}
+
+/// CHIP-0057 "Inputs for Shared Secret Derivation", sender requirement 2: when
+/// the cycle includes an intermediate coin created inside the transaction, that
+/// coin's key and coin id are part of the key sum and the coin id set, and the
+/// recipient detects the payment.
+///
+/// With two inputs, the third identical send can no longer be created by either
+/// input (each already creates an identical coin), so the action system creates
+/// an intermediate coin, which `Relation::AssertConcurrent` binds into the same
+/// cycle as the inputs.
+#[test]
+fn test_intermediate_coins_in_cycle_are_detected() -> Result<()> {
+    for identical_sends in 0..=4 {
+        let (ephemeral, detections) = multi_input_with_identical_sends(identical_sends)?;
+        assert_eq!(
+            ephemeral,
+            identical_sends.saturating_sub(2),
+            "{identical_sends} identical sends: unexpected number of intermediate coins"
+        );
+        assert_eq!(
+            detections.len(),
+            1,
+            "{identical_sends} identical sends ({ephemeral} intermediate coins): \
+             expected exactly one detection"
+        );
+        assert_eq!(detections[0].amount, 1000);
+        assert_eq!(detections[0].k, 0);
+        assert!(detections[0].label.is_none());
+    }
+    Ok(())
+}
+
+/// A single input whose change collides with an ordinary send, so that the
+/// change has to be created by an intermediate coin that only comes into
+/// existence while the transaction is being completed. The outputs must be
+/// derived from the group including that coin.
+#[test]
+fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let height_before = sim.height();
+
+    // 1000 in, 100 to the silent payment, 450 back to the sender: the change is
+    // also 450 to the sender's puzzle hash, identical to the send.
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, sender.puzzle_hash, 450, Memos::None),
+            Action::silent_payment_send(address, 100, Memos::None),
+        ],
+    )?;
+    assert_eq!(spends.xch.items.len(), 1, "no intermediate coin yet");
+
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    assert_eq!(
+        coin_spends.len(),
+        2,
+        "the change must have required an intermediate coin"
+    );
+    sim.spend_coins(coin_spends, std::slice::from_ref(&sender.sk))?;
+
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].amount, 100);
+
+    // The output was derived from the two-coin group, not from either coin on
+    // its own (sender requirement 3): neither single-input group finds it.
+    let block_outputs = sim.block_outputs(height_before);
+    for spend in sim.block_spends(height_before) {
+        let single = tweak_data_from_block_spends(std::slice::from_ref(&spend), &block_outputs)?;
+        let detections = scan_from_tweaks(
+            recipient.scan_sk(),
+            recipient.spend_sk(),
+            recipient.spend_pk(),
+            &single,
+            None,
+            K_MAX_DEFAULT,
+        );
+        assert!(detections.is_empty());
+    }
+    Ok(())
+}
+
+/// A transaction with one selected input can still spend two coins, when an
+/// intermediate coin is needed. Without `Relation::AssertConcurrent` nothing
+/// binds the two, so the send must fail instead of producing an output derived
+/// from a group no scanner will form.
+#[test]
+fn test_single_input_with_intermediate_coin_requires_binding() -> Result<()> {
+    let (_sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let other: chia_protocol::Bytes32 = [0x77u8; 32].into();
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, other, 10, Memos::None),
+            Action::send(Id::Xch, other, 10, Memos::None),
+            Action::silent_payment_send(address, 100, Memos::None),
+        ],
+    )?;
+    assert_eq!(
+        spends.xch.items.iter().filter(|i| i.ephemeral).count(),
+        1,
+        "the second identical send needs an intermediate coin"
+    );
+
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentRequiresInputBinding)),
+        "expected SilentPaymentRequiresInputBinding, got {result:?}"
+    );
+    Ok(())
+}
+
+/// An intermediate coin in the spend group whose puzzle hash has no registered
+/// secret key fails with a dedicated error, since its key is part of the sum a
+/// scanner computes.
+#[test]
+fn test_intermediate_coin_without_key_errors() -> Result<()> {
+    let (_sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address, 100, Memos::None)],
+    )?;
+
+    // An intermediate coin locked to a puzzle hash the sender registered no key for.
+    let unknown_puzzle_hash: chia_protocol::Bytes32 = [0x55u8; 32].into();
+    spends.xch.items.push(FungibleSpend::new(
+        Coin::new(sender.coin.coin_id(), unknown_puzzle_hash, 0),
+        true,
+    ));
+
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    assert!(
+        matches!(
+            result,
+            Err(DriverError::SilentPaymentIntermediateKeyMissing)
+        ),
+        "expected SilentPaymentIntermediateKeyMissing, got {result:?}"
+    );
     Ok(())
 }

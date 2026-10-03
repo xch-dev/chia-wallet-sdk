@@ -7,7 +7,7 @@
 //! `.derive_synthetic()` (Stages 1-5), plus a multi-input section (Stages
 //! 6-9) demonstrating the `tweak_data_from_block_spends` helper over the
 //! simulator's block accessors with `Relation::AssertConcurrent` cycle
-//! binding for two non-ephemeral XCH inputs.
+//! binding for two XCH inputs.
 //!
 //! Tweak-data extraction uses only the test-crate helper — no transport
 //! client is referenced (forward-compat). The labeled address uses m=1;

@@ -207,8 +207,8 @@ pub enum DriverError {
     #[error("silent payment multi-party flow unsupported")]
     SilentPaymentMultiPartyUnsupported,
 
-    /// The silent-payment send had no wallet-controlled (non-ephemeral) XCH
-    /// input to bind the output to. At least one is required.
+    /// The silent-payment send had no XCH coin spent with the standard puzzle
+    /// to derive the output from. At least one is required.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment requires an xch input")]
     SilentPaymentNoXchInputs,
@@ -221,13 +221,39 @@ pub enum DriverError {
     #[error("silent payment memo hint forbidden")]
     SilentPaymentMemoHintForbidden,
 
-    /// A multi-input silent-payment send (2+ non-ephemeral XCH inputs) must pass
-    /// `Relation::AssertConcurrent` to `Spends::finish_with_keys` so the
-    /// receiver can reconstruct the input set; single-input sends accept any
-    /// `Relation`.
+    /// A silent-payment send whose transaction spends two or more XCH coins
+    /// (counting intermediate coins that are created and spent inside it) must
+    /// pass `Relation::AssertConcurrent` to `Spends::prepare` /
+    /// `Spends::finish_with_keys`, so that scanners can reconstruct the spend
+    /// group. A transaction that spends a single coin accepts any `Relation`.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment requires input binding")]
     SilentPaymentRequiresInputBinding,
+
+    /// An intermediate coin (one that is created and spent inside the
+    /// transaction) is part of the silent-payment spend group, but no secret
+    /// key was registered for its puzzle hash. Its key is part of the key sum
+    /// a scanner computes, so the payment would be undetectable without it.
+    #[cfg(feature = "chip-0057")]
+    #[error(
+        "silent payment spend group contains an intermediate coin with no registered secret key"
+    )]
+    SilentPaymentIntermediateKeyMissing,
+
+    /// A silent-payment output would be created by a coin that is not part of
+    /// the spend group, such as a settlement coin. CHIP-0057 requires every
+    /// silent-payment output to be created by a standard-puzzle coin of the
+    /// group.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment output must be created by a standard-puzzle coin of the spend group")]
+    SilentPaymentParentNotEligible,
+
+    /// The coins that were bound together when the transaction was completed
+    /// differ from the spend group the silent-payment outputs were derived
+    /// from, so the payment would be undetectable.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment spend group changed after the outputs were derived")]
+    SilentPaymentInputSetChanged,
 
     /// `Spends::with_silent_payment_keys` was not called before finish, so no
     /// silent-payment secret keys are registered for the spent inputs.

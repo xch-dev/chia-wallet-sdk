@@ -34,7 +34,7 @@
 //!   additional candidate group. The cycle pattern is exactly what the sender
 //!   emits for any multi-input send via `Relation::AssertConcurrent` — including
 //!   multiple inputs that happen to share a puzzle hash, since the sender binds
-//!   every set of two or more non-ephemeral inputs into one cycle. A multi-input
+//!   every set of two or more spent coins into one cycle. A multi-input
 //!   set that does not carry such a cycle is, by design, not a detectable shape.
 //!   Strongly-connected (not weakly-connected) grouping is what defends against
 //!   third-party "pollution" assertions pointing at a legitimate-send coin: a
@@ -419,7 +419,7 @@ mod tests {
     /// Two standard-puzzle spends sharing the same `puzzle_hash`, bound by an
     /// `a <-> b` `AssertConcurrent` cycle — the exact shape the sender emits for
     /// any multi-input send (the input-binding gate forces the cycle for two or
-    /// more non-ephemeral inputs, even when they share a puzzle hash).
+    /// more spent coins, even when they share a puzzle hash).
     ///
     /// The two passes overlap: Pass 1 emits a singleton for EACH spend (two
     /// distinct `tweak_point`s — same `A_sum = alice_public` but different single

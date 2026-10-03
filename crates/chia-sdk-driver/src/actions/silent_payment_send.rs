@@ -2,8 +2,8 @@ use chia_puzzle_types::Memos;
 use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 use crate::{
-    Asset, BURN_PUZZLE_HASH, Delta, Deltas, DriverError, Id, Output, SpendAction, SpendContext,
-    Spends, silent_payments::SilentPaymentPending,
+    Asset, BURN_PUZZLE_HASH, Delta, Deltas, DriverError, Id, Output, OutputSet, SpendAction,
+    SpendContext, Spends, silent_payments::SilentPaymentPending,
 };
 
 /// CHIP-0057 silent-payment send action (chip-0057-gated). Structurally
@@ -65,12 +65,23 @@ fn spend_silent_payment(
     amount: u64,
     memos: Memos,
 ) -> Result<(), DriverError> {
-    // 1. Reserve XCH parent. BURN_PUZZLE_HASH is the placeholder puzzle hash
-    //    because output_source only uses `amount` for source-selection
-    //    arithmetic; the real puzzle hash arrives at finish time. Avoiding
-    //    Bytes32::default() prevents a plausible-looking all-zeros collision.
+    // 1. Reserve the XCH coin that will create the output. BURN_PUZZLE_HASH is
+    //    a placeholder, since the real puzzle hash is only known at finish time
+    //    and only the amount matters for choosing a source.
+    //
+    //    CHIP-0057 requires the output to be created by a standard-puzzle coin
+    //    of the spend group, so a conditions spend is preferred, and a source
+    //    that is not one (a settlement coin) is rejected.
     let output = Output::new(BURN_PUZZLE_HASH, amount);
-    let source = spends.xch.output_source(ctx, &output)?;
+    let source = match spends.xch.items.iter().position(|item| {
+        item.kind.is_conditions() && item.kind.is_allowed(&output, &item.asset.constraints())
+    }) {
+        Some(index) => index,
+        None => spends.xch.output_source(ctx, &output)?,
+    };
+    if !spends.xch.items[source].kind.is_conditions() {
+        return Err(DriverError::SilentPaymentParentNotEligible);
+    }
     let parent_coin = spends.xch.items[source].asset.coin();
 
     // 2. Per-scan_pk k counter. Keyed by 48-byte compressed scan_pk so
@@ -583,6 +594,70 @@ mod silent_payment_tests {
         assert!(result.is_ok(), "Memos::None must pass: {result:?}");
         assert_eq!(spends.silent_payments_pending.len(), 1);
 
+        Ok(())
+    }
+
+    /// CHIP-0057 requires a silent payment output to be created by a
+    /// standard-puzzle coin of the spend group. A settlement coin is not one,
+    /// so a send that could only be funded by it is rejected.
+    #[test]
+    fn settlement_coin_cannot_create_silent_payment_output() -> Result<()> {
+        use chia_protocol::Coin;
+        use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+
+        let mut ctx = SpendContext::new();
+
+        let recipient = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x42u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x43u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+
+        let settlement_coin = Coin::new([1u8; 32].into(), SETTLEMENT_PAYMENT_HASH.into(), 1000);
+        let mut spends = Spends::new([2u8; 32].into());
+        spends.add(settlement_coin);
+
+        let result = spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+        );
+        assert!(
+            matches!(result, Err(DriverError::SilentPaymentParentNotEligible)),
+            "expected SilentPaymentParentNotEligible, got {result:?}"
+        );
+        assert!(spends.silent_payments_pending.is_empty());
+        Ok(())
+    }
+
+    /// When a settlement coin and a standard-puzzle coin are both spent, the
+    /// silent payment output is created by the standard-puzzle coin even if the
+    /// settlement coin comes first.
+    #[test]
+    fn standard_coin_is_preferred_over_settlement_coin() -> Result<()> {
+        use chia_protocol::Coin;
+        use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10);
+
+        let recipient = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x42u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x43u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+
+        let settlement_coin = Coin::new([1u8; 32].into(), SETTLEMENT_PAYMENT_HASH.into(), 1000);
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(settlement_coin);
+        spends.add(alice.coin);
+
+        spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+        )?;
+        assert_eq!(spends.silent_payments_pending.len(), 1);
+        assert_eq!(spends.silent_payments_pending[0].parent_coin, alice.coin);
         Ok(())
     }
 

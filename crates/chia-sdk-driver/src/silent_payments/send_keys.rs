@@ -158,7 +158,7 @@ mod tests {
         Ok(())
     }
 
-    /// Spends-level multi-party hard-error: a Spends with 2 non-ephemeral XCH
+    /// Spends-level multi-party hard-error: a Spends with 2 selected XCH
     /// inputs but only 1 in the registered SK map returns
     /// `Err(DriverError::SilentPaymentMultiPartyUnsupported)` — NOT a silent
     /// single-input aggregation (which would silently corrupt the puzzle hash).
@@ -287,7 +287,7 @@ mod tests {
     }
 
     /// A `Spends` with 1 XCH input + 1 SP send accepts
-    /// `Relation::None` — the gate short-circuits because non-ephemeral XCH
+    /// `Relation::None` — the gate short-circuits because the spent XCH coin
     /// count < 2. Single-input SP sends do not require input binding.
     ///
     /// The success path exercises `sp_finish_branch` end-to-end (gates pass;
