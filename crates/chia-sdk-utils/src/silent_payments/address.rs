@@ -56,11 +56,16 @@ impl SilentPaymentNetwork {
 /// version character (v0) followed by `serialize(B_scan) || serialize(B_spend)`
 /// (96 bytes), under HRP `spxch` (mainnet) / `tspxch` (testnet).
 ///
-/// The address carries no labeled-vs-unlabeled discriminant: per CHIP §375,
-/// a labeled address has its `spend_pk` field set to `B_m = B_spend + label_pk`,
-/// but the wire form is identical to an unlabeled address with the same
-/// underlying point. Senders and scanners cannot distinguish; recipients
-/// disambiguate via a registered [`super::LabelRegistry`].
+/// The address carries no labeled-vs-unlabeled discriminant: a labeled address
+/// has its `spend_pk` field set to `B_m = B_spend + label_pk` (CHIP-0057
+/// "Labeling"), and its wire form is identical to an unlabeled address with
+/// the same point. Senders cannot tell the two apart; the recipient's scanner
+/// recovers the label by trying each registered label.
+///
+/// `network` is taken from the human-readable part when an address is decoded.
+/// CHIP-0057 says a sender should reject an address whose network does not
+/// match the one it is transacting on. The SDK does not know which network a
+/// transaction is for, so that comparison is left to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SilentPaymentAddress {
     pub scan_pk: PublicKey,
@@ -69,13 +74,14 @@ pub struct SilentPaymentAddress {
 }
 
 impl SilentPaymentAddress {
-    /// Construct a `SilentPaymentAddress` from raw pubkeys + network.
+    /// Construct a `SilentPaymentAddress` from public keys and a network.
     ///
-    /// Does NOT validate the pubkeys against the identity element — that
-    /// check is performed on `decode` (where untrusted bytes enter the system).
-    /// `new` is the trusted constructor used by `SilentPaymentKeys::unlabeled_address`
-    /// and `SilentPaymentKeys::labeled_address`, where the pubkeys come from
-    /// `SecretKey::public_key()` and are therefore non-identity by construction.
+    /// This constructor does not validate the keys (the fields are public, so
+    /// an address can be assembled without it anyway). Validation happens
+    /// wherever an address is used: [`Self::decode`] rejects invalid keys,
+    /// [`Self::encode`] refuses to encode them, and the silent-payment send
+    /// action calls [`Self::validate`] before deriving anything. Call
+    /// [`Self::validate`] directly when taking keys from an untrusted source.
     #[must_use]
     pub fn new(scan_pk: PublicKey, spend_pk: PublicKey, network: SilentPaymentNetwork) -> Self {
         Self {
@@ -85,12 +91,40 @@ impl SilentPaymentAddress {
         }
     }
 
+    /// Check the keys as CHIP-0057 "Silent Payment Address" requires: both must
+    /// be valid elements of the prime-order G1 subgroup, and neither may be
+    /// the identity element.
+    ///
+    /// An identity scan key would make the shared secret a public constant,
+    /// and a key outside the subgroup can leak bits of the sender's secret
+    /// keys (CHIP-0057 "Point Validation").
+    ///
+    /// # Errors
+    ///
+    /// [`SilentPaymentError::IdentityPublicKey`] if either key is the identity
+    /// element, and [`SilentPaymentError::InvalidPublicKey`] if either key is
+    /// outside the prime-order subgroup.
+    pub fn validate(&self) -> Result<(), SilentPaymentError> {
+        if self.scan_pk.is_inf() || self.spend_pk.is_inf() {
+            return Err(SilentPaymentError::IdentityPublicKey);
+        }
+        if !self.scan_pk.is_valid() || !self.spend_pk.is_valid() {
+            return Err(SilentPaymentError::InvalidPublicKey);
+        }
+        Ok(())
+    }
+
     /// Encode as bech32m: HRP `||` `"1"` `||` base32(version `||` `scan_pk` `||` `spend_pk`) `||` checksum.
     ///
     /// The data part is a single 5-bit version character (v0) followed by the
     /// 96-byte payload `serialize(B_scan) || serialize(B_spend)` (CHIP-0057
     /// Address Versioning).
+    ///
+    /// Fails if the keys do not pass [`Self::validate`], so that an address no
+    /// decoder would accept is never produced.
     pub fn encode(&self) -> Result<String, SilentPaymentError> {
+        self.validate()?;
+
         let mut payload = Vec::with_capacity(96);
         payload.extend_from_slice(&self.scan_pk.to_bytes());
         payload.extend_from_slice(&self.spend_pk.to_bytes());
@@ -161,14 +195,13 @@ impl SilentPaymentAddress {
             PublicKey::from_bytes(&scan_bytes).map_err(|_| SilentPaymentError::InvalidPublicKey)?;
         let spend_pk = PublicKey::from_bytes(&spend_bytes)
             .map_err(|_| SilentPaymentError::InvalidPublicKey)?;
-        if scan_pk.is_inf() || spend_pk.is_inf() {
-            return Err(SilentPaymentError::IdentityPublicKey);
-        }
-        Ok(Self {
+        let address = Self {
             scan_pk,
             spend_pk,
             network,
-        })
+        };
+        address.validate()?;
+        Ok(address)
     }
 }
 
@@ -468,5 +501,108 @@ mod tests {
             Err(SilentPaymentError::AddressTooLong(n)) => assert_eq!(n, s.len()),
             other => panic!("expected AddressTooLong, got {other:?}"),
         }
+    }
+
+    // ─── Validation outside of decode ──────────────────────────────────────
+
+    /// A curve point outside the prime-order subgroup. The cofactor of G1 is
+    /// large, so almost every curve point qualifies.
+    fn off_subgroup_point() -> PublicKey {
+        (1..=u8::MAX)
+            .find_map(|x| {
+                let mut bytes = [0u8; 48];
+                bytes[0] = 0x80;
+                bytes[47] = x;
+                PublicKey::from_bytes_unchecked(&bytes)
+                    .ok()
+                    .filter(|p| !p.is_valid())
+            })
+            .expect("a curve point outside the prime-order subgroup")
+    }
+
+    #[test]
+    fn validate_accepts_tv1() {
+        let addr = SilentPaymentAddress::new(
+            pk(TV1_SCAN_PK_BYTES),
+            pk(TV1_SPEND_PK_BYTES),
+            SilentPaymentNetwork::Mainnet,
+        );
+        assert_eq!(addr.validate(), Ok(()));
+    }
+
+    /// An address assembled with an identity key (through `new` or the public
+    /// fields) fails validation and cannot be encoded.
+    #[test]
+    fn identity_key_fails_validate_and_encode() {
+        let identity = PublicKey::default();
+        for (scan, spend) in [
+            (identity, pk(TV1_SPEND_PK_BYTES)),
+            (pk(TV1_SCAN_PK_BYTES), identity),
+        ] {
+            let addr = SilentPaymentAddress::new(scan, spend, SilentPaymentNetwork::Mainnet);
+            assert_eq!(addr.validate(), Err(SilentPaymentError::IdentityPublicKey));
+            assert_eq!(addr.encode(), Err(SilentPaymentError::IdentityPublicKey));
+
+            let literal = SilentPaymentAddress {
+                scan_pk: scan,
+                spend_pk: spend,
+                network: SilentPaymentNetwork::Testnet,
+            };
+            assert_eq!(
+                literal.validate(),
+                Err(SilentPaymentError::IdentityPublicKey)
+            );
+        }
+    }
+
+    /// A key that is on the curve but outside the prime-order subgroup fails
+    /// validation.
+    #[test]
+    fn off_subgroup_key_fails_validate() {
+        let bad = off_subgroup_point();
+        for (scan, spend) in [(bad, pk(TV1_SPEND_PK_BYTES)), (pk(TV1_SCAN_PK_BYTES), bad)] {
+            let addr = SilentPaymentAddress::new(scan, spend, SilentPaymentNetwork::Mainnet);
+            assert_eq!(addr.validate(), Err(SilentPaymentError::InvalidPublicKey));
+            assert_eq!(addr.encode(), Err(SilentPaymentError::InvalidPublicKey));
+        }
+    }
+
+    /// Decoding rejects a key that is on the curve but outside the subgroup.
+    #[test]
+    fn decode_off_subgroup_key_rejected() {
+        let bad = off_subgroup_point().to_bytes();
+        for bad_first in [true, false] {
+            let mut payload = Vec::with_capacity(96);
+            if bad_first {
+                payload.extend_from_slice(&bad);
+                payload.extend_from_slice(&TV1_SPEND_PK_BYTES);
+            } else {
+                payload.extend_from_slice(&TV1_SCAN_PK_BYTES);
+                payload.extend_from_slice(&bad);
+            }
+            let s = encode_with_version(0, &payload, "spxch");
+            assert_eq!(
+                SilentPaymentAddress::decode(&s),
+                Err(SilentPaymentError::InvalidPublicKey)
+            );
+        }
+    }
+
+    /// Decoding returns the network of the human-readable part, so that a
+    /// sender can compare it with the network it is transacting on.
+    #[test]
+    fn decode_returns_the_network() {
+        assert_eq!(
+            SilentPaymentAddress::decode(TV1_MAINNET_ADDR)
+                .unwrap()
+                .network,
+            SilentPaymentNetwork::Mainnet
+        );
+        assert_eq!(
+            SilentPaymentAddress::decode(TV1_TESTNET_ADDR)
+                .unwrap()
+                .network,
+            SilentPaymentNetwork::Testnet
+        );
     }
 }

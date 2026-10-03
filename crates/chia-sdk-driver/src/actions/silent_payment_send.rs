@@ -1,4 +1,5 @@
 use chia_puzzle_types::Memos;
+use chia_sdk_types::silent_payments::K_MAX;
 use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 use crate::{
@@ -8,6 +9,13 @@ use crate::{
 
 /// CHIP-0057 silent-payment send action (chip-0057-gated). Structurally
 /// XCH-only: there is no `Id` field, so there is no non-XCH footgun.
+///
+/// The recipient's keys are validated when the action is applied
+/// ([`SilentPaymentAddress::validate`]), and at most `K_MAX` (2,400) outputs
+/// can be sent to one scan key in a transaction. The address's network is not
+/// checked: CHIP-0057 says a sender should reject an address for another
+/// network, but only the caller knows which network the transaction is for, so
+/// it should compare `recipient.network` itself.
 ///
 /// Privacy warning: `memos` is published on-chain in plaintext and visible
 /// to anyone holding the recipient's scan key. A 32-byte first memo is
@@ -41,23 +49,26 @@ impl SpendAction for SilentPaymentSendAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
+        // The address may have been assembled from arbitrary keys rather than
+        // decoded, so it is checked again here, before anything is derived
+        // from it.
+        self.recipient.validate()?;
         memo_hint_guard(ctx, self.memos)?;
         spend_silent_payment(ctx, spends, &self.recipient, self.amount, self.memos)
     }
 }
 
-/// Apply-time half of a chip-0057 silent-payment send: reserves an XCH parent,
-/// increments the per-`scan_pk` k counter on `Spends`, and pushes a
-/// `SilentPaymentPending` entry. NO `CreateCoin` is emitted here — the
-/// on-chain output is emitted at finish time by the chip-0057 SP branch of
-/// [`Spends::finish_with_keys`], which derives the one-time puzzle hash from
-/// the recorded entry.
+/// Apply-time half of a silent-payment send: reserves the XCH coin that will
+/// create the output, takes the next `k` for the recipient's scan key, and
+/// records a `SilentPaymentPending` entry. No `CreateCoin` is emitted here: the
+/// one-time puzzle hash depends on the spend group, which is only known when
+/// the transaction is completed, so [`Spends::prepare`] derives and emits the
+/// output.
 ///
 /// Privacy warning: memos passed here land in the on-chain `CreateCoin.memos`
-/// field unchanged at finish time and are visible to anyone holding the
-/// recipient's scan key. The 32-byte first-memo hint guard
-/// (`DriverError::SilentPaymentMemoHintForbidden`) is fired by the caller
-/// before this helper runs.
+/// field unchanged and are visible to everyone. The 32-byte first-memo hint
+/// guard (`DriverError::SilentPaymentMemoHintForbidden`) is run by the caller
+/// before this helper.
 fn spend_silent_payment(
     ctx: &mut SpendContext,
     spends: &mut Spends,
@@ -65,7 +76,23 @@ fn spend_silent_payment(
     amount: u64,
     memos: Memos,
 ) -> Result<(), DriverError> {
-    // 1. Reserve the XCH coin that will create the output. BURN_PUZZLE_HASH is
+    // 1. Per-scan_pk k counter. Keyed by the 48-byte compressed scan_pk, so
+    //    that all addresses of a recipient (labeled or not) share a counter.
+    //
+    //    CHIP-0057 "Kmax": a sender must not create more than K_MAX outputs
+    //    for one scan key in one spend group, since scanners stop at that
+    //    index. This is checked before anything is changed.
+    let scan_pk_bytes: [u8; 48] = recipient.scan_pk.to_bytes();
+    let k = spends
+        .silent_payment_counters
+        .get(&scan_pk_bytes)
+        .copied()
+        .unwrap_or(0);
+    if k >= K_MAX {
+        return Err(DriverError::SilentPaymentTooManyOutputs);
+    }
+
+    // 2. Reserve the XCH coin that will create the output. BURN_PUZZLE_HASH is
     //    a placeholder, since the real puzzle hash is only known at finish time
     //    and only the amount matters for choosing a source.
     //
@@ -84,20 +111,10 @@ fn spend_silent_payment(
     }
     let parent_coin = spends.xch.items[source].asset.coin();
 
-    // 2. Per-scan_pk k counter. Keyed by 48-byte compressed scan_pk so
-    //    distinct sub-addresses (labeled vs unlabeled) of the same recipient
-    //    share a counter.
-    let scan_pk_bytes: [u8; 48] = recipient.scan_pk.to_bytes();
-    let next_k = spends
-        .silent_payment_counters
-        .entry(scan_pk_bytes)
-        .or_insert(0);
-    let k = *next_k;
-    *next_k += 1;
-
-    // 3. Push pending entry. ECDH math + CreateCoin emission + outputs.xch
-    //    push are all deferred to the chip-0057 SP branch of
-    //    Spends::finish_with_keys.
+    // 3. Record the output. The ECDH, the CreateCoin condition and the entry in
+    //    `outputs.xch` are all deferred to `Spends::prepare`, when the spend
+    //    group is known.
+    spends.silent_payment_counters.insert(scan_pk_bytes, k + 1);
     spends.silent_payments_pending.push(SilentPaymentPending {
         scan_pk: recipient.scan_pk,
         spend_pk: recipient.spend_pk,
@@ -668,6 +685,151 @@ mod silent_payment_tests {
         )?;
         assert_eq!(spends.silent_payments_pending.len(), 1);
         assert_eq!(spends.silent_payments_pending[0].parent_coin, alice.coin);
+        Ok(())
+    }
+
+    /// CHIP-0057 "Kmax": more than `K_MAX` outputs for one scan key in one
+    /// spend group makes the sender fail. Exactly `K_MAX` are accepted, and
+    /// the limit is per scan key: labeled addresses of the same recipient
+    /// share it, another recipient does not.
+    #[test]
+    fn more_than_k_max_outputs_for_one_scan_key_fails() -> Result<()> {
+        use chia_sdk_types::silent_payments::K_MAX;
+        use chia_sdk_utils::silent_payments::SilentPaymentKeys;
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10_000);
+
+        let keys = SilentPaymentKeys::from_secret_keys(
+            SecretKey::from_bytes(&[0x42u8; 32])?,
+            SecretKey::from_bytes(&[0x43u8; 32])?,
+        );
+        let unlabeled = keys.unlabeled_address(SilentPaymentNetwork::Mainnet);
+        let labeled = keys.labeled_address(SilentPaymentNetwork::Mainnet, 1)?;
+        let other = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x44u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x45u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+
+        // K_MAX outputs to one scan key, alternating between two of its labels.
+        let actions: Vec<Action> = (0..K_MAX)
+            .map(|i| {
+                let address = if i % 2 == 0 { &unlabeled } else { &labeled };
+                Action::silent_payment_send(address.clone(), 1, Memos::None)
+            })
+            .collect();
+        spends.apply(&mut ctx, &actions)?;
+        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+        assert_eq!(spends.silent_payments_pending.last().unwrap().k, K_MAX - 1);
+
+        // One more to the same scan key fails, with either label.
+        for address in [&unlabeled, &labeled] {
+            let result = spends.apply(
+                &mut ctx,
+                &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+            );
+            assert!(
+                matches!(result, Err(DriverError::SilentPaymentTooManyOutputs)),
+                "expected SilentPaymentTooManyOutputs, got {result:?}"
+            );
+        }
+        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+
+        // Another scan key has its own limit.
+        spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(other, 1, Memos::None)],
+        )?;
+        assert_eq!(spends.silent_payments_pending.last().unwrap().k, 0);
+        Ok(())
+    }
+
+    /// An address assembled with an identity key (it cannot come from
+    /// `decode`) is rejected when the action is applied, before anything is
+    /// derived from it.
+    #[test]
+    fn identity_key_address_is_rejected_at_apply() -> Result<()> {
+        use chia_bls::PublicKey;
+        use chia_sdk_utils::silent_payments::SilentPaymentError;
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10);
+        let good = SecretKey::from_bytes(&[0x42u8; 32])?.public_key();
+        let identity = PublicKey::default();
+
+        for (scan_pk, spend_pk) in [(identity, good), (good, identity)] {
+            let recipient = SilentPaymentAddress {
+                scan_pk,
+                spend_pk,
+                network: SilentPaymentNetwork::Mainnet,
+            };
+            let mut spends = Spends::new(alice.puzzle_hash);
+            spends.add(alice.coin);
+
+            let result = spends.apply(
+                &mut ctx,
+                &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            );
+            assert!(
+                matches!(
+                    result,
+                    Err(DriverError::SilentPayment(
+                        SilentPaymentError::IdentityPublicKey
+                    ))
+                ),
+                "expected IdentityPublicKey, got {result:?}"
+            );
+            assert!(spends.silent_payments_pending.is_empty());
+        }
+        Ok(())
+    }
+
+    /// The same goes for a key outside the prime-order subgroup.
+    #[test]
+    fn off_subgroup_key_address_is_rejected_at_apply() -> Result<()> {
+        use chia_bls::PublicKey;
+        use chia_sdk_utils::silent_payments::SilentPaymentError;
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10);
+        let good = SecretKey::from_bytes(&[0x42u8; 32])?.public_key();
+        let bad = (1..=u8::MAX)
+            .find_map(|x| {
+                let mut bytes = [0u8; 48];
+                bytes[0] = 0x80;
+                bytes[47] = x;
+                PublicKey::from_bytes_unchecked(&bytes)
+                    .ok()
+                    .filter(|p| !p.is_valid())
+            })
+            .expect("a curve point outside the prime-order subgroup");
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+        let result = spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(
+                SilentPaymentAddress::new(bad, good, SilentPaymentNetwork::Mainnet),
+                1,
+                Memos::None,
+            )],
+        );
+        assert!(
+            matches!(
+                result,
+                Err(DriverError::SilentPayment(
+                    SilentPaymentError::InvalidPublicKey
+                ))
+            ),
+            "expected InvalidPublicKey, got {result:?}"
+        );
         Ok(())
     }
 

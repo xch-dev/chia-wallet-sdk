@@ -29,7 +29,9 @@ from chia_wallet_sdk import (
     Clvm,
     LabelRegistry,
     Mnemonic,
+    PublicKey,
     SecretKey,
+    SilentPaymentAddress,
     SilentPaymentKeys,
     SilentPaymentNetwork,
     SilentPaymentRegisteredKey,
@@ -92,6 +94,32 @@ def test_given_keys_tv5_addresses():
         keys.labeled_address(SilentPaymentNetwork.Testnet, 1).encode()
         == "tspxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfd9jj2rac2q707npyfumq4wzqwkl79ksppyt5t58gecmqyj4396tzwlglqtamuqwwusfd6t8pkaq5cgn3xqq3"
     )
+
+
+def test_identity_key_address_is_rejected():
+    """An address assembled with an identity key cannot be encoded or sent to."""
+    keys = tv1_keys()
+    bad = SilentPaymentAddress(
+        PublicKey.infinity(), keys.spend_pk(), SilentPaymentNetwork.Testnet
+    )
+    with pytest.raises(BaseException, match="identity element"):
+        bad.encode()
+
+    sim = Simulator()
+    clvm = Clvm()
+    sender = sim.bls(1_000)
+    spends = Spends(clvm, sender.puzzle_hash)
+    spends.add_xch(sender.coin)
+    with pytest.raises(BaseException, match="identity element"):
+        spends.apply([Action.silent_payment_send(bad, 100, None)])
+
+
+def test_decode_returns_the_network():
+    """A sender compares the decoded network with the one it transacts on."""
+    keys = tv1_keys()
+    for network in [SilentPaymentNetwork.Mainnet, SilentPaymentNetwork.Testnet]:
+        encoded = keys.unlabeled_address(network).encode()
+        assert SilentPaymentAddress.decode(encoded).network == network
 
 
 def test_labels_and_change_address():

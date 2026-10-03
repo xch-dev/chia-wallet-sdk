@@ -24,7 +24,7 @@ use std::collections::HashMap;
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
-use chia_sdk_types::silent_payments::ScalarField;
+use chia_sdk_types::silent_payments::{K_MAX, ScalarField};
 use chia_sdk_utils::silent_payments::{
     CHANGE_LABEL, LabelRegistry, SilentPaymentKeys, generate_label,
 };
@@ -34,14 +34,13 @@ use super::protocol::{
 };
 use super::types::{DetectedSpCoin, OutputMeta, TweakData};
 
-/// Default per-spend-group iteration cap per CHIP-0057 §446.
+/// The per-spend-group iteration cap of the scanner: `K_max` of CHIP-0057
+/// "Kmax: Maximum Outputs Per Spend Group" (2,400), as a `usize`.
 ///
-/// Derived from Chia's mempool 5.5 B spend-bundle cost limit: 2,400 is the
-/// theoretical maximum number of silent-payment outputs a single spend bundle
-/// can fit at standard mempool policy. Callers may pass a smaller value to
-/// [`scan_from_tweaks`] (e.g., 32 for a fast pre-scan in resource-constrained
-/// environments) but should not exceed this in production scans.
-pub const K_MAX_DEFAULT: usize = 2400;
+/// Pass this to [`scan_from_tweaks`]. A smaller value makes the scan miss
+/// outputs at higher indices that a conforming sender may have created; a
+/// larger value is capped, since a scanner stops when `k` reaches `K_max`.
+pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 
 /// Scan tweak points and candidate outputs for silent payments addressed to
 /// this wallet (CHIP-0057 `ScanForSilentPayment`, driven by tweak points).
@@ -61,6 +60,9 @@ pub const K_MAX_DEFAULT: usize = 2400;
 /// with a matching puzzle hash is reported, since several output coins can
 /// share one one-time puzzle hash (CHIP-0057 "Outputs Sharing a Puzzle Hash").
 ///
+/// `k_max` is the iteration cap per spend group; pass [`K_MAX_DEFAULT`]. Values
+/// above `K_max` are capped to it.
+///
 /// Tweak points are taken from another party, so each one is checked to be a
 /// non-identity element of the prime-order subgroup before it is multiplied by
 /// the scan key (CHIP-0057 "Tweak Points"); points that fail are skipped.
@@ -78,7 +80,8 @@ pub fn scan_from_tweaks(
     let labels = label_set(scan_sk, labels);
     let mut detected = Vec::new();
 
-    let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX);
+    // A scanner stops iterating a spend group when k reaches K_max.
+    let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX).min(K_MAX);
 
     for tweak_point in &data.tweak_points {
         // CHIP-0057 "Tweak Points" / "Edge Cases": never multiply the scan key
@@ -1143,5 +1146,38 @@ mod tests {
             labels.register(&b_scan, m);
         }
         assert_eq!(order(Some(&labels)), vec![0, 2, 5]);
+    }
+
+    /// CHIP-0057 "Kmax": a scanner detects outputs at every index below
+    /// `K_max` and stops when `k` reaches it, whatever cap the caller passes.
+    #[test]
+    fn scan_stops_at_k_max() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
+        let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
+
+        // Outputs at every index from 0 through K_max (one more than allowed).
+        let outputs: Vec<OutputMeta> = (0..=K_MAX)
+            .map(|k| OutputMeta {
+                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
+                    &b_spend_pub,
+                    &derive_output_tweak(&shared_secret, k),
+                )),
+                coin_id: Bytes32::from([0u8; 32]),
+                amount: u64::from(k),
+                parent_coin_id: [0u8; 32].into(),
+            })
+            .collect();
+        let data = TweakData {
+            tweak_points: vec![tp],
+            outputs,
+        };
+
+        for k_max in [K_MAX_DEFAULT, K_MAX_DEFAULT + 1, usize::MAX] {
+            let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, k_max);
+            assert_eq!(detections.len(), K_MAX as usize);
+            assert_eq!(detections.last().unwrap().k, K_MAX - 1);
+        }
     }
 }

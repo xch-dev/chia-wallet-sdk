@@ -232,6 +232,13 @@ pub enum DriverError {
     #[error("silent payment output tweak is zero")]
     SilentPaymentZeroTweak,
 
+    /// More than `K_max` (2,400) silent-payment outputs were requested for a
+    /// single scan key in one transaction. Scanners stop iterating a spend
+    /// group at that index, so further outputs would never be found.
+    #[cfg(feature = "chip-0057")]
+    #[error("too many silent payment outputs for one scan key (the limit is 2400)")]
+    SilentPaymentTooManyOutputs,
+
     /// The first memo was exactly 32 bytes, which the standard wallet promotes
     /// to a `puzzle_hash` hint and indexes — exposing the one-time puzzle hash
     /// and defeating silent-payment privacy. Prefix the payload with a sentinel

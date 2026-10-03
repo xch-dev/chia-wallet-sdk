@@ -12,13 +12,17 @@
 import test from "ava";
 import {
   Action,
+  Clvm,
   fromHex,
   Mnemonic,
+  PublicKey,
   SecretKey,
   SilentPaymentAddress,
   SilentPaymentKeys,
   SilentPaymentNetwork,
   SilentPayments,
+  Simulator,
+  Spends,
   toHex,
 } from "..";
 
@@ -155,5 +159,27 @@ test("addresses of the given TV1 keys (TV5)", (t) => {
   t.is(
     keys.labeledAddress(SilentPaymentNetwork.Testnet, 1).encode(),
     "tspxch1q5p85qjlmlhynz9ek3x07xtfzwkasq7q52yxr2g6jjjr66atnvp6h8t0zp5cuw5g8kspnrllhntyfd9jj2rac2q707npyfumq4wzqwkl79ksppyt5t58gecmqyj4396tzwlglqtamuqwwusfd6t8pkaq5cgn3xqq3",
+  );
+});
+
+// An address assembled with an identity key (it cannot come from decode) can
+// neither be encoded nor sent to.
+test("identity-key address is rejected by encode and by the send action", (t) => {
+  const keys = tv1Keys();
+  const bad = new SilentPaymentAddress(
+    PublicKey.infinity(),
+    keys.spendPk(),
+    SilentPaymentNetwork.Testnet,
+  );
+  t.throws(() => bad.encode(), { message: /identity element/ });
+
+  const sim = new Simulator();
+  const clvm = new Clvm();
+  const sender = sim.bls(1_000n);
+  const spends = new Spends(clvm, sender.puzzleHash);
+  spends.addXch(sender.coin);
+  t.throws(
+    () => spends.apply([Action.silentPaymentSend(bad, 100n, undefined)]),
+    { message: /identity element/ },
   );
 });

@@ -5,6 +5,8 @@
 //! See [`ScalarField::from_bytes_unsigned`] for why unsigned reduction is mandatory
 //! for protocol scalars and must not be swapped for the standard-puzzle reducer.
 
+mod limits;
+pub use limits::*;
 mod paths;
 pub use paths::*;
 mod scalar;

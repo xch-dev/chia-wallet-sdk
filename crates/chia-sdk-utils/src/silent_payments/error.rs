@@ -30,14 +30,15 @@ pub enum SilentPaymentError {
     #[error("silent-payment address too long: {0} characters (max 1023)")]
     AddressTooLong(usize),
 
-    /// One of the 48-byte pubkey halves failed `chia_bls::PublicKey::from_bytes`
-    /// (e.g., not a valid compressed G1 point).
+    /// One of the public keys is not a valid element of the prime-order G1
+    /// subgroup: its 48 bytes are not a valid compressed G1 point, or the point
+    /// lies outside the subgroup.
     #[error("invalid silent-payment public-key encoding")]
     InvalidPublicKey,
 
-    /// Either the scan or spend pubkey decoded to the BLS identity element
-    /// (point at infinity). CHIP §215 mandates rejection to prevent trivial-
-    /// secret-key griefing.
+    /// Either the scan or the spend public key is the identity element (point
+    /// at infinity), which CHIP-0057 "Silent Payment Address" requires to be
+    /// rejected.
     #[error("silent-payment public key is the identity element")]
     IdentityPublicKey,
 
