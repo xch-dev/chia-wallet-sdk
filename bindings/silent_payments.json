@@ -187,6 +187,10 @@
   "SilentPayments": {
     "type": "class",
     "methods": {
+      "k_max": {
+        "type": "static",
+        "return": "u32"
+      },
       "scan_from_tweaks": {
         "type": "static",
         "args": {

@@ -37,7 +37,7 @@ import {
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const K_MAX_DEFAULT = 2400;
+const K_MAX_DEFAULT = SilentPayments.kMax();
 
 test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const sim = new Simulator();
@@ -217,4 +217,9 @@ test("napi: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
 
   // No spend bundle was produced.
   t.is(clvm.coinSpends().length, 0, "no coin spends produced on the failed path");
+});
+
+// CHIP-0057 "Kmax": the output limit is available without duplicating it.
+test("napi: SilentPayments.kMax() is the output limit", (t) => {
+  t.is(SilentPayments.kMax(), 2400);
 });

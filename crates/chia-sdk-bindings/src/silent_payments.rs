@@ -428,6 +428,17 @@ pub struct SilentPaymentRegisteredSecretKey {
 }
 
 impl SilentPayments {
+    /// `K_max` (2,400): the maximum number of silent-payment outputs for one
+    /// scan key in one spend group (CHIP-0057 "Kmax: Maximum Outputs Per Spend
+    /// Group"). A sender must not exceed it, and it is the iteration cap to
+    /// pass to `scan_from_tweaks`.
+    ///
+    /// Exposed as a zero-argument static, the way `Constants` exposes its
+    /// values.
+    pub fn k_max() -> Result<u32> {
+        Ok(chia_sdk_types::silent_payments::K_MAX)
+    }
+
     /// Detect silent-payment outputs in a `TweakData` blob.
     ///
     /// The change label `m = 0` is always checked, whether or not it is in
@@ -608,5 +619,13 @@ mod tests {
                 chia_sdk_driver::DriverError::SilentPaymentZeroKeySum
             ))
         ));
+    }
+
+    /// The facade exposes the same limit the sender and the scanner enforce.
+    #[test]
+    fn k_max_is_the_shared_limit() {
+        let k_max = SilentPayments::k_max().unwrap();
+        assert_eq!(k_max, 2400);
+        assert_eq!(k_max as usize, chia_sdk_driver::K_MAX_DEFAULT);
     }
 }

@@ -45,7 +45,7 @@ setPanicHook();
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const K_MAX_DEFAULT = 2400;
+const K_MAX_DEFAULT = SilentPayments.kMax();
 
 test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const sim = new Simulator();
@@ -244,4 +244,9 @@ test("wasm: key derivation from the mnemonic is hardened (TV8)", (t) => {
     keys.unlabeledAddress(SilentPaymentNetwork.Testnet).encode(),
     "tspxch1q30etue85q8xvzrf5j4gr4j09ke6u9c4s3vrnj9unt0hdj5dhpwxv6q0kp3qxcnh8u7fr0chtttlantgv0dj6xwftvfuzhrq8sjcsce9s7nwglsk5d5knclqwrwyehuvr7a5evgndm7g527yadv9lxjvjrycwanlf",
   );
+});
+
+// CHIP-0057 "Kmax": the output limit is available without duplicating it.
+test("wasm: SilentPayments.kMax() is the output limit", (t) => {
+  t.is(SilentPayments.kMax(), 2400);
 });

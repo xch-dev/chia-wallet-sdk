@@ -30,7 +30,7 @@ import {
 // deterministic across the single-input test and this multi-input test.
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const K_MAX_DEFAULT = 2400;
+const K_MAX_DEFAULT = SilentPayments.kMax();
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;

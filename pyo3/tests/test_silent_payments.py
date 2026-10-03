@@ -47,7 +47,12 @@ TEST_MNEMONIC = (
     "abandon abandon abandon abandon abandon abandon "
     "abandon abandon abandon abandon abandon about"
 )
-K_MAX_DEFAULT = 2400
+K_MAX_DEFAULT = SilentPayments.k_max()
+
+
+def test_k_max_is_exported():
+    """CHIP-0057 "Kmax": the output limit is available without duplicating it."""
+    assert SilentPayments.k_max() == 2400
 
 # CHIP-0057 test vectors 1-7 treat the recipient keys as given values.
 TV1_SCAN_SK = "132567e4dec19a4f50d9e9a549f16283dfb5aa4ad1ffdb6a505fcfcc56a690f6"
