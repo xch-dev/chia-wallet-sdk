@@ -219,7 +219,7 @@
         "args": {
           "scan_pk": "PublicKey",
           "spend_pk": "PublicKey",
-          "aggregated_sender_sk": "ScalarField",
+          "aggregated_sender_sk": "SecretKey",
           "input_hash": "ScalarField",
           "k": "u32"
         },
@@ -238,7 +238,7 @@
         "args": {
           "sks": "Vec<SecretKey>"
         },
-        "return": "ScalarField"
+        "return": "SecretKey"
       },
       "tweak_data_from_block_spends": {
         "type": "static",

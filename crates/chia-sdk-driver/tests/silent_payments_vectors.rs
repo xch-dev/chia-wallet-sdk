@@ -114,8 +114,7 @@ fn send(
     k: u32,
 ) -> Sent {
     let a_sum = aggregate_sender_sks(sender_sks).unwrap();
-    let a_sum_pk = sk(a_sum.to_bytes()).public_key();
-    let input_hash = compute_input_hash(coin_ids, &a_sum_pk);
+    let input_hash = compute_input_hash(coin_ids, &a_sum.public_key());
 
     let mut ecdh_point = *scan_pk;
     ecdh_point.scalar_multiply(&a_sum.to_bytes());
@@ -517,7 +516,7 @@ fn tv4_multi_input_payment() {
         "a223ab27f801044cd98c8314014b8073347b0e5aae43c69b78b5ca2a562ee9f7"
         "99b8efad179b34da1b306ca4d62bad40"
     );
-    assert_eq!(sk(a_sum.to_bytes()).public_key().to_bytes(), a_sum_pk);
+    assert_eq!(a_sum.public_key().to_bytes(), a_sum_pk);
     assert_eq!((pk(A_0) + &pk(A_1)).to_bytes(), a_sum_pk);
 
     // The input hash is computed from both coin ids; the smaller one (coin 1)

@@ -13,6 +13,8 @@
 //!   carrying the coin and the tweak from which the holder of the spend secret
 //!   key derives the one-time key.
 
+use std::fmt;
+
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
@@ -60,8 +62,7 @@ pub struct OutputMeta {
 /// the index `k`, the label (if any), and the combined tweak that the holder of
 /// the spend secret key needs to derive the one-time key (CHIP-0057,
 /// "Spending"). Use [`DetectedSpCoin::onetime_sk`] for that step.
-#[allow(missing_copy_implementations)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DetectedSpCoin {
     pub coin_id: Bytes32,
     pub puzzle_hash: Bytes32,
@@ -79,6 +80,22 @@ pub struct DetectedSpCoin {
     /// together with the address it links the coin to the recipient, so it must
     /// be kept private.
     pub tweak: ScalarField,
+}
+
+/// The tweak is not printed: together with the recipient's address it links
+/// the coin to the recipient.
+impl fmt::Debug for DetectedSpCoin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DetectedSpCoin")
+            .field("coin_id", &self.coin_id)
+            .field("puzzle_hash", &self.puzzle_hash)
+            .field("amount", &self.amount)
+            .field("parent_coin_id", &self.parent_coin_id)
+            .field("k", &self.k)
+            .field("label", &self.label)
+            .field("tweak", &"<redacted>")
+            .finish()
+    }
 }
 
 impl DetectedSpCoin {
@@ -133,5 +150,27 @@ mod tests {
             result.is_err(),
             "PublicKey::from_bytes(&[0xff; 48]) must reject"
         );
+    }
+
+    /// `Debug` on a detection shows the coin but not the tweak.
+    #[test]
+    fn detection_debug_redacts_the_tweak() {
+        use super::DetectedSpCoin;
+        use chia_sdk_types::silent_payments::ScalarField;
+
+        let detection = DetectedSpCoin {
+            coin_id: [1u8; 32].into(),
+            puzzle_hash: [2u8; 32].into(),
+            amount: 42,
+            parent_coin_id: [3u8; 32].into(),
+            k: 7,
+            label: Some(1),
+            tweak: ScalarField::from_bytes_raw([0xab; 32]),
+        };
+        for rendered in [format!("{detection:?}"), format!("{detection:#?}")] {
+            assert!(rendered.contains("<redacted>"));
+            assert!(!rendered.contains("abab"));
+            assert!(rendered.contains("amount: 42"));
+        }
     }
 }

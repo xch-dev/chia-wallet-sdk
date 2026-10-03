@@ -147,7 +147,7 @@ fn scan_group(
     detected: &mut Vec<DetectedSpCoin>,
 ) {
     // Record a detection for every coin with the matched puzzle hash.
-    let mut record = |coins: &[&OutputMeta], k: u32, label: Option<u32>, tweak: ScalarField| {
+    let mut record = |coins: &[&OutputMeta], k: u32, label: Option<u32>, tweak: &ScalarField| {
         for coin in coins {
             detected.push(DetectedSpCoin {
                 coin_id: coin.coin_id,
@@ -156,7 +156,7 @@ fn scan_group(
                 parent_coin_id: coin.parent_coin_id,
                 k,
                 label,
-                tweak,
+                tweak: tweak.clone(),
             });
         }
     };
@@ -173,7 +173,7 @@ fn scan_group(
         let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
 
         if let Some(coins) = outputs.get(&candidate_hash) {
-            record(coins, k, None, output_tweak);
+            record(coins, k, None, &output_tweak);
             continue;
         }
 
@@ -188,7 +188,7 @@ fn scan_group(
                 // The label scalar is derived from the scan key, so the
                 // combined tweak needs no spend key either.
                 let (label_scalar, _) = generate_label(scan_sk, m);
-                record(coins, k, Some(m), output_tweak.add(&label_scalar));
+                record(coins, k, Some(m), &output_tweak.add(&label_scalar));
                 found = true;
                 break;
             }

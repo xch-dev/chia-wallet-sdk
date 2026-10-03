@@ -30,6 +30,7 @@ from chia_wallet_sdk import (
     LabelRegistry,
     Mnemonic,
     PublicKey,
+    ScalarField,
     SecretKey,
     SilentPaymentAddress,
     SilentPaymentKeys,
@@ -120,6 +121,69 @@ def test_decode_returns_the_network():
     for network in [SilentPaymentNetwork.Mainnet, SilentPaymentNetwork.Testnet]:
         encoded = keys.unlabeled_address(network).encode()
         assert SilentPaymentAddress.decode(encoded).network == network
+
+
+def test_sender_primitives_tv4():
+    """The sender-side primitives, against CHIP-0057 Test Vector 4 (two inputs)."""
+    keys = tv1_keys()
+    a_syn_0 = SecretKey.from_bytes(
+        bytes.fromhex(
+            "5002eaf015c1c3a9694cc054e96273279732f4f963616ff89b6d4addcd678c7a"
+        )
+    )
+    a_syn_1 = SecretKey.from_bytes(
+        bytes.fromhex(
+            "05fded8808216b65d439fc41cb07c7270e37ed743e0745652afe055cfe91cf0f"
+        )
+    )
+    coin_ids = [
+        bytes.fromhex(
+            "2b9857e0307ebfbe51829e3be8c992ae57f6a8debe06a5deab429ddae83a8c1a"
+        ),
+        bytes.fromhex(
+            "209bb03a4cd165785e6149bc6dcb27e35829006f02ec927ab5a20521fd27d21a"
+        ),
+    ]
+
+    # The key sum is a SecretKey.
+    a_sum = SilentPayments.aggregate_sender_sks([a_syn_0, a_syn_1])
+    assert (
+        a_sum.to_bytes().hex()
+        == "5600d8781de32f0f3d86bc96b46a3a4ea56ae26da168b55dc66b503acbf95b89"
+    )
+    input_hash = SilentPayments.compute_input_hash(coin_ids, a_sum.public_key())
+    assert (
+        input_hash.to_bytes().hex()
+        == "3f1071552b7f2f5e49b68166cb204f0a1b6a23b0c30a28bcba59a9c3f766e166"
+    )
+    puzzle_hash = SilentPayments.derive_one_time_puzzle_hash(
+        keys.scan_pk(), keys.spend_pk(), a_sum, input_hash, 0
+    )
+    assert (
+        puzzle_hash.hex()
+        == "5d7fc7d7447c746cfb400e801a169fc7bfd1c13e03bc7866e6b743860a53ac6b"
+    )
+
+    # The spend key holder completes a detection's tweak (here t_0 of TV4).
+    t_0 = ScalarField.from_bytes(
+        bytes.fromhex(
+            "18fafd6001bef3fece078f469731b40a5f362994795f9ff6b9339aa235fee312"
+        )
+    )
+    onetime_sk = SilentPayments.derive_onetime_sk(keys.spend_sk(), t_0)
+    assert (
+        onetime_sk.to_bytes().hex()
+        == "6ccc3e13145fd561e438d1bb82954cebb63cfa9577ea15404987aa8e0f309399"
+    )
+
+
+def test_zero_key_sum_is_rejected():
+    """Secret keys that sum to zero mod r make the sender fail (keys 1 and r - 1)."""
+    one = SecretKey.from_bytes((1).to_bytes(32, "big"))
+    r = 0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001
+    r_minus_one = SecretKey.from_bytes((r - 1).to_bytes(32, "big"))
+    with pytest.raises(BaseException, match="key sum is zero"):
+        SilentPayments.aggregate_sender_sks([one, r_minus_one])
 
 
 def test_labels_and_change_address():

@@ -16,6 +16,7 @@ import {
   fromHex,
   Mnemonic,
   PublicKey,
+  ScalarField,
   SecretKey,
   SilentPaymentAddress,
   SilentPaymentKeys,
@@ -182,4 +183,62 @@ test("identity-key address is rejected by encode and by the send action", (t) =>
     () => spends.apply([Action.silentPaymentSend(bad, 100n, undefined)]),
     { message: /identity element/ },
   );
+});
+
+// The sender-side primitives, against CHIP-0057 Test Vector 4 (two inputs).
+test("sender primitives and one-time key derivation (TV4)", (t) => {
+  const keys = tv1Keys();
+  const aSyn0 = SecretKey.fromBytes(
+    fromHex("5002eaf015c1c3a9694cc054e96273279732f4f963616ff89b6d4addcd678c7a"),
+  );
+  const aSyn1 = SecretKey.fromBytes(
+    fromHex("05fded8808216b65d439fc41cb07c7270e37ed743e0745652afe055cfe91cf0f"),
+  );
+  const coinIds = [
+    fromHex("2b9857e0307ebfbe51829e3be8c992ae57f6a8debe06a5deab429ddae83a8c1a"),
+    fromHex("209bb03a4cd165785e6149bc6dcb27e35829006f02ec927ab5a20521fd27d21a"),
+  ];
+
+  // The key sum is a SecretKey.
+  const aSum = SilentPayments.aggregateSenderSks([aSyn0, aSyn1]);
+  t.is(
+    toHex(aSum.toBytes()),
+    "5600d8781de32f0f3d86bc96b46a3a4ea56ae26da168b55dc66b503acbf95b89",
+  );
+  const inputHash = SilentPayments.computeInputHash(coinIds, aSum.publicKey());
+  t.is(
+    toHex(inputHash.toBytes()),
+    "3f1071552b7f2f5e49b68166cb204f0a1b6a23b0c30a28bcba59a9c3f766e166",
+  );
+  const puzzleHash = SilentPayments.deriveOneTimePuzzleHash(
+    keys.scanPk(),
+    keys.spendPk(),
+    aSum,
+    inputHash,
+    0,
+  );
+  t.is(
+    toHex(puzzleHash),
+    "5d7fc7d7447c746cfb400e801a169fc7bfd1c13e03bc7866e6b743860a53ac6b",
+  );
+
+  // The spend key holder completes a detection's tweak (here t_0 of TV4).
+  const t0 = ScalarField.fromBytes(
+    fromHex("18fafd6001bef3fece078f469731b40a5f362994795f9ff6b9339aa235fee312"),
+  );
+  t.is(
+    toHex(SilentPayments.deriveOnetimeSk(keys.spendSk(), t0).toBytes()),
+    "6ccc3e13145fd561e438d1bb82954cebb63cfa9577ea15404987aa8e0f309399",
+  );
+});
+
+// Secret keys that sum to zero mod r make the sender fail (keys 1 and r - 1).
+test("zero key sum is rejected", (t) => {
+  const one = SecretKey.fromBytes(fromHex("00".repeat(31) + "01"));
+  const rMinusOne = SecretKey.fromBytes(
+    fromHex("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000"),
+  );
+  t.throws(() => SilentPayments.aggregateSenderSks([one, rMinusOne]), {
+    message: /key sum is zero/,
+  });
 });

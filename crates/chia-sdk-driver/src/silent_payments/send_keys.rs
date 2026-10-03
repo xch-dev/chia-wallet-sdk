@@ -8,8 +8,13 @@
 //! `sp_finish_branch` helper in `action_system/spends.rs`, which also enforces
 //! the multi-input atomic binding via [`crate::Relation::AssertConcurrent`].
 
+use std::fmt;
+
 use chia_bls::{PublicKey, SecretKey};
 use chia_puzzle_types::DeriveSynthetic;
+use indexmap::IndexMap;
+
+use chia_protocol::Bytes32;
 
 /// A `chia_bls::SecretKey` proven (by construction via [`SyntheticSecretKey::from_raw`]
 /// or by the `sp_finish_branch` runtime check) to be the SYNTHETIC secret key —
@@ -17,8 +22,18 @@ use chia_puzzle_types::DeriveSynthetic;
 /// CHIP-0057 send path aggregates these verbatim; passing a raw wallet SK lands
 /// funds at an undetectable one-time puzzle hash, so the type exists to make that
 /// a compile error.
-#[derive(Debug, Clone)]
+///
+/// `Debug` does not print the key (`chia_bls::SecretKey`'s own `Debug` prints
+/// it in full). The key is not zeroized on drop, because `chia_bls::SecretKey`
+/// cannot be.
+#[derive(Clone)]
 pub struct SyntheticSecretKey(SecretKey);
+
+impl fmt::Debug for SyntheticSecretKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SyntheticSecretKey(<redacted>)")
+    }
+}
 
 impl SyntheticSecretKey {
     /// Synthesize from a raw wallet SK via the DEFAULT hidden puzzle — the same
@@ -54,6 +69,21 @@ impl SyntheticSecretKey {
     #[must_use]
     pub fn as_inner(&self) -> &SecretKey {
         &self.0
+    }
+}
+
+/// The synthetic secret keys registered on [`crate::Spends`] for a silent
+/// payment, by p2 puzzle hash.
+///
+/// [`crate::Spends`] derives `Debug`, and `chia_bls::SecretKey`'s `Debug`
+/// prints the key, so the map is wrapped in a type whose `Debug` shows only how
+/// many keys it holds.
+#[derive(Clone, Default)]
+pub(crate) struct SilentPaymentSecretKeys(pub(crate) IndexMap<Bytes32, SecretKey>);
+
+impl fmt::Debug for SilentPaymentSecretKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SilentPaymentSecretKeys(<{} redacted>)", self.0.len())
     }
 }
 
@@ -155,6 +185,64 @@ mod tests {
             "SyntheticPublicKey::from_raw must mirror DeriveSynthetic::derive_synthetic",
         );
 
+        Ok(())
+    }
+
+    /// No type on the send path prints a secret key through `Debug`: neither
+    /// the `SyntheticSecretKey` newtype, nor a `Spends` that has keys
+    /// registered, in the plain or the pretty form.
+    #[test]
+    fn secret_keys_are_not_printed_by_debug() {
+        let mut sim = Simulator::new();
+        let alice = sim.bls(1);
+        let secret_hex = hex::encode(alice.sk.to_bytes());
+        // The premise: chia-bls prints the key.
+        assert!(format!("{:?}", alice.sk).contains(&secret_hex));
+
+        let key = SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone());
+        assert_eq!(format!("{key:?}"), "SyntheticSecretKey(<redacted>)");
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+        spends.with_silent_payment_keys(
+            indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) },
+            indexmap! { alice.puzzle_hash => key },
+        );
+        for rendered in [format!("{spends:?}"), format!("{spends:#?}")] {
+            assert!(rendered.contains("SilentPaymentSecretKeys(<1 redacted>)"));
+            assert!(!rendered.contains(&secret_hex));
+        }
+    }
+
+    /// The registered secret keys are consumed by the derivation: the prepared
+    /// `Spends` no longer holds them.
+    #[test]
+    fn secret_keys_are_dropped_once_the_outputs_are_derived() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(5);
+        let recipient = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x42u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x43u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+        )?;
+        spends.with_silent_payment_keys(
+            indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) },
+            indexmap! {
+                alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
+            },
+        );
+        assert!(spends.silent_payment_synthetic_sks.is_some());
+
+        let prepared = spends.prepare(&mut ctx, &deltas, Relation::None)?;
+        assert!(prepared.silent_payment_synthetic_sks.is_none());
         Ok(())
     }
 

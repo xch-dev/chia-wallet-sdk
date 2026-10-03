@@ -13,8 +13,14 @@
 //!
 //! There is deliberately no `From<[u8; 32]>` impl. A bare conversion would erase
 //! the unsigned-vs-signed choice and reintroduce the protocol-correctness hazard.
+//!
+//! Some of these scalars are sensitive, so the type redacts its `Debug` output
+//! and zeroizes its bytes on drop; see [`ScalarField`].
+
+use std::fmt;
 
 use num_bigint::BigUint;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// BLS12-381 subgroup order `r` as big-endian bytes.
 ///
@@ -33,8 +39,43 @@ pub const GROUP_ORDER: [u8; 32] = [
 /// Arithmetic operations always reduce mod `r` before returning; the only way to
 /// observe a non-reduced value is to construct one via `from_bytes_raw` and read
 /// it back via [`Self::as_bytes`] / [`Self::to_bytes`] without performing arithmetic.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// # Secrets
+///
+/// Several protocol scalars are sensitive: an output tweak links a coin to the
+/// recipient's address, and a label scalar links a labeled address to the
+/// wallet. The type is therefore handled like secret material:
+///
+/// - [`fmt::Debug`] never prints the value;
+/// - the bytes are zeroized when the value is dropped;
+/// - it is not `Copy`, so copies are explicit ([`Clone`]).
+///
+/// Bytes obtained with [`Self::to_bytes`] are the caller's to protect. The
+/// arithmetic goes through `num-bigint`, whose temporaries are neither
+/// constant-time nor zeroized, so secret *keys* are not added with this type:
+/// they are added with `chia_bls::SecretKey`'s own addition.
+#[derive(Clone, PartialEq, Eq)]
 pub struct ScalarField([u8; 32]);
+
+impl fmt::Debug for ScalarField {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ScalarField(<redacted>)")
+    }
+}
+
+impl Zeroize for ScalarField {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for ScalarField {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for ScalarField {}
 
 impl ScalarField {
     /// Reduce a 32-byte big-endian value mod `r` using UNSIGNED interpretation.
@@ -73,23 +114,14 @@ impl ScalarField {
         Self(biguint_to_be_bytes_32(&result))
     }
 
-    /// Compute `(self * other) mod r`.
-    #[must_use]
-    pub fn mul(&self, other: &Self) -> Self {
-        let a = BigUint::from_bytes_be(&self.0);
-        let b = BigUint::from_bytes_be(&other.0);
-        let r = BigUint::from_bytes_be(&GROUP_ORDER);
-        let result = (a * b) % &r;
-        Self(biguint_to_be_bytes_32(&result))
-    }
-
     /// Return a reference to the inner 32 big-endian bytes.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 
-    /// Return a copy of the inner 32 big-endian bytes.
+    /// Return a copy of the inner 32 big-endian bytes. The copy is not
+    /// zeroized when it goes out of scope.
     #[must_use]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
@@ -146,21 +178,6 @@ mod tests {
     }
 
     #[test]
-    fn mul_mod_r() {
-        // 2 * 3 = 6 (no reduction needed; pins the multiplicative semantics)
-        let mut a_bytes = [0u8; 32];
-        a_bytes[31] = 2;
-        let mut b_bytes = [0u8; 32];
-        b_bytes[31] = 3;
-        let a = ScalarField::from_bytes_unsigned(a_bytes);
-        let b = ScalarField::from_bytes_unsigned(b_bytes);
-        let c = a.mul(&b);
-        let mut expected = [0u8; 32];
-        expected[31] = 6;
-        assert_eq!(c.to_bytes(), expected);
-    }
-
-    #[test]
     fn add_wraps_at_r() {
         // (r - 1) + 1 = r ≡ 0 (mod r). Construct r-1 from GROUP_ORDER by zeroing
         // the last byte (GROUP_ORDER ends in 0x01).
@@ -180,5 +197,30 @@ mod tests {
         // hatch and must NOT silently reduce.
         let s = ScalarField::from_bytes_raw([0xff; 32]);
         assert_eq!(s.to_bytes(), [0xff; 32]);
+    }
+
+    /// `Debug` must not reveal the value, in either the plain or the
+    /// alternate (pretty) form.
+    #[test]
+    fn debug_is_redacted() {
+        let s = ScalarField::from_bytes_raw([0xab; 32]);
+        for rendered in [format!("{s:?}"), format!("{s:#?}")] {
+            assert_eq!(rendered, "ScalarField(<redacted>)");
+            assert!(!rendered.contains("ab"));
+            assert!(!rendered.contains("171"));
+        }
+    }
+
+    /// The type zeroizes on drop: `Drop` runs `zeroize`, which overwrites the
+    /// bytes. (Memory cannot be inspected after a drop without `unsafe`, which
+    /// this workspace denies, so the two halves are checked separately.)
+    #[test]
+    fn zeroizes_on_drop() {
+        fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+        assert_zeroize_on_drop::<ScalarField>();
+
+        let mut s = ScalarField::from_bytes_raw([0xab; 32]);
+        s.zeroize();
+        assert_eq!(s.to_bytes(), [0u8; 32]);
     }
 }

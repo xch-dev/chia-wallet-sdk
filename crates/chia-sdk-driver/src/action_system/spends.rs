@@ -45,7 +45,8 @@ pub struct Spends<S = Unfinished> {
     #[cfg(feature = "chip-0057")]
     pub(crate) silent_payment_synthetic_pks: Option<IndexMap<Bytes32, PublicKey>>,
     #[cfg(feature = "chip-0057")]
-    pub(crate) silent_payment_synthetic_sks: Option<IndexMap<Bytes32, SecretKey>>,
+    pub(crate) silent_payment_synthetic_sks:
+        Option<crate::silent_payments::SilentPaymentSecretKeys>,
     _state: S,
 }
 
@@ -147,9 +148,11 @@ impl Spends<Unfinished> {
     /// for the SP flow), so they are accepted together — splitting would invite
     /// mismatch.
     ///
-    /// Privacy warning: `secret_keys` carries sensitive synthetic-secret-key
-    /// material. Wallets must treat the map like the SKs themselves (zeroize on
-    /// drop, do not log).
+    /// `secret_keys` carries secret key material, which is held by `Spends`
+    /// (and by every clone of it) until the outputs have been derived in
+    /// [`Spends::prepare`], and is dropped then. `Debug` on `Spends` does not
+    /// print the keys. They are not zeroized on drop, because
+    /// `chia_bls::SecretKey` cannot be.
     #[cfg(feature = "chip-0057")]
     pub fn with_silent_payment_keys(
         &mut self,
@@ -162,12 +165,12 @@ impl Spends<Unfinished> {
                 .map(|(ph, k)| (ph, k.into_inner()))
                 .collect(),
         );
-        self.silent_payment_synthetic_sks = Some(
+        self.silent_payment_synthetic_sks = Some(crate::silent_payments::SilentPaymentSecretKeys(
             secret_keys
                 .into_iter()
                 .map(|(ph, k)| (ph, k.into_inner()))
                 .collect(),
-        );
+        ));
         self
     }
 
@@ -782,9 +785,12 @@ fn sp_finish_branch(
         return Err(DriverError::SilentPaymentRequiresInputBinding);
     }
 
-    let Some(secret_keys) = spends.silent_payment_synthetic_sks.as_ref() else {
+    // The secret keys are taken out of `spends`, so that they are dropped when
+    // this function returns and the prepared `Spends` no longer holds them.
+    let Some(secret_keys) = spends.silent_payment_synthetic_sks.take() else {
         return Err(DriverError::SilentPaymentKeysNotRegistered);
     };
+    let secret_keys = secret_keys.0;
     let synthetic_pks = spends.silent_payment_synthetic_pks.as_ref();
 
     if group.is_empty() {
@@ -829,9 +835,7 @@ fn sp_finish_branch(
     // `aggregate_sender_sks` fails if the keys sum to zero mod r. The aggregated public key is
     // derived from the secret key sum rather than by adding the public keys; the two are equal.
     let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
-    let agg_pk = SecretKey::from_bytes(aggregated_sender_sk.as_bytes())
-        .expect("a ScalarField sum is below the group order")
-        .public_key();
+    let agg_pk = aggregated_sender_sk.public_key();
 
     let input_hash = compute_input_hash(&group_coin_ids, &agg_pk);
     if input_hash.is_zero() {

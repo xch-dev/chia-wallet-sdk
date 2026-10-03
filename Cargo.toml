@@ -194,6 +194,7 @@ rue-compiler = "0.8.5"
 rue-options = "0.8.5"
 rue-lir = "0.8.5"
 colored = "3.1.1"
+zeroize = "1.8.1"
 
 [[example]]
 name = "silent_payment"

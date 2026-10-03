@@ -280,6 +280,10 @@ impl From<TweakData> for chia_sdk_driver::TweakData {
 
 /// CHIP-0057 mod-r scalar with unsigned reduction at construction.
 ///
+/// Scalars such as a detection's tweak and a label scalar are sensitive. The
+/// underlying value is zeroized when the object is dropped, but bytes returned
+/// by `to_bytes` are the caller's to protect.
+///
 /// Use `ScalarField.fromBytes(bytes)` (TS) / `ScalarField.from_bytes(bytes)`
 /// (py) to construct from any 32-byte input — the factory reduces mod r so
 /// wallet authors cannot accidentally pass an unreduced value into
@@ -472,19 +476,20 @@ impl SilentPayments {
         Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &tweak.0))
     }
 
+    /// The one-time puzzle hash of the sender's `k`-th output to a scan key.
+    /// `aggregated_sender_sk` is the result of `aggregate_sender_sks`.
     pub fn derive_one_time_puzzle_hash(
         b_scan_pub: PublicKey,
         b_spend_pub: PublicKey,
-        aggregated_sender_sk: ScalarField,
+        aggregated_sender_sk: SecretKey,
         input_hash: ScalarField,
         k: u32,
     ) -> Result<Bytes32> {
-        let agg: chia_sdk_types::silent_payments::ScalarField = aggregated_sender_sk.into();
         let ih: chia_sdk_types::silent_payments::ScalarField = input_hash.into();
         Ok(chia_sdk_driver::derive_one_time_puzzle_hash(
             &b_scan_pub,
             &b_spend_pub,
-            &agg,
+            &aggregated_sender_sk,
             &ih,
             k,
         )?)
@@ -500,8 +505,10 @@ impl SilentPayments {
         Ok(chia_sdk_driver::compute_input_hash(&coin_ids, &aggregated_sender_pk).into())
     }
 
-    pub fn aggregate_sender_sks(sks: Vec<SecretKey>) -> Result<ScalarField> {
-        Ok(chia_sdk_driver::aggregate_sender_sks(&sks)?.into())
+    /// The sum of the sender's synthetic secret keys mod r, one term per coin
+    /// of the spend group. Fails if the sum is zero.
+    pub fn aggregate_sender_sks(sks: Vec<SecretKey>) -> Result<SecretKey> {
+        Ok(chia_sdk_driver::aggregate_sender_sks(&sks)?)
     }
 
     /// Build a `TweakData` from a real-block `Vec<CoinSpend>` + `Vec<Coin>`
@@ -580,5 +587,26 @@ mod tests {
             result.is_ok(),
             "non-empty coin_ids must delegate to the driver fn and return Ok"
         );
+    }
+
+    /// A zero key sum is rejected through the facade as well: keys `a` and
+    /// `r - a` (here `1` and `r - 1`).
+    #[test]
+    fn zero_key_sum_returns_err() {
+        let mut one = [0u8; 32];
+        one[31] = 1;
+        let mut r_minus_one = chia_sdk_types::silent_payments::GROUP_ORDER;
+        r_minus_one[31] = 0;
+
+        let result = SilentPayments::aggregate_sender_sks(vec![
+            SecretKey::from_bytes(&one).unwrap(),
+            SecretKey::from_bytes(&r_minus_one).unwrap(),
+        ]);
+        assert!(matches!(
+            result,
+            Err(bindy::Error::Driver(
+                chia_sdk_driver::DriverError::SilentPaymentZeroKeySum
+            ))
+        ));
     }
 }

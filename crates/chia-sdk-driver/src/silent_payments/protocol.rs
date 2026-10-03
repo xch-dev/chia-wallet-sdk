@@ -44,8 +44,10 @@ use crate::DriverError;
 /// primitive and does not re-check.
 #[must_use]
 pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &PublicKey) -> [u8; 32] {
+    // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
+    let scalar = ScalarField::from_bytes_raw(scan_sk.to_bytes());
     let mut point = *tweak_point;
-    point.scalar_multiply(&scan_sk.to_bytes());
+    point.scalar_multiply(scalar.as_bytes());
     let mut h = Sha256::new();
     h.update(point.to_bytes());
     h.finalize()
@@ -83,15 +85,14 @@ pub fn derive_onetime_pk(spend_pk: &PublicKey, tweak: &ScalarField) -> PublicKey
 
 /// Derive the one-time secret key for an output: `onetime_sk = (spend_sk + tweak) mod r`.
 ///
-/// The `spend_sk` bytes are fed through `ScalarField::from_bytes_raw` (NOT
-/// `from_bytes_unsigned`) — `chia_bls::SecretKey` is already constrained to
-/// `< r` by construction, so no reduction is needed and we want to preserve
-/// the byte pattern exactly. The addition then reduces mod r.
+/// `tweak` is the combined tweak of a detection: `t_k`, plus the label scalar
+/// for a labeled output (CHIP-0057 "Spending"). The addition is `chia-bls`'s
+/// own constant-time secret-key addition.
 #[must_use]
 pub fn derive_onetime_sk(spend_sk: &SecretKey, tweak: &ScalarField) -> SecretKey {
-    let sk_scalar = ScalarField::from_bytes_raw(spend_sk.to_bytes());
-    let result = sk_scalar.add(tweak);
-    SecretKey::from_bytes(result.as_bytes()).expect("ScalarField add stays < r by construction")
+    let tweak_sk = SecretKey::from_bytes(tweak.as_bytes())
+        .expect("ScalarField::from_bytes_unsigned guarantees value < r");
+    spend_sk + &tweak_sk
 }
 
 /// Compute the standard p2 puzzle hash for a one-time public key.
@@ -135,24 +136,30 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
 /// Aggregate synthetic sender secret keys via mod-r addition: `a_sum = Σ sk_i mod r`,
 /// with one term per coin of the spend group.
 ///
+/// The keys are added with `chia-bls`'s own constant-time secret-key addition,
+/// and the sum stays a [`SecretKey`].
+///
 /// # Errors
 ///
 /// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero (which
 /// includes the empty slice). CHIP-0057 ("Sending", "Edge Cases") requires the
 /// sender to fail in that case: ECDH with a zero key yields the identity point,
 /// and with it a shared secret that anyone can compute.
-///
-/// The result is secret key material and must be handled like a secret key.
-pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<ScalarField, DriverError> {
-    let mut sum = ScalarField::from_bytes_raw([0u8; 32]);
+pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<SecretKey, DriverError> {
+    let mut sum = SecretKey::from_bytes(&[0u8; 32]).expect("zero is a valid chia-bls scalar");
     for sk in sks {
-        let sk_scalar = ScalarField::from_bytes_raw(sk.to_bytes());
-        sum = sum.add(&sk_scalar);
+        sum += sk;
     }
-    if sum.is_zero() {
+    if is_zero_key(&sum) {
         return Err(DriverError::SilentPaymentZeroKeySum);
     }
     Ok(sum)
+}
+
+/// Whether a secret key is the zero scalar. `chia-bls` accepts zero as a
+/// secret key, so it has to be checked for explicitly.
+fn is_zero_key(sk: &SecretKey) -> bool {
+    ScalarField::from_bytes_raw(sk.to_bytes()).is_zero()
 }
 
 /// Compute the per-spend-group input-hash scalar.
@@ -211,7 +218,7 @@ pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey
 /// the unlabeled by `+ label_pk(m)`).
 ///
 /// `aggregated_sender_sk` is the sum-mod-r of the sender's synthetic SKs for
-/// every XCH input in this transaction ([`aggregate_sender_sks`]). `input_hash`
+/// every coin of the spend group ([`aggregate_sender_sks`]). `input_hash`
 /// is the per-spend-group input-hash ([`compute_input_hash`]). `k` is the
 /// per-recipient counter on `Spends` — 0 for the first output to `scan_pk`,
 /// 1 for the second, etc.
@@ -234,7 +241,7 @@ pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey
 pub fn derive_one_time_puzzle_hash(
     scan_pk: &PublicKey,
     spend_pk: &PublicKey,
-    aggregated_sender_sk: &ScalarField,
+    aggregated_sender_sk: &SecretKey,
     input_hash: &ScalarField,
     k: u32,
 ) -> Result<Bytes32, DriverError> {
@@ -245,23 +252,29 @@ pub fn derive_one_time_puzzle_hash(
 
 /// The sender's side of the ECDH: `SHA256(serialize((input_hash * a_sum) * B_scan))`.
 ///
+/// The point is computed as `input_hash * (a_sum * B_scan)`, two point
+/// multiplications, so that the secret key sum is never multiplied outside of
+/// `chia-bls`.
+///
 /// Fails if `a_sum` or `input_hash` is zero, as the CHIP-0057 `SendSilentPayment`
 /// procedure requires.
 fn sender_shared_secret(
     scan_pk: &PublicKey,
-    aggregated_sender_sk: &ScalarField,
+    aggregated_sender_sk: &SecretKey,
     input_hash: &ScalarField,
 ) -> Result<[u8; 32], DriverError> {
-    if aggregated_sender_sk.is_zero() {
+    if is_zero_key(aggregated_sender_sk) {
         return Err(DriverError::SilentPaymentZeroKeySum);
     }
     if input_hash.is_zero() {
         return Err(DriverError::SilentPaymentZeroInputHash);
     }
 
-    let tweak_scalar = aggregated_sender_sk.mul(input_hash);
+    // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
+    let a_sum = ScalarField::from_bytes_raw(aggregated_sender_sk.to_bytes());
     let mut point = *scan_pk;
-    point.scalar_multiply(tweak_scalar.as_bytes());
+    point.scalar_multiply(a_sum.as_bytes());
+    point.scalar_multiply(input_hash.as_bytes());
     let mut h = Sha256::new();
     h.update(point.to_bytes());
     Ok(h.finalize())
@@ -400,7 +413,7 @@ mod tests {
         let aggregated = aggregate_sender_sks(&[sk0, sk1]).expect("non-zero sum");
 
         assert_eq!(
-            *aggregated.as_bytes(),
+            aggregated.to_bytes(),
             TV4_AGGREGATED_SK,
             "aggregate_sender_sks(TV4) must match the pinned TV4_AGGREGATED_SK"
         );
@@ -468,7 +481,7 @@ mod tests {
     fn tv1_derive_one_time_puzzle_hash_matches() {
         let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).expect("TV1 scan_pk");
         let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).expect("TV1 spend_pk");
-        let aggregated_sender_sk = ScalarField::from_bytes_raw(TV1_AGGREGATED_SENDER_SK);
+        let aggregated_sender_sk = SecretKey::from_bytes(&TV1_AGGREGATED_SENDER_SK).unwrap();
         let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
 
         let result =
@@ -499,15 +512,13 @@ mod tests {
         let b_scan = SecretKey::from_bytes(&TV1_SCAN_SK).expect("TV1 scan_sk");
         let b_scan_pub = PublicKey::from_bytes(&TV1_SCAN_PK).expect("TV1 scan_pk");
         let b_spend_pub = PublicKey::from_bytes(&TV1_SPEND_PK).expect("TV1 spend_pk");
-        let a_sum_sk = ScalarField::from_bytes_raw(TV1_AGGREGATED_SENDER_SK);
+        let a_sum_sk = SecretKey::from_bytes(&TV1_AGGREGATED_SENDER_SK).unwrap();
         let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
 
         // Receiver-side recomputation: construct the tweak_point the receiver
         // sees (input_hash * A_sum), then compute the shared_secret, then
         // derive the expected k=1 puzzle_hash via the protocol-primitive chain.
-        let a_sum_pub = SecretKey::from_bytes(a_sum_sk.as_bytes())
-            .expect("aggregated SK < r")
-            .public_key();
+        let a_sum_pub = a_sum_sk.public_key();
         let mut tweak_point = a_sum_pub;
         tweak_point.scalar_multiply(input_hash.as_bytes());
         let expected_shared_secret = compute_shared_secret_from_tweak(&b_scan, &tweak_point);
@@ -573,7 +584,7 @@ mod tests {
     fn derive_one_time_puzzle_hash_rejects_zero_key_sum() {
         let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).unwrap();
         let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
-        let zero = ScalarField::from_bytes_raw([0u8; 32]);
+        let zero = SecretKey::from_bytes(&[0u8; 32]).unwrap();
         let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
 
         let result = derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &zero, &input_hash, 0);
@@ -586,7 +597,7 @@ mod tests {
     fn derive_one_time_puzzle_hash_rejects_zero_input_hash() {
         let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).unwrap();
         let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
-        let a_sum = ScalarField::from_bytes_raw(TV1_AGGREGATED_SENDER_SK);
+        let a_sum = SecretKey::from_bytes(&TV1_AGGREGATED_SENDER_SK).unwrap();
         let zero = ScalarField::from_bytes_raw([0u8; 32]);
 
         let result = derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &a_sum, &zero, 0);
