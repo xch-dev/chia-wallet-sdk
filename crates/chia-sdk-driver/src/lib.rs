@@ -18,6 +18,9 @@ mod spend_bundle_cost;
 mod spend_context;
 mod spend_with_conditions;
 
+#[cfg(feature = "chip-0057")]
+pub mod silent_payments;
+
 pub use action_system::*;
 pub use actions::*;
 pub use clear_signing::*;
@@ -32,6 +35,9 @@ pub use spend::*;
 pub use spend_bundle_cost::*;
 pub use spend_context::*;
 pub use spend_with_conditions::*;
+
+#[cfg(feature = "chip-0057")]
+pub use silent_payments::*;
 
 #[cfg(test)]
 mod test_wallet;

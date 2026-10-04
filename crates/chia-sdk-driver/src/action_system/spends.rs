@@ -1,6 +1,8 @@
 use std::{collections::HashMap, mem};
 
 use chia_bls::PublicKey;
+#[cfg(feature = "chip-0057")]
+use chia_bls::SecretKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_sdk_types::{Conditions, announcement_id, conditions::AssertPuzzleAnnouncement};
@@ -36,6 +38,15 @@ pub struct Spends<S = Unfinished> {
     /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
     /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
+    #[cfg(feature = "chip-0057")]
+    pub(crate) silent_payment_counters: std::collections::HashMap<[u8; 48], u32>,
+    #[cfg(feature = "chip-0057")]
+    pub(crate) silent_payments_pending: Vec<crate::silent_payments::SilentPaymentPending>,
+    #[cfg(feature = "chip-0057")]
+    pub(crate) silent_payment_synthetic_pks: Option<IndexMap<Bytes32, PublicKey>>,
+    #[cfg(feature = "chip-0057")]
+    pub(crate) silent_payment_synthetic_sks:
+        Option<crate::silent_payments::SilentPaymentSecretKeys>,
     _state: S,
 }
 
@@ -99,6 +110,14 @@ impl Spends<Unfinished> {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
+            #[cfg(feature = "chip-0057")]
+            silent_payment_counters: std::collections::HashMap::new(),
+            #[cfg(feature = "chip-0057")]
+            silent_payments_pending: Vec::new(),
+            #[cfg(feature = "chip-0057")]
+            silent_payment_synthetic_pks: None,
+            #[cfg(feature = "chip-0057")]
+            silent_payment_synthetic_sks: None,
             _state: Unfinished,
         }
     }
@@ -107,6 +126,47 @@ impl Spends<Unfinished> {
     /// p2 puzzle (for example, when taking an offer) are spent as settlement spends.
     pub fn add(&mut self, asset: impl AddAsset) {
         asset.add(self);
+    }
+
+    /// Register the synthetic keys from which [`Spends::prepare`] derives the outputs of the
+    /// silent payment sends that have been applied.
+    ///
+    /// The maps are keyed by p2 puzzle hash and must cover every XCH coin the transaction spends
+    /// with the standard puzzle. That includes intermediate coins, which have the puzzle hash of
+    /// the coin that creates them, so the keys of the selected coins are normally enough.
+    ///
+    /// The values are [`crate::silent_payments::SyntheticPublicKey`] /
+    /// [`crate::silent_payments::SyntheticSecretKey`], newtypes that make passing a raw wallet
+    /// key a compile error. Construct them with `from_raw` (which derives the synthetic key) or
+    /// with `from_synthetic_unchecked` when the key is already synthetic. Either way,
+    /// [`Spends::prepare`] checks every key against its coin
+    /// (`curry_tree_hash(pk) == p2_puzzle_hash` and `sk.public_key() == pk`) and returns
+    /// [`DriverError::SilentPaymentKeyNotSynthetic`] on a mismatch.
+    ///
+    /// `secret_keys` carries secret key material, which is held by `Spends`
+    /// (and by every clone of it) until the outputs have been derived in
+    /// [`Spends::prepare`], and is dropped then. `Debug` on `Spends` does not
+    /// print the keys. They are not zeroized on drop, because
+    /// `chia_bls::SecretKey` cannot be.
+    #[cfg(feature = "chip-0057")]
+    pub fn with_silent_payment_keys(
+        &mut self,
+        synthetic_pks: IndexMap<Bytes32, crate::silent_payments::SyntheticPublicKey>,
+        secret_keys: IndexMap<Bytes32, crate::silent_payments::SyntheticSecretKey>,
+    ) -> &mut Self {
+        self.silent_payment_synthetic_pks = Some(
+            synthetic_pks
+                .into_iter()
+                .map(|(ph, k)| (ph, k.into_inner()))
+                .collect(),
+        );
+        self.silent_payment_synthetic_sks = Some(crate::silent_payments::SilentPaymentSecretKeys(
+            secret_keys
+                .into_iter()
+                .map(|(ph, k)| (ph, k.into_inner()))
+                .collect(),
+        ));
+        self
     }
 
     /// Adds a revocable CAT to be spent with its hidden puzzle (ie, revoked by the issuer), rather
@@ -528,9 +588,36 @@ impl Spends<Unfinished> {
         deltas: &Deltas,
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
+        // CHIP-0057: derive and emit the silent payment outputs before the change is created, so
+        // that the outputs keep the position a normal payment would have. This is a no-op unless
+        // an `Action::silent_payment_send` has been applied.
+        #[cfg(feature = "chip-0057")]
+        let silent_payment_group = if self.silent_payments_pending.is_empty() {
+            None
+        } else {
+            Some(sp_finish_branch(ctx, &mut self, deltas, relation)?)
+        };
+
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
+
+        // CHIP-0057: the outputs above were derived from a predicted spend group. If the coins
+        // that `emit_relation` actually bound differ from it, a scanner would not find the
+        // payment, so fail instead of returning an undetectable one.
+        #[cfg(feature = "chip-0057")]
+        if let Some(mut expected) = silent_payment_group {
+            let mut actual: Vec<Bytes32> = self
+                .iter_conditions_spends()
+                .map(|(coin, _)| coin.coin_id())
+                .collect();
+            expected.sort_unstable();
+            actual.sort_unstable();
+            if expected != actual {
+                return Err(DriverError::SilentPaymentInputSetChanged);
+            }
+        }
+
         self.wrap_revocation_outputs(ctx)?;
 
         Ok(Spends {
@@ -543,6 +630,14 @@ impl Spends<Unfinished> {
             change_puzzle_hash: self.change_puzzle_hash,
             outputs: self.outputs,
             conditions: self.conditions,
+            #[cfg(feature = "chip-0057")]
+            silent_payment_counters: self.silent_payment_counters,
+            #[cfg(feature = "chip-0057")]
+            silent_payments_pending: self.silent_payments_pending,
+            #[cfg(feature = "chip-0057")]
+            silent_payment_synthetic_pks: self.silent_payment_synthetic_pks,
+            #[cfg(feature = "chip-0057")]
+            silent_payment_synthetic_sks: self.silent_payment_synthetic_sks,
             _state: Finished,
         })
     }
@@ -550,6 +645,10 @@ impl Spends<Unfinished> {
     /// Prepares the spends, and spends every coin with the standard puzzle (using the synthetic key
     /// for its p2 puzzle hash), or with the settlement payments puzzle for settlement coins.
     /// Returns [`DriverError::MissingKey`] if a key is missing.
+    ///
+    /// With the `chip-0057` feature, if a silent payment send has been applied, its outputs are
+    /// derived and emitted by [`Spends::prepare`] from the keys registered with
+    /// `Spends::with_silent_payment_keys`.
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
@@ -586,6 +685,188 @@ impl Spends<Unfinished> {
 
         spends.spend(ctx, coin_spends)
     }
+}
+
+/// CHIP-0057 silent payment derivation, run by [`Spends::prepare`] when at least one
+/// `Action::silent_payment_send` has been applied.
+///
+/// The one-time puzzle hashes are derived from the *spend group* a scanner will reconstruct
+/// (CHIP-0057, "Inputs for Shared Secret Derivation"): every coin that is spent with the standard
+/// puzzle in this transaction, including intermediate (ephemeral) coins that are created and spent
+/// inside it. With two or more such coins, [`Relation::AssertConcurrent`] binds all of them into
+/// one `ASSERT_CONCURRENT_SPEND` cycle, and the key sum and coin id set used here cover exactly
+/// that cycle, with one term per coin.
+///
+/// Checks, in order:
+/// 1. [`DriverError::SilentPaymentMixedAssetBundle`] if a CAT, DID, NFT or option is spent.
+/// 2. [`DriverError::SilentPaymentRequiresInputBinding`] if the group has two or more coins and
+///    the relation is not [`Relation::AssertConcurrent`].
+/// 3. [`DriverError::SilentPaymentKeysNotRegistered`] if no keys were registered.
+/// 4. [`DriverError::SilentPaymentNoXchInputs`] if no coin is spent with the standard puzzle.
+/// 5. [`DriverError::SilentPaymentMultiPartyUnsupported`] if a selected coin has no secret key,
+///    or [`DriverError::SilentPaymentIntermediateKeyMissing`] if an intermediate coin has none.
+/// 6. [`DriverError::SilentPaymentKeyNotSynthetic`] if a registered key is not the synthetic key
+///    of its coin.
+/// 7. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
+///    outside the group.
+/// 8. [`DriverError::SilentPaymentZeroKeySum`] if the secret keys of the group sum to zero, and
+///    [`DriverError::SilentPaymentZeroInputHash`] / [`DriverError::SilentPaymentZeroTweak`] if
+///    one of the derived scalars is zero.
+///
+/// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
+/// that were actually bound together once the transaction is complete.
+#[cfg(feature = "chip-0057")]
+fn sp_finish_branch(
+    ctx: &mut SpendContext,
+    spends: &mut Spends,
+    deltas: &Deltas,
+    relation: Relation,
+) -> Result<Vec<Bytes32>, DriverError> {
+    use chia_puzzle_types::standard::StandardArgs;
+    use chia_sdk_types::conditions::CreateCoin;
+
+    use crate::silent_payments::{
+        aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash,
+    };
+
+    // Version 0 of CHIP-0057 covers XCH held in the standard puzzle only. Spends of other assets
+    // are not eligible spends, and a cycle that passes through one would not bind the coins on
+    // either side of it, so they are rejected outright.
+    if !spends.cats.is_empty()
+        || !spends.dids.is_empty()
+        || !spends.nfts.is_empty()
+        || !spends.options.is_empty()
+    {
+        return Err(DriverError::SilentPaymentMixedAssetBundle);
+    }
+
+    // The spend group is every XCH coin that will be spent with conditions once the transaction
+    // is complete. Creating the change can add one more intermediate coin (when every existing
+    // spend already creates a coin identical to the change), so the change is created on a copy
+    // first to learn the final set. Silent payment outputs have unique puzzle hashes, so emitting
+    // them below does not alter what `create_change` does afterwards.
+    let group: Vec<SilentPaymentGroupCoin> = {
+        let mut xch = spends.xch.clone();
+        xch.create_change(
+            ctx,
+            deltas.get(&Id::Xch).unwrap_or(&Delta::default()),
+            spends.change_puzzle_hash,
+        )?;
+        xch.items
+            .iter()
+            .filter(|item| item.kind.is_conditions())
+            .map(|item| SilentPaymentGroupCoin {
+                coin_id: item.asset.coin_id(),
+                p2_puzzle_hash: item.p2_puzzle_hash(),
+                ephemeral: item.ephemeral,
+            })
+            .collect()
+    };
+
+    // `emit_relation` binds every conditions spend (ephemeral ones included) into one cycle, but
+    // only for `Relation::AssertConcurrent`. Without it, two or more coins would be separate
+    // single-input groups, and outputs derived from their combined keys would be undetectable.
+    if group.len() >= 2 && !matches!(relation, Relation::AssertConcurrent) {
+        return Err(DriverError::SilentPaymentRequiresInputBinding);
+    }
+
+    // The secret keys are taken out of `spends`, so that they are dropped when
+    // this function returns and the prepared `Spends` no longer holds them.
+    let Some(secret_keys) = spends.silent_payment_synthetic_sks.take() else {
+        return Err(DriverError::SilentPaymentKeysNotRegistered);
+    };
+    let secret_keys = secret_keys.0;
+    let synthetic_pks = spends.silent_payment_synthetic_pks.as_ref();
+
+    if group.is_empty() {
+        return Err(DriverError::SilentPaymentNoXchInputs);
+    }
+
+    // One secret key and one coin id per coin in the group, even when coins share a key (an
+    // intermediate coin has the puzzle hash, and therefore the key, of the coin that created it).
+    let mut group_coin_ids: Vec<Bytes32> = Vec::with_capacity(group.len());
+    let mut sender_sks: Vec<SecretKey> = Vec::with_capacity(group.len());
+    for coin in &group {
+        let Some(sk) = secret_keys.get(&coin.p2_puzzle_hash) else {
+            return Err(if coin.ephemeral {
+                DriverError::SilentPaymentIntermediateKeyMissing
+            } else {
+                DriverError::SilentPaymentMultiPartyUnsupported
+            });
+        };
+        // The registered public key must curry to the coin's puzzle hash, which also proves the
+        // coin is locked to the standard puzzle, and must belong to the registered secret key.
+        let Some(pk) = synthetic_pks.and_then(|m| m.get(&coin.p2_puzzle_hash)) else {
+            return Err(DriverError::SilentPaymentKeyNotSynthetic);
+        };
+        if Bytes32::from(StandardArgs::curry_tree_hash(*pk)) != coin.p2_puzzle_hash
+            || sk.public_key() != *pk
+        {
+            return Err(DriverError::SilentPaymentKeyNotSynthetic);
+        }
+        sender_sks.push(sk.clone());
+        group_coin_ids.push(coin.coin_id);
+    }
+
+    // Every silent payment output must be created by a coin of the group.
+    if spends
+        .silent_payments_pending
+        .iter()
+        .any(|pending| !group_coin_ids.contains(&pending.parent_coin.coin_id()))
+    {
+        return Err(DriverError::SilentPaymentParentNotEligible);
+    }
+
+    // `aggregate_sender_sks` fails if the keys sum to zero mod r. The aggregated public key is
+    // derived from the secret key sum rather than by adding the public keys; the two are equal.
+    let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
+    let agg_pk = aggregated_sender_sk.public_key();
+
+    let input_hash = compute_input_hash(&group_coin_ids, &agg_pk);
+    if input_hash.is_zero() {
+        return Err(DriverError::SilentPaymentZeroInputHash);
+    }
+
+    // Take the pending outputs so that they can be iterated while `spends` is mutated.
+    let pending = std::mem::take(&mut spends.silent_payments_pending);
+
+    for p in &pending {
+        let ph = derive_one_time_puzzle_hash(
+            &p.scan_pk,
+            &p.spend_pk,
+            &aggregated_sender_sk,
+            &input_hash,
+            p.k,
+        )?;
+
+        let create_coin = CreateCoin::new(ph, p.amount, p.memos);
+
+        let parent = &mut spends.xch.items[p.parent_xch_index];
+        parent.kind.create_coin_with_assertion(
+            ctx,
+            p.parent_coin,
+            &mut spends.xch.payment_assertions,
+            create_coin,
+        );
+
+        spends
+            .outputs
+            .xch
+            .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
+    }
+
+    // No silent-payment-specific binding is emitted. The `ASSERT_CONCURRENT_SPEND` cycle that
+    // `emit_relation` adds for `Relation::AssertConcurrent` covers every conditions spend, which
+    // is the group the values above were computed over.
+    Ok(group_coin_ids)
+}
+
+/// A coin of the silent payment spend group.
+#[cfg(feature = "chip-0057")]
+struct SilentPaymentGroupCoin {
+    coin_id: Bytes32,
+    p2_puzzle_hash: Bytes32,
+    ephemeral: bool,
 }
 
 impl Spends<Finished> {
@@ -746,5 +1027,114 @@ impl AddAsset for OptionContract {
             Id::Existing(self.info.launcher_id),
             SingletonSpends::new(self, false),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_puzzle_types::Memos;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Condition;
+
+    use crate::{Action, Id, Relation, SpendContext, SpendKind, Spends};
+
+    /// Pinning test for `Relation::AssertConcurrent` — verifies the closed
+    /// `ASSERT_CONCURRENT_SPEND` cycle that CHIP-0057 scanners rely on to form
+    /// multi-input spend groups ("Inputs for Shared Secret Derivation": each
+    /// coin outputs exactly one such condition, naming its predecessor). If
+    /// `emit_relation` drifted away from the closed cycle, multi-input silent
+    /// payments would stop being detected.
+    ///
+    /// NOT `#[cfg(feature = "chip-0057")]` gated: `Relation` is general-
+    /// purpose; SP is one consumer.
+    fn assert_concurrent_cycle_for_n(n: usize) -> Result<()> {
+        assert!(n >= 2, "pinning test only meaningful for n >= 2");
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        // Allocate N independently-funded XCH coins.
+        let coins: Vec<_> = (0..n).map(|_| sim.bls(1)).collect();
+
+        // Build Spends with N coins; intermediate puzzle hash defaults to
+        // coins[0]'s puzzle hash (the canonical change destination).
+        let mut spends = Spends::new(coins[0].puzzle_hash);
+        for c in &coins {
+            spends.add(c.coin);
+        }
+
+        // Apply a conditions-producing action on each xch item so each
+        // SpendKind is ConditionsSpend (rather than Settlement). The
+        // standard send-XCH action emits a CreateCoin condition on the
+        // chosen input — sufficient to keep every item.kind as
+        // SpendKind::Conditions before prepare() runs emit_relation.
+        //
+        // Burn destination: any 32-byte puzzle hash literal works; the test
+        // does not submit the bundle anywhere.
+        let burn_ph: chia_protocol::Bytes32 = [0x77u8; 32].into();
+        let deltas = spends.apply(&mut ctx, &[Action::send(Id::Xch, burn_ph, 1, Memos::None)])?;
+
+        // Drive Spends<Unfinished> -> Spends<Finished>; emit_relation runs
+        // inside prepare().
+        let finished = spends.prepare(&mut ctx, &deltas, Relation::AssertConcurrent)?;
+
+        // Collect the coin_ids in iteration order.
+        let coin_ids: Vec<chia_protocol::Bytes32> = finished
+            .xch
+            .items
+            .iter()
+            .map(|i| i.asset.coin_id())
+            .collect();
+        assert_eq!(coin_ids.len(), n);
+
+        // For each item, assert exactly one AssertConcurrentSpend with the
+        // expected predecessor coin_id (coin 0 -> coin N-1; coin i -> coin i-1).
+        for (i, item) in finished.xch.items.iter().enumerate() {
+            let SpendKind::Conditions(spend) = &item.kind else {
+                panic!("xch item {i} not SpendKind::Conditions; cannot inspect");
+            };
+            let conds = spend.conditions_ref();
+            let expected_predecessor = if i == 0 {
+                coin_ids[n - 1]
+            } else {
+                coin_ids[i - 1]
+            };
+            let mut count = 0;
+            let mut last_observed_target: Option<chia_protocol::Bytes32> = None;
+            for cond in conds.iter() {
+                if let Condition::AssertConcurrentSpend(a) = cond {
+                    count += 1;
+                    last_observed_target = Some(a.coin_id);
+                }
+            }
+            assert_eq!(
+                count, 1,
+                "coin {i} of {n}: expected exactly 1 AssertConcurrentSpend, got {count}"
+            );
+            assert_eq!(
+                last_observed_target,
+                Some(expected_predecessor),
+                "coin {i} of {n}: AssertConcurrentSpend target mismatch (expected predecessor {})",
+                hex::encode(expected_predecessor)
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn assert_concurrent_relation_emits_cycle_for_n_coins_2() -> Result<()> {
+        assert_concurrent_cycle_for_n(2)
+    }
+
+    #[test]
+    fn assert_concurrent_relation_emits_cycle_for_n_coins_3() -> Result<()> {
+        assert_concurrent_cycle_for_n(3)
+    }
+
+    #[test]
+    fn assert_concurrent_relation_emits_cycle_for_n_coins_4() -> Result<()> {
+        assert_concurrent_cycle_for_n(4)
     }
 }

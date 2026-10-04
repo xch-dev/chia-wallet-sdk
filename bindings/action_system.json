@@ -93,6 +93,12 @@
           "relation": "Option<Relation>"
         },
         "return": "FinishedSpends"
+      },
+      "with_silent_payment_keys": {
+        "args": {
+          "synthetic_pks": "Vec<SilentPaymentRegisteredKey>",
+          "secret_keys": "Vec<SilentPaymentRegisteredSecretKey>"
+        }
       }
     }
   },
@@ -170,6 +176,14 @@
         "type": "factory",
         "args": {
           "id": "Id",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        }
+      },
+      "silent_payment_send": {
+        "type": "factory",
+        "args": {
+          "recipient": "SilentPaymentAddress",
           "amount": "u64",
           "memos": "Option<Program>"
         }

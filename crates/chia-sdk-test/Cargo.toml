@@ -41,6 +41,13 @@ serde = [
     "dep:serde_json",
     "dep:bincode"
 ]
+chip-0057 = [
+    "dep:chia-sdk-driver",
+    "dep:chia-sdk-utils",
+    "chia-sdk-driver/chip-0057",
+    "chia-sdk-types/chip-0057",
+    "chia-sdk-utils/chip-0057",
+]
 
 [dependencies]
 chia-bls = { workspace = true }
@@ -61,6 +68,8 @@ bip39 = { workspace = true }
 anyhow = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
+chia-sdk-driver = { workspace = true, optional = true }
+chia-sdk-utils = { workspace = true, optional = true }
 chia-sdk-coinset = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }

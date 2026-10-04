@@ -7,11 +7,14 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
-    self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext, SpendKind,
+    self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext,
+    SpendKind,
+    silent_payments::{SyntheticPublicKey, SyntheticSecretKey},
 };
 use chia_sdk_types::{Condition, conditions::TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
+use indexmap::IndexMap;
 
 use crate::{
     AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Program, Spend,
@@ -124,6 +127,74 @@ impl Spends {
 
     pub fn non_settlement_coin_ids(&self) -> Result<Vec<Bytes32>> {
         Ok(self.spends.lock().unwrap().non_settlement_coin_ids())
+    }
+
+    /// Register the silent-payment key maps so the chip-0057 branch that runs
+    /// inside `chia_sdk_driver::Spends::prepare` can derive each pending
+    /// one-time puzzle hash.
+    ///
+    /// The FFI surface accepts RAW `PublicKey` / `SecretKey` material (the
+    /// [`SyntheticPublicKey`] / [`SyntheticSecretKey`] newtypes cannot
+    /// cross the binding boundary). This facade synthesizes the synthetic keys
+    /// internally via the DEFAULT hidden puzzle — the same
+    /// `chia_puzzle_types::DeriveSynthetic` path the standard-spend convention
+    /// (`puzzle_hash_for_pk`) uses — so a caller spending an ordinary
+    /// standard-puzzle coin just passes the wallet keys it already holds.
+    ///
+    /// Default-hidden assumption: a coin curried over a CUSTOM hidden puzzle
+    /// will NOT round-trip through this default-hidden synthesis. Such a
+    /// registration fails LOUD with `DriverError::SilentPaymentKeyNotSynthetic`
+    /// at finish time (the universal FFI-crossing runtime guard in
+    /// `sp_finish_branch`) — never silently producing an undetectable coin.
+    /// Callers with custom-hidden coins must construct the synthetic key
+    /// themselves; that escape hatch
+    /// ([`SyntheticPublicKey::from_synthetic_unchecked`]) is Rust-only.
+    ///
+    /// bindy does not natively marshal `IndexMap<K, V>` or `Vec<(K, V)>`
+    /// across the FFI boundary, so the two registration maps are surfaced as
+    /// `Vec<SilentPaymentRegisteredKey>` and `Vec<SilentPaymentRegisteredSecretKey>`
+    /// (see `crates/chia-sdk-bindings/src/silent_payments.rs`). The
+    /// conversion to the underlying `IndexMap<Bytes32, _>` happens inside this
+    /// method.
+    ///
+    /// Privacy warning: `secret_keys` carries sensitive secret-key material.
+    /// Wallets must treat the vec like the SKs themselves (zeroize on drop, do
+    /// not log).
+    pub fn with_silent_payment_keys(
+        &self,
+        synthetic_pks: Vec<crate::SilentPaymentRegisteredKey>,
+        secret_keys: Vec<crate::SilentPaymentRegisteredSecretKey>,
+    ) -> Result<()> {
+        // The FFI surface receives RAW keys (the newtype cannot cross
+        // the binding boundary), so synthesize each entry via `from_raw`
+        // (= `DeriveSynthetic::derive_synthetic`, default hidden puzzle). This
+        // both fixes raw-key ergonomics for FFI callers AND synthesizes
+        // internally. The finish-time runtime guard is
+        // the universal backstop that rejects a non-synthetic-against-the-coin
+        // key (e.g. a custom-hidden coin) before signing.
+        let pk_map: IndexMap<Bytes32, SyntheticPublicKey> = synthetic_pks
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry.p2_puzzle_hash,
+                    SyntheticPublicKey::from_raw(&entry.public_key),
+                )
+            })
+            .collect();
+        let sk_map: IndexMap<Bytes32, SyntheticSecretKey> = secret_keys
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry.p2_puzzle_hash,
+                    SyntheticSecretKey::from_raw(&entry.secret_key),
+                )
+            })
+            .collect();
+        self.spends
+            .lock()
+            .unwrap()
+            .with_silent_payment_keys(pk_map, sk_map);
+        Ok(())
     }
 
     pub fn add_optional_condition(&self, condition: Program) -> Result<()> {
@@ -388,6 +459,19 @@ impl Action {
     pub fn burn(id: Id, amount: u64, memos: Option<Program>) -> Result<Self> {
         Ok(Self(sdk::Action::burn(
             id.0,
+            amount,
+            memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
+        )))
+    }
+
+    pub fn silent_payment_send(
+        recipient: crate::SilentPaymentAddress,
+        amount: u64,
+        memos: Option<Program>,
+    ) -> Result<Self> {
+        let driver_addr: chia_sdk_utils::silent_payments::SilentPaymentAddress = recipient.into();
+        Ok(Self(sdk::Action::silent_payment_send(
+            driver_addr,
             amount,
             memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
         )))

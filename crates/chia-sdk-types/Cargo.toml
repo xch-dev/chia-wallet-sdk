@@ -17,6 +17,7 @@ workspace = true
 [features]
 chip-0035 = []
 chip-0037 = []
+chip-0057 = ["dep:num-bigint", "dep:zeroize"]
 action-layer = []
 
 [dependencies]
@@ -32,7 +33,9 @@ clvm-traits = { workspace = true, features = ["chia-secp"] }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
+num-bigint = { workspace = true, optional = true }
 thiserror = { workspace = true }
+zeroize = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 chialisp = { workspace = true }
 rue-compiler = { workspace = true }

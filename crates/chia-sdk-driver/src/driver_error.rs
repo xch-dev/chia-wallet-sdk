@@ -195,4 +195,114 @@ pub enum DriverError {
         "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
     )]
     MissingP2ConditionsOrSingletonAssertion,
+
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment error: {0}")]
+    SilentPayment(#[from] chia_sdk_utils::silent_payments::SilentPaymentError),
+
+    /// A silent-payment send needs the synthetic secret key for every spent XCH
+    /// input. Some input's key was missing, so multi-party aggregation would be
+    /// required — multi-party silent-payment flows are not currently supported.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment multi-party flow unsupported")]
+    SilentPaymentMultiPartyUnsupported,
+
+    /// The silent-payment send had no XCH coin spent with the standard puzzle
+    /// to derive the output from. At least one is required.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment requires an xch input")]
+    SilentPaymentNoXchInputs,
+
+    /// The secret keys of the silent-payment spend group sum to zero mod r.
+    /// ECDH with a zero key yields the identity point and a shared secret that
+    /// anyone can compute, so CHIP-0057 requires the sender to fail.
+    #[cfg(feature = "chip-0057")]
+    #[error("aggregated sender key sum is zero - invalid for ECDH")]
+    SilentPaymentZeroKeySum,
+
+    /// The silent-payment input hash reduced to zero mod r, which would make
+    /// the shared secret independent of the sender's keys.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment input hash is zero")]
+    SilentPaymentZeroInputHash,
+
+    /// A silent-payment output tweak reduced to zero mod r, which would make
+    /// the one-time key equal to the address's own spend key.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment output tweak is zero")]
+    SilentPaymentZeroTweak,
+
+    /// More than `K_max` (2,400) silent-payment outputs were requested for a
+    /// single scan key in one transaction. Scanners stop iterating a spend
+    /// group at that index, so further outputs would never be found.
+    #[cfg(feature = "chip-0057")]
+    #[error("too many silent payment outputs for one scan key (the limit is 2400)")]
+    SilentPaymentTooManyOutputs,
+
+    /// The first memo was exactly 32 bytes, which the standard wallet promotes
+    /// to a `puzzle_hash` hint and indexes — exposing the one-time puzzle hash
+    /// and defeating silent-payment privacy. Prefix the payload with a sentinel
+    /// byte so the first atom is no longer 32 bytes.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment memo hint forbidden")]
+    SilentPaymentMemoHintForbidden,
+
+    /// A silent-payment send whose transaction spends two or more XCH coins
+    /// (counting intermediate coins that are created and spent inside it) must
+    /// pass `Relation::AssertConcurrent` to `Spends::prepare` /
+    /// `Spends::finish_with_keys`, so that scanners can reconstruct the spend
+    /// group. A transaction that spends a single coin accepts any `Relation`.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment requires input binding")]
+    SilentPaymentRequiresInputBinding,
+
+    /// An intermediate coin (one that is created and spent inside the
+    /// transaction) is part of the silent-payment spend group, but no secret
+    /// key was registered for its puzzle hash. Its key is part of the key sum
+    /// a scanner computes, so the payment would be undetectable without it.
+    #[cfg(feature = "chip-0057")]
+    #[error(
+        "silent payment spend group contains an intermediate coin with no registered secret key"
+    )]
+    SilentPaymentIntermediateKeyMissing,
+
+    /// A silent-payment output would be created by a coin that is not part of
+    /// the spend group, such as a settlement coin. CHIP-0057 requires every
+    /// silent-payment output to be created by a standard-puzzle coin of the
+    /// group.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment output must be created by a standard-puzzle coin of the spend group")]
+    SilentPaymentParentNotEligible,
+
+    /// The coins that were bound together when the transaction was completed
+    /// differ from the spend group the silent-payment outputs were derived
+    /// from, so the payment would be undetectable.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment spend group changed after the outputs were derived")]
+    SilentPaymentInputSetChanged,
+
+    /// `Spends::with_silent_payment_keys` was not called before finish, so no
+    /// silent-payment secret keys are registered for the spent inputs.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment keys not registered")]
+    SilentPaymentKeysNotRegistered,
+
+    /// A registered silent-payment key is not the synthetic key for its coin.
+    /// `StandardArgs::curry_tree_hash(registered_pk)` must equal the coin's
+    /// `p2_puzzle_hash` and `registered_sk.public_key()` must equal
+    /// `registered_pk`. Pass synthetic keys (`derive_synthetic`) or construct
+    /// them via `SyntheticSecretKey::from_raw`.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment key not synthetic")]
+    SilentPaymentKeyNotSynthetic,
+
+    /// A silent-payment send was co-bundled with one or more non-XCH asset
+    /// spends (CAT / DID / NFT / option) in the same bundle. Silent-payment
+    /// send bundles must be XCH-only; co-spending other assets in the same
+    /// bundle is not supported.
+    #[cfg(feature = "chip-0057")]
+    #[error(
+        "silent-payment sends must be XCH-only bundles; co-spending CAT/DID/NFT/option coins is not supported"
+    )]
+    SilentPaymentMixedAssetBundle,
 }
