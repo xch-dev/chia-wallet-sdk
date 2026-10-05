@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, num::TryFromIntError};
 
+use chia_protocol::Bytes32;
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::error::EvalErr;
@@ -145,6 +146,12 @@ pub enum DriverError {
 
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
+
+    #[error("nft {0} has a trade price whose royalty rounds to zero, so it can't be settled")]
+    ZeroRoyaltyPayment(Bytes32),
+
+    #[error("trade price is paid in an unknown asset with settlement puzzle hash {0}")]
+    UnknownTradePriceAsset(Bytes32),
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
