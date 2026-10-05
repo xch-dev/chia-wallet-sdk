@@ -1504,15 +1504,13 @@ export declare class FoliageTransactionBlock {
 
 export declare class Force1Of2RestrictedVariableMemo {
   clone(): Force1Of2RestrictedVariableMemo
-  constructor(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array)
+  constructor(leftSideSubtreeHash: Uint8Array, nonce: number, restrictions: Array<RestrictionMemo>)
   get leftSideSubtreeHash(): Buffer
   set leftSideSubtreeHash(value: Uint8Array)
   get nonce(): number
   set nonce(value: number)
-  get memberValidatorListHash(): Buffer
-  set memberValidatorListHash(value: Uint8Array)
-  get delegatedPuzzleValidatorListHash(): Buffer
-  set delegatedPuzzleValidatorListHash(value: Uint8Array)
+  get restrictions(): Array<RestrictionMemo>
+  set restrictions(value: Array<RestrictionMemo>)
 }
 export type Force1of2RestrictedVariableMemo = Force1Of2RestrictedVariableMemo
 
@@ -2858,7 +2856,7 @@ export declare class Restriction {
 export declare class RestrictionMemo {
   clone(): RestrictionMemo
   parse(ctx: MipsMemoContext): ParsedRestriction | null
-  static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): RestrictionMemo
+  static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, restrictions: Array<RestrictionMemo>): RestrictionMemo
   static enforceDelegatedPuzzleWrappers(clvm: Clvm, wrapperMemos: Array<WrapperMemo>): RestrictionMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): RestrictionMemo
   constructor(memberConditionValidator: boolean, puzzleHash: Uint8Array, memo: Program)

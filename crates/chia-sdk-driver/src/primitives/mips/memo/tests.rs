@@ -285,35 +285,120 @@ fn test_timelock_restriction(#[values(true, false)] reveal: bool) -> anyhow::Res
     Ok(())
 }
 
-#[test]
-fn test_force_1_of_2_restriction() -> anyhow::Result<()> {
+/// Restrictions for the new right side of a 1 of 2, with more than one in each list so that the
+/// order within each list is checked.
+fn right_side_restrictions(
+    allocator: &mut Allocator,
+    reveal: bool,
+) -> anyhow::Result<Vec<RestrictionMemo>> {
+    let wrappers = [WrapperMemo::prevent_multiple_create_coins()];
+
+    Ok(vec![
+        RestrictionMemo::timelock(allocator, 100, reveal)?,
+        RestrictionMemo::enforce_delegated_puzzle_wrappers(allocator, &wrappers)?,
+        RestrictionMemo::timelock(allocator, 200, reveal)?,
+        RestrictionMemo::enforce_delegated_puzzle_wrappers(allocator, &[])?,
+    ])
+}
+
+fn force_1_of_2(
+    allocator: &mut Allocator,
+    left_side_subtree_hash: Bytes32,
+    nonce: usize,
+    reveal: bool,
+) -> anyhow::Result<(
+    RestrictionMemo,
+    Force1of2RestrictedVariable,
+    Vec<RestrictionMemo>,
+)> {
+    let restrictions = right_side_restrictions(allocator, reveal)?;
+    let restriction = RestrictionMemo::force_1_of_2_restricted_variable(
+        allocator,
+        left_side_subtree_hash,
+        nonce,
+        restrictions.clone(),
+    )?;
+
+    let expected = Force1of2RestrictedVariable::new(
+        left_side_subtree_hash,
+        nonce,
+        vec![
+            Timelock::new(100).curry_tree_hash(),
+            Timelock::new(200).curry_tree_hash(),
+        ]
+        .tree_hash()
+        .into(),
+        vec![
+            EnforceDelegatedPuzzleWrappers::new(&[PREVENT_MULTIPLE_CREATE_COINS_HASH.into()])
+                .curry_tree_hash(),
+            EnforceDelegatedPuzzleWrappers::new(&[]).curry_tree_hash(),
+        ]
+        .tree_hash()
+        .into(),
+    );
+
+    Ok((restriction, expected, restrictions))
+}
+
+#[rstest]
+fn test_force_1_of_2_restriction(#[values(true, false)] reveal: bool) -> anyhow::Result<()> {
     let mut allocator = Allocator::new();
 
     let left = Bytes32::new([1; 32]);
-    let member_validators = Bytes32::new([2; 32]);
-    let delegated_puzzle_validators = Bytes32::new([3; 32]);
+    let (restriction, expected, restrictions) = force_1_of_2(&mut allocator, left, 5, reveal)?;
+    assert!(!restriction.member_condition_validator);
+    assert_eq!(restriction.puzzle_hash, expected.curry_tree_hash().into());
 
-    let restriction = RestrictionMemo::force_1_of_2_restricted_variable(
-        &mut allocator,
-        left,
-        5,
-        member_validators,
-        delegated_puzzle_validators,
-    )?;
+    let ctx = MipsMemoContext::default();
 
-    let expected =
-        Force1of2RestrictedVariable::new(left, 5, member_validators, delegated_puzzle_validators);
-
-    assert_eq!(
-        restriction.parse(&allocator, &MipsMemoContext::default()),
-        Some(ParsedRestriction::Force1of2RestrictedVariable(expected))
-    );
+    let Some(ParsedRestriction::Force1of2RestrictedVariable(parsed, parsed_restrictions)) =
+        restriction.parse(&allocator, &ctx)
+    else {
+        panic!("expected force 1 of 2");
+    };
+    assert_eq!(parsed, expected);
+    assert_eq!(parsed_restrictions, restrictions);
 
     let wrapper = WrapperMemo::new(restriction.puzzle_hash, restriction.memo);
     assert_eq!(
-        wrapper.parse(&allocator, &MipsMemoContext::default()),
-        Some(ParsedWrapper::Force1of2RestrictedVariable(expected))
+        wrapper.parse(&allocator, &ctx),
+        Some(ParsedWrapper::Force1of2RestrictedVariable(
+            expected,
+            restrictions.clone()
+        ))
     );
+
+    // The right side's restrictions are parsed the same way as any other restriction, so hidden
+    // timelocks need to be in the context.
+    let mut timelock_ctx = MipsMemoContext::default();
+    timelock_ctx.timelocks.extend([100, 200]);
+
+    for (i, restriction) in parsed_restrictions.iter().enumerate() {
+        let parsed = restriction.parse(&allocator, &ctx);
+
+        match i {
+            0 | 2 => {
+                let expected = Timelock::new(if i == 0 { 100 } else { 200 });
+                if reveal {
+                    assert_eq!(parsed, Some(ParsedRestriction::Timelock(expected)));
+                } else {
+                    assert_eq!(parsed, None);
+                    assert_eq!(
+                        restriction.parse(&allocator, &timelock_ctx),
+                        Some(ParsedRestriction::Timelock(expected))
+                    );
+                }
+            }
+            _ => assert!(matches!(
+                parsed,
+                Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(..))
+            )),
+        }
+    }
+
+    // A restriction whose memo doesn't match its puzzle hash is left unknown.
+    let mismatched = RestrictionMemo::new(false, Bytes32::new([2; 32]), restriction.memo);
+    assert_eq!(mismatched.parse(&allocator, &ctx), None);
 
     Ok(())
 }
@@ -322,13 +407,8 @@ fn test_force_1_of_2_restriction() -> anyhow::Result<()> {
 fn test_enforce_delegated_puzzle_wrappers() -> anyhow::Result<()> {
     let mut allocator = Allocator::new();
 
-    let force_1_of_2 = RestrictionMemo::force_1_of_2_restricted_variable(
-        &mut allocator,
-        Bytes32::new([1; 32]),
-        0,
-        Bytes32::new([2; 32]),
-        Bytes32::new([3; 32]),
-    )?;
+    let (force_1_of_2, force_1_of_2_expected, force_1_of_2_restrictions) =
+        force_1_of_2(&mut allocator, Bytes32::new([1; 32]), 0, true)?;
 
     let groups = vec![
         (
@@ -340,12 +420,10 @@ fn test_enforce_delegated_puzzle_wrappers() -> anyhow::Result<()> {
                 WrapperMemo::prevent_multiple_create_coins(),
             ],
             vec![
-                ParsedWrapper::Force1of2RestrictedVariable(Force1of2RestrictedVariable::new(
-                    Bytes32::new([1; 32]),
-                    0,
-                    Bytes32::new([2; 32]),
-                    Bytes32::new([3; 32]),
-                )),
+                ParsedWrapper::Force1of2RestrictedVariable(
+                    force_1_of_2_expected,
+                    force_1_of_2_restrictions.clone(),
+                ),
                 ParsedWrapper::ForceAssertCoinAnnouncement,
                 ParsedWrapper::ForceCoinMessage,
                 ParsedWrapper::ForceSingletonRecreation,
@@ -365,9 +443,7 @@ fn test_enforce_delegated_puzzle_wrappers() -> anyhow::Result<()> {
                 ParsedWrapper::PreventConditionOpcode(PreventConditionOpcode::new(RECEIVE_MESSAGE)),
             ],
         ),
-        // The stack Cloud Wallet uses for recovery, plus a timelock. In the legacy format,
-        // revealed values only have a couple of candidates each, so this stays within the
-        // search limit.
+        // The stack Cloud Wallet uses for recovery, plus a timelock.
         (
             vec![
                 WrapperMemo::new(force_1_of_2.puzzle_hash, force_1_of_2.memo),
@@ -388,12 +464,10 @@ fn test_enforce_delegated_puzzle_wrappers() -> anyhow::Result<()> {
                 WrapperMemo::timelock(&mut allocator, 50, true)?,
             ],
             vec![
-                ParsedWrapper::Force1of2RestrictedVariable(Force1of2RestrictedVariable::new(
-                    Bytes32::new([1; 32]),
-                    0,
-                    Bytes32::new([2; 32]),
-                    Bytes32::new([3; 32]),
-                )),
+                ParsedWrapper::Force1of2RestrictedVariable(
+                    force_1_of_2_expected,
+                    force_1_of_2_restrictions,
+                ),
                 ParsedWrapper::PreventConditionOpcode(PreventConditionOpcode::new(
                     CREATE_COIN_ANNOUNCEMENT,
                 )),
@@ -442,26 +516,22 @@ fn check_delegated_puzzle_wrappers(
         .map(|wrapper| wrapper.puzzle_hash.into())
         .collect();
 
-    // Both the current format and the legacy format, which only has the memo of each wrapper.
-    let legacy = legacy_delegated_puzzle_wrappers(allocator, wrappers)?;
-    assert_eq!(legacy.puzzle_hash, restriction.puzzle_hash);
+    let Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(parsed, parsed_wrappers)) =
+        restriction.parse(allocator, &MipsMemoContext::default())
+    else {
+        panic!("expected enforce delegated puzzle wrappers");
+    };
 
-    for restriction in [&restriction, &legacy] {
-        let Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(parsed, parsed_wrappers)) =
-            restriction.parse(allocator, &MipsMemoContext::default())
-        else {
-            panic!("expected enforce delegated puzzle wrappers");
-        };
+    assert_eq!(parsed, EnforceDelegatedPuzzleWrappers::new(&wrapper_hashes));
+    assert_eq!(parsed_wrappers, wrappers);
 
-        assert_eq!(parsed, EnforceDelegatedPuzzleWrappers::new(&wrapper_hashes));
-        assert_eq!(parsed_wrappers, wrappers);
-
-        for (wrapper, expected) in parsed_wrappers.iter().zip(expected) {
-            assert_eq!(
-                wrapper.parse(allocator, &MipsMemoContext::default()),
-                Some(*expected)
-            );
-        }
+    for (wrapper, expected) in parsed_wrappers.iter().zip(expected) {
+        assert_eq!(
+            wrapper
+                .parse(allocator, &MipsMemoContext::default())
+                .as_ref(),
+            Some(expected)
+        );
     }
 
     // The memo hash matches the construction path, where each wrapper is a separate restriction.
@@ -490,49 +560,6 @@ fn check_delegated_puzzle_wrappers(
     Ok(())
 }
 
-/// Builds the restriction the way it was serialized before wrapper puzzle hashes were included.
-pub(super) fn legacy_delegated_puzzle_wrappers(
-    allocator: &mut Allocator,
-    wrappers: &[WrapperMemo],
-) -> anyhow::Result<RestrictionMemo> {
-    let restriction = RestrictionMemo::enforce_delegated_puzzle_wrappers(allocator, wrappers)?;
-    let memos: Vec<NodePtr> = wrappers.iter().map(|wrapper| wrapper.memo).collect();
-    Ok(RestrictionMemo::new(
-        false,
-        restriction.puzzle_hash,
-        memos.to_clvm(allocator)?,
-    ))
-}
-
-#[test]
-fn test_enforce_delegated_puzzle_wrappers_search_limit() -> anyhow::Result<()> {
-    let mut allocator = Allocator::new();
-
-    // A wrapper with an empty memo has 8 candidates by default (4 wrappers without curried
-    // arguments, and 4 hidden condition opcodes), so 4 of them fit within the search limit of
-    // 2^12 combinations, but 5 of them don't. The current format doesn't need to search.
-    for (count, resolves) in [(4, true), (5, false)] {
-        let wrappers = vec![WrapperMemo::prevent_multiple_create_coins(); count];
-        let legacy = legacy_delegated_puzzle_wrappers(&mut allocator, &wrappers)?;
-        assert_eq!(
-            legacy
-                .parse(&allocator, &MipsMemoContext::default())
-                .is_some(),
-            resolves
-        );
-
-        let restriction =
-            RestrictionMemo::enforce_delegated_puzzle_wrappers(&mut allocator, &wrappers)?;
-        assert!(
-            restriction
-                .parse(&allocator, &MipsMemoContext::default())
-                .is_some()
-        );
-    }
-
-    Ok(())
-}
-
 #[test]
 fn test_restrictions_hash() -> anyhow::Result<()> {
     let mut allocator = Allocator::new();
@@ -540,15 +567,10 @@ fn test_restrictions_hash() -> anyhow::Result<()> {
     let r1 = R1Pair::default().pk;
     let member = MemberMemo::r1(&mut allocator, r1, true, true)?;
 
+    let (force_1_of_2, _, _) = force_1_of_2(&mut allocator, Bytes32::new([4; 32]), 1, true)?;
     let restrictions = vec![
         RestrictionMemo::timelock(&mut allocator, 1000, true)?,
-        RestrictionMemo::force_1_of_2_restricted_variable(
-            &mut allocator,
-            Bytes32::new([4; 32]),
-            1,
-            Bytes32::new([5; 32]),
-            Bytes32::new([6; 32]),
-        )?,
+        force_1_of_2,
     ];
 
     let memo = MipsMemo::new(InnerPuzzleMemo::new(
