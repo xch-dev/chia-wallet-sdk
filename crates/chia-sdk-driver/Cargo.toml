@@ -45,7 +45,6 @@ chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 sha3 = { workspace = true, optional = true }
 indexmap = { workspace = true }
-itertools = { workspace = true }
 chia_streamable_macro = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 getrandom = { workspace = true }
