@@ -20,6 +20,10 @@ at the SYNTHETIC puzzle hash so a raw-key registration round-trips;
 `SilentPaymentKeyNotSynthetic` error across the FFI boundary (runtime guard backstop).
 """
 
+import hashlib
+import json
+from pathlib import Path
+
 import pytest
 
 from chia_wallet_sdk import (
@@ -27,6 +31,7 @@ from chia_wallet_sdk import (
     Clvm,
     LabelRegistry,
     Mnemonic,
+    OutputMeta,
     PublicKey,
     ScalarField,
     SecretKey,
@@ -36,10 +41,50 @@ from chia_wallet_sdk import (
     SilentPaymentRegisteredKey,
     SilentPaymentRegisteredSecretKey,
     SilentPayments,
+    SilentPaymentWrapper,
     Simulator,
     Spends,
+    TweakData,
     standard_puzzle_hash,
 )
+
+# The CHIP-0057 machine-readable vectors, vendored for the driver's walker.
+# Read in place and pinned by sha256 before parsing, like the Rust loader.
+VECTORS_PATH = (
+    Path(__file__).resolve().parents[1].parent
+    / "crates/chia-sdk-driver/tests/data/chip-0057/test_vectors.json"
+)
+VECTORS_SHA256 = "c4fc3a776dd1805c0e2ea5bef486d17c68e8742e067131968eb0794bc0f85fb8"
+
+
+def load_vectors():
+    raw = VECTORS_PATH.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == VECTORS_SHA256, (
+        f"{VECTORS_PATH} is not the pinned CHIP-0057 vectors file"
+    )
+    return json.loads(raw)
+
+
+def vector(name):
+    vectors = load_vectors()
+    for entry in vectors["payments"] + vectors["settlement_payments"]:
+        if entry["name"] == name:
+            return entry
+    raise KeyError(name)
+
+
+def b32(hex_str):
+    return bytes.fromhex(hex_str)
+
+
+def json_wrapper(value):
+    """A vectors-file wrapper ({asset_id, hidden_puzzle_hash} or null)."""
+    if value is None:
+        return None
+    hidden = value["hidden_puzzle_hash"]
+    return SilentPaymentWrapper(
+        b32(value["asset_id"]), None if hidden is None else b32(hidden)
+    )
 
 # The BIP-39 test mnemonic (CHIP-0057 Test Vector 8) — matches the AVA + Rust
 # e2e fixtures so cross-language test outputs are byte-identical.
@@ -536,3 +581,102 @@ def test_raw_key_not_synthetic_errors():
 
     # No spend bundle was produced on the failed path.
     assert len(clvm.coin_spends()) == 0, "no coin spends produced on the failed path"
+
+
+# ─── CHIP-0057 "Extension to CATs" through the bindings ──────────────────
+
+
+def test_silent_payment_wrapper_wrap_matches_the_vectors():
+    """wrap(W, h) of Vector 9 (plain CAT) and Vector 11 (revocable CAT)."""
+    v9 = vector("vector_9_cat_payment")["outputs"][0]
+    wrapper = json_wrapper(v9["wrapper"])
+    assert wrapper.hidden_puzzle_hash is None
+    assert wrapper.wrap(b32(v9["puzzle_hash"])) == b32(v9["wrapped_puzzle_hash"])
+    assert (
+        v9["wrapped_puzzle_hash"]
+        == "cf9f1b5dbf2bd67fa0bb69a554e38c0f2d53877fe565f34f16a16df9f6fa18e5"
+    )
+
+    v11 = vector("vector_11_revocable_cat")["outputs"][0]
+    revocable = json_wrapper(v11["wrapper"])
+    assert revocable.hidden_puzzle_hash == b32(v11["wrapper"]["hidden_puzzle_hash"])
+    assert revocable.wrap(b32(v11["puzzle_hash"])) == b32(
+        "87b7f0ce1f5ed425c958cad384eb45754a7d02c7cbaa42b5f2d929f2a7d6eb4c"
+    )
+
+
+def test_tweak_data_two_argument_constructor_still_works():
+    """TweakData(tweak_points, outputs) keeps two arguments; wrappers default empty."""
+    point = PublicKey.from_bytes(b32(vector("vector_9_cat_payment")["tweak_point"]))
+    output = OutputMeta(bytes([1] * 32), bytes([2] * 32), 1000, bytes([3] * 32))
+
+    bare = TweakData([point], [output])
+    assert len(bare.tweak_points) == 1
+    assert len(bare.outputs) == 1
+    assert bare.wrappers == []
+
+    wrapper = SilentPaymentWrapper(bytes([4] * 32), None)
+    with_wrappers = TweakData.with_wrappers([point], [output], [wrapper])
+    assert len(with_wrappers.wrappers) == 1
+    assert with_wrappers.wrappers[0].asset_id == bytes([4] * 32)
+    assert with_wrappers.wrappers[0].hidden_puzzle_hash is None
+
+
+def test_vector_9_cat_payment_through_bindings():
+    """Vector 9 from the vectors file: one CAT output, found only under its wrapper."""
+    payment = vector("vector_9_cat_payment")
+    output = payment["outputs"][0]
+    recipient = output["recipient"]
+    keys = SilentPaymentKeys.from_secret_keys(
+        SecretKey.from_bytes(b32(recipient["scan_sk"])),
+        SecretKey.from_bytes(b32(recipient["spend_sk"])),
+    )
+
+    tweak_points = [PublicKey.from_bytes(b32(payment["tweak_point"]))]
+    coin_id = bytes([0] * 32)
+    parent = bytes([0xEE] * 32)
+    outputs = [
+        OutputMeta(b32(output["wrapped_puzzle_hash"]), coin_id, output["amount"], parent)
+    ]
+    wrappers = [json_wrapper(w) for w in payment["wrapper_list"]]
+
+    data = TweakData.with_wrappers(tweak_points, outputs, wrappers)
+    detections = SilentPayments.scan_from_tweaks(
+        keys.scan_sk(), keys.spend_pk(), data, LabelRegistry(), K_MAX_DEFAULT
+    )
+    assert len(detections) == 1
+    detection = detections[0]
+    assert detection.k == 0
+    assert detection.label is None
+    assert detection.wrapper is not None
+    assert detection.wrapper.asset_id == b32(
+        "a031232e72df4aa270c253a530b9b0d782d46ac7b5dad63c2aa37690bbb37f6d"
+    )
+    assert detection.wrapper.hidden_puzzle_hash is None
+    assert detection.puzzle_hash == b32(
+        "df83709ebd837a46717cfb59cc3c75de70606ffb5e3499c202339cf9a5a20dd4"
+    )
+    assert detection.puzzle_hash == b32(output["puzzle_hash"])
+    coin = detection.coin()
+    assert coin.puzzle_hash == b32(
+        "cf9f1b5dbf2bd67fa0bb69a554e38c0f2d53877fe565f34f16a16df9f6fa18e5"
+    )
+    assert coin.parent_coin_info == parent
+    assert coin.amount == output["amount"]
+    # The coin id is the one the block reported (a placeholder here).
+    assert detection.coin_id == coin_id
+    assert (
+        detection.onetime_sk(keys.spend_sk()).to_bytes().hex() == output["onetime_sk"]
+    )
+
+    # Without the wrapper list the CAT output is not found.
+    assert (
+        payment["negative_controls"]["detections_without_wrapper_list"] == 0
+    )
+    bare = TweakData(tweak_points, outputs)
+    assert (
+        SilentPayments.scan_from_tweaks(
+            keys.scan_sk(), keys.spend_pk(), bare, LabelRegistry(), K_MAX_DEFAULT
+        )
+        == []
+    )

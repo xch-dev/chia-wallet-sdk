@@ -114,12 +114,45 @@
       "parent_coin_id": "Bytes32"
     }
   },
-  "TweakData": {
+  "SilentPaymentWrapper": {
     "type": "class",
     "new": true,
     "fields": {
+      "asset_id": "Bytes32",
+      "hidden_puzzle_hash": "Option<Bytes32>"
+    },
+    "methods": {
+      "wrap": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Bytes32"
+      }
+    }
+  },
+  "TweakData": {
+    "type": "class",
+    "fields": {
       "tweak_points": "Vec<PublicKey>",
-      "outputs": "Vec<OutputMeta>"
+      "outputs": "Vec<OutputMeta>",
+      "wrappers": "Vec<SilentPaymentWrapper>"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "tweak_points": "Vec<PublicKey>",
+          "outputs": "Vec<OutputMeta>"
+        }
+      },
+      "with_wrappers": {
+        "type": "factory",
+        "args": {
+          "tweak_points": "Vec<PublicKey>",
+          "outputs": "Vec<OutputMeta>",
+          "wrappers": "Vec<SilentPaymentWrapper>"
+        }
+      }
     }
   },
   "DetectedSpCoin": {
@@ -132,7 +165,8 @@
       "parent_coin_id": "Bytes32",
       "k": "u32",
       "label": "Option<u32>",
-      "tweak": "ScalarField"
+      "tweak": "ScalarField",
+      "wrapper": "Option<SilentPaymentWrapper>"
     },
     "methods": {
       "coin": {

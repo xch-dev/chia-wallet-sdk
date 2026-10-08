@@ -250,12 +250,85 @@ impl From<OutputMeta> for chia_sdk_driver::OutputMeta {
     }
 }
 
-// ─── TweakData (2-field class with auto-generated new) ───────────────────
+// ─── SilentPaymentWrapper (the asset of a CAT output) ────────────────────
+
+/// The wrapper of a CAT (CHIP-0057 "Extension to CATs"): the asset ID and, for
+/// a revocable CAT, the revocation layer's hidden puzzle hash. XCH has no
+/// wrapper (`None` wherever a wrapper is optional).
+///
+/// Named `SilentPaymentWrapper` because the bindings' namespace is flat and
+/// already has `WrapperMemo` and `ParsedWrapper`.
+#[derive(Clone)]
+pub struct SilentPaymentWrapper {
+    pub asset_id: Bytes32,
+    pub hidden_puzzle_hash: Option<Bytes32>,
+}
+
+impl SilentPaymentWrapper {
+    /// `wrap(W, h)`: the puzzle hash of a coin of this asset whose inner
+    /// standard puzzle has tree hash `puzzle_hash` (the CAT layer, and the
+    /// revocation layer for a revocable CAT, around it).
+    pub fn wrap(&self, puzzle_hash: Bytes32) -> Result<Bytes32> {
+        Ok(chia_sdk_driver::Wrapper::from(self.clone()).wrap(puzzle_hash))
+    }
+}
+
+impl From<chia_sdk_driver::Wrapper> for SilentPaymentWrapper {
+    fn from(value: chia_sdk_driver::Wrapper) -> Self {
+        Self {
+            asset_id: value.asset_id,
+            hidden_puzzle_hash: value.hidden_puzzle_hash,
+        }
+    }
+}
+
+impl From<SilentPaymentWrapper> for chia_sdk_driver::Wrapper {
+    fn from(value: SilentPaymentWrapper) -> Self {
+        Self {
+            asset_id: value.asset_id,
+            hidden_puzzle_hash: value.hidden_puzzle_hash,
+        }
+    }
+}
+
+// ─── TweakData (3 fields, explicit two-argument constructor) ─────────────
+//
+// The constructor is explicit, not bindy's `"new": true` (which takes every
+// field), so `TweakData(tweak_points, outputs)` keeps its two arguments after
+// `wrappers` was added. `with_wrappers` builds tweak data with the block's
+// wrapper list.
 
 #[derive(Clone)]
 pub struct TweakData {
     pub tweak_points: Vec<PublicKey>,
     pub outputs: Vec<OutputMeta>,
+    /// The block's wrapper list; empty when no CAT coin is spent in it. The
+    /// scanner tests every output bare and under each wrapper.
+    pub wrappers: Vec<SilentPaymentWrapper>,
+}
+
+impl TweakData {
+    /// Tweak data with an empty wrapper list: outputs are tested bare only.
+    pub fn new(tweak_points: Vec<PublicKey>, outputs: Vec<OutputMeta>) -> Result<Self> {
+        Ok(Self {
+            tweak_points,
+            outputs,
+            wrappers: Vec::new(),
+        })
+    }
+
+    /// Tweak data with the block's wrapper list.
+    pub fn with_wrappers(
+        tweak_points: Vec<PublicKey>,
+        outputs: Vec<OutputMeta>,
+        wrappers: Vec<SilentPaymentWrapper>,
+    ) -> Result<Self> {
+        Ok(Self {
+            tweak_points,
+            outputs,
+            wrappers,
+        })
+    }
 }
 
 impl From<chia_sdk_driver::TweakData> for TweakData {
@@ -263,15 +336,17 @@ impl From<chia_sdk_driver::TweakData> for TweakData {
         Self {
             tweak_points: value.tweak_points,
             outputs: value.outputs.into_iter().map(Into::into).collect(),
+            wrappers: value.wrappers.into_iter().map(Into::into).collect(),
         }
     }
 }
 
 impl From<TweakData> for chia_sdk_driver::TweakData {
     fn from(value: TweakData) -> Self {
-        Self::new(
+        Self::with_wrappers(
             value.tweak_points,
             value.outputs.into_iter().map(Into::into).collect(),
+            value.wrappers.into_iter().map(Into::into).collect(),
         )
     }
 }
@@ -327,6 +402,11 @@ impl From<ScalarField> for chia_sdk_types::silent_payments::ScalarField {
 /// spend public key alone: it carries the combined tweak
 /// `(t_k + label_scalar) mod r`, not a spendable key. Call `onetime_sk` with
 /// the spend secret key to obtain the one-time key.
+///
+/// `puzzle_hash` is the bare one-time puzzle hash (the inner puzzle hash of a
+/// CAT output). `wrapper` is the asset under which the coin matched: `None`
+/// for XCH. `coin()` is the coin as it is on chain, with puzzle hash
+/// `wrap(wrapper, puzzle_hash)`.
 #[derive(Clone)]
 pub struct DetectedSpCoin {
     pub coin_id: Bytes32,
@@ -336,14 +416,18 @@ pub struct DetectedSpCoin {
     pub k: u32,
     pub label: Option<u32>,
     pub tweak: ScalarField,
+    pub wrapper: Option<SilentPaymentWrapper>,
 }
 
 impl DetectedSpCoin {
-    /// The detected output coin.
+    /// The detected output coin as it is on chain: for a CAT output its puzzle
+    /// hash is the wrapped one, `wrap(wrapper, puzzle_hash)`; for XCH it is
+    /// the bare one-time puzzle hash.
     pub fn coin(&self) -> Result<Coin> {
+        let wrapper = self.wrapper.clone().map(chia_sdk_driver::Wrapper::from);
         Ok(Coin::new(
             self.parent_coin_id,
-            self.puzzle_hash,
+            chia_sdk_driver::wrap_puzzle_hash(wrapper.as_ref(), self.puzzle_hash),
             self.amount,
         ))
     }
@@ -365,6 +449,7 @@ impl From<chia_sdk_driver::DetectedSpCoin> for DetectedSpCoin {
             k: value.k,
             label: value.label,
             tweak: value.tweak.into(),
+            wrapper: value.wrapper.map(Into::into),
         }
     }
 }
@@ -554,9 +639,11 @@ impl SilentPayments {
     /// forms the block's spend groups as in CHIP-0057 "Scanning a Block":
     /// every standard-puzzle spend on its own, plus every strongly connected
     /// component of two or more standard-puzzle spends in the
-    /// `ASSERT_CONCURRENT_SPEND` graph. Spends of other puzzles (CAT, NFT, ...)
-    /// are ignored, and groups whose keys sum to the identity element yield no
-    /// tweak point.
+    /// `ASSERT_CONCURRENT_SPEND` graph. CAT and revocable-CAT spends on the
+    /// holder's path join the groups with the key of their inner standard
+    /// puzzle, and give the block's wrapper list (`TweakData.wrappers`, in the
+    /// CHIP's order). Spends of other puzzles (NFT, DID, ...) are ignored, and
+    /// groups whose keys sum to the identity element yield no tweak point.
     pub fn tweak_data_from_block_spends(
         coin_spends: Vec<CoinSpend>,
         additions: Vec<Coin>,
@@ -640,6 +727,71 @@ mod tests {
                 chia_sdk_driver::DriverError::SilentPaymentZeroKeySum
             ))
         ));
+    }
+
+    fn b32(hex_str: &str) -> Bytes32 {
+        Bytes32::new(hex::decode(hex_str).unwrap().try_into().unwrap())
+    }
+
+    /// `SilentPaymentWrapper.wrap` is the driver's `wrap(W, h)`: Vector 9
+    /// (plain CAT) and Vector 11 (revocable CAT) of the CHIP's vectors.
+    #[test]
+    fn wrapper_wrap_matches_the_vectors() {
+        let v9 = SilentPaymentWrapper {
+            asset_id: b32("a031232e72df4aa270c253a530b9b0d782d46ac7b5dad63c2aa37690bbb37f6d"),
+            hidden_puzzle_hash: None,
+        };
+        assert_eq!(
+            v9.wrap(b32(
+                "df83709ebd837a46717cfb59cc3c75de70606ffb5e3499c202339cf9a5a20dd4"
+            ))
+            .unwrap(),
+            b32("cf9f1b5dbf2bd67fa0bb69a554e38c0f2d53877fe565f34f16a16df9f6fa18e5")
+        );
+
+        let v11 = SilentPaymentWrapper {
+            asset_id: b32("c8bd63be5a809f7da4af2ff4c33be96ece3373aa596bec55c60c548c115ed011"),
+            hidden_puzzle_hash: Some(b32(
+                "e5380d52cb3751ed5b07ceb5dc8eaf48335196e6e2847159c77354fad8372c3e",
+            )),
+        };
+        assert_eq!(
+            v11.wrap(b32(
+                "4d3fbd4e5db29059a9f9e94474510a2e96f9d4017845ab5cea58bed984aa04a1"
+            ))
+            .unwrap(),
+            b32("87b7f0ce1f5ed425c958cad384eb45754a7d02c7cbaa42b5f2d929f2a7d6eb4c")
+        );
+    }
+
+    /// The two-argument constructor leaves the wrapper list empty, and the
+    /// wrapper list crosses the facade in both directions.
+    #[test]
+    fn tweak_data_carries_wrappers_both_ways() {
+        let wrapper = SilentPaymentWrapper {
+            asset_id: Bytes32::new([3; 32]),
+            hidden_puzzle_hash: Some(Bytes32::new([4; 32])),
+        };
+        let bare = TweakData::new(Vec::new(), Vec::new()).unwrap();
+        assert!(bare.wrappers.is_empty());
+        assert!(chia_sdk_driver::TweakData::from(bare).wrappers.is_empty());
+
+        let with = TweakData::with_wrappers(Vec::new(), Vec::new(), vec![wrapper]).unwrap();
+        let driver = chia_sdk_driver::TweakData::from(with);
+        assert_eq!(
+            driver.wrappers,
+            vec![chia_sdk_driver::Wrapper::revocable(
+                Bytes32::new([3; 32]),
+                Bytes32::new([4; 32])
+            )]
+        );
+        let back = TweakData::from(driver);
+        assert_eq!(back.wrappers.len(), 1);
+        assert_eq!(back.wrappers[0].asset_id, Bytes32::new([3; 32]));
+        assert_eq!(
+            back.wrappers[0].hidden_puzzle_hash,
+            Some(Bytes32::new([4; 32]))
+        );
     }
 
     /// The facade exposes the same limit the sender and the scanner enforce.
