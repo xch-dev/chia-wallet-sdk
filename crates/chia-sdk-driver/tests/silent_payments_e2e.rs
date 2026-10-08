@@ -28,8 +28,8 @@ use chia_sdk_driver::silent_payments::{
     tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
-    Action, Cat, CatSpend, DriverError, FungibleSpend, Id, Relation, SpendContext,
-    SpendWithConditions, Spends, StandardLayer,
+    Action, Cat, CatSpend, DriverError, FungibleSpend, HashedPtr, Id, Relation,
+    SilentPaymentSendAction, SpendContext, SpendWithConditions, Spends, StandardLayer,
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator};
@@ -268,50 +268,52 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     Ok(())
 }
 
-/// A silent-payment send co-bundled with a CAT issuance is rejected: the eve
-/// CAT would be the first spend of its asset in the cycle, and the SDK does not
-/// let a CAT issued in the same transaction join a spend group.
-/// `finish_with_keys` returns `Err(DriverError::SilentPaymentNewCatUnsupported)`
-/// before any derivation or key work.
+/// CHIP-0057 closed list of eligible spends: a DID or an NFT is not an
+/// eligible spend, and the `ASSERT_CONCURRENT_SPEND` cycle would pass through
+/// it, so a silent payment send whose `Spends` also creates (or spends) a DID
+/// or an NFT is rejected with `SilentPaymentIneligibleAssetBundle` before any
+/// derivation or key work, and no coin spend is emitted.
 #[test]
-fn test_simulator_e2e_multi_input_mixed_asset_rejected() -> Result<()> {
+fn test_did_or_nft_in_the_bundle_is_rejected() -> Result<()> {
     let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
     let a = sim.bls(600);
     let b = sim.bls(600);
-    let mnemonic = Mnemonic::parse(TEST_MNEMONIC)?;
-    let recipient = SilentPaymentKeys::from_mnemonic(&mnemonic);
-    let recipient_address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
 
-    let mut spends = Spends::new(a.puzzle_hash);
-    spends.add(a.coin);
-    spends.add(b.coin);
-
-    // Co-bundle a CAT issuance (non-XCH asset) with the SP send.
-    let deltas = spends.apply(
-        &mut ctx,
-        &[
-            Action::single_issue_cat(None, 1),
-            Action::silent_payment_send(recipient_address, 1000, Memos::None),
-        ],
-    )?;
-
-    let pk_map = indexmap! { a.puzzle_hash => a.pk, b.puzzle_hash => b.pk };
-    let synthetic_public_map = indexmap! {
-        a.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(a.pk),
-        b.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(b.pk),
-    };
-    let synthetic_secret_map = indexmap! {
-        a.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(a.sk.clone()),
-        b.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(b.sk.clone()),
-    };
-    spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
-
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
-    assert!(
-        matches!(result, Err(DriverError::SilentPaymentNewCatUnsupported)),
-        "a CAT issued in the same transaction must be rejected, got {result:?}"
-    );
+    let singleton_actions = [
+        Action::create_did(None, 1, HashedPtr::NIL, 1),
+        Action::mint_nft(HashedPtr::NIL, Bytes32::default(), a.puzzle_hash, 0, 1),
+    ];
+    for singleton_action in singleton_actions {
+        let mut ctx = SpendContext::new();
+        let mut spends = Spends::new(a.puzzle_hash);
+        spends.add(a.coin);
+        spends.add(b.coin);
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                singleton_action.clone(),
+                Action::silent_payment_send(address.clone(), 100, Memos::None),
+            ],
+        )?;
+        let pk_map = register_keys(&mut spends, &[&a, &b]);
+        let result =
+            spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+        assert!(
+            matches!(result, Err(DriverError::SilentPaymentIneligibleAssetBundle)),
+            "{singleton_action:?} with a silent payment must be rejected, got {result:?}"
+        );
+        // Only the singleton's launcher, spent when the action was applied, is in
+        // the context: no XCH coin is spent, so no silent payment is created.
+        let emitted = ctx.take();
+        assert!(
+            emitted
+                .iter()
+                .all(|cs| cs.coin != a.coin && cs.coin != b.coin),
+            "no coin of the group is spent"
+        );
+    }
     Ok(())
 }
 
@@ -1860,5 +1862,199 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
         "got {error:?}"
     );
     assert!(error.to_string().contains("requires an xch input"));
+    Ok(())
+}
+
+// ============================================================================
+// Rejections of spends outside the CHIP's closed list (CHIP-0057 "Eligible
+// Spends", "Outputs in CATs"; RESEARCH RQ-4, RQ-5).
+// ============================================================================
+
+/// RQ-4: a CAT issued in the same transaction cannot join a silent payment
+/// spend group. With an XCH silent payment the transaction is rejected at
+/// prepare with `SilentPaymentNewCatUnsupported`, before any key work; a
+/// silent payment in the new CAT itself is rejected when the action is applied.
+#[test]
+fn test_cat_issued_in_the_same_transaction_is_rejected() -> Result<()> {
+    let (_sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::single_issue_cat(None, 1),
+            Action::silent_payment_send(address.clone(), 100, Memos::None),
+        ],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentNewCatUnsupported)),
+        "got {result:?}"
+    );
+    assert!(ctx.take().is_empty(), "nothing is emitted");
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let result = spends.apply(
+        &mut ctx,
+        &[
+            Action::single_issue_cat(None, 100),
+            Action::silent_payment_send_asset(Id::New(0), address, 100),
+        ],
+    );
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentNewCatUnsupported)),
+        "got {result:?}"
+    );
+    Ok(())
+}
+
+/// A revocable CAT spent through the issuer's hidden puzzle
+/// (`Spends::add_for_revocation`) is not an eligible spend: an XCH silent
+/// payment in the same `Spends` is rejected at prepare, and a silent payment
+/// in that CAT is rejected when the action is applied, both with
+/// `SilentPaymentIssuerPathSpend`.
+#[test]
+fn test_issuer_path_revocable_cat_is_rejected() -> Result<()> {
+    let (mut sim, mut ctx, issuer, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    // The hidden puzzle is the issuer's own standard puzzle.
+    let cat = issue_cat_to(
+        &mut sim,
+        &mut ctx,
+        &issuer,
+        issuer.coin,
+        Some(issuer.puzzle_hash),
+        1_000,
+    )?;
+    let id = Id::Existing(cat.info.asset_id);
+    let xch = sim.new_coin(issuer.puzzle_hash, 1_000);
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(xch);
+    spends.add_for_revocation(cat)?;
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(
+            address.clone(),
+            100,
+            Memos::None,
+        )],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&issuer]);
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentIssuerPathSpend)),
+        "got {result:?}"
+    );
+    assert!(ctx.take().is_empty(), "nothing is emitted");
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(cat)?;
+    let result = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address, 100)],
+    );
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentIssuerPathSpend)),
+        "got {result:?}"
+    );
+    Ok(())
+}
+
+/// CHIP-0057 Required Behaviors (Sending with CATs): an output in an asset
+/// that no coin of the spend group holds makes the sender fail, with
+/// `SilentPaymentAssetNotInGroup` when the action is applied: in a `Spends`
+/// with XCH only, and in one holding a different CAT.
+#[test]
+fn test_output_in_an_asset_outside_the_group_is_rejected() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let xch = sim.new_coin(sender.puzzle_hash, 1_000);
+    let elsewhere = Id::Existing(Bytes32::new([0x99; 32]));
+    assert_ne!(elsewhere, Id::Existing(cat.info.asset_id));
+
+    let mut xch_only = Spends::new(sender.puzzle_hash);
+    xch_only.add(xch);
+    let mut other_cat = Spends::new(sender.puzzle_hash);
+    other_cat.add(xch);
+    other_cat.add(cat);
+    for mut spends in [xch_only, other_cat] {
+        let result = spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send_asset(
+                elsewhere,
+                address.clone(),
+                100,
+            )],
+        );
+        assert!(
+            matches!(result, Err(DriverError::SilentPaymentAssetNotInGroup)),
+            "got {result:?}"
+        );
+    }
+    Ok(())
+}
+
+/// A silent payment CAT output carries exactly the SDK-built hint `(p)`:
+/// caller memos (of any shape) are refused with `SilentPaymentCatMemos` when
+/// the action is applied.
+#[test]
+fn test_caller_memos_on_a_cat_output_are_rejected() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+
+    let hint = ctx.hint(sender.puzzle_hash)?;
+    let short = ctx.memos(&[Bytes::from(vec![1u8, 2, 3])])?;
+    for memos in [hint, short] {
+        let mut spends = Spends::new(sender.puzzle_hash);
+        spends.add(cat);
+        let action = Action::SilentPaymentSend(SilentPaymentSendAction {
+            id,
+            recipient: address.clone(),
+            amount: 100,
+            memos,
+        });
+        let result = spends.apply(&mut ctx, &[action]);
+        assert!(
+            matches!(result, Err(DriverError::SilentPaymentCatMemos)),
+            "got {result:?}"
+        );
+    }
+    Ok(())
+}
+
+/// The 32-byte first-memo guard on the caller memos of an XCH silent payment
+/// output still applies, also when the transaction spends a CAT and pays a
+/// silent payment in it.
+#[test]
+fn test_xch_memo_hint_guard_still_applies() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+    let xch = sim.new_coin(sender.puzzle_hash, 1_000);
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(xch);
+    spends.add(cat);
+    let hint = ctx.hint(Bytes32::new([0x55; 32]))?;
+    let result = spends.apply(
+        &mut ctx,
+        &[
+            Action::silent_payment_send_asset(id, address.clone(), 100),
+            Action::silent_payment_send(address, 100, hint),
+        ],
+    );
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentMemoHintForbidden)),
+        "got {result:?}"
+    );
     Ok(())
 }

@@ -19,19 +19,34 @@
 //! # Spend groups on the send side
 //!
 //! A silent payment is derived from a *spend group* (CHIP-0057, "Inputs for
-//! Shared Secret Derivation"): a single standard-puzzle coin, or two or more
-//! standard-puzzle coins bound into one `ASSERT_CONCURRENT_SPEND` cycle. Sender
-//! and scanner must compute the key sum and the smallest coin id over exactly
-//! the same coins.
+//! Shared Secret Derivation", "Spend Groups across Assets"): a single eligible
+//! spend, or two or more eligible spends bound into one
+//! `ASSERT_CONCURRENT_SPEND` cycle, whatever their asset. Sender and scanner
+//! must compute the key sum and the smallest coin id over exactly the same
+//! coins.
 //!
-//! [`crate::Spends`] derives the outputs from every XCH coin the transaction
+//! [`crate::Spends`] derives the outputs from the coins the cycle of
+//! [`crate::Relation::AssertConcurrent`] binds: every XCH coin the transaction
 //! spends with the standard puzzle, including intermediate (ephemeral) coins
-//! that are created and spent inside it, with one term per coin. When there are
-//! two or more such coins the transaction must be prepared with
-//! [`crate::Relation::AssertConcurrent`], which binds all of them into one
-//! cycle. A silent payment cannot be combined with spends of other assets (CAT,
-//! DID, NFT, option) in the same [`crate::Spends`], and its outputs are always
-//! created by a coin of the group.
+//! that are created and spent inside it, plus the first coin of each CAT asset
+//! (a CAT, or a revocable CAT on the holder's path, held in the standard
+//! puzzle; the other coins of an asset are tied to it by the CAT ring only),
+//! with one term per coin. When there are two or more such coins the
+//! transaction must be prepared with [`crate::Relation::AssertConcurrent`].
+//!
+//! Outputs may be XCH ([`crate::Action::silent_payment_send`]) or a CAT the
+//! transaction spends ([`crate::Action::silent_payment_send_asset`]). A CAT
+//! output is created by the first coin of its asset as the bare one-time puzzle
+//! hash, hinted with it; the CAT layer (and the revocation layer) wraps the
+//! coin. One `k` counter per scan key runs across every asset, and `K_MAX`
+//! counts the outputs in every asset. Change is ordinary change, never a silent
+//! payment.
+//!
+//! Spends outside the CHIP's closed list are rejected before any key is used:
+//! DIDs, NFTs and options ([`crate::DriverError::SilentPaymentIneligibleAssetBundle`]),
+//! revocable CATs spent through the issuer's hidden path
+//! ([`crate::DriverError::SilentPaymentIssuerPathSpend`]) and CATs issued in
+//! the same transaction ([`crate::DriverError::SilentPaymentNewCatUnsupported`]).
 //!
 //! # Scanning CAT outputs
 //!

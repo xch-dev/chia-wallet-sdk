@@ -145,9 +145,11 @@ impl Spends<Unfinished> {
     /// Register the synthetic keys from which [`Spends::prepare`] derives the outputs of the
     /// silent payment sends that have been applied.
     ///
-    /// The maps are keyed by p2 puzzle hash and must cover every XCH coin the transaction spends
-    /// with the standard puzzle. That includes intermediate coins, which have the puzzle hash of
-    /// the coin that creates them, so the keys of the selected coins are normally enough.
+    /// The maps are keyed by p2 puzzle hash and must cover every coin of the spend group: every
+    /// XCH coin the transaction spends with the standard puzzle, and the first CAT coin of each
+    /// asset, keyed by the puzzle hash of its inner standard puzzle. That includes intermediate
+    /// coins, which have the puzzle hash of the coin that creates them, so the keys of the
+    /// selected coins are normally enough.
     ///
     /// The values are [`crate::silent_payments::SyntheticPublicKey`] /
     /// [`crate::silent_payments::SyntheticSecretKey`], newtypes that make passing a raw wallet
