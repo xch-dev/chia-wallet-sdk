@@ -28,6 +28,7 @@ use clvmr::NodePtr;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
+use crate::Id;
 
 /// Transport-agnostic input to the silent-payment scanner.
 ///
@@ -185,16 +186,32 @@ impl DetectedSpCoin {
 /// `CreateCoin`.
 ///
 /// The struct is `pub(crate)` — external callers never construct it directly;
-/// they go through [`crate::Action::silent_payment_send`].
+/// they go through [`crate::Action::silent_payment_send`] or
+/// [`crate::Action::silent_payment_send_asset`].
 #[derive(Debug, Clone)]
 pub(crate) struct SilentPaymentPending {
     pub scan_pk: PublicKey,
     pub spend_pk: PublicKey,
-    pub parent_xch_index: usize,
+    /// The spend that creates the output.
+    pub source: SilentPaymentSource,
     pub parent_coin: Coin,
     pub k: u32,
     pub amount: u64,
     pub memos: Memos<NodePtr>,
+}
+
+/// The spend that creates a silent payment output, recorded at apply time.
+///
+/// The index is the position of the spend in its asset's items, which only
+/// grow while actions are applied, so it stays valid until
+/// [`crate::Spends::prepare`] emits the output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SilentPaymentSource {
+    /// An XCH output, created by `spends.xch.items[index]`.
+    Xch(usize),
+    /// A CAT output, created by `spends.cats[id].items[index]`: the first
+    /// conditions spend of that asset, the one the spend group's cycle binds.
+    Cat(Id, usize),
 }
 
 #[cfg(test)]

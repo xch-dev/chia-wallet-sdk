@@ -73,5 +73,5 @@ mod send_keys;
 pub(crate) use send_keys::SilentPaymentSecretKeys;
 pub use send_keys::{SyntheticPublicKey, SyntheticSecretKey};
 mod types;
-pub(crate) use types::SilentPaymentPending;
 pub use types::{DetectedSpCoin, OutputMeta, TweakData};
+pub(crate) use types::{SilentPaymentPending, SilentPaymentSource};

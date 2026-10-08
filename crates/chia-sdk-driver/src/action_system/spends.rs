@@ -1,4 +1,7 @@
-use std::{collections::HashMap, mem};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+};
 
 use chia_bls::PublicKey;
 #[cfg(feature = "chip-0057")]
@@ -80,6 +83,17 @@ pub struct Outputs {
     pub fee: u64,
     /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
+}
+
+/// The position of a spend in [`Spends`]: its asset and its index in that asset's items (or
+/// lineage).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SpendPosition {
+    Xch(usize),
+    Cat(Id, usize),
+    Did(Id, usize),
+    Nft(Id, usize),
+    OptionContract(Id, usize),
 }
 
 /// The state of [`Spends`] while actions are being applied.
@@ -282,63 +296,136 @@ impl Spends<Unfinished> {
         payment_assertions
     }
 
+    /// The spends that can emit conditions and that [`Spends::prepare`] uses: the first of them
+    /// emits the transaction-wide conditions, and the [`Relation`] links all of them. They are,
+    /// in order, every XCH conditions spend, then the first conditions spend of each CAT asset
+    /// (the other spends of an asset are tied to it by the CAT ring), then the last conditions
+    /// spend of each DID, NFT and option lineage.
+    ///
+    /// This is the one place the selection is made. With the `chip-0057` feature, the silent
+    /// payment spend group is predicted from it, and checked against it once the transaction is
+    /// complete, so the group is always exactly the coins `Relation::AssertConcurrent` binds.
+    fn conditions_spend_positions(&self) -> Vec<SpendPosition> {
+        let mut positions = Vec::new();
+
+        for (index, item) in self.xch.items.iter().enumerate() {
+            if item.kind.is_conditions() {
+                positions.push(SpendPosition::Xch(index));
+            }
+        }
+
+        for (&id, cat) in &self.cats {
+            if let Some(index) = cat.items.iter().position(|item| item.kind.is_conditions()) {
+                positions.push(SpendPosition::Cat(id, index));
+            }
+        }
+
+        for (&id, did) in &self.dids {
+            if let Some(index) = did
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::Did(id, index));
+            }
+        }
+
+        for (&id, nft) in &self.nfts {
+            if let Some(index) = nft
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::Nft(id, index));
+            }
+        }
+
+        for (&id, option) in &self.options {
+            if let Some(index) = option
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::OptionContract(id, index));
+            }
+        }
+
+        positions
+    }
+
+    /// The spends selected by [`Spends::conditions_spend_positions`], in its order, with the coin
+    /// being spent.
     fn iter_conditions_spends(&mut self) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
-        self.xch
+        let selected: HashSet<SpendPosition> =
+            self.conditions_spend_positions().into_iter().collect();
+
+        // Every spend in the order the positions are listed in, so filtering keeps their order.
+        let xch = self
+            .xch
             .items
             .iter_mut()
-            .filter_map(|item| {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    Some((item.asset, spend))
-                } else {
-                    None
+            .enumerate()
+            .map(|(index, item)| (SpendPosition::Xch(index), item.asset, &mut item.kind));
+        let cats = self.cats.iter_mut().flat_map(|(&id, cat)| {
+            cat.items.iter_mut().enumerate().map(move |(index, item)| {
+                (
+                    SpendPosition::Cat(id, index),
+                    item.asset.coin,
+                    &mut item.kind,
+                )
+            })
+        });
+        let dids = self.dids.iter_mut().flat_map(|(&id, did)| {
+            did.lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::Did(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+        let nfts = self.nfts.iter_mut().flat_map(|(&id, nft)| {
+            nft.lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::Nft(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+        let options = self.options.iter_mut().flat_map(|(&id, option)| {
+            option
+                .lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::OptionContract(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+
+        xch.chain(cats)
+            .chain(dids)
+            .chain(nfts)
+            .chain(options)
+            .filter_map(move |(position, coin, kind)| {
+                if !selected.contains(&position) {
+                    return None;
+                }
+                match kind {
+                    SpendKind::Conditions(spend) => Some((coin, spend)),
+                    SpendKind::Settlement(_) => None,
                 }
             })
-            .chain(self.cats.values_mut().filter_map(|cat| {
-                cat.items.iter_mut().find_map(|item| {
-                    if let SpendKind::Conditions(spend) = &mut item.kind {
-                        Some((item.asset.coin, spend))
-                    } else {
-                        None
-                    }
-                })
-            }))
-            .chain(self.dids.values_mut().filter_map(|did| {
-                did.lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
-            .chain(self.nfts.values_mut().filter_map(|nft| {
-                nft.lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
-            .chain(self.options.values_mut().filter_map(|option| {
-                option
-                    .lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
     }
 
     /// Attaches the transaction-wide conditions (required and optional conditions, settlement
@@ -688,30 +775,36 @@ impl Spends<Unfinished> {
 }
 
 /// CHIP-0057 silent payment derivation, run by [`Spends::prepare`] when at least one
-/// `Action::silent_payment_send` has been applied.
+/// `Action::silent_payment_send` or `Action::silent_payment_send_asset` has been applied.
 ///
 /// The one-time puzzle hashes are derived from the *spend group* a scanner will reconstruct
-/// (CHIP-0057, "Inputs for Shared Secret Derivation"): every coin that is spent with the standard
-/// puzzle in this transaction, including intermediate (ephemeral) coins that are created and spent
-/// inside it. With two or more such coins, [`Relation::AssertConcurrent`] binds all of them into
-/// one `ASSERT_CONCURRENT_SPEND` cycle, and the key sum and coin id set used here cover exactly
-/// that cycle, with one term per coin.
+/// (CHIP-0057, "Inputs for Shared Secret Derivation" and "Spend Groups across Assets"): the coins
+/// that [`Spends::conditions_spend_positions`] selects once the transaction is complete, which
+/// are every XCH coin spent with the standard puzzle (intermediate coins included) and the first
+/// coin of each CAT asset (a CAT, or a revocable CAT on the holder's path, held in the standard
+/// puzzle). With two or more such coins, [`Relation::AssertConcurrent`] binds exactly them into
+/// one `ASSERT_CONCURRENT_SPEND` cycle, and the key sum and coin id set used here cover that
+/// cycle, with one term per coin, whatever its asset. One `k` counter per scan key runs across
+/// the assets.
 ///
-/// Checks, in order:
-/// 1. [`DriverError::SilentPaymentMixedAssetBundle`] if a CAT, DID, NFT or option is spent.
-/// 2. [`DriverError::SilentPaymentRequiresInputBinding`] if the group has two or more coins and
+/// Checks, in order, all before any key is used:
+/// 1. [`DriverError::SilentPaymentIneligibleAssetBundle`] if a DID, NFT or option is spent.
+/// 2. [`DriverError::SilentPaymentIssuerPathSpend`] if a revocable CAT is spent through the
+///    issuer's hidden puzzle.
+/// 3. [`DriverError::SilentPaymentNewCatUnsupported`] if a CAT is issued in the transaction.
+/// 4. [`DriverError::SilentPaymentRequiresInputBinding`] if the group has two or more coins and
 ///    the relation is not [`Relation::AssertConcurrent`].
-/// 3. [`DriverError::SilentPaymentKeysNotRegistered`] if no keys were registered.
-/// 4. [`DriverError::SilentPaymentNoXchInputs`] if no coin is spent with the standard puzzle.
-/// 5. [`DriverError::SilentPaymentMultiPartyUnsupported`] if a selected coin has no secret key,
+/// 5. [`DriverError::SilentPaymentKeysNotRegistered`] if no keys were registered.
+/// 6. [`DriverError::SilentPaymentNoXchInputs`] if the group is empty (no eligible spend).
+/// 7. [`DriverError::SilentPaymentMultiPartyUnsupported`] if a selected coin has no secret key,
 ///    or [`DriverError::SilentPaymentIntermediateKeyMissing`] if an intermediate coin has none.
-/// 6. [`DriverError::SilentPaymentKeyNotSynthetic`] if a registered key is not the synthetic key
-///    of its coin.
-/// 7. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
-///    outside the group.
-/// 8. [`DriverError::SilentPaymentZeroKeySum`] if the secret keys of the group sum to zero, and
-///    [`DriverError::SilentPaymentZeroInputHash`] / [`DriverError::SilentPaymentZeroTweak`] if
-///    one of the derived scalars is zero.
+/// 8. [`DriverError::SilentPaymentKeyNotSynthetic`] if a registered key is not the synthetic key
+///    of its coin's (inner) standard puzzle.
+/// 9. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
+///    outside the group, or by a coin of another asset.
+/// 10. [`DriverError::SilentPaymentZeroKeySum`] if the secret keys of the group sum to zero, and
+///     [`DriverError::SilentPaymentZeroInputHash`] / [`DriverError::SilentPaymentZeroTweak`] if
+///     one of the derived scalars is zero.
 ///
 /// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
 /// that were actually bound together once the transaction is complete.
@@ -726,53 +819,56 @@ fn sp_finish_branch(
     use chia_sdk_types::conditions::CreateCoin;
 
     use crate::silent_payments::{
-        aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash,
+        SilentPaymentSource, aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash,
     };
 
-    // Version 0 of CHIP-0057 covers XCH held in the standard puzzle only. Spends of other assets
-    // are not eligible spends, and a cycle that passes through one would not bind the coins on
-    // either side of it, so they are rejected outright.
-    if !spends.cats.is_empty()
-        || !spends.dids.is_empty()
-        || !spends.nfts.is_empty()
-        || !spends.options.is_empty()
+    // The closed list of eligible spends of version 0 (CHIP-0057 "Eligible Spends") is XCH, CAT
+    // and holder-path revocable CAT coins held in the standard puzzle. A cycle that passes
+    // through any other spend would not bind the coins on either side of it, so these are
+    // rejected outright, before any key is touched.
+    if !spends.dids.is_empty() || !spends.nfts.is_empty() || !spends.options.is_empty() {
+        return Err(DriverError::SilentPaymentIneligibleAssetBundle);
+    }
+    if spends
+        .cats
+        .values()
+        .any(|cat| cat.items.iter().any(|item| item.revoke))
     {
-        return Err(DriverError::SilentPaymentMixedAssetBundle);
+        return Err(DriverError::SilentPaymentIssuerPathSpend);
+    }
+    if spends.cats.keys().any(|id| matches!(id, Id::New(_))) {
+        return Err(DriverError::SilentPaymentNewCatUnsupported);
     }
 
-    // The spend group is every XCH coin that will be spent with conditions once the transaction
-    // is complete. Creating the change can add one more intermediate coin (when every existing
-    // spend already creates a coin identical to the change), so the change is created on a copy
-    // first to learn the final set. Silent payment outputs have unique puzzle hashes, so emitting
-    // them below does not alter what `create_change` does afterwards.
+    // The secret keys are taken out of `spends` before anything is copied, so that the trial
+    // copy below holds none, they are dropped when this function returns, and the prepared
+    // `Spends` no longer holds them.
+    let secret_keys = spends.silent_payment_synthetic_sks.take();
+
+    // The spend group is every coin `conditions_spend_positions` selects once the transaction is
+    // complete. Creating the change can add one more intermediate coin (when every existing
+    // spend of an asset already creates a coin identical to the change), so the change is
+    // created on a copy first to learn the final set. Silent payment outputs have unique puzzle
+    // hashes, so emitting them below does not alter what `create_change` does afterwards.
     let group: Vec<SilentPaymentGroupCoin> = {
-        let mut xch = spends.xch.clone();
-        xch.create_change(
-            ctx,
-            deltas.get(&Id::Xch).unwrap_or(&Delta::default()),
-            spends.change_puzzle_hash,
-        )?;
-        xch.items
-            .iter()
-            .filter(|item| item.kind.is_conditions())
-            .map(|item| SilentPaymentGroupCoin {
-                coin_id: item.asset.coin_id(),
-                p2_puzzle_hash: item.p2_puzzle_hash(),
-                ephemeral: item.ephemeral,
-            })
-            .collect()
+        let mut trial = spends.clone();
+        trial.create_change(ctx, deltas)?;
+        trial
+            .conditions_spend_positions()
+            .into_iter()
+            .map(|position| trial.silent_payment_group_coin(position))
+            .collect::<Option<Vec<_>>>()
+            .ok_or(DriverError::SilentPaymentIneligibleAssetBundle)?
     };
 
-    // `emit_relation` binds every conditions spend (ephemeral ones included) into one cycle, but
+    // `emit_relation` binds every coin of the group (ephemeral ones included) into one cycle, but
     // only for `Relation::AssertConcurrent`. Without it, two or more coins would be separate
     // single-input groups, and outputs derived from their combined keys would be undetectable.
     if group.len() >= 2 && !matches!(relation, Relation::AssertConcurrent) {
         return Err(DriverError::SilentPaymentRequiresInputBinding);
     }
 
-    // The secret keys are taken out of `spends`, so that they are dropped when
-    // this function returns and the prepared `Spends` no longer holds them.
-    let Some(secret_keys) = spends.silent_payment_synthetic_sks.take() else {
+    let Some(secret_keys) = secret_keys else {
         return Err(DriverError::SilentPaymentKeysNotRegistered);
     };
     let secret_keys = secret_keys.0;
@@ -783,7 +879,8 @@ fn sp_finish_branch(
     }
 
     // One secret key and one coin id per coin in the group, even when coins share a key (an
-    // intermediate coin has the puzzle hash, and therefore the key, of the coin that created it).
+    // intermediate coin has the puzzle hash, and therefore the key, of the coin that created it;
+    // a CAT coin's key is the key of its inner standard puzzle).
     let mut group_coin_ids: Vec<Bytes32> = Vec::with_capacity(group.len());
     let mut sender_sks: Vec<SecretKey> = Vec::with_capacity(group.len());
     for coin in &group {
@@ -794,8 +891,9 @@ fn sp_finish_branch(
                 DriverError::SilentPaymentMultiPartyUnsupported
             });
         };
-        // The registered public key must curry to the coin's puzzle hash, which also proves the
-        // coin is locked to the standard puzzle, and must belong to the registered secret key.
+        // The registered public key must curry to the coin's (inner) puzzle hash, which also
+        // proves the coin is locked to the standard puzzle, and must belong to the registered
+        // secret key.
         let Some(pk) = synthetic_pks.and_then(|m| m.get(&coin.p2_puzzle_hash)) else {
             return Err(DriverError::SilentPaymentKeyNotSynthetic);
         };
@@ -808,12 +906,19 @@ fn sp_finish_branch(
         group_coin_ids.push(coin.coin_id);
     }
 
-    // Every silent payment output must be created by a coin of the group.
-    if spends
-        .silent_payments_pending
-        .iter()
-        .any(|pending| !group_coin_ids.contains(&pending.parent_coin.coin_id()))
-    {
+    // Every silent payment output must be created by a coin of the group of the output's own
+    // asset (CHIP-0057 sender requirement 4, per asset).
+    if spends.silent_payments_pending.iter().any(|pending| {
+        !group.iter().any(|coin| {
+            coin.coin_id == pending.parent_coin.coin_id()
+                && match pending.source {
+                    SilentPaymentSource::Xch(_) => coin.wrapper.is_none(),
+                    SilentPaymentSource::Cat(id, _) => coin
+                        .wrapper
+                        .is_some_and(|wrapper| Id::Existing(wrapper.asset_id) == id),
+                }
+        })
+    }) {
         return Err(DriverError::SilentPaymentParentNotEligible);
     }
 
@@ -839,25 +944,54 @@ fn sp_finish_branch(
             p.k,
         )?;
 
-        let create_coin = CreateCoin::new(ph, p.amount, p.memos);
+        match p.source {
+            SilentPaymentSource::Xch(index) => {
+                let create_coin = CreateCoin::new(ph, p.amount, p.memos);
 
-        let parent = &mut spends.xch.items[p.parent_xch_index];
-        parent.kind.create_coin_with_assertion(
-            ctx,
-            p.parent_coin,
-            &mut spends.xch.payment_assertions,
-            create_coin,
-        );
+                let parent = &mut spends.xch.items[index];
+                parent.kind.create_coin_with_assertion(
+                    ctx,
+                    p.parent_coin,
+                    &mut spends.xch.payment_assertions,
+                    create_coin,
+                );
 
-        spends
-            .outputs
-            .xch
-            .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
+                spends
+                    .outputs
+                    .xch
+                    .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
+            }
+            SilentPaymentSource::Cat(id, index) => {
+                // The standard puzzle names the bare one-time puzzle hash, hinted with it
+                // (CHIP-0057 "Outputs in CATs"); the CAT layer, and on the holder's path the
+                // revocation layer, wrap the coin it creates to wrap(W, p).
+                let create_coin = CreateCoin::new(ph, p.amount, ctx.hint(ph)?);
+
+                let cat = spends
+                    .cats
+                    .get_mut(&id)
+                    .ok_or(DriverError::SilentPaymentAssetNotInGroup)?;
+                let parent = cat
+                    .items
+                    .get_mut(index)
+                    .ok_or(DriverError::SilentPaymentParentNotEligible)?;
+                parent.kind.create_coin_with_assertion(
+                    ctx,
+                    p.parent_coin,
+                    &mut cat.payment_assertions,
+                    create_coin,
+                );
+
+                let child = parent.asset.child(ph, p.amount);
+                spends.outputs.cats.entry(id).or_default().push(child);
+            }
+        }
     }
 
     // No silent-payment-specific binding is emitted. The `ASSERT_CONCURRENT_SPEND` cycle that
-    // `emit_relation` adds for `Relation::AssertConcurrent` covers every conditions spend, which
-    // is the group the values above were computed over.
+    // `emit_relation` adds for `Relation::AssertConcurrent` covers the coins
+    // `conditions_spend_positions` selects, which is the group the values above were computed
+    // over.
     Ok(group_coin_ids)
 }
 
@@ -865,8 +999,45 @@ fn sp_finish_branch(
 #[cfg(feature = "chip-0057")]
 struct SilentPaymentGroupCoin {
     coin_id: Bytes32,
+    /// The puzzle hash of the coin's standard puzzle (the inner puzzle of a CAT).
     p2_puzzle_hash: Bytes32,
     ephemeral: bool,
+    /// `None` for an XCH coin, the coin's wrapper for a CAT coin.
+    wrapper: Option<crate::silent_payments::Wrapper>,
+}
+
+#[cfg(feature = "chip-0057")]
+impl Spends<Unfinished> {
+    /// The spend at `position` as a coin of the silent payment spend group, or `None` for a
+    /// position that is not an XCH or CAT spend (which [`sp_finish_branch`] has rejected).
+    fn silent_payment_group_coin(&self, position: SpendPosition) -> Option<SilentPaymentGroupCoin> {
+        match position {
+            SpendPosition::Xch(index) => {
+                let item = self.xch.items.get(index)?;
+                Some(SilentPaymentGroupCoin {
+                    coin_id: item.asset.coin_id(),
+                    p2_puzzle_hash: item.p2_puzzle_hash(),
+                    ephemeral: item.ephemeral,
+                    wrapper: None,
+                })
+            }
+            SpendPosition::Cat(id, index) => {
+                let item = self.cats.get(&id)?.items.get(index)?;
+                Some(SilentPaymentGroupCoin {
+                    coin_id: item.asset.coin_id(),
+                    p2_puzzle_hash: item.p2_puzzle_hash(),
+                    ephemeral: item.ephemeral,
+                    wrapper: Some(crate::silent_payments::Wrapper {
+                        asset_id: item.asset.info.asset_id,
+                        hidden_puzzle_hash: item.asset.info.hidden_puzzle_hash,
+                    }),
+                })
+            }
+            SpendPosition::Did(..) | SpendPosition::Nft(..) | SpendPosition::OptionContract(..) => {
+                None
+            }
+        }
+    }
 }
 
 impl Spends<Finished> {

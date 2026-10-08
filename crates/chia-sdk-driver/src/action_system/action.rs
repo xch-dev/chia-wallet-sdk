@@ -282,6 +282,7 @@ impl Action {
         Self::Fee(FeeAction::new(amount))
     }
 
+    /// Sends a CHIP-0057 silent payment of XCH to the address. See [`SilentPaymentSendAction`].
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_send(
         recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
@@ -289,6 +290,26 @@ impl Action {
         memos: Memos,
     ) -> Self {
         Self::SilentPaymentSend(SilentPaymentSendAction::new(recipient, amount, memos))
+    }
+
+    /// Sends a CHIP-0057 silent payment in the asset `id` (XCH, or a CAT the transaction spends)
+    /// to the address.
+    ///
+    /// A CAT output is created by the first spend of that asset, the CAT coin the
+    /// `ASSERT_CONCURRENT_SPEND` cycle binds into the spend group, as the bare one-time puzzle hash
+    /// under the asset's CAT layer (and revocation layer, for a revocable CAT on the holder's path),
+    /// hinted with that puzzle hash. The `k` counter of the recipient's scan key is shared with
+    /// every other asset of the transaction. The send fails if no coin of the asset is spent
+    /// ([`DriverError::SilentPaymentAssetNotInGroup`]) or the asset is a CAT issued in the same
+    /// transaction ([`DriverError::SilentPaymentNewCatUnsupported`]). For XCH this is
+    /// [`Action::silent_payment_send`] with no memos.
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_send_asset(
+        id: Id,
+        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
+        amount: u64,
+    ) -> Self {
+        Self::SilentPaymentSend(SilentPaymentSendAction::new_asset(id, recipient, amount))
     }
 }
 

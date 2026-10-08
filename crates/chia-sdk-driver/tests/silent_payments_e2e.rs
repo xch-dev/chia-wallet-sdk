@@ -19,7 +19,7 @@
 
 use anyhow::Result;
 use bip39::Mnemonic;
-use chia_protocol::Coin;
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_sdk_driver::silent_payments::{
@@ -32,9 +32,11 @@ use chia_sdk_driver::{
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator};
-use chia_sdk_types::Conditions;
 use chia_sdk_types::silent_payments::GROUP_ORDER;
+use chia_sdk_types::{Condition, Conditions, run_puzzle};
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, SilentPaymentNetwork};
+use clvm_traits::{FromClvm, ToClvm};
+use clvmr::Allocator;
 use indexmap::indexmap;
 
 /// The BIP-39 test mnemonic — matches the cross-language AVA fixture for
@@ -265,12 +267,11 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     Ok(())
 }
 
-/// Mixed-asset SP bundles are REJECTED: a silent-payment send co-bundled with a
-/// CAT issuance (a non-XCH asset spend) in the same bundle must hard-error.
-/// Enforces the XCH-only invariant — silent-payment send bundles must not
-/// co-spend CAT/DID/NFT/option coins. `finish_with_keys` returns
-/// `Err(DriverError::SilentPaymentMixedAssetBundle)` from the GATE-0 guard in
-/// `sp_finish_branch`, which fires before any derivation or key work.
+/// A silent-payment send co-bundled with a CAT issuance is rejected: the eve
+/// CAT would be the first spend of its asset in the cycle, and the SDK does not
+/// let a CAT issued in the same transaction join a spend group.
+/// `finish_with_keys` returns `Err(DriverError::SilentPaymentNewCatUnsupported)`
+/// before any derivation or key work.
 #[test]
 fn test_simulator_e2e_multi_input_mixed_asset_rejected() -> Result<()> {
     let mut sim = Simulator::new();
@@ -307,8 +308,8 @@ fn test_simulator_e2e_multi_input_mixed_asset_rejected() -> Result<()> {
 
     let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
     assert!(
-        matches!(result, Err(DriverError::SilentPaymentMixedAssetBundle)),
-        "mixed-asset SP bundle must be rejected, got {result:?}"
+        matches!(result, Err(DriverError::SilentPaymentNewCatUnsupported)),
+        "a CAT issued in the same transaction must be rejected, got {result:?}"
     );
     Ok(())
 }
@@ -993,4 +994,182 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
     );
 
     Ok(())
+}
+
+// ============================================================================
+// Silent payment sends in CATs through the action system (CHIP-0057
+// "Spend Groups across Assets", "Outputs in CATs").
+// ============================================================================
+
+/// Issues `amount` mojos of a new CAT (revocable with hidden puzzle hash
+/// `hidden` when given) to the sender's standard puzzle, spending the sender's
+/// XCH coin in its own transaction, and returns the CAT coin.
+fn issue_cat_to(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    sender: &BlsPairWithCoin,
+    xch_coin: Coin,
+    hidden: Option<Bytes32>,
+    amount: u64,
+) -> Result<Cat> {
+    let hint = ctx.hint(sender.puzzle_hash)?;
+    let (issue_cat, cats) = Cat::single_issuance(
+        ctx,
+        xch_coin.coin_id(),
+        hidden,
+        amount,
+        Conditions::new().create_coin(sender.puzzle_hash, amount, hint),
+    )?;
+    StandardLayer::new(sender.pk).spend(ctx, xch_coin, issue_cat)?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
+    let cat = cats[0];
+    assert_eq!(cat.info.p2_puzzle_hash, sender.puzzle_hash);
+    assert_eq!(cat.info.hidden_puzzle_hash, hidden);
+    assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+    Ok(cat)
+}
+
+/// The `CREATE_COIN` conditions output by the spend of `coin_id` among
+/// `coin_spends`, from running its full puzzle reveal with its solution as
+/// consensus does: `(puzzle_hash, amount, memos)`.
+fn created_coins(
+    coin_spends: &[CoinSpend],
+    coin_id: Bytes32,
+) -> Result<Vec<(Bytes32, u64, Vec<Bytes>)>> {
+    let spend = coin_spends
+        .iter()
+        .find(|cs| cs.coin.coin_id() == coin_id)
+        .expect("the coin is spent in the transaction");
+    let mut a = Allocator::new();
+    let puzzle = spend.puzzle_reveal.to_clvm(&mut a)?;
+    let solution = spend.solution.to_clvm(&mut a)?;
+    let output = run_puzzle(&mut a, puzzle, solution)?;
+    let mut created = Vec::new();
+    for condition in Vec::<Condition>::from_clvm(&a, output)? {
+        if let Condition::CreateCoin(cc) = condition {
+            let memos = match cc.memos {
+                Memos::Some(ptr) => Vec::<Bytes>::from_clvm(&a, ptr)?,
+                Memos::None => Vec::new(),
+            };
+            created.push((cc.puzzle_hash, cc.amount, memos));
+        }
+    }
+    Ok(created)
+}
+
+/// Spends a detected CAT coin with the one-time key through its CAT layer (and,
+/// for a revocable CAT, the revocation layer's holder path), back to
+/// `destination` hinted, and asserts the simulator accepted the spend.
+fn spend_detected_cat(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    paid: Cat,
+    detected: &chia_sdk_driver::silent_payments::DetectedSpCoin,
+    recipient: &SilentPaymentKeys,
+    destination: Bytes32,
+) -> Result<()> {
+    assert_eq!(detected.coin(), paid.coin);
+    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let onetime_p2 = StandardLayer::new(synthetic_secret.public_key());
+    assert_eq!(
+        Bytes32::from(StandardArgs::curry_tree_hash(synthetic_secret.public_key())),
+        paid.info.p2_puzzle_hash,
+        "the one-time key is the key of the CAT's inner standard puzzle"
+    );
+    let back = ctx.hint(destination)?;
+    let inner = onetime_p2.spend_with_conditions(
+        ctx,
+        Conditions::new().create_coin(destination, paid.coin.amount, back),
+    )?;
+    Cat::spend_all(ctx, &[CatSpend::new(paid, inner)])?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&synthetic_secret))?;
+    let post_state = sim
+        .coin_state(paid.coin.coin_id())
+        .expect("detected CAT coin in state");
+    assert!(
+        post_state.spent_height.is_some(),
+        "the detected CAT coin must be spent with the one-time key"
+    );
+    Ok(())
+}
+
+/// Plan 15-02 tracer: one CAT coin pays a silent payment through the action
+/// system with `Action::silent_payment_send_asset`.
+///
+/// The CAT coin spent alone is a single-input spend group. Its standard puzzle
+/// creates `CREATE_COIN(p, amount, (p))`, `p` derived from that coin's ID and
+/// key at `k = 0`; the CAT layer wraps it to `wrap(W, p)`. The block's scan
+/// finds it under the wrapper `W`, and it is spent with the one-time key.
+#[test]
+fn test_simulator_e2e_cat_payment() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+    let w = Wrapper::cat(cat.info.asset_id);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(cat);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address, 1_000)],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
+
+    // p over [the CAT coin's ID] and its key.
+    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk);
+    let p = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &sender.sk,
+        &input_hash,
+        0,
+    )?;
+
+    // The CAT coin creates exactly the payment: the bare p under the CAT
+    // layer, hinted (p), and no change.
+    assert_eq!(
+        created_coins(&coin_spends, cat.coin.coin_id())?,
+        vec![(w.wrap(p), 1_000, vec![Bytes::from(p.to_vec())])]
+    );
+    let paid = outputs.cats[&id][0];
+    assert_eq!(outputs.cats[&id].len(), 1);
+    assert_eq!(paid.info.p2_puzzle_hash, p, "the inner puzzle hash is p");
+    assert_eq!(paid.coin.puzzle_hash, w.wrap(p));
+    assert!(outputs.xch.is_empty());
+    assert!(sim.coin_state(paid.coin.coin_id()).is_some());
+
+    // The block of the spend: one tweak point, the wrapper list [W], and the
+    // payment detected at k 0 under W.
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    assert_eq!(tweak_data.wrappers, vec![w]);
+    assert_eq!(tweak_data.tweak_points.len(), 1);
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(detections.len(), 1, "expected exactly 1 detection");
+    let detected = &detections[0];
+    assert_eq!(detected.k, 0);
+    assert_eq!(detected.label, None);
+    assert_eq!(detected.wrapper, Some(w));
+    assert_eq!(detected.puzzle_hash, p);
+    assert_eq!(detected.amount, 1_000);
+
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        paid,
+        detected,
+        &recipient,
+        sender.puzzle_hash,
+    )
 }

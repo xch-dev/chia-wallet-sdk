@@ -207,10 +207,11 @@ pub enum DriverError {
     #[error("silent payment multi-party flow unsupported")]
     SilentPaymentMultiPartyUnsupported,
 
-    /// The silent-payment send had no XCH coin spent with the standard puzzle
-    /// to derive the output from. At least one is required.
+    /// The silent-payment send had no eligible spend to derive the output
+    /// from: no XCH coin and no CAT coin (or revocable CAT coin on the holder's
+    /// path) spent with the standard puzzle. At least one is required.
     #[cfg(feature = "chip-0057")]
-    #[error("silent payment requires an xch input")]
+    #[error("silent payment requires an xch input or a CAT input held in the standard puzzle")]
     SilentPaymentNoXchInputs,
 
     /// The secret keys of the silent-payment spend group sum to zero mod r.
@@ -296,13 +297,44 @@ pub enum DriverError {
     #[error("silent payment key not synthetic")]
     SilentPaymentKeyNotSynthetic,
 
-    /// A silent-payment send was co-bundled with one or more non-XCH asset
-    /// spends (CAT / DID / NFT / option) in the same bundle. Silent-payment
-    /// send bundles must be XCH-only; co-spending other assets in the same
-    /// bundle is not supported.
+    /// A silent-payment send spends a DID, an NFT or an option contract. These
+    /// are not eligible spends in version 0 of CHIP-0057 (the closed list is XCH,
+    /// CAT and holder-path revocable CAT coins held in the standard puzzle), and
+    /// the `ASSERT_CONCURRENT_SPEND` cycle would pass through them, so the
+    /// coins on either side of one would not be bound into the spend group.
     #[cfg(feature = "chip-0057")]
     #[error(
-        "silent-payment sends must be XCH-only bundles; co-spending CAT/DID/NFT/option coins is not supported"
+        "silent payment sends cannot spend a DID, NFT or option: they are not eligible spends in CHIP-0057 version 0"
     )]
-    SilentPaymentMixedAssetBundle,
+    SilentPaymentIneligibleAssetBundle,
+
+    /// A silent-payment send spends a revocable CAT through the issuer's
+    /// hidden puzzle (`Spends::add_for_revocation`). CHIP-0057 counts only the
+    /// holder's path of a revocable CAT as an eligible spend.
+    #[cfg(feature = "chip-0057")]
+    #[error("a revocable CAT spent through the issuer's hidden path is not an eligible spend")]
+    SilentPaymentIssuerPathSpend,
+
+    /// A silent-payment send also issues a new CAT (`Id::New`). Its eve coin
+    /// would be the first spend of that asset in the cycle, so it would join
+    /// the spend group; the SDK does not support that.
+    #[cfg(feature = "chip-0057")]
+    #[error("a CAT issued in the same transaction cannot be part of a silent payment spend group")]
+    SilentPaymentNewCatUnsupported,
+
+    /// A silent-payment output was requested in a CAT that no coin of the
+    /// transaction holds. CHIP-0057 ("Outputs in CATs") requires every output
+    /// to be created by a coin of its own asset in the spend group.
+    #[cfg(feature = "chip-0057")]
+    #[error("a silent payment output must be created by a coin of its asset in the spend group")]
+    SilentPaymentAssetNotInGroup,
+
+    /// A silent-payment CAT output was given caller memos. Its memo list is
+    /// exactly the hint the SDK builds, the bare one-time puzzle hash `(p)`
+    /// (CHIP-0057 "Outputs in CATs"), so caller memos are refused.
+    #[cfg(feature = "chip-0057")]
+    #[error(
+        "a silent payment CAT output carries exactly the SDK-built hint; caller memos are not accepted"
+    )]
+    SilentPaymentCatMemos,
 }
