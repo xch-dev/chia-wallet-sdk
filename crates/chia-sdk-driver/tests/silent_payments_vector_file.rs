@@ -23,12 +23,16 @@ use std::collections::BTreeSet;
 use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
+use chia_puzzle_types::standard::StandardArgs;
+use chia_puzzle_types::{LineageProof, Memos};
 use chia_sdk_driver::silent_payments::{
     K_MAX_DEFAULT, OutputMeta, TweakData, Wrapper, aggregate_sender_sks, compute_input_hash,
     compute_shared_secret_from_tweak, compute_tweak_point, derive_one_time_puzzle_hash,
-    derive_onetime_pk, derive_onetime_sk, derive_output_tweak, puzzle_hash_for_pk,
-    scan_from_tweaks, wrap_puzzle_hash,
+    derive_onetime_pk, derive_onetime_sk, derive_output_tweak, eligible_spend, puzzle_hash_for_pk,
+    scan_from_tweaks, sort_wrappers, wrap_puzzle_hash,
 };
+use chia_sdk_driver::{Cat, CatInfo, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
+use chia_sdk_types::Conditions;
 use chia_sdk_types::silent_payments::{SCAN_PATH, SPEND_PATH, ScalarField};
 use chia_sdk_utils::silent_payments::{
     LabelRegistry, SP_ADDRESS_VERSION, SilentPaymentAddress, SilentPaymentKeys,
@@ -308,6 +312,87 @@ fn payments_as_sent() {
                 coin_puzzle_hash(output),
                 "{at}: coin puzzle hash"
             );
+
+            // The values the Extension to CATs adds to an output.
+            if output.get("wrapper").is_some() {
+                // The ECDH point, b_scan * T, and shared_secret = sha256 of it.
+                let mut ecdh_point = tweak_point;
+                ecdh_point.scalar_multiply(&b_scan.to_bytes());
+                assert_eq!(ecdh_point, pk(output, "ecdh_point"), "{at}: ecdh_point");
+                let mut hasher = Sha256::new();
+                hasher.update(ecdh_point.to_bytes());
+                assert_eq!(
+                    hasher.finalize(),
+                    shared_secret,
+                    "{at}: shared_secret = sha256(ecdh_point)"
+                );
+
+                match w {
+                    // XCH: no hint, no CAT inner puzzle.
+                    None => {
+                        assert!(output["hint"].is_null(), "{at}: XCH has no hint");
+                        assert!(
+                            output["cat_inner_puzzle_hash"].is_null(),
+                            "{at}: XCH has no CAT inner puzzle hash"
+                        );
+                    }
+                    // A CAT output is hinted with the bare puzzle hash; the
+                    // CAT layer's inner puzzle is the standard puzzle, or the
+                    // revocation layer around it.
+                    Some(w) => {
+                        assert_eq!(
+                            Bytes32::new(bytes(output, "hint")),
+                            puzzle_hash,
+                            "{at}: hint"
+                        );
+                        assert_eq!(
+                            Bytes32::new(bytes(output, "cat_inner_puzzle_hash")),
+                            Bytes32::from(
+                                CatInfo::new(w.asset_id, w.hidden_puzzle_hash, puzzle_hash)
+                                    .inner_puzzle_hash()
+                            ),
+                            "{at}: cat_inner_puzzle_hash"
+                        );
+                        if w.hidden_puzzle_hash.is_none() {
+                            assert_eq!(
+                                Bytes32::new(bytes(output, "cat_inner_puzzle_hash")),
+                                puzzle_hash,
+                                "{at}: a plain CAT's inner puzzle is the standard puzzle"
+                            );
+                        }
+                    }
+                }
+                assert!(
+                    output["amount"].as_u64().expect("`amount`") > 0,
+                    "{at}: amount"
+                );
+            }
+        }
+
+        // The block's wrapper list: the wrappers of the payment's coins in the
+        // CHIP's order, and every output paid in an asset of the group.
+        if payment.get("wrapper_list").is_some() {
+            let coin_wrappers: Vec<Option<Wrapper>> =
+                inputs.iter().map(|i| wrapper(&i["wrapper"])).collect();
+            let output_wrappers: Vec<Option<Wrapper>> =
+                outputs.iter().map(|o| wrapper(&o["wrapper"])).collect();
+            assert_eq!(
+                sort_wrappers(
+                    coin_wrappers
+                        .iter()
+                        .chain(&output_wrappers)
+                        .copied()
+                        .flatten()
+                ),
+                wrapper_list(payment),
+                "{name}: wrapper_list"
+            );
+            for w in &output_wrappers {
+                assert!(
+                    coin_wrappers.contains(w),
+                    "{name}: an output is paid in an asset of the group"
+                );
+            }
         }
     }
 }
@@ -434,7 +519,189 @@ fn payments_as_scanned() {
             outputs.len(),
             "{name}: every output is detected by its recipient"
         );
+
+        negative_controls(payment, &data);
     }
+}
+
+/// The number of detections every recipient of `payment` finds in `data`,
+/// with its registered labels.
+fn detections_by_recipients(payment: &Value, data: &TweakData) -> usize {
+    let outputs = list(payment, "outputs");
+    let recipients: BTreeSet<&str> = outputs
+        .iter()
+        .map(|output| text(&output["recipient"], "scan_sk"))
+        .collect();
+    recipients
+        .into_iter()
+        .map(|recipient_scan_sk| {
+            let mine: Vec<&Value> = outputs
+                .iter()
+                .filter(|o| text(&o["recipient"], "scan_sk") == recipient_scan_sk)
+                .collect();
+            let b_scan = sk(&mine[0]["recipient"], "scan_sk");
+            let mut labels = LabelRegistry::new();
+            for output in &mine {
+                if let Some(m) = label(&output["recipient"])
+                    && m != 0
+                {
+                    labels.register(&b_scan, m);
+                }
+            }
+            let spend_pk = pk(&mine[0]["recipient"], "spend_pk");
+            scan_from_tweaks(&b_scan, &spend_pk, data, Some(&labels), K_MAX_DEFAULT).len()
+        })
+        .sum()
+}
+
+fn count(controls: &Value, key: &str) -> usize {
+    usize::try_from(
+        controls[key]
+            .as_u64()
+            .unwrap_or_else(|| panic!("`{key}` is a count")),
+    )
+    .unwrap()
+}
+
+/// The negative controls of a payment of the Extension to CATs, each read
+/// only where the entry has it. `data` is the block as the scanner sees it
+/// (the payment's tweak point, its output coins and its wrapper list).
+fn negative_controls(payment: &Value, data: &TweakData) {
+    let controls = &payment["negative_controls"];
+    if controls.is_null() {
+        return;
+    }
+    let name = text(payment, "name");
+    let outputs = list(payment, "outputs");
+    let coin_hashes: Vec<Bytes32> = outputs.iter().map(coin_puzzle_hash).collect();
+
+    // Without the block's wrapper list only bare candidates are tested.
+    if !controls["detections_without_wrapper_list"].is_null() {
+        let bare = TweakData::new(data.tweak_points.clone(), data.outputs.clone());
+        assert_eq!(
+            detections_by_recipients(payment, &bare),
+            count(controls, "detections_without_wrapper_list"),
+            "{name}: detections_without_wrapper_list"
+        );
+    }
+
+    // Vector 10: a scanner without the Extension to CATs takes the XCH coin
+    // alone as its group.
+    if !controls["core_only_tweak_point"].is_null() {
+        let input = &list(payment, "inputs")[0];
+        assert!(
+            input["wrapper"].is_null(),
+            "{name}: input 0 is the XCH coin"
+        );
+        let a_0 = pk(input, "synthetic_pk");
+        let core = compute_tweak_point(&[Bytes32::new(bytes(input, "coin_id"))], &a_0)
+            .expect("a tweak point");
+        assert_eq!(
+            core,
+            pk(controls, "core_only_tweak_point"),
+            "{name}: core_only_tweak_point"
+        );
+        assert_ne!(core, pk(payment, "tweak_point"));
+
+        let recipient = &outputs[0]["recipient"];
+        let t_0 = derive_output_tweak(
+            &compute_shared_secret_from_tweak(&sk(recipient, "scan_sk"), &core),
+            0,
+        );
+        let candidate = puzzle_hash_for_pk(&derive_onetime_pk(&pk(recipient, "spend_pk"), &t_0));
+        assert_eq!(
+            candidate,
+            Bytes32::new(bytes(controls, "core_only_puzzle_hash")),
+            "{name}: core_only_puzzle_hash"
+        );
+        assert!(!coin_hashes.contains(&candidate));
+        let core_only = TweakData::new(vec![core], data.outputs.clone());
+        assert_eq!(
+            detections_by_recipients(payment, &core_only),
+            count(controls, "detections_by_core_only_scanner"),
+            "{name}: detections_by_core_only_scanner"
+        );
+    }
+
+    // Vector 11: the same output without the revocation layer is another
+    // coin, and a scan under the plain-CAT wrapper finds nothing.
+    if !controls["plain_cat_wrapped_puzzle_hash"].is_null() {
+        let output = &outputs[0];
+        let w = wrapper(&output["wrapper"]).expect("a CAT output");
+        assert!(w.hidden_puzzle_hash.is_some(), "{name}: a revocable CAT");
+        let plain = Wrapper::cat(w.asset_id);
+        let p = Bytes32::new(bytes(output, "puzzle_hash"));
+        assert_eq!(
+            plain.wrap(p),
+            Bytes32::new(bytes(controls, "plain_cat_wrapped_puzzle_hash")),
+            "{name}: plain_cat_wrapped_puzzle_hash"
+        );
+        assert!(!coin_hashes.contains(&plain.wrap(p)));
+        let under_plain =
+            TweakData::with_wrappers(data.tweak_points.clone(), data.outputs.clone(), vec![plain]);
+        assert_eq!(
+            detections_by_recipients(payment, &under_plain),
+            count(controls, "detections_with_plain_cat_wrapper"),
+            "{name}: detections_with_plain_cat_wrapper"
+        );
+    }
+
+    // Vector 11: the input coin spent through the issuer's hidden path is not
+    // an eligible spend; on the holder's path it is (A, W). The spends are
+    // built by the SDK; the vector's coin IDs do not matter for eligibility.
+    if let Some(expected) = controls["hidden_path_is_eligible"].as_bool() {
+        let input = &list(payment, "inputs")[0];
+        let key = pk(input, "synthetic_pk");
+        let w = wrapper(&input["wrapper"]).expect("a CAT input");
+        let holder = revocable_input_spend(input, w, false);
+        let issuer = revocable_input_spend(input, w, true);
+        assert_eq!(
+            eligible_spend(&holder),
+            Some((key, Some(w))),
+            "{name}: holder path"
+        );
+        assert_eq!(
+            eligible_spend(&issuer).is_some(),
+            expected,
+            "{name}: hidden_path_is_eligible"
+        );
+    }
+}
+
+/// A spend of a payment's revocable CAT input, held in the standard puzzle of
+/// its synthetic key, on the holder's path or (`revoke`) the issuer's hidden
+/// path, built with the SDK's `Cat::spend_all`.
+fn revocable_input_spend(input: &Value, w: Wrapper, revoke: bool) -> chia_protocol::CoinSpend {
+    let key = pk(input, "synthetic_pk");
+    let info = CatInfo::new(
+        w.asset_id,
+        w.hidden_puzzle_hash,
+        StandardArgs::curry_tree_hash(key).into(),
+    );
+    let parent = Bytes32::new(bytes(input, "coin_id"));
+    let cat = Cat::new(
+        chia_protocol::Coin::new(parent, info.puzzle_hash().into(), 1000),
+        Some(LineageProof {
+            parent_parent_coin_info: parent,
+            parent_inner_puzzle_hash: info.inner_puzzle_hash().into(),
+            parent_amount: 1000,
+        }),
+        info,
+    );
+    let mut ctx = SpendContext::new();
+    let inner = StandardLayer::new(key)
+        .spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(Bytes32::new([0x77; 32]), 1000, Memos::None),
+        )
+        .expect("inner spend");
+    let spend = if revoke {
+        CatSpend::revoke(cat, inner)
+    } else {
+        CatSpend::new(cat, inner)
+    };
+    Cat::spend_all(&mut ctx, &[spend]).expect("spend_all");
+    ctx.take().pop().expect("one coin spend")
 }
 
 /// A payment of `payments`, by name.

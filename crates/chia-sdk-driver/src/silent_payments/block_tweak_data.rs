@@ -939,4 +939,372 @@ mod tests {
         expected.sort_unstable();
         assert_eq!(sorted_points(&td), expected);
     }
+
+    // ─── Spend groups across assets and the wrapper list ───────────────────
+    //
+    // CHIP-0057 "Spend Groups across Assets" and "Wrapper List of a Block".
+    // The CAT spends are built by the SDK's `Cat::spend_all` and run, since
+    // Pass 2 runs the full puzzle reveal.
+
+    use crate::silent_payments::{Wrapper, eligible_spend};
+    use crate::{Cat, CatInfo, CatSpend, Spend, SpendWithConditions};
+    use chia_puzzle_types::{LineageProof, Memos};
+    use chia_sdk_types::puzzles::SettlementPayment;
+
+    const ASSET_A: Bytes32 = Bytes32::new([0x0a; 32]);
+    const ASSET_B: Bytes32 = Bytes32::new([0x0b; 32]);
+    const HIDDEN: Bytes32 = Bytes32::new([0x99; 32]);
+    const HIDDEN_LOW: Bytes32 = Bytes32::new([0x55; 32]);
+
+    /// A CAT coin of `info` with a lineage proof whose parent is a CAT coin of
+    /// the same puzzle hash and amount.
+    fn cat_of(parent: u8, info: CatInfo, amount: u64) -> Cat {
+        let puzzle_hash: Bytes32 = info.puzzle_hash().into();
+        let parent_parent = Bytes32::new([parent ^ 0xff; 32]);
+        let parent_coin = Coin::new(parent_parent, puzzle_hash, amount);
+        Cat::new(
+            Coin::new(parent_coin.coin_id(), puzzle_hash, amount),
+            Some(LineageProof {
+                parent_parent_coin_info: parent_parent,
+                parent_inner_puzzle_hash: info.inner_puzzle_hash().into(),
+                parent_amount: amount,
+            }),
+            info,
+        )
+    }
+
+    /// A CAT (or, with `hidden`, a revocable CAT) coin of amount 1 held in the
+    /// standard puzzle of `key`.
+    fn standard_cat(parent: u8, asset_id: Bytes32, hidden: Option<Bytes32>, key: PublicKey) -> Cat {
+        let p2: Bytes32 = StandardArgs::curry_tree_hash(key).into();
+        cat_of(parent, CatInfo::new(asset_id, hidden, p2), 1)
+    }
+
+    /// The conditions of a coin of amount 1: pay it on, and `extra`.
+    fn pay_and(extra: Conditions) -> Conditions {
+        extra.create_coin(Bytes32::new([0x77; 32]), 1, Memos::None)
+    }
+
+    /// The spend of `cat`, whose standard inner puzzle of `key` outputs
+    /// `conditions`; the issuer's hidden path when `revoke`. Asserted to run,
+    /// except on the issuer's path: the revocation layer then requires the
+    /// revealed puzzle to be the hidden puzzle, which only some fixtures make
+    /// it.
+    fn spend_standard_cat(
+        cat: Cat,
+        key: PublicKey,
+        conditions: Conditions,
+        revoke: bool,
+    ) -> CoinSpend {
+        let mut ctx = SpendContext::new();
+        let inner = StandardLayer::new(key)
+            .spend_with_conditions(&mut ctx, conditions)
+            .expect("inner spend");
+        let cat_spend = if revoke {
+            CatSpend::revoke(cat, inner)
+        } else {
+            CatSpend::new(cat, inner)
+        };
+        Cat::spend_all(&mut ctx, &[cat_spend]).expect("spend_all");
+        let spend = ctx.take().pop().expect("one coin spend");
+        if !revoke {
+            assert_runs(&spend);
+        }
+        spend
+    }
+
+    fn assert_runs(spend: &CoinSpend) {
+        let mut a = Allocator::new();
+        let puzzle = spend.puzzle_reveal.to_clvm(&mut a).unwrap();
+        let solution = spend.solution.to_clvm(&mut a).unwrap();
+        run_puzzle(&mut a, puzzle, solution).expect("the spend runs");
+    }
+
+    /// A CAT coin around the offer settlement puzzle, spent with no payments.
+    fn settlement_cat(parent: u8, asset_id: Bytes32) -> CoinSpend {
+        let mut ctx = SpendContext::new();
+        let settlement = ctx.alloc_mod::<SettlementPayment>().unwrap();
+        let p2: Bytes32 = ctx.tree_hash(settlement).into();
+        let cat = cat_of(parent, CatInfo::new(asset_id, None, p2), 1);
+        Cat::spend_all(
+            &mut ctx,
+            &[CatSpend::new(cat, Spend::new(settlement, NodePtr::NIL))],
+        )
+        .unwrap();
+        ctx.take().pop().unwrap()
+    }
+
+    /// A CAT coin around the puzzle `1` (which returns its solution): not an
+    /// eligible spend, but it can output any conditions, here `conditions`.
+    fn cat_around_one(parent: u8, asset_id: Bytes32, conditions: &Conditions) -> CoinSpend {
+        let mut ctx = SpendContext::new();
+        let inner = ctx.alloc(&1u8).unwrap();
+        let p2: Bytes32 = ctx.tree_hash(inner).into();
+        let cat = cat_of(parent, CatInfo::new(asset_id, None, p2), 1);
+        let solution = ctx.alloc(conditions).unwrap();
+        Cat::spend_all(&mut ctx, &[CatSpend::new(cat, Spend::new(inner, solution))]).unwrap();
+        let spend = ctx.take().pop().unwrap();
+        assert_runs(&spend);
+        spend
+    }
+
+    fn standard_id(key: PublicKey, parent: Bytes32) -> Bytes32 {
+        Coin::new(parent, StandardArgs::curry_tree_hash(key).into(), 1).coin_id()
+    }
+
+    /// An XCH coin and a CAT coin that assert each other's coin ID form one
+    /// group: its tweak point is over both coin IDs and the sum of both keys,
+    /// and each coin is also its own single-input group.
+    #[test]
+    fn xch_and_cat_coins_in_one_cycle_form_one_group() {
+        let pk_x = chia_bls::SecretKey::from_seed(&[0x41u8; 32]).public_key();
+        let pk_c = chia_bls::SecretKey::from_seed(&[0x42u8; 32]).public_key();
+        let parent_x = Bytes32::new([0x51; 32]);
+        let id_x = standard_id(pk_x, parent_x);
+        let cat = standard_cat(0x52, ASSET_A, None, pk_c);
+        let id_c = cat.coin.coin_id();
+
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_c),
+        );
+        let spend_c = spend_standard_cat(
+            cat,
+            pk_c,
+            pay_and(Conditions::new().assert_concurrent_spend(id_x)),
+            false,
+        );
+        assert_eq!(
+            eligible_spend(&spend_c),
+            Some((pk_c, Some(Wrapper::cat(ASSET_A))))
+        );
+
+        let td = tweak_data_from_block_spends(&[spend_x, spend_c], &[]).unwrap();
+        let mut expected = expected_points(&[
+            &[(pk_x, id_x)],
+            &[(pk_c, id_c)],
+            &[(pk_x, id_x), (pk_c, id_c)],
+        ]);
+        expected.sort_unstable();
+        assert_eq!(sorted_points(&td), expected);
+        assert_eq!(td.wrappers, vec![Wrapper::cat(ASSET_A)]);
+
+        // The group's point is compute_tweak_point over both coins.
+        let mut a_sum = pk_x;
+        a_sum += &pk_c;
+        let group_point = compute_tweak_point(&[id_x, id_c], &a_sum).unwrap();
+        assert!(td.tweak_points.contains(&group_point));
+    }
+
+    #[test]
+    fn revocable_cat_on_holder_path_joins_a_group() {
+        let pk_x = chia_bls::SecretKey::from_seed(&[0x43u8; 32]).public_key();
+        let pk_r = chia_bls::SecretKey::from_seed(&[0x44u8; 32]).public_key();
+        let parent_x = Bytes32::new([0x53; 32]);
+        let id_x = standard_id(pk_x, parent_x);
+        let rcat = standard_cat(0x54, ASSET_A, Some(HIDDEN), pk_r);
+        let id_r = rcat.coin.coin_id();
+
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_r),
+        );
+        let spend_r = spend_standard_cat(
+            rcat,
+            pk_r,
+            pay_and(Conditions::new().assert_concurrent_spend(id_x)),
+            false,
+        );
+
+        let td = tweak_data_from_block_spends(&[spend_x, spend_r], &[]).unwrap();
+        let mut expected = expected_points(&[
+            &[(pk_x, id_x)],
+            &[(pk_r, id_r)],
+            &[(pk_x, id_x), (pk_r, id_r)],
+        ]);
+        expected.sort_unstable();
+        assert_eq!(sorted_points(&td), expected);
+        assert_eq!(td.wrappers, vec![Wrapper::revocable(ASSET_A, HIDDEN)]);
+
+        // A revocable CAT spent through the issuer's hidden path, the hidden
+        // puzzle being the standard puzzle of the same key (so the spend runs
+        // and outputs its ASSERT_CONCURRENT_SPEND), is not a vertex: the XCH
+        // coin is alone, and the wrapper is still listed.
+        let hidden: Bytes32 = StandardArgs::curry_tree_hash(pk_r).into();
+        let rcat = standard_cat(0x54, ASSET_A, Some(hidden), pk_r);
+        let id_i = rcat.coin.coin_id();
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_i),
+        );
+        let issuer = spend_standard_cat(
+            rcat,
+            pk_r,
+            pay_and(Conditions::new().assert_concurrent_spend(id_x)),
+            true,
+        );
+        assert_runs(&issuer);
+        assert_eq!(eligible_spend(&issuer), None);
+        let td = tweak_data_from_block_spends(&[spend_x, issuer], &[]).unwrap();
+        assert_eq!(sorted_points(&td), expected_points(&[&[(pk_x, id_x)]]));
+        assert_eq!(td.wrappers, vec![Wrapper::revocable(ASSET_A, hidden)]);
+    }
+
+    /// A cycle through a CAT spend that is not eligible binds nothing: a
+    /// settlement CAT (which cannot assert anything) and a CAT around the
+    /// puzzle `1` that does close the cycle. Each eligible coin is its own
+    /// group, and their wrappers are listed.
+    #[test]
+    fn cycle_through_settlement_cat_binds_nothing() {
+        let pk_x = chia_bls::SecretKey::from_seed(&[0x45u8; 32]).public_key();
+        let pk_c = chia_bls::SecretKey::from_seed(&[0x46u8; 32]).public_key();
+        let parent_x = Bytes32::new([0x55; 32]);
+        let id_x = standard_id(pk_x, parent_x);
+        let cat = standard_cat(0x56, ASSET_B, None, pk_c);
+        let id_c = cat.coin.coin_id();
+        let expected = {
+            let mut points = expected_points(&[&[(pk_x, id_x)], &[(pk_c, id_c)]]);
+            points.sort_unstable();
+            points
+        };
+
+        // x -> settlement CAT s, c -> x.
+        let settlement = settlement_cat(0x57, ASSET_A);
+        let id_s = settlement.coin.coin_id();
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_s),
+        );
+        let spend_c = spend_standard_cat(
+            cat,
+            pk_c,
+            pay_and(Conditions::new().assert_concurrent_spend(id_x)),
+            false,
+        );
+        let td = tweak_data_from_block_spends(&[spend_x, settlement.clone(), spend_c.clone()], &[])
+            .unwrap();
+        assert_eq!(sorted_points(&td), expected);
+        assert_eq!(
+            td.wrappers,
+            vec![Wrapper::cat(ASSET_A), Wrapper::cat(ASSET_B)]
+        );
+
+        // x -> y -> c -> x, with y a CAT around `1` asserting c: a full cycle
+        // whose middle coin is not eligible.
+        let spend_y = cat_around_one(
+            0x58,
+            ASSET_A,
+            &pay_and(Conditions::new().assert_concurrent_spend(id_c)),
+        );
+        assert_eq!(eligible_spend(&spend_y), None);
+        let id_y = spend_y.coin.coin_id();
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_y),
+        );
+        let td = tweak_data_from_block_spends(&[spend_x, spend_y, spend_c], &[]).unwrap();
+        assert_eq!(sorted_points(&td), expected);
+        assert_eq!(
+            td.wrappers,
+            vec![Wrapper::cat(ASSET_A), Wrapper::cat(ASSET_B)]
+        );
+    }
+
+    /// The six-spend block of the CHIP's ordering rule, in two orders: the
+    /// wrapper list is `[(A), (A, H_low), (A, H), (B)]` either way.
+    #[test]
+    fn wrapper_list_is_chip_ordered_whatever_the_spend_order() {
+        let key = chia_bls::SecretKey::from_seed(&[0x47u8; 32]).public_key();
+        let pay = || pay_and(Conditions::new());
+        let mut spends = vec![
+            spend_standard_cat(
+                standard_cat(0x61, ASSET_A, Some(HIDDEN), key),
+                key,
+                pay(),
+                false,
+            ),
+            spend_standard_cat(standard_cat(0x62, ASSET_B, None, key), key, pay(), false),
+            settlement_cat(0x63, ASSET_A),
+            build_standard_coin_spend(key, Bytes32::new([0x64; 32]), 1, Conditions::new()),
+            spend_standard_cat(
+                standard_cat(0x65, ASSET_A, Some(HIDDEN_LOW), key),
+                key,
+                pay(),
+                true,
+            ),
+            spend_standard_cat(standard_cat(0x66, ASSET_B, None, key), key, pay(), false),
+        ];
+        let expected = vec![
+            Wrapper::cat(ASSET_A),
+            Wrapper::revocable(ASSET_A, HIDDEN_LOW),
+            Wrapper::revocable(ASSET_A, HIDDEN),
+            Wrapper::cat(ASSET_B),
+        ];
+        let forward = tweak_data_from_block_spends(&spends, &[]).unwrap();
+        assert_eq!(forward.wrappers, expected);
+        spends.reverse();
+        let backward = tweak_data_from_block_spends(&spends, &[]).unwrap();
+        assert_eq!(backward.wrappers, expected);
+        // The issuer-path spend and the settlement CAT add no key: four
+        // eligible coins, four single-input groups.
+        assert_eq!(sorted_points(&forward), sorted_points(&backward));
+        assert_eq!(forward.tweak_points.len(), 4);
+    }
+
+    #[test]
+    fn wrapper_list_of_xch_only_block_is_empty() {
+        let pk_a = chia_bls::SecretKey::from_seed(&[0x48u8; 32]).public_key();
+        let spends = [
+            build_standard_coin_spend(pk_a, Bytes32::new([0x71; 32]), 1, Conditions::new()),
+            build_non_standard_coin_spend(Bytes32::new([0x72; 32]), 1, &Conditions::new()),
+        ];
+        let td = tweak_data_from_block_spends(&spends, &[]).unwrap();
+        assert!(td.wrappers.is_empty());
+        assert_eq!(td.tweak_points.len(), 1);
+        assert!(
+            tweak_data_from_block_spends(&[], &[])
+                .unwrap()
+                .wrappers
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn settlement_cat_spend_adds_its_wrapper_but_no_key() {
+        let settlement = settlement_cat(0x73, ASSET_B);
+        assert_eq!(eligible_spend(&settlement), None);
+        let td = tweak_data_from_block_spends(&[settlement], &[]).unwrap();
+        assert!(td.tweak_points.is_empty());
+        assert_eq!(td.wrappers, vec![Wrapper::cat(ASSET_B)]);
+    }
+
+    /// Every addition is an output, whatever its asset (CHIP-0057 "Output
+    /// Matching Scope").
+    #[test]
+    fn outputs_are_every_addition_of_every_asset() {
+        let key = chia_bls::SecretKey::from_seed(&[0x49u8; 32]).public_key();
+        let cat = standard_cat(0x74, ASSET_A, None, key);
+        let child = cat.child(Bytes32::new([0x77; 32]), 1);
+        let xch = Coin::new(Bytes32::new([0x75; 32]), Bytes32::new([0x76; 32]), 5);
+        let spend = spend_standard_cat(cat, key, pay_and(Conditions::new()), false);
+        let td = tweak_data_from_block_spends(&[spend], &[child.coin, xch]).unwrap();
+        assert_eq!(
+            td.outputs.iter().map(|o| o.coin_id).collect::<Vec<_>>(),
+            vec![child.coin.coin_id(), xch.coin_id()]
+        );
+        assert_eq!(
+            td.outputs[0].puzzle_hash,
+            Wrapper::cat(ASSET_A).wrap(Bytes32::new([0x77; 32]))
+        );
+    }
 }
