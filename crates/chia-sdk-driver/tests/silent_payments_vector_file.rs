@@ -10,7 +10,13 @@
 //!
 //! The file is the authority. If a value or an address case disagrees with the
 //! SDK, the SDK is wrong, or the CHIP has to be corrected; the vendored file
-//! is not edited to make a test pass.
+//! is not edited to make a test pass. It is pinned by its sha256
+//! ([`VECTORS_SHA256`]), checked before it is parsed, so a substituted or
+//! edited copy fails every test.
+//!
+//! The payments of the Extension to CATs (Vectors 9 to 11) carry a wrapper per
+//! input and output and the block's wrapper list. Their `puzzle_hash` is the
+//! bare one-time puzzle hash; the coin's puzzle hash is `wrapped_puzzle_hash`.
 
 use std::collections::BTreeSet;
 
@@ -18,23 +24,38 @@ use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, OutputMeta, TweakData, aggregate_sender_sks, compute_input_hash,
+    K_MAX_DEFAULT, OutputMeta, TweakData, Wrapper, aggregate_sender_sks, compute_input_hash,
     compute_shared_secret_from_tweak, compute_tweak_point, derive_one_time_puzzle_hash,
     derive_onetime_pk, derive_onetime_sk, derive_output_tweak, puzzle_hash_for_pk,
-    scan_from_tweaks,
+    scan_from_tweaks, wrap_puzzle_hash,
 };
 use chia_sdk_types::silent_payments::{SCAN_PATH, SPEND_PATH, ScalarField};
 use chia_sdk_utils::silent_payments::{
     LabelRegistry, SP_ADDRESS_VERSION, SilentPaymentAddress, SilentPaymentKeys,
     SilentPaymentNetwork, generate_label,
 };
+use chia_sha2::Sha256;
 use serde_json::Value;
 
 const VECTORS: &str = include_str!("data/chip-0057/test_vectors.json");
 
+/// sha256 of the CHIP's vectors file, identical in every copy (the CHIPs
+/// repository, the reference implementation, and this SDK).
+const VECTORS_SHA256: &str = "c4fc3a776dd1805c0e2ea5bef486d17c68e8742e067131968eb0794bc0f85fb8";
+
 // ─── Reading the file ───────────────────────────────────────────────────────
 
+/// The vendored file, parsed after its sha256 is checked against
+/// [`VECTORS_SHA256`].
 fn vectors() -> Value {
+    let mut hasher = Sha256::new();
+    hasher.update(VECTORS.as_bytes());
+    let digest = hex::encode(hasher.finalize());
+    assert_eq!(
+        digest, VECTORS_SHA256,
+        "tests/data/chip-0057/test_vectors.json is not the CHIP's vectors file: it has sha256 \
+         {digest}"
+    );
     serde_json::from_str(VECTORS).expect("test_vectors.json is valid JSON")
 }
 
@@ -80,6 +101,41 @@ fn index(value: &Value, key: &str) -> u32 {
     u32::try_from(value[key].as_u64().expect("an integer")).unwrap()
 }
 
+/// A wrapper in the file's shape `{asset_id, hidden_puzzle_hash | null}`;
+/// `null` (or a missing key) is XCH.
+fn wrapper(value: &Value) -> Option<Wrapper> {
+    if value.is_null() {
+        return None;
+    }
+    let asset_id = Bytes32::new(bytes(value, "asset_id"));
+    Some(match &value["hidden_puzzle_hash"] {
+        Value::Null => Wrapper::cat(asset_id),
+        _ => Wrapper::revocable(asset_id, Bytes32::new(bytes(value, "hidden_puzzle_hash"))),
+    })
+}
+
+/// The block's wrapper list of a payment; empty when the entry has none.
+fn wrapper_list(payment: &Value) -> Vec<Wrapper> {
+    match &payment["wrapper_list"] {
+        Value::Null => Vec::new(),
+        list => list
+            .as_array()
+            .expect("`wrapper_list` is a list")
+            .iter()
+            .map(|w| wrapper(w).expect("a wrapper list entry is not null"))
+            .collect(),
+    }
+}
+
+/// The puzzle hash of an output's coin: `wrapped_puzzle_hash` for an output
+/// that has one, else the bare `puzzle_hash`.
+fn coin_puzzle_hash(output: &Value) -> Bytes32 {
+    match &output["wrapped_puzzle_hash"] {
+        Value::Null => Bytes32::new(bytes(output, "puzzle_hash")),
+        _ => Bytes32::new(bytes(output, "wrapped_puzzle_hash")),
+    }
+}
+
 fn network(value: &Value) -> SilentPaymentNetwork {
     match text(value, "network") {
         "mainnet" => SilentPaymentNetwork::Mainnet,
@@ -101,7 +157,8 @@ fn header() {
 
     // The sections this test walks, so that an empty or reshaped file cannot
     // pass by having nothing to check.
-    assert_eq!(list(&file, "payments").len(), 6);
+    assert_eq!(list(&file, "payments").len(), 9);
+    assert_eq!(list(&file, "settlement_payments").len(), 2);
     assert_eq!(list(&file, "labels").len(), 2);
     assert_eq!(list(&file, "addresses").len(), 4);
     assert_eq!(list(&file, "address_cases").len(), 16);
@@ -235,15 +292,32 @@ fn payments_as_sent() {
                 onetime_pk,
                 "{at}: onetime_sk * G"
             );
+
+            // The coin created: wrap(W, puzzle_hash) for a CAT output; a
+            // missing or null wrapper is XCH, whose coin has the bare hash.
+            let w = wrapper(&output["wrapper"]);
+            if let Some(w) = w {
+                assert_eq!(
+                    w.wrap(puzzle_hash),
+                    Bytes32::new(bytes(output, "wrapped_puzzle_hash")),
+                    "{at}: wrapped_puzzle_hash"
+                );
+            }
+            assert_eq!(
+                wrap_puzzle_hash(w.as_ref(), puzzle_hash),
+                coin_puzzle_hash(output),
+                "{at}: coin puzzle hash"
+            );
         }
     }
 }
 
 /// Every payment, as a scanner detects it. A `TweakData` is built by hand from
-/// the payment's tweak point and all of its output puzzle hashes, and each
+/// the payment's tweak point, the puzzle hashes of all of its output coins
+/// (`wrapped_puzzle_hash` for a CAT output) and its wrapper list, and each
 /// recipient scans it with its scan secret key and spend public key. It must
-/// find exactly its own outputs, with the listed `k`, label, `spend_tweak` and
-/// one-time secret key.
+/// find exactly its own outputs, with the listed `k`, label, wrapper, bare
+/// puzzle hash, `spend_tweak` and one-time secret key.
 #[test]
 fn payments_as_scanned() {
     let file = vectors();
@@ -252,21 +326,23 @@ fn payments_as_scanned() {
         let name = text(payment, "name");
         let outputs = list(payment, "outputs");
 
-        // The block as a scanner sees it: one tweak point, and every output
-        // of the payment (identified here by its position).
-        let data = TweakData {
-            tweak_points: vec![pk(payment, "tweak_point")],
-            outputs: outputs
+        // The block as a scanner sees it: one tweak point, every output coin
+        // of the payment (identified here by its position), and the block's
+        // wrapper list.
+        let data = TweakData::with_wrappers(
+            vec![pk(payment, "tweak_point")],
+            outputs
                 .iter()
                 .zip(0u8..)
                 .map(|(output, position)| OutputMeta {
-                    puzzle_hash: Bytes32::new(bytes(output, "puzzle_hash")),
+                    puzzle_hash: coin_puzzle_hash(output),
                     coin_id: [position; 32].into(),
                     amount: 1000 + u64::from(position),
                     parent_coin_id: [0xee; 32].into(),
                 })
                 .collect(),
-        };
+            wrapper_list(payment),
+        );
 
         // Each distinct recipient scans the payment.
         let recipients: BTreeSet<&str> = outputs
@@ -315,7 +391,17 @@ fn payments_as_scanned() {
                 assert_eq!(
                     detection.puzzle_hash,
                     Bytes32::new(bytes(output, "puzzle_hash")),
-                    "{at}: puzzle_hash"
+                    "{at}: puzzle_hash (bare)"
+                );
+                assert_eq!(
+                    detection.wrapper,
+                    wrapper(&output["wrapper"]),
+                    "{at}: wrapper"
+                );
+                assert_eq!(
+                    detection.coin().puzzle_hash,
+                    coin_puzzle_hash(output),
+                    "{at}: the coin's puzzle hash"
                 );
                 assert_eq!(detection.amount, 1000 + u64::from(position), "{at}: coin");
                 assert_eq!(detection.k, k, "{at}: k");
@@ -349,6 +435,78 @@ fn payments_as_scanned() {
             "{name}: every output is detected by its recipient"
         );
     }
+}
+
+/// A payment of `payments`, by name.
+fn payment<'a>(file: &'a Value, name: &str) -> &'a Value {
+    list(file, "payments")
+        .iter()
+        .find(|p| text(p, "name") == name)
+        .unwrap_or_else(|| panic!("no payment `{name}`"))
+}
+
+/// Vector 9, the tracer of the Extension to CATs: one CAT output found at
+/// `k = 0` under the block's wrapper list `[W]`, with the bare one-time puzzle
+/// hash, the wrapper, the wrapped coin and the one-time key of the file; and
+/// missed when the wrapper list is empty.
+#[test]
+fn vector_9_cat_output_found_only_under_the_wrapper_list() {
+    let file = vectors();
+    let v9 = payment(&file, "vector_9_cat_payment");
+    let output = &list(v9, "outputs")[0];
+    let recipient = &output["recipient"];
+
+    let w = Wrapper::cat(Bytes32::new(bytes(&v9["inputs"][0]["wrapper"], "asset_id")));
+    assert_eq!(wrapper_list(v9), vec![w]);
+    assert_eq!(
+        w.asset_id,
+        Bytes32::new(hex_literal::hex!(
+            "a031232e72df4aa270c253a530b9b0d782d46ac7b5dad63c2aa37690bbb37f6d"
+        ))
+    );
+
+    let coin_ph = Bytes32::new(bytes(output, "wrapped_puzzle_hash"));
+    let bare = Bytes32::new(bytes(output, "puzzle_hash"));
+    let meta = OutputMeta {
+        puzzle_hash: coin_ph,
+        coin_id: [9u8; 32].into(),
+        amount: 1000,
+        parent_coin_id: [0xee; 32].into(),
+    };
+    let b_scan = sk(recipient, "scan_sk");
+    let b_spend = sk(recipient, "spend_sk");
+    let spend_pk = pk(recipient, "spend_pk");
+
+    let data = TweakData::with_wrappers(vec![pk(v9, "tweak_point")], vec![meta], vec![w]);
+    let detections = scan_from_tweaks(&b_scan, &spend_pk, &data, None, K_MAX_DEFAULT);
+    assert_eq!(detections.len(), 1);
+    let d = &detections[0];
+    assert_eq!(d.k, 0);
+    assert_eq!(d.label, None);
+    assert_eq!(d.wrapper, Some(w));
+    assert_eq!(
+        d.puzzle_hash,
+        Bytes32::new(hex_literal::hex!(
+            "df83709ebd837a46717cfb59cc3c75de70606ffb5e3499c202339cf9a5a20dd4"
+        ))
+    );
+    assert_eq!(d.puzzle_hash, bare);
+    assert_eq!(
+        d.coin().puzzle_hash,
+        Bytes32::new(hex_literal::hex!(
+            "cf9f1b5dbf2bd67fa0bb69a554e38c0f2d53877fe565f34f16a16df9f6fa18e5"
+        ))
+    );
+    assert_eq!(d.coin_id, Bytes32::from([9u8; 32]));
+    assert_eq!(d.tweak.to_bytes(), bytes::<32>(output, "spend_tweak"));
+    assert_eq!(
+        d.onetime_sk(&b_spend).to_bytes(),
+        bytes::<32>(output, "onetime_sk")
+    );
+
+    // Without the wrapper list only the bare candidate is tested: missed.
+    let bare_only = TweakData::new(data.tweak_points.clone(), data.outputs.clone());
+    assert!(scan_from_tweaks(&b_scan, &spend_pk, &bare_only, None, K_MAX_DEFAULT).is_empty());
 }
 
 // ─── Labels ─────────────────────────────────────────────────────────────────

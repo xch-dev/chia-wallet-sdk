@@ -4,21 +4,32 @@
 //! Given a block's `Vec<CoinSpend>` (removals with puzzle reveals and
 //! solutions) and `Vec<Coin>` (additions), this forms the block's spend groups
 //! as in the `ScanBlock` procedure of CHIP-0057 ("Scanning a Block") and emits
-//! one tweak point `T = input_hash * A_sum` per group ("Tweak Points"), plus
-//! one [`OutputMeta`] per addition. Decompressing the block generator is the
-//! caller's responsibility; the function takes the spends as they come out of
-//! it, so it is a pure function with no `chia-consensus` dependency.
+//! one tweak point `T = input_hash * A_sum` per group ("Tweak Points"), one
+//! [`OutputMeta`] per addition, and the block's wrapper list. Decompressing the
+//! block generator is the caller's responsibility; the function takes the
+//! spends as they come out of it, so it is a pure function with no
+//! `chia-consensus` dependency.
 //!
 //! ## Spend groups
 //!
-//! - **Eligible spends.** Each [`CoinSpend`] is parsed with
-//!   [`StandardLayer::parse_puzzle`]. A spend whose puzzle is anything other
-//!   than the standard puzzle (CAT, NFT, any other puzzle) is ignored from then
-//!   on: it contributes no key, no coin id, and no edge.
+//! - **Eligible spends.** Each [`CoinSpend`] goes through
+//!   [`eligible_spend_from_nodes`], the CHIP's closed list of eligible spends
+//!   ("Eligible CAT Spends"): the standard puzzle, bare, inside `cat_v2`, or
+//!   inside `cat_v2` and the CHIP-0038 revocation layer spent on the holder's
+//!   path, each matched exactly (module hash, curried arguments and the tree
+//!   hash of the whole layer). Its key is the synthetic public key of the
+//!   standard puzzle, whatever its asset ("Spend Groups across Assets"). Any
+//!   other spend (a DID, an NFT, a settlement coin, a CAT inside a CAT, a
+//!   revocable CAT spent through the issuer's hidden path, a puzzle that only
+//!   looks like one of these layers) is ignored from then on: it contributes
+//!   no key, no coin id, and no edge.
 //! - **Pass 1 — single-input groups.** Every eligible spend on its own is a
 //!   spend group.
 //! - **Pass 2 — multi-input groups.** Every eligible spend is run to extract
-//!   its conditions. Each `ASSERT_CONCURRENT_SPEND` condition naming another
+//!   its conditions; the full puzzle reveal is run, as consensus does, so a CAT
+//!   spend's `ASSERT_CONCURRENT_SPEND`, passed through by the CAT layer (and
+//!   the revocation layer), is seen. Each `ASSERT_CONCURRENT_SPEND` condition
+//!   naming another
 //!   eligible spend of the block is a directed edge, and every strongly
 //!   connected component of two or more spends is a spend group. Strongly
 //!   connected components, not weakly connected ones, are used: a third party
@@ -40,6 +51,20 @@
 //! Tweak points are emitted in a stable order: the single-input groups in
 //! `coin_spends` order, then the multi-input groups in the order the strongly
 //! connected components are found.
+//!
+//! ## Wrapper list
+//!
+//! Every coin spend whose puzzle reveal is exactly `cat_v2` adds its wrapper
+//! ([`coin_wrapper_from_node`]), eligible or not: a settlement coin of an
+//! offer, a revocable CAT spent through the issuer's hidden path and any other
+//! CAT spend all count ("Wrapper List of a Block"). The distinct wrappers are
+//! given in the CHIP's order ([`sort_wrappers`]); a block in which no CAT coin
+//! is spent has an empty list.
+//!
+//! ## Outputs
+//!
+//! `outputs` is every addition of the block (CHIP-0057 "Output Matching
+//! Scope"), whatever its asset.
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
@@ -48,11 +73,14 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
-use crate::silent_payments::{OutputMeta, TweakData, compute_tweak_point};
-use crate::{DriverError, Layer, Puzzle, StandardLayer};
+use crate::DriverError;
+use crate::silent_payments::{
+    OutputMeta, TweakData, Wrapper, coin_wrapper_from_node, compute_tweak_point,
+    eligible_spend_from_nodes, sort_wrappers,
+};
 
-/// Parsed-standard-puzzle row carried between stages.
-struct StandardSpend {
+/// Eligible-spend row carried between stages.
+struct EligibleSpend {
     coin_id: Bytes32,
     synthetic_pk: PublicKey,
     puzzle: NodePtr,
@@ -61,11 +89,12 @@ struct StandardSpend {
 
 /// Build a [`TweakData`] from a real (or simulator) block's coin spends and
 /// additions: one tweak point per spend group (see
-/// [`crate::silent_payments::compute_tweak_point`]) and one [`OutputMeta`] per
-/// addition.
+/// [`crate::silent_payments::compute_tweak_point`]), one [`OutputMeta`] per
+/// addition, and the block's wrapper list in the CHIP's order.
 ///
-/// Spends of puzzles other than the standard puzzle are skipped silently,
-/// without panicking or returning an error.
+/// Spends that are not eligible spends are skipped silently for the groups,
+/// without panicking or returning an error; an exact `cat_v2` spend among them
+/// still adds its wrapper.
 ///
 /// See module-level docs for how the spend groups are formed and for the order
 /// of the tweak points.
@@ -80,22 +109,31 @@ pub fn tweak_data_from_block_spends(
 ) -> Result<TweakData, DriverError> {
     let mut allocator = Allocator::new();
 
-    // Eligible spends: those whose puzzle reveal is the standard puzzle.
-    let mut standard_spends: Vec<StandardSpend> = Vec::new();
+    // Eligible spends of every asset (the CHIP's closed list), and the wrapper
+    // of every exact cat_v2 spend, eligible or not.
+    let mut standard_spends: Vec<EligibleSpend> = Vec::new();
+    let mut wrappers: Vec<Wrapper> = Vec::new();
     for spend in coin_spends {
         let Ok(puzzle_ptr) = spend.puzzle_reveal.to_clvm(&mut allocator) else {
             continue;
         };
-        let parsed = Puzzle::parse(&allocator, puzzle_ptr);
-        let Ok(Some(layer)) = StandardLayer::parse_puzzle(&allocator, parsed) else {
+        if let Some(wrapper) = coin_wrapper_from_node(&allocator, puzzle_ptr) {
+            wrappers.push(wrapper);
+        }
+        // A solution that does not deserialize is read as nil, as in
+        // `eligible_spend`: only the revocable shape reads it.
+        let solution_ptr = spend
+            .solution
+            .to_clvm(&mut allocator)
+            .unwrap_or(NodePtr::NIL);
+        let Some((synthetic_pk, _wrapper)) =
+            eligible_spend_from_nodes(&allocator, puzzle_ptr, solution_ptr)
+        else {
             continue;
         };
-        let Ok(solution_ptr) = spend.solution.to_clvm(&mut allocator) else {
-            continue;
-        };
-        standard_spends.push(StandardSpend {
+        standard_spends.push(EligibleSpend {
             coin_id: spend.coin.coin_id(),
-            synthetic_pk: layer.synthetic_key,
+            synthetic_pk,
             puzzle: puzzle_ptr,
             solution: solution_ptr,
         });
@@ -183,10 +221,11 @@ pub fn tweak_data_from_block_spends(
         })
         .collect();
 
-    Ok(TweakData {
+    Ok(TweakData::with_wrappers(
         tweak_points,
         outputs,
-    })
+        sort_wrappers(wrappers),
+    ))
 }
 
 /// Iterative Tarjan strongly-connected-components over a directed graph

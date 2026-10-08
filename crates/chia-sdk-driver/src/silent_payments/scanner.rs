@@ -15,10 +15,15 @@
 //! - at each `k` the unlabeled candidate is checked first, then the change
 //!   label `m = 0`, then the registered labels; the first match decides, and
 //!   every coin with the matched puzzle hash is recorded;
+//! - each candidate is tested bare and under every wrapper of the block's
+//!   wrapper list at once ([`TweakData::wrappers`], CHIP-0057 "Matching
+//!   Outputs under Wrappers"): every coin it matches under any wrapper is
+//!   recorded with that wrapper, and no later candidate is tried at that `k`;
+//!   with an empty list every candidate is tested bare only;
 //! - the group is abandoned at the first `k` with no match, at a zero tweak, or
 //!   when `k` reaches `K_max` ("Kmax: Maximum Outputs Per Spend Group").
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
@@ -27,6 +32,7 @@ use chia_sdk_utils::silent_payments::{
     CHANGE_LABEL, LabelRegistry, SilentPaymentKeys, generate_label,
 };
 
+use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::{
     compute_shared_secret_from_tweak, derive_onetime_pk, derive_output_tweak, puzzle_hash_for_pk,
 };
@@ -66,6 +72,22 @@ pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 /// the scan key (CHIP-0057 "Tweak Points"); points that fail are skipped.
 /// Outputs are matched against all of `data.outputs` (CHIP-0057 "Output
 /// Matching Scope").
+///
+/// # CAT outputs
+///
+/// Each candidate one-time puzzle hash `h` is tested bare and under every
+/// wrapper `W` of `data.wrappers`, as `wrap(W, h)` (CHIP-0057 "Matching
+/// Outputs under Wrappers"): every coin that matches under any of them is
+/// reported with that wrapper in [`DetectedSpCoin::wrapper`] and the bare `h`
+/// in [`DetectedSpCoin::puzzle_hash`], bare matches first, then the wrappers in
+/// list order; a wrapper repeated in the list is tested once. With an empty
+/// list the scan is the bare scan.
+///
+/// The work per tweak point is about `k x (1 + labels) x (1 + wrappers)` hash
+/// computations. A caller that takes [`TweakData`] from another party (a server
+/// or a peer chooses the tweak points and the wrapper list) should bound that
+/// work itself. The list is never truncated here: a dropped wrapper is a
+/// missed payment.
 #[must_use]
 pub fn scan_from_tweaks(
     scan_sk: &SecretKey,
@@ -76,6 +98,7 @@ pub fn scan_from_tweaks(
 ) -> Vec<DetectedSpCoin> {
     let outputs = index_outputs(&data.outputs);
     let labels = label_set(scan_sk, labels);
+    let forms = wrapper_forms(&data.wrappers);
     let mut detected = Vec::new();
 
     // A scanner stops iterating a spend group when k reaches K_max.
@@ -96,12 +119,44 @@ pub fn scan_from_tweaks(
             spend_pk,
             &outputs,
             &labels,
+            &forms,
             k_bound,
             &mut detected,
         );
     }
 
     detected
+}
+
+/// The forms under which each candidate is tested: bare (`None`) first, then
+/// each wrapper of the list in list order, a wrapper equal to an earlier one
+/// skipped.
+fn wrapper_forms(wrappers: &[Wrapper]) -> Vec<Option<Wrapper>> {
+    let mut seen = HashSet::with_capacity(wrappers.len());
+    let mut forms = Vec::with_capacity(wrappers.len() + 1);
+    forms.push(None);
+    for wrapper in wrappers {
+        if seen.insert(*wrapper) {
+            forms.push(Some(*wrapper));
+        }
+    }
+    forms
+}
+
+/// Every coin whose puzzle hash is `wrap(W, base)` for a form `W`, with that
+/// form, in the order of `forms`.
+fn match_forms<'a>(
+    outputs: &HashMap<Bytes32, Vec<&'a OutputMeta>>,
+    forms: &[Option<Wrapper>],
+    base: Bytes32,
+) -> Vec<(&'a OutputMeta, Option<Wrapper>)> {
+    let mut matched = Vec::new();
+    for form in forms {
+        if let Some(coins) = outputs.get(&wrap_puzzle_hash(form.as_ref(), base)) {
+            matched.extend(coins.iter().map(|coin| (*coin, *form)));
+        }
+    }
+    matched
 }
 
 /// The labels to scan for: the change label `m = 0`, which is always included
@@ -134,27 +189,36 @@ fn index_outputs(outputs: &[OutputMeta]) -> HashMap<Bytes32, Vec<&OutputMeta>> {
 
 /// The `k` loop of the CHIP-0057 `ScanForSilentPayment` procedure for one spend
 /// group. `tweak_for_k` yields the output tweak `t_k`; it is a parameter so that
-/// the zero-tweak rule can be tested.
+/// the zero-tweak rule can be tested. `forms` are the wrapper forms of
+/// [`wrapper_forms`].
+#[allow(clippy::too_many_arguments)]
 fn scan_group(
     tweak_for_k: impl Fn(u32) -> ScalarField,
     scan_sk: &SecretKey,
     spend_pk: &PublicKey,
     outputs: &HashMap<Bytes32, Vec<&OutputMeta>>,
     labels: &[(u32, PublicKey)],
+    forms: &[Option<Wrapper>],
     k_bound: u32,
     detected: &mut Vec<DetectedSpCoin>,
 ) {
-    // Record a detection for every coin with the matched puzzle hash.
-    let mut record = |coins: &[&OutputMeta], k: u32, label: Option<u32>, tweak: &ScalarField| {
-        for coin in coins {
+    // Record a detection for every matched coin: its own coin ID, the bare
+    // candidate puzzle hash, and the wrapper under which it matched.
+    let mut record = |matched: &[(&OutputMeta, Option<Wrapper>)],
+                      base: Bytes32,
+                      k: u32,
+                      label: Option<u32>,
+                      tweak: &ScalarField| {
+        for (coin, wrapper) in matched {
             detected.push(DetectedSpCoin {
                 coin_id: coin.coin_id,
-                puzzle_hash: coin.puzzle_hash,
+                puzzle_hash: base,
                 amount: coin.amount,
                 parent_coin_id: coin.parent_coin_id,
                 k,
                 label,
                 tweak: tweak.clone(),
+                wrapper: *wrapper,
             });
         }
     };
@@ -170,8 +234,10 @@ fn scan_group(
         let candidate_pk = derive_onetime_pk(spend_pk, &output_tweak);
         let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
 
-        if let Some(coins) = outputs.get(&candidate_hash) {
-            record(coins, k, None, &output_tweak);
+        // The unlabeled candidate, bare and under every wrapper at once.
+        let matched = match_forms(outputs, forms, candidate_hash);
+        if !matched.is_empty() {
+            record(&matched, candidate_hash, k, None, &output_tweak);
             continue;
         }
 
@@ -182,11 +248,18 @@ fn scan_group(
         for &(m, label_pk) in labels {
             let labeled_pk = candidate_pk + &label_pk;
             let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
-            if let Some(coins) = outputs.get(&labeled_hash) {
+            let matched = match_forms(outputs, forms, labeled_hash);
+            if !matched.is_empty() {
                 // The label scalar is derived from the scan key, so the
                 // combined tweak needs no spend key either.
                 let (label_scalar, _) = generate_label(scan_sk, m);
-                record(coins, k, Some(m), &output_tweak.add(&label_scalar));
+                record(
+                    &matched,
+                    labeled_hash,
+                    k,
+                    Some(m),
+                    &output_tweak.add(&label_scalar),
+                );
                 found = true;
                 break;
             }
@@ -298,6 +371,7 @@ mod tests {
     #[test]
     fn tv1_scan_detects_unlabeled_k0() {
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH)],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV1_PUZZLE_HASH.into(),
@@ -341,6 +415,7 @@ mod tests {
     fn tv4_scan_detects_multi_input_aggregation() {
         // TV4 uses the same mnemonic / scan_sk / spend_sk / spend_pk as TV1.
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV4_A_SUM, TV4_INPUT_HASH)],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV4_PUZZLE_HASH.into(),
@@ -399,6 +474,7 @@ mod tests {
         );
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![identity],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV1_PUZZLE_HASH.into(),
@@ -436,6 +512,7 @@ mod tests {
         labels.register(&sk(TV1_SCAN_SK), 1);
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH)],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV3_PUZZLE_HASH.into(),
@@ -495,6 +572,7 @@ mod tests {
         let expected_secret_k1 = derive_onetime_sk(&b_spend, &t1);
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs: vec![
                 // k=0 output to satisfy the k-termination rule (without it
@@ -557,6 +635,7 @@ mod tests {
         let labeled_hash_k1 = puzzle_hash_for_pk(&labeled_pk_k1);
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs: vec![
                 // Unlabeled at k=0 (TV1's pinned PH).
@@ -609,6 +688,7 @@ mod tests {
         labels.register(&b_scan, 1);
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV1_PUZZLE_HASH.into(),
@@ -668,6 +748,7 @@ mod tests {
             .collect();
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs,
         };
@@ -692,6 +773,7 @@ mod tests {
         use chia_sdk_utils::silent_payments::SilentPaymentKeys;
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH)],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV1_PUZZLE_HASH.into(),
@@ -747,6 +829,7 @@ mod tests {
             })
             .collect();
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs,
         };
@@ -760,6 +843,7 @@ mod tests {
             &b_spend_pub,
             &outputs,
             &[],
+            &[None],
             2400,
             &mut detected,
         );
@@ -779,6 +863,7 @@ mod tests {
             &b_spend_pub,
             &outputs,
             &[],
+            &[None],
             2400,
             &mut detected,
         );
@@ -797,6 +882,7 @@ mod tests {
         labels.register(&sk(TV1_SCAN_SK), 1);
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![
                 tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH),
                 tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH),
@@ -881,6 +967,7 @@ mod tests {
         ));
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![off_subgroup, tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH)],
             outputs: vec![
                 OutputMeta {
@@ -920,6 +1007,7 @@ mod tests {
         ));
 
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs: vec![
                 OutputMeta {
@@ -981,6 +1069,7 @@ mod tests {
             parent_coin_id: [id; 32].into(),
         };
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH)],
             outputs: vec![coin(1, 10), coin(2, 20), coin(3, 30)],
         };
@@ -1019,6 +1108,7 @@ mod tests {
 
     fn tv7_data() -> TweakData {
         TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tweak_point_from(TV1_A_SUM, TV7_INPUT_HASH)],
             outputs: vec![OutputMeta {
                 puzzle_hash: TV7_PUZZLE_HASH.into(),
@@ -1096,6 +1186,7 @@ mod tests {
             &b_spend_pub,
             &outputs,
             &[],
+            &[None],
             2400,
             &mut detected,
         );
@@ -1141,6 +1232,7 @@ mod tests {
             })
             .collect();
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs,
         };
@@ -1181,6 +1273,7 @@ mod tests {
             })
             .collect();
         let data = TweakData {
+            wrappers: Vec::new(),
             tweak_points: vec![tp],
             outputs,
         };

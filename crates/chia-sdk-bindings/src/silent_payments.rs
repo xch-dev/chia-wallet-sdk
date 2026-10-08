@@ -269,10 +269,10 @@ impl From<chia_sdk_driver::TweakData> for TweakData {
 
 impl From<TweakData> for chia_sdk_driver::TweakData {
     fn from(value: TweakData) -> Self {
-        Self {
-            tweak_points: value.tweak_points,
-            outputs: value.outputs.into_iter().map(Into::into).collect(),
-        }
+        Self::new(
+            value.tweak_points,
+            value.outputs.into_iter().map(Into::into).collect(),
+        )
     }
 }
 

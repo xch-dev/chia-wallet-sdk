@@ -23,11 +23,12 @@ use chia_protocol::Coin;
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, scan_from_tweaks,
-    tweak_data_from_block_spends,
+    K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, Wrapper, compute_input_hash,
+    derive_one_time_puzzle_hash, scan_from_tweaks, tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
-    Action, DriverError, FungibleSpend, Id, Relation, SpendContext, Spends, StandardLayer,
+    Action, Cat, CatSpend, DriverError, FungibleSpend, Id, Relation, SpendContext,
+    SpendWithConditions, Spends, StandardLayer,
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator};
@@ -867,5 +868,129 @@ fn test_one_way_assertion_does_not_join_the_group() -> Result<()> {
     );
     assert_eq!(detections.len(), 1);
     assert_eq!(detections[0].amount, 1000);
+    Ok(())
+}
+
+/// A CAT payment in the simulator, the second oracle of the Extension to CATs
+/// (CHIP-0057 "Outputs in CATs", "Matching Outputs under Wrappers").
+///
+/// A CAT is issued to the sender's standard puzzle in its own transaction.
+/// That one CAT coin is then spent alone, an eligible spend (`cat_v2` around
+/// the standard puzzle), its standard puzzle creating the bare one-time puzzle
+/// hash `p` derived from the coin's own ID and key, hinted `(p)`; the CAT layer
+/// wraps it to `wrap(W, p)`.
+///
+/// Asserts:
+/// 1. The block's wrapper list is `[W]`, `W = (asset_id, None)`.
+/// 2. One detection: `k = 0`, no label, wrapper `W`, bare puzzle hash `p`,
+///    and `coin()` is the CAT coin the simulator created.
+/// 3. With the wrapper list cleared the coin is missed.
+/// 4. The detected CAT coin is spent with the one-time key through its CAT
+///    layer, and the simulator accepts the spend.
+#[test]
+fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let sender_p2 = StandardLayer::new(sender.pk);
+
+    // Issue 1,000 CAT mojos to the sender's standard puzzle.
+    let hint = ctx.hint(sender.puzzle_hash)?;
+    let (issue_cat, cats) = Cat::single_issuance(
+        &mut ctx,
+        sender.coin.coin_id(),
+        None,
+        1_000,
+        Conditions::new().create_coin(sender.puzzle_hash, 1_000, hint),
+    )?;
+    sender_p2.spend(&mut ctx, sender.coin, issue_cat)?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
+    let cat = cats[0];
+    assert_eq!(cat.info.p2_puzzle_hash, sender.puzzle_hash);
+    assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+    let w = Wrapper::cat(cat.info.asset_id);
+    assert_eq!(cat.coin.puzzle_hash, w.wrap(sender.puzzle_hash));
+
+    // The one-time puzzle hash of k = 0, from the CAT coin's own ID and key:
+    // the CAT coin spent alone is a single-input spend group.
+    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk);
+    let p = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &sender.sk,
+        &input_hash,
+        0,
+    )?;
+
+    // Spend that one CAT coin, paying p hinted (p).
+    let height_before = sim.height();
+    let memos = ctx.hint(p)?;
+    let inner = sender_p2
+        .spend_with_conditions(&mut ctx, Conditions::new().create_coin(p, 1_000, memos))?;
+    let children = Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner)])?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
+    assert_eq!(children.len(), 1);
+    let paid = children[0];
+    assert_eq!(paid.coin.puzzle_hash, w.wrap(p));
+    assert!(sim.coin_state(paid.coin.coin_id()).is_some());
+
+    // The block of the spend: one tweak point and the wrapper list [W].
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    assert_eq!(tweak_data.wrappers, vec![w]);
+    assert_eq!(tweak_data.tweak_points.len(), 1);
+
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(detections.len(), 1, "expected exactly 1 detection");
+    let detected = &detections[0];
+    assert_eq!(detected.k, 0);
+    assert_eq!(detected.label, None);
+    assert_eq!(detected.wrapper, Some(w));
+    assert_eq!(detected.puzzle_hash, p, "the bare one-time puzzle hash");
+    assert_eq!(
+        detected.coin(),
+        paid.coin,
+        "the CAT coin the simulator created"
+    );
+    assert_eq!(detected.coin_id, paid.coin.coin_id());
+    assert_eq!(detected.amount, 1_000);
+
+    // Without the block's wrapper list the CAT output is missed.
+    let mut bare = tweak_data.clone();
+    bare.wrappers.clear();
+    assert!(
+        scan_from_tweaks(
+            recipient.scan_sk(),
+            recipient.spend_pk(),
+            &bare,
+            None,
+            K_MAX_DEFAULT
+        )
+        .is_empty(),
+        "a CAT output is found only under its wrapper"
+    );
+
+    // Spend the detected CAT coin with the one-time key, through its CAT layer.
+    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let onetime_p2 = StandardLayer::new(synthetic_secret.public_key());
+    let back = ctx.hint(sender.puzzle_hash)?;
+    let inner = onetime_p2.spend_with_conditions(
+        &mut ctx,
+        Conditions::new().create_coin(sender.puzzle_hash, detected.amount, back),
+    )?;
+    Cat::spend_all(&mut ctx, &[CatSpend::new(paid, inner)])?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&synthetic_secret))?;
+
+    let post_state = sim
+        .coin_state(detected.coin_id)
+        .expect("detected CAT coin in state");
+    assert!(
+        post_state.spent_height.is_some(),
+        "the detected CAT coin must be spent with the one-time key"
+    );
+
     Ok(())
 }

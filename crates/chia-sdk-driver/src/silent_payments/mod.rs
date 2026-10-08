@@ -33,6 +33,19 @@
 //! DID, NFT, option) in the same [`crate::Spends`], and its outputs are always
 //! created by a coin of the group.
 //!
+//! # Scanning CAT outputs
+//!
+//! The Extension to CATs of CHIP-0057 widens the closed list of eligible
+//! spends to a CAT coin and a revocable CAT coin (CHIP-0038, holder's path)
+//! held in the standard puzzle, recognized by exact layer matching in
+//! [`eligible_spend`]; one `ASSERT_CONCURRENT_SPEND` cycle over XCH and CAT
+//! coins is one spend group. A CAT output is the one-time puzzle hash under the
+//! [`Wrapper`] of its asset. [`tweak_data_from_block_spends`] gives the block's
+//! wrapper list in [`TweakData::wrappers`] (every exact `cat_v2` spend adds its
+//! wrapper, [`coin_wrapper`]), [`scan_from_tweaks`] tests every candidate bare
+//! and under every wrapper of that list, and a [`DetectedSpCoin`] keeps the
+//! bare one-time puzzle hash with the wrapper under which it matched.
+//!
 //! All scalar reduction in this module flows through
 //! [`chia_sdk_types::silent_payments::ScalarField`], which enforces the
 //! unsigned-vs-signed byte-interpretation choice at the type level. See
@@ -46,6 +59,11 @@ pub use protocol::{
     aggregate_sender_sks, compute_input_hash, compute_shared_secret_from_tweak,
     compute_tweak_point, derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk,
     derive_output_tweak, puzzle_hash_for_pk,
+};
+mod layers;
+pub use layers::{
+    Wrapper, coin_wrapper, coin_wrapper_from_node, eligible_spend, eligible_spend_from_nodes,
+    sort_wrappers, wrap_puzzle_hash,
 };
 mod block_tweak_data;
 pub use block_tweak_data::tweak_data_from_block_spends;

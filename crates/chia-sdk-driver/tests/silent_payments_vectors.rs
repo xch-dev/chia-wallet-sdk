@@ -168,6 +168,7 @@ fn scan(
         &TweakData {
             tweak_points,
             outputs,
+            wrappers: Vec::new(),
         },
         labels,
         K_MAX_DEFAULT,

@@ -12,6 +12,11 @@
 //! - [`DetectedSpCoin`] is the scanner's output — one entry per detected coin,
 //!   carrying the coin and the tweak from which the holder of the spend secret
 //!   key derives the one-time key.
+//!
+//! The Extension to CATs of CHIP-0057 adds the block's wrapper list to
+//! [`TweakData`] ([`TweakData::wrappers`]) and the wrapper under which a coin
+//! matched to [`DetectedSpCoin`] ([`DetectedSpCoin::wrapper`]). XCH is the
+//! `None` case of the same fields.
 
 use std::fmt;
 
@@ -21,6 +26,7 @@ use chia_puzzle_types::Memos;
 use chia_sdk_types::silent_payments::ScalarField;
 use clvmr::NodePtr;
 
+use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
 
 /// Transport-agnostic input to the silent-payment scanner.
@@ -32,13 +38,51 @@ use super::protocol::derive_onetime_sk;
 /// outputs in a single block, but the primitive does not care about block
 /// boundaries.
 ///
+/// `wrappers` is the wrapper list of the block (CHIP-0057 "Wrapper List of a
+/// Block"): the distinct wrappers of every CAT coin spent in it. The scanner
+/// tests every candidate one-time puzzle hash bare and under every wrapper of
+/// the list ("Matching Outputs under Wrappers"). An empty list means bare
+/// candidates only, which is the whole scan of a block in which no CAT coin is
+/// spent; a CAT output is then missed. [`TweakData::new`] leaves the list
+/// empty, and [`TweakData::with_wrappers`] sets it.
+///
 /// No transport fields: no `height`, no `block_hash`, no JSON envelope. A
 /// future transport client constructs `TweakData` from its wire
 /// messages without breaking this struct's shape.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TweakData {
     pub tweak_points: Vec<PublicKey>,
     pub outputs: Vec<OutputMeta>,
+    /// The wrapper list of the block; empty when no CAT coin is spent in it.
+    pub wrappers: Vec<Wrapper>,
+}
+
+impl TweakData {
+    /// Tweak data with an empty wrapper list: candidates are tested bare only.
+    pub fn new(tweak_points: Vec<PublicKey>, outputs: Vec<OutputMeta>) -> Self {
+        Self {
+            tweak_points,
+            outputs,
+            wrappers: Vec::new(),
+        }
+    }
+
+    /// Tweak data with the block's wrapper list.
+    ///
+    /// The list is kept as given. The scanner tests every entry, so its order
+    /// does not change which coins are found; [`super::tweak_data_from_block_spends`]
+    /// gives it in the CHIP's order ([`super::sort_wrappers`]).
+    pub fn with_wrappers(
+        tweak_points: Vec<PublicKey>,
+        outputs: Vec<OutputMeta>,
+        wrappers: Vec<Wrapper>,
+    ) -> Self {
+        Self {
+            tweak_points,
+            outputs,
+            wrappers,
+        }
+    }
 }
 
 /// Coin metadata the scanner needs to identify and report a detected
@@ -62,9 +106,17 @@ pub struct OutputMeta {
 /// the index `k`, the label (if any), and the combined tweak that the holder of
 /// the spend secret key needs to derive the one-time key (CHIP-0057,
 /// "Spending"). Use [`DetectedSpCoin::onetime_sk`] for that step.
+///
+/// `puzzle_hash` is the BARE one-time puzzle hash, the tree hash of the
+/// standard puzzle of the one-time key. A coin that matched under a wrapper
+/// (a CAT output, CHIP-0057 "Matching Outputs under Wrappers") has puzzle hash
+/// `wrap(wrapper, puzzle_hash)`; [`DetectedSpCoin::coin`] returns that coin.
+/// For an XCH output (`wrapper` is `None`) the two are equal.
 #[derive(Clone)]
 pub struct DetectedSpCoin {
+    /// The ID of the matched coin.
     pub coin_id: Bytes32,
+    /// The bare one-time puzzle hash (the inner puzzle hash of a CAT output).
     pub puzzle_hash: Bytes32,
     pub amount: u64,
     pub parent_coin_id: Bytes32,
@@ -80,6 +132,9 @@ pub struct DetectedSpCoin {
     /// together with the address it links the coin to the recipient, so it must
     /// be kept private.
     pub tweak: ScalarField,
+    /// The wrapper under which the coin matched: `None` for an XCH output,
+    /// the CAT's wrapper for a CAT output.
+    pub wrapper: Option<Wrapper>,
 }
 
 /// The tweak is not printed: together with the recipient's address it links
@@ -94,15 +149,22 @@ impl fmt::Debug for DetectedSpCoin {
             .field("k", &self.k)
             .field("label", &self.label)
             .field("tweak", &"<redacted>")
+            .field("wrapper", &self.wrapper)
             .finish()
     }
 }
 
 impl DetectedSpCoin {
-    /// The detected output coin.
+    /// The detected output coin, as it is on chain: its puzzle hash is
+    /// `wrap(wrapper, puzzle_hash)`, the bare one-time puzzle hash for an XCH
+    /// output.
     #[must_use]
     pub fn coin(&self) -> Coin {
-        Coin::new(self.parent_coin_id, self.puzzle_hash, self.amount)
+        Coin::new(
+            self.parent_coin_id,
+            wrap_puzzle_hash(self.wrapper.as_ref(), self.puzzle_hash),
+            self.amount,
+        )
     }
 
     /// Derive the one-time secret key of the detected coin from the recipient's
@@ -166,11 +228,60 @@ mod tests {
             k: 7,
             label: Some(1),
             tweak: ScalarField::from_bytes_raw([0xab; 32]),
+            wrapper: None,
         };
-        for rendered in [format!("{detection:?}"), format!("{detection:#?}")] {
+        // A CAT detection: the wrapper is printed, the tweak is not.
+        let cat_detection = DetectedSpCoin {
+            wrapper: Some(super::Wrapper::revocable(
+                [0x44u8; 32].into(),
+                [0x55u8; 32].into(),
+            )),
+            ..detection.clone()
+        };
+        for rendered in [
+            format!("{detection:?}"),
+            format!("{detection:#?}"),
+            format!("{cat_detection:?}"),
+            format!("{cat_detection:#?}"),
+        ] {
             assert!(rendered.contains("<redacted>"));
             assert!(!rendered.contains("abab"));
             assert!(rendered.contains("amount: 42"));
+            assert!(rendered.contains("wrapper"));
         }
+        assert!(format!("{cat_detection:?}").contains("4444"));
+        assert!(format!("{cat_detection:?}").contains("5555"));
+    }
+
+    /// `coin()` is the coin as it is on chain: the bare puzzle hash for an XCH
+    /// detection, `wrap(W, puzzle_hash)` for a CAT detection; the coin ID is
+    /// the matched coin's.
+    #[test]
+    fn detected_coin_is_the_wrapped_coin() {
+        use super::{DetectedSpCoin, Wrapper};
+        use chia_protocol::{Bytes32, Coin};
+        use chia_sdk_types::silent_payments::ScalarField;
+
+        let bare: Bytes32 = [2u8; 32].into();
+        let parent: Bytes32 = [3u8; 32].into();
+        let w = Wrapper::cat([0x33u8; 32].into());
+        let wrapped = Coin::new(parent, w.wrap(bare), 42);
+        let detection = DetectedSpCoin {
+            coin_id: wrapped.coin_id(),
+            puzzle_hash: bare,
+            amount: 42,
+            parent_coin_id: parent,
+            k: 0,
+            label: None,
+            tweak: ScalarField::from_bytes_raw([1u8; 32]),
+            wrapper: Some(w),
+        };
+        assert_eq!(detection.coin(), wrapped);
+        assert_eq!(detection.coin().coin_id(), detection.coin_id);
+        let xch = DetectedSpCoin {
+            wrapper: None,
+            ..detection
+        };
+        assert_eq!(xch.coin(), Coin::new(parent, bare, 42));
     }
 }
