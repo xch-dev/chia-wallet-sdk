@@ -291,8 +291,10 @@ pub enum DriverError {
     /// A registered silent-payment key is not the synthetic key for its coin.
     /// `StandardArgs::curry_tree_hash(registered_pk)` must equal the coin's
     /// `p2_puzzle_hash` and `registered_sk.public_key()` must equal
-    /// `registered_pk`. Pass synthetic keys (`derive_synthetic`) or construct
-    /// them via `SyntheticSecretKey::from_raw`.
+    /// `registered_pk`; for `derive_settlement_outputs`, the public key of a
+    /// group coin's secret key must curry to its `p2_puzzle_hash`. Pass
+    /// synthetic keys (`derive_synthetic`) or construct them via
+    /// `SyntheticSecretKey::from_raw`.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment key not synthetic")]
     SilentPaymentKeyNotSynthetic,
@@ -339,10 +341,9 @@ pub enum DriverError {
     SilentPaymentCatMemos,
 
     /// The inputs of a settled silent payment are malformed (CHIP-0057
-    /// "Payments through Settlement Coins"): the spend group is empty, it does
-    /// not have one key and one wrapper per coin, or a requested payment that
-    /// is not a silent payment is listed in an asset in which the party has no
-    /// settled silent payment.
+    /// "Payments through Settlement Coins"): the spend group is empty, or a
+    /// requested payment that is not a silent payment is listed in an asset in
+    /// which the party has no settled silent payment.
     #[cfg(feature = "chip-0057")]
     #[error("invalid inputs for a silent payment through a settlement coin")]
     SilentPaymentInvalidSettlementInput,

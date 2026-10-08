@@ -26,6 +26,7 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment},
+    standard::StandardArgs,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
@@ -37,6 +38,7 @@ use clvmr::NodePtr;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::{aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash};
+use super::send_keys::SyntheticSecretKey;
 use crate::{DriverError, SpendContext};
 
 /// A requested payment as an offer lists it: `(p amount ())` for XCH
@@ -91,6 +93,25 @@ pub fn settlement_announcement(
     notarized_payment: &NotarizedPayment,
 ) -> Bytes32 {
     settlement_assertion(ctx, wrapper, notarized_payment).announcement_id
+}
+
+/// A coin of the party's spend group in `DeriveSettlementOutputs`: an XCH coin
+/// (`wrapper` is `None`) or a CAT coin held in the standard puzzle.
+///
+/// `secret_key` is the coin's SYNTHETIC secret key, the one whose public key is
+/// curried into the coin's standard puzzle, and `p2_puzzle_hash` is that
+/// standard puzzle's hash (the inner puzzle hash of a CAT coin).
+/// [`derive_settlement_outputs`] checks
+/// `StandardArgs::curry_tree_hash(secret_key.public_key()) == p2_puzzle_hash`,
+/// as the action system checks a registered key against its coin: a raw
+/// wallet key would give a key sum, and so one-time puzzle hashes, that no
+/// scanner reconstructs.
+#[derive(Debug, Clone)]
+pub struct SettlementGroupCoin {
+    pub coin_id: Bytes32,
+    pub p2_puzzle_hash: Bytes32,
+    pub secret_key: SyntheticSecretKey,
+    pub wrapper: Option<Wrapper>,
 }
 
 /// A recipient entry of `DeriveSettlementOutputs`: an output to a silent
@@ -169,9 +190,9 @@ pub struct SettlementDerivation {
 
 /// CHIP-0057 procedure `DeriveSettlementOutputs`.
 ///
-/// `sender_sks`, `coin_ids` and `coin_wrappers` are the party's spend group:
-/// one synthetic secret key, coin ID and wrapper (`None` for XCH) per coin.
-/// `recipients` are the party's recipient entries, `other_payments` its
+/// `group` is the party's spend group: one coin ID, standard puzzle hash,
+/// synthetic secret key and wrapper (`None` for XCH) per coin
+/// ([`SettlementGroupCoin`]). `recipients` are the party's recipient entries, `other_payments` its
 /// requested payments to addresses that are not silent payment addresses, and
 /// `nonce` the offer's nonce for its requested payments.
 ///
@@ -186,7 +207,10 @@ pub struct SettlementDerivation {
 /// # Errors
 ///
 /// - [`DriverError::SilentPaymentInvalidSettlementInput`] if the group is
-///   empty or does not have one key and one wrapper per coin.
+///   empty.
+/// - [`DriverError::SilentPaymentKeyNotSynthetic`] if a coin's secret key does
+///   not curry to its `p2_puzzle_hash` (a raw wallet key, or the key of
+///   another coin).
 /// - [`DriverError::SilentPayment`] with
 ///   [`SilentPaymentError::IdentityPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::IdentityPublicKey)
 ///   if a recipient's scan key or spend key is the identity element, and with
@@ -202,19 +226,29 @@ pub struct SettlementDerivation {
 ///   [`DriverError::SilentPaymentZeroInputHash`], [`DriverError::SilentPaymentZeroTweak`].
 pub fn derive_settlement_outputs(
     ctx: &mut SpendContext,
-    sender_sks: &[SecretKey],
-    coin_ids: &[Bytes32],
-    coin_wrappers: &[Option<Wrapper>],
+    group: &[SettlementGroupCoin],
     recipients: &[SettlementRecipient],
     other_payments: &[OtherPayment],
     nonce: Bytes32,
 ) -> Result<SettlementDerivation, DriverError> {
-    if coin_ids.is_empty()
-        || coin_wrappers.len() != coin_ids.len()
-        || sender_sks.len() != coin_ids.len()
-    {
+    if group.is_empty() {
         return Err(DriverError::SilentPaymentInvalidSettlementInput);
     }
+    // Each key must be the synthetic key of its coin's standard puzzle, the
+    // check `Spends::finish_with_keys` makes on a registered key.
+    if group.iter().any(|coin| {
+        Bytes32::from(StandardArgs::curry_tree_hash(
+            coin.secret_key.public_key().into_inner(),
+        )) != coin.p2_puzzle_hash
+    }) {
+        return Err(DriverError::SilentPaymentKeyNotSynthetic);
+    }
+    let sender_sks: Vec<SecretKey> = group
+        .iter()
+        .map(|coin| coin.secret_key.as_inner().clone())
+        .collect();
+    let coin_ids: Vec<Bytes32> = group.iter().map(|coin| coin.coin_id).collect();
+    let coin_wrappers: Vec<Option<Wrapper>> = group.iter().map(|coin| coin.wrapper).collect();
     // SendSilentPayment fails if any B_scan or B_m is the identity element (or
     // outside the subgroup) before anything is derived: an identity scan key
     // makes the shared secret a public constant, and an identity spend key
@@ -238,8 +272,8 @@ pub fn derive_settlement_outputs(
         return Err(DriverError::SilentPaymentAssetNotInGroup);
     }
 
-    let a_sum = aggregate_sender_sks(sender_sks)?;
-    let input_hash = compute_input_hash(coin_ids, &a_sum.public_key());
+    let a_sum = aggregate_sender_sks(&sender_sks)?;
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
 
     let mut counters: HashMap<[u8; 48], u32> = HashMap::new();
     let mut settlement_outputs = Vec::new();
@@ -342,6 +376,26 @@ mod tests {
 
     fn sk(byte: u8) -> SecretKey {
         SecretKey::from_bytes(&[byte; 32]).unwrap()
+    }
+
+    /// A coin of the group whose standard puzzle is curried with
+    /// `secret_key`'s public key, as the key is synthetic.
+    fn group_coin(
+        secret_key: &SecretKey,
+        coin_id: Bytes32,
+        wrapper: Option<Wrapper>,
+    ) -> SettlementGroupCoin {
+        SettlementGroupCoin {
+            coin_id,
+            p2_puzzle_hash: StandardArgs::curry_tree_hash(secret_key.public_key()).into(),
+            secret_key: SyntheticSecretKey::from_synthetic_unchecked(secret_key.clone()),
+            wrapper,
+        }
+    }
+
+    /// One XCH coin with the key `sk(5)`.
+    fn one_coin() -> [SettlementGroupCoin; 1] {
+        [group_coin(&sk(5), Bytes32::new([1; 32]), None)]
     }
 
     fn recipient(
@@ -455,16 +509,13 @@ mod tests {
             recipient(7, 9, None, false),
             recipient(10, 11, None, true),
         ];
-        let derivation = derive_settlement_outputs(
-            &mut ctx,
-            &sks,
-            &coin_ids,
-            &[None, None],
-            &recipients,
-            &[],
-            Bytes32::new([4; 32]),
-        )
-        .unwrap();
+        let group = [
+            group_coin(&sks[0], coin_ids[0], None),
+            group_coin(&sks[1], coin_ids[1], None),
+        ];
+        let derivation =
+            derive_settlement_outputs(&mut ctx, &group, &recipients, &[], Bytes32::new([4; 32]))
+                .unwrap();
 
         let a_sum = aggregate_sender_sks(&sks).unwrap();
         let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
@@ -512,9 +563,7 @@ mod tests {
         let other_cat = encoded_payment(&mut ctx, q, 300, Some(&w)).unwrap();
         let derivation = derive_settlement_outputs(
             &mut ctx,
-            &[sk(5)],
-            &[Bytes32::new([1; 32])],
-            &[None],
+            &one_coin(),
             &[recipient(7, 8, None, true)],
             &[
                 OtherPayment {
@@ -546,18 +595,11 @@ mod tests {
         let mut ctx = SpendContext::new();
         let w = Wrapper::cat(Bytes32::new([0x33; 32]));
         let nonce = Bytes32::new([4; 32]);
-        let coin = [Bytes32::new([1; 32])];
         let entry = [recipient(7, 8, None, true)];
 
-        let empty = derive_settlement_outputs(&mut ctx, &[], &[], &[], &entry, &[], nonce);
+        let empty = derive_settlement_outputs(&mut ctx, &[], &entry, &[], nonce);
         assert!(matches!(
             empty,
-            Err(DriverError::SilentPaymentInvalidSettlementInput)
-        ));
-        let no_wrapper =
-            derive_settlement_outputs(&mut ctx, &[sk(5)], &coin, &[], &entry, &[], nonce);
-        assert!(matches!(
-            no_wrapper,
             Err(DriverError::SilentPaymentInvalidSettlementInput)
         ));
 
@@ -565,9 +607,7 @@ mod tests {
         // entry in that asset does not.
         let group_cat = derive_settlement_outputs(
             &mut ctx,
-            &[sk(5)],
-            &coin,
-            &[None],
+            &one_coin(),
             &[recipient(7, 8, Some(w), false)],
             &[],
             nonce,
@@ -579,15 +619,59 @@ mod tests {
         assert!(
             derive_settlement_outputs(
                 &mut ctx,
-                &[sk(5)],
-                &coin,
-                &[None],
+                &one_coin(),
                 &[recipient(7, 8, Some(w), true)],
                 &[],
                 nonce,
             )
             .is_ok()
         );
+    }
+
+    /// The key of each coin must be the synthetic key of its standard
+    /// puzzle: the raw wallet key of a coin held at the synthetic key's
+    /// puzzle hash (the project pitfall), and the key of another coin, are
+    /// refused before anything is derived.
+    #[test]
+    fn non_synthetic_keys_fail() {
+        use chia_puzzle_types::DeriveSynthetic;
+
+        let mut ctx = SpendContext::new();
+        let nonce = Bytes32::new([4; 32]);
+        let entry = [recipient(7, 8, None, true)];
+        let raw = sk(5);
+        let coin_id = Bytes32::new([1; 32]);
+        // The coin is at the puzzle hash of the synthetic key, as a wallet's
+        // coins are.
+        let p2_puzzle_hash: Bytes32 =
+            StandardArgs::curry_tree_hash(raw.public_key().derive_synthetic()).into();
+
+        let with_raw_key = SettlementGroupCoin {
+            coin_id,
+            p2_puzzle_hash,
+            secret_key: SyntheticSecretKey::from_synthetic_unchecked(raw.clone()),
+            wrapper: None,
+        };
+        assert!(matches!(
+            derive_settlement_outputs(&mut ctx, &[with_raw_key], &entry, &[], nonce),
+            Err(DriverError::SilentPaymentKeyNotSynthetic)
+        ));
+
+        let mut other_coin = group_coin(&sk(6), coin_id, None);
+        other_coin.p2_puzzle_hash = p2_puzzle_hash;
+        assert!(matches!(
+            derive_settlement_outputs(&mut ctx, &[other_coin], &entry, &[], nonce),
+            Err(DriverError::SilentPaymentKeyNotSynthetic)
+        ));
+
+        // The synthetic key of that coin is accepted.
+        let synthetic = SettlementGroupCoin {
+            coin_id,
+            p2_puzzle_hash,
+            secret_key: SyntheticSecretKey::from_raw(&raw),
+            wrapper: None,
+        };
+        assert!(derive_settlement_outputs(&mut ctx, &[synthetic], &entry, &[], nonce).is_ok());
     }
 
     /// A curve point outside the prime-order subgroup.
@@ -611,10 +695,9 @@ mod tests {
     #[test]
     fn identity_or_invalid_recipient_keys_fail() {
         let mut ctx = SpendContext::new();
-        let coin = [Bytes32::new([1; 32])];
         let nonce = Bytes32::new([4; 32]);
         let derive = |ctx: &mut SpendContext, entry: SettlementRecipient| {
-            derive_settlement_outputs(ctx, &[sk(5)], &coin, &[None], &[entry], &[], nonce)
+            derive_settlement_outputs(ctx, &one_coin(), &[entry], &[], nonce)
         };
 
         for settled in [true, false] {
@@ -656,17 +739,15 @@ mod tests {
         let mut ctx = SpendContext::new();
         let mut entries = vec![recipient(7, 8, None, false); K_MAX as usize - 1];
         entries.push(recipient(7, 8, None, true));
-        let coin = [Bytes32::new([1; 32])];
         let nonce = Bytes32::new([4; 32]);
         let derivation =
-            derive_settlement_outputs(&mut ctx, &[sk(5)], &coin, &[None], &entries, &[], nonce)
-                .unwrap();
+            derive_settlement_outputs(&mut ctx, &one_coin(), &entries, &[], nonce).unwrap();
         assert_eq!(derivation.group_outputs.len(), K_MAX as usize - 1);
         assert_eq!(derivation.settlement_outputs.len(), 1);
 
         entries.push(recipient(7, 8, None, true));
         assert!(matches!(
-            derive_settlement_outputs(&mut ctx, &[sk(5)], &coin, &[None], &entries, &[], nonce),
+            derive_settlement_outputs(&mut ctx, &one_coin(), &entries, &[], nonce),
             Err(DriverError::SilentPaymentTooManyOutputs)
         ));
     }

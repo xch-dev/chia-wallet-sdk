@@ -689,10 +689,15 @@ def test_vector_9_cat_payment_through_bindings():
 
 
 def settlement_inputs(entry, other_payments):
-    """The spend group, recipient entries and other payments of a vector."""
+    """The spend group, recipient entries and other payments of a vector.
+
+    Each input is a coin of the standard puzzle curried with its synthetic
+    public key (the inner puzzle of a CAT input).
+    """
     group = [
         SilentPaymentGroupCoin(
             b32(i["coin_id"]),
+            standard_puzzle_hash(PublicKey.from_bytes(b32(i["synthetic_pk"]))),
             SecretKey.from_bytes(b32(i["synthetic_sk"])),
             json_wrapper(i["wrapper"]),
         )
@@ -930,17 +935,26 @@ def test_outputs_publish_silent_payment_requests():
     assert payment.amount == 700
 
     # The puzzle hash is the one the pure derivation gives for this group.
+    request = [
+        SilentPaymentSettlementRecipient(maker.scan_pk(), maker.spend_pk(), wrapper, True, 700)
+    ]
     expected = SilentPayments.derive_settlement_outputs(
-        [SilentPaymentGroupCoin(xch_coin.coin_id(), synthetic_sk, None)],
-        [
-            SilentPaymentSettlementRecipient(
-                maker.scan_pk(), maker.spend_pk(), wrapper, True, 700
-            )
-        ],
+        [SilentPaymentGroupCoin(xch_coin.coin_id(), maker_ph, synthetic_sk, None)],
+        request,
         [],
         nonce,
     )
     assert expected.settlement_outputs == [wrapper.wrap(payment.puzzle_hash)]
+
+    # The raw wallet key of that coin is refused: it is not the key curried
+    # into the coin's puzzle, and would pay a puzzle hash no scanner finds.
+    with pytest.raises(ValueError, match="silent payment key not synthetic"):
+        SilentPayments.derive_settlement_outputs(
+            [SilentPaymentGroupCoin(xch_coin.coin_id(), maker_ph, sender.sk, None)],
+            request,
+            [],
+            nonce,
+        )
 
     asset_info = outputs.silent_payment_asset_info()
     assert asset_info.cat_asset_ids() == [asset_id]

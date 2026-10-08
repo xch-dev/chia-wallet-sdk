@@ -30,12 +30,13 @@ use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{LineageProof, Memos};
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementDerivation, SettlementRecipient, TweakData,
-    Wrapper, aggregate_sender_sks, compute_input_hash, compute_shared_secret_from_tweak,
-    compute_tweak_point, derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk,
-    derive_output_tweak, derive_settlement_outputs, eligible_spend, encoded_payment,
-    puzzle_hash_for_pk, scan_from_tweaks, settlement_announcement, settlement_puzzle_hash,
-    sort_wrappers, wrap_puzzle_hash,
+    K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementDerivation, SettlementGroupCoin,
+    SettlementRecipient, SyntheticSecretKey, TweakData, Wrapper, aggregate_sender_sks,
+    compute_input_hash, compute_shared_secret_from_tweak, compute_tweak_point,
+    derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk, derive_output_tweak,
+    derive_settlement_outputs, eligible_spend, encoded_payment, puzzle_hash_for_pk,
+    scan_from_tweaks, settlement_announcement, settlement_puzzle_hash, sort_wrappers,
+    wrap_puzzle_hash,
 };
 use chia_sdk_driver::{Cat, CatInfo, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
 use chia_sdk_types::Conditions;
@@ -833,14 +834,22 @@ fn derive_entry(
     other_payments: &Value,
 ) -> SettlementDerivation {
     let name = text(entry, "name");
-    let inputs = list(entry, "inputs");
-    let sender_sks: Vec<SecretKey> = inputs.iter().map(|i| sk(i, "synthetic_sk")).collect();
-    let coin_ids: Vec<Bytes32> = inputs
+    // Each input is a coin of the standard puzzle curried with its synthetic
+    // public key (the inner puzzle of a CAT input).
+    let group: Vec<SettlementGroupCoin> = list(entry, "inputs")
         .iter()
-        .map(|i| Bytes32::new(bytes(i, "coin_id")))
+        .map(|i| {
+            let secret_key = sk(i, "synthetic_sk");
+            let public_key = pk(i, "synthetic_pk");
+            assert_eq!(secret_key.public_key(), public_key, "{name}: input key");
+            SettlementGroupCoin {
+                coin_id: Bytes32::new(bytes(i, "coin_id")),
+                p2_puzzle_hash: StandardArgs::curry_tree_hash(public_key).into(),
+                secret_key: SyntheticSecretKey::from_synthetic_unchecked(secret_key),
+                wrapper: wrapper(&i["wrapper"]),
+            }
+        })
         .collect();
-    let coin_wrappers: Vec<Option<Wrapper>> =
-        inputs.iter().map(|i| wrapper(&i["wrapper"])).collect();
     let recipients: Vec<SettlementRecipient> = list(entry, "outputs")
         .iter()
         .map(|output| SettlementRecipient {
@@ -879,9 +888,7 @@ fn derive_entry(
         .collect();
     derive_settlement_outputs(
         ctx,
-        &sender_sks,
-        &coin_ids,
-        &coin_wrappers,
+        &group,
         &recipients,
         &others,
         Bytes32::new(bytes(entry, "nonce")),

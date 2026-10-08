@@ -223,6 +223,7 @@
     "new": true,
     "fields": {
       "coin_id": "Bytes32",
+      "p2_puzzle_hash": "Bytes32",
       "secret_key": "SecretKey",
       "wrapper": "Option<SilentPaymentWrapper>"
     }

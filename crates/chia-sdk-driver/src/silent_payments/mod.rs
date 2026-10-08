@@ -112,9 +112,9 @@ mod scanner;
 pub use scanner::{K_MAX_DEFAULT, SilentPaymentScan, scan_from_tweaks};
 mod settlement;
 pub use settlement::{
-    OtherPayment, SettlementDerivation, SettlementGroupOutput, SettlementNotarizedPayment,
-    SettlementRecipient, derive_settlement_outputs, encoded_payment, settlement_announcement,
-    settlement_assertion, settlement_puzzle_hash,
+    OtherPayment, SettlementDerivation, SettlementGroupCoin, SettlementGroupOutput,
+    SettlementNotarizedPayment, SettlementRecipient, derive_settlement_outputs, encoded_payment,
+    settlement_announcement, settlement_assertion, settlement_puzzle_hash,
 };
 mod send_keys;
 pub(crate) use send_keys::SilentPaymentSecretKeys;
