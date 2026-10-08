@@ -3588,11 +3588,12 @@ export declare class SilentPaymentAddress {
 
 export declare class SilentPaymentGroupCoin {
   clone(): SilentPaymentGroupCoin
-  constructor(coinId: Uint8Array, p2PuzzleHash: Uint8Array, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null)
+  static fromCoin(coin: Coin, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null): SilentPaymentGroupCoin
+  constructor(coinId: Uint8Array, puzzleHash: Uint8Array, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null)
   get coinId(): Buffer
   set coinId(value: Uint8Array)
-  get p2PuzzleHash(): Buffer
-  set p2PuzzleHash(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
   get secretKey(): SecretKey
   set secretKey(value: SecretKey)
   get wrapper(): SilentPaymentWrapper | null
