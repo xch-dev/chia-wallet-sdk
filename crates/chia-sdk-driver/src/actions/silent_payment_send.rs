@@ -861,6 +861,84 @@ mod silent_payment_tests {
         Ok(())
     }
 
+    /// CHIP-0057 "Outputs in CATs": `K_MAX` counts the outputs to one scan key
+    /// in every asset. `K_MAX` outputs split across XCH and a CAT are accepted,
+    /// with one `k` sequence across the assets; the next one fails in either
+    /// asset, and another scan key still starts at 0 in the CAT.
+    #[test]
+    fn test_k_max_counts_every_asset() -> Result<()> {
+        use chia_protocol::{Bytes32, Coin};
+        use chia_sdk_types::silent_payments::K_MAX;
+
+        use crate::{Cat, CatInfo, Id, silent_payments::SilentPaymentSource};
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10_000);
+
+        // A CAT coin held in alice's standard puzzle (only applied, never
+        // spent, so it needs no lineage).
+        let asset_id = Bytes32::new([0x33; 32]);
+        let info = CatInfo::new(asset_id, None, alice.puzzle_hash);
+        let cat = Cat::new(
+            Coin::new(Bytes32::new([0x11; 32]), info.puzzle_hash().into(), 10_000),
+            None,
+            info,
+        );
+        let id = Id::Existing(asset_id);
+
+        let recipient = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x42u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x43u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+        let other = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x44u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x45u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+        spends.add(cat);
+
+        let actions: Vec<Action> = (0..K_MAX)
+            .map(|i| {
+                if i % 2 == 0 {
+                    Action::silent_payment_send(recipient.clone(), 1, Memos::None)
+                } else {
+                    Action::silent_payment_send_asset(id, recipient.clone(), 1)
+                }
+            })
+            .collect();
+        spends.apply(&mut ctx, &actions)?;
+        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+        for (i, pending) in spends.silent_payments_pending.iter().enumerate() {
+            assert_eq!(pending.k as usize, i, "one k sequence across the assets");
+            if i % 2 == 0 {
+                assert!(matches!(pending.source, SilentPaymentSource::Xch(_)));
+            } else {
+                assert_eq!(pending.source, SilentPaymentSource::Cat(id, 0));
+            }
+        }
+
+        for action in [
+            Action::silent_payment_send(recipient.clone(), 1, Memos::None),
+            Action::silent_payment_send_asset(id, recipient.clone(), 1),
+        ] {
+            let result = spends.apply(&mut ctx, &[action]);
+            assert!(
+                matches!(result, Err(DriverError::SilentPaymentTooManyOutputs)),
+                "expected SilentPaymentTooManyOutputs, got {result:?}"
+            );
+        }
+        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+
+        spends.apply(&mut ctx, &[Action::silent_payment_send_asset(id, other, 1)])?;
+        assert_eq!(spends.silent_payments_pending.last().unwrap().k, 0);
+        Ok(())
+    }
+
     /// An address assembled with an identity key (it cannot come from
     /// `decode`) is rejected when the action is applied, before anything is
     /// derived from it.

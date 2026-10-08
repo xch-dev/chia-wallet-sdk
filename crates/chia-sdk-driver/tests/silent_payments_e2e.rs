@@ -23,8 +23,9 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, Wrapper, compute_input_hash,
-    derive_one_time_puzzle_hash, scan_from_tweaks, tweak_data_from_block_spends,
+    K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, Wrapper, aggregate_sender_sks,
+    compute_input_hash, compute_tweak_point, derive_one_time_puzzle_hash, scan_from_tweaks,
+    tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
     Action, Cat, CatSpend, DriverError, FungibleSpend, Id, Relation, SpendContext,
@@ -1002,8 +1003,8 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
 // ============================================================================
 
 /// Issues `amount` mojos of a new CAT (revocable with hidden puzzle hash
-/// `hidden` when given) to the sender's standard puzzle, spending the sender's
-/// XCH coin in its own transaction, and returns the CAT coin.
+/// `hidden` when given) to the sender's standard puzzle, spending `xch_coin`
+/// of the sender in its own transaction, and returns the CAT coin.
 fn issue_cat_to(
     sim: &mut Simulator,
     ctx: &mut SpendContext,
@@ -1012,30 +1013,44 @@ fn issue_cat_to(
     hidden: Option<Bytes32>,
     amount: u64,
 ) -> Result<Cat> {
+    Ok(issue_cats_to(sim, ctx, sender, xch_coin, hidden, &[amount])?[0])
+}
+
+/// Like [`issue_cat_to`], with one CAT coin of the new asset per amount.
+fn issue_cats_to(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    sender: &BlsPairWithCoin,
+    xch_coin: Coin,
+    hidden: Option<Bytes32>,
+    amounts: &[u64],
+) -> Result<Vec<Cat>> {
     let hint = ctx.hint(sender.puzzle_hash)?;
+    let mut conditions = Conditions::new();
+    for &amount in amounts {
+        conditions = conditions.create_coin(sender.puzzle_hash, amount, hint);
+    }
     let (issue_cat, cats) = Cat::single_issuance(
         ctx,
         xch_coin.coin_id(),
         hidden,
-        amount,
-        Conditions::new().create_coin(sender.puzzle_hash, amount, hint),
+        amounts.iter().sum(),
+        conditions,
     )?;
     StandardLayer::new(sender.pk).spend(ctx, xch_coin, issue_cat)?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
-    let cat = cats[0];
-    assert_eq!(cat.info.p2_puzzle_hash, sender.puzzle_hash);
-    assert_eq!(cat.info.hidden_puzzle_hash, hidden);
-    assert!(sim.coin_state(cat.coin.coin_id()).is_some());
-    Ok(cat)
+    assert_eq!(cats.len(), amounts.len());
+    for cat in &cats {
+        assert_eq!(cat.info.p2_puzzle_hash, sender.puzzle_hash);
+        assert_eq!(cat.info.hidden_puzzle_hash, hidden);
+        assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+    }
+    Ok(cats)
 }
 
-/// The `CREATE_COIN` conditions output by the spend of `coin_id` among
-/// `coin_spends`, from running its full puzzle reveal with its solution as
-/// consensus does: `(puzzle_hash, amount, memos)`.
-fn created_coins(
-    coin_spends: &[CoinSpend],
-    coin_id: Bytes32,
-) -> Result<Vec<(Bytes32, u64, Vec<Bytes>)>> {
+/// The conditions output by the spend of `coin_id` among `coin_spends`, from
+/// running its full puzzle reveal with its solution as consensus does.
+fn run_spend(coin_spends: &[CoinSpend], coin_id: Bytes32) -> Result<(Allocator, Vec<Condition>)> {
     let spend = coin_spends
         .iter()
         .find(|cs| cs.coin.coin_id() == coin_id)
@@ -1044,8 +1059,29 @@ fn created_coins(
     let puzzle = spend.puzzle_reveal.to_clvm(&mut a)?;
     let solution = spend.solution.to_clvm(&mut a)?;
     let output = run_puzzle(&mut a, puzzle, solution)?;
+    let conditions = Vec::<Condition>::from_clvm(&a, output)?;
+    Ok((a, conditions))
+}
+
+/// The number of `ASSERT_CONCURRENT_SPEND` conditions the spend of `coin_id`
+/// outputs.
+fn concurrent_spend_assertions(coin_spends: &[CoinSpend], coin_id: Bytes32) -> Result<usize> {
+    let (_, conditions) = run_spend(coin_spends, coin_id)?;
+    Ok(conditions
+        .iter()
+        .filter(|c| matches!(c, Condition::AssertConcurrentSpend(_)))
+        .count())
+}
+
+/// The `CREATE_COIN` conditions output by the spend of `coin_id` among
+/// `coin_spends`: `(puzzle_hash, amount, memos)`.
+fn created_coins(
+    coin_spends: &[CoinSpend],
+    coin_id: Bytes32,
+) -> Result<Vec<(Bytes32, u64, Vec<Bytes>)>> {
+    let (a, conditions) = run_spend(coin_spends, coin_id)?;
     let mut created = Vec::new();
-    for condition in Vec::<Condition>::from_clvm(&a, output)? {
+    for condition in conditions {
         if let Condition::CreateCoin(cc) = condition {
             let memos = match cc.memos {
                 Memos::Some(ptr) => Vec::<Bytes>::from_clvm(&a, ptr)?,
@@ -1172,4 +1208,657 @@ fn test_simulator_e2e_cat_payment() -> Result<()> {
         &recipient,
         sender.puzzle_hash,
     )
+}
+
+/// The memo list `(p)` of a CAT output.
+fn hint_of(p: Bytes32) -> Vec<Bytes> {
+    vec![Bytes::from(p.to_vec())]
+}
+
+/// Scans the block at `height` for the recipient of `setup_e2e`.
+fn scan_block(
+    sim: &Simulator,
+    height: u32,
+    recipient: &SilentPaymentKeys,
+) -> (
+    chia_sdk_driver::silent_payments::TweakData,
+    Vec<chia_sdk_driver::silent_payments::DetectedSpCoin>,
+) {
+    let tweak_data = tweak_data_from_simulator_block(sim, height);
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    );
+    (tweak_data, detections)
+}
+
+/// One XCH coin of sender `a` and one CAT coin of sender `b` (different keys,
+/// the shape of Test Vector 10), bound by `Relation::AssertConcurrent`, paying
+/// one recipient 1,000 in the CAT and 2,000 in XCH.
+///
+/// `cat_action_first` puts the CAT action before the XCH action (Vector 10's
+/// order); `cat_added_first` adds the CAT coin to `Spends` before the XCH coin.
+/// Returns the one-time puzzle hashes `[p_0, p_1]` the test derives from both
+/// coins with the protocol functions.
+fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<[Bytes32; 2]> {
+    let (mut sim, mut ctx, b, recipient) = setup_e2e()?;
+    let a = sim.bls(2_000);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &b, b.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+    let w = Wrapper::cat(cat.info.asset_id);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(a.puzzle_hash);
+    if cat_added_first {
+        spends.add(cat);
+        spends.add(a.coin);
+    } else {
+        spends.add(a.coin);
+        spends.add(cat);
+    }
+    let cat_action = Action::silent_payment_send_asset(id, address.clone(), 1_000);
+    let xch_action = Action::silent_payment_send(address, 2_000, Memos::None);
+    let actions = if cat_action_first {
+        vec![cat_action, xch_action]
+    } else {
+        vec![xch_action, cat_action]
+    };
+    let deltas = spends.apply(&mut ctx, &actions)?;
+    let pk_map = register_keys(&mut spends, &[&a, &b]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), &[a.sk.clone(), b.sk.clone()])?;
+
+    // The two coins are bound into one 2-cycle.
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, a.coin.coin_id())?,
+        1
+    );
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, cat.coin.coin_id())?,
+        1
+    );
+
+    // One key sum and one input hash over both coins, whatever their asset.
+    let coin_ids = [a.coin.coin_id(), cat.coin.coin_id()];
+    let a_sum = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone()])?;
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let p: [Bytes32; 2] = [
+        derive_one_time_puzzle_hash(
+            recipient.scan_pk(),
+            recipient.spend_pk(),
+            &a_sum,
+            &input_hash,
+            0,
+        )?,
+        derive_one_time_puzzle_hash(
+            recipient.scan_pk(),
+            recipient.spend_pk(),
+            &a_sum,
+            &input_hash,
+            1,
+        )?,
+    ];
+    let (k_cat, k_xch) = if cat_action_first { (0, 1) } else { (1, 0) };
+
+    // The CAT coin creates the CAT output (hinted), the XCH coin the XCH
+    // output (no memo); neither has change.
+    assert_eq!(
+        created_coins(&coin_spends, cat.coin.coin_id())?,
+        vec![(w.wrap(p[k_cat]), 1_000, hint_of(p[k_cat]))]
+    );
+    assert_eq!(
+        created_coins(&coin_spends, a.coin.coin_id())?,
+        vec![(p[k_xch], 2_000, Vec::new())]
+    );
+    assert_eq!(outputs.cats[&id].len(), 1);
+    assert_eq!(outputs.cats[&id][0].info.p2_puzzle_hash, p[k_cat]);
+    assert_eq!(
+        outputs.xch,
+        vec![Coin::new(a.coin.coin_id(), p[k_xch], 2_000)]
+    );
+
+    // Both outputs are found from the block, one k across the two assets.
+    let (tweak_data, detections) = scan_block(&sim, height_before, &recipient);
+    assert_eq!(tweak_data.wrappers, vec![w]);
+    assert_eq!(detections.len(), 2, "both outputs are detected");
+    let cat_detection = detections
+        .iter()
+        .find(|d| d.wrapper.is_some())
+        .expect("the CAT output");
+    let xch_detection = detections
+        .iter()
+        .find(|d| d.wrapper.is_none())
+        .expect("the XCH output");
+    assert_eq!(
+        (
+            cat_detection.k,
+            cat_detection.wrapper,
+            cat_detection.puzzle_hash
+        ),
+        (u32::try_from(k_cat)?, Some(w), p[k_cat])
+    );
+    assert_eq!(
+        (
+            xch_detection.k,
+            xch_detection.puzzle_hash,
+            xch_detection.amount
+        ),
+        (u32::try_from(k_xch)?, p[k_xch], 2_000)
+    );
+
+    // From the group's one tweak point alone, both are found.
+    let tweak_point = compute_tweak_point(&coin_ids, &a_sum.public_key()).expect("tweak point");
+    let one_point = chia_sdk_driver::silent_payments::TweakData::with_wrappers(
+        vec![tweak_point],
+        tweak_data.outputs.clone(),
+        tweak_data.wrappers.clone(),
+    );
+    let found = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &one_point,
+        None,
+        K_MAX_DEFAULT,
+    );
+    assert_eq!(found.len(), 2, "one tweak point finds both outputs");
+
+    // Both are spent with their one-time keys.
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        outputs.cats[&id][0],
+        cat_detection,
+        &recipient,
+        a.puzzle_hash,
+    )?;
+    let synthetic_secret = xch_detection
+        .onetime_sk(recipient.spend_sk())
+        .derive_synthetic();
+    StandardLayer::new(synthetic_secret.public_key()).spend(
+        &mut ctx,
+        xch_detection.coin(),
+        Conditions::new().create_coin(a.puzzle_hash, 2_000, Memos::None),
+    )?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&synthetic_secret))?;
+    assert!(
+        sim.coin_state(xch_detection.coin_id)
+            .expect("XCH output in state")
+            .spent_height
+            .is_some()
+    );
+
+    Ok(p)
+}
+
+/// CHIP-0057 Test Vector 10 shape through the action system: an XCH coin and
+/// a CAT coin bound by `Relation::AssertConcurrent` form one spend group, with
+/// one key sum, one input hash and one tweak point, and outputs in both assets
+/// to one scan key share one sequence of `k`: the CAT output at k 0, the XCH
+/// output at k 1.
+#[test]
+fn test_xch_and_cat_coins_form_one_group_with_one_k() -> Result<()> {
+    let p = xch_and_cat_payment(true, false)?;
+    assert_ne!(p[0], p[1]);
+    Ok(())
+}
+
+/// `k` follows the order of the actions per scan key across assets: with the
+/// XCH action first the XCH output is k 0 and the CAT output k 1. The order in
+/// which the coins are added to `Spends` does not change the group (the
+/// post-check compares it as a set) or the outputs.
+#[test]
+fn test_cat_order_of_actions_sets_k() -> Result<()> {
+    let cat_first = xch_and_cat_payment(true, false)?;
+    let xch_first = xch_and_cat_payment(false, false)?;
+    let xch_first_cat_added_first = xch_and_cat_payment(false, true)?;
+    let cat_first_cat_added_first = xch_and_cat_payment(true, true)?;
+    // Same coins and keys in every run (deterministic simulator), so the same
+    // two one-time puzzle hashes, assigned to the assets by action order.
+    assert_eq!(cat_first, xch_first);
+    assert_eq!(cat_first, xch_first_cat_added_first);
+    assert_eq!(cat_first, cat_first_cat_added_first);
+    Ok(())
+}
+
+/// RESEARCH Pitfall 1 (SDK-01 adjacency): with one XCH coin and two CAT coins
+/// c1, c2 of one asset, the `ASSERT_CONCURRENT_SPEND` cycle binds the XCH coin
+/// and c1 (the first conditions spend of the asset); c2 is tied to c1 by the
+/// CAT ring only. The spend group is {XCH, c1}, the CAT output is created by
+/// c1, and the payment is detected. Deriving over {XCH, c1, c2} would give a
+/// different puzzle hash.
+#[test]
+fn test_two_cat_coins_of_one_asset_group_with_the_first() -> Result<()> {
+    let (mut sim, mut ctx, b, recipient) = setup_e2e()?;
+    let a = sim.bls(500);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cats = issue_cats_to(&mut sim, &mut ctx, &b, b.coin, None, &[600, 400])?;
+    let (c1, c2) = (cats[0], cats[1]);
+    let id = Id::Existing(c1.info.asset_id);
+    let w = Wrapper::cat(c1.info.asset_id);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(a.puzzle_hash);
+    spends.add(a.coin);
+    spends.add(c1);
+    spends.add(c2);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address, 1_000)],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&a, &b]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), &[a.sk.clone(), b.sk.clone()])?;
+
+    // The cycle binds the XCH coin and c1 only.
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, a.coin.coin_id())?,
+        1
+    );
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, c1.coin.coin_id())?,
+        1
+    );
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, c2.coin.coin_id())?,
+        0
+    );
+
+    let group = [a.coin.coin_id(), c1.coin.coin_id()];
+    let a_sum = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone()])?;
+    let p = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &a_sum,
+        &compute_input_hash(&group, &a_sum.public_key()),
+        0,
+    )?;
+    let all_three = [a.coin.coin_id(), c1.coin.coin_id(), c2.coin.coin_id()];
+    let a_sum_3 = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone(), b.sk.clone()])?;
+    let p_all_three = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &a_sum_3,
+        &compute_input_hash(&all_three, &a_sum_3.public_key()),
+        0,
+    )?;
+    assert_ne!(p, p_all_three);
+
+    // c1 creates the output; c2 creates nothing (the ring carries its value).
+    assert_eq!(
+        created_coins(&coin_spends, c1.coin.coin_id())?,
+        vec![(w.wrap(p), 1_000, hint_of(p))]
+    );
+    assert!(created_coins(&coin_spends, c2.coin.coin_id())?.is_empty());
+    assert_eq!(outputs.cats[&id].len(), 1);
+    assert_eq!(
+        outputs.cats[&id][0].coin.parent_coin_info,
+        c1.coin.coin_id()
+    );
+
+    let (_, detections) = scan_block(&sim, height_before, &recipient);
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].k, 0);
+    assert_eq!(detections[0].wrapper, Some(w));
+    assert_eq!(detections[0].puzzle_hash, p);
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        outputs.cats[&id][0],
+        &detections[0],
+        &recipient,
+        a.puzzle_hash,
+    )
+}
+
+/// A CAT-only group of two assets: one coin of each, bound in a cycle, with
+/// one output in each asset to one scan key, k 0 in the first asset and k 1 in
+/// the second, both detected from one group under their wrappers.
+#[test]
+fn test_cat_only_group_of_two_assets() -> Result<()> {
+    let (mut sim, mut ctx, b, recipient) = setup_e2e()?;
+    let second_xch = sim.new_coin(b.puzzle_hash, 500);
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat1 = issue_cat_to(&mut sim, &mut ctx, &b, b.coin, None, 1_000)?;
+    let cat2 = issue_cat_to(&mut sim, &mut ctx, &b, second_xch, None, 500)?;
+    assert_ne!(cat1.info.asset_id, cat2.info.asset_id);
+    let (id1, id2) = (
+        Id::Existing(cat1.info.asset_id),
+        Id::Existing(cat2.info.asset_id),
+    );
+    let (w1, w2) = (
+        Wrapper::cat(cat1.info.asset_id),
+        Wrapper::cat(cat2.info.asset_id),
+    );
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(b.puzzle_hash);
+    spends.add(cat1);
+    spends.add(cat2);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::silent_payment_send_asset(id1, address.clone(), 1_000),
+            Action::silent_payment_send_asset(id2, address, 500),
+        ],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&b]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&b.sk))?;
+
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, cat1.coin.coin_id())?,
+        1
+    );
+    assert_eq!(
+        concurrent_spend_assertions(&coin_spends, cat2.coin.coin_id())?,
+        1
+    );
+
+    // One term per coin, even though both coins have the same key.
+    let coin_ids = [cat1.coin.coin_id(), cat2.coin.coin_id()];
+    let a_sum = aggregate_sender_sks(&[b.sk.clone(), b.sk.clone()])?;
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let p0 = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &a_sum,
+        &input_hash,
+        0,
+    )?;
+    let p1 = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &a_sum,
+        &input_hash,
+        1,
+    )?;
+    assert_eq!(
+        created_coins(&coin_spends, cat1.coin.coin_id())?,
+        vec![(w1.wrap(p0), 1_000, hint_of(p0))]
+    );
+    assert_eq!(
+        created_coins(&coin_spends, cat2.coin.coin_id())?,
+        vec![(w2.wrap(p1), 500, hint_of(p1))]
+    );
+
+    let (tweak_data, mut detections) = scan_block(&sim, height_before, &recipient);
+    assert_eq!(
+        tweak_data.wrappers,
+        chia_sdk_driver::silent_payments::sort_wrappers(vec![w1, w2])
+    );
+    detections.sort_by_key(|d| d.k);
+    assert_eq!(detections.len(), 2);
+    assert_eq!(
+        (
+            detections[0].k,
+            detections[0].wrapper,
+            detections[0].puzzle_hash
+        ),
+        (0, Some(w1), p0)
+    );
+    assert_eq!(
+        (
+            detections[1].k,
+            detections[1].wrapper,
+            detections[1].puzzle_hash
+        ),
+        (1, Some(w2), p1)
+    );
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        outputs.cats[&id1][0],
+        &detections[0],
+        &recipient,
+        b.puzzle_hash,
+    )?;
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        outputs.cats[&id2][0],
+        &detections[1],
+        &recipient,
+        b.puzzle_hash,
+    )
+}
+
+/// A revocable CAT (CHIP-0038) spent on the holder's path is an eligible
+/// spend: its silent payment output keeps the revocation layer, so the coin's
+/// puzzle hash is `Wrapper::revocable(asset_id, hidden).wrap(p)`; it is
+/// detected under that wrapper and spent through the holder path with the
+/// one-time key.
+#[test]
+fn test_revocable_cat_holder_path_payment() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let hidden = Bytes32::new([7; 32]);
+
+    // Issue the revocable CAT with the action system.
+    let hint = ctx.hint(sender.puzzle_hash)?;
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::single_issue_cat(Some(hidden), 1_000),
+            Action::send(Id::New(0), sender.puzzle_hash, 1_000, hint),
+        ],
+    )?;
+    let issued = spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &indexmap! { sender.puzzle_hash => sender.pk },
+    )?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
+    let cat = issued.cats[&Id::New(0)][0];
+    assert_eq!(cat.info.hidden_puzzle_hash, Some(hidden));
+    assert_eq!(cat.info.p2_puzzle_hash, sender.puzzle_hash);
+    let id = Id::Existing(cat.info.asset_id);
+    let w = Wrapper::revocable(cat.info.asset_id, hidden);
+    assert_eq!(cat.coin.puzzle_hash, w.wrap(sender.puzzle_hash));
+    let height_before = sim.height();
+
+    // Pay it silently, on the holder's path (an ordinary `add`).
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(cat);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address, 1_000)],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
+
+    let p = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &sender.sk,
+        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk),
+        0,
+    )?;
+    assert_eq!(
+        created_coins(&coin_spends, cat.coin.coin_id())?,
+        vec![(w.wrap(p), 1_000, hint_of(p))],
+        "the output keeps the revocation layer and is hinted (p)"
+    );
+    let paid = outputs.cats[&id][0];
+    assert_eq!(paid.info.hidden_puzzle_hash, Some(hidden));
+    assert_eq!(paid.info.p2_puzzle_hash, p);
+    assert_eq!(paid.coin.puzzle_hash, w.wrap(p));
+
+    let (tweak_data, detections) = scan_block(&sim, height_before, &recipient);
+    assert_eq!(tweak_data.wrappers, vec![w]);
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].k, 0);
+    assert_eq!(detections[0].wrapper, Some(w));
+    assert_eq!(detections[0].puzzle_hash, p);
+    spend_detected_cat(
+        &mut sim,
+        &mut ctx,
+        paid,
+        &detections[0],
+        &recipient,
+        sender.puzzle_hash,
+    )
+}
+
+/// CHIP-0057 and CONTEXT D-04: the change of a CAT input goes to the sender's
+/// change puzzle hash as an ordinary CAT, hinted with that puzzle hash, and is
+/// not a silent payment output.
+#[test]
+fn test_cat_change_is_a_standard_cat_change() -> Result<()> {
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+    let w = Wrapper::cat(cat.info.asset_id);
+    let height_before = sim.height();
+
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(cat);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address, 600)],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
+
+    let p = derive_one_time_puzzle_hash(
+        recipient.scan_pk(),
+        recipient.spend_pk(),
+        &sender.sk,
+        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk),
+        0,
+    )?;
+    assert_eq!(
+        created_coins(&coin_spends, cat.coin.coin_id())?,
+        vec![
+            (w.wrap(p), 600, hint_of(p)),
+            (w.wrap(sender.puzzle_hash), 400, hint_of(sender.puzzle_hash)),
+        ]
+    );
+    let created = &outputs.cats[&id];
+    assert_eq!(created.len(), 2);
+    assert_eq!(created[1].info.p2_puzzle_hash, sender.puzzle_hash);
+    assert_eq!(created[1].coin.amount, 400);
+
+    // Only the payment is a silent payment output.
+    let (_, detections) = scan_block(&sim, height_before, &recipient);
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].amount, 600);
+    assert_eq!(detections[0].puzzle_hash, p);
+    Ok(())
+}
+
+/// SDK-01 edges of the group's size. A CAT coin spent alone is a
+/// single-input spend group and is accepted (also covered end to end by
+/// `test_simulator_e2e_cat_payment`). A send with no eligible coin fails:
+///
+/// - With no coin at all, an XCH send fails at apply time with the ordinary
+///   coin-selection error `NoSourceForOutput`, and a CAT send with
+///   `SilentPaymentAssetNotInGroup`.
+/// - With only a settlement coin, an XCH send fails at apply time with
+///   `SilentPaymentParentNotEligible`.
+/// - If the only coin of the group stops being an eligible spend after the
+///   action was applied (here its spend kind is replaced by a settlement spend
+///   through the public field), `prepare` finds an empty group and fails with
+///   `SilentPaymentNoXchInputs`, whose message still contains "requires an xch
+///   input".
+#[test]
+fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result<()> {
+    use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+    use chia_sdk_driver::SpendKind;
+
+    let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &sender, sender.coin, None, 1_000)?;
+    let id = Id::Existing(cat.info.asset_id);
+
+    // A CAT-only group of one coin is accepted.
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(cat);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(
+            id,
+            address.clone(),
+            1_000,
+        )],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    assert_eq!(outputs.cats[&id].len(), 1);
+    ctx.take();
+
+    // No coin at all.
+    let mut spends = Spends::new(sender.puzzle_hash);
+    let result = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+    );
+    assert!(
+        matches!(result, Err(DriverError::NoSourceForOutput)),
+        "got {result:?}"
+    );
+    let result = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send_asset(id, address.clone(), 1)],
+    );
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentAssetNotInGroup)),
+        "got {result:?}"
+    );
+
+    // Only a settlement coin.
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(Coin::new(
+        Bytes32::new([1; 32]),
+        SETTLEMENT_PAYMENT_HASH.into(),
+        1_000,
+    ));
+    let result = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+    );
+    assert!(
+        matches!(result, Err(DriverError::SilentPaymentParentNotEligible)),
+        "got {result:?}"
+    );
+
+    // The group's only coin is no longer a conditions spend at prepare time.
+    let xch = sim.new_coin(sender.puzzle_hash, 1_000);
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(xch);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[Action::silent_payment_send(address, 1_000, Memos::None)],
+    )?;
+    spends.xch.items[0].kind = SpendKind::settlement();
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+    let Err(error) = result else {
+        panic!("an empty group must fail");
+    };
+    assert!(
+        matches!(error, DriverError::SilentPaymentNoXchInputs),
+        "got {error:?}"
+    );
+    assert!(error.to_string().contains("requires an xch input"));
+    Ok(())
 }
