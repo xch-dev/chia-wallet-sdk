@@ -2907,8 +2907,9 @@ class SilentPaymentRegisteredSecretKey:
     secret_key: SecretKey
 class SilentPaymentGroupCoin:
     def clone(self) -> SilentPaymentGroupCoin: ...
-    def __init__(self, coinId: bytes, secretKey: SecretKey, wrapper: Optional[SilentPaymentWrapper] = None) -> None: ...
+    def __init__(self, coinId: bytes, p2PuzzleHash: bytes, secretKey: SecretKey, wrapper: Optional[SilentPaymentWrapper] = None) -> None: ...
     coin_id: bytes
+    p2_puzzle_hash: bytes
     secret_key: SecretKey
     wrapper: Optional[SilentPaymentWrapper]
 class SilentPaymentSettlementRecipient:
