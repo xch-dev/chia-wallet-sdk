@@ -22,7 +22,7 @@
 use std::collections::HashMap;
 
 use chia_bls::{PublicKey, SecretKey};
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment},
@@ -96,22 +96,59 @@ pub fn settlement_announcement(
 }
 
 /// A coin of the party's spend group in `DeriveSettlementOutputs`: an XCH coin
-/// (`wrapper` is `None`) or a CAT coin held in the standard puzzle.
+/// (`wrapper` is `None`) or a CAT coin whose inner puzzle is the standard
+/// puzzle (plain, or under the revocation layer of a revocable CAT).
 ///
-/// `secret_key` is the coin's SYNTHETIC secret key, the one whose public key is
-/// curried into the coin's standard puzzle, and `p2_puzzle_hash` is that
-/// standard puzzle's hash (the inner puzzle hash of a CAT coin).
-/// [`derive_settlement_outputs`] checks
-/// `StandardArgs::curry_tree_hash(secret_key.public_key()) == p2_puzzle_hash`,
-/// as the action system checks a registered key against its coin: a raw
-/// wallet key would give a key sum, and so one-time puzzle hashes, that no
-/// scanner reconstructs.
+/// - `coin_id` and `puzzle_hash` are the coin's ID and its puzzle hash on
+///   chain: the standard puzzle hash for XCH, `wrap(W, standard puzzle hash)`
+///   for a CAT coin.
+/// - `secret_key` is the coin's SYNTHETIC secret key, the one whose public key
+///   is curried into the coin's standard puzzle.
+/// - `wrapper` is the coin's asset.
+///
+/// [`derive_settlement_outputs`] checks that the key belongs to the coin:
+/// `wrap(wrapper, StandardArgs::curry_tree_hash(secret_key.public_key()))`
+/// must equal `puzzle_hash`. That is, the key curries to the coin's standard
+/// puzzle, and that puzzle under `wrapper` is the coin's puzzle. A raw wallet
+/// key, the key of another coin or the wrong wrapper is refused: it would give
+/// a key sum, and so one-time puzzle hashes, that no scanner reconstructs.
+///
+/// The check is only as good as `puzzle_hash`, which must be the coin's, not a
+/// hash computed from the key. [`SettlementGroupCoin::new`] takes the coin ID
+/// and the puzzle hash from the coin itself, so they cannot come from
+/// different coins; use it for a coin of a transaction. The fields are public
+/// because the CHIP's procedure takes coin IDs, and the coin IDs of its test
+/// vectors have no coin behind them.
 #[derive(Debug, Clone)]
 pub struct SettlementGroupCoin {
     pub coin_id: Bytes32,
-    pub p2_puzzle_hash: Bytes32,
+    pub puzzle_hash: Bytes32,
     pub secret_key: SyntheticSecretKey,
     pub wrapper: Option<Wrapper>,
+}
+
+impl SettlementGroupCoin {
+    /// The entry of `coin`, held with the synthetic key `secret_key` in the
+    /// asset `wrapper` (`None` for XCH): its coin ID and puzzle hash are the
+    /// coin's.
+    #[must_use]
+    pub fn new(coin: &Coin, secret_key: SyntheticSecretKey, wrapper: Option<Wrapper>) -> Self {
+        Self {
+            coin_id: coin.coin_id(),
+            puzzle_hash: coin.puzzle_hash,
+            secret_key,
+            wrapper,
+        }
+    }
+
+    /// Whether `secret_key` is the synthetic key of this coin:
+    /// `wrap(wrapper, StandardArgs::curry_tree_hash(secret_key.public_key()))`
+    /// equals the coin's `puzzle_hash`.
+    fn key_belongs_to_coin(&self) -> bool {
+        let p2_puzzle_hash: Bytes32 =
+            StandardArgs::curry_tree_hash(self.secret_key.public_key().into_inner()).into();
+        wrap_puzzle_hash(self.wrapper.as_ref(), p2_puzzle_hash) == self.puzzle_hash
+    }
 }
 
 /// A recipient entry of `DeriveSettlementOutputs`: an output to a silent
@@ -190,7 +227,7 @@ pub struct SettlementDerivation {
 
 /// CHIP-0057 procedure `DeriveSettlementOutputs`.
 ///
-/// `group` is the party's spend group: one coin ID, standard puzzle hash,
+/// `group` is the party's spend group: one coin ID, coin puzzle hash,
 /// synthetic secret key and wrapper (`None` for XCH) per coin
 /// ([`SettlementGroupCoin`]). `recipients` are the party's recipient entries, `other_payments` its
 /// requested payments to addresses that are not silent payment addresses, and
@@ -208,9 +245,10 @@ pub struct SettlementDerivation {
 ///
 /// - [`DriverError::SilentPaymentInvalidSettlementInput`] if the group is
 ///   empty.
-/// - [`DriverError::SilentPaymentKeyNotSynthetic`] if a coin's secret key does
-///   not curry to its `p2_puzzle_hash` (a raw wallet key, or the key of
-///   another coin).
+/// - [`DriverError::SilentPaymentKeyNotSynthetic`] if a coin's secret key,
+///   curried into the standard puzzle and wrapped in the coin's wrapper, does
+///   not give the coin's puzzle hash (a raw wallet key, the key of another
+///   coin, or the wrong wrapper).
 /// - [`DriverError::SilentPayment`] with
 ///   [`SilentPaymentError::IdentityPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::IdentityPublicKey)
 ///   if a recipient's scan key or spend key is the identity element, and with
@@ -234,13 +272,11 @@ pub fn derive_settlement_outputs(
     if group.is_empty() {
         return Err(DriverError::SilentPaymentInvalidSettlementInput);
     }
-    // Each key must be the synthetic key of its coin's standard puzzle, the
-    // check `Spends::finish_with_keys` makes on a registered key.
-    if group.iter().any(|coin| {
-        Bytes32::from(StandardArgs::curry_tree_hash(
-            coin.secret_key.public_key().into_inner(),
-        )) != coin.p2_puzzle_hash
-    }) {
+    // Each key must be the synthetic key of its coin: curried into the
+    // standard puzzle and wrapped in the coin's wrapper, it gives the coin's
+    // puzzle hash. `Spends::finish_with_keys` makes the same check on a
+    // registered key against the p2 puzzle hash of a coin it spends.
+    if !group.iter().all(SettlementGroupCoin::key_belongs_to_coin) {
         return Err(DriverError::SilentPaymentKeyNotSynthetic);
     }
     let sender_sks: Vec<SecretKey> = group
@@ -379,7 +415,8 @@ mod tests {
     }
 
     /// A coin of the group whose standard puzzle is curried with
-    /// `secret_key`'s public key, as the key is synthetic.
+    /// `secret_key`'s public key, as the key is synthetic, and wrapped in
+    /// `wrapper`.
     fn group_coin(
         secret_key: &SecretKey,
         coin_id: Bytes32,
@@ -387,7 +424,10 @@ mod tests {
     ) -> SettlementGroupCoin {
         SettlementGroupCoin {
             coin_id,
-            p2_puzzle_hash: StandardArgs::curry_tree_hash(secret_key.public_key()).into(),
+            puzzle_hash: wrap_puzzle_hash(
+                wrapper.as_ref(),
+                StandardArgs::curry_tree_hash(secret_key.public_key()).into(),
+            ),
             secret_key: SyntheticSecretKey::from_synthetic_unchecked(secret_key.clone()),
             wrapper,
         }
@@ -628,50 +668,120 @@ mod tests {
         );
     }
 
-    /// The key of each coin must be the synthetic key of its standard
-    /// puzzle: the raw wallet key of a coin held at the synthetic key's
-    /// puzzle hash (the project pitfall), and the key of another coin, are
-    /// refused before anything is derived.
+    /// The key of each coin must be the synthetic key of the coin itself: the
+    /// coin's puzzle hash is `wrap(W, curry_tree_hash(synthetic_pk))`, and the
+    /// raw wallet key, the key of another coin, the wrong wrapper and a coin
+    /// whose puzzle hash is not that key's are all refused before anything is
+    /// derived, for an XCH coin, a CAT coin and a revocable CAT coin.
     #[test]
-    fn non_synthetic_keys_fail() {
-        use chia_puzzle_types::DeriveSynthetic;
-
+    fn keys_must_belong_to_their_coin() {
         let mut ctx = SpendContext::new();
         let nonce = Bytes32::new([4; 32]);
         let entry = [recipient(7, 8, None, true)];
+        let derive = |ctx: &mut SpendContext, coin: SettlementGroupCoin| {
+            derive_settlement_outputs(ctx, &[coin], &entry, &[], nonce)
+        };
+        let refused = |result: Result<SettlementDerivation, DriverError>| {
+            matches!(result, Err(DriverError::SilentPaymentKeyNotSynthetic))
+        };
+
         let raw = sk(5);
-        let coin_id = Bytes32::new([1; 32]);
-        // The coin is at the puzzle hash of the synthetic key, as a wallet's
-        // coins are.
-        let p2_puzzle_hash: Bytes32 =
-            StandardArgs::curry_tree_hash(raw.public_key().derive_synthetic()).into();
+        let synthetic = SyntheticSecretKey::from_raw(&raw);
+        let synthetic_p2: Bytes32 =
+            StandardArgs::curry_tree_hash(synthetic.public_key().into_inner()).into();
+        let raw_p2: Bytes32 = StandardArgs::curry_tree_hash(raw.public_key()).into();
+        let raw_key = SyntheticSecretKey::from_synthetic_unchecked(raw.clone());
+        let parent = Bytes32::new([1; 32]);
+        let cat = Wrapper::cat(Bytes32::new([0x33; 32]));
+        let revocable = Wrapper::revocable(Bytes32::new([0x33; 32]), Bytes32::new([0x66; 32]));
 
-        let with_raw_key = SettlementGroupCoin {
-            coin_id,
-            p2_puzzle_hash,
-            secret_key: SyntheticSecretKey::from_synthetic_unchecked(raw.clone()),
-            wrapper: None,
-        };
-        assert!(matches!(
-            derive_settlement_outputs(&mut ctx, &[with_raw_key], &entry, &[], nonce),
-            Err(DriverError::SilentPaymentKeyNotSynthetic)
-        ));
+        for wrapper in [None, Some(cat), Some(revocable)] {
+            let at = format!("{wrapper:?}");
+            // The wallet's coin: at the puzzle hash of the synthetic key.
+            let coin = Coin::new(
+                parent,
+                wrap_puzzle_hash(wrapper.as_ref(), synthetic_p2),
+                1000,
+            );
 
-        let mut other_coin = group_coin(&sk(6), coin_id, None);
-        other_coin.p2_puzzle_hash = p2_puzzle_hash;
-        assert!(matches!(
-            derive_settlement_outputs(&mut ctx, &[other_coin], &entry, &[], nonce),
-            Err(DriverError::SilentPaymentKeyNotSynthetic)
-        ));
+            // The synthetic key of the coin is accepted, and the entry has the
+            // coin's ID.
+            let entry_of_coin = SettlementGroupCoin::new(&coin, synthetic.clone(), wrapper);
+            assert_eq!(entry_of_coin.coin_id, coin.coin_id(), "{at}");
+            assert!(derive(&mut ctx, entry_of_coin).is_ok(), "{at}");
 
-        // The synthetic key of that coin is accepted.
-        let synthetic = SettlementGroupCoin {
-            coin_id,
-            p2_puzzle_hash,
-            secret_key: SyntheticSecretKey::from_raw(&raw),
-            wrapper: None,
-        };
-        assert!(derive_settlement_outputs(&mut ctx, &[synthetic], &entry, &[], nonce).is_ok());
+            // The raw wallet key of that coin is refused. Before the coin's
+            // puzzle hash was checked, the raw key passed with a p2 puzzle
+            // hash computed from it, `curry_tree_hash(raw_pk)`.
+            assert!(
+                refused(derive(
+                    &mut ctx,
+                    SettlementGroupCoin::new(&coin, raw_key.clone(), wrapper)
+                )),
+                "{at}: raw key"
+            );
+
+            // A coin whose puzzle hash is computed from the raw key accepts
+            // the raw key, but it is another coin: its ID is not the wallet
+            // coin's, so it cannot stand for the coin the offer spends.
+            let from_raw = Coin::new(parent, wrap_puzzle_hash(wrapper.as_ref(), raw_p2), 1000);
+            let entry_from_raw = SettlementGroupCoin::new(&from_raw, raw_key.clone(), wrapper);
+            assert_ne!(entry_from_raw.coin_id, coin.coin_id(), "{at}");
+            assert!(derive(&mut ctx, entry_from_raw).is_ok(), "{at}");
+
+            // The key of another coin is refused.
+            assert!(
+                refused(derive(
+                    &mut ctx,
+                    SettlementGroupCoin::new(&coin, SyntheticSecretKey::from_raw(&sk(6)), wrapper)
+                )),
+                "{at}: another coin's key"
+            );
+
+            // A tampered puzzle hash is refused.
+            let mut tampered = SettlementGroupCoin::new(&coin, synthetic.clone(), wrapper);
+            tampered.puzzle_hash = Bytes32::new([0xab; 32]);
+            assert!(refused(derive(&mut ctx, tampered)), "{at}: tampered");
+            // So is the bare p2 puzzle hash given for a CAT coin.
+            if wrapper.is_some() {
+                let mut bare = SettlementGroupCoin::new(&coin, synthetic.clone(), wrapper);
+                bare.puzzle_hash = synthetic_p2;
+                assert!(refused(derive(&mut ctx, bare)), "{at}: bare p2");
+            }
+
+            // The wrong wrapper is refused: none, another asset, or the plain
+            // CAT for the revocable CAT and the reverse.
+            let other_asset = Wrapper::cat(Bytes32::new([0x44; 32]));
+            let plain_or_revocable = if wrapper == Some(cat) {
+                Some(revocable)
+            } else {
+                Some(cat)
+            };
+            for wrong in [None, Some(other_asset), plain_or_revocable] {
+                if wrong == wrapper {
+                    continue;
+                }
+                assert!(
+                    refused(derive(
+                        &mut ctx,
+                        SettlementGroupCoin::new(&coin, synthetic.clone(), wrong)
+                    )),
+                    "{at}: wrapper {wrong:?}"
+                );
+            }
+        }
+
+        // Every coin of the group is checked, not only the first.
+        let good = group_coin(&sk(5), Bytes32::new([1; 32]), None);
+        let mut bad = group_coin(&sk(6), Bytes32::new([2; 32]), None);
+        bad.puzzle_hash = good.puzzle_hash;
+        assert!(refused(derive_settlement_outputs(
+            &mut ctx,
+            &[good, bad],
+            &entry,
+            &[],
+            nonce
+        )));
     }
 
     /// A curve point outside the prime-order subgroup.

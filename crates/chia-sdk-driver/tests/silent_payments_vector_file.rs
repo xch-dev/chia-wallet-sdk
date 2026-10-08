@@ -834,19 +834,27 @@ fn derive_entry(
     other_payments: &Value,
 ) -> SettlementDerivation {
     let name = text(entry, "name");
-    // Each input is a coin of the standard puzzle curried with its synthetic
-    // public key (the inner puzzle of a CAT input).
+    // An input of the file is a coin ID, a synthetic key pair and a wrapper;
+    // the coin is the standard puzzle curried with `synthetic_pk`, wrapped in
+    // the input's wrapper, so its puzzle hash is
+    // `wrap(W, curry_tree_hash(synthetic_pk))`. The file gives no other coin
+    // record (its coin IDs are SHA256 of a name), so the entry is built from
+    // these fields, not with `SettlementGroupCoin::new`.
     let group: Vec<SettlementGroupCoin> = list(entry, "inputs")
         .iter()
         .map(|i| {
             let secret_key = sk(i, "synthetic_sk");
             let public_key = pk(i, "synthetic_pk");
             assert_eq!(secret_key.public_key(), public_key, "{name}: input key");
+            let w = wrapper(&i["wrapper"]);
             SettlementGroupCoin {
                 coin_id: Bytes32::new(bytes(i, "coin_id")),
-                p2_puzzle_hash: StandardArgs::curry_tree_hash(public_key).into(),
+                puzzle_hash: wrap_puzzle_hash(
+                    w.as_ref(),
+                    StandardArgs::curry_tree_hash(public_key).into(),
+                ),
                 secret_key: SyntheticSecretKey::from_synthetic_unchecked(secret_key),
-                wrapper: wrapper(&i["wrapper"]),
+                wrapper: w,
             }
         })
         .collect();

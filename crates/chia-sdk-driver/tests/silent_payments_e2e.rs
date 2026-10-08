@@ -2923,12 +2923,11 @@ fn test_settlement_paths_agree_on_an_asset_with_other_payments_only() -> Result<
     // The pure function, over the same group, entries, other payment and nonce.
     let derivation = derive_settlement_outputs(
         &mut ctx,
-        &[SettlementGroupCoin {
-            coin_id: sender.coin.coin_id(),
-            p2_puzzle_hash: sender.puzzle_hash,
-            secret_key: SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
-            wrapper: None,
-        }],
+        &[SettlementGroupCoin::new(
+            &sender.coin,
+            SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
+            None,
+        )],
         &[SettlementRecipient {
             scan_pk: address.scan_pk,
             spend_pk: address.spend_pk,

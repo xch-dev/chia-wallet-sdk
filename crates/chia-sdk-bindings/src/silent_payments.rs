@@ -523,24 +523,48 @@ pub struct SilentPaymentRegisteredSecretKey {
 // CLVM values (payments, notarized payments) cross as their serialized bytes,
 // as an offer lists them.
 
-/// One coin of a party's spend group: its coin ID, the hash of its standard
-/// puzzle (`p2_puzzle_hash`, the inner puzzle hash of a CAT coin), its
-/// SYNTHETIC secret key and its asset (`None` for XCH).
+/// One coin of a party's spend group: its coin ID, its puzzle hash on chain
+/// (the standard puzzle hash for XCH, `wrap(W, standard puzzle hash)` for a
+/// CAT coin), its SYNTHETIC secret key and its asset (`None` for XCH).
 ///
 /// Unlike `SilentPaymentRegisteredSecretKey`, which takes the raw wallet key,
 /// `secret_key` is the synthetic key, the one whose public key is curried into
-/// the coin's standard puzzle. `derive_settlement_outputs` checks that it
-/// curries to `p2_puzzle_hash` and fails otherwise
-/// (`SilentPaymentKeyNotSynthetic`): a raw wallet key would pay one-time puzzle
-/// hashes no scanner finds.
+/// the coin's standard puzzle. `derive_settlement_outputs` checks that the key
+/// belongs to the coin, `wrap(wrapper, curry_tree_hash(secret_key.public_key()))
+/// == puzzle_hash`, and fails otherwise (`SilentPaymentKeyNotSynthetic`): a raw
+/// wallet key, another coin's key or the wrong wrapper would pay one-time
+/// puzzle hashes no scanner finds.
+///
+/// `from_coin(coin, secret_key, wrapper)` takes the coin ID and the puzzle
+/// hash from the coin itself; use it for a coin of a transaction. The
+/// constructor takes them separately, for the CHIP's test vectors, whose coin
+/// IDs have no coin behind them; `puzzle_hash` must then still be the coin's,
+/// never a hash computed from the key.
 ///
 /// Privacy warning: `secret_key` is the coin's spending key.
 #[derive(Clone)]
 pub struct SilentPaymentGroupCoin {
     pub coin_id: Bytes32,
-    pub p2_puzzle_hash: Bytes32,
+    pub puzzle_hash: Bytes32,
     pub secret_key: SecretKey,
     pub wrapper: Option<SilentPaymentWrapper>,
+}
+
+impl SilentPaymentGroupCoin {
+    /// The entry of `coin`, held with the synthetic key `secret_key` in the
+    /// asset `wrapper` (`None` for XCH).
+    pub fn from_coin(
+        coin: Coin,
+        secret_key: SecretKey,
+        wrapper: Option<SilentPaymentWrapper>,
+    ) -> Result<Self> {
+        Ok(Self {
+            coin_id: coin.coin_id(),
+            puzzle_hash: coin.puzzle_hash,
+            secret_key,
+            wrapper,
+        })
+    }
 }
 
 /// A recipient entry of `derive_settlement_outputs`: `amount` of the asset
@@ -756,7 +780,7 @@ impl SilentPayments {
     /// CHIP-0057 `DeriveSettlementOutputs`: the payments a party is paid
     /// through settlement coins in an offer, derived from its own spend group.
     ///
-    /// `group` is the party's spend group (coin ID, standard puzzle hash,
+    /// `group` is the party's spend group (coin ID, coin puzzle hash,
     /// synthetic secret key and asset per coin), `recipients` its recipient entries (settled payments
     /// and the outputs of its own group, such as its change, in one `k`
     /// sequence per scan key), `other_payments` its requested payments to
@@ -765,8 +789,9 @@ impl SilentPayments {
     /// allocator and returns the CLVM values serialized.
     ///
     /// Fails, without panicking, on an empty group, a key that is not the
-    /// synthetic key of its coin, an identity recipient key, a malformed other
-    /// payment,
+    /// synthetic key of its coin (curried into the standard puzzle and wrapped
+    /// in the coin's wrapper, it must give the coin's `puzzle_hash`), an
+    /// identity recipient key, a malformed other payment,
     /// an output of the group in an asset no coin of the group holds, more
     /// than `K_max` entries to one scan key, or a zero key sum.
     pub fn derive_settlement_outputs(
@@ -782,7 +807,7 @@ impl SilentPayments {
             .into_iter()
             .map(|c| chia_sdk_driver::SettlementGroupCoin {
                 coin_id: c.coin_id,
-                p2_puzzle_hash: c.p2_puzzle_hash,
+                puzzle_hash: c.puzzle_hash,
                 secret_key: chia_sdk_driver::SyntheticSecretKey::from_synthetic_unchecked(
                     c.secret_key,
                 ),
@@ -991,8 +1016,9 @@ mod tests {
     }
 
     /// `derive_settlement_outputs` returns errors across the FFI instead of
-    /// panicking: an empty group, a raw (not synthetic) key, an other payment
-    /// that is not CLVM, and an identity scan or spend key.
+    /// panicking: an empty group, a key that does not belong to its coin (the
+    /// raw key, for an XCH and a CAT coin, and the wrong wrapper), an other
+    /// payment that is not CLVM, and an identity scan or spend key.
     #[test]
     fn derive_settlement_outputs_errors() {
         let scan = SecretKey::from_seed(&[1u8; 32]);
@@ -1022,31 +1048,61 @@ mod tests {
         let group_sk = SecretKey::from_seed(&[3u8; 32]);
         let group = vec![SilentPaymentGroupCoin {
             coin_id: Bytes32::new([5; 32]),
-            p2_puzzle_hash: StandardArgs::curry_tree_hash(group_sk.public_key()).into(),
+            puzzle_hash: StandardArgs::curry_tree_hash(group_sk.public_key()).into(),
             secret_key: group_sk.clone(),
             wrapper: None,
         }];
 
         // The raw wallet key of a coin held at its synthetic key's puzzle hash
-        // is refused, not used to derive undetectable outputs.
-        let raw_key = vec![SilentPaymentGroupCoin {
-            coin_id: Bytes32::new([5; 32]),
-            p2_puzzle_hash: StandardArgs::curry_tree_hash(group_sk.public_key().derive_synthetic())
-                .into(),
-            secret_key: group_sk.clone(),
-            wrapper: None,
-        }];
-        assert!(matches!(
-            SilentPayments::derive_settlement_outputs(
-                raw_key,
-                vec![recipient.clone()],
-                Vec::new(),
-                nonce
-            ),
-            Err(bindy::Error::Driver(
-                chia_sdk_driver::DriverError::SilentPaymentKeyNotSynthetic
-            ))
-        ));
+        // is refused, not used to derive undetectable outputs, for an XCH coin
+        // and a CAT coin; so is the coin's synthetic key under the wrong
+        // wrapper. The synthetic key under the coin's wrapper is accepted.
+        let synthetic_sk = group_sk.derive_synthetic();
+        let synthetic_p2: Bytes32 = StandardArgs::curry_tree_hash(synthetic_sk.public_key()).into();
+        let cat = SilentPaymentWrapper {
+            asset_id: Bytes32::new([6; 32]),
+            hidden_puzzle_hash: None,
+        };
+        let not_synthetic = |entry: SilentPaymentGroupCoin| {
+            matches!(
+                SilentPayments::derive_settlement_outputs(
+                    vec![entry],
+                    vec![recipient.clone()],
+                    Vec::new(),
+                    nonce
+                ),
+                Err(bindy::Error::Driver(
+                    chia_sdk_driver::DriverError::SilentPaymentKeyNotSynthetic
+                ))
+            )
+        };
+        for wrapper in [None, Some(cat.clone())] {
+            let puzzle_hash = match &wrapper {
+                None => synthetic_p2,
+                Some(w) => w.wrap(synthetic_p2).unwrap(),
+            };
+            let coin = Coin::new(Bytes32::new([5; 32]), puzzle_hash, 1);
+            let of_coin = |sk: &SecretKey, w: Option<SilentPaymentWrapper>| {
+                SilentPaymentGroupCoin::from_coin(coin, sk.clone(), w).unwrap()
+            };
+            assert_eq!(of_coin(&synthetic_sk, None).coin_id, coin.coin_id());
+            assert!(not_synthetic(of_coin(&group_sk, wrapper.clone())));
+            let wrong = if wrapper.is_some() {
+                None
+            } else {
+                Some(cat.clone())
+            };
+            assert!(not_synthetic(of_coin(&synthetic_sk, wrong)));
+            assert!(
+                SilentPayments::derive_settlement_outputs(
+                    vec![of_coin(&synthetic_sk, wrapper)],
+                    vec![recipient.clone()],
+                    Vec::new(),
+                    nonce
+                )
+                .is_ok()
+            );
+        }
         let malformed = SilentPaymentOtherPayment {
             wrapper: None,
             payment: Bytes::new(vec![0xff]),

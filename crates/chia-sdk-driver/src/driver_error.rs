@@ -292,7 +292,8 @@ pub enum DriverError {
     /// `StandardArgs::curry_tree_hash(registered_pk)` must equal the coin's
     /// `p2_puzzle_hash` and `registered_sk.public_key()` must equal
     /// `registered_pk`; for `derive_settlement_outputs`, the public key of a
-    /// group coin's secret key must curry to its `p2_puzzle_hash`. Pass
+    /// group coin's secret key, curried into the standard puzzle and wrapped
+    /// in the coin's wrapper, must give the coin's `puzzle_hash`. Pass
     /// synthetic keys (`derive_synthetic`) or construct them via
     /// `SyntheticSecretKey::from_raw`.
     #[cfg(feature = "chip-0057")]

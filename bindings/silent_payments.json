@@ -223,9 +223,19 @@
     "new": true,
     "fields": {
       "coin_id": "Bytes32",
-      "p2_puzzle_hash": "Bytes32",
+      "puzzle_hash": "Bytes32",
       "secret_key": "SecretKey",
       "wrapper": "Option<SilentPaymentWrapper>"
+    },
+    "methods": {
+      "from_coin": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin",
+          "secret_key": "SecretKey",
+          "wrapper": "Option<SilentPaymentWrapper>"
+        }
+      }
     }
   },
   "SilentPaymentSettlementRecipient": {

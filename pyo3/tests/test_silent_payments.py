@@ -691,18 +691,24 @@ def test_vector_9_cat_payment_through_bindings():
 def settlement_inputs(entry, other_payments):
     """The spend group, recipient entries and other payments of a vector.
 
-    Each input is a coin of the standard puzzle curried with its synthetic
-    public key (the inner puzzle of a CAT input).
+    An input of the file is a coin ID, a synthetic key pair and a wrapper; the
+    coin is the standard puzzle curried with `synthetic_pk`, wrapped in the
+    input's wrapper, so its puzzle hash is wrap(W, standard puzzle hash). The
+    file gives no other coin record (its coin IDs are SHA256 of a name), so
+    the entry is built from these fields, not with `from_coin`.
     """
-    group = [
-        SilentPaymentGroupCoin(
+
+    def entry_of(i):
+        wrapper = json_wrapper(i["wrapper"])
+        p2 = standard_puzzle_hash(PublicKey.from_bytes(b32(i["synthetic_pk"])))
+        return SilentPaymentGroupCoin(
             b32(i["coin_id"]),
-            standard_puzzle_hash(PublicKey.from_bytes(b32(i["synthetic_pk"]))),
+            p2 if wrapper is None else wrapper.wrap(p2),
             SecretKey.from_bytes(b32(i["synthetic_sk"])),
-            json_wrapper(i["wrapper"]),
+            wrapper,
         )
-        for i in entry["inputs"]
-    ]
+
+    group = [entry_of(i) for i in entry["inputs"]]
     recipients = [
         SilentPaymentSettlementRecipient(
             PublicKey.from_bytes(b32(o["recipient"]["scan_pk"])),
@@ -940,23 +946,21 @@ def test_outputs_publish_silent_payment_requests():
     request = [
         SilentPaymentSettlementRecipient(maker.scan_pk(), maker.spend_pk(), wrapper, True, 700)
     ]
-    expected = SilentPayments.derive_settlement_outputs(
-        [SilentPaymentGroupCoin(xch_coin.coin_id(), maker_ph, synthetic_sk, None)],
-        request,
-        [],
-        nonce,
-    )
+    of_coin = SilentPaymentGroupCoin.from_coin(xch_coin, synthetic_sk, None)
+    assert of_coin.coin_id == xch_coin.coin_id()
+    assert of_coin.puzzle_hash == maker_ph
+    expected = SilentPayments.derive_settlement_outputs([of_coin], request, [], nonce)
     assert expected.settlement_outputs == [wrapper.wrap(payment.puzzle_hash)]
 
     # The raw wallet key of that coin is refused: it is not the key curried
     # into the coin's puzzle, and would pay a puzzle hash no scanner finds.
-    with pytest.raises(ValueError, match="silent payment key not synthetic"):
-        SilentPayments.derive_settlement_outputs(
-            [SilentPaymentGroupCoin(xch_coin.coin_id(), maker_ph, sender.sk, None)],
-            request,
-            [],
-            nonce,
-        )
+    # So is the synthetic key of the XCH coin under a CAT wrapper.
+    for group_coin in [
+        SilentPaymentGroupCoin.from_coin(xch_coin, sender.sk, None),
+        SilentPaymentGroupCoin.from_coin(xch_coin, synthetic_sk, wrapper),
+    ]:
+        with pytest.raises(ValueError, match="silent payment key not synthetic"):
+            SilentPayments.derive_settlement_outputs([group_coin], request, [], nonce)
 
     asset_info = outputs.silent_payment_asset_info()
     assert asset_info.cat_asset_ids() == [asset_id]
