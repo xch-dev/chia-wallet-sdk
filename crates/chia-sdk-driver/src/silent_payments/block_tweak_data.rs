@@ -65,10 +65,22 @@
 //!
 //! `outputs` is every addition of the block (CHIP-0057 "Output Matching
 //! Scope"), whatever its asset.
+//!
+//! ## Group outputs (cut-through)
+//!
+//! [`spend_groups_from_block_spends`] gives each spend group with the coins
+//! that count as its outputs for a light-wallet server (CHIP-0057 Appendix A,
+//! "Light Client Support"): the children of its coins, and the children of
+//! every spend whose puzzle announcement a coin of the group asserts, so that a
+//! payment through a settlement coin of an offer stays with the party that
+//! asserted it. [`tweak_data_from_block_spends`] computes its tweak points from
+//! the same groups; its `outputs` stay every addition of the block.
+
+use std::collections::{HashMap, HashSet};
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::{Condition, announcement_id, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
@@ -83,14 +95,73 @@ use crate::silent_payments::{
 struct EligibleSpend {
     coin_id: Bytes32,
     synthetic_pk: PublicKey,
+    wrapper: Option<Wrapper>,
+    /// The position of the spend in the block's coin spends.
+    spend_index: usize,
     puzzle: NodePtr,
     solution: NodePtr,
+}
+
+/// A spend group of a block (CHIP-0057 "Spend Groups across Assets"), with the
+/// coins that count as its outputs for light-wallet cut-through.
+///
+/// `coin_ids` and `member_wrappers` are aligned: one entry per eligible spend
+/// of the group, in the block's order, with its wrapper (`None` for an XCH
+/// coin). `tweak_point` is `input_hash * A_sum` of the group.
+///
+/// `outputs` are the children of the group's coins, then the children of
+/// every other spend of the block whose puzzle announcement a coin of the
+/// group asserts (`ASSERT_PUZZLE_ANNOUNCEMENT`), de-duplicated by coin ID
+/// (CHIP-0057 Appendix A, "Light Client Support"). Through that second part a
+/// payment created by a settlement coin of an offer stays with the party that
+/// asserted it ("Payments through Settlement Coins"). Every spend that makes an
+/// asserted announcement counts, since anyone can fund a coin that makes the
+/// same one; coin announcements are not followed.
+///
+/// A light-wallet server serves each group's tweak point with its `outputs`
+/// (cut-through). A full scanner still matches every addition of the block
+/// ([`tweak_data_from_block_spends`], CHIP-0057 "Output Matching Scope").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpendGroup {
+    pub coin_ids: Vec<Bytes32>,
+    pub tweak_point: PublicKey,
+    pub member_wrappers: Vec<Option<Wrapper>>,
+    pub outputs: Vec<Coin>,
+}
+
+/// The spend groups of a block, from its coin spends and additions: the
+/// single-input groups (Pass 1) and the multi-input groups (Pass 2) that
+/// [`tweak_data_from_block_spends`] computes its tweak points from, in the
+/// same order, each with its coin IDs, wrappers, tweak point and outputs (see
+/// [`SpendGroup`]). Groups that have no tweak point (a key sum that is the
+/// identity element, or a zero input hash) are left out, as there.
+///
+/// To find the spends whose puzzle announcements a group asserts, the spends
+/// of the block that are not eligible spends are run, but only when some
+/// eligible spend asserts a puzzle announcement, so a block without offers
+/// costs what [`tweak_data_from_block_spends`] costs.
+///
+/// # Errors
+///
+/// The current implementation never returns an error; the `Result` return
+/// type leaves room for validation to be added without an API break.
+pub fn spend_groups_from_block_spends(
+    coin_spends: &[CoinSpend],
+    additions: &[Coin],
+) -> Result<Vec<SpendGroup>, DriverError> {
+    Ok(block_groups(coin_spends, additions, true).groups)
 }
 
 /// Build a [`TweakData`] from a real (or simulator) block's coin spends and
 /// additions: one tweak point per spend group (see
 /// [`crate::silent_payments::compute_tweak_point`]), one [`OutputMeta`] per
 /// addition, and the block's wrapper list in the CHIP's order.
+///
+/// The tweak points are those of [`spend_groups_from_block_spends`], in its
+/// order, with byte-identical points given once; the groups are computed by
+/// the same pass, without their outputs. `outputs` is every addition of the
+/// block, not a group's outputs: a scanner matches every coin created in the
+/// block (CHIP-0057 "Output Matching Scope").
 ///
 /// Spends that are not eligible spends are skipped silently for the groups,
 /// without panicking or returning an error; an exact `cat_v2` spend among them
@@ -107,13 +178,52 @@ pub fn tweak_data_from_block_spends(
     coin_spends: &[CoinSpend],
     additions: &[Coin],
 ) -> Result<TweakData, DriverError> {
+    let BlockGroups { groups, wrappers } = block_groups(coin_spends, additions, false);
+
+    // Byte-identical tweak points are given once, keeping the first occurrence
+    // to preserve the documented order. Overlapping passes (a coin's singleton
+    // plus its SCC membership) never drop a group that merely shares a coin.
+    let mut tweak_points: Vec<PublicKey> = Vec::new();
+    let mut seen: HashSet<[u8; 48]> = HashSet::new();
+    for group in groups {
+        if seen.insert(group.tweak_point.to_bytes()) {
+            tweak_points.push(group.tweak_point);
+        }
+    }
+
+    // One OutputMeta per addition.
+    let outputs: Vec<OutputMeta> = additions
+        .iter()
+        .map(|coin| OutputMeta {
+            puzzle_hash: coin.puzzle_hash,
+            coin_id: coin.coin_id(),
+            amount: coin.amount,
+            parent_coin_id: coin.parent_coin_info,
+        })
+        .collect();
+
+    Ok(TweakData::with_wrappers(tweak_points, outputs, wrappers))
+}
+
+/// The spend groups and the wrapper list of a block.
+struct BlockGroups {
+    groups: Vec<SpendGroup>,
+    wrappers: Vec<Wrapper>,
+}
+
+/// Forms the block's spend groups (Pass 1 and Pass 2) and its wrapper list.
+/// With `with_outputs`, each group's outputs are computed too; otherwise they
+/// are left empty and no spend is run beyond what Pass 2 needs.
+fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: bool) -> BlockGroups {
     let mut allocator = Allocator::new();
 
     // Eligible spends of every asset (the CHIP's closed list), and the wrapper
-    // of every exact cat_v2 spend, eligible or not.
+    // of every exact cat_v2 spend, eligible or not. The other spends are kept
+    // in case a group asserts one of their puzzle announcements.
     let mut standard_spends: Vec<EligibleSpend> = Vec::new();
+    let mut other_spends: Vec<(usize, NodePtr, NodePtr)> = Vec::new();
     let mut wrappers: Vec<Wrapper> = Vec::new();
-    for spend in coin_spends {
+    for (spend_index, spend) in coin_spends.iter().enumerate() {
         let Ok(puzzle_ptr) = spend.puzzle_reveal.to_clvm(&mut allocator) else {
             continue;
         };
@@ -126,14 +236,17 @@ pub fn tweak_data_from_block_spends(
             .solution
             .to_clvm(&mut allocator)
             .unwrap_or(NodePtr::NIL);
-        let Some((synthetic_pk, _wrapper)) =
+        let Some((synthetic_pk, wrapper)) =
             eligible_spend_from_nodes(&allocator, puzzle_ptr, solution_ptr)
         else {
+            other_spends.push((spend_index, puzzle_ptr, solution_ptr));
             continue;
         };
         standard_spends.push(EligibleSpend {
             coin_id: spend.coin.coin_id(),
             synthetic_pk,
+            wrapper,
+            spend_index,
             puzzle: puzzle_ptr,
             solution: solution_ptr,
         });
@@ -150,6 +263,12 @@ pub fn tweak_data_from_block_spends(
     for i in 0..standard_spends.len() {
         groups.push(vec![i]);
     }
+
+    // The puzzle announcements each eligible spend asserts, and every spend
+    // that makes each puzzle announcement (by announcement ID), for the
+    // groups' outputs.
+    let mut asserted: Vec<Vec<Bytes32>> = vec![Vec::new(); standard_spends.len()];
+    let mut announcers: HashMap<Bytes32, Vec<usize>> = HashMap::new();
 
     // Pass 2 — strongly connected components of the `ASSERT_CONCURRENT_SPEND`
     // graph over all eligible spends.
@@ -171,10 +290,23 @@ pub fn tweak_data_from_block_spends(
                 continue;
             };
             for cond in conditions {
-                if let Condition::AssertConcurrentSpend(a) = cond
-                    && let Some(&target_pos) = coin_id_to_pos.get(&a.coin_id)
-                {
-                    adj[pos].push(target_pos);
+                match cond {
+                    Condition::AssertConcurrentSpend(a) => {
+                        if let Some(&target_pos) = coin_id_to_pos.get(&a.coin_id) {
+                            adj[pos].push(target_pos);
+                        }
+                    }
+                    Condition::AssertPuzzleAnnouncement(a) if with_outputs => {
+                        asserted[pos].push(a.announcement_id);
+                    }
+                    Condition::CreatePuzzleAnnouncement(c) if with_outputs => {
+                        let puzzle_hash = coin_spends[ss.spend_index].coin.puzzle_hash;
+                        announcers
+                            .entry(announcement_id(puzzle_hash, &c.message))
+                            .or_default()
+                            .push(ss.spend_index);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -187,17 +319,54 @@ pub fn tweak_data_from_block_spends(
         }
     }
 
-    // Per-group aggregation and tweak point emission, de-duplicated by
-    // the 48-byte compressed point (keeping the first occurrence to preserve the
-    // documented emission order). Overlapping passes (a coin's singleton plus its
-    // SCC membership) can yield byte-identical points; only byte-equal duplicates
-    // are dropped, never groups that merely share a coin.
-    let mut tweak_points: Vec<PublicKey> = Vec::new();
-    let mut seen: std::collections::HashSet<[u8; 48]> = std::collections::HashSet::new();
-    for group in groups {
-        let coin_ids: Vec<Bytes32> = group.iter().map(|&i| standard_spends[i].coin_id).collect();
-        let mut a_sum = standard_spends[group[0]].synthetic_pk;
-        for &i in &group[1..] {
+    // The spends that are not eligible are run only when an eligible spend
+    // asserts a puzzle announcement: they can only matter as its announcer.
+    if with_outputs && asserted.iter().any(|ids| !ids.is_empty()) {
+        for &(spend_index, puzzle, solution) in &other_spends {
+            let Ok(output) = run_puzzle(&mut allocator, puzzle, solution) else {
+                continue;
+            };
+            let Ok(conditions) = Vec::<Condition>::from_clvm(&allocator, output) else {
+                continue;
+            };
+            for cond in conditions {
+                if let Condition::CreatePuzzleAnnouncement(c) = cond {
+                    let puzzle_hash = coin_spends[spend_index].coin.puzzle_hash;
+                    announcers
+                        .entry(announcement_id(puzzle_hash, &c.message))
+                        .or_default()
+                        .push(spend_index);
+                }
+            }
+        }
+        // Announcers in the block's order, each once.
+        for spends in announcers.values_mut() {
+            spends.sort_unstable();
+            spends.dedup();
+        }
+    }
+
+    // The block's additions by parent coin ID.
+    let mut children: HashMap<Bytes32, Vec<usize>> = HashMap::new();
+    if with_outputs {
+        for (index, coin) in additions.iter().enumerate() {
+            children
+                .entry(coin.parent_coin_info)
+                .or_default()
+                .push(index);
+        }
+    }
+
+    // Per-group aggregation. The members are listed in the block's order.
+    let mut spend_groups: Vec<SpendGroup> = Vec::new();
+    for mut members in groups {
+        members.sort_unstable();
+        let coin_ids: Vec<Bytes32> = members
+            .iter()
+            .map(|&i| standard_spends[i].coin_id)
+            .collect();
+        let mut a_sum = standard_spends[members[0]].synthetic_pk;
+        for &i in &members[1..] {
             a_sum += &standard_spends[i].synthetic_pk;
         }
         // A group whose keys sum to the identity element, or whose input hash is
@@ -205,27 +374,79 @@ pub fn tweak_data_from_block_spends(
         let Some(tweak_point) = compute_tweak_point(&coin_ids, &a_sum) else {
             continue;
         };
-        if seen.insert(tweak_point.to_bytes()) {
-            tweak_points.push(tweak_point);
-        }
+        let outputs = if with_outputs {
+            group_outputs(
+                &members,
+                &standard_spends,
+                &asserted,
+                &announcers,
+                &children,
+                coin_spends,
+                additions,
+            )
+        } else {
+            Vec::new()
+        };
+        spend_groups.push(SpendGroup {
+            member_wrappers: members
+                .iter()
+                .map(|&i| standard_spends[i].wrapper)
+                .collect(),
+            coin_ids,
+            tweak_point,
+            outputs,
+        });
     }
 
-    // One OutputMeta per addition.
-    let outputs: Vec<OutputMeta> = additions
-        .iter()
-        .map(|coin| OutputMeta {
-            puzzle_hash: coin.puzzle_hash,
-            coin_id: coin.coin_id(),
-            amount: coin.amount,
-            parent_coin_id: coin.parent_coin_info,
-        })
-        .collect();
+    BlockGroups {
+        groups: spend_groups,
+        wrappers: sort_wrappers(wrappers),
+    }
+}
 
-    Ok(TweakData::with_wrappers(
-        tweak_points,
-        outputs,
-        sort_wrappers(wrappers),
-    ))
+/// The outputs of a group (CHIP-0057 Appendix A): the children of its members,
+/// then, for each member and each puzzle announcement it asserts, the children
+/// of every spend that makes that announcement and is not a member,
+/// de-duplicated by coin ID in that order. Coin announcements are not
+/// followed: CAT2 makes and asserts coin announcements for its ring, and
+/// wallets use them to bind their own coins.
+fn group_outputs(
+    members: &[usize],
+    standard_spends: &[EligibleSpend],
+    asserted: &[Vec<Bytes32>],
+    announcers: &HashMap<Bytes32, Vec<usize>>,
+    children: &HashMap<Bytes32, Vec<usize>>,
+    coin_spends: &[CoinSpend],
+    additions: &[Coin],
+) -> Vec<Coin> {
+    let member_ids: HashSet<Bytes32> = members
+        .iter()
+        .map(|&i| standard_spends[i].coin_id)
+        .collect();
+    let mut outputs: Vec<Coin> = Vec::new();
+    let mut seen: HashSet<Bytes32> = HashSet::new();
+    let mut add_children = |parent: Bytes32| {
+        for &index in children.get(&parent).into_iter().flatten() {
+            let coin = additions[index];
+            if seen.insert(coin.coin_id()) {
+                outputs.push(coin);
+            }
+        }
+    };
+    for &member in members {
+        add_children(standard_spends[member].coin_id);
+    }
+    for &member in members {
+        for id in &asserted[member] {
+            for &announcer in announcers.get(id).into_iter().flatten() {
+                let announcer_id = coin_spends[announcer].coin.coin_id();
+                if !member_ids.contains(&announcer_id) {
+                    add_children(announcer_id);
+                }
+            }
+        }
+    }
+    outputs
 }
 
 /// Iterative Tarjan strongly-connected-components over a directed graph
@@ -948,6 +1169,7 @@ mod tests {
 
     use crate::silent_payments::{Wrapper, eligible_spend};
     use crate::{Cat, CatInfo, CatSpend, Spend, SpendWithConditions};
+    use chia_protocol::Bytes;
     use chia_puzzle_types::{LineageProof, Memos};
     use chia_sdk_types::puzzles::SettlementPayment;
 
@@ -1306,5 +1528,358 @@ mod tests {
             td.outputs[0].puzzle_hash,
             Wrapper::cat(ASSET_A).wrap(Bytes32::new([0x77; 32]))
         );
+    }
+
+    // ─── Group outputs (cut-through) ───────────────────────────────────────
+
+    /// A coin with puzzle hash `[byte; 32]`, child of `parent`.
+    fn child(parent: &CoinSpend, byte: u8, amount: u64) -> Coin {
+        Coin::new(parent.coin.coin_id(), Bytes32::new([byte; 32]), amount)
+    }
+
+    fn pk(seed: u8) -> PublicKey {
+        chia_bls::SecretKey::from_seed(&[seed; 32]).public_key()
+    }
+
+    /// The group of `groups` whose coins are exactly `coin_ids`.
+    fn group_of<'a>(groups: &'a [SpendGroup], coin_ids: &[Bytes32]) -> &'a SpendGroup {
+        groups
+            .iter()
+            .find(|g| g.coin_ids == coin_ids)
+            .expect("the group is formed")
+    }
+
+    /// A coin of a group asserts (opcode 63) the puzzle announcement
+    /// `sha256(puzzle hash || message)` that another spend makes (opcode 62),
+    /// as a party asserts the announcement of a settlement coin: that spend's
+    /// children are among the group's outputs, after the member's own. The
+    /// block's tweak data still lists every addition.
+    #[test]
+    fn puzzle_announcement_asserted_by_a_member_adds_the_announcers_children() {
+        let message = Bytes::new(vec![0x5e; 32]);
+        let announcer = build_non_standard_coin_spend(
+            Bytes32::new([0xc1; 32]),
+            5,
+            &Conditions::new()
+                .create_puzzle_announcement(message.clone())
+                .create_coin(Bytes32::new([0x05; 32]), 5, Memos::None),
+        );
+        let id = announcement_id(announcer.coin.puzzle_hash, &message);
+        let member = build_standard_coin_spend(
+            pk(0x61),
+            Bytes32::new([0xa1; 32]),
+            7,
+            Conditions::new()
+                .assert_puzzle_announcement(id)
+                .create_coin(Bytes32::new([0x07; 32]), 7, Memos::None),
+        );
+        let unrelated = Coin::new(Bytes32::new([0xee; 32]), Bytes32::new([0x09; 32]), 9);
+        let additions = [
+            child(&announcer, 0x05, 5),
+            unrelated,
+            child(&member, 0x07, 7),
+        ];
+        let spends = [announcer.clone(), member.clone()];
+
+        let groups = spend_groups_from_block_spends(&spends, &additions).unwrap();
+        assert_eq!(groups.len(), 1, "the announcer is not an eligible spend");
+        let group = &groups[0];
+        assert_eq!(group.coin_ids, vec![member.coin.coin_id()]);
+        assert_eq!(group.member_wrappers, vec![None]);
+        assert_eq!(
+            group.outputs,
+            vec![child(&member, 0x07, 7), child(&announcer, 0x05, 5)]
+        );
+
+        // A scanner still matches every addition.
+        let td = tweak_data_from_block_spends(&spends, &additions).unwrap();
+        assert_eq!(td.tweak_points, vec![group.tweak_point]);
+        assert_eq!(
+            td.outputs.iter().map(|o| o.coin_id).collect::<Vec<_>>(),
+            additions.iter().map(Coin::coin_id).collect::<Vec<_>>()
+        );
+    }
+
+    /// A coin announcement (opcodes 60 and 61) is not followed: the spend that
+    /// makes the coin announcement a member asserts adds nothing.
+    #[test]
+    fn coin_announcement_is_not_followed() {
+        let message = Bytes::new(vec![0x5e; 32]);
+        let announcer = build_non_standard_coin_spend(
+            Bytes32::new([0xc1; 32]),
+            5,
+            &Conditions::new()
+                .create_coin_announcement(message.clone())
+                .create_coin(Bytes32::new([0x05; 32]), 5, Memos::None),
+        );
+        let member = build_standard_coin_spend(
+            pk(0x61),
+            Bytes32::new([0xa1; 32]),
+            7,
+            Conditions::new()
+                .assert_coin_announcement(announcement_id(announcer.coin.coin_id(), &message))
+                .create_coin(Bytes32::new([0x07; 32]), 7, Memos::None),
+        );
+        let additions = [child(&announcer, 0x05, 5), child(&member, 0x07, 7)];
+        let groups =
+            spend_groups_from_block_spends(&[announcer, member.clone()], &additions).unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].outputs, vec![child(&member, 0x07, 7)]);
+    }
+
+    /// Two spends make the same puzzle announcement (same puzzle hash, same
+    /// message), as two settlement coins paying the same notarized payment
+    /// would: the children of both are outputs of the group that asserts it,
+    /// so a third party's duplicate cannot push the real payment out.
+    #[test]
+    fn every_announcer_is_kept() {
+        let message = Bytes::new(vec![0x5e; 32]);
+        let announce = |parent: u8, byte: u8| {
+            build_non_standard_coin_spend(
+                Bytes32::new([parent; 32]),
+                5,
+                &Conditions::new()
+                    .create_puzzle_announcement(message.clone())
+                    .create_coin(Bytes32::new([byte; 32]), 5, Memos::None),
+            )
+        };
+        let first = announce(0xc1, 0x05);
+        let second = announce(0xc2, 0x06);
+        assert_eq!(first.coin.puzzle_hash, second.coin.puzzle_hash);
+        let id = announcement_id(first.coin.puzzle_hash, &message);
+        let member = build_standard_coin_spend(
+            pk(0x61),
+            Bytes32::new([0xa1; 32]),
+            7,
+            Conditions::new()
+                .assert_puzzle_announcement(id)
+                .create_coin(Bytes32::new([0x07; 32]), 7, Memos::None),
+        );
+        let additions = [
+            child(&second, 0x06, 5),
+            child(&first, 0x05, 5),
+            child(&member, 0x07, 7),
+        ];
+        let groups = spend_groups_from_block_spends(
+            &[first.clone(), member.clone(), second.clone()],
+            &additions,
+        )
+        .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            groups[0].outputs,
+            vec![
+                child(&member, 0x07, 7),
+                child(&first, 0x05, 5),
+                child(&second, 0x06, 5)
+            ]
+        );
+    }
+
+    /// The outputs of a multi-input group are the children of all of its
+    /// coins, and its coin IDs and wrappers are aligned, in the block's order;
+    /// each coin's single-input group has its own children only.
+    #[test]
+    fn members_children_are_group_outputs() {
+        let (pk_a, pk_b) = (pk(0x61), pk(0x62));
+        let (parent_a, parent_b) = (Bytes32::new([0xa1; 32]), Bytes32::new([0xb1; 32]));
+        let (id_a, id_b) = (standard_id(pk_a, parent_a), standard_id(pk_b, parent_b));
+        let spend_a = build_standard_coin_spend(
+            pk_a,
+            parent_a,
+            1,
+            Conditions::new().assert_concurrent_spend(id_b).create_coin(
+                Bytes32::new([0x0a; 32]),
+                1,
+                Memos::None,
+            ),
+        );
+        let spend_b = build_standard_coin_spend(
+            pk_b,
+            parent_b,
+            1,
+            Conditions::new().assert_concurrent_spend(id_a).create_coin(
+                Bytes32::new([0x0b; 32]),
+                1,
+                Memos::None,
+            ),
+        );
+        let other = build_non_standard_coin_spend(
+            Bytes32::new([0xc1; 32]),
+            1,
+            &Conditions::new().create_coin(Bytes32::new([0x0c; 32]), 1, Memos::None),
+        );
+        let additions = [
+            child(&other, 0x0c, 1),
+            child(&spend_b, 0x0b, 1),
+            child(&spend_a, 0x0a, 1),
+        ];
+        let groups =
+            spend_groups_from_block_spends(&[spend_a.clone(), spend_b.clone(), other], &additions)
+                .unwrap();
+        assert_eq!(groups.len(), 3);
+
+        let pair = group_of(&groups, &[id_a, id_b]);
+        assert_eq!(pair.member_wrappers, vec![None, None]);
+        assert_eq!(
+            pair.outputs,
+            vec![child(&spend_a, 0x0a, 1), child(&spend_b, 0x0b, 1)]
+        );
+        let mut a_sum = pk_a;
+        a_sum += &pk_b;
+        assert_eq!(
+            Some(pair.tweak_point),
+            compute_tweak_point(&[id_a, id_b], &a_sum)
+        );
+        assert_eq!(
+            group_of(&groups, &[id_a]).outputs,
+            vec![child(&spend_a, 0x0a, 1)]
+        );
+        assert_eq!(
+            group_of(&groups, &[id_b]).outputs,
+            vec![child(&spend_b, 0x0b, 1)]
+        );
+    }
+
+    /// A single-input group's outputs are its own children, all of them, and
+    /// nothing of another spend; a CAT coin's group carries its wrapper.
+    #[test]
+    fn singleton_group_outputs() {
+        let pk_c = pk(0x63);
+        let cat = standard_cat(0x52, ASSET_A, None, pk_c);
+        let spend_c = spend_standard_cat(cat, pk_c, pay_and(Conditions::new()), false);
+        let spend_x = build_standard_coin_spend(
+            pk(0x64),
+            Bytes32::new([0xd1; 32]),
+            9,
+            Conditions::new()
+                .create_coin(Bytes32::new([0x01; 32]), 4, Memos::None)
+                .create_coin(Bytes32::new([0x02; 32]), 5, Memos::None),
+        );
+        let cat_child = Coin::new(spend_c.coin.coin_id(), Bytes32::new([0x0c; 32]), 1);
+        let additions = [
+            child(&spend_x, 0x01, 4),
+            cat_child,
+            child(&spend_x, 0x02, 5),
+        ];
+        let groups =
+            spend_groups_from_block_spends(&[spend_c.clone(), spend_x.clone()], &additions)
+                .unwrap();
+        assert_eq!(groups.len(), 2);
+        let cat_group = group_of(&groups, &[spend_c.coin.coin_id()]);
+        assert_eq!(cat_group.member_wrappers, vec![Some(Wrapper::cat(ASSET_A))]);
+        assert_eq!(cat_group.outputs, vec![cat_child]);
+        assert_eq!(
+            group_of(&groups, &[spend_x.coin.coin_id()]).outputs,
+            vec![child(&spend_x, 0x01, 4), child(&spend_x, 0x02, 5)]
+        );
+    }
+
+    /// `tweak_data_from_block_spends`, computed from the same groups as
+    /// `spend_groups_from_block_spends`, gives the tweak points, outputs and
+    /// wrapper list it gave before the groups had outputs: over blocks with a
+    /// cycle across assets, a lone coin, a settlement CAT, a spend that is not
+    /// eligible and one asserting a puzzle announcement, the tweak points are
+    /// the groups' points de-duplicated in their order and equal (as a sorted
+    /// set) the points of the groups formed by hand, the outputs are every
+    /// addition in order, and the wrapper list is the CHIP-ordered list.
+    #[test]
+    fn tweak_data_is_unchanged_by_the_refactor() {
+        let (pk_x, pk_c, pk_l) = (pk(0x71), pk(0x72), pk(0x73));
+        let parent_x = Bytes32::new([0x81; 32]);
+        let id_x = standard_id(pk_x, parent_x);
+        let cat = standard_cat(0x82, ASSET_B, None, pk_c);
+        let id_c = cat.coin.coin_id();
+        let spend_x = build_standard_coin_spend(
+            pk_x,
+            parent_x,
+            1,
+            Conditions::new().assert_concurrent_spend(id_c).create_coin(
+                Bytes32::new([0x01; 32]),
+                1,
+                Memos::None,
+            ),
+        );
+        let spend_c = spend_standard_cat(
+            cat,
+            pk_c,
+            pay_and(Conditions::new().assert_concurrent_spend(id_x)),
+            false,
+        );
+        let parent_l = Bytes32::new([0x83; 32]);
+        let id_l = standard_id(pk_l, parent_l);
+        let message = Bytes::new(vec![0x5e; 32]);
+        let announcer = build_non_standard_coin_spend(
+            Bytes32::new([0x84; 32]),
+            1,
+            &Conditions::new().create_puzzle_announcement(message.clone()),
+        );
+        let spend_l = build_standard_coin_spend(
+            pk_l,
+            parent_l,
+            1,
+            Conditions::new()
+                .assert_puzzle_announcement(announcement_id(announcer.coin.puzzle_hash, &message)),
+        );
+        let settlement = settlement_cat(0x85, ASSET_A);
+
+        let blocks: Vec<Vec<CoinSpend>> = vec![
+            vec![],
+            vec![spend_x.clone()],
+            vec![spend_x.clone(), spend_c.clone()],
+            vec![
+                settlement.clone(),
+                spend_c.clone(),
+                announcer.clone(),
+                spend_l.clone(),
+                spend_x.clone(),
+            ],
+        ];
+        let (gx, gc, gl) = ([(pk_x, id_x)], [(pk_c, id_c)], [(pk_l, id_l)]);
+        let gxc = [(pk_x, id_x), (pk_c, id_c)];
+        let expected_groups: Vec<Vec<&[(PublicKey, Bytes32)]>> = vec![
+            vec![],
+            vec![&gx],
+            vec![&gx, &gc, &gxc],
+            vec![&gc, &gl, &gx, &gxc],
+        ];
+        for (spends, expected) in blocks.iter().zip(&expected_groups) {
+            let additions: Vec<Coin> = spends
+                .iter()
+                .map(|spend| Coin::new(spend.coin.coin_id(), Bytes32::new([0x0f; 32]), 1))
+                .collect();
+            let td = tweak_data_from_block_spends(spends, &additions).unwrap();
+            let groups = spend_groups_from_block_spends(spends, &additions).unwrap();
+
+            let mut from_groups: Vec<PublicKey> = Vec::new();
+            for group in &groups {
+                if !from_groups.contains(&group.tweak_point) {
+                    from_groups.push(group.tweak_point);
+                }
+            }
+            assert_eq!(td.tweak_points, from_groups);
+            let mut by_hand = expected_points(expected);
+            by_hand.sort_unstable();
+            assert_eq!(sorted_points(&td), by_hand);
+
+            assert_eq!(
+                td.outputs
+                    .iter()
+                    .map(|o| (o.coin_id, o.puzzle_hash, o.amount, o.parent_coin_id))
+                    .collect::<Vec<_>>(),
+                additions
+                    .iter()
+                    .map(|c| (c.coin_id(), c.puzzle_hash, c.amount, c.parent_coin_info))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                td.wrappers,
+                sort_wrappers(
+                    spends
+                        .iter()
+                        .filter_map(crate::silent_payments::coin_wrapper)
+                )
+            );
+        }
     }
 }

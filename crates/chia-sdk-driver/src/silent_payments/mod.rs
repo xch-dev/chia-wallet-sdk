@@ -80,6 +80,10 @@
 //! coin it spends) derive and assert the same values. Nothing offer-specific
 //! is needed to scan: the payment is an addition of the block, and a CAT
 //! settlement coin adds its wrapper to the block's wrapper list.
+//! [`spend_groups_from_block_spends`] gives each spend group of a block with
+//! its outputs for light-wallet cut-through, the children of the settlement
+//! coins whose announcements the group asserts included; a light-wallet server
+//! serves those, while a full scanner keeps matching every addition.
 //!
 //! All scalar reduction in this module flows through
 //! [`chia_sdk_types::silent_payments::ScalarField`], which enforces the
@@ -101,7 +105,9 @@ pub use layers::{
     sort_wrappers, wrap_puzzle_hash,
 };
 mod block_tweak_data;
-pub use block_tweak_data::tweak_data_from_block_spends;
+pub use block_tweak_data::{
+    SpendGroup, spend_groups_from_block_spends, tweak_data_from_block_spends,
+};
 mod scanner;
 pub use scanner::{K_MAX_DEFAULT, SilentPaymentScan, scan_from_tweaks};
 mod settlement;

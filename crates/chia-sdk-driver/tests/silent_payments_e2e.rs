@@ -26,9 +26,10 @@ use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, Wrapper, aggregate_sender_sks,
-    compute_input_hash, compute_tweak_point, derive_one_time_puzzle_hash, scan_from_tweaks,
-    settlement_announcement, settlement_puzzle_hash, tweak_data_from_block_spends,
+    K_MAX_DEFAULT, OutputMeta, SyntheticPublicKey, SyntheticSecretKey, Wrapper,
+    aggregate_sender_sks, compute_input_hash, compute_tweak_point, derive_one_time_puzzle_hash,
+    scan_from_tweaks, settlement_announcement, settlement_puzzle_hash,
+    spend_groups_from_block_spends, tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
     Action, AssetInfo, Cat, CatAssetInfo, CatSpend, DriverError, FungibleSpend, HashedPtr, Id,
@@ -2890,5 +2891,91 @@ fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
         }
         assert!(ctx.take().is_empty(), "nothing is emitted");
     }
+    Ok(())
+}
+
+/// Plan 15-03 Task 3, CHIP-0057 Appendix A and Required Behaviors,
+/// Compatibility: in the block of a maker-silent offer, the maker's spend group
+/// (its two XCH coins) has among its outputs the CAT settlement coin's child
+/// `wrap(W, p_0)`, through the settlement coin's puzzle announcement the maker
+/// asserts. A scan of the group's tweak point against its outputs finds the
+/// payment and the change; against the children of its own coins only, it
+/// finds nothing (the change at k 1 is not reached once k 0 is missed).
+#[test]
+fn test_maker_group_outputs_include_the_settlement_child() -> Result<()> {
+    let block = offer_block(OfferCase {
+        maker_silent: true,
+        taker_silent: false,
+        hidden: None,
+        taker_other: None,
+    })?;
+    let spends = block.sim.block_spends(block.height);
+    let additions = block.sim.block_outputs(block.height);
+    let groups = spend_groups_from_block_spends(&spends, &additions)?;
+
+    let mut maker_coin_ids: Vec<Bytes32> =
+        block.maker_coins.iter().map(|c| c.coin.coin_id()).collect();
+    let group = groups
+        .iter()
+        .find(|g| {
+            let mut ids = g.coin_ids.clone();
+            ids.sort();
+            maker_coin_ids.sort();
+            ids == maker_coin_ids
+        })
+        .expect("the maker's spend group");
+    assert_eq!(group.member_wrappers, vec![None, None]);
+    let settlement_child = block.maker_paid.coin;
+    assert_eq!(settlement_child.puzzle_hash, block.w.wrap(block.maker_p[0]));
+    assert!(
+        group.outputs.contains(&settlement_child),
+        "the settlement child is an output of the maker's group"
+    );
+    let members_only: Vec<Coin> = additions
+        .iter()
+        .filter(|c| maker_coin_ids.contains(&c.parent_coin_info))
+        .copied()
+        .collect();
+    assert!(!members_only.contains(&settlement_child));
+    for coin in &members_only {
+        assert!(group.outputs.contains(coin), "members' children first");
+    }
+
+    // The tweak data's tweak points are the groups', and its outputs are still
+    // every addition.
+    let tweak_data = tweak_data_from_block_spends(&spends, &additions)?;
+    assert!(tweak_data.tweak_points.contains(&group.tweak_point));
+    assert_eq!(tweak_data.outputs.len(), additions.len());
+
+    let scan = |outputs: &[Coin]| {
+        let data = chia_sdk_driver::silent_payments::TweakData::with_wrappers(
+            vec![group.tweak_point],
+            outputs
+                .iter()
+                .map(|coin| OutputMeta {
+                    puzzle_hash: coin.puzzle_hash,
+                    coin_id: coin.coin_id(),
+                    amount: coin.amount,
+                    parent_coin_id: coin.parent_coin_info,
+                })
+                .collect(),
+            tweak_data.wrappers.clone(),
+        );
+        scan_from_tweaks(
+            block.maker.scan_sk(),
+            block.maker.spend_pk(),
+            &data,
+            None,
+            K_MAX_DEFAULT,
+        )
+    };
+    let found = scan(&group.outputs);
+    assert_eq!(found.len(), 2, "the CAT payment and the change");
+    assert!(
+        found
+            .iter()
+            .any(|d| d.k == 0 && d.coin() == settlement_child && d.wrapper == Some(block.w))
+    );
+    assert!(scan(&members_only).is_empty(), "members' children only");
     Ok(())
 }
