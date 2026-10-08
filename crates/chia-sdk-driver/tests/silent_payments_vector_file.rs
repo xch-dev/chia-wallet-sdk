@@ -905,13 +905,15 @@ fn hashes(value: &Value, key: &str) -> Vec<Bytes32> {
 /// each settled output's encoded `payment`, the `notarized_payments` (wrapper,
 /// settlement puzzle hash, payments, the serialized notarized payment, its
 /// tree hash and the announcement), the `assertions` and the `group_outputs`;
-/// and, as a negative control, the announcement of the settled payment listed
-/// without its memo list.
+/// as a negative control, the announcement of the settled payment listed
+/// without its memo list; and, for Vector 13, `two_payments_in_one_asset`
+/// with its `per_payment_announcements`.
 #[test]
 fn settlement_payments_as_sent() {
     let file = vectors();
     let entries = list(&file, "settlement_payments");
     assert_eq!(entries.len(), 2);
+    let mut two_payments_checked = 0;
 
     for entry in entries {
         let name = text(entry, "name");
@@ -1063,7 +1065,66 @@ fn settlement_payments_as_sent() {
                 .iter()
                 .any(|np| np.announcement == no_memo)
         );
+
+        // Vector 13: a second requested payment in the same asset, at an
+        // address that is not a silent payment address. The silent payment is
+        // listed first, and one announcement covers both; neither payment's
+        // own announcement is that one.
+        if let Some(two) = entry.get("two_payments_in_one_asset") {
+            two_payments_checked += 1;
+            let derivation = derive_entry(&mut ctx, entry, &two["other_payments"]);
+            assert_eq!(derivation.notarized_payments.len(), 1, "{name}: one asset");
+            let np = &derivation.notarized_payments[0];
+            let payments: Vec<String> = np
+                .notarized_payment
+                .payments
+                .iter()
+                .map(|payment| hex::encode(serialized(&mut ctx, payment)))
+                .collect();
+            let expected_payments: Vec<&str> = list(two, "payments")
+                .iter()
+                .map(|p| p.as_str().expect("a hex string"))
+                .collect();
+            assert_eq!(payments, expected_payments, "{name}: two payments");
+            let ptr = ctx.alloc(&np.notarized_payment).unwrap();
+            assert_eq!(
+                hex::encode(node_to_bytes(&ctx, ptr).unwrap()),
+                text(two, "notarized_payment"),
+                "{name}: two payments, notarized_payment"
+            );
+            assert_eq!(
+                Bytes32::from(ctx.tree_hash(ptr)),
+                Bytes32::new(bytes(two, "notarized_tree_hash")),
+                "{name}: two payments, notarized_tree_hash"
+            );
+            let announcement = Bytes32::new(bytes(two, "announcement"));
+            assert_eq!(np.announcement, announcement, "{name}: two payments");
+            assert_eq!(
+                derivation
+                    .assertions
+                    .iter()
+                    .map(|a| a.announcement_id)
+                    .collect::<Vec<_>>(),
+                vec![announcement],
+                "{name}: one assertion over both payments"
+            );
+            let per_payment = hashes(two, "per_payment_announcements");
+            assert_eq!(per_payment.len(), np.notarized_payment.payments.len());
+            for (payment, expected) in np.notarized_payment.payments.iter().zip(&per_payment) {
+                let alone = settlement_announcement(
+                    &ctx,
+                    np.wrapper.as_ref(),
+                    &NotarizedPayment::new(nonce, vec![payment.clone()]),
+                );
+                assert_eq!(alone, *expected, "{name}: per_payment_announcements");
+                assert_ne!(alone, announcement);
+            }
+        }
     }
+    assert_eq!(
+        two_payments_checked, 1,
+        "Vector 13 lists two payments in one asset"
+    );
 }
 
 /// Every entry of `settlement_payments`, as the party's scanner detects it: a

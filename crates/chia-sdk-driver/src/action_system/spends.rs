@@ -835,7 +835,8 @@ impl Spends<Unfinished> {
 /// in order of first appearance, the asset's silent payments in the order of the actions and its
 /// other payments make one notarized payment under the party's nonce, and its announcement is
 /// asserted as a required condition, which [`Spends::emit_conditions`] attaches to the first
-/// coin of the group. A requested payment is published in [`Outputs::silent_payment_requests`].
+/// coin of the group. A requested payment is published in [`Outputs::silent_payment_requests`],
+/// and a payment taken from a settlement coin the transaction spends is added to its solution.
 /// The settled checks: [`DriverError::SilentPaymentSettlementMismatch`] if two settled entries
 /// carry different nonces or the entries of one asset have different payers, and
 /// [`DriverError::SilentPaymentInvalidSettlementInput`] if an other payment is listed in an asset
@@ -1088,8 +1089,10 @@ struct AssetSettlement {
 /// Groups the party's settled payments per asset, in order of first appearance, into one
 /// notarized payment each under the party's one nonce, asserts each announcement as a required
 /// condition (emitted by a coin of the spend group, independent of
-/// [`ConditionConfig::disable_settlement_assertions`]), and publishes the payments the
-/// counterparty's settlement coins make in [`Outputs::silent_payment_requests`].
+/// [`ConditionConfig::disable_settlement_assertions`]). The payments the counterparty's
+/// settlement coins make are published in [`Outputs::silent_payment_requests`]; those a
+/// settlement coin the transaction spends makes are added to that coin's solution as one
+/// notarized payment, and the coins they create to [`Outputs`].
 ///
 /// A settled payment never goes through [`SpendKind::create_coin_with_assertion`], which would
 /// notarize each coin separately with its parent's coin ID as the nonce.
@@ -1171,9 +1174,49 @@ fn settle_silent_payments(
                     )?;
                 }
             },
+            // The asset's settlement coin that the transaction spends makes the payments, under
+            // the party's nonce, in one notarized payment (not one per coin, as
+            // `create_coin_with_assertion` would).
             SettlementPayer::SpentSettlementCoin => {
-                let _ = asset.settlement_index;
-                return Err(DriverError::SilentPaymentSettlementCoinMissing);
+                let index = asset
+                    .settlement_index
+                    .ok_or(DriverError::SilentPaymentSettlementCoinMissing)?;
+                match asset.asset {
+                    None => {
+                        let item = spends
+                            .xch
+                            .items
+                            .get_mut(index)
+                            .ok_or(DriverError::SilentPaymentSettlementCoinMissing)?;
+                        let SpendKind::Settlement(spend) = &mut item.kind else {
+                            return Err(DriverError::CannotSettleFromSpend);
+                        };
+                        for payment in &notarized_payment.payments {
+                            spends.outputs.xch.push(Coin::new(
+                                item.asset.coin_id(),
+                                payment.puzzle_hash,
+                                payment.amount,
+                            ));
+                        }
+                        spend.add_notarized_payment(notarized_payment);
+                    }
+                    Some(wrapper) => {
+                        let id = Id::Existing(wrapper.asset_id);
+                        let item = spends
+                            .cats
+                            .get_mut(&id)
+                            .and_then(|cat| cat.items.get_mut(index))
+                            .ok_or(DriverError::SilentPaymentSettlementCoinMissing)?;
+                        let SpendKind::Settlement(spend) = &mut item.kind else {
+                            return Err(DriverError::CannotSettleFromSpend);
+                        };
+                        for payment in &notarized_payment.payments {
+                            let child = item.asset.child(payment.puzzle_hash, payment.amount);
+                            spends.outputs.cats.entry(id).or_default().push(child);
+                        }
+                        spend.add_notarized_payment(notarized_payment);
+                    }
+                }
             }
         }
     }
