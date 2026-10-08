@@ -218,6 +218,56 @@
       "secret_key": "SecretKey"
     }
   },
+  "SilentPaymentGroupCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32",
+      "secret_key": "SecretKey",
+      "wrapper": "Option<SilentPaymentWrapper>"
+    }
+  },
+  "SilentPaymentSettlementRecipient": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "scan_pk": "PublicKey",
+      "spend_pk": "PublicKey",
+      "wrapper": "Option<SilentPaymentWrapper>",
+      "settled": "bool",
+      "amount": "u64"
+    }
+  },
+  "SilentPaymentOtherPayment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "wrapper": "Option<SilentPaymentWrapper>",
+      "payment": "Bytes"
+    }
+  },
+  "SilentPaymentGroupOutput": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "k": "u32",
+      "wrapper": "Option<SilentPaymentWrapper>",
+      "puzzle_hash": "Bytes32",
+      "amount": "u64",
+      "wrapped_puzzle_hash": "Bytes32"
+    }
+  },
+  "SilentPaymentSettlement": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "settlement_outputs": "Vec<Bytes32>",
+      "announcements": "Vec<Bytes32>",
+      "settled_payments": "Vec<Bytes>",
+      "notarized_payments": "Vec<Bytes>",
+      "group_outputs": "Vec<SilentPaymentGroupOutput>"
+    }
+  },
   "SilentPayments": {
     "type": "class",
     "methods": {
@@ -293,6 +343,16 @@
           "additions": "Vec<Coin>"
         },
         "return": "TweakData"
+      },
+      "derive_settlement_outputs": {
+        "type": "static",
+        "args": {
+          "group": "Vec<SilentPaymentGroupCoin>",
+          "recipients": "Vec<SilentPaymentSettlementRecipient>",
+          "other_payments": "Vec<SilentPaymentOtherPayment>",
+          "nonce": "Bytes32"
+        },
+        "return": "SilentPaymentSettlement"
       }
     }
   }

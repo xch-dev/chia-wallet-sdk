@@ -188,6 +188,48 @@
           "memos": "Option<Program>"
         }
       },
+      "silent_payment_send_asset": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64"
+        }
+      },
+      "silent_payment_requested": {
+        "type": "factory",
+        "args": {
+          "asset": "Option<SilentPaymentWrapper>",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_requested_other": {
+        "type": "factory",
+        "args": {
+          "asset": "Option<SilentPaymentWrapper>",
+          "payment": "Payment",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_settle": {
+        "type": "factory",
+        "args": {
+          "asset": "Option<SilentPaymentWrapper>",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_settle_other": {
+        "type": "factory",
+        "args": {
+          "asset": "Option<SilentPaymentWrapper>",
+          "payment": "Payment",
+          "nonce": "Bytes32"
+        }
+      },
       "settle": {
         "type": "factory",
         "args": {
@@ -414,6 +456,12 @@
       },
       "reserved_fee": {
         "return": "u64"
+      },
+      "silent_payment_requests": {
+        "return": "RequestedPayments"
+      },
+      "silent_payment_asset_info": {
+        "return": "AssetInfo"
       }
     }
   },

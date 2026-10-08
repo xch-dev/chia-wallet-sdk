@@ -17,7 +17,8 @@ use clvmr::NodePtr;
 use indexmap::IndexMap;
 
 use crate::{
-    AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Program, Spend,
+    AsProgram, AsPtr, AssetInfo, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Payment,
+    Program, RequestedPayments, SilentPaymentAddress, SilentPaymentWrapper, Spend,
 };
 
 /// Mirrors [`sdk::Relation`], but `None` is renamed since it's a reserved word in Python.
@@ -477,6 +478,92 @@ impl Action {
         )))
     }
 
+    /// A CHIP-0057 silent payment in the asset `id`: XCH, or a CAT the
+    /// transaction spends (`Id.existing(asset_id)`). A CAT output is the bare
+    /// one-time puzzle hash under the asset's CAT layer (and revocation layer),
+    /// hinted with that puzzle hash; the recipient's `k` counter is shared
+    /// across the assets of the transaction. Caller memos are not accepted.
+    pub fn silent_payment_send_asset(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_send_asset(
+            id.0,
+            recipient.into(),
+            amount,
+        )))
+    }
+
+    /// The maker of an offer requests a CHIP-0057 silent payment of `amount`
+    /// in `asset` (`None` for XCH) at its silent payment address, paid by the
+    /// counterparty's settlement coin. `nonce` is the offer's nonce of the
+    /// maker's requested payments (for example `Offer.nonce` of the coins it
+    /// offers). The notarized payment is published in
+    /// `Outputs.silent_payment_requests`; one coin of the maker's spend group
+    /// asserts its announcement, so the maker must not add the
+    /// `RequestedPayments.assertions` of those payments again.
+    pub fn silent_payment_requested(
+        asset: Option<SilentPaymentWrapper>,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_requested(
+            asset.map(Into::into),
+            recipient.into(),
+            amount,
+            nonce,
+        )))
+    }
+
+    /// A requested payment of the maker to an address that is not a silent
+    /// payment address, in an asset in which it also requests a silent
+    /// payment; listed after the silent payments under the same announcement.
+    pub fn silent_payment_requested_other(
+        asset: Option<SilentPaymentWrapper>,
+        payment: Payment,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_requested_other(
+            asset.map(Into::into),
+            payment.into(),
+            nonce,
+        )))
+    }
+
+    /// The taker of an offer is paid `amount` of `asset` at its silent payment
+    /// address by a settlement coin of that asset the transaction spends.
+    /// `nonce` is the taker's nonce of its requested payments.
+    pub fn silent_payment_settle(
+        asset: Option<SilentPaymentWrapper>,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_settle(
+            asset.map(Into::into),
+            recipient.into(),
+            amount,
+            nonce,
+        )))
+    }
+
+    /// A payment of the taker to an address that is not a silent payment
+    /// address, made by the settlement coin of an asset in which it is also
+    /// paid silently.
+    pub fn silent_payment_settle_other(
+        asset: Option<SilentPaymentWrapper>,
+        payment: Payment,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_settle_other(
+            asset.map(Into::into),
+            payment.into(),
+            nonce,
+        )))
+    }
+
     pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Result<Self> {
         Ok(Self(sdk::Action::settle(id.0, notarized_payment.into())))
     }
@@ -785,6 +872,24 @@ impl Outputs {
 
     pub fn reserved_fee(&self) -> Result<u64> {
         Ok(self.inner.reserved_fee)
+    }
+
+    /// The maker's requested silent payments (`Action.silent_payment_requested`),
+    /// one notarized payment per asset, for `Offer.from_input_spend_bundle`.
+    pub fn silent_payment_requests(&self) -> Result<RequestedPayments> {
+        Ok(RequestedPayments::from_sdk(
+            self.inner.silent_payment_requests.clone(),
+            &self.clvm,
+        ))
+    }
+
+    /// The asset information of `silent_payment_requests`: each requested
+    /// CAT with its hidden puzzle hash (`None` for a plain CAT).
+    pub fn silent_payment_asset_info(&self) -> Result<AssetInfo> {
+        Ok(AssetInfo::from_sdk(
+            self.inner.silent_payment_asset_info.clone(),
+            &self.clvm,
+        ))
     }
 }
 

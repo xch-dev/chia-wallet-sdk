@@ -29,18 +29,24 @@ import pytest
 from chia_wallet_sdk import (
     Action,
     Clvm,
+    Constants,
+    Id,
     LabelRegistry,
     Mnemonic,
+    Offer,
     OutputMeta,
     PublicKey,
     ScalarField,
     SecretKey,
     SilentPaymentAddress,
+    SilentPaymentGroupCoin,
     SilentPaymentKeys,
     SilentPaymentNetwork,
+    SilentPaymentOtherPayment,
     SilentPaymentRegisteredKey,
     SilentPaymentRegisteredSecretKey,
     SilentPayments,
+    SilentPaymentSettlementRecipient,
     SilentPaymentWrapper,
     Simulator,
     Spends,
@@ -680,3 +686,262 @@ def test_vector_9_cat_payment_through_bindings():
         )
         == []
     )
+
+
+def settlement_inputs(entry, other_payments):
+    """The spend group, recipient entries and other payments of a vector."""
+    group = [
+        SilentPaymentGroupCoin(
+            b32(i["coin_id"]),
+            SecretKey.from_bytes(b32(i["synthetic_sk"])),
+            json_wrapper(i["wrapper"]),
+        )
+        for i in entry["inputs"]
+    ]
+    recipients = [
+        SilentPaymentSettlementRecipient(
+            PublicKey.from_bytes(b32(o["recipient"]["scan_pk"])),
+            # The spend key of the address paid: B_m for a labeled address.
+            PublicKey.from_bytes(b32(o["recipient"]["address_spend_pk"])),
+            json_wrapper(o["wrapper"]),
+            o["settled"],
+            o["amount"],
+        )
+        for o in entry["outputs"]
+    ]
+    others = [
+        SilentPaymentOtherPayment(json_wrapper(p["wrapper"]), b32(p["payment"]))
+        for p in other_payments
+    ]
+    return group, recipients, others
+
+
+def check_settlement(entry, settlement):
+    """settlement_outputs, payments, notarized payments, announcements, group outputs."""
+    assert [h.hex() for h in settlement.settlement_outputs] == entry["settlement_outputs"]
+    assert [h.hex() for h in settlement.announcements] == entry["assertions"]
+    settled = [o for o in entry["outputs"] if o["settled"]]
+    assert [p.hex() for p in settlement.settled_payments] == [
+        o["payment"] for o in settled
+    ]
+    assert [n.hex() for n in settlement.notarized_payments] == [
+        n["notarized_payment"] for n in entry["notarized_payments"]
+    ]
+    assert [n["announcement"] for n in entry["notarized_payments"]] == entry[
+        "assertions"
+    ]
+
+    own = [o for o in entry["outputs"] if not o["settled"]]
+    assert [g.wrapped_puzzle_hash.hex() for g in settlement.group_outputs] == entry[
+        "group_outputs"
+    ]
+    assert len(settlement.group_outputs) == len(own)
+    for group_output, output in zip(settlement.group_outputs, own):
+        assert group_output.k == output["k"]
+        assert group_output.puzzle_hash.hex() == output["puzzle_hash"]
+        assert group_output.amount == output["amount"]
+        if output["wrapper"] is None:
+            assert group_output.wrapper is None
+        else:
+            assert group_output.wrapper.asset_id.hex() == output["wrapper"]["asset_id"]
+
+
+def test_vector_12_maker_silent_offer_through_bindings():
+    """Vector 12: the maker's CAT request paid through the settlement coin."""
+    entry = vector("vector_12_maker_silent_offer")
+    group, recipients, others = settlement_inputs(entry, entry["other_payments"])
+    settlement = SilentPayments.derive_settlement_outputs(
+        group, recipients, others, b32(entry["nonce"])
+    )
+    check_settlement(entry, settlement)
+
+    # The CAT payment is (p amount (p)), the settlement output wrap(W, p).
+    assert settlement.settled_payments[0] == bytes.fromhex(
+        entry["outputs"][0]["payment"]
+    )
+    assert settlement.settlement_outputs[0] == b32(
+        "41a03ba9794804ad355a23e9385eb3eba2c3e090a8eff0b714a58b371133a8f5"
+    )
+    assert settlement.announcements == [
+        b32("60640242d3fbc7a0c9be0dbdacc4dd3d2df7f2af58ec04a819dcb6e8ca2effa1")
+    ]
+    # The change at k = 1, label 0, is an output of the maker's own group.
+    assert settlement.group_outputs[0].k == 1
+    assert settlement.group_outputs[0].wrapped_puzzle_hash == b32(
+        "d9ba60e1d59601e7c5fead8e866848a6626552e0a7713d27c0373956dbf2e1cd"
+    )
+
+    # Malformed inputs raise instead of crashing the interpreter.
+    with pytest.raises(BaseException, match="settlement coin"):
+        SilentPayments.derive_settlement_outputs(
+            [], recipients, others, b32(entry["nonce"])
+        )
+    with pytest.raises(BaseException):
+        SilentPayments.derive_settlement_outputs(
+            group,
+            recipients,
+            [SilentPaymentOtherPayment(None, bytes([0xFF]))],
+            b32(entry["nonce"]),
+        )
+
+
+def test_vector_13_other_payment_through_bindings():
+    """Vector 13: the taker's XCH payment, alone and with an other payment."""
+    entry = vector("vector_13_taker_silent_offer")
+    nonce = b32(entry["nonce"])
+    group, recipients, others = settlement_inputs(entry, entry["other_payments"])
+    check_settlement(
+        entry, SilentPayments.derive_settlement_outputs(group, recipients, others, nonce)
+    )
+
+    # A payment to an address that is not a silent payment address in the
+    # same asset: one notarized payment, one announcement for both.
+    two = entry["two_payments_in_one_asset"]
+    group, recipients, others = settlement_inputs(entry, two["other_payments"])
+    settlement = SilentPayments.derive_settlement_outputs(
+        group, recipients, others, nonce
+    )
+    assert [n.hex() for n in settlement.notarized_payments] == [
+        two["notarized_payment"]
+    ]
+    assert settlement.announcements == [b32(two["announcement"])]
+
+
+def synthetic_sender(sim, amount):
+    """A sender whose coin is at the puzzle hash of its synthetic key."""
+    sender = sim.bls(0)
+    synthetic_pk = sender.pk.derive_synthetic()
+    synthetic_sk = sender.sk.derive_synthetic()
+    puzzle_hash = standard_puzzle_hash(synthetic_pk)
+    coin = sim.new_coin(puzzle_hash, amount)
+    return sender, synthetic_pk, synthetic_sk, puzzle_hash, coin
+
+
+def spend_pending(clvm, finished, synthetic_pk):
+    """Standard-spend every pending coin with the sender's synthetic key."""
+    for pending in finished.pending_spends():
+        finished.insert(
+            pending.coin().coin_id(),
+            clvm.standard_spend(synthetic_pk, clvm.delegated_spend(pending.conditions())),
+        )
+    return finished.spend()
+
+
+def test_cat_silent_payment_e2e_through_bindings():
+    """A CAT silent payment sent with Action.silent_payment_send_asset is found under its wrapper."""
+    sim = Simulator()
+    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
+    sender, synthetic_pk, synthetic_sk, sender_ph, xch_coin = synthetic_sender(sim, 1_000)
+
+    # Issue a CAT to the sender.
+    clvm = Clvm()
+    spends = Spends(clvm, sender_ph)
+    spends.add_xch(xch_coin)
+    deltas = spends.apply([Action.single_issue_cat(None, 1_000)])
+    issued = spend_pending(clvm, spends.prepare(deltas, None), synthetic_pk)
+    sim.spend_coins(clvm.coin_spends(), [synthetic_sk])
+    cat = issued.cat(issued.cats()[0])[0]
+    asset_id = cat.info.asset_id
+    assert cat.info.p2_puzzle_hash == sender_ph
+
+    # Pay 600 of it silently; the CAT coin alone is the spend group.
+    clvm = Clvm()
+    height = sim.height()
+    spends = Spends(clvm, sender_ph)
+    spends.add_cat(cat)
+    spends.with_silent_payment_keys(
+        [SilentPaymentRegisteredKey(sender_ph, sender.pk)],
+        [SilentPaymentRegisteredSecretKey(sender_ph, sender.sk)],
+    )
+    deltas = spends.apply(
+        [Action.silent_payment_send_asset(Id.existing(asset_id), address, 600)]
+    )
+    sent = spend_pending(clvm, spends.prepare(deltas, None), synthetic_pk)
+    sim.spend_coins(clvm.coin_spends(), [synthetic_sk])
+
+    # The change is a standard CAT of the sender.
+    cats = sent.cat(Id.existing(asset_id))
+    assert sorted(c.coin.amount for c in cats) == [400, 600]
+    change = [c for c in cats if c.coin.amount == 400][0]
+    assert change.info.p2_puzzle_hash == sender_ph
+
+    tweak_data = sim.tweak_data_from_block(height)
+    assert [w.asset_id for w in tweak_data.wrappers] == [asset_id]
+    detections = SilentPayments.scan_from_tweaks(
+        recipient.scan_sk(), recipient.spend_pk(), tweak_data, LabelRegistry(), K_MAX_DEFAULT
+    )
+    assert len(detections) == 1
+    detection = detections[0]
+    assert detection.k == 0
+    assert detection.label is None
+    assert detection.amount == 600
+    assert detection.wrapper.asset_id == asset_id
+    assert detection.wrapper.hidden_puzzle_hash is None
+    coin = detection.coin()
+    assert coin.coin_id() == detection.coin_id
+    assert coin.puzzle_hash == detection.wrapper.wrap(detection.puzzle_hash)
+    state = sim.coin_state(detection.coin_id)
+    assert state is not None and state.spent_height is None
+    assert state.coin.puzzle_hash == coin.puzzle_hash
+
+    # Without the block's wrapper list the CAT output is not found.
+    bare = TweakData(tweak_data.tweak_points, tweak_data.outputs)
+    assert (
+        SilentPayments.scan_from_tweaks(
+            recipient.scan_sk(), recipient.spend_pk(), bare, LabelRegistry(), K_MAX_DEFAULT
+        )
+        == []
+    )
+
+
+def test_outputs_publish_silent_payment_requests():
+    """A maker's silent request is published in Outputs.silent_payment_requests."""
+    sim = Simulator()
+    clvm = Clvm()
+    maker = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    address = maker.unlabeled_address(SilentPaymentNetwork.Testnet)
+    sender, synthetic_pk, synthetic_sk, maker_ph, xch_coin = synthetic_sender(sim, 1_000)
+
+    asset_id = bytes([0x33] * 32)
+    wrapper = SilentPaymentWrapper(asset_id, None)
+    nonce = Offer.nonce([xch_coin.coin_id()])
+
+    spends = Spends(clvm, maker_ph)
+    spends.add_xch(xch_coin)
+    spends.with_silent_payment_keys(
+        [SilentPaymentRegisteredKey(maker_ph, sender.pk)],
+        [SilentPaymentRegisteredSecretKey(maker_ph, sender.sk)],
+    )
+    deltas = spends.apply(
+        [
+            Action.send(Id.xch(), Constants.settlement_payment_hash(), 1_000, None),
+            Action.silent_payment_requested(wrapper, address, 700, nonce),
+        ]
+    )
+    outputs = spend_pending(clvm, spends.prepare(deltas, None), synthetic_pk)
+
+    requests = outputs.silent_payment_requests()
+    assert requests.xch() == []
+    assert requests.cat_asset_ids() == [asset_id]
+    [notarized] = requests.cats(asset_id)
+    assert notarized.nonce == nonce
+    [payment] = notarized.payments
+    assert payment.amount == 700
+
+    # The puzzle hash is the one the pure derivation gives for this group.
+    expected = SilentPayments.derive_settlement_outputs(
+        [SilentPaymentGroupCoin(xch_coin.coin_id(), synthetic_sk, None)],
+        [
+            SilentPaymentSettlementRecipient(
+                maker.scan_pk(), maker.spend_pk(), wrapper, True, 700
+            )
+        ],
+        [],
+        nonce,
+    )
+    assert expected.settlement_outputs == [wrapper.wrap(payment.puzzle_hash)]
+
+    asset_info = outputs.silent_payment_asset_info()
+    assert asset_info.cat_asset_ids() == [asset_id]
+    assert asset_info.cat_hidden_puzzle_hash(asset_id) is None

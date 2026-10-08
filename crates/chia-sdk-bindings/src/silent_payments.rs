@@ -21,7 +21,10 @@ use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_bls::{PublicKey, SecretKey};
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::offer::Payment;
+use chia_sdk_driver::SpendContext;
+use clvmr::serde::{node_from_bytes, node_to_bytes};
 
 use crate::Mnemonic;
 
@@ -512,6 +515,92 @@ pub struct SilentPaymentRegisteredSecretKey {
     pub secret_key: SecretKey,
 }
 
+// ─── Settlement coins (derive_settlement_outputs, without tuples) ─────────
+//
+// bindy cannot marshal tuples or `Vec<Option<T>>`, so the spend group, the
+// recipient entries and the results of
+// `chia_sdk_driver::derive_settlement_outputs` cross the FFI as small classes.
+// CLVM values (payments, notarized payments) cross as their serialized bytes,
+// as an offer lists them.
+
+/// One coin of a party's spend group: its coin ID, its synthetic secret key
+/// and its asset (`None` for XCH).
+///
+/// Privacy warning: `secret_key` is the coin's spending key.
+#[derive(Clone)]
+pub struct SilentPaymentGroupCoin {
+    pub coin_id: Bytes32,
+    pub secret_key: SecretKey,
+    pub wrapper: Option<SilentPaymentWrapper>,
+}
+
+/// A recipient entry of `derive_settlement_outputs`: `amount` of the asset
+/// `wrapper` to the silent payment address `(scan_pk, spend_pk)`, where
+/// `spend_pk` is the spend key of the address paid (`B_m` for a labeled
+/// address; the change is label 0). `settled` is true for a payment made by
+/// the settlement coin of the asset, false for an output of the party's own
+/// spend group.
+#[derive(Clone)]
+pub struct SilentPaymentSettlementRecipient {
+    pub scan_pk: PublicKey,
+    pub spend_pk: PublicKey,
+    pub wrapper: Option<SilentPaymentWrapper>,
+    pub settled: bool,
+    pub amount: u64,
+}
+
+/// A requested payment of the party to an address that is not a silent
+/// payment address, in the asset `wrapper`: `payment` is the serialized CLVM
+/// of the payment as the party lists it in its offer, `(puzzle_hash amount
+/// memos)`.
+#[derive(Clone)]
+pub struct SilentPaymentOtherPayment {
+    pub wrapper: Option<SilentPaymentWrapper>,
+    pub payment: Bytes,
+}
+
+/// An output of the party's own spend group (a recipient entry that is not
+/// settled): the bare one-time puzzle hash and `wrap(wrapper, puzzle_hash)`,
+/// the puzzle hash of the coin a coin of the group creates.
+#[derive(Clone)]
+pub struct SilentPaymentGroupOutput {
+    pub k: u32,
+    pub wrapper: Option<SilentPaymentWrapper>,
+    pub puzzle_hash: Bytes32,
+    pub amount: u64,
+    pub wrapped_puzzle_hash: Bytes32,
+}
+
+/// The result of `SilentPayments.derive_settlement_outputs`.
+///
+/// - `settlement_outputs`: `wrap(W, p)` of each settled entry, in the order of
+///   the recipients, the coins the settlement coins must create.
+/// - `settled_payments`: the serialized payment of each settled entry, XCH
+///   `(p amount ())` and CAT `(p amount (p))`.
+/// - `notarized_payments`: one serialized notarized payment
+///   `(nonce . payments)` per asset, in order of first appearance.
+/// - `announcements`: the puzzle announcement each notarized payment's
+///   settlement coin makes, aligned with `notarized_payments`; one coin of the
+///   party's group asserts each.
+/// - `group_outputs`: the outputs of the entries that are not settled.
+#[derive(Clone)]
+pub struct SilentPaymentSettlement {
+    pub settlement_outputs: Vec<Bytes32>,
+    pub announcements: Vec<Bytes32>,
+    pub settled_payments: Vec<Bytes>,
+    pub notarized_payments: Vec<Bytes>,
+    pub group_outputs: Vec<SilentPaymentGroupOutput>,
+}
+
+/// The serialized CLVM of `value`, allocated in `ctx`.
+fn serialized<T>(ctx: &mut SpendContext, value: &T) -> Result<Bytes>
+where
+    T: clvm_traits::ToClvm<clvmr::Allocator>,
+{
+    let ptr = ctx.alloc(value)?;
+    Ok(node_to_bytes(ctx, ptr)?.into())
+}
+
 impl SilentPayments {
     /// `K_max` (2,400): the maximum number of silent-payment outputs for one
     /// scan key in one spend group (CHIP-0057 "Kmax: Maximum Outputs Per Spend
@@ -654,6 +743,97 @@ impl SilentPayments {
         )?;
         Ok(driver_td.into())
     }
+
+    /// CHIP-0057 `DeriveSettlementOutputs`: the payments a party is paid
+    /// through settlement coins in an offer, derived from its own spend group.
+    ///
+    /// `group` is the party's spend group (coin ID, synthetic secret key and
+    /// asset per coin), `recipients` its recipient entries (settled payments
+    /// and the outputs of its own group, such as its change, in one `k`
+    /// sequence per scan key), `other_payments` its requested payments to
+    /// addresses that are not silent payment addresses, and `nonce` the
+    /// offer's nonce of its requested payments. Runs in its own CLVM
+    /// allocator and returns the CLVM values serialized.
+    ///
+    /// Fails, without panicking, on an empty group, a malformed other payment,
+    /// an output of the group in an asset no coin of the group holds, more
+    /// than `K_max` entries to one scan key, or a zero key sum.
+    pub fn derive_settlement_outputs(
+        group: Vec<SilentPaymentGroupCoin>,
+        recipients: Vec<SilentPaymentSettlementRecipient>,
+        other_payments: Vec<SilentPaymentOtherPayment>,
+        nonce: Bytes32,
+    ) -> Result<SilentPaymentSettlement> {
+        let mut ctx = SpendContext::new();
+
+        let sender_sks: Vec<SecretKey> = group.iter().map(|c| c.secret_key.clone()).collect();
+        let coin_ids: Vec<Bytes32> = group.iter().map(|c| c.coin_id).collect();
+        let coin_wrappers: Vec<Option<chia_sdk_driver::Wrapper>> = group
+            .into_iter()
+            .map(|c| c.wrapper.map(Into::into))
+            .collect();
+        let recipients: Vec<chia_sdk_driver::SettlementRecipient> = recipients
+            .into_iter()
+            .map(|r| chia_sdk_driver::SettlementRecipient {
+                scan_pk: r.scan_pk,
+                spend_pk: r.spend_pk,
+                wrapper: r.wrapper.map(Into::into),
+                settled: r.settled,
+                amount: r.amount,
+            })
+            .collect();
+        let mut others = Vec::with_capacity(other_payments.len());
+        for other in other_payments {
+            let ptr = node_from_bytes(&mut ctx, &other.payment)?;
+            others.push(chia_sdk_driver::OtherPayment {
+                wrapper: other.wrapper.map(Into::into),
+                payment: ctx.extract::<Payment>(ptr)?,
+            });
+        }
+
+        let derivation = chia_sdk_driver::derive_settlement_outputs(
+            &mut ctx,
+            &sender_sks,
+            &coin_ids,
+            &coin_wrappers,
+            &recipients,
+            &others,
+            nonce,
+        )?;
+
+        let settled_payments = derivation
+            .settled_payments
+            .iter()
+            .map(|payment| serialized(&mut ctx, payment))
+            .collect::<Result<Vec<_>>>()?;
+        let notarized_payments = derivation
+            .notarized_payments
+            .iter()
+            .map(|np| serialized(&mut ctx, &np.notarized_payment))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(SilentPaymentSettlement {
+            settlement_outputs: derivation.settlement_outputs,
+            announcements: derivation
+                .notarized_payments
+                .iter()
+                .map(|np| np.announcement)
+                .collect(),
+            settled_payments,
+            notarized_payments,
+            group_outputs: derivation
+                .group_outputs
+                .into_iter()
+                .map(|output| SilentPaymentGroupOutput {
+                    k: output.k,
+                    wrapper: output.wrapper.map(Into::into),
+                    puzzle_hash: output.puzzle_hash,
+                    amount: output.amount,
+                    wrapped_puzzle_hash: output.wrapped_puzzle_hash,
+                })
+                .collect(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -792,6 +972,67 @@ mod tests {
             back.wrappers[0].hidden_puzzle_hash,
             Some(Bytes32::new([4; 32]))
         );
+    }
+
+    /// `derive_settlement_outputs` returns errors across the FFI instead of
+    /// panicking: an empty group, and an other payment that is not CLVM.
+    #[test]
+    fn derive_settlement_outputs_errors() {
+        let scan = SecretKey::from_seed(&[1u8; 32]);
+        let spend = SecretKey::from_seed(&[2u8; 32]);
+        let recipient = SilentPaymentSettlementRecipient {
+            scan_pk: scan.public_key(),
+            spend_pk: spend.public_key(),
+            wrapper: None,
+            settled: true,
+            amount: 1,
+        };
+        let nonce = Bytes32::new([9; 32]);
+
+        let result = SilentPayments::derive_settlement_outputs(
+            Vec::new(),
+            vec![recipient.clone()],
+            Vec::new(),
+            nonce,
+        );
+        assert!(matches!(
+            result,
+            Err(bindy::Error::Driver(
+                chia_sdk_driver::DriverError::SilentPaymentInvalidSettlementInput
+            ))
+        ));
+
+        let group = vec![SilentPaymentGroupCoin {
+            coin_id: Bytes32::new([5; 32]),
+            secret_key: SecretKey::from_seed(&[3u8; 32]),
+            wrapper: None,
+        }];
+        let malformed = SilentPaymentOtherPayment {
+            wrapper: None,
+            payment: Bytes::new(vec![0xff]),
+        };
+        assert!(
+            SilentPayments::derive_settlement_outputs(
+                group.clone(),
+                vec![recipient.clone()],
+                vec![malformed],
+                nonce
+            )
+            .is_err()
+        );
+
+        // A well-formed call gives one settled XCH payment, (p amount ()).
+        let settlement =
+            SilentPayments::derive_settlement_outputs(group, vec![recipient], Vec::new(), nonce)
+                .unwrap();
+        assert_eq!(settlement.settlement_outputs.len(), 1);
+        assert_eq!(settlement.announcements.len(), 1);
+        assert_eq!(settlement.notarized_payments.len(), 1);
+        assert!(settlement.group_outputs.is_empty());
+        let payment = settlement.settled_payments[0].as_ref();
+        assert_eq!(&payment[1..2], &[0xa0]);
+        assert_eq!(&payment[2..34], settlement.settlement_outputs[0].as_ref());
+        assert!(payment.ends_with(&[0xff, 0x80, 0x80]));
     }
 
     /// The facade exposes the same limit the sender and the scanner enforce.
