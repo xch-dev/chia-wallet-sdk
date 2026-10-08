@@ -46,6 +46,8 @@ pub struct Spends<S = Unfinished> {
     #[cfg(feature = "chip-0057")]
     pub(crate) silent_payments_pending: Vec<crate::silent_payments::SilentPaymentPending>,
     #[cfg(feature = "chip-0057")]
+    pub(crate) silent_payment_settled_others: Vec<crate::silent_payments::SettledOtherPayment>,
+    #[cfg(feature = "chip-0057")]
     pub(crate) silent_payment_synthetic_pks: Option<IndexMap<Bytes32, PublicKey>>,
     #[cfg(feature = "chip-0057")]
     pub(crate) silent_payment_synthetic_sks:
@@ -83,6 +85,18 @@ pub struct Outputs {
     pub fee: u64,
     /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
+    /// The notarized payments of the silent payments the transaction requests from a
+    /// counterparty's settlement coins ([`Action::silent_payment_requested`](crate::Action::silent_payment_requested)),
+    /// one per asset, for the requested payments of an offer built with
+    /// [`Offer::from_input_spend_bundle`](crate::Offer::from_input_spend_bundle). The transaction
+    /// already asserts their announcements.
+    #[cfg(feature = "chip-0057")]
+    pub silent_payment_requests: crate::RequestedPayments,
+    /// The asset information of [`Outputs::silent_payment_requests`]: the hidden puzzle hash of
+    /// each requested CAT (`None` for a CAT that is not revocable), so that the offer file lists
+    /// the settlement coin the transaction's assertion names.
+    #[cfg(feature = "chip-0057")]
+    pub silent_payment_asset_info: crate::AssetInfo,
 }
 
 /// The position of a spend in [`Spends`]: its asset and its index in that asset's items (or
@@ -128,6 +142,8 @@ impl Spends<Unfinished> {
             silent_payment_counters: std::collections::HashMap::new(),
             #[cfg(feature = "chip-0057")]
             silent_payments_pending: Vec::new(),
+            #[cfg(feature = "chip-0057")]
+            silent_payment_settled_others: Vec::new(),
             #[cfg(feature = "chip-0057")]
             silent_payment_synthetic_pks: None,
             #[cfg(feature = "chip-0057")]
@@ -679,9 +695,11 @@ impl Spends<Unfinished> {
     ) -> Result<Spends<Finished>, DriverError> {
         // CHIP-0057: derive and emit the silent payment outputs before the change is created, so
         // that the outputs keep the position a normal payment would have. This is a no-op unless
-        // an `Action::silent_payment_send` has been applied.
+        // an `Action::silent_payment_send` or a settled silent payment action has been applied.
         #[cfg(feature = "chip-0057")]
-        let silent_payment_group = if self.silent_payments_pending.is_empty() {
+        let silent_payment_group = if self.silent_payments_pending.is_empty()
+            && self.silent_payment_settled_others.is_empty()
+        {
             None
         } else {
             Some(sp_finish_branch(ctx, &mut self, deltas, relation)?)
@@ -723,6 +741,8 @@ impl Spends<Unfinished> {
             silent_payment_counters: self.silent_payment_counters,
             #[cfg(feature = "chip-0057")]
             silent_payments_pending: self.silent_payments_pending,
+            #[cfg(feature = "chip-0057")]
+            silent_payment_settled_others: self.silent_payment_settled_others,
             #[cfg(feature = "chip-0057")]
             silent_payment_synthetic_pks: self.silent_payment_synthetic_pks,
             #[cfg(feature = "chip-0057")]
@@ -803,10 +823,23 @@ impl Spends<Unfinished> {
 /// 8. [`DriverError::SilentPaymentKeyNotSynthetic`] if a registered key is not the synthetic key
 ///    of its coin's (inner) standard puzzle.
 /// 9. [`DriverError::SilentPaymentParentNotEligible`] if an output would be created by a coin
-///    outside the group, or by a coin of another asset.
+///    outside the group, or by a coin of another asset. A settled payment is created by a
+///    settlement coin, which is never in the group, so it is not checked here.
 /// 10. [`DriverError::SilentPaymentZeroKeySum`] if the secret keys of the group sum to zero, and
 ///     [`DriverError::SilentPaymentZeroInputHash`] / [`DriverError::SilentPaymentZeroTweak`] if
 ///     one of the derived scalars is zero.
+///
+/// Settled payments ([`crate::Action::silent_payment_requested`] and
+/// [`crate::Action::silent_payment_settle`], CHIP-0057 "Payments through Settlement Coins") are
+/// derived in the same pass, with the `k` each took when its action was applied. Then, per asset
+/// in order of first appearance, the asset's silent payments in the order of the actions and its
+/// other payments make one notarized payment under the party's nonce, and its announcement is
+/// asserted as a required condition, which [`Spends::emit_conditions`] attaches to the first
+/// coin of the group. A requested payment is published in [`Outputs::silent_payment_requests`].
+/// The settled checks: [`DriverError::SilentPaymentSettlementMismatch`] if two settled entries
+/// carry different nonces or the entries of one asset have different payers, and
+/// [`DriverError::SilentPaymentInvalidSettlementInput`] if an other payment is listed in an asset
+/// with no settled silent payment.
 ///
 /// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
 /// that were actually bound together once the transaction is complete.
@@ -822,6 +855,7 @@ fn sp_finish_branch(
 
     use crate::silent_payments::{
         SilentPaymentSource, aggregate_sender_sks, compute_input_hash, derive_one_time_puzzle_hash,
+        encoded_payment,
     };
 
     // The closed list of eligible spends of version 0 (CHIP-0057 "Eligible Spends") is XCH, CAT
@@ -912,14 +946,18 @@ fn sp_finish_branch(
     // asset (CHIP-0057 sender requirement 4, per asset).
     if spends.silent_payments_pending.iter().any(|pending| {
         !group.iter().any(|coin| {
-            coin.coin_id == pending.parent_coin.coin_id()
+            pending
+                .parent_coin
+                .is_some_and(|parent| parent.coin_id() == coin.coin_id)
                 && match pending.source {
                     SilentPaymentSource::Xch(_) => coin.wrapper.is_none(),
                     SilentPaymentSource::Cat(id, _) => coin
                         .wrapper
                         .is_some_and(|wrapper| Id::Existing(wrapper.asset_id) == id),
+                    // Created by a settlement coin, never by a coin of the group.
+                    SilentPaymentSource::Settled { .. } => true,
                 }
-        })
+        }) && !matches!(pending.source, SilentPaymentSource::Settled { .. })
     }) {
         return Err(DriverError::SilentPaymentParentNotEligible);
     }
@@ -936,6 +974,7 @@ fn sp_finish_branch(
 
     // Take the pending outputs so that they can be iterated while `spends` is mutated.
     let pending = std::mem::take(&mut spends.silent_payments_pending);
+    let mut settled: Vec<SettledPayment> = Vec::new();
 
     for p in &pending {
         let ph = derive_one_time_puzzle_hash(
@@ -949,11 +988,14 @@ fn sp_finish_branch(
         match p.source {
             SilentPaymentSource::Xch(index) => {
                 let create_coin = CreateCoin::new(ph, p.amount, p.memos);
+                let parent_coin = p
+                    .parent_coin
+                    .ok_or(DriverError::SilentPaymentParentNotEligible)?;
 
                 let parent = &mut spends.xch.items[index];
                 parent.kind.create_coin_with_assertion(
                     ctx,
-                    p.parent_coin,
+                    parent_coin,
                     &mut spends.xch.payment_assertions,
                     create_coin,
                 );
@@ -961,13 +1003,16 @@ fn sp_finish_branch(
                 spends
                     .outputs
                     .xch
-                    .push(Coin::new(p.parent_coin.coin_id(), ph, p.amount));
+                    .push(Coin::new(parent_coin.coin_id(), ph, p.amount));
             }
             SilentPaymentSource::Cat(id, index) => {
                 // The standard puzzle names the bare one-time puzzle hash, hinted with it
                 // (CHIP-0057 "Outputs in CATs"); the CAT layer, and on the holder's path the
                 // revocation layer, wrap the coin it creates to wrap(W, p).
                 let create_coin = CreateCoin::new(ph, p.amount, ctx.hint(ph)?);
+                let parent_coin = p
+                    .parent_coin
+                    .ok_or(DriverError::SilentPaymentParentNotEligible)?;
 
                 let cat = spends
                     .cats
@@ -979,7 +1024,7 @@ fn sp_finish_branch(
                     .ok_or(DriverError::SilentPaymentParentNotEligible)?;
                 parent.kind.create_coin_with_assertion(
                     ctx,
-                    p.parent_coin,
+                    parent_coin,
                     &mut cat.payment_assertions,
                     create_coin,
                 );
@@ -987,7 +1032,30 @@ fn sp_finish_branch(
                 let child = parent.asset.child(ph, p.amount);
                 spends.outputs.cats.entry(id).or_default().push(child);
             }
+            SilentPaymentSource::Settled {
+                asset,
+                nonce,
+                payer,
+                settlement_index,
+            } => {
+                // (p amount ()) for XCH, (p amount (p)) for a CAT (CHIP-0057
+                // `DeriveSettlementOutputs`).
+                let payment = encoded_payment(ctx, ph, p.amount, asset.as_ref())?;
+                settled.push(SettledPayment {
+                    asset,
+                    nonce,
+                    payer,
+                    settlement_index,
+                    payment,
+                });
+            }
         }
+    }
+
+    // The settled payments: one notarized payment and one assertion per asset.
+    let others = std::mem::take(&mut spends.silent_payment_settled_others);
+    if !settled.is_empty() || !others.is_empty() {
+        settle_silent_payments(ctx, spends, settled, others)?;
     }
 
     // No silent-payment-specific binding is emitted. The `ASSERT_CONCURRENT_SPEND` cycle that
@@ -995,6 +1063,122 @@ fn sp_finish_branch(
     // `conditions_spend_positions` selects, which is the group the values above were computed
     // over.
     Ok(group_coin_ids)
+}
+
+/// A settled silent payment of the party, encoded, in the order of the actions.
+#[cfg(feature = "chip-0057")]
+struct SettledPayment {
+    asset: Option<crate::silent_payments::Wrapper>,
+    nonce: Bytes32,
+    payer: crate::SettlementPayer,
+    settlement_index: Option<usize>,
+    payment: chia_puzzle_types::offer::Payment,
+}
+
+/// The party's requested payments in one asset: one payer, and the payments in the order they
+/// are listed (silent payments first, then other payments).
+#[cfg(feature = "chip-0057")]
+struct AssetSettlement {
+    asset: Option<crate::silent_payments::Wrapper>,
+    payer: crate::SettlementPayer,
+    settlement_index: Option<usize>,
+    payments: Vec<chia_puzzle_types::offer::Payment>,
+}
+
+/// Groups the party's settled payments per asset, in order of first appearance, into one
+/// notarized payment each under the party's one nonce, asserts each announcement as a required
+/// condition (emitted by a coin of the spend group, independent of
+/// [`ConditionConfig::disable_settlement_assertions`]), and publishes the payments the
+/// counterparty's settlement coins make in [`Outputs::silent_payment_requests`].
+///
+/// A settled payment never goes through [`SpendKind::create_coin_with_assertion`], which would
+/// notarize each coin separately with its parent's coin ID as the nonce.
+#[cfg(feature = "chip-0057")]
+fn settle_silent_payments(
+    ctx: &mut SpendContext,
+    spends: &mut Spends,
+    settled: Vec<SettledPayment>,
+    others: Vec<crate::silent_payments::SettledOtherPayment>,
+) -> Result<(), DriverError> {
+    use chia_puzzle_types::offer::NotarizedPayment;
+
+    use crate::{CatAssetInfo, SettlementPayer, silent_payments::settlement_assertion};
+
+    // One nonce for all of the party's requested payments.
+    let nonce = settled
+        .first()
+        .map(|entry| entry.nonce)
+        .or_else(|| others.first().map(|other| other.nonce))
+        .ok_or(DriverError::SilentPaymentInvalidSettlementInput)?;
+    if settled.iter().any(|entry| entry.nonce != nonce)
+        || others.iter().any(|other| other.nonce != nonce)
+    {
+        return Err(DriverError::SilentPaymentSettlementMismatch);
+    }
+
+    // The assets in order of first appearance among the silent payments; an other payment joins
+    // the asset of a silent payment, after its silent payments.
+    let mut assets: Vec<AssetSettlement> = Vec::new();
+    for entry in settled {
+        if let Some(asset) = assets.iter_mut().find(|a| a.asset == entry.asset) {
+            if asset.payer != entry.payer {
+                return Err(DriverError::SilentPaymentSettlementMismatch);
+            }
+            asset.payments.push(entry.payment);
+        } else {
+            assets.push(AssetSettlement {
+                asset: entry.asset,
+                payer: entry.payer,
+                settlement_index: entry.settlement_index,
+                payments: vec![entry.payment],
+            });
+        }
+    }
+    for other in others {
+        let Some(asset) = assets.iter_mut().find(|a| a.asset == other.asset) else {
+            return Err(DriverError::SilentPaymentInvalidSettlementInput);
+        };
+        if asset.payer != other.payer {
+            return Err(DriverError::SilentPaymentSettlementMismatch);
+        }
+        asset.settlement_index = asset.settlement_index.or(other.settlement_index);
+        asset.payments.push(other.payment);
+    }
+
+    for asset in assets {
+        let notarized_payment = NotarizedPayment::new(nonce, asset.payments);
+        let assertion = settlement_assertion(ctx, asset.asset.as_ref(), &notarized_payment);
+        spends.conditions.required = mem::take(&mut spends.conditions.required).with(assertion);
+
+        match asset.payer {
+            SettlementPayer::Counterparty => match asset.asset {
+                None => spends
+                    .outputs
+                    .silent_payment_requests
+                    .xch
+                    .push(notarized_payment),
+                Some(wrapper) => {
+                    spends
+                        .outputs
+                        .silent_payment_requests
+                        .cats
+                        .entry(wrapper.asset_id)
+                        .or_default()
+                        .push(notarized_payment);
+                    spends.outputs.silent_payment_asset_info.insert_cat(
+                        wrapper.asset_id,
+                        CatAssetInfo::new(wrapper.hidden_puzzle_hash),
+                    )?;
+                }
+            },
+            SettlementPayer::SpentSettlementCoin => {
+                let _ = asset.settlement_index;
+                return Err(DriverError::SilentPaymentSettlementCoinMissing);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// A coin of the silent payment spend group.

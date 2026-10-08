@@ -17,19 +17,25 @@
 //! The payments of the Extension to CATs (Vectors 9 to 11) carry a wrapper per
 //! input and output and the block's wrapper list. Their `puzzle_hash` is the
 //! bare one-time puzzle hash; the coin's puzzle hash is `wrapped_puzzle_hash`.
+//! The `settlement_payments` (Vectors 12 and 13) are walked the same way, and
+//! `DeriveSettlementOutputs` reproduces their notarized payments, announcements
+//! and the outputs of the party's spend group.
 
 use std::collections::BTreeSet;
 
 use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
+use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{LineageProof, Memos};
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, OutputMeta, TweakData, Wrapper, aggregate_sender_sks, compute_input_hash,
-    compute_shared_secret_from_tweak, compute_tweak_point, derive_one_time_puzzle_hash,
-    derive_onetime_pk, derive_onetime_sk, derive_output_tweak, eligible_spend, puzzle_hash_for_pk,
-    scan_from_tweaks, sort_wrappers, wrap_puzzle_hash,
+    K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementDerivation, SettlementRecipient, TweakData,
+    Wrapper, aggregate_sender_sks, compute_input_hash, compute_shared_secret_from_tweak,
+    compute_tweak_point, derive_one_time_puzzle_hash, derive_onetime_pk, derive_onetime_sk,
+    derive_output_tweak, derive_settlement_outputs, eligible_spend, encoded_payment,
+    puzzle_hash_for_pk, scan_from_tweaks, settlement_announcement, settlement_puzzle_hash,
+    sort_wrappers, wrap_puzzle_hash,
 };
 use chia_sdk_driver::{Cat, CatInfo, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
 use chia_sdk_types::Conditions;
@@ -39,6 +45,9 @@ use chia_sdk_utils::silent_payments::{
     SilentPaymentNetwork, generate_label,
 };
 use chia_sha2::Sha256;
+use clvm_traits::ToClvm;
+use clvmr::Allocator;
+use clvmr::serde::{node_from_bytes, node_to_bytes};
 use serde_json::Value;
 
 const VECTORS: &str = include_str!("data/chip-0057/test_vectors.json");
@@ -178,221 +187,231 @@ fn payments_as_sent() {
     let file = vectors();
 
     for payment in list(&file, "payments") {
-        let name = text(payment, "name");
-        let inputs = list(payment, "inputs");
-        assert!(!inputs.is_empty(), "{name}: no inputs");
+        payment_as_sent(payment);
+    }
+}
 
-        // Inputs: each synthetic secret key belongs to its public key.
-        let sender_sks: Vec<SecretKey> = inputs.iter().map(|i| sk(i, "synthetic_sk")).collect();
-        let coin_ids: Vec<Bytes32> = inputs
-            .iter()
-            .map(|i| Bytes32::new(bytes(i, "coin_id")))
-            .collect();
-        let mut pk_sum = PublicKey::default();
-        for (input, secret) in inputs.iter().zip(&sender_sks) {
-            let public = pk(input, "synthetic_pk");
-            assert_eq!(secret.public_key(), public, "{name}: synthetic_pk");
-            pk_sum += &public;
+/// The checks of [`payments_as_sent`] for one entry of `payments` or
+/// `settlement_payments`. A settled output is created by a settlement coin, so
+/// it may be paid in an asset no coin of the group holds.
+fn payment_as_sent(payment: &Value) {
+    let name = text(payment, "name");
+    let inputs = list(payment, "inputs");
+    assert!(!inputs.is_empty(), "{name}: no inputs");
+
+    // Inputs: each synthetic secret key belongs to its public key.
+    let sender_sks: Vec<SecretKey> = inputs.iter().map(|i| sk(i, "synthetic_sk")).collect();
+    let coin_ids: Vec<Bytes32> = inputs
+        .iter()
+        .map(|i| Bytes32::new(bytes(i, "coin_id")))
+        .collect();
+    let mut pk_sum = PublicKey::default();
+    for (input, secret) in inputs.iter().zip(&sender_sks) {
+        let public = pk(input, "synthetic_pk");
+        assert_eq!(secret.public_key(), public, "{name}: synthetic_pk");
+        pk_sum += &public;
+    }
+
+    // A_sum, from the secret keys and from the public keys.
+    let a_sum = aggregate_sender_sks(&sender_sks).unwrap();
+    let a_sum_pk = pk(payment, "a_sum_pk");
+    assert_eq!(a_sum.public_key(), a_sum_pk, "{name}: a_sum_pk");
+    assert_eq!(pk_sum, a_sum_pk, "{name}: a_sum_pk by point addition");
+
+    // coin_id_L, input_hash and the tweak point.
+    assert_eq!(
+        *coin_ids.iter().min().unwrap(),
+        Bytes32::new(bytes(payment, "coin_id_l")),
+        "{name}: coin_id_l"
+    );
+    let input_hash = compute_input_hash(&coin_ids, &a_sum_pk);
+    assert_eq!(
+        input_hash.to_bytes(),
+        bytes::<32>(payment, "input_hash"),
+        "{name}: input_hash"
+    );
+    let tweak_point = compute_tweak_point(&coin_ids, &a_sum_pk)
+        .unwrap_or_else(|| panic!("{name}: no tweak point"));
+    assert_eq!(
+        tweak_point,
+        pk(payment, "tweak_point"),
+        "{name}: tweak_point"
+    );
+
+    let outputs = list(payment, "outputs");
+    assert!(!outputs.is_empty(), "{name}: no outputs");
+    for output in outputs {
+        let k = index(output, "k");
+        let at = format!("{name}, output k={k}");
+        let recipient = &output["recipient"];
+
+        // Recipient keys, and the spend key of the address that was paid:
+        // B_spend, or B_m = B_spend + label_pk for a labeled address.
+        let b_scan = sk(recipient, "scan_sk");
+        let b_spend = sk(recipient, "spend_sk");
+        let scan_pk = pk(recipient, "scan_pk");
+        let spend_pk = pk(recipient, "spend_pk");
+        assert_eq!(b_scan.public_key(), scan_pk, "{at}: scan_pk");
+        assert_eq!(b_spend.public_key(), spend_pk, "{at}: spend_pk");
+
+        let address_spend_pk = pk(recipient, "address_spend_pk");
+        let expected_address_spend_pk = match label(recipient) {
+            None => spend_pk,
+            Some(m) => spend_pk + &generate_label(&b_scan, m).1,
+        };
+        assert_eq!(
+            address_spend_pk, expected_address_spend_pk,
+            "{at}: address_spend_pk"
+        );
+
+        // The shared secret, from the scanner's side of the ECDH.
+        let shared_secret = bytes::<32>(output, "shared_secret");
+        assert_eq!(
+            compute_shared_secret_from_tweak(&b_scan, &tweak_point),
+            shared_secret,
+            "{at}: shared_secret"
+        );
+
+        // t_k, P_k and the puzzle hash.
+        let t_k = derive_output_tweak(&shared_secret, k);
+        assert_eq!(t_k.to_bytes(), bytes::<32>(output, "t_k"), "{at}: t_k");
+        let onetime_pk = derive_onetime_pk(&address_spend_pk, &t_k);
+        assert_eq!(onetime_pk, pk(output, "onetime_pk"), "{at}: onetime_pk");
+        let puzzle_hash = Bytes32::new(bytes(output, "puzzle_hash"));
+        assert_eq!(
+            puzzle_hash_for_pk(&onetime_pk),
+            puzzle_hash,
+            "{at}: puzzle_hash"
+        );
+
+        // The sender's composition arrives at the same puzzle hash.
+        assert_eq!(
+            derive_one_time_puzzle_hash(&scan_pk, &address_spend_pk, &a_sum, &input_hash, k)
+                .unwrap(),
+            puzzle_hash,
+            "{at}: sender puzzle_hash"
+        );
+
+        // spend_tweak = (t_k + label_scalar) mod r, and the one-time key.
+        let spend_tweak = match label(recipient) {
+            None => t_k,
+            Some(m) => t_k.add(&generate_label(&b_scan, m).0),
+        };
+        assert_eq!(
+            spend_tweak.to_bytes(),
+            bytes::<32>(output, "spend_tweak"),
+            "{at}: spend_tweak"
+        );
+        let onetime_secret = derive_onetime_sk(&b_spend, &spend_tweak);
+        assert_eq!(
+            onetime_secret.to_bytes(),
+            bytes::<32>(output, "onetime_sk"),
+            "{at}: onetime_sk"
+        );
+        assert_eq!(
+            onetime_secret.public_key(),
+            onetime_pk,
+            "{at}: onetime_sk * G"
+        );
+
+        // The coin created: wrap(W, puzzle_hash) for a CAT output; a
+        // missing or null wrapper is XCH, whose coin has the bare hash.
+        let w = wrapper(&output["wrapper"]);
+        if let Some(w) = w {
+            assert_eq!(
+                w.wrap(puzzle_hash),
+                Bytes32::new(bytes(output, "wrapped_puzzle_hash")),
+                "{at}: wrapped_puzzle_hash"
+            );
         }
-
-        // A_sum, from the secret keys and from the public keys.
-        let a_sum = aggregate_sender_sks(&sender_sks).unwrap();
-        let a_sum_pk = pk(payment, "a_sum_pk");
-        assert_eq!(a_sum.public_key(), a_sum_pk, "{name}: a_sum_pk");
-        assert_eq!(pk_sum, a_sum_pk, "{name}: a_sum_pk by point addition");
-
-        // coin_id_L, input_hash and the tweak point.
         assert_eq!(
-            *coin_ids.iter().min().unwrap(),
-            Bytes32::new(bytes(payment, "coin_id_l")),
-            "{name}: coin_id_l"
-        );
-        let input_hash = compute_input_hash(&coin_ids, &a_sum_pk);
-        assert_eq!(
-            input_hash.to_bytes(),
-            bytes::<32>(payment, "input_hash"),
-            "{name}: input_hash"
-        );
-        let tweak_point = compute_tweak_point(&coin_ids, &a_sum_pk)
-            .unwrap_or_else(|| panic!("{name}: no tweak point"));
-        assert_eq!(
-            tweak_point,
-            pk(payment, "tweak_point"),
-            "{name}: tweak_point"
+            wrap_puzzle_hash(w.as_ref(), puzzle_hash),
+            coin_puzzle_hash(output),
+            "{at}: coin puzzle hash"
         );
 
-        let outputs = list(payment, "outputs");
-        assert!(!outputs.is_empty(), "{name}: no outputs");
-        for output in outputs {
-            let k = index(output, "k");
-            let at = format!("{name}, output k={k}");
-            let recipient = &output["recipient"];
-
-            // Recipient keys, and the spend key of the address that was paid:
-            // B_spend, or B_m = B_spend + label_pk for a labeled address.
-            let b_scan = sk(recipient, "scan_sk");
-            let b_spend = sk(recipient, "spend_sk");
-            let scan_pk = pk(recipient, "scan_pk");
-            let spend_pk = pk(recipient, "spend_pk");
-            assert_eq!(b_scan.public_key(), scan_pk, "{at}: scan_pk");
-            assert_eq!(b_spend.public_key(), spend_pk, "{at}: spend_pk");
-
-            let address_spend_pk = pk(recipient, "address_spend_pk");
-            let expected_address_spend_pk = match label(recipient) {
-                None => spend_pk,
-                Some(m) => spend_pk + &generate_label(&b_scan, m).1,
-            };
+        // The values the Extension to CATs adds to an output.
+        if output.get("wrapper").is_some() {
+            // The ECDH point, b_scan * T, and shared_secret = sha256 of it.
+            let mut ecdh_point = tweak_point;
+            ecdh_point.scalar_multiply(&b_scan.to_bytes());
+            assert_eq!(ecdh_point, pk(output, "ecdh_point"), "{at}: ecdh_point");
+            let mut hasher = Sha256::new();
+            hasher.update(ecdh_point.to_bytes());
             assert_eq!(
-                address_spend_pk, expected_address_spend_pk,
-                "{at}: address_spend_pk"
-            );
-
-            // The shared secret, from the scanner's side of the ECDH.
-            let shared_secret = bytes::<32>(output, "shared_secret");
-            assert_eq!(
-                compute_shared_secret_from_tweak(&b_scan, &tweak_point),
+                hasher.finalize(),
                 shared_secret,
-                "{at}: shared_secret"
+                "{at}: shared_secret = sha256(ecdh_point)"
             );
 
-            // t_k, P_k and the puzzle hash.
-            let t_k = derive_output_tweak(&shared_secret, k);
-            assert_eq!(t_k.to_bytes(), bytes::<32>(output, "t_k"), "{at}: t_k");
-            let onetime_pk = derive_onetime_pk(&address_spend_pk, &t_k);
-            assert_eq!(onetime_pk, pk(output, "onetime_pk"), "{at}: onetime_pk");
-            let puzzle_hash = Bytes32::new(bytes(output, "puzzle_hash"));
-            assert_eq!(
-                puzzle_hash_for_pk(&onetime_pk),
-                puzzle_hash,
-                "{at}: puzzle_hash"
-            );
-
-            // The sender's composition arrives at the same puzzle hash.
-            assert_eq!(
-                derive_one_time_puzzle_hash(&scan_pk, &address_spend_pk, &a_sum, &input_hash, k)
-                    .unwrap(),
-                puzzle_hash,
-                "{at}: sender puzzle_hash"
-            );
-
-            // spend_tweak = (t_k + label_scalar) mod r, and the one-time key.
-            let spend_tweak = match label(recipient) {
-                None => t_k,
-                Some(m) => t_k.add(&generate_label(&b_scan, m).0),
-            };
-            assert_eq!(
-                spend_tweak.to_bytes(),
-                bytes::<32>(output, "spend_tweak"),
-                "{at}: spend_tweak"
-            );
-            let onetime_secret = derive_onetime_sk(&b_spend, &spend_tweak);
-            assert_eq!(
-                onetime_secret.to_bytes(),
-                bytes::<32>(output, "onetime_sk"),
-                "{at}: onetime_sk"
-            );
-            assert_eq!(
-                onetime_secret.public_key(),
-                onetime_pk,
-                "{at}: onetime_sk * G"
-            );
-
-            // The coin created: wrap(W, puzzle_hash) for a CAT output; a
-            // missing or null wrapper is XCH, whose coin has the bare hash.
-            let w = wrapper(&output["wrapper"]);
-            if let Some(w) = w {
-                assert_eq!(
-                    w.wrap(puzzle_hash),
-                    Bytes32::new(bytes(output, "wrapped_puzzle_hash")),
-                    "{at}: wrapped_puzzle_hash"
-                );
-            }
-            assert_eq!(
-                wrap_puzzle_hash(w.as_ref(), puzzle_hash),
-                coin_puzzle_hash(output),
-                "{at}: coin puzzle hash"
-            );
-
-            // The values the Extension to CATs adds to an output.
-            if output.get("wrapper").is_some() {
-                // The ECDH point, b_scan * T, and shared_secret = sha256 of it.
-                let mut ecdh_point = tweak_point;
-                ecdh_point.scalar_multiply(&b_scan.to_bytes());
-                assert_eq!(ecdh_point, pk(output, "ecdh_point"), "{at}: ecdh_point");
-                let mut hasher = Sha256::new();
-                hasher.update(ecdh_point.to_bytes());
-                assert_eq!(
-                    hasher.finalize(),
-                    shared_secret,
-                    "{at}: shared_secret = sha256(ecdh_point)"
-                );
-
-                match w {
-                    // XCH: no hint, no CAT inner puzzle.
-                    None => {
-                        assert!(output["hint"].is_null(), "{at}: XCH has no hint");
-                        assert!(
-                            output["cat_inner_puzzle_hash"].is_null(),
-                            "{at}: XCH has no CAT inner puzzle hash"
-                        );
-                    }
-                    // A CAT output is hinted with the bare puzzle hash; the
-                    // CAT layer's inner puzzle is the standard puzzle, or the
-                    // revocation layer around it.
-                    Some(w) => {
-                        assert_eq!(
-                            Bytes32::new(bytes(output, "hint")),
-                            puzzle_hash,
-                            "{at}: hint"
-                        );
+            match w {
+                // XCH: no hint, no CAT inner puzzle.
+                None => {
+                    assert!(output["hint"].is_null(), "{at}: XCH has no hint");
+                    assert!(
+                        output["cat_inner_puzzle_hash"].is_null(),
+                        "{at}: XCH has no CAT inner puzzle hash"
+                    );
+                }
+                // A CAT output is hinted with the bare puzzle hash; the
+                // CAT layer's inner puzzle is the standard puzzle, or the
+                // revocation layer around it.
+                Some(w) => {
+                    assert_eq!(
+                        Bytes32::new(bytes(output, "hint")),
+                        puzzle_hash,
+                        "{at}: hint"
+                    );
+                    assert_eq!(
+                        Bytes32::new(bytes(output, "cat_inner_puzzle_hash")),
+                        Bytes32::from(
+                            CatInfo::new(w.asset_id, w.hidden_puzzle_hash, puzzle_hash)
+                                .inner_puzzle_hash()
+                        ),
+                        "{at}: cat_inner_puzzle_hash"
+                    );
+                    if w.hidden_puzzle_hash.is_none() {
                         assert_eq!(
                             Bytes32::new(bytes(output, "cat_inner_puzzle_hash")),
-                            Bytes32::from(
-                                CatInfo::new(w.asset_id, w.hidden_puzzle_hash, puzzle_hash)
-                                    .inner_puzzle_hash()
-                            ),
-                            "{at}: cat_inner_puzzle_hash"
+                            puzzle_hash,
+                            "{at}: a plain CAT's inner puzzle is the standard puzzle"
                         );
-                        if w.hidden_puzzle_hash.is_none() {
-                            assert_eq!(
-                                Bytes32::new(bytes(output, "cat_inner_puzzle_hash")),
-                                puzzle_hash,
-                                "{at}: a plain CAT's inner puzzle is the standard puzzle"
-                            );
-                        }
                     }
                 }
-                assert!(
-                    output["amount"].as_u64().expect("`amount`") > 0,
-                    "{at}: amount"
-                );
             }
-        }
-
-        // The block's wrapper list: the wrappers of the payment's coins in the
-        // CHIP's order, and every output paid in an asset of the group.
-        if payment.get("wrapper_list").is_some() {
-            let coin_wrappers: Vec<Option<Wrapper>> =
-                inputs.iter().map(|i| wrapper(&i["wrapper"])).collect();
-            let output_wrappers: Vec<Option<Wrapper>> =
-                outputs.iter().map(|o| wrapper(&o["wrapper"])).collect();
-            assert_eq!(
-                sort_wrappers(
-                    coin_wrappers
-                        .iter()
-                        .chain(&output_wrappers)
-                        .copied()
-                        .flatten()
-                ),
-                wrapper_list(payment),
-                "{name}: wrapper_list"
+            assert!(
+                output["amount"].as_u64().expect("`amount`") > 0,
+                "{at}: amount"
             );
-            for w in &output_wrappers {
-                assert!(
-                    coin_wrappers.contains(w),
-                    "{name}: an output is paid in an asset of the group"
-                );
+        }
+    }
+
+    // The block's wrapper list: the wrappers of the payment's coins in the
+    // CHIP's order, and every output paid in an asset of the group.
+    if payment.get("wrapper_list").is_some() {
+        let coin_wrappers: Vec<Option<Wrapper>> =
+            inputs.iter().map(|i| wrapper(&i["wrapper"])).collect();
+        let output_wrappers: Vec<Option<Wrapper>> =
+            outputs.iter().map(|o| wrapper(&o["wrapper"])).collect();
+        assert_eq!(
+            sort_wrappers(
+                coin_wrappers
+                    .iter()
+                    .chain(&output_wrappers)
+                    .copied()
+                    .flatten()
+            ),
+            wrapper_list(payment),
+            "{name}: wrapper_list"
+        );
+        for (output, w) in outputs.iter().zip(&output_wrappers) {
+            if output["settled"].as_bool() == Some(true) {
+                continue;
             }
+            assert!(
+                coin_wrappers.contains(w),
+                "{name}: an output is paid in an asset of the group"
+            );
         }
     }
 }
@@ -408,120 +427,125 @@ fn payments_as_scanned() {
     let file = vectors();
 
     for payment in list(&file, "payments") {
-        let name = text(payment, "name");
-        let outputs = list(payment, "outputs");
+        payment_as_scanned(payment);
+    }
+}
 
-        // The block as a scanner sees it: one tweak point, every output coin
-        // of the payment (identified here by its position), and the block's
-        // wrapper list.
-        let data = TweakData::with_wrappers(
-            vec![pk(payment, "tweak_point")],
-            outputs
-                .iter()
-                .zip(0u8..)
-                .map(|(output, position)| OutputMeta {
-                    puzzle_hash: coin_puzzle_hash(output),
-                    coin_id: [position; 32].into(),
-                    amount: 1000 + u64::from(position),
-                    parent_coin_id: [0xee; 32].into(),
-                })
-                .collect(),
-            wrapper_list(payment),
-        );
+/// The checks of [`payments_as_scanned`] for one entry of `payments` or
+/// `settlement_payments`.
+fn payment_as_scanned(payment: &Value) {
+    let name = text(payment, "name");
+    let outputs = list(payment, "outputs");
 
-        // Each distinct recipient scans the payment.
-        let recipients: BTreeSet<&str> = outputs
+    // The block as a scanner sees it: one tweak point, every output coin
+    // of the payment (identified here by its position), and the block's
+    // wrapper list.
+    let data = TweakData::with_wrappers(
+        vec![pk(payment, "tweak_point")],
+        outputs
             .iter()
-            .map(|output| text(&output["recipient"], "scan_sk"))
+            .zip(0u8..)
+            .map(|(output, position)| OutputMeta {
+                puzzle_hash: coin_puzzle_hash(output),
+                coin_id: [position; 32].into(),
+                amount: 1000 + u64::from(position),
+                parent_coin_id: [0xee; 32].into(),
+            })
+            .collect(),
+        wrapper_list(payment),
+    );
+
+    // Each distinct recipient scans the payment.
+    let recipients: BTreeSet<&str> = outputs
+        .iter()
+        .map(|output| text(&output["recipient"], "scan_sk"))
+        .collect();
+    let mut detected_positions = BTreeSet::new();
+
+    for recipient_scan_sk in recipients {
+        let mine: Vec<(u8, &Value)> = (0u8..)
+            .zip(outputs)
+            .filter(|(_, output)| text(&output["recipient"], "scan_sk") == recipient_scan_sk)
             .collect();
-        let mut detected_positions = BTreeSet::new();
+        let recipient = &mine[0].1["recipient"];
+        let b_scan = sk(recipient, "scan_sk");
+        let b_spend = sk(recipient, "spend_sk");
+        let spend_pk = pk(recipient, "spend_pk");
 
-        for recipient_scan_sk in recipients {
-            let mine: Vec<(u8, &Value)> = (0u8..)
-                .zip(outputs)
-                .filter(|(_, output)| text(&output["recipient"], "scan_sk") == recipient_scan_sk)
-                .collect();
-            let recipient = &mine[0].1["recipient"];
-            let b_scan = sk(recipient, "scan_sk");
-            let b_spend = sk(recipient, "spend_sk");
-            let spend_pk = pk(recipient, "spend_pk");
-
-            // The recipient's registered labels. The change label m = 0 is
-            // always scanned for and is not registered.
-            let mut labels = LabelRegistry::new();
-            for (_, output) in &mine {
-                if let Some(m) = label(&output["recipient"])
-                    && m != 0
-                {
-                    labels.register(&b_scan, m);
-                }
-            }
-
-            let detections =
-                scan_from_tweaks(&b_scan, &spend_pk, &data, Some(&labels), K_MAX_DEFAULT);
-            assert_eq!(
-                detections.len(),
-                mine.len(),
-                "{name}: recipient {recipient_scan_sk} must find exactly its own outputs"
-            );
-
-            for (position, output) in mine {
-                let k = index(output, "k");
-                let at = format!("{name}, output k={k}");
-                let detection = detections
-                    .iter()
-                    .find(|d| d.coin_id == Bytes32::from([position; 32]))
-                    .unwrap_or_else(|| panic!("{at}: not detected"));
-
-                assert_eq!(
-                    detection.puzzle_hash,
-                    Bytes32::new(bytes(output, "puzzle_hash")),
-                    "{at}: puzzle_hash (bare)"
-                );
-                assert_eq!(
-                    detection.wrapper,
-                    wrapper(&output["wrapper"]),
-                    "{at}: wrapper"
-                );
-                assert_eq!(
-                    detection.coin().puzzle_hash,
-                    coin_puzzle_hash(output),
-                    "{at}: the coin's puzzle hash"
-                );
-                assert_eq!(detection.amount, 1000 + u64::from(position), "{at}: coin");
-                assert_eq!(detection.k, k, "{at}: k");
-                assert_eq!(detection.label, label(&output["recipient"]), "{at}: label");
-                assert_eq!(
-                    detection.tweak.to_bytes(),
-                    bytes::<32>(output, "spend_tweak"),
-                    "{at}: spend_tweak"
-                );
-
-                // The spend secret key is needed only for this last step.
-                let onetime_secret = detection.onetime_sk(&b_spend);
-                assert_eq!(
-                    onetime_secret.to_bytes(),
-                    bytes::<32>(output, "onetime_sk"),
-                    "{at}: onetime_sk"
-                );
-                assert_eq!(
-                    puzzle_hash_for_pk(&onetime_secret.public_key()),
-                    detection.puzzle_hash,
-                    "{at}: the one-time key controls the coin"
-                );
-
-                assert!(detected_positions.insert(position), "{at}: detected twice");
+        // The recipient's registered labels. The change label m = 0 is
+        // always scanned for and is not registered.
+        let mut labels = LabelRegistry::new();
+        for (_, output) in &mine {
+            if let Some(m) = label(&output["recipient"])
+                && m != 0
+            {
+                labels.register(&b_scan, m);
             }
         }
 
+        let detections = scan_from_tweaks(&b_scan, &spend_pk, &data, Some(&labels), K_MAX_DEFAULT);
         assert_eq!(
-            detected_positions.len(),
-            outputs.len(),
-            "{name}: every output is detected by its recipient"
+            detections.len(),
+            mine.len(),
+            "{name}: recipient {recipient_scan_sk} must find exactly its own outputs"
         );
 
-        negative_controls(payment, &data);
+        for (position, output) in mine {
+            let k = index(output, "k");
+            let at = format!("{name}, output k={k}");
+            let detection = detections
+                .iter()
+                .find(|d| d.coin_id == Bytes32::from([position; 32]))
+                .unwrap_or_else(|| panic!("{at}: not detected"));
+
+            assert_eq!(
+                detection.puzzle_hash,
+                Bytes32::new(bytes(output, "puzzle_hash")),
+                "{at}: puzzle_hash (bare)"
+            );
+            assert_eq!(
+                detection.wrapper,
+                wrapper(&output["wrapper"]),
+                "{at}: wrapper"
+            );
+            assert_eq!(
+                detection.coin().puzzle_hash,
+                coin_puzzle_hash(output),
+                "{at}: the coin's puzzle hash"
+            );
+            assert_eq!(detection.amount, 1000 + u64::from(position), "{at}: coin");
+            assert_eq!(detection.k, k, "{at}: k");
+            assert_eq!(detection.label, label(&output["recipient"]), "{at}: label");
+            assert_eq!(
+                detection.tweak.to_bytes(),
+                bytes::<32>(output, "spend_tweak"),
+                "{at}: spend_tweak"
+            );
+
+            // The spend secret key is needed only for this last step.
+            let onetime_secret = detection.onetime_sk(&b_spend);
+            assert_eq!(
+                onetime_secret.to_bytes(),
+                bytes::<32>(output, "onetime_sk"),
+                "{at}: onetime_sk"
+            );
+            assert_eq!(
+                puzzle_hash_for_pk(&onetime_secret.public_key()),
+                detection.puzzle_hash,
+                "{at}: the one-time key controls the coin"
+            );
+
+            assert!(detected_positions.insert(position), "{at}: detected twice");
+        }
     }
+
+    assert_eq!(
+        detected_positions.len(),
+        outputs.len(),
+        "{name}: every output is detected by its recipient"
+    );
+
+    negative_controls(payment, &data);
 }
 
 /// The number of detections every recipient of `payment` finds in `data`,
@@ -774,6 +798,291 @@ fn vector_9_cat_output_found_only_under_the_wrapper_list() {
     // Without the wrapper list only the bare candidate is tested: missed.
     let bare_only = TweakData::new(data.tweak_points.clone(), data.outputs.clone());
     assert!(scan_from_tweaks(&b_scan, &spend_pk, &bare_only, None, K_MAX_DEFAULT).is_empty());
+}
+
+// ─── Settlement payments ────────────────────────────────────────────────────
+
+/// `value` serialized as CLVM.
+fn serialized<T: ToClvm<Allocator>>(ctx: &mut SpendContext, value: &T) -> Vec<u8> {
+    let ptr = ctx.alloc(value).expect("alloc");
+    node_to_bytes(ctx, ptr).expect("serialize")
+}
+
+/// A payment of the file, given as serialized CLVM `(puzzle_hash amount . memos)`.
+fn decoded_payment(ctx: &mut SpendContext, value: &Value, key: &str) -> Payment {
+    let bytes = hex::decode(text(value, key)).expect("`payment` is hex");
+    let ptr = node_from_bytes(ctx, &bytes).expect("`payment` is CLVM");
+    ctx.extract::<Payment>(ptr).expect("`payment` is a payment")
+}
+
+fn amount(value: &Value) -> u64 {
+    value["amount"].as_u64().expect("`amount` is an integer")
+}
+
+fn settled(output: &Value) -> bool {
+    output["settled"].as_bool().expect("`settled` is a boolean")
+}
+
+/// `DeriveSettlementOutputs` over a settlement entry: its inputs as the spend
+/// group, its outputs as the recipient entries (the spend key of the address
+/// that is paid, the wrapper, the settled flag and the amount), `other_payments`
+/// decoded from their serialized payments, and its nonce.
+fn derive_entry(
+    ctx: &mut SpendContext,
+    entry: &Value,
+    other_payments: &Value,
+) -> SettlementDerivation {
+    let name = text(entry, "name");
+    let inputs = list(entry, "inputs");
+    let sender_sks: Vec<SecretKey> = inputs.iter().map(|i| sk(i, "synthetic_sk")).collect();
+    let coin_ids: Vec<Bytes32> = inputs
+        .iter()
+        .map(|i| Bytes32::new(bytes(i, "coin_id")))
+        .collect();
+    let coin_wrappers: Vec<Option<Wrapper>> =
+        inputs.iter().map(|i| wrapper(&i["wrapper"])).collect();
+    let recipients: Vec<SettlementRecipient> = list(entry, "outputs")
+        .iter()
+        .map(|output| SettlementRecipient {
+            scan_pk: pk(&output["recipient"], "scan_pk"),
+            spend_pk: pk(&output["recipient"], "address_spend_pk"),
+            wrapper: wrapper(&output["wrapper"]),
+            settled: settled(output),
+            amount: amount(output),
+        })
+        .collect();
+    let others: Vec<OtherPayment> = other_payments
+        .as_array()
+        .expect("`other_payments` is a list")
+        .iter()
+        .map(|other| {
+            let w = wrapper(&other["wrapper"]);
+            let payment = decoded_payment(ctx, other, "payment");
+            // An other payment is listed as the party lists it in its offer:
+            // here (q amount ()) for XCH, the CHIP's encoding.
+            assert_eq!(
+                payment,
+                encoded_payment(
+                    ctx,
+                    Bytes32::new(bytes(other, "puzzle_hash")),
+                    amount(other),
+                    w.as_ref()
+                )
+                .unwrap(),
+                "{name}: other payment"
+            );
+            OtherPayment {
+                wrapper: w,
+                payment,
+            }
+        })
+        .collect();
+    derive_settlement_outputs(
+        ctx,
+        &sender_sks,
+        &coin_ids,
+        &coin_wrappers,
+        &recipients,
+        &others,
+        Bytes32::new(bytes(entry, "nonce")),
+    )
+    .unwrap_or_else(|e| panic!("{name}: DeriveSettlementOutputs failed: {e}"))
+}
+
+fn hashes(value: &Value, key: &str) -> Vec<Bytes32> {
+    list(value, key)
+        .iter()
+        .map(|h| {
+            let decoded = hex::decode(h.as_str().expect("a hex string")).expect("hex");
+            Bytes32::new(decoded.try_into().expect("32 bytes"))
+        })
+        .collect()
+}
+
+/// Every entry of `settlement_payments` (Vectors 12 and 13), as the party
+/// derives it: the spend group and each output as for `payments`, then
+/// `DeriveSettlementOutputs`, which must give the entry's `settlement_outputs`,
+/// each settled output's encoded `payment`, the `notarized_payments` (wrapper,
+/// settlement puzzle hash, payments, the serialized notarized payment, its
+/// tree hash and the announcement), the `assertions` and the `group_outputs`;
+/// and, as a negative control, the announcement of the settled payment listed
+/// without its memo list.
+#[test]
+fn settlement_payments_as_sent() {
+    let file = vectors();
+    let entries = list(&file, "settlement_payments");
+    assert_eq!(entries.len(), 2);
+
+    for entry in entries {
+        let name = text(entry, "name");
+        payment_as_sent(entry);
+
+        let mut ctx = SpendContext::new();
+        let derivation = derive_entry(&mut ctx, entry, &entry["other_payments"]);
+        let outputs = list(entry, "outputs");
+        let nonce = Bytes32::new(bytes(entry, "nonce"));
+
+        // settlement_outputs: wrap(W, p) of each settled output.
+        assert_eq!(
+            derivation.settlement_outputs,
+            hashes(entry, "settlement_outputs"),
+            "{name}: settlement_outputs"
+        );
+        let settled_outputs: Vec<&Value> = outputs.iter().filter(|o| settled(o)).collect();
+        assert_eq!(derivation.settled_payments.len(), settled_outputs.len());
+        for (output, payment) in settled_outputs.iter().zip(&derivation.settled_payments) {
+            let at = format!("{name}, output k={}", index(output, "k"));
+            assert_eq!(
+                hex::encode(serialized(&mut ctx, payment)),
+                text(output, "payment"),
+                "{at}: payment"
+            );
+            assert!(
+                derivation
+                    .settlement_outputs
+                    .contains(&coin_puzzle_hash(output)),
+                "{at}: the settlement coin creates the output coin"
+            );
+        }
+        for output in outputs.iter().filter(|o| !settled(o)) {
+            assert!(output["payment"].is_null(), "{name}: unsettled payment");
+        }
+
+        // One notarized payment, and one assertion, per asset.
+        let expected = list(entry, "notarized_payments");
+        assert_eq!(
+            derivation.notarized_payments.len(),
+            expected.len(),
+            "{name}: notarized_payments"
+        );
+        for (np, expected) in derivation.notarized_payments.iter().zip(expected) {
+            assert_eq!(np.wrapper, wrapper(&expected["wrapper"]), "{name}: wrapper");
+            assert_eq!(
+                np.settlement_puzzle_hash,
+                Bytes32::new(bytes(expected, "settlement_puzzle_hash")),
+                "{name}: settlement_puzzle_hash"
+            );
+            assert_eq!(
+                np.settlement_puzzle_hash,
+                settlement_puzzle_hash(np.wrapper.as_ref())
+            );
+            let payments: Vec<String> = np
+                .notarized_payment
+                .payments
+                .iter()
+                .map(|payment| hex::encode(serialized(&mut ctx, payment)))
+                .collect();
+            let expected_payments: Vec<&str> = list(expected, "payments")
+                .iter()
+                .map(|p| p.as_str().expect("a hex string"))
+                .collect();
+            assert_eq!(payments, expected_payments, "{name}: payments");
+            assert_eq!(
+                np.notarized_payment.nonce, nonce,
+                "{name}: the nonce of the notarized payment"
+            );
+            let ptr = ctx.alloc(&np.notarized_payment).unwrap();
+            assert_eq!(
+                hex::encode(node_to_bytes(&ctx, ptr).unwrap()),
+                text(expected, "notarized_payment"),
+                "{name}: notarized_payment"
+            );
+            assert_eq!(
+                Bytes32::from(ctx.tree_hash(ptr)),
+                Bytes32::new(bytes(expected, "notarized_tree_hash")),
+                "{name}: notarized_tree_hash"
+            );
+            assert_eq!(
+                np.announcement,
+                Bytes32::new(bytes(expected, "announcement")),
+                "{name}: announcement"
+            );
+        }
+        assert_eq!(
+            derivation
+                .assertions
+                .iter()
+                .map(|a| a.announcement_id)
+                .collect::<Vec<_>>(),
+            hashes(entry, "assertions"),
+            "{name}: assertions"
+        );
+
+        // group_outputs: the coins of the outputs the group creates, at their k.
+        assert_eq!(
+            derivation
+                .group_outputs
+                .iter()
+                .map(|g| g.wrapped_puzzle_hash)
+                .collect::<Vec<_>>(),
+            hashes(entry, "group_outputs"),
+            "{name}: group_outputs"
+        );
+        for (group_output, output) in derivation
+            .group_outputs
+            .iter()
+            .zip(outputs.iter().filter(|o| !settled(o)))
+        {
+            assert_eq!(group_output.k, index(output, "k"), "{name}: group output k");
+            assert_eq!(
+                group_output.puzzle_hash,
+                Bytes32::new(bytes(output, "puzzle_hash")),
+                "{name}: group output puzzle_hash"
+            );
+            assert_eq!(group_output.wrapper, wrapper(&output["wrapper"]));
+        }
+
+        // Negative control: the settled payment listed without its memo list,
+        // (p amount), gives another announcement.
+        let controls = &entry["negative_controls"];
+        assert!(
+            !controls["no_memo_announcement"].is_null(),
+            "{name}: no_memo_announcement"
+        );
+        assert_eq!(settled_outputs.len(), 1, "{name}: one settled output");
+        let output = settled_outputs[0];
+        let w = wrapper(&output["wrapper"]);
+        let without_memos = Payment::new(
+            Bytes32::new(bytes(output, "puzzle_hash")),
+            amount(output),
+            Memos::None,
+        );
+        let no_memo = settlement_announcement(
+            &ctx,
+            w.as_ref(),
+            &NotarizedPayment::new(nonce, vec![without_memos]),
+        );
+        assert_eq!(
+            no_memo,
+            Bytes32::new(bytes(controls, "no_memo_announcement")),
+            "{name}: no_memo_announcement"
+        );
+        assert!(
+            !derivation
+                .notarized_payments
+                .iter()
+                .any(|np| np.announcement == no_memo)
+        );
+    }
+}
+
+/// Every entry of `settlement_payments`, as the party's scanner detects it: a
+/// `TweakData` with the entry's tweak point, every output coin (the settled
+/// ones created by the settlement coin, under the wrapper of their asset) and
+/// the block's wrapper list; the party finds each output with its `k`, label,
+/// wrapper and bare puzzle hash, and without the wrapper list it finds
+/// `detections_without_wrapper_list` of them.
+#[test]
+fn settlement_payments_as_scanned() {
+    let file = vectors();
+    for entry in list(&file, "settlement_payments") {
+        assert!(
+            !entry["negative_controls"]["detections_without_wrapper_list"].is_null(),
+            "{}: detections_without_wrapper_list",
+            text(entry, "name")
+        );
+        payment_as_scanned(entry);
+    }
 }
 
 // ─── Labels ─────────────────────────────────────────────────────────────────

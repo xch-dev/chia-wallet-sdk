@@ -100,7 +100,7 @@ impl SpendAction for SilentPaymentSendAction {
 /// it. A sender must not create more than `K_MAX` outputs for one scan key in
 /// one spend group, since scanners stop at that index; this is checked before
 /// anything is changed.
-fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, DriverError> {
+pub(crate) fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, DriverError> {
     let k = spends
         .silent_payment_counters
         .get(&scan_pk.to_bytes())
@@ -115,12 +115,12 @@ fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, DriverError> {
 /// Takes `k` (from [`next_k`]) for the scan key and records the pending
 /// output. The ECDH, the `CreateCoin` condition and the entry in `outputs` are
 /// all deferred to `Spends::prepare`, when the spend group is known.
-fn record_pending(
+pub(crate) fn record_pending(
     spends: &mut Spends,
     recipient: &SilentPaymentAddress,
     k: u32,
     source: SilentPaymentSource,
-    parent_coin: chia_protocol::Coin,
+    parent_coin: Option<chia_protocol::Coin>,
     amount: u64,
     memos: Memos,
 ) {
@@ -184,7 +184,7 @@ fn spend_silent_payment(
         recipient,
         k,
         SilentPaymentSource::Xch(source),
-        parent_coin,
+        Some(parent_coin),
         amount,
         memos,
     );
@@ -239,7 +239,7 @@ fn spend_silent_payment_cat(
         recipient,
         k,
         SilentPaymentSource::Cat(id, source),
-        parent_coin,
+        Some(parent_coin),
         amount,
         Memos::None,
     );
@@ -796,7 +796,10 @@ mod silent_payment_tests {
             &[Action::silent_payment_send(recipient, 1, Memos::None)],
         )?;
         assert_eq!(spends.silent_payments_pending.len(), 1);
-        assert_eq!(spends.silent_payments_pending[0].parent_coin, alice.coin);
+        assert_eq!(
+            spends.silent_payments_pending[0].parent_coin,
+            Some(alice.coin)
+        );
         Ok(())
     }
 

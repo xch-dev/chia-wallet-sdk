@@ -28,7 +28,7 @@ use clvmr::NodePtr;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
-use crate::Id;
+use crate::{Id, SettlementPayer};
 
 /// Transport-agnostic input to the silent-payment scanner.
 ///
@@ -194,10 +194,28 @@ pub(crate) struct SilentPaymentPending {
     pub spend_pk: PublicKey,
     /// The spend that creates the output.
     pub source: SilentPaymentSource,
-    pub parent_coin: Coin,
+    /// The coin that creates the output: a coin of the spend group, or the
+    /// settlement coin the transaction spends for a settled payment. `None`
+    /// for a payment created by the counterparty's settlement coin, which is
+    /// not known to this transaction.
+    pub parent_coin: Option<Coin>,
     pub k: u32,
     pub amount: u64,
     pub memos: Memos<NodePtr>,
+}
+
+/// A requested payment to an address that is not a silent payment address,
+/// listed after the silent payments of its asset in the party's notarized
+/// payment ([`crate::Action::silent_payment_requested_other`],
+/// [`crate::Action::silent_payment_settle_other`]). Recorded at apply time,
+/// consumed by [`crate::Spends::prepare`].
+#[derive(Debug, Clone)]
+pub(crate) struct SettledOtherPayment {
+    pub asset: Option<Wrapper>,
+    pub nonce: Bytes32,
+    pub payer: SettlementPayer,
+    pub settlement_index: Option<usize>,
+    pub payment: chia_puzzle_types::offer::Payment,
 }
 
 /// The spend that creates a silent payment output, recorded at apply time.
@@ -212,6 +230,17 @@ pub(crate) enum SilentPaymentSource {
     /// A CAT output, created by `spends.cats[id].items[index]`: the first
     /// conditions spend of that asset, the one the spend group's cycle binds.
     Cat(Id, usize),
+    /// A requested payment created by a settlement coin of the asset `asset`
+    /// (`None` for XCH), listed in the party's notarized payment under
+    /// `nonce` (CHIP-0057 "Payments through Settlement Coins"). For
+    /// [`SettlementPayer::SpentSettlementCoin`], `settlement_index` is the
+    /// position of that settlement coin in its asset's items.
+    Settled {
+        asset: Option<Wrapper>,
+        nonce: Bytes32,
+        payer: SettlementPayer,
+        settlement_index: Option<usize>,
+    },
 }
 
 #[cfg(test)]

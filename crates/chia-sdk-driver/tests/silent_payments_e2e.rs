@@ -19,20 +19,22 @@
 
 use anyhow::Result;
 use bip39::Mnemonic;
+use chia_protocol::SpendBundle;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_driver::silent_payments::{
     K_MAX_DEFAULT, SyntheticPublicKey, SyntheticSecretKey, Wrapper, aggregate_sender_sks,
     compute_input_hash, compute_tweak_point, derive_one_time_puzzle_hash, scan_from_tweaks,
-    tweak_data_from_block_spends,
+    settlement_announcement, settlement_puzzle_hash, tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
-    Action, Cat, CatSpend, DriverError, FungibleSpend, HashedPtr, Id, Relation,
+    Action, Cat, CatSpend, DriverError, FungibleSpend, HashedPtr, Id, Offer, Relation,
     SilentPaymentSendAction, SpendContext, SpendWithConditions, Spends, StandardLayer,
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
-use chia_sdk_test::{BlsPairWithCoin, Simulator};
+use chia_sdk_test::{BlsPairWithCoin, Simulator, sign_transaction};
 use chia_sdk_types::silent_payments::GROUP_ORDER;
 use chia_sdk_types::{Condition, Conditions, run_puzzle};
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, SilentPaymentNetwork};
@@ -2057,4 +2059,303 @@ fn test_xch_memo_hint_guard_still_applies() -> Result<()> {
         "got {result:?}"
     );
     Ok(())
+}
+
+// ============================================================================
+// Silent payments through settlement coins (CHIP-0057 "Payments through
+// Settlement Coins").
+// ============================================================================
+
+/// The `ASSERT_PUZZLE_ANNOUNCEMENT` conditions output by the spends of
+/// `coin_ids` among `coin_spends`, run as consensus does.
+fn puzzle_announcement_assertions(
+    coin_spends: &[CoinSpend],
+    coin_ids: &[Bytes32],
+) -> Result<Vec<Bytes32>> {
+    let mut asserted = Vec::new();
+    for &coin_id in coin_ids {
+        let (_, conditions) = run_spend(coin_spends, coin_id)?;
+        for condition in conditions {
+            if let Condition::AssertPuzzleAnnouncement(a) = condition {
+                asserted.push(a.announcement_id);
+            }
+        }
+    }
+    Ok(asserted)
+}
+
+/// A maker-silent offer, made and taken in one simulator block.
+struct MakerOfferBlock {
+    sim: Simulator,
+    ctx: SpendContext,
+    /// The height of the block in which the offer was taken.
+    height: u32,
+    maker: SilentPaymentKeys,
+    /// The two XCH coins the maker spends, bound in a cycle.
+    maker_coins: [BlsPairWithCoin; 2],
+    taker: BlsPairWithCoin,
+    /// The requested CAT's wrapper.
+    w: Wrapper,
+    /// The maker's coin spends (the input spend bundle of the offer).
+    maker_coin_spends: Vec<CoinSpend>,
+    /// The maker's `Outputs`.
+    maker_outputs: chia_sdk_driver::Outputs,
+    /// The CAT coin the taker's settlement coin paid the maker.
+    paid: Cat,
+    /// `[p_0, p_1]`: the CAT payment at k 0 and the change at k 1, derived
+    /// here from the maker's coins with the protocol functions.
+    p: [Bytes32; 2],
+}
+
+/// The maker offers 1,000 mojos of XCH from two coins bound in a cycle,
+/// requests 1,000 of a CAT (revocable with hidden puzzle hash `hidden` when
+/// given) at its own silent payment address with
+/// `Action::silent_payment_requested`, and pays its change of 200 to its own
+/// change address (label 0) with `Action::silent_payment_send`. The offer is
+/// built from `Outputs::silent_payment_requests` and
+/// `Outputs::silent_payment_asset_info`, encoded as an offer file and parsed
+/// back, and the taker takes it with the SDK's ordinary flow
+/// (`offer.requested_payments().actions()`), paying from one CAT coin.
+fn maker_offer_block(hidden: Option<Bytes32>) -> Result<MakerOfferBlock> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+    let maker = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
+    let a = sim.bls(700);
+    let b = sim.bls(500);
+    let taker = sim.bls(1_000);
+    let cat = issue_cat_to(&mut sim, &mut ctx, &taker, taker.coin, hidden, 1_000)?;
+    let w = Wrapper {
+        asset_id: cat.info.asset_id,
+        hidden_puzzle_hash: hidden,
+    };
+    let height = sim.height();
+
+    // The maker's transaction.
+    let nonce = Offer::nonce(vec![a.coin.coin_id(), b.coin.coin_id()]);
+    let mut spends = Spends::new(a.puzzle_hash);
+    spends.add(a.coin);
+    spends.add(b.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1_000, Memos::None),
+            Action::silent_payment_requested(
+                Some(w),
+                maker.unlabeled_address(SilentPaymentNetwork::Testnet),
+                1_000,
+                nonce,
+            ),
+            Action::silent_payment_send(
+                maker.change_address(SilentPaymentNetwork::Testnet),
+                200,
+                Memos::None,
+            ),
+        ],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&a, &b]);
+    let maker_outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let maker_coin_spends = ctx.take();
+    let signature = sign_transaction(&maker_coin_spends, &[a.sk.clone(), b.sk.clone()])?;
+    let offer = Offer::from_input_spend_bundle(
+        &mut ctx,
+        SpendBundle::new(maker_coin_spends.clone(), signature),
+        maker_outputs.silent_payment_requests.clone(),
+        maker_outputs.silent_payment_asset_info.clone(),
+    )?;
+
+    // The offer file lists the requested payment; a taker parses it back.
+    let offer_file = offer.to_spend_bundle(&mut ctx)?;
+    let offer = Offer::from_spend_bundle(&mut ctx, &offer_file)?;
+
+    // The taker's transaction, by the SDK's ordinary flow.
+    let mut spends = Spends::new(taker.puzzle_hash);
+    spends.add(offer.offered_coins().clone());
+    spends.add(cat);
+    let deltas = spends.apply(&mut ctx, &offer.requested_payments().actions())?;
+    let taker_outputs = spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &indexmap! { taker.puzzle_hash => taker.pk },
+    )?;
+    let taker_coin_spends = ctx.take();
+    let signature = sign_transaction(&taker_coin_spends, std::slice::from_ref(&taker.sk))?;
+    sim.new_transaction(offer.take(SpendBundle::new(taker_coin_spends, signature)))?;
+
+    // p_0 and p_1, from the maker's two coins and keys.
+    let coin_ids = [a.coin.coin_id(), b.coin.coin_id()];
+    let a_sum = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone()])?;
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let p = [
+        derive_one_time_puzzle_hash(maker.scan_pk(), maker.spend_pk(), &a_sum, &input_hash, 0)?,
+        derive_one_time_puzzle_hash(
+            maker.scan_pk(),
+            &maker.change_address(SilentPaymentNetwork::Testnet).spend_pk,
+            &a_sum,
+            &input_hash,
+            1,
+        )?,
+    ];
+    let paid = *taker_outputs.cats[&Id::Existing(w.asset_id)]
+        .iter()
+        .find(|c| c.info.p2_puzzle_hash == p[0])
+        .expect("the taker's settlement coin pays the maker p_0");
+
+    Ok(MakerOfferBlock {
+        sim,
+        ctx,
+        height,
+        maker,
+        maker_coins: [a, b],
+        taker,
+        w,
+        maker_coin_spends,
+        maker_outputs,
+        paid,
+        p,
+    })
+}
+
+/// Checks a maker-silent offer block: the maker's transaction asserts exactly
+/// one puzzle announcement, that of the CAT settlement coin for the notarized
+/// payment `(nonce . ((p_0 1000 (p_0))))` published in
+/// `Outputs::silent_payment_requests`; and the maker's scan of the block finds
+/// the CAT payment at k 0 under the CAT's wrapper, created by the CAT
+/// settlement coin, and its change at k 1 with label 0. The CAT payment is
+/// then spent with the one-time key.
+fn check_maker_offer_block(block: &mut MakerOfferBlock) -> Result<()> {
+    let w = block.w;
+    let p = block.p;
+    let maker_coin_ids: Vec<Bytes32> = block.maker_coins.iter().map(|c| c.coin.coin_id()).collect();
+
+    // The published request: one notarized payment for the CAT, under the
+    // maker's nonce, listing (p_0 1000 (p_0)); the asset info has the hidden
+    // puzzle hash.
+    let requests = &block.maker_outputs.silent_payment_requests;
+    assert!(requests.xch.is_empty());
+    assert_eq!(requests.cats.len(), 1);
+    let notarized = &requests.cats[&w.asset_id];
+    assert_eq!(notarized.len(), 1);
+    let notarized = &notarized[0];
+    assert_eq!(
+        notarized.nonce,
+        Offer::nonce(maker_coin_ids.clone()),
+        "the maker's nonce"
+    );
+    assert_eq!(notarized.payments.len(), 1);
+    assert_eq!(notarized.payments[0].puzzle_hash, p[0]);
+    assert_eq!(notarized.payments[0].amount, 1_000);
+    let memos = match notarized.payments[0].memos {
+        Memos::Some(ptr) => block.ctx.extract::<Vec<Bytes>>(ptr)?,
+        Memos::None => panic!("a CAT payment carries its memo list"),
+    };
+    assert_eq!(memos, hint_of(p[0]), "(p_0 1000 (p_0))");
+    assert_eq!(
+        block
+            .maker_outputs
+            .silent_payment_asset_info
+            .cat(w.asset_id)
+            .map(|info| info.hidden_puzzle_hash),
+        Some(w.hidden_puzzle_hash)
+    );
+
+    // Exactly one puzzle announcement is asserted by the maker's coins: the
+    // CAT settlement coin's announcement of that notarized payment.
+    let announcement = settlement_announcement(&block.ctx, Some(&w), notarized);
+    assert_eq!(
+        puzzle_announcement_assertions(&block.maker_coin_spends, &maker_coin_ids)?,
+        vec![announcement]
+    );
+    // The two maker coins are one cycle, and the change is created by one of
+    // them.
+    for &coin_id in &maker_coin_ids {
+        assert_eq!(
+            concurrent_spend_assertions(&block.maker_coin_spends, coin_id)?,
+            1
+        );
+    }
+    assert!(
+        block
+            .maker_outputs
+            .xch
+            .iter()
+            .any(|c| c.puzzle_hash == p[1] && c.amount == 200),
+        "the change at p_1"
+    );
+
+    // The maker's scan of the block.
+    let (tweak_data, detections) = scan_block(&block.sim, block.height, &block.maker);
+    assert_eq!(tweak_data.wrappers, vec![w]);
+    assert_eq!(detections.len(), 2, "the CAT payment and the change");
+    let payment = detections
+        .iter()
+        .find(|d| d.k == 0)
+        .expect("the CAT payment at k 0");
+    assert_eq!(payment.label, None);
+    assert_eq!(payment.wrapper, Some(w));
+    assert_eq!(payment.puzzle_hash, p[0]);
+    assert_eq!(payment.coin().puzzle_hash, w.wrap(p[0]));
+    assert_eq!(payment.amount, 1_000);
+    // Its parent is a CAT settlement coin spent in the block.
+    let parent = block
+        .sim
+        .block_spends(block.height)
+        .into_iter()
+        .find(|cs| cs.coin.coin_id() == payment.parent_coin_id)
+        .expect("the parent is spent in the block");
+    assert_eq!(parent.coin.puzzle_hash, settlement_puzzle_hash(Some(&w)));
+    assert_eq!(payment.coin(), block.paid.coin);
+
+    let change = detections
+        .iter()
+        .find(|d| d.k == 1)
+        .expect("the change at k 1");
+    assert_eq!(change.label, Some(0));
+    assert_eq!(change.wrapper, None);
+    assert_eq!(change.puzzle_hash, p[1]);
+    assert_eq!(change.amount, 200);
+    assert!(maker_coin_ids.contains(&change.parent_coin_id));
+
+    // Without the wrapper list the CAT payment at k 0 is missed, and the scan
+    // stops there.
+    let bare = chia_sdk_driver::silent_payments::TweakData::new(
+        tweak_data.tweak_points.clone(),
+        tweak_data.outputs.clone(),
+    );
+    assert!(
+        scan_from_tweaks(
+            block.maker.scan_sk(),
+            block.maker.spend_pk(),
+            &bare,
+            None,
+            K_MAX_DEFAULT,
+        )
+        .is_empty()
+    );
+
+    // The CAT payment is spent with the one-time key.
+    let destination = block.taker.puzzle_hash;
+    let paid = block.paid;
+    let maker = block.maker.clone();
+    let detected = payment.clone();
+    spend_detected_cat(
+        &mut block.sim,
+        &mut block.ctx,
+        paid,
+        &detected,
+        &maker,
+        destination,
+    )
+}
+
+/// Plan 15-03 tracer, CHIP-0057 "Maker paid silently": the maker offers XCH
+/// from two coins bound in a cycle and requests a CAT at its own silent
+/// payment address, with its XCH change at label 0. A taker takes the offer
+/// with the SDK's ordinary flow, and the maker's scan finds the CAT payment at
+/// k 0 under the CAT's wrapper and its change at k 1 with label 0.
+#[test]
+fn test_maker_paid_silently_through_a_settlement_coin() -> Result<()> {
+    let mut block = maker_offer_block(None)?;
+    check_maker_offer_block(&mut block)
 }

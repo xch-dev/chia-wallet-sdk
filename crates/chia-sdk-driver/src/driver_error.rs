@@ -337,4 +337,29 @@ pub enum DriverError {
         "a silent payment CAT output carries exactly the SDK-built hint; caller memos are not accepted"
     )]
     SilentPaymentCatMemos,
+
+    /// The inputs of a settled silent payment are malformed (CHIP-0057
+    /// "Payments through Settlement Coins"): the spend group is empty, it does
+    /// not have one key and one wrapper per coin, or a requested payment that
+    /// is not a silent payment is listed in an asset in which the party has no
+    /// settled silent payment.
+    #[cfg(feature = "chip-0057")]
+    #[error("invalid inputs for a silent payment through a settlement coin")]
+    SilentPaymentInvalidSettlementInput,
+
+    /// A silent payment is to be settled by a settlement coin of its asset
+    /// that the transaction spends, and the transaction spends none (CHIP-0057
+    /// "Payments through Settlement Coins", the taker's case).
+    #[cfg(feature = "chip-0057")]
+    #[error("no settlement coin of the asset is spent to settle the silent payment")]
+    SilentPaymentSettlementCoinMissing,
+
+    /// The settled entries of a party do not agree (CHIP-0057 "Payments
+    /// through Settlement Coins"): they carry two different nonces, or the
+    /// entries of one asset are paid both by the counterparty's settlement
+    /// coin and by one the transaction spends. A party's requested payments
+    /// in one asset are one notarized payment under one nonce.
+    #[cfg(feature = "chip-0057")]
+    #[error("the settled silent payment entries of a party disagree on the nonce or the payer")]
+    SilentPaymentSettlementMismatch,
 }

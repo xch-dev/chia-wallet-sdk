@@ -61,6 +61,26 @@
 //! and under every wrapper of that list, and a [`DetectedSpCoin`] keeps the
 //! bare one-time puzzle hash with the wrapper under which it matched.
 //!
+//! # Payments through settlement coins
+//!
+//! In an offer, a party's requested payment is created by a settlement coin,
+//! not by a coin of the party (CHIP-0057 "Payments through Settlement
+//! Coins"). A party is paid at a silent payment address through the
+//! settlement coin of the payment's asset by deriving the one-time puzzle hash
+//! from its own spend group, with the same `k` counter as its other outputs,
+//! and asserting from a coin of the group the settlement coin's puzzle
+//! announcement of the notarized payment that lists it: one notarized payment
+//! and one announcement per asset, under the offer's nonce, over all of the
+//! party's requested payments in that asset. An XCH payment is listed as
+//! `(p amount ())` and a CAT payment as `(p amount (p))`.
+//! [`derive_settlement_outputs`] is the CHIP's procedure as a pure function;
+//! in a transaction, [`crate::Action::silent_payment_requested`] (the maker,
+//! paid by the counterparty's settlement coin) and
+//! [`crate::Action::silent_payment_settle`] (the taker, paid by a settlement
+//! coin it spends) derive and assert the same values. Nothing offer-specific
+//! is needed to scan: the payment is an addition of the block, and a CAT
+//! settlement coin adds its wrapper to the block's wrapper list.
+//!
 //! All scalar reduction in this module flows through
 //! [`chia_sdk_types::silent_payments::ScalarField`], which enforces the
 //! unsigned-vs-signed byte-interpretation choice at the type level. See
@@ -84,9 +104,15 @@ mod block_tweak_data;
 pub use block_tweak_data::tweak_data_from_block_spends;
 mod scanner;
 pub use scanner::{K_MAX_DEFAULT, SilentPaymentScan, scan_from_tweaks};
+mod settlement;
+pub use settlement::{
+    OtherPayment, SettlementDerivation, SettlementGroupOutput, SettlementNotarizedPayment,
+    SettlementRecipient, derive_settlement_outputs, encoded_payment, settlement_announcement,
+    settlement_assertion, settlement_puzzle_hash,
+};
 mod send_keys;
 pub(crate) use send_keys::SilentPaymentSecretKeys;
 pub use send_keys::{SyntheticPublicKey, SyntheticSecretKey};
 mod types;
 pub use types::{DetectedSpCoin, OutputMeta, TweakData};
-pub(crate) use types::{SilentPaymentPending, SilentPaymentSource};
+pub(crate) use types::{SettledOtherPayment, SilentPaymentPending, SilentPaymentSource};
