@@ -32,6 +32,7 @@ use chia_sdk_types::{
     conditions::AssertPuzzleAnnouncement, payment_assertion, silent_payments::K_MAX,
     tree_hash_notarized_payment,
 };
+use chia_sdk_utils::silent_payments::{SilentPaymentAddress, SilentPaymentNetwork};
 use clvmr::NodePtr;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
@@ -186,6 +187,13 @@ pub struct SettlementDerivation {
 ///
 /// - [`DriverError::SilentPaymentInvalidSettlementInput`] if the group is
 ///   empty or does not have one key and one wrapper per coin.
+/// - [`DriverError::SilentPayment`] with
+///   [`SilentPaymentError::IdentityPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::IdentityPublicKey)
+///   if a recipient's scan key or spend key is the identity element, and with
+///   [`SilentPaymentError::InvalidPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::InvalidPublicKey)
+///   if one is outside the prime-order subgroup (`SendSilentPayment` begins
+///   with this check; the action system applies it through
+///   [`SilentPaymentAddress::validate`]).
 /// - [`DriverError::SilentPaymentAssetNotInGroup`] if an entry that is not
 ///   settled is paid in an asset that no coin of the group holds.
 /// - [`DriverError::SilentPaymentTooManyOutputs`] if more than `K_MAX`
@@ -206,6 +214,20 @@ pub fn derive_settlement_outputs(
         || sender_sks.len() != coin_ids.len()
     {
         return Err(DriverError::SilentPaymentInvalidSettlementInput);
+    }
+    // SendSilentPayment fails if any B_scan or B_m is the identity element (or
+    // outside the subgroup) before anything is derived: an identity scan key
+    // makes the shared secret a public constant, and an identity spend key
+    // makes the one-time key t_k * G, which anyone holding the scan key can
+    // spend. This is the check the action system applies to an address; the
+    // network does not take part in it.
+    for recipient in recipients {
+        SilentPaymentAddress::new(
+            recipient.scan_pk,
+            recipient.spend_pk,
+            SilentPaymentNetwork::Mainnet,
+        )
+        .validate()?;
     }
     // The Fail step for an asset no coin of the group holds applies to the
     // entries the group creates only.
@@ -300,6 +322,7 @@ fn push_payment(
 
 #[cfg(test)]
 mod tests {
+    use chia_sdk_utils::silent_payments::SilentPaymentError;
     use chia_sha2::Sha256;
     use clvmr::serde::node_to_bytes;
     use hex_literal::hex;
@@ -565,6 +588,66 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    /// A curve point outside the prime-order subgroup.
+    fn off_subgroup_point() -> PublicKey {
+        (1..=u8::MAX)
+            .find_map(|x| {
+                let mut bytes = [0u8; 48];
+                bytes[0] = 0x80;
+                bytes[47] = x;
+                PublicKey::from_bytes_unchecked(&bytes)
+                    .ok()
+                    .filter(|p| !p.is_valid() && !p.is_inf())
+            })
+            .expect("a curve point outside the prime-order subgroup")
+    }
+
+    /// CHIP-0057 `SendSilentPayment` fails if any `B_scan` or `B_m` is the
+    /// identity element, and `DeriveSettlementOutputs` runs its derivation:
+    /// an identity scan key or spend key is refused, settled or not, as is a
+    /// key outside the subgroup, before anything is derived.
+    #[test]
+    fn identity_or_invalid_recipient_keys_fail() {
+        let mut ctx = SpendContext::new();
+        let coin = [Bytes32::new([1; 32])];
+        let nonce = Bytes32::new([4; 32]);
+        let derive = |ctx: &mut SpendContext, entry: SettlementRecipient| {
+            derive_settlement_outputs(ctx, &[sk(5)], &coin, &[None], &[entry], &[], nonce)
+        };
+
+        for settled in [true, false] {
+            let mut scan = recipient(7, 8, None, settled);
+            scan.scan_pk = PublicKey::default();
+            assert!(scan.scan_pk.is_inf());
+            assert!(matches!(
+                derive(&mut ctx, scan),
+                Err(DriverError::SilentPayment(
+                    SilentPaymentError::IdentityPublicKey
+                ))
+            ));
+
+            let mut spend = recipient(7, 8, None, settled);
+            spend.spend_pk = PublicKey::default();
+            assert!(matches!(
+                derive(&mut ctx, spend),
+                Err(DriverError::SilentPayment(
+                    SilentPaymentError::IdentityPublicKey
+                ))
+            ));
+
+            let mut invalid = recipient(7, 8, None, settled);
+            invalid.scan_pk = off_subgroup_point();
+            assert!(matches!(
+                derive(&mut ctx, invalid),
+                Err(DriverError::SilentPayment(
+                    SilentPaymentError::InvalidPublicKey
+                ))
+            ));
+
+            assert!(derive(&mut ctx, recipient(7, 8, None, settled)).is_ok());
+        }
     }
 
     /// `K_MAX` counts settled entries and group outputs to one scan key.

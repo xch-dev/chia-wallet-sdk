@@ -975,7 +975,8 @@ mod tests {
     }
 
     /// `derive_settlement_outputs` returns errors across the FFI instead of
-    /// panicking: an empty group, and an other payment that is not CLVM.
+    /// panicking: an empty group, an other payment that is not CLVM, and an
+    /// identity scan or spend key.
     #[test]
     fn derive_settlement_outputs_errors() {
         let scan = SecretKey::from_seed(&[1u8; 32]);
@@ -1020,6 +1021,31 @@ mod tests {
             )
             .is_err()
         );
+
+        // An identity scan key or spend key is refused (CHIP-0057
+        // SendSilentPayment), as the action system refuses such an address.
+        for identity_scan in [true, false] {
+            let mut bad = recipient.clone();
+            if identity_scan {
+                bad.scan_pk = PublicKey::default();
+            } else {
+                bad.spend_pk = PublicKey::default();
+            }
+            let result = SilentPayments::derive_settlement_outputs(
+                group.clone(),
+                vec![bad],
+                Vec::new(),
+                nonce,
+            );
+            assert!(matches!(
+                result,
+                Err(bindy::Error::Driver(
+                    chia_sdk_driver::DriverError::SilentPayment(
+                        chia_sdk_utils::silent_payments::SilentPaymentError::IdentityPublicKey
+                    )
+                ))
+            ));
+        }
 
         // A well-formed call gives one settled XCH payment, (p amount ()).
         let settlement =

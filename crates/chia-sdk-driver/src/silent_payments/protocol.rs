@@ -29,6 +29,7 @@ use chia_puzzle_types::standard::StandardArgs;
 use chia_sdk_types::silent_payments::{
     CHIA_SP_INPUTS, CHIA_SP_SHARED_SECRET, ScalarField, tagged_hash,
 };
+use chia_sdk_utils::silent_payments::SilentPaymentError;
 use chia_sha2::Sha256;
 
 use crate::DriverError;
@@ -282,9 +283,15 @@ pub(super) fn tweak_point_from_input_hash(
 /// # Errors
 ///
 /// Follows the failure cases of the CHIP-0057 `SendSilentPayment` procedure:
-/// [`DriverError::SilentPaymentZeroKeySum`] if `aggregated_sender_sk` is zero,
-/// [`DriverError::SilentPaymentZeroInputHash`] if `input_hash` is zero, and
-/// [`DriverError::SilentPaymentZeroTweak`] if the output tweak `t_k` is zero.
+/// [`DriverError::SilentPayment`] with
+/// [`SilentPaymentError::IdentityPublicKey`] if `scan_pk` or `spend_pk` is the
+/// identity element, [`DriverError::SilentPaymentZeroKeySum`] if
+/// `aggregated_sender_sk` is zero, [`DriverError::SilentPaymentZeroInputHash`]
+/// if `input_hash` is zero, and [`DriverError::SilentPaymentZeroTweak`] if the
+/// output tweak `t_k` is zero. Subgroup membership of the keys is not checked
+/// here (it costs a scalar multiplication per call); callers that take keys
+/// from an untrusted source validate them first, as
+/// [`SilentPaymentAddress::validate`](chia_sdk_utils::silent_payments::SilentPaymentAddress::validate) does.
 pub fn derive_one_time_puzzle_hash(
     scan_pk: &PublicKey,
     spend_pk: &PublicKey,
@@ -292,6 +299,13 @@ pub fn derive_one_time_puzzle_hash(
     input_hash: &ScalarField,
     k: u32,
 ) -> Result<Bytes32, DriverError> {
+    // An identity scan key makes the shared secret a public constant, and an
+    // identity spend key makes the one-time key t_k * G.
+    if scan_pk.is_inf() || spend_pk.is_inf() {
+        return Err(DriverError::SilentPayment(
+            SilentPaymentError::IdentityPublicKey,
+        ));
+    }
     let shared_secret = sender_shared_secret(scan_pk, aggregated_sender_sk, input_hash)?;
     let t_k = derive_output_tweak(&shared_secret, k);
     one_time_puzzle_hash_from_tweak(spend_pk, &t_k)
@@ -634,6 +648,32 @@ mod tests {
 
         let result = derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &zero, &input_hash, 0);
         assert!(matches!(result, Err(DriverError::SilentPaymentZeroKeySum)));
+    }
+
+    /// An identity scan key or spend key makes the sender fail (CHIP-0057
+    /// `SendSilentPayment`), whatever the other inputs.
+    #[test]
+    fn derive_one_time_puzzle_hash_rejects_identity_keys() {
+        let scan_pk = PublicKey::from_bytes(&TV1_SCAN_PK).unwrap();
+        let spend_pk = PublicKey::from_bytes(&TV1_SPEND_PK).unwrap();
+        let a_sum = SecretKey::from_bytes(&TV1_AGGREGATED_SENDER_SK).unwrap();
+        let input_hash = ScalarField::from_bytes_unsigned(TV1_INPUT_HASH);
+        let identity = PublicKey::default();
+        assert!(identity.is_inf());
+
+        for (scan, spend) in [(&identity, &spend_pk), (&scan_pk, &identity)] {
+            let result = derive_one_time_puzzle_hash(scan, spend, &a_sum, &input_hash, 0);
+            assert!(matches!(
+                result,
+                Err(DriverError::SilentPayment(
+                    SilentPaymentError::IdentityPublicKey
+                ))
+            ));
+        }
+        assert_eq!(
+            derive_one_time_puzzle_hash(&scan_pk, &spend_pk, &a_sum, &input_hash, 0).unwrap(),
+            Bytes32::from(TV1_PUZZLE_HASH)
+        );
     }
 
     /// `input_hash == 0` makes the sender fail. A hash that reduces to zero
