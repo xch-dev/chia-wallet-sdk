@@ -306,6 +306,7 @@ impl SilentPaymentScan for SilentPaymentKeys {
 mod tests {
     use super::super::protocol::derive_onetime_sk;
     use super::*;
+    use chia_protocol::Coin;
     use hex_literal::hex;
 
     // ─── TV1 pinned bytes (CHIP-0057 test vector 1) ────────────────────────
@@ -1294,5 +1295,313 @@ mod tests {
             .map(|d| d.k)
             .collect();
         assert_eq!(kept, vec![1]);
+    }
+
+    // ─── Wrappers (CHIP-0057 "Matching Outputs under Wrappers") ────────────
+
+    fn w() -> Wrapper {
+        Wrapper::cat([0x33u8; 32].into())
+    }
+
+    fn w2() -> Wrapper {
+        Wrapper::revocable([0x33u8; 32].into(), [0x44u8; 32].into())
+    }
+
+    /// TV1's keys and tweak point, with the bare candidate at index `k`.
+    struct Tv1 {
+        b_scan: SecretKey,
+        b_spend_pub: PublicKey,
+        tp: PublicKey,
+        shared_secret: [u8; 32],
+    }
+
+    impl Tv1 {
+        fn new() -> Self {
+            let b_scan = sk(TV1_SCAN_SK);
+            let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
+            let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
+            Self {
+                b_scan,
+                b_spend_pub: pk(TV1_SPEND_PK),
+                tp,
+                shared_secret,
+            }
+        }
+
+        fn candidate(&self, k: u32) -> Bytes32 {
+            puzzle_hash_for_pk(&derive_onetime_pk(
+                &self.b_spend_pub,
+                &derive_output_tweak(&self.shared_secret, k),
+            ))
+        }
+
+        fn scan(
+            &self,
+            outputs: Vec<OutputMeta>,
+            wrappers: Vec<Wrapper>,
+            labels: Option<&LabelRegistry>,
+        ) -> Vec<DetectedSpCoin> {
+            let data = TweakData::with_wrappers(vec![self.tp], outputs, wrappers);
+            scan_from_tweaks(
+                &self.b_scan,
+                &self.b_spend_pub,
+                &data,
+                labels,
+                K_MAX_DEFAULT,
+            )
+        }
+    }
+
+    fn meta(puzzle_hash: Bytes32, id: u8) -> OutputMeta {
+        OutputMeta {
+            puzzle_hash,
+            coin_id: [id; 32].into(),
+            amount: 100 + u64::from(id),
+            parent_coin_id: [0xee; 32].into(),
+        }
+    }
+
+    /// Everything a detection reports, the tweak as bytes.
+    fn summary(
+        d: &DetectedSpCoin,
+    ) -> (
+        u32,
+        Option<u32>,
+        Bytes32,
+        Bytes32,
+        Option<Wrapper>,
+        [u8; 32],
+    ) {
+        (
+            d.k,
+            d.label,
+            d.puzzle_hash,
+            d.coin_id,
+            d.wrapper,
+            d.tweak.to_bytes(),
+        )
+    }
+
+    /// The assumption-delta invariant of the Extension to CATs: XCH outputs
+    /// are found exactly as by the bare scan whether the block has wrappers or
+    /// not, unlabeled (TV1) and labeled (TV3), all with wrapper `None`.
+    #[test]
+    fn test_empty_wrapper_list_equals_bare_scan() {
+        let b_scan = sk(TV1_SCAN_SK);
+        let b_spend_pub = pk(TV1_SPEND_PK);
+        let mut labels = LabelRegistry::new();
+        labels.register(&b_scan, 1);
+
+        let cases = [
+            (
+                tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH),
+                meta(TV1_PUZZLE_HASH.into(), 1),
+            ),
+            (
+                tweak_point_from(TV1_A_SUM, TV3_INPUT_HASH),
+                meta(TV3_PUZZLE_HASH.into(), 3),
+            ),
+        ];
+        for (tp, output) in cases {
+            let bare = TweakData::new(vec![tp], vec![output]);
+            assert!(bare.wrappers.is_empty());
+            let bare_detections =
+                scan_from_tweaks(&b_scan, &b_spend_pub, &bare, Some(&labels), K_MAX_DEFAULT);
+            assert_eq!(bare_detections.len(), 1);
+
+            for wrappers in [vec![], vec![w()], vec![w(), w2()]] {
+                let data = TweakData::with_wrappers(vec![tp], vec![output], wrappers);
+                let detections =
+                    scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
+                assert_eq!(
+                    detections.iter().map(summary).collect::<Vec<_>>(),
+                    bare_detections.iter().map(summary).collect::<Vec<_>>()
+                );
+                assert!(detections.iter().all(|d| d.wrapper.is_none()));
+                assert_eq!(
+                    detections[0].coin(),
+                    Coin::new([0xee; 32].into(), output.puzzle_hash, output.amount)
+                );
+            }
+        }
+        // TV1 is unlabeled at k = 0, TV3 labeled m = 1 at k = 0.
+        let tv1 = Tv1::new();
+        assert_eq!(tv1.candidate(0), Bytes32::from(TV1_PUZZLE_HASH));
+    }
+
+    #[test]
+    fn test_cat_output_found_only_under_its_wrapper() {
+        let tv1 = Tv1::new();
+        let p = tv1.candidate(0);
+        let output = meta(w().wrap(p), 1);
+
+        let found = tv1.scan(vec![output], vec![w()], None);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].k, 0);
+        assert_eq!(found[0].label, None);
+        assert_eq!(found[0].wrapper, Some(w()));
+        assert_eq!(found[0].puzzle_hash, p, "the bare one-time puzzle hash");
+        assert_eq!(found[0].coin_id, output.coin_id);
+
+        assert!(tv1.scan(vec![output], vec![], None).is_empty());
+        assert!(
+            tv1.scan(vec![output], vec![Wrapper::cat([0x34u8; 32].into())], None)
+                .is_empty()
+        );
+        // The revocable wrapper of the same asset is another coin.
+        assert!(tv1.scan(vec![output], vec![w2()], None).is_empty());
+    }
+
+    /// A coin bare and coins under two wrappers of one one-time puzzle hash
+    /// are all reported at one `k`: bare first, then the wrappers in list
+    /// order, whatever the order of the outputs.
+    #[test]
+    fn test_bare_and_wrapped_coins_of_one_puzzle_hash_all_reported() {
+        let tv1 = Tv1::new();
+        let p = tv1.candidate(0);
+        let outputs = vec![meta(w2().wrap(p), 3), meta(w().wrap(p), 2), meta(p, 1)];
+
+        let found = tv1.scan(outputs.clone(), vec![w(), w2()], None);
+        assert_eq!(found.len(), 3);
+        assert!(
+            found
+                .iter()
+                .all(|d| d.k == 0 && d.label.is_none() && d.puzzle_hash == p)
+        );
+        assert_eq!(
+            found.iter().map(|d| d.wrapper).collect::<Vec<_>>(),
+            vec![None, Some(w()), Some(w2())]
+        );
+        assert_eq!(
+            found.iter().map(|d| d.coin_id).collect::<Vec<_>>(),
+            vec![[1u8; 32].into(), [2u8; 32].into(), [3u8; 32].into()]
+        );
+        for d in &found {
+            assert_eq!(
+                d.coin().coin_id(),
+                Coin::new(
+                    [0xee; 32].into(),
+                    outputs
+                        .iter()
+                        .find(|o| o.coin_id == d.coin_id)
+                        .unwrap()
+                        .puzzle_hash,
+                    d.amount
+                )
+                .coin_id()
+            );
+        }
+
+        // The list order decides the order of the wrapped detections.
+        let found = tv1.scan(outputs, vec![w2(), w()], None);
+        assert_eq!(
+            found.iter().map(|d| d.wrapper).collect::<Vec<_>>(),
+            vec![None, Some(w2()), Some(w())]
+        );
+    }
+
+    #[test]
+    fn test_repeated_wrapper_reports_a_coin_once() {
+        let tv1 = Tv1::new();
+        let p = tv1.candidate(0);
+        let found = tv1.scan(vec![meta(w().wrap(p), 1)], vec![w(), w(), w2(), w()], None);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].wrapper, Some(w()));
+    }
+
+    /// The shape of Vector 10: a CAT output at `k = 0` and an XCH output at
+    /// `k = 1` to one scan key share one counter. Both are found under `[W]`;
+    /// with an empty list the `k = 0` miss stops the scan and nothing is found.
+    #[test]
+    fn test_one_counter_across_assets() {
+        let tv1 = Tv1::new();
+        let outputs = vec![
+            meta(w().wrap(tv1.candidate(0)), 1),
+            meta(tv1.candidate(1), 2),
+        ];
+
+        let found = tv1.scan(outputs.clone(), vec![w()], None);
+        assert_eq!(found.len(), 2);
+        assert_eq!((found[0].k, found[0].wrapper), (0, Some(w())));
+        assert_eq!((found[1].k, found[1].wrapper), (1, None));
+        assert_eq!(found[1].puzzle_hash, tv1.candidate(1));
+
+        assert!(tv1.scan(outputs, vec![], None).is_empty());
+    }
+
+    #[test]
+    fn test_labeled_cat_output_found_under_wrapper() {
+        let tv1 = Tv1::new();
+        let mut labels = LabelRegistry::new();
+        labels.register(&tv1.b_scan, 1);
+        let (label_scalar, label_pk) = generate_label(&tv1.b_scan, 1);
+        let t0 = derive_output_tweak(&tv1.shared_secret, 0);
+        let labeled = puzzle_hash_for_pk(&(derive_onetime_pk(&tv1.b_spend_pub, &t0) + &label_pk));
+
+        let found = tv1.scan(
+            vec![meta(w2().wrap(labeled), 1)],
+            vec![w(), w2()],
+            Some(&labels),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].k, 0);
+        assert_eq!(found[0].label, Some(1));
+        assert_eq!(found[0].wrapper, Some(w2()));
+        assert_eq!(found[0].puzzle_hash, labeled);
+        assert_eq!(found[0].tweak.to_bytes(), t0.add(&label_scalar).to_bytes());
+
+        // Without the wrapper it is missed, labels or not.
+        assert!(
+            tv1.scan(vec![meta(w2().wrap(labeled), 1)], vec![w()], Some(&labels))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_wrapped_scan_of_no_outputs_is_empty() {
+        let tv1 = Tv1::new();
+        assert!(tv1.scan(vec![], vec![w(), w2()], None).is_empty());
+        let empty = TweakData::default();
+        assert!(
+            empty.tweak_points.is_empty() && empty.outputs.is_empty() && empty.wrappers.is_empty()
+        );
+        assert!(
+            scan_from_tweaks(&tv1.b_scan, &tv1.b_spend_pub, &empty, None, K_MAX_DEFAULT).is_empty()
+        );
+        let no_points =
+            TweakData::with_wrappers(vec![], vec![meta(w().wrap(tv1.candidate(0)), 1)], vec![w()]);
+        assert!(
+            scan_from_tweaks(
+                &tv1.b_scan,
+                &tv1.b_spend_pub,
+                &no_points,
+                None,
+                K_MAX_DEFAULT
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_detected_cat_coin_is_the_wrapped_coin() {
+        let tv1 = Tv1::new();
+        let p = tv1.candidate(0);
+        let output = meta(w2().wrap(p), 7);
+        let found = tv1.scan(vec![output], vec![w2()], None);
+        assert_eq!(found.len(), 1);
+        let coin = found[0].coin();
+        assert_eq!(coin.puzzle_hash, w2().wrap(found[0].puzzle_hash));
+        assert_eq!(coin.puzzle_hash, output.puzzle_hash);
+        assert_eq!(coin.parent_coin_info, output.parent_coin_id);
+        assert_eq!(coin.amount, output.amount);
+        assert_eq!(
+            found[0].coin_id, output.coin_id,
+            "the coin ID is the matched coin's"
+        );
+        // The one-time key controls the bare puzzle hash.
+        assert_eq!(
+            puzzle_hash_for_pk(&found[0].onetime_sk(&sk(TV1_SPEND_SK)).public_key()),
+            p
+        );
     }
 }
