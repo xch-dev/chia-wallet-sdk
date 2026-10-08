@@ -26,10 +26,11 @@ use chia_puzzle_types::standard::StandardArgs;
 use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_driver::silent_payments::{
-    K_MAX_DEFAULT, OutputMeta, SyntheticPublicKey, SyntheticSecretKey, Wrapper,
-    aggregate_sender_sks, compute_input_hash, compute_tweak_point, derive_one_time_puzzle_hash,
-    scan_from_tweaks, settlement_announcement, settlement_puzzle_hash,
-    spend_groups_from_block_spends, tweak_data_from_block_spends,
+    K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementGroupCoin, SettlementRecipient,
+    SyntheticPublicKey, SyntheticSecretKey, Wrapper, aggregate_sender_sks, compute_input_hash,
+    compute_tweak_point, derive_one_time_puzzle_hash, derive_settlement_outputs, scan_from_tweaks,
+    settlement_announcement, settlement_puzzle_hash, spend_groups_from_block_spends,
+    tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
     Action, AssetInfo, Cat, CatAssetInfo, CatSpend, DriverError, FungibleSpend, HashedPtr, Id,
@@ -2824,9 +2825,7 @@ fn test_settle_without_a_settlement_coin_fails() -> Result<()> {
 /// A party's settled entries are one notarized payment per asset under one
 /// nonce, with one payer per asset: entries with two nonces, or an asset paid
 /// both by the counterparty's settlement coin and by one the transaction
-/// spends, fail with `SilentPaymentSettlementMismatch`; another payment in an
-/// asset with no settled silent payment fails with
-/// `SilentPaymentInvalidSettlementInput`. Nothing is emitted.
+/// spends, fail with `SilentPaymentSettlementMismatch`. Nothing is emitted.
 #[test]
 fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
     let (_sim, mut ctx, sender, recipient) = setup_e2e()?;
@@ -2863,9 +2862,9 @@ fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
         (
             vec![
                 Action::silent_payment_requested(None, address.clone(), 100, nonce),
-                Action::silent_payment_requested_other(Some(w), other_payment, nonce),
+                Action::silent_payment_requested_other(None, other_payment, other_nonce),
             ],
-            "invalid",
+            "mismatch",
         ),
     ];
     for (actions, expected) in cases {
@@ -2876,21 +2875,100 @@ fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
         let pk_map = register_keys(&mut spends, &[&sender]);
         let result =
             spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
-        match expected {
-            "mismatch" => assert!(
-                matches!(result, Err(DriverError::SilentPaymentSettlementMismatch)),
-                "expected SilentPaymentSettlementMismatch, got {result:?}"
-            ),
-            _ => assert!(
-                matches!(
-                    result,
-                    Err(DriverError::SilentPaymentInvalidSettlementInput)
-                ),
-                "expected SilentPaymentInvalidSettlementInput, got {result:?}"
-            ),
-        }
+        assert_eq!(expected, "mismatch");
+        assert!(
+            matches!(result, Err(DriverError::SilentPaymentSettlementMismatch)),
+            "expected SilentPaymentSettlementMismatch, got {result:?}"
+        );
         assert!(ctx.take().is_empty(), "nothing is emitted");
     }
+    Ok(())
+}
+
+/// CHIP-0057 `DeriveSettlementOutputs`: an asset with other payments only
+/// gets its own notarized payment and assertion, after the assets of the
+/// silent payments. The action system and the pure `derive_settlement_outputs`
+/// agree byte for byte on the same inputs: the notarized payments the maker
+/// publishes are the derivation's, in its order, and the announcements the
+/// maker's coin asserts are the derivation's assertions.
+#[test]
+fn test_settlement_paths_agree_on_an_asset_with_other_payments_only() -> Result<()> {
+    let (_sim, mut ctx, sender, recipient) = setup_e2e()?;
+    let address = recipient.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let w = Wrapper::cat(Bytes32::new([0x33; 32]));
+    let nonce = Bytes32::new([0x55; 32]);
+    let other_payment = Payment::new(
+        Bytes32::new([0x71; 32]),
+        10,
+        Memos::Some(clvmr::NodePtr::NIL),
+    );
+
+    // The action system: an XCH silent payment and a CAT other payment, both
+    // requested from the counterparty.
+    let mut spends = Spends::new(sender.puzzle_hash);
+    spends.add(sender.coin);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::silent_payment_requested(None, address.clone(), 100, nonce),
+            Action::silent_payment_requested_other(Some(w), other_payment.clone(), nonce),
+        ],
+    )?;
+    let pk_map = register_keys(&mut spends, &[&sender]);
+    let outputs =
+        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let coin_spends = ctx.take();
+    let asserted = puzzle_announcement_assertions(&coin_spends, &[sender.coin.coin_id()])?;
+
+    // The pure function, over the same group, entries, other payment and nonce.
+    let derivation = derive_settlement_outputs(
+        &mut ctx,
+        &[SettlementGroupCoin {
+            coin_id: sender.coin.coin_id(),
+            p2_puzzle_hash: sender.puzzle_hash,
+            secret_key: SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
+            wrapper: None,
+        }],
+        &[SettlementRecipient {
+            scan_pk: address.scan_pk,
+            spend_pk: address.spend_pk,
+            wrapper: None,
+            settled: true,
+            amount: 100,
+        }],
+        &[OtherPayment {
+            wrapper: Some(w),
+            payment: other_payment,
+        }],
+        nonce,
+    )?;
+    assert_eq!(derivation.notarized_payments.len(), 2);
+    assert_eq!(derivation.notarized_payments[0].wrapper, None);
+    assert_eq!(derivation.notarized_payments[1].wrapper, Some(w));
+
+    let requests = &outputs.silent_payment_requests;
+    assert_eq!(requests.xch.len(), 1);
+    let cat_requests = requests.cats.get(&w.asset_id).expect("the CAT's request");
+    assert_eq!(cat_requests.len(), 1);
+    let bytes_of = |ctx: &mut SpendContext, np: &NotarizedPayment| -> Result<Vec<u8>> {
+        let ptr = ctx.alloc(np)?;
+        Ok(clvmr::serde::node_to_bytes(ctx, ptr)?)
+    };
+    for (published, derived) in [&requests.xch[0], &cat_requests[0]]
+        .into_iter()
+        .zip(&derivation.notarized_payments)
+    {
+        assert_eq!(
+            bytes_of(&mut ctx, published)?,
+            bytes_of(&mut ctx, &derived.notarized_payment)?
+        );
+    }
+    let derived: Vec<Bytes32> = derivation
+        .assertions
+        .iter()
+        .map(|a| a.announcement_id)
+        .collect();
+    assert_eq!(asserted, derived);
     Ok(())
 }
 

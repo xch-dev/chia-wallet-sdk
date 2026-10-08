@@ -341,9 +341,9 @@ pub enum DriverError {
     SilentPaymentCatMemos,
 
     /// The inputs of a settled silent payment are malformed (CHIP-0057
-    /// "Payments through Settlement Coins"): the spend group is empty, or a
-    /// requested payment that is not a silent payment is listed in an asset in
-    /// which the party has no settled silent payment.
+    /// "Payments through Settlement Coins"): the spend group given to
+    /// `derive_settlement_outputs` is empty, or the action system has settled
+    /// entries to group but no nonce to group them under.
     #[cfg(feature = "chip-0057")]
     #[error("invalid inputs for a silent payment through a settlement coin")]
     SilentPaymentInvalidSettlementInput,

@@ -351,10 +351,12 @@ impl Action {
         ))
     }
 
-    /// A requested payment of the maker to an address that is not a silent payment address, in
-    /// an asset in which it also requests a silent payment ([`Action::silent_payment_requested`]).
-    /// It is listed in the asset's notarized payment after the silent payments, so that one
-    /// announcement covers all of the maker's requested payments in that asset.
+    /// A requested payment of the maker to an address that is not a silent payment address. In
+    /// an asset in which the maker also requests a silent payment
+    /// ([`Action::silent_payment_requested`]), it is listed in the asset's notarized payment after
+    /// the silent payments, so that one announcement covers all of the maker's requested payments
+    /// in that asset; an asset with other payments only gets its own notarized payment and
+    /// announcement, after those of the silent payments (CHIP-0057 `DeriveSettlementOutputs`).
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_requested_other(
         asset: Option<Wrapper>,
@@ -396,9 +398,10 @@ impl Action {
     }
 
     /// A payment of the taker to an address that is not a silent payment address, made by the
-    /// settlement coin of an asset in which it is also paid silently
-    /// ([`Action::silent_payment_settle`]), and listed after the silent payments in that asset's
-    /// notarized payment.
+    /// settlement coin of its asset the transaction spends. In an asset in which the taker is also
+    /// paid silently ([`Action::silent_payment_settle`]) it is listed after the silent payments in
+    /// that asset's notarized payment; an asset with other payments only gets its own notarized
+    /// payment, after those of the silent payments (CHIP-0057 `DeriveSettlementOutputs`).
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_settle_other(
         asset: Option<Wrapper>,

@@ -837,10 +837,11 @@ impl Spends<Unfinished> {
 /// asserted as a required condition, which [`Spends::emit_conditions`] attaches to the first
 /// coin of the group. A requested payment is published in [`Outputs::silent_payment_requests`],
 /// and a payment taken from a settlement coin the transaction spends is added to its solution.
-/// The settled checks: [`DriverError::SilentPaymentSettlementMismatch`] if two settled entries
-/// carry different nonces or the entries of one asset have different payers, and
-/// [`DriverError::SilentPaymentInvalidSettlementInput`] if an other payment is listed in an asset
-/// with no settled silent payment.
+/// An asset with other payments only gets its own notarized payment and assertion, after the
+/// assets of the silent payments, as [`crate::derive_settlement_outputs`] gives it (CHIP-0057
+/// `DeriveSettlementOutputs`). The settled check: [`DriverError::SilentPaymentSettlementMismatch`]
+/// if two settled entries carry different nonces or the entries of one asset have different
+/// payers.
 ///
 /// Returns the coin ids of the spend group, which [`Spends::prepare`] compares with the coins
 /// that were actually bound together once the transaction is complete.
@@ -1119,8 +1120,10 @@ fn settle_silent_payments(
         return Err(DriverError::SilentPaymentSettlementMismatch);
     }
 
-    // The assets in order of first appearance among the silent payments; an other payment joins
-    // the asset of a silent payment, after its silent payments.
+    // The assets in order of first appearance, the silent payments' first (CHIP-0057
+    // `DeriveSettlementOutputs`, as `derive_settlement_outputs` orders them): an other payment
+    // joins its asset after the asset's silent payments, and an asset with other payments only
+    // is added after them, with its own notarized payment and assertion.
     let mut assets: Vec<AssetSettlement> = Vec::new();
     for entry in settled {
         if let Some(asset) = assets.iter_mut().find(|a| a.asset == entry.asset) {
@@ -1139,7 +1142,13 @@ fn settle_silent_payments(
     }
     for other in others {
         let Some(asset) = assets.iter_mut().find(|a| a.asset == other.asset) else {
-            return Err(DriverError::SilentPaymentInvalidSettlementInput);
+            assets.push(AssetSettlement {
+                asset: other.asset,
+                payer: other.payer,
+                settlement_index: other.settlement_index,
+                payments: vec![other.payment],
+            });
+            continue;
         };
         if asset.payer != other.payer {
             return Err(DriverError::SilentPaymentSettlementMismatch);

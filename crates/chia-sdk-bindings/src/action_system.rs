@@ -518,8 +518,9 @@ impl Action {
     }
 
     /// A requested payment of the maker to an address that is not a silent
-    /// payment address, in an asset in which it also requests a silent
-    /// payment; listed after the silent payments under the same announcement.
+    /// payment address. In an asset in which the maker also requests a silent
+    /// payment it is listed after the silent payments under the same
+    /// announcement; an asset with other payments only gets its own.
     pub fn silent_payment_requested_other(
         asset: Option<SilentPaymentWrapper>,
         payment: Payment,
@@ -550,8 +551,8 @@ impl Action {
     }
 
     /// A payment of the taker to an address that is not a silent payment
-    /// address, made by the settlement coin of an asset in which it is also
-    /// paid silently.
+    /// address, made by the settlement coin of its asset the transaction
+    /// spends; listed after the taker's silent payments in that asset, if any.
     pub fn silent_payment_settle_other(
         asset: Option<SilentPaymentWrapper>,
         payment: Payment,
