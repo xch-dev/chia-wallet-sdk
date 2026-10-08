@@ -776,12 +776,14 @@ def test_vector_12_maker_silent_offer_through_bindings():
         "d9ba60e1d59601e7c5fead8e866848a6626552e0a7713d27c0373956dbf2e1cd"
     )
 
-    # Malformed inputs raise instead of crashing the interpreter.
-    with pytest.raises(BaseException, match="settlement coin"):
+    # Malformed inputs raise the SDK's ValueError instead of crashing the
+    # interpreter: a Rust panic surfaces as pyo3's PanicException, which
+    # derives from BaseException, not from ValueError, so it fails these.
+    with pytest.raises(ValueError, match="invalid inputs for a silent payment"):
         SilentPayments.derive_settlement_outputs(
             [], recipients, others, b32(entry["nonce"])
         )
-    with pytest.raises(BaseException):
+    with pytest.raises(ValueError, match="bad encoding"):
         SilentPayments.derive_settlement_outputs(
             group,
             recipients,
