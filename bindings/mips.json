@@ -119,6 +119,15 @@
     },
     "return": "TreeHash"
   },
+  "eip712_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  },
   "custom_member_hash": {
     "type": "function",
     "args": {
@@ -206,6 +215,15 @@
           "public_key": "K1PublicKey",
           "signature": "K1Signature",
           "fast_forward": "bool"
+        }
+      },
+      "eip712_member": {
+        "args": {
+          "config": "MemberConfig",
+          "genesis_challenge": "Bytes32",
+          "public_key": "K1PublicKey",
+          "signed_hash": "Bytes32",
+          "signature": "K1Signature"
         }
       },
       "r1_member": {

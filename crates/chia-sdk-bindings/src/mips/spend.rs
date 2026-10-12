@@ -11,14 +11,15 @@ use chia_sdk_driver::{self as sdk, InnerPuzzleSpend, MofN, SpendContext, mips_pu
 use chia_sdk_types::{
     Mod,
     puzzles::{
-        BlsMember, BlsMemberPuzzleAssert, FORCE_SINGLETON_RECREATION_HASH, FixedPuzzleMember,
-        Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution,
-        ForceSingletonRecreationMod, K1Member, K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution,
-        K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
-        PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
-        PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
+        BlsMember, BlsMemberPuzzleAssert, Eip712Member, Eip712MemberSolution,
+        FORCE_SINGLETON_RECREATION_HASH, FixedPuzzleMember, Force1of2RestrictedVariable,
+        Force1of2RestrictedVariableSolution, ForceSingletonRecreationMod, K1Member,
+        K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution, K1MemberSolution, PasskeyMember,
+        PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution,
+        PreventConditionOpcode, PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
         SingletonMemberWithMode, SingletonMemberWithModeSolution, Timelock,
+        eip712_prefix_and_domain_separator, eip712_type_hash,
     },
 };
 use clvm_utils::TreeHash;
@@ -113,6 +114,51 @@ impl MipsSpend {
         } else {
             ctx.alloc(&K1MemberSolution::new(self.coin.coin_id(), signature.0))?
         };
+
+        self.spend.lock().unwrap().members.insert(
+            member_hash,
+            InnerPuzzleSpend::new(
+                nonce,
+                restrictions,
+                sdk::Spend::new(member_puzzle, member_solution),
+            ),
+        );
+
+        Ok(())
+    }
+
+    pub fn eip712_member(
+        &self,
+        config: MemberConfig,
+        genesis_challenge: Bytes32,
+        public_key: K1PublicKey,
+        signed_hash: Bytes32,
+        signature: K1Signature,
+    ) -> Result<()> {
+        let mut ctx = self.clvm.lock().unwrap();
+
+        let nonce = config.nonce.try_into().unwrap();
+        let restrictions = convert_restrictions(config.restrictions);
+
+        let member = Eip712Member::new(
+            eip712_prefix_and_domain_separator(genesis_challenge),
+            eip712_type_hash(),
+            public_key.0,
+        );
+
+        let member_hash = mips_puzzle_hash(
+            nonce,
+            restrictions.clone(),
+            member.curry_tree_hash(),
+            config.top_level,
+        );
+
+        let member_puzzle = ctx.curry(member)?;
+        let member_solution = ctx.alloc(&Eip712MemberSolution::new(
+            self.coin.coin_id(),
+            signed_hash,
+            signature.0,
+        ))?;
 
         self.spend.lock().unwrap().members.insert(
             member_hash,
