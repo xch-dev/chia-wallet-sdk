@@ -1,0 +1,54 @@
+[package]
+publish = false
+name = "chia-wallet-sdk-uniffi"
+version = "0.36.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "UniFFI bindings for the Chia Wallet SDK, used to generate Go, C#, C++, Kotlin, and Swift bindings."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/xch-dev/chia-wallet-sdk"
+repository = "https://github.com/xch-dev/chia-wallet-sdk"
+
+[lib]
+name = "chia_wallet_sdk"
+crate-type = ["cdylib", "staticlib"]
+doc = false
+test = false
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["cli"]
+doc = false
+test = false
+
+[features]
+# Exposes async methods as blocking calls, for generators that don't support async (C++).
+blocking = []
+# Builds the `uniffi-bindgen` CLI, which generates Kotlin, Swift, and Python bindings.
+cli = ["uniffi/cli"]
+
+[dependencies]
+uniffi = { workspace = true, features = ["tokio"] }
+chia-sdk-bindings = { workspace = true, features = ["uniffi"] }
+bindy = { workspace = true, features = ["uniffi"] }
+bindy-macro = { workspace = true }
+
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[package.metadata.cargo-machete]
+ignored = ["openssl", "openssl-sys"]
