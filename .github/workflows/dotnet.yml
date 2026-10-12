@@ -47,7 +47,8 @@ jobs:
             target: x86_64-apple-darwin
             rid: osx-x64
             test: false
-          - host: windows-latest
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
             target: x86_64-pc-windows-msvc
             rid: win-x64
             test: true
@@ -56,12 +57,6 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v6
-
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
 
       # Installs the target for the toolchain pinned in rust-toolchain.toml
       - name: Install Rust target

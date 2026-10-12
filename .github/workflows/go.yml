@@ -47,7 +47,8 @@ jobs:
             target: x86_64-apple-darwin
             platform: darwin_amd64
             test: false
-          - host: windows-latest
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
             target: x86_64-pc-windows-gnu
             platform: windows_amd64
             test: true
