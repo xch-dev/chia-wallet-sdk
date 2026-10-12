@@ -66,9 +66,10 @@ jobs:
           cargo build --release -p chia-sdk-bindings -F napi
           cargo build --release -p chia-sdk-bindings -F wasm
           cargo build --release -p chia-sdk-bindings -F pyo3
+          cargo build --release -p chia-sdk-bindings -F uniffi
 
       - name: Run tests
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-wallet-sdk-uniffi --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
 
       - name: Clippy
         run: cargo clippy --workspace --all-features --all-targets

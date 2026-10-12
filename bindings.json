@@ -64,6 +64,12 @@
     "String": "str",
     "()": "None"
   },
+  "uniffi": {
+    "{bytes}": "Vec<u8>",
+    "u128": "String",
+    "BigInt": "String",
+    "{usize}": "u64"
+  },
   "clvm_types": [
     "Program",
     "PublicKey",

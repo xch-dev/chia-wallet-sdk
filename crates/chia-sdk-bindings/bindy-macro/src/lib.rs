@@ -2,7 +2,7 @@ use std::{fs, mem, path::Path};
 
 use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use indoc::formatdoc;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -30,6 +30,8 @@ struct Bindy {
     pyo3: IndexMap<String, String>,
     #[serde(default)]
     pyo3_stubs: IndexMap<String, String>,
+    #[serde(default)]
+    uniffi: IndexMap<String, String>,
     #[serde(default)]
     clvm_types: Vec<String>,
 }
@@ -1722,4 +1724,432 @@ fn function_args(
 
     results.reverse();
     results.join(", ")
+}
+
+#[proc_macro]
+pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
+    uniffi_bindings(input, false)
+}
+
+/// The same as [`bindy_uniffi`], except that async methods are exposed as blocking calls.
+/// This is needed for `UniFFI` generators that don't support async functions (such as C++).
+#[proc_macro]
+pub fn bindy_uniffi_blocking(input: TokenStream) -> TokenStream {
+    uniffi_bindings(input, true)
+}
+
+fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
+    let input = syn::parse_macro_input!(input as LitStr).value();
+    let (bindy, bindings) = load_bindings(&input);
+
+    let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
+
+    let mut mappings = bindy.uniffi.clone();
+    build_base_mappings(&bindy, &mut mappings, &mut IndexMap::new());
+
+    // UniFFI objects are always passed around by reference
+    for value in mappings.values_mut() {
+        if matches!(bindings.get(value), Some(Binding::Class { .. })) {
+            *value = format!("std::sync::Arc<{value}>");
+        }
+    }
+
+    for (name, binding) in &bindings {
+        if matches!(binding, Binding::Class { .. }) {
+            mappings.insert(name.clone(), format!("std::sync::Arc<{name}>"));
+        }
+    }
+
+    let map_type =
+        |ty: &str| -> Type { parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap() };
+
+    let mut output = quote! {
+        #[derive(Debug, uniffi::Error)]
+        #[uniffi(flat_error)]
+        pub enum ChiaError {
+            Error(String),
+        }
+
+        impl std::fmt::Display for ChiaError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Self::Error(message) => f.write_str(message),
+                }
+            }
+        }
+
+        impl std::error::Error for ChiaError {}
+
+        impl From<bindy::Error> for ChiaError {
+            fn from(error: bindy::Error) -> Self {
+                Self::Error(error.to_string())
+            }
+        }
+    };
+
+    let convert_args = |arg_idents: &[Ident]| {
+        quote! {
+            #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(#arg_idents, &bindy::UniffiContext)?; )*
+        }
+    };
+
+    let convert_return = quote! {
+        Ok(bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(value, &bindy::UniffiContext)?)
+    };
+
+    let binding_names = bindings.keys().cloned().collect::<IndexSet<_>>();
+
+    for (name, binding) in bindings {
+        let bound_ident = Ident::new(&name, Span::mixed_site());
+
+        match binding {
+            Binding::Class {
+                new,
+                remote,
+                methods,
+                fields,
+                no_wasm: _,
+            } => {
+                let rust_struct_ident = quote!( #entrypoint::#bound_ident );
+                let fully_qualified_ident = if remote {
+                    let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
+                    quote!( <#rust_struct_ident as #entrypoint::#ext_ident> )
+                } else {
+                    quote!( #rust_struct_ident )
+                };
+
+                let read_self = quote!(&*<Self as bindy::UniffiObject>::read(self));
+
+                // This can't be named `clone` in Rust, since the scaffolding would call `Arc::clone`
+                let mut method_tokens = quote! {
+                    #[uniffi::method(name = "clone")]
+                    pub fn clone_value(&self) -> std::sync::Arc<Self> {
+                        std::sync::Arc::new(<Self as bindy::UniffiObject>::wrap(
+                            <Self as bindy::UniffiObject>::read(self).clone(),
+                        ))
+                    }
+                };
+
+                // UniFFI doesn't support static methods, so they are exported as free functions
+                // prefixed with the class name instead.
+                let mut function_tokens = quote!();
+
+                let mut has_async = false;
+
+                for (method_name, method) in methods {
+                    if method.stub_only {
+                        continue;
+                    }
+
+                    let method_ident = Ident::new(&method_name, Span::mixed_site());
+
+                    let arg_idents = method
+                        .args
+                        .keys()
+                        .map(|k| Ident::new(k, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let arg_types = method
+                        .args
+                        .values()
+                        .map(|v| map_type(v))
+                        .collect::<Vec<_>>();
+
+                    let args = convert_args(&arg_idents);
+
+                    let returns_self = method.ret.as_deref().is_none_or(|ret| ret == name);
+
+                    let ret = map_type(method.ret.as_deref().unwrap_or(
+                        if matches!(
+                            method.kind,
+                            MethodKind::Constructor
+                                | MethodKind::Factory
+                                | MethodKind::AsyncFactory
+                        ) {
+                            &name
+                        } else {
+                            "()"
+                        },
+                    ));
+
+                    match method.kind {
+                        MethodKind::Constructor | MethodKind::Factory if returns_self => {
+                            // Some generators (such as Go) name constructors by prefixing the
+                            // class name, which can collide with other classes (for example,
+                            // `OptionType::cat` and `OptionTypeCat`).
+                            let constructor_attr = if binding_names
+                                .contains(&format!("{name}{}", method_name.to_case(Case::Pascal)))
+                            {
+                                let renamed = format!("new_{method_name}");
+                                quote!( #[uniffi::constructor(name = #renamed)] )
+                            } else {
+                                quote!( #[uniffi::constructor] )
+                            };
+
+                            method_tokens.extend(quote! {
+                                #constructor_attr
+                                pub fn #method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<std::sync::Arc<Self>, ChiaError> {
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident( #( #arg_idents ),* )?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory if blocking => {
+                            method_tokens.extend(quote! {
+                                #[uniffi::constructor]
+                                pub fn #method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<std::sync::Arc<Self>, ChiaError> {
+                                    #args
+                                    let value = bindy::block_on(#fully_qualified_ident::#method_ident( #( #arg_idents ),* ))?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory => {
+                            has_async = true;
+
+                            method_tokens.extend(quote! {
+                                #[uniffi::constructor]
+                                pub async fn #method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<std::sync::Arc<Self>, ChiaError> {
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident( #( #arg_idents ),* ).await?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::Constructor | MethodKind::Factory | MethodKind::Static => {
+                            let function_ident = Ident::new(
+                                &format!("{}_{method_name}", name.to_case(Case::Snake)),
+                                Span::mixed_site(),
+                            );
+
+                            function_tokens.extend(quote! {
+                                #[uniffi::export]
+                                pub fn #function_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident( #( #arg_idents ),* )?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::Normal | MethodKind::ToString => {
+                            method_tokens.extend(quote! {
+                                pub fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident(#read_self, #( #arg_idents ),* )?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::Async if blocking => {
+                            method_tokens.extend(quote! {
+                                pub fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    let inner = <Self as bindy::UniffiObject>::read(self).clone();
+                                    #args
+                                    let value = bindy::block_on(#fully_qualified_ident::#method_ident(&inner, #( #arg_idents ),* ))?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            has_async = true;
+
+                            method_tokens.extend(quote! {
+                                pub async fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    let inner = <Self as bindy::UniffiObject>::read(self).clone();
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident(&inner, #( #arg_idents ),* ).await?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                    }
+                }
+
+                for (field_name, ty) in &fields {
+                    let field_ident = Ident::new(field_name, Span::mixed_site());
+                    let set_ident = Ident::new(&format!("set_{field_name}"), Span::mixed_site());
+                    let ty = map_type(ty);
+
+                    // Converting to a UniFFI type can't fail, so getters don't return a result
+                    method_tokens.extend(quote! {
+                        pub fn #field_ident(&self) -> #ty {
+                            bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(
+                                <Self as bindy::UniffiObject>::read(self).#field_ident.clone(),
+                                &bindy::UniffiContext,
+                            )
+                            .expect("conversion to a UniFFI type is infallible")
+                        }
+
+                        pub fn #set_ident(&self, value: #ty) -> Result<(), ChiaError> {
+                            let value = bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(value, &bindy::UniffiContext)?;
+                            <Self as bindy::UniffiObject>::write(self).#field_ident = value;
+                            Ok(())
+                        }
+                    });
+                }
+
+                if new {
+                    let arg_idents = fields
+                        .keys()
+                        .map(|k| Ident::new(k, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let arg_types = fields.values().map(|v| map_type(v)).collect::<Vec<_>>();
+
+                    let args = convert_args(&arg_idents);
+
+                    method_tokens.extend(quote! {
+                        #[uniffi::constructor]
+                        pub fn new(
+                            #( #arg_idents: #arg_types ),*
+                        ) -> Result<std::sync::Arc<Self>, ChiaError> {
+                            #args
+                            let value = #rust_struct_ident { #( #arg_idents ),* };
+                            #convert_return
+                        }
+                    });
+                }
+
+                // UniFFI only allows an async runtime on impl blocks that have async methods
+                let export_attr = if has_async {
+                    quote!( #[uniffi::export(async_runtime = "tokio")] )
+                } else {
+                    quote!( #[uniffi::export] )
+                };
+
+                output.extend(quote! {
+                    #[derive(uniffi::Object)]
+                    pub struct #bound_ident(std::sync::RwLock<#rust_struct_ident>);
+
+                    impl bindy::UniffiObject for #bound_ident {
+                        type Inner = #rust_struct_ident;
+
+                        fn wrap(inner: Self::Inner) -> Self {
+                            Self(std::sync::RwLock::new(inner))
+                        }
+
+                        fn lock(&self) -> &std::sync::RwLock<Self::Inner> {
+                            &self.0
+                        }
+                    }
+
+                    #export_attr
+                    impl #bound_ident {
+                        #method_tokens
+                    }
+
+                    #function_tokens
+                });
+            }
+            Binding::Enum { values } => {
+                let rust_ident = quote!( #entrypoint::#bound_ident );
+
+                let value_idents = values
+                    .iter()
+                    .map(|v| Ident::new(v, Span::mixed_site()))
+                    .collect::<Vec<_>>();
+
+                output.extend(quote! {
+                    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+                    pub enum #bound_ident {
+                        #( #value_idents ),*
+                    }
+
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Uniffi> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                            Ok(match value {
+                                #( #rust_ident::#value_idents => Self::#value_idents ),*
+                            })
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Uniffi> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                            Ok(match self {
+                                #( Self::#value_idents => #rust_ident::#value_idents ),*
+                            })
+                        }
+                    }
+                });
+            }
+            Binding::Function { args, ret } => {
+                let arg_idents = args
+                    .keys()
+                    .map(|k| Ident::new(k, Span::mixed_site()))
+                    .collect::<Vec<_>>();
+
+                let arg_types = args.values().map(|v| map_type(v)).collect::<Vec<_>>();
+
+                let ret = map_type(ret.as_deref().unwrap_or("()"));
+
+                let converted_args = convert_args(&arg_idents);
+
+                output.extend(quote! {
+                    #[uniffi::export]
+                    pub fn #bound_ident(
+                        #( #arg_idents: #arg_types ),*
+                    ) -> Result<#ret, ChiaError> {
+                        #converted_args
+                        let value = #entrypoint::#bound_ident( #( #arg_idents ),* )?;
+                        #convert_return
+                    }
+                });
+            }
+        }
+    }
+
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    // Statically typed languages can't accept any value like the Python and JavaScript bindings,
+    // so `Clvm::alloc` takes a tagged union of the supported values instead. This can't contain
+    // lists of itself, since some generators (such as C++) don't support recursive types.
+    output.extend(quote! {
+        #[derive(uniffi::Enum)]
+        pub enum ClvmType {
+            Nil,
+            Bool { value: bool },
+            Int { value: String },
+            Atom { value: Vec<u8> },
+            Text { value: String },
+            #( #clvm_types { value: std::sync::Arc<#clvm_types> }, )*
+        }
+
+        enum ClvmValue {
+            #( #clvm_types(#entrypoint::#clvm_types), )*
+        }
+
+        impl ClvmType {
+            /// Returns the primitive value, or converts the bound class into its Rust type.
+            fn into_value(self) -> Result<ClvmValue, Self> {
+                Ok(match self {
+                    #( Self::#clvm_types { value } => ClvmValue::#clvm_types(<#clvm_types as bindy::UniffiObject>::read(&value).clone()), )*
+                    other => return Err(other),
+                })
+            }
+        }
+    });
+
+    output.into()
 }

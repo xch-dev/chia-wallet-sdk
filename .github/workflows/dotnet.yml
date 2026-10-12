@@ -1,0 +1,167 @@
+name: .NET
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+      # Pushed by the Go release job
+      - "!go/**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UNIFFI_BINDGEN_CS: v0.11.1+v0.31.0
+  MACOSX_DEPLOYMENT_TARGET: "11.0"
+
+jobs:
+  build:
+    name: Build - ${{ matrix.settings.rid }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rid: linux-x64
+            test: true
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            rid: linux-arm64
+            test: true
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            rid: osx-arm64
+            test: true
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            rid: osx-x64
+            test: false
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
+            target: x86_64-pc-windows-msvc
+            rid: win-x64
+            test: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/uniffi-bindgen-cs*
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: dotnet-${{ matrix.settings.target }}-${{ env.UNIFFI_BINDGEN_CS }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install uniffi-bindgen-cs
+        run: |
+          if ! command -v uniffi-bindgen-cs > /dev/null; then
+            cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
+          fi
+
+      - name: Build and generate bindings
+        run: ./dotnet/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        if: matrix.settings.test
+        run: dotnet test dotnet/ChiaWalletSdk.Tests
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-${{ matrix.settings.rid }}
+          path: dotnet/ChiaWalletSdk/runtimes/${{ matrix.settings.rid }}/
+          if-no-files-found: error
+
+      - name: Upload bindings
+        if: matrix.settings.rid == 'linux-x64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-bindings
+          path: dotnet/ChiaWalletSdk/chiawalletsdk.cs
+          if-no-files-found: error
+
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: dotnet-bindings
+          path: dotnet/ChiaWalletSdk
+
+      - name: Download libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dotnet-*-*
+          path: dotnet/ChiaWalletSdk/runtimes
+
+      - name: Arrange libraries
+        working-directory: dotnet/ChiaWalletSdk/runtimes
+        run: |
+          # Each artifact contains the `native` directory for its runtime identifier
+          for dir in dotnet-*; do
+            mv "$dir" "${dir#dotnet-}"
+          done
+          ls -R
+
+      - name: Pack
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          dotnet pack dotnet/ChiaWalletSdk -c Release -o dotnet/dist -p:Version="$VERSION"
+
+      - name: Verify package
+        run: |
+          contents=$(unzip -l dotnet/dist/*.nupkg)
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+            if ! grep -qE "runtimes/$rid/native/[^/]+$" <<< "$contents"; then
+              echo "The package is missing the native library for $rid" >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget
+          path: dotnet/dist/*.nupkg
+          if-no-files-found: error
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+        run: dotnet nuget push "dotnet/dist/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

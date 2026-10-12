@@ -1,7 +1,6 @@
-use crate::{Error, FromRust, IntoRust, Result, impl_self};
+use crate::{Error, FromRust, IntoRust, Result};
 use chia_protocol::{Bytes, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
-use num_bigint::BigInt;
 
 impl From<Error> for pyo3::PyErr {
     fn from(error: Error) -> Self {
@@ -14,12 +13,6 @@ pub struct Pyo3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pyo3Context;
-
-impl_self!(u64);
-impl_self!(i64);
-impl_self!(u128);
-impl_self!(i128);
-impl_self!(BigInt);
 
 impl<T> FromRust<(), T, Pyo3> for () {
     fn from_rust(value: (), _context: &T) -> Result<Self> {

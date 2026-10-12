@@ -1,0 +1,162 @@
+name: Go
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+      # Pushed by the Go release job
+      - "!go/**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UNIFFI_BINDGEN_GO: v0.7.1+v0.31.0
+  MACOSX_DEPLOYMENT_TARGET: "11.0"
+
+jobs:
+  build:
+    name: Build - ${{ matrix.settings.platform }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux_amd64
+            test: true
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            platform: linux_arm64
+            test: true
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            platform: darwin_arm64
+            test: true
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            platform: darwin_amd64
+            test: false
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
+            target: x86_64-pc-windows-gnu
+            platform: windows_amd64
+            test: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/uniffi-bindgen-go*
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: go-${{ matrix.settings.target }}-${{ env.UNIFFI_BINDGEN_GO }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install uniffi-bindgen-go
+        run: |
+          if ! command -v uniffi-bindgen-go > /dev/null; then
+            cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
+          fi
+
+      - name: Build and generate bindings
+        run: ./go/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        if: matrix.settings.test
+        working-directory: go
+        run: go test -race -v ./...
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-${{ matrix.settings.platform }}
+          path: go/chiawalletsdk/lib/${{ matrix.settings.platform }}/
+          if-no-files-found: error
+
+      - name: Upload bindings
+        if: matrix.settings.platform == 'linux_amd64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-bindings
+          path: |
+            go/chiawalletsdk/chiawalletsdk.go
+            go/chiawalletsdk/chiawalletsdk.h
+          if-no-files-found: error
+
+  # Go modules are fetched directly from the repository, so each release is published as a tag
+  # (such as `go/v0.36.0`) on a commit that includes the generated bindings and prebuilt libraries.
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Download bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: go-bindings
+          path: go/chiawalletsdk
+
+      - name: Download libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: go-*_*
+          path: go/chiawalletsdk/lib
+
+      - name: Arrange libraries
+        working-directory: go/chiawalletsdk/lib
+        run: |
+          for dir in go-*; do
+            mv "$dir" "${dir#go-}"
+          done
+          ls -R
+
+      - name: Verify the module builds
+        working-directory: go
+        run: go vet ./...
+
+      - name: Publish the module
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f go/chiawalletsdk/chiawalletsdk.go go/chiawalletsdk/chiawalletsdk.h go/chiawalletsdk/lib
+          git commit -m "Go module release ${VERSION}"
+          git tag "go/v${VERSION#v}"
+          git push origin "go/v${VERSION#v}"
