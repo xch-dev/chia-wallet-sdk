@@ -334,7 +334,8 @@ jobs:
 
   publish:
     name: Publish
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # npm provenance requires a GitHub-hosted runner
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write

@@ -25,7 +25,8 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # npm provenance requires a GitHub-hosted runner, so tag builds (which publish) can't use Blacksmith
+    runs-on: ${{ startsWith(github.ref, 'refs/tags/') && 'ubuntu-latest' || 'blacksmith-8vcpu-ubuntu-2404' }}
     defaults:
       run:
         working-directory: ./wasm
