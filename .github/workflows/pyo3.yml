@@ -22,21 +22,39 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  # Fat LTO is only worth paying for on artifacts we publish
+  CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
+
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
         platform:
-          - runner: ubuntu-22.04
+          - runner: blacksmith-8vcpu-ubuntu-2404
             target: x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: blacksmith-8vcpu-ubuntu-2404-arm
             target: aarch64
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
+      # The build runs in a container, so cache the registry (including extracted sources, whose
+      # mtimes cargo checks) and target dir ourselves rather than with rust-cache
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            .cargo-registry
+            target
+          key: linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-${{ github.sha }}
+          restore-keys: |
+            linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
+            linux-${{ matrix.platform.target }}-
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -46,6 +64,7 @@ jobs:
           # because the container's Rust toolchain layout differs from what sccache expects
           # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: manylinux_2_28
+          docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
           working-directory: pyo3
           before-script-linux: |
             # If we're running on rhel centos, install needed packages.
@@ -61,6 +80,14 @@ jobs:
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
+      - name: Save cargo cache
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .cargo-registry
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
@@ -72,15 +99,28 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: ubuntu-22.04
+          - runner: blacksmith-8vcpu-ubuntu-2404
             target: x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: blacksmith-8vcpu-ubuntu-2404-arm
             target: aarch64
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
+      # The build runs in a container, so cache the registry (including extracted sources, whose
+      # mtimes cargo checks) and target dir ourselves rather than with rust-cache
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            .cargo-registry
+            target
+          key: musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-${{ github.sha }}
+          restore-keys: |
+            musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
+            musllinux-${{ matrix.platform.target }}-
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -91,6 +131,15 @@ jobs:
           # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
           working-directory: pyo3
+          docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
+      - name: Save cargo cache
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .cargo-registry
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
@@ -102,7 +151,7 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: windows-2022
+          - runner: blacksmith-8vcpu-windows-2025
             target: x64
     steps:
       - uses: actions/checkout@v6
@@ -114,6 +163,10 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -127,35 +180,39 @@ jobs:
           name: wheels-windows-${{ matrix.platform.target }}
           path: pyo3/dist
 
+  # Build both macOS wheels on a single runner, since macOS minutes are the most expensive
   macos:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      matrix:
-        platform:
-          - runner: macos-15-intel
-            target: x86_64
-          - runner: macos-14
-            target: aarch64
+    runs-on: blacksmith-6vcpu-macos-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
-      - name: Build wheels
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build wheels (aarch64)
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.platform.target }}
+          target: aarch64
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          working-directory: pyo3
+      - name: Build wheels (x86_64)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           working-directory: pyo3
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-macos-${{ matrix.platform.target }}
+          name: wheels-macos
           path: pyo3/dist
 
   sdist:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -184,7 +241,7 @@ jobs:
           path: pyo3/dist
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     defaults:
       run:
         working-directory: ./pyo3
@@ -194,23 +251,30 @@ jobs:
         with:
           python-version: 3.x
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Test
         run: |
           set -e
           python3 -m venv venv
           source venv/bin/activate
-          pip install maturin
-          pip install -e '.[dev]'
+          pip install maturin pytest
           maturin develop
           pytest
 
   stubs:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check type stubs
         run: |
