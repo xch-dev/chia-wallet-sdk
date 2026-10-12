@@ -91,9 +91,6 @@ pub enum DriverError {
     #[error("invalid asset id")]
     InvalidAssetId,
 
-    #[error("NFT identity was not found in the selected DID or NFT collection")]
-    MissingNftIdentity,
-
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 

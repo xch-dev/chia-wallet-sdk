@@ -5,8 +5,8 @@ use chia_sdk_types::{
 };
 
 use crate::{
-    Delta, Deltas, DriverError, Id, NftIdentity, SingletonInfo, Spend, SpendAction, SpendContext,
-    SpendKind, Spends, assignment_puzzle_announcement_id,
+    Delta, Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind,
+    Spends, assignment_puzzle_announcement_id,
 };
 
 /// Assigns an NFT to a DID or another NFT in the same transaction, or removes its current owner.
@@ -14,33 +14,18 @@ use crate::{
 pub struct TransferNftById {
     /// The DID or NFT to assign the NFT to, which must be spent in the same transaction, or `None`
     /// to remove the NFT's current owner.
-    pub owner: Option<NftIdentity>,
+    pub owner_id: Option<Id>,
     /// The trade prices of the NFT, which determine the royalties that must be paid when it's
     /// transferred as part of an offer.
     pub trade_prices: Vec<TradePrice>,
 }
 
 impl TransferNftById {
-    pub fn new(owner: Option<NftIdentity>, trade_prices: Vec<TradePrice>) -> Self {
+    pub fn new(owner_id: Option<Id>, trade_prices: Vec<TradePrice>) -> Self {
         Self {
-            owner,
+            owner_id,
             trade_prices,
         }
-    }
-
-    /// Assigns the NFT to the DID.
-    pub fn with_did(did_id: Id, trade_prices: Vec<TradePrice>) -> Self {
-        Self::new(Some(NftIdentity::Did(did_id)), trade_prices)
-    }
-
-    /// Assigns the NFT to another NFT.
-    pub fn with_nft(nft_id: Id, trade_prices: Vec<TradePrice>) -> Self {
-        Self::new(Some(NftIdentity::Nft(nft_id)), trade_prices)
-    }
-
-    /// Removes the NFT's current owner.
-    pub fn unassigned(trade_prices: Vec<TradePrice>) -> Self {
-        Self::new(None, trade_prices)
     }
 }
 
@@ -74,10 +59,10 @@ impl SpendAction for UpdateNftAction {
         deltas.set_needed(self.id);
 
         if let Some(transfer) = &self.transfer
-            && let Some(owner) = transfer.owner
+            && let Some(owner_id) = transfer.owner_id
         {
-            *deltas.update(owner.id()) += Delta::new(1, 1);
-            deltas.set_needed(owner.id());
+            *deltas.update(owner_id) += Delta::new(1, 1);
+            deltas.set_needed(owner_id);
         }
     }
 
@@ -101,13 +86,9 @@ impl SpendAction for UpdateNftAction {
         let nft_launcher_id = nft.asset.info.launcher_id;
 
         if let Some(transfer) = self.transfer.clone() {
-            let transfer_condition = match transfer.owner {
-                Some(NftIdentity::Did(id)) => {
-                    let did = spends
-                        .dids
-                        .get_mut(&id)
-                        .ok_or(DriverError::MissingNftIdentity)?
-                        .last_mut()?;
+            let transfer_condition = if let Some(owner_id) = transfer.owner_id {
+                if let Some(did) = spends.dids.get_mut(&owner_id) {
+                    let did = did.last_mut()?;
 
                     assign_owner(
                         &mut did.kind,
@@ -117,13 +98,8 @@ impl SpendAction for UpdateNftAction {
                         nft_launcher_id,
                         transfer.trade_prices,
                     )?
-                }
-                Some(NftIdentity::Nft(id)) => {
-                    let owner = spends
-                        .nfts
-                        .get_mut(&id)
-                        .ok_or(DriverError::MissingNftIdentity)?
-                        .last_mut()?;
+                } else if let Some(owner) = spends.nfts.get_mut(&owner_id) {
+                    let owner = owner.last_mut()?;
 
                     assign_owner(
                         &mut owner.kind,
@@ -133,8 +109,11 @@ impl SpendAction for UpdateNftAction {
                         nft_launcher_id,
                         transfer.trade_prices,
                     )?
+                } else {
+                    return Err(DriverError::InvalidAssetId);
                 }
-                None => TransferNft::new(None, transfer.trade_prices, None),
+            } else {
+                TransferNft::new(None, transfer.trade_prices, None)
             };
 
             spends
@@ -342,7 +321,7 @@ mod tests {
                 Action::update_nft(
                     Id::New(1),
                     Vec::new(),
-                    Some(TransferNftById::with_did(Id::New(0), vec![])),
+                    Some(TransferNftById::new(Some(Id::New(0)), vec![])),
                 ),
             ],
         )?;
@@ -408,7 +387,7 @@ mod tests {
                 Action::update_nft(
                     nft_id,
                     Vec::new(),
-                    Some(TransferNftById::with_did(did_id, vec![])),
+                    Some(TransferNftById::new(Some(did_id), vec![])),
                 ),
                 Action::send(nft_id, bob.puzzle_hash, 1, bob_hint),
             ],
@@ -445,7 +424,7 @@ mod tests {
             &[Action::update_nft(
                 nft_id,
                 Vec::new(),
-                Some(TransferNftById::unassigned(vec![])),
+                Some(TransferNftById::new(None, vec![])),
             )],
         )?;
         let outputs = spends.finish_with_keys(
@@ -487,12 +466,12 @@ mod tests {
                 Action::update_nft(
                     Id::New(1),
                     Vec::new(),
-                    Some(TransferNftById::with_nft(Id::New(0), vec![])),
+                    Some(TransferNftById::new(Some(Id::New(0)), vec![])),
                 ),
                 Action::update_nft(
                     Id::New(2),
                     Vec::new(),
-                    Some(TransferNftById::with_nft(Id::New(1), vec![])),
+                    Some(TransferNftById::new(Some(Id::New(1)), vec![])),
                 ),
             ],
         )?;
@@ -561,7 +540,7 @@ mod tests {
             &[Action::update_nft(
                 nft_id,
                 Vec::new(),
-                Some(TransferNftById::with_nft(owner_id, vec![])),
+                Some(TransferNftById::new(Some(owner_id), vec![])),
             )],
         )?;
         let outputs = spends.finish_with_keys(
@@ -586,7 +565,7 @@ mod tests {
     }
 
     #[test]
-    fn test_action_update_nft_owner_missing_identity() {
+    fn test_action_update_nft_missing_owner() {
         let mut ctx = SpendContext::new();
         let mut spends = Spends::new(Bytes32::default());
         spends.add(Coin::new(Bytes32::default(), Bytes32::default(), 1));
@@ -599,8 +578,8 @@ mod tests {
                     Action::update_nft(
                         Id::New(0),
                         Vec::new(),
-                        Some(TransferNftById::with_nft(
-                            Id::Existing(Bytes32::default()),
+                        Some(TransferNftById::new(
+                            Some(Id::Existing(Bytes32::default())),
                             vec![],
                         )),
                     ),
@@ -608,6 +587,6 @@ mod tests {
             )
             .unwrap_err();
 
-        assert!(matches!(error, DriverError::MissingNftIdentity));
+        assert!(matches!(error, DriverError::InvalidAssetId));
     }
 }

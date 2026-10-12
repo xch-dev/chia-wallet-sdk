@@ -881,7 +881,7 @@ fn test_offer_nft_for_xch_with_royalty() -> Result<()> {
             Action::update_nft(
                 nft_id,
                 vec![],
-                Some(TransferNftById::unassigned(trade_prices)),
+                Some(TransferNftById::new(None, trade_prices)),
             ),
             Action::send(nft_id, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
         ],
@@ -986,7 +986,7 @@ fn test_offer_nft_without_royalty_payment_fails() -> Result<()> {
             Action::update_nft(
                 nft_id,
                 vec![],
-                Some(TransferNftById::unassigned(trade_prices)),
+                Some(TransferNftById::new(None, trade_prices)),
             ),
             Action::send(nft_id, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
         ],
@@ -1424,7 +1424,7 @@ fn test_offer_royalty_nfts_and_cat_for_xch_and_cat() -> Result<()> {
         actions.push(Action::update_nft(
             id,
             vec![],
-            Some(TransferNftById::unassigned(trade_prices.clone())),
+            Some(TransferNftById::new(None, trade_prices.clone())),
         ));
         actions.push(Action::send(
             id,
@@ -1621,7 +1621,7 @@ fn test_offer_xch_for_royalty_nft() -> Result<()> {
     let mut actions = vec![Action::update_nft(
         Id::Existing(launcher_id),
         vec![],
-        Some(TransferNftById::unassigned(trade_prices)),
+        Some(TransferNftById::new(None, trade_prices)),
     )];
     actions.extend(offer.requested_payments().actions());
 
@@ -2431,7 +2431,7 @@ fn test_assign_settlement_nft_to_did() -> Result<()> {
         &[Action::update_nft(
             nft_id,
             vec![],
-            Some(TransferNftById::with_did(did_id, vec![])),
+            Some(TransferNftById::new(Some(did_id), vec![])),
         )],
         Relation::AssertConcurrent,
         &keys(alice.puzzle_hash, alice.pk),
@@ -2451,7 +2451,7 @@ fn test_assign_settlement_nft_to_did() -> Result<()> {
 
 #[rstest]
 #[case::send(Action::send(Id::New(0), BlsPair::new(1).puzzle_hash, 1, Memos::None))]
-#[case::update(Action::update_nft(Id::New(0), vec![], Some(TransferNftById::unassigned(vec![]))))]
+#[case::update(Action::update_nft(Id::New(0), vec![], Some(TransferNftById::new(None, vec![]))))]
 fn test_nft_actions_after_locking_in_option_are_rejected(#[case] action: Action) {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();

@@ -14,21 +14,3 @@ pub enum Id {
     /// [`Spends::apply`](crate::Spends::apply).
     New(usize),
 }
-
-/// A singleton that's spent in the same transaction to mint an NFT, or to have an NFT assigned to
-/// it. The on-chain owner of an NFT is the launcher id of this singleton.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NftIdentity {
-    /// The id of a DID in the [`Spends`](crate::Spends).
-    Did(Id),
-    /// The id of an NFT in the [`Spends`](crate::Spends).
-    Nft(Id),
-}
-
-impl NftIdentity {
-    pub fn id(self) -> Id {
-        match self {
-            Self::Did(id) | Self::Nft(id) => id,
-        }
-    }
-}

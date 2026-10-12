@@ -17,7 +17,6 @@ import {
   encodeOffer,
   Id,
   Nft,
-  NftIdentity,
   NftMetadata,
   NotarizedPayment,
   Offer,
@@ -426,9 +425,9 @@ test("mint an nft from an nft and assign it", (t) => {
       alice.puzzleHash,
       0,
       1n,
-      NftIdentity.nft(Id.new(0n)),
+      Id.new(0n),
     ),
-    Action.updateNft(Id.new(1n), [], TransferNftById.withNft(Id.new(0n), [])),
+    Action.updateNft(Id.new(1n), [], new TransferNftById(Id.new(0n), [])),
   ]);
 
   const parent = outputs.nft(Id.new(0n));

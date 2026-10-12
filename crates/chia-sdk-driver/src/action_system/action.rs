@@ -7,9 +7,9 @@ use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
-    MeltSingletonAction, MintNftAction, MintOptionAction, NftIdentity, OptionType, RunTailAction,
-    SendAction, SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
-    UpdateDidAction, UpdateNftAction,
+    MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
+    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
+    UpdateNftAction,
 };
 
 /// The puzzle hash that coins are sent to by [`Action::burn`]. There's no known puzzle with this
@@ -132,7 +132,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            None,
+            Id::Xch,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -152,7 +152,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            Some(NftIdentity::Did(parent_did_id)),
+            parent_did_id,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -172,7 +172,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            Some(NftIdentity::Nft(parent_nft_id)),
+            parent_nft_id,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
