@@ -1341,7 +1341,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 }
 
                 output.extend(quote! {
-                    #[pyo3::pyclass]
+                    #[pyo3::pyclass(from_py_object)]
                     #[derive(Clone)]
                     pub struct #bound_ident(#rust_struct_ident);
 
@@ -1374,7 +1374,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     .collect::<Vec<_>>();
 
                 output.extend(quote! {
-                    #[pyo3::pyclass(eq, eq_int)]
+                    #[pyo3::pyclass(eq, eq_int, from_py_object)]
                     #[derive(Clone, PartialEq, Eq)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
