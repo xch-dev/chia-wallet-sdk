@@ -18,7 +18,7 @@ import {
   Signature,
   standardPuzzleHash,
   toHex,
-} from "../pkg";
+} from "../pkg/chia_wallet_sdk_wasm.js";
 
 setPanicHook();
 
