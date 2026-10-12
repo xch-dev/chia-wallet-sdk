@@ -55,7 +55,7 @@ jobs:
               source ~/.cargo/env
               nvm install v20
               npm i -g corepack@latest
-              yum install perl-IPC-Cmd -y
+              yum install perl-IPC-Cmd perl-Time-Piece -y
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
