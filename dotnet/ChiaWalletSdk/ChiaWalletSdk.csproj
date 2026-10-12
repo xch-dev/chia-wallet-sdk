@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>ChiaWalletSdk</RootNamespace>
+    <!-- The generated `ToString` methods on `Program` and `Mnemonic` intentionally hide `object.ToString` -->
+    <NoWarn>$(NoWarn);CS0114</NoWarn>
+
+    <PackageId>ChiaWalletSdk</PackageId>
+    <Version>0.36.0</Version>
+    <Authors>Brandon Haggstrom</Authors>
+    <Description>An unofficial SDK for building Chia wallets.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/xch-dev/chia-wallet-sdk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/xch-dev/chia-wallet-sdk</RepositoryUrl>
+    <PackageTags>chia;wallet;blockchain;crypto</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+
+    <!-- Native libraries for each platform, built and copied here by `generate.sh` -->
+    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/%(RecursiveDir)" />
+
+    <!-- The native library for the current platform, so that it's found when referencing this project directly -->
+    <Content Include="runtimes/$(NETCoreSdkRuntimeIdentifier)/native/*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Pack="false" />
+  </ItemGroup>
+
+</Project>
