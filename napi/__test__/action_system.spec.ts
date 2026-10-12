@@ -17,6 +17,7 @@ import {
   encodeOffer,
   Id,
   Nft,
+  NftIdentity,
   NftMetadata,
   NotarizedPayment,
   Offer,
@@ -399,6 +400,44 @@ test("update existing nft metadata", (t) => {
   t.deepEqual(outputs.nfts(), [Id.existing(mintedNft.info.launcherId)]);
   t.truthy(metadataSource);
   t.true(metadataSource?.includes("https://example.com/2") ?? false);
+});
+
+test("mint an nft from an nft and assign it", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(19n);
+  alice.addXch(sim, 2n);
+
+  const outputs = alice.spend(sim, clvm, [
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      null,
+    ),
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      NftIdentity.nft(Id.new(0n)),
+    ),
+    Action.updateNft(Id.new(1n), [], TransferNftById.withNft(Id.new(0n), [])),
+  ]);
+
+  const parent = outputs.nft(Id.new(0n));
+  const child = outputs.nft(Id.new(1n));
+
+  t.is(parent.info.currentOwner, null);
+  t.deepEqual(child.info.currentOwner, parent.info.launcherId);
+  t.is(sim.coinState(parent.coin.coinId())?.spentHeight, null);
+  t.is(sim.coinState(child.coin.coinId())?.spentHeight, null);
 });
 
 test("create, update, send, and melt a did", (t) => {

@@ -7,9 +7,9 @@ use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
-    MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
-    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
-    UpdateNftAction,
+    MeltSingletonAction, MintNftAction, MintOptionAction, NftIdentity, OptionType, RunTailAction,
+    SendAction, SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
+    UpdateDidAction, UpdateNftAction,
 };
 
 /// The puzzle hash that coins are sent to by [`Action::burn`]. There's no known puzzle with this
@@ -132,7 +132,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            Id::Xch,
+            None,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -152,7 +152,27 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            parent_did_id,
+            Some(NftIdentity::Did(parent_did_id)),
+            metadata,
+            metadata_updater_puzzle_hash,
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            amount,
+        ))
+    }
+
+    /// Mints an NFT with the NFT as the launcher's parent. This does not assign the new NFT to the
+    /// parent NFT; follow it with [`Action::update_nft`] and a [`TransferNftById`] to do so.
+    pub fn mint_nft_from_nft(
+        parent_nft_id: Id,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+    ) -> Self {
+        Self::MintNft(MintNftAction::new(
+            Some(NftIdentity::Nft(parent_nft_id)),
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -189,6 +209,18 @@ impl Action {
         )
     }
 
+    /// Like [`Action::mint_empty_nft`], but with the NFT as the launcher's parent.
+    pub fn mint_empty_nft_from_nft(parent_nft_id: Id) -> Self {
+        Self::mint_nft_from_nft(
+            parent_nft_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            Bytes32::default(),
+            0,
+            1,
+        )
+    }
+
     /// Like [`Action::mint_empty_royalty_nft`], but with the DID as the launcher's parent.
     pub fn mint_empty_royalty_nft_from_did(
         parent_did_id: Id,
@@ -205,7 +237,23 @@ impl Action {
         )
     }
 
-    /// Updates the NFT's metadata and/or transfers it to a DID (or removes it from a DID). The
+    /// Like [`Action::mint_empty_royalty_nft`], but with the NFT as the launcher's parent.
+    pub fn mint_empty_royalty_nft_from_nft(
+        parent_nft_id: Id,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+    ) -> Self {
+        Self::mint_nft_from_nft(
+            parent_nft_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            1,
+        )
+    }
+
+    /// Updates the NFT's metadata and/or assigns it to a DID or NFT (or removes its owner). The
     /// metadata update spends are run in order, each against the result of the previous one.
     pub fn update_nft(
         id: Id,
