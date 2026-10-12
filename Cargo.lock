@@ -758,7 +758,6 @@ dependencies = [
  "rand_chacha 0.9.0",
  "rstest 0.22.0",
  "serde",
- "sha3",
  "thiserror 2.0.17",
 ]
 
@@ -853,6 +852,7 @@ dependencies = [
  "rue-lir",
  "rue-options",
  "serde",
+ "sha3",
  "thiserror 2.0.17",
 ]
 
