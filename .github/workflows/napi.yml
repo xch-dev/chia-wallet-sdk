@@ -335,7 +335,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bindings-universal-apple-darwin
-          path: napi/${{ env.APP_NAME }}.*.node
+          path: napi/${{ env.APP_NAME }}.darwin-universal.node
           if-no-files-found: error
 
   publish:
