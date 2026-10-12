@@ -11,6 +11,13 @@
     },
     "return": "Bytes32"
   },
+  "eip712_prefix_and_domain_separator": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "BytesImpl<34>"
+  },
   "eip712_hash_to_sign": {
     "type": "function",
     "args": {
