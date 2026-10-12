@@ -86,7 +86,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.settings.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
 
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}
