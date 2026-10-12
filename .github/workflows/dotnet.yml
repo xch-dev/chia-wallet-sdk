@@ -145,6 +145,16 @@ jobs:
           fi
           dotnet pack dotnet/ChiaWalletSdk -c Release -o dotnet/dist -p:Version="$VERSION"
 
+      - name: Verify package
+        run: |
+          contents=$(unzip -l dotnet/dist/*.nupkg)
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+            if ! grep -qE "runtimes/$rid/native/[^/]+$" <<< "$contents"; then
+              echo "The package is missing the native library for $rid" >&2
+              exit 1
+            fi
+          done
+
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:

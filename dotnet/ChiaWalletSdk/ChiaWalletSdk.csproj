@@ -23,10 +23,10 @@
     <None Include="../README.md" Pack="true" PackagePath="/" />
 
     <!-- Native libraries for each platform, built and copied here by `generate.sh` -->
-    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/%(RecursiveDir)" />
+    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/" />
 
-    <!-- The native library for the current platform, so that it's found when referencing this project directly -->
-    <Content Include="runtimes/$(NETCoreSdkRuntimeIdentifier)/native/*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Pack="false" />
+    <!-- Also copy the current platform's library to the output, so it's found when referencing this project directly -->
+    <None Update="runtimes/$(NETCoreSdkRuntimeIdentifier)/native/*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
