@@ -1,0 +1,13 @@
+# Per-language settings for the UniFFI generators. This is picked up automatically when
+# generating bindings in library mode (`--library`).
+
+[bindings.csharp]
+namespace = "ChiaWalletSdk"
+access_modifier = "public"
+global_methods_class_name = "Sdk"
+
+[bindings.kotlin]
+package_name = "dev.xch.chiawalletsdk"
+
+[bindings.swift]
+module_name = "ChiaWalletSdk"
