@@ -1,8 +1,12 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_secp::{K1PublicKey, K1Signature};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
+use hex_literal::hex;
 
-use crate::{Compilation, compile_chialisp, puzzles::Eip712PrefixAndDomainSeparator};
+use crate::{Mod, puzzles::Eip712PrefixAndDomainSeparator};
 
 /// A CHIP-0043 MIPS member puzzle controlled by an Ethereum-style secp256k1
 /// key that signs the canonical CHIP-0037 EIP-712 digest of
@@ -33,7 +37,15 @@ impl Eip712Member {
     }
 }
 
-compile_chialisp!(Eip712Member = EIP712_MEMBER, "eip712_member.clsp");
+impl Mod for Eip712Member {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&EIP712_MEMBER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        EIP712_MEMBER_HASH
+    }
+}
 
 /// Member-specific solution carried by an [`Eip712Member`] spend.
 ///
@@ -58,6 +70,27 @@ impl Eip712MemberSolution {
     }
 }
 
+/// CLVM bytecode for the CHIP-0043 `eip712_member` puzzle.
+///
+/// Source: <https://github.com/MattHintz/solslot-protocol/blob/108ac023d836cf0198775eebd377880d0f8d6aef/solslot_puzzles/eip712_member_v2.clsp>
+///
+/// Adapted from the CHIP-0037 `p2_eip712_message` puzzle in Yakuhito's Hermes:
+/// <https://github.com/Yakuhito/hermes/blob/0f4779721ceb395129c3577eb3b4e0b3da708cfc/clsp/p2_eip712_message.clsp>
+pub const EIP712_MEMBER: [u8; 171] = hex!(
+    "
+    ff02ffff01ff02ffff03ffff22ffff20ffff8413d61f00ff17ff81bfff82017f
+    8080ffff20ffff24ffff01820ab9ffff0101ffff01ff02ffff03ffff09ffff3e
+    ff02ffff3eff05ff0bff178080ff2f80ff80ffff01ff088080ff0180ffff04ff
+    05ffff04ff0bffff04ff5fffff04ff2fffff04ff81bfff808080808080808080
+    ffff01ff04ffff04ff02ffff04ff5fff808080ff8080ffff01ff088080ff0180
+    ffff04ffff0146ff018080
+    "
+);
+
+pub const EIP712_MEMBER_HASH: TreeHash = TreeHash::new(hex!(
+    "aaf5d0676da9c06b02ae94acc7f226c6b583205d42f5b350bec43df7fcd09ea7"
+));
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,198 +99,82 @@ mod tests {
     use clvm_traits::clvm_list;
     use clvm_utils::CurriedProgram;
     use clvmr::{Allocator, serde::node_from_bytes, serde::node_to_bytes};
-    use hex_literal::hex;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use rstest::rstest;
-    use sha3::{Digest, Keccak256};
 
-    use crate::{Mod, run_puzzle};
+    use crate::{
+        assert_puzzle_hash,
+        puzzles::{eip712_hash_to_sign, eip712_prefix_and_domain_separator, eip712_type_hash},
+        run_puzzle,
+    };
 
-    /// ASSERT_MY_COIN_ID condition opcode (matches the inline value in
-    /// `eip712_member.clsp`).
-    const ASSERT_MY_COIN_ID: u8 = 73;
+    const ASSERT_MY_COIN_ID: u8 = 70;
 
-    /// Compute the canonical CHIP-0037 EIP-712 type hash for
-    /// `ChiaCoinSpend(bytes32 coin_id, bytes32 delegated_puzzle_hash)`.
-    fn type_hash() -> Bytes32 {
-        Bytes32::new(
-            Keccak256::digest(b"ChiaCoinSpend(bytes32 coin_id,bytes32 delegated_puzzle_hash)")
-                .into(),
-        )
-    }
-
-    /// Compute `prefix (0x1901) || domain_separator(genesis_challenge)`.
-    fn prefix_and_domain_separator(genesis_challenge: Bytes32) -> Eip712PrefixAndDomainSeparator {
-        let dom_type_hash =
-            Keccak256::digest(b"EIP712Domain(string name,string version,bytes32 salt)");
-        let mut to_hash = Vec::with_capacity(128);
-        to_hash.extend_from_slice(&dom_type_hash);
-        to_hash.extend_from_slice(&Keccak256::digest(b"Chia Coin Spend"));
-        to_hash.extend_from_slice(&Keccak256::digest(b"1"));
-        to_hash.extend_from_slice(&genesis_challenge);
-        let domain_separator = Keccak256::digest(&to_hash);
-
-        let mut bytes = [0u8; 34];
-        bytes[0] = 0x19;
-        bytes[1] = 0x01;
-        bytes[2..].copy_from_slice(&domain_separator);
-        bytes.into()
-    }
-
-    /// Compute the EIP-712 digest the off-chain wallet must sign:
-    /// `keccak256(prefix_and_domain || keccak256(type_hash || coin_id ||
-    /// delegated_puzzle_hash))`.
-    fn hash_to_sign(
-        prefix_and_domain: &Eip712PrefixAndDomainSeparator,
-        type_hash: Bytes32,
-        coin_id: Bytes32,
-        delegated_puzzle_hash: Bytes32,
-    ) -> Bytes32 {
-        let mut to_hash = Vec::with_capacity(96);
-        to_hash.extend_from_slice(&type_hash);
-        to_hash.extend_from_slice(&coin_id);
-        to_hash.extend_from_slice(&delegated_puzzle_hash);
-        let inner = Keccak256::digest(&to_hash);
-
-        let mut to_hash = Vec::with_capacity(34 + 32);
-        to_hash.extend_from_slice(prefix_and_domain);
-        to_hash.extend_from_slice(&inner);
-        Bytes32::new(Keccak256::digest(&to_hash).into())
-    }
-
-    fn k1_pair(seed: u64) -> (K1SecretKey, K1PublicKey) {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let sk = K1SecretKey::from_bytes(&rng.random()).expect("K1SecretKey::from_bytes");
-        let pk = sk.public_key();
-        (sk, pk)
-    }
-
-    /// Smoke test: forcing `Eip712Member::mod_reveal()` triggers compilation
-    /// of `eip712_member.clsp` via the in-process Chialisp compiler. If the
-    /// source ever stops compiling, this test fails first.
     #[test]
-    fn test_eip712_member_compiles() {
-        let bytes = Eip712Member::mod_reveal();
-        assert!(
-            !bytes.is_empty(),
-            "compiled Eip712Member bytecode is unexpectedly empty"
-        );
+    fn test_puzzle_hash() -> anyhow::Result<()> {
+        assert_puzzle_hash!(EIP712_MEMBER => EIP712_MEMBER_HASH);
+
+        Ok(())
     }
 
-    /// `mod_hash` must be deterministic across calls (the underlying
-    /// `LazyLock` caches the compilation, so any non-determinism would point
-    /// at a `compile_chialisp` bug rather than at this puzzle).
-    #[test]
-    fn test_eip712_member_mod_hash_is_deterministic() {
-        let a = Eip712Member::mod_hash();
-        let b = Eip712Member::mod_hash();
-        assert_eq!(a, b);
-    }
-
-    /// End-to-end happy path and negative path for the Chialisp logic:
-    ///
-    /// * The curried puzzle, given a valid EIP-712 signature, returns the
-    ///   single-condition list `((ASSERT_MY_COIN_ID my_id))`.
-    /// * Tampering with `signed_hash` causes the softfork-guarded keccak256
-    ///   reconstruction to fail, raising `clvm raise`.
+    /// * A valid EIP-712 signature returns `((ASSERT_MY_COIN_ID my_id))`.
+    /// * Signing a `signed_hash` that doesn't match this spend passes
+    ///   `secp256k1_verify` but fails the keccak256 reconstruction.
     /// * Tampering with the signature makes `secp256k1_verify` raise.
-    ///
-    /// Uses mainnet's genesis challenge as the EIP-712 domain salt so the
-    /// fixture stays stable independently of `chia-consensus::TEST_CONSTANTS`.
     #[rstest]
-    #[case::valid(true, true, true)]
-    #[case::tampered_signed_hash(false, true, false)]
-    #[case::tampered_signature(true, false, false)]
+    #[case::valid(true, true)]
+    #[case::wrong_signed_hash(false, true)]
+    #[case::tampered_signature(true, false)]
     fn test_eip712_member_runs(
         #[case] signed_hash_matches: bool,
         #[case] signature_matches: bool,
-        #[case] expect_success: bool,
     ) -> anyhow::Result<()> {
-        let (sk, pk) = k1_pair(0xC0DE_F00D);
-
-        // Mainnet genesis challenge per chia-blockchain initial-config.yaml.
-        let mainnet_genesis = Bytes32::new(hex!(
-            "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"
-        ));
-        let prefix_and_domain = prefix_and_domain_separator(mainnet_genesis);
-        let type_h = type_hash();
-
-        // Pick fixed-seed test fixtures for `coin_id` and the
-        // `delegated_puzzle_hash` the M-of-N parent would supply. They have no
-        // intrinsic meaning here; they are just two distinct 32-byte values
-        // that the puzzle binds the signature to.
         let mut rng = ChaCha8Rng::seed_from_u64(0x1234_5678);
-        let coin_id_bytes: [u8; 32] = rng.random();
-        let delegated_puzzle_hash_bytes: [u8; 32] = rng.random();
-        let coin_id = Bytes32::new(coin_id_bytes);
-        let delegated_puzzle_hash = Bytes32::new(delegated_puzzle_hash_bytes);
+        let sk = K1SecretKey::from_bytes(&rng.random())?;
+        let pk = sk.public_key();
 
-        let real_signed_hash =
-            hash_to_sign(&prefix_and_domain, type_h, coin_id, delegated_puzzle_hash);
+        let prefix_and_domain = eip712_prefix_and_domain_separator(Bytes32::new(rng.random()));
+        let coin_id = Bytes32::new(rng.random());
+        let delegated_puzzle_hash = Bytes32::new(rng.random());
 
-        // Always sign the *real* digest. If the test wants to simulate a bad
-        // signature, we tamper with the `K1Signature` bytes after the fact so
-        // `secp256k1_verify` raises; if it wants to simulate the wallet
-        // committing to the wrong digest, we substitute a different
-        // `signed_hash` in the solution so the keccak reconstruction raises.
-        let real_signed_hash_bytes: [u8; 32] = real_signed_hash.into();
-        let real_signature = sk.sign_prehashed(&real_signed_hash_bytes)?;
-
-        let signed_hash_in_solution = if signed_hash_matches {
-            real_signed_hash
+        let signed_hash = if signed_hash_matches {
+            eip712_hash_to_sign(&prefix_and_domain, coin_id, delegated_puzzle_hash)
         } else {
-            // A 32-byte value the wallet would never produce for this spend.
-            Bytes32::new([0xAA; 32])
+            Bytes32::new(rng.random())
         };
 
-        let signature_in_solution = if signature_matches {
-            real_signature
-        } else {
-            // Flip a byte to invalidate the ECDSA signature without changing
-            // its length or canonical encoding.
-            let mut tampered = real_signature.to_bytes();
-            tampered[0] ^= 0x01;
-            K1Signature::from_bytes(&tampered).expect("K1Signature::from_bytes")
-        };
+        let mut signature = sk.sign_prehashed(&signed_hash.to_bytes())?;
 
-        let member = Eip712Member::new(prefix_and_domain, type_h, pk);
+        if !signature_matches {
+            let mut bytes = signature.to_bytes();
+            bytes[0] ^= 0x01;
+            signature = K1Signature::from_bytes(&bytes)?;
+        }
 
         let mut allocator = Allocator::new();
-        let mod_ptr = node_from_bytes(&mut allocator, Eip712Member::mod_reveal().as_ref())?;
-        let curried = CurriedProgram {
+        let mod_ptr = node_from_bytes(&mut allocator, &EIP712_MEMBER)?;
+        let puzzle = CurriedProgram {
             program: mod_ptr,
-            args: member,
+            args: Eip712Member::new(prefix_and_domain, eip712_type_hash(), pk),
         }
         .to_clvm(&mut allocator)?;
 
-        // M-of-N supplies `delegated_puzzle_hash` as a positional arg before
-        // the member's own solution. We mimic that here so the puzzle sees the
-        // same env shape it would see at runtime.
-        let solution = clvm_list!(
-            delegated_puzzle_hash,
-            coin_id,
-            signed_hash_in_solution,
-            signature_in_solution
-        )
-        .to_clvm(&mut allocator)?;
+        // The MIPS parent passes `Delegated_Puzzle_Hash` before the member's own solution.
+        let solution = clvm_list!(delegated_puzzle_hash, coin_id, signed_hash, signature)
+            .to_clvm(&mut allocator)?;
 
-        let result = run_puzzle(&mut allocator, curried, solution);
+        let result = run_puzzle(&mut allocator, puzzle, solution);
 
-        if expect_success {
-            let conditions_ptr = result?;
+        if signed_hash_matches && signature_matches {
             let expected =
                 clvm_list!(clvm_list!(ASSERT_MY_COIN_ID, coin_id)).to_clvm(&mut allocator)?;
             assert_eq!(
-                node_to_bytes(&allocator, conditions_ptr)?,
-                node_to_bytes(&allocator, expected)?,
-                "valid EIP-712 spend should return ((ASSERT_MY_COIN_ID my_id))"
+                node_to_bytes(&allocator, result?)?,
+                node_to_bytes(&allocator, expected)?
             );
         } else {
-            assert!(
-                result.is_err(),
-                "tampered EIP-712 spend should raise but returned conditions"
-            );
+            assert!(result.is_err());
         }
 
         Ok(())
