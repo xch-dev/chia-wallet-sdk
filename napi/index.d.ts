@@ -897,6 +897,7 @@ export declare class Clvm {
   k1Member(): Program
   passkeyMemberPuzzleAssert(): Program
   passkeyMember(): Program
+  eip712Member(): Program
   r1MemberPuzzleAssert(): Program
   r1Member(): Program
   singletonMember(): Program
@@ -1189,6 +1190,8 @@ export declare class Constants {
   static passkeyMemberPuzzleAssertHash(): Buffer
   static passkeyMember(): Buffer
   static passkeyMemberHash(): Buffer
+  static eip712Member(): Buffer
+  static eip712MemberHash(): Buffer
   static r1MemberPuzzleAssert(): Buffer
   static r1MemberPuzzleAssertHash(): Buffer
   static r1Member(): Buffer
@@ -2027,6 +2030,7 @@ export declare class MipsSpend {
   spendVault(vault: Vault): void
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
+  eip712Member(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: K1PublicKey, signedHash: Uint8Array, signature: K1Signature): void
   r1Member(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
   blsMember(config: MemberConfig, publicKey: PublicKey, fastForward: boolean): void
   passkeyMember(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
@@ -4277,6 +4281,18 @@ export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Arra
 export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Buffer
 
 export declare function decodeOffer(offer: string): SpendBundle
+
+export declare function eip712DomainSeparator(genesisChallenge: Uint8Array): Buffer
+
+export declare function eip712HashToSign(genesisChallenge: Uint8Array, coinId: Uint8Array, delegatedPuzzleHash: Uint8Array): Buffer
+
+export declare function eip712MemberHash(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: K1PublicKey): Buffer
+
+export declare function eip712MemberInnerPuzzleHash(genesisChallenge: Uint8Array, publicKey: K1PublicKey): Buffer
+
+export declare function eip712PrefixAndDomainSeparator(genesisChallenge: Uint8Array): Buffer
+
+export declare function eip712TypeHash(): Buffer
 
 export declare function encodeOffer(spendBundle: SpendBundle): string
 
