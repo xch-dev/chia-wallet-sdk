@@ -6,6 +6,8 @@ on:
       - main
     tags:
       - "**"
+      # Pushed by the Go release job
+      - "!go/**"
   pull_request:
     branches:
       - "**"
@@ -38,9 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.settings.target }}
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
 
       - name: Cache cargo
         uses: actions/cache@v5

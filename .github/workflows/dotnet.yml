@@ -6,6 +6,8 @@ on:
       - main
     tags:
       - "**"
+      # Pushed by the Go release job
+      - "!go/**"
   pull_request:
     branches:
       - "**"
@@ -55,9 +57,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          targets: ${{ matrix.settings.target }}
+          arch: x64
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -128,9 +136,9 @@ jobs:
       - name: Arrange libraries
         working-directory: dotnet/ChiaWalletSdk/runtimes
         run: |
+          # Each artifact contains the `native` directory for its runtime identifier
           for dir in dotnet-*; do
-            mkdir -p "${dir#dotnet-}"
-            mv "$dir" "${dir#dotnet-}/native"
+            mv "$dir" "${dir#dotnet-}"
           done
           ls -R
 
@@ -150,5 +158,5 @@ jobs:
           if-no-files-found: error
 
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
         run: dotnet nuget push "dotnet/dist/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
