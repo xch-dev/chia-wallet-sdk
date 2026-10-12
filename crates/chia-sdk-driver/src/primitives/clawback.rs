@@ -406,9 +406,10 @@ mod tests {
 
         sim.spend_coins(ctx.take(), &[bob.sk])?;
 
-        assert!(sim
-            .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+                .is_some()
+        );
 
         Ok(())
     }
@@ -492,9 +493,10 @@ mod tests {
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert!(sim
-            .coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
+                .is_some()
+        );
 
         Ok(())
     }
