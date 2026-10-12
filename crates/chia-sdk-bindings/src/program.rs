@@ -36,7 +36,7 @@ impl Program {
 
         let invoke = run(&mut ctx);
         let input = ctx.new_pair(self.1, NodePtr::NIL)?;
-        let run_program = run_program_for_search_paths("program.clsp", &[], false);
+        let run_program = run_program_for_search_paths("program.clsp", &[], false, 0);
         let output = run_program.run_program(&mut ctx, invoke, input, None)?;
 
         Ok(Output {
