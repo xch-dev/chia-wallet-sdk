@@ -20,8 +20,6 @@ env:
 
 permissions:
   contents: read
-  actions: write
-  id-token: write
 
 jobs:
   build:
@@ -57,7 +55,7 @@ jobs:
               source ~/.cargo/env
               nvm install v20
               npm i -g corepack@latest
-              yum install perl-IPC-Cmd -y
+              yum install perl-IPC-Cmd perl-Time-Piece -y
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
@@ -99,11 +97,6 @@ jobs:
             .cargo-cache
             target/
           key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
-
-      - uses: goto-bus-stop/setup-zig@v2
-        if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' || matrix.settings.target == 'armv7-unknown-linux-musleabihf' }}
-        with:
-          version: 0.13.0
 
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}
@@ -342,12 +335,15 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bindings-universal-apple-darwin
-          path: napi/${{ env.APP_NAME }}.*.node
+          path: napi/${{ env.APP_NAME }}.darwin-universal.node
           if-no-files-found: error
 
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     needs:
       - test-macOS-windows-binding
       - test-linux-x64-gnu-binding

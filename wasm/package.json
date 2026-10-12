@@ -5,9 +5,8 @@
     "test": "wasm-pack build --target nodejs && ava"
   },
   "devDependencies": {
-    "@types/node": "^24.0.13",
-    "@wasm-tool/wasm-pack-plugin": "1.5.0",
-    "ava": "^6.4.1",
+    "@types/node": "^24.19.2",
+    "ava": "^8.0.1",
     "ts-node": "^10.9.2"
   },
   "ava": {
