@@ -114,7 +114,9 @@ pub fn parse_vault_delegated_spend(
             // These conditions aren't included in the summary, so we can't allow them.
             Condition::CreateCoinAnnouncement(_)
             | Condition::CreatePuzzleAnnouncement(_)
-            | Condition::ReceiveMessage(_) => {
+            | Condition::ReceiveMessage(_)
+            // The vault isn't a CAT, and this would melt the vault.
+            | Condition::RunCatTail(_) => {
                 return Err(DriverError::UnsupportedClearSigningCondition);
             }
             Condition::Other(condition) => {

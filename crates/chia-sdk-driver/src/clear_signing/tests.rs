@@ -2825,22 +2825,72 @@ fn test_clear_signing_vault_melt() -> Result<()> {
         DriverError::InvalidDelegatedSpendFormat
     ));
 
+    // The same applies to a melt without a puzzle hash.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113)]))?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    )?;
+
+    assert_eq!(tx.vault_child, None);
+
+    let puzzle = ctx.alloc(&clvm_quote!((
+        clvm_list!(51, (), -113),
+        (
+            clvm_list!(51, Bytes32::from(alice.info.custody_hash), 1),
+            ()
+        )
+    )))?;
+    let result = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    );
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::InvalidDelegatedSpendFormat
+    ));
+
+    // Running a TAIL isn't supported from the vault itself.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113, 1, ())]))?;
+    let result = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    );
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::UnsupportedClearSigningCondition
+    ));
+
     Ok(())
 }
 
-#[test]
-fn test_clear_signing_linked_spend_melt() -> Result<()> {
+#[rstest]
+#[case::with_puzzle_hash(true)]
+#[case::without_puzzle_hash(false)]
+fn test_clear_signing_linked_spend_melt(#[case] with_puzzle_hash: bool) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
     let coin = vault_coin(&alice, 1);
 
-    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(
-        51,
-        alice.p2_puzzle_hash,
-        -113
-    )]))?;
+    let puzzle = if with_puzzle_hash {
+        ctx.alloc(&clvm_quote!(vec![clvm_list!(
+            51,
+            alice.p2_puzzle_hash,
+            -113
+        )]))?
+    } else {
+        ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113)]))?
+    };
     let result = parse_linked_spend(
         &mut ctx,
         &alice,

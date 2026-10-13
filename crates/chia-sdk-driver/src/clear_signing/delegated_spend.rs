@@ -1,3 +1,4 @@
+use chia_consensus::opcodes::CREATE_COIN;
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, match_quote};
 use clvmr::{Allocator, NodePtr, SExp};
@@ -49,16 +50,24 @@ pub fn parse_delegated_spend_with_melt(
         let condition = Condition::from_clvm(allocator, raw_condition)
             .map_err(|_| DriverError::InvalidDelegatedSpendFormat)?;
 
-        if matches!(condition, Condition::CreateCoin(_))
-            && let Some(amount) = create_coin_signed_amount(allocator, raw_condition)
+        // This is checked against the raw condition, since a negative amount can be decoded as a
+        // number of different condition types depending on the other arguments.
+        if let Some(amount) = create_coin_signed_amount(allocator, raw_condition)
             && amount < BigInt::ZERO
         {
-            if amount != BigInt::from(MELT_SINGLETON_AMOUNT) || melted {
+            if amount != BigInt::from(MELT_SINGLETON_AMOUNT) {
                 return Err(DriverError::InvalidDelegatedSpendFormat);
             }
 
-            melted = true;
-            continue;
+            // Running a CAT TAIL uses the same amount, and is handled by the CAT parsing logic.
+            if !matches!(condition, Condition::RunCatTail(_)) {
+                if melted {
+                    return Err(DriverError::InvalidDelegatedSpendFormat);
+                }
+
+                melted = true;
+                continue;
+            }
         }
 
         conditions.push(condition);
@@ -68,10 +77,16 @@ pub fn parse_delegated_spend_with_melt(
 }
 
 /// Decodes the amount of a `CREATE_COIN` condition as a signed integer, since the parsed condition
-/// stores it as an unsigned integer.
+/// stores it as an unsigned integer. Returns `None` if the condition isn't a `CREATE_COIN`.
 fn create_coin_signed_amount(allocator: &Allocator, condition: NodePtr) -> Option<BigInt> {
-    let (_opcode, (_puzzle_hash, (amount, _))) =
+    let (opcode, (_puzzle_hash, (amount, _))) =
         <(NodePtr, (NodePtr, (NodePtr, NodePtr)))>::from_clvm(allocator, condition).ok()?;
+
+    if !matches!(allocator.sexp(opcode), SExp::Atom)
+        || allocator.number(opcode) != BigInt::from(CREATE_COIN)
+    {
+        return None;
+    }
 
     match allocator.sexp(amount) {
         SExp::Atom => Some(allocator.number(amount)),
