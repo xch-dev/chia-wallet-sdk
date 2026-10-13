@@ -1,9 +1,12 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{Mod, puzzles::OptionContractArgs};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{DriverError, Layer, OptionContractLayer, Puzzle, SingletonInfo, SingletonLayer};
+use crate::{
+    DriverError, Layer, OptionContractLayer, OptionUnderlying, Puzzle, SingletonInfo,
+    SingletonLayer,
+};
 
 pub type OptionContractLayers<I> = SingletonLayer<OptionContractLayer<I>>;
 
@@ -53,6 +56,27 @@ impl OptionInfo {
             underlying_delegated_puzzle_hash: layers.inner_puzzle.underlying_delegated_puzzle_hash,
             p2_puzzle_hash: layers.inner_puzzle.inner_puzzle.tree_hash().into(),
         }
+    }
+
+    /// Checks whether this option contract is backed by the given underlying coin.
+    ///
+    /// The option contract only commits to the underlying coin id and the hash of the delegated puzzle
+    /// used to exercise it, so this should be checked before trusting an option from someone else.
+    ///
+    /// The `underlying_p2_puzzle_hash` is the hash of the puzzle locking the underlying coin, inside of
+    /// any asset layers (such as the CAT, revocation, or NFT layers). For XCH, it's the coin's puzzle hash.
+    pub fn is_backed_by(
+        &self,
+        underlying: &OptionUnderlying,
+        underlying_coin: Coin,
+        underlying_p2_puzzle_hash: Bytes32,
+    ) -> bool {
+        self.launcher_id == underlying.launcher_id
+            && self.underlying_coin_id == underlying_coin.coin_id()
+            && self.underlying_delegated_puzzle_hash
+                == underlying.delegated_puzzle().tree_hash().into()
+            && underlying_coin.amount == underlying.amount
+            && underlying_p2_puzzle_hash == underlying.tree_hash().into()
     }
 
     #[must_use]

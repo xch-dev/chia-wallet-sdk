@@ -207,4 +207,7 @@ pub enum DriverError {
         "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
     )]
     MissingP2ConditionsOrSingletonAssertion,
+
+    #[error("stream payment time is before the last payment time, or the stream has already ended")]
+    InvalidStreamPaymentTime,
 }

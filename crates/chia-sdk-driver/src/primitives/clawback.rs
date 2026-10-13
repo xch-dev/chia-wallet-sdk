@@ -74,16 +74,19 @@ impl Clawback {
                             clvmr::SExp::Atom => {}
                             clvmr::SExp::Pair(r_first, _r_rest) => match allocator.sexp(r_first) {
                                 clvmr::SExp::Atom => {
+                                    // Anyone can emit a REMARK, so skip it if it can't be deserialized
+                                    // rather than failing to parse the rest of the children.
                                     let rest_atom = &allocator.atom(r_first);
-                                    metadatas.push(
-                                        Clawback::from_bytes_unchecked(
-                                            VersionedBlob::from_bytes_unchecked(rest_atom)
-                                                .map_err(|_| DriverError::InvalidMemo)?
-                                                .blob
-                                                .as_ref(),
-                                        )
-                                        .map_err(|_| DriverError::InvalidMemo)?,
-                                    );
+                                    let Ok(blob) = VersionedBlob::from_bytes_unchecked(rest_atom)
+                                    else {
+                                        continue;
+                                    };
+                                    let Ok(clawback) =
+                                        Clawback::from_bytes_unchecked(blob.blob.as_ref())
+                                    else {
+                                        continue;
+                                    };
+                                    metadatas.push(clawback);
                                 }
                                 clvmr::SExp::Pair(_, _) => {}
                             },
@@ -497,6 +500,36 @@ mod tests {
             sim.coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
                 .is_some()
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_clawback_parse_skips_malformed_remark() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let clawback = Clawback {
+            timelock: 1,
+            sender_puzzle_hash: Bytes32::new([1; 32]),
+            receiver_puzzle_hash: Bytes32::new([2; 32]),
+        };
+
+        // Uses the clawback magic number, but the blob can't be deserialized.
+        let malformed_remark = ctx.alloc(&clvm_list!(1, 2, Bytes::new(vec![0xff])))?;
+
+        let conditions = Conditions::new()
+            .with(Condition::Other(malformed_remark))
+            .create_coin(clawback.tree_hash().into(), 1, Memos::None)
+            .with(clawback.get_remark_condition(ctx)?);
+
+        // The identity puzzle outputs its solution as conditions.
+        let puzzle = ctx.alloc(&1)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&conditions)?;
+
+        let children = Clawback::parse_children(ctx, puzzle, solution)?
+            .expect("we should have found children");
+        assert_eq!(children, vec![clawback]);
 
         Ok(())
     }
