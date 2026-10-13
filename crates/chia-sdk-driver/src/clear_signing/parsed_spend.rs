@@ -13,6 +13,7 @@ pub struct ParsedSpend {
     pub clawback: Option<ClawbackInfo>,
     pub custody: Option<CustodyInfo>,
     pub required_expiration_time: Option<u64>,
+    pub required_start_time: Option<u64>,
     pub revoked: bool,
 }
 
@@ -76,10 +77,20 @@ pub fn parse_spend(
     // the transaction. If it might, the facts of this spend will be disregarded.
     let mut required_expiration_time = None;
 
-    if let Some(clawback_info) = &inner_spend.clawback
-        && clawback_info.path == ClawbackPath::Sender
-    {
-        required_expiration_time = Some(clawback_info.clawback.seconds);
+    // Similarly, if the receiver is spending a clawback, the transaction must not be valid until
+    // the clawback expires. Otherwise, the sender path could be used instead.
+    let mut required_start_time = None;
+
+    if let Some(clawback_info) = &inner_spend.clawback {
+        match clawback_info.path {
+            ClawbackPath::Sender => {
+                required_expiration_time = Some(clawback_info.clawback.seconds);
+            }
+            ClawbackPath::Receiver => {
+                required_start_time = Some(clawback_info.clawback.seconds);
+            }
+            ClawbackPath::PushThrough => {}
+        }
     }
 
     Ok(ParsedSpend {
@@ -87,6 +98,7 @@ pub fn parse_spend(
         clawback: inner_spend.clawback,
         custody: inner_spend.custody,
         required_expiration_time,
+        required_start_time,
         revoked,
     })
 }

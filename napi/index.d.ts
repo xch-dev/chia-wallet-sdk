@@ -2485,13 +2485,13 @@ export declare class Outputs {
 
 export declare class P2ConditionsOrSingleton {
   clone(): P2ConditionsOrSingleton
-  constructor(launcherId: Uint8Array, nonce: bigint, fixedConditionsHash: Uint8Array)
+  constructor(launcherId: Uint8Array, nonce: bigint, quotedConditionsHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get nonce(): bigint
   set nonce(value: bigint)
-  get fixedConditionsHash(): Buffer
-  set fixedConditionsHash(value: Uint8Array)
+  get quotedConditionsHash(): Buffer
+  set quotedConditionsHash(value: Uint8Array)
 }
 
 export declare class P2ConditionsOrSingletonInfo {

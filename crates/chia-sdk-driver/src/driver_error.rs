@@ -195,4 +195,16 @@ pub enum DriverError {
         "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
     )]
     MissingP2ConditionsOrSingletonAssertion,
+
+    #[error("transaction is not guaranteed to be valid only after the clawback timelock")]
+    UnguaranteedClawBackTimelock,
+
+    #[error("unsupported condition in clear signing")]
+    UnsupportedClearSigningCondition,
+
+    #[error("invalid offer pre-split conditions")]
+    InvalidOfferPreSplitConditions,
+
+    #[error("singleton melt is not supported here")]
+    UnsupportedSingletonMelt,
 }

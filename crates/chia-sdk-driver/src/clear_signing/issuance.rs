@@ -10,8 +10,12 @@ use crate::{CurriedPuzzle, DriverError};
 pub struct Issuance {
     pub coin_id: Bytes32,
     pub asset_id: Bytes32,
+    /// This comes from the spend's solution, so it can only be trusted if `verified` is true.
     pub extra_delta: i64,
     pub kind: IssuanceKind,
+    /// Whether the extra delta was authorized by a message from the vault. If not, the extra delta
+    /// may be different when the transaction is included in a block, so it should not be relied on.
+    pub verified: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

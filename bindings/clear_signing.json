@@ -97,7 +97,7 @@
     "fields": {
       "launcher_id": "Bytes32",
       "nonce": "usize",
-      "fixed_conditions_hash": "Bytes32"
+      "quoted_conditions_hash": "Bytes32"
     }
   },
   "VaultTransaction": {
