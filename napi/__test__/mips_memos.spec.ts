@@ -267,7 +267,7 @@ test("parse restrictions and wrappers", (t) => {
   t.is(hiddenTimelock.parse(timelockCtx)?.asTimelock(), 200n);
 
   const leftSideSubtreeHash = fromHex("66".repeat(32));
-  const force1Of2 = RestrictionMemo.force1Of2RestrictedVariable(
+  const force1Of2 = WrapperMemo.force1Of2RestrictedVariable(
     clvm,
     leftSideSubtreeHash,
     0,
@@ -285,6 +285,11 @@ test("parse restrictions and wrappers", (t) => {
   const parsedForce1Of2 = force1Of2
     .parse(ctx)!
     .asForce1Of2RestrictedVariable()!;
+  // The force 1 of 2 puzzle inspects conditions, so it can't validate the delegated puzzle.
+  t.is(
+    new RestrictionMemo(false, force1Of2.puzzleHash, force1Of2.memo).parse(ctx),
+    null,
+  );
   t.deepEqual(parsedForce1Of2.leftSideSubtreeHash, leftSideSubtreeHash);
   t.is(parsedForce1Of2.nonce, 0);
   t.deepEqual(
@@ -295,7 +300,7 @@ test("parse restrictions and wrappers", (t) => {
   );
 
   const wrappers = [
-    new WrapperMemo(force1Of2.puzzleHash, force1Of2.memo),
+    force1Of2,
     ...WrapperMemo.preventVaultSideEffects(clvm, true),
     WrapperMemo.forceSingletonRecreation(clvm),
     WrapperMemo.timelock(clvm, 50n, true),
@@ -602,7 +607,7 @@ function vaultMemoList(
   let recovery: MemoNode;
 
   if (state.state === "CUSTODY") {
-    const force1Of2 = RestrictionMemo.force1Of2RestrictedVariable(
+    const force1Of2 = WrapperMemo.force1Of2RestrictedVariable(
       clvm,
       custody.hash,
       0,
@@ -610,7 +615,7 @@ function vaultMemoList(
     );
     recovery = signerTree(clvm, keys.recovery, [
       RestrictionMemo.enforceDelegatedPuzzleWrappers(clvm, [
-        new WrapperMemo(force1Of2.puzzleHash, force1Of2.memo),
+        force1Of2,
         ...WrapperMemo.preventVaultSideEffects(clvm, true),
         ...(forceSingletonRecreation
           ? [WrapperMemo.forceSingletonRecreation(clvm)]

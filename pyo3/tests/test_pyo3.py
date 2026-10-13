@@ -88,7 +88,7 @@ def test_vault_custody_memo_round_trip():
         key=lambda node: node.inner_puzzle_hash(False),
     )
     custody = InnerPuzzleMemo(0, [], MemoKind.m_of_n(MofNMemo(2, custody_nodes)))
-    force_1_of_2 = RestrictionMemo.force_1_of_2_restricted_variable(
+    force_1_of_2 = WrapperMemo.force_1_of_2_restricted_variable(
         clvm,
         custody.inner_puzzle_hash(False),
         0,
@@ -101,7 +101,7 @@ def test_vault_custody_memo_round_trip():
             RestrictionMemo.enforce_delegated_puzzle_wrappers(
                 clvm,
                 [
-                    WrapperMemo(force_1_of_2.puzzle_hash, force_1_of_2.memo),
+                    force_1_of_2,
                     *WrapperMemo.prevent_vault_side_effects(clvm, True),
                 ],
             )
