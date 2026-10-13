@@ -185,6 +185,173 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_m_of_n_vault_extra_member_spends() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let keys = K1Pair::range_vec(4);
+        let members = keys.iter().map(|k| K1Member::new(k.pk)).collect::<Vec<_>>();
+        let hashes = members
+            .iter()
+            .map(|m| mips_puzzle_hash(0, Vec::new(), m.curry_tree_hash(), false))
+            .collect::<Vec<_>>();
+
+        let custody = MofN::new(2, hashes.clone());
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.inner_puzzle_hash(), true);
+
+        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+
+        let conditions =
+            Conditions::new().create_coin(vault.info.custody_hash.into(), 1, Memos::None);
+        let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
+
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, Vec::new(), custody.required, custody.items.clone()),
+        );
+
+        // The puzzle requires exactly 2 members, so the extra spends must be left out.
+        for (key, (member, hash)) in keys.iter().zip(members.iter().zip(&hashes)) {
+            let signature = k1_sign(ctx, &vault, &spend, &key.sk)?;
+            let puzzle = ctx.curry(*member)?;
+            let solution = ctx.alloc(&K1MemberSolution::new(vault.coin.coin_id(), signature))?;
+            spend.members.insert(
+                *hash,
+                InnerPuzzleSpend::new(0, Vec::new(), Spend::new(puzzle, solution)),
+            );
+        }
+
+        vault.spend(ctx, &spend)?;
+        sim.spend_coins(ctx.take(), &[])?;
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case::zero_of_two(0, 2)]
+    #[case::three_of_two(3, 2)]
+    #[case::one_of_zero(1, 0)]
+    fn test_m_of_n_invalid_required(
+        #[case] required: usize,
+        #[case] count: usize,
+    ) -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let items = K1Pair::range_vec(count)
+            .iter()
+            .map(|k| mips_puzzle_hash(0, Vec::new(), K1Member::new(k.pk).curry_tree_hash(), false))
+            .collect::<Vec<_>>();
+        let m_of_n = MofN::new(required, items);
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), m_of_n.inner_puzzle_hash(), true);
+
+        let mut spend = MipsSpend::new(ctx.delegated_spend(Conditions::new())?);
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, Vec::new(), required, m_of_n.items.clone()),
+        );
+
+        assert!(matches!(
+            spend.spend(ctx, custody_hash),
+            Err(DriverError::InvalidMofNRequired { .. })
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_vault_wrapper_stacks_of_different_lengths() -> anyhow::Result<()> {
+        use chia_sdk_types::puzzles::{AddDelegatedPuzzleWrapper, PreventConditionOpcode};
+        use chia_secp::K1PublicKey;
+
+        use crate::{Restriction, RestrictionKind};
+
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let wrappers = [
+            PreventConditionOpcode::new(60),
+            PreventConditionOpcode::new(62),
+        ];
+        let wrapper_restrictions = wrappers
+            .iter()
+            .map(|wrapper| Restriction {
+                kind: RestrictionKind::DelegatedPuzzleWrapper,
+                puzzle_hash: wrapper.curry_tree_hash(),
+            })
+            .collect::<Vec<_>>();
+
+        // Both members are spent, but the first only enforces the outer wrapper, so its enforcer
+        // must be given the delegated puzzle hash wrapped in the inner wrapper.
+        let keys = K1Pair::range_vec(2);
+        let member = |pk: K1PublicKey| K1Member::new(pk);
+        let member_restrictions = [
+            wrapper_restrictions[..1].to_vec(),
+            wrapper_restrictions.clone(),
+        ];
+        let hashes = keys
+            .iter()
+            .zip(&member_restrictions)
+            .map(|(key, restrictions)| {
+                mips_puzzle_hash(
+                    0,
+                    restrictions.clone(),
+                    member(key.pk).curry_tree_hash(),
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let custody = MofN::new(2, hashes.clone());
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.inner_puzzle_hash(), true);
+
+        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+
+        let conditions =
+            Conditions::new().create_coin(vault.info.custody_hash.into(), 1, Memos::None);
+        let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
+
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, Vec::new(), custody.required, custody.items.clone()),
+        );
+
+        for wrapper in wrappers {
+            let puzzle = ctx.curry(wrapper)?;
+            spend.restrictions.insert(
+                wrapper.curry_tree_hash(),
+                Spend::new(puzzle, clvmr::NodePtr::NIL),
+            );
+        }
+
+        // Each member signs the fully wrapped delegated puzzle hash.
+        let mut delegated_puzzle_hash = ctx.tree_hash(spend.delegated.puzzle);
+        for wrapper in wrappers.iter().rev() {
+            delegated_puzzle_hash =
+                AddDelegatedPuzzleWrapper::new(wrapper.curry_tree_hash(), delegated_puzzle_hash)
+                    .curry_tree_hash();
+        }
+
+        for ((key, restrictions), hash) in keys.iter().zip(member_restrictions).zip(&hashes) {
+            let mut hasher = Sha256::new();
+            hasher.update(delegated_puzzle_hash);
+            hasher.update(vault.coin.coin_id());
+            let signature = key.sk.sign_prehashed(&hasher.finalize())?;
+
+            let puzzle = ctx.curry(member(key.pk))?;
+            let solution = ctx.alloc(&K1MemberSolution::new(vault.coin.coin_id(), signature))?;
+            spend.members.insert(
+                *hash,
+                InnerPuzzleSpend::new(0, restrictions, Spend::new(puzzle, solution)),
+            );
+        }
+
+        vault.spend(ctx, &spend)?;
+        sim.spend_coins(ctx.take(), &[])?;
+
+        Ok(())
+    }
+
     #[cfg(feature = "chip-0037")]
     fn eip712_member_spend(
         ctx: &mut SpendContext,
