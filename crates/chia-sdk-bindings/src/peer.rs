@@ -99,6 +99,7 @@ impl Peer {
             socket_addr.parse()?,
             SdkPeerOptions {
                 rate_limit_factor: options.rate_limit_factor,
+                ..SdkPeerOptions::default()
             },
         )
         .await?;
