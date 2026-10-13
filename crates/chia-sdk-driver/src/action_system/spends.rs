@@ -1,4 +1,7 @@
-use std::{collections::HashMap, mem};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+};
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
@@ -36,6 +39,9 @@ pub struct Spends<S = Unfinished> {
     /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
     /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
+    /// Whether the same coin or singleton was added more than once, which is reported as
+    /// [`DriverError::DuplicateInput`] by [`Spends::apply`] and [`Spends::prepare`].
+    duplicate_input: bool,
     _state: S,
 }
 
@@ -99,6 +105,7 @@ impl Spends<Unfinished> {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
+            duplicate_input: false,
             _state: Unfinished,
         }
     }
@@ -121,6 +128,10 @@ impl Spends<Unfinished> {
     pub fn add_for_revocation(&mut self, cat: Cat) -> Result<(), DriverError> {
         let spend = FungibleSpend::revocation(cat)?;
 
+        if self.contains_coin(cat.coin.coin_id()) {
+            return Err(DriverError::DuplicateInput);
+        }
+
         self.cats
             .entry(Id::Existing(cat.info.asset_id))
             .or_default()
@@ -132,16 +143,101 @@ impl Spends<Unfinished> {
 
     /// Applies each action in order, and returns the [`Deltas`] of the actions for
     /// [`Spends::prepare`].
+    ///
+    /// Returns [`DriverError::DuplicateInput`] if the same coin or singleton was added more than
+    /// once, or [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same
+    /// puzzle hash make the same notarized payment.
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<Deltas, DriverError> {
+        if self.duplicate_input {
+            return Err(DriverError::DuplicateInput);
+        }
+
         let deltas = Deltas::from_actions(actions);
         for (index, action) in actions.iter().enumerate() {
             action.spend(ctx, self, index)?;
         }
+
+        self.check_unique_settlement_payments()?;
+
         Ok(deltas)
+    }
+
+    /// The ids of the selected coins (ie, not created by this transaction), which are the offered
+    /// coins when making an offer. See [`RequestedPayments::notarize`](crate::RequestedPayments::notarize).
+    pub fn input_coin_ids(&self) -> Vec<Bytes32> {
+        let mut coin_ids = Vec::new();
+
+        for item in &self.xch.items {
+            if !item.ephemeral {
+                coin_ids.push(item.asset.coin_id());
+            }
+        }
+
+        for cat in self.cats.values() {
+            for item in &cat.items {
+                if !item.ephemeral {
+                    coin_ids.push(item.asset.coin.coin_id());
+                }
+            }
+        }
+
+        for did in self.dids.values() {
+            if !did.ephemeral
+                && let Some(item) = did.lineage.first()
+            {
+                coin_ids.push(item.asset.coin.coin_id());
+            }
+        }
+
+        for nft in self.nfts.values() {
+            if !nft.ephemeral
+                && let Some(item) = nft.lineage.first()
+            {
+                coin_ids.push(item.asset.coin.coin_id());
+            }
+        }
+
+        for option in self.options.values() {
+            if !option.ephemeral
+                && let Some(item) = option.lineage.first()
+            {
+                coin_ids.push(item.asset.coin.coin_id());
+            }
+        }
+
+        coin_ids
+    }
+
+    fn contains_coin(&self, coin_id: Bytes32) -> bool {
+        self.xch
+            .items
+            .iter()
+            .any(|item| item.asset.coin_id() == coin_id)
+            || self
+                .cats
+                .values()
+                .flat_map(|cat| &cat.items)
+                .any(|item| item.asset.coin.coin_id() == coin_id)
+    }
+
+    /// Settlement coins can be spent by anyone, so the payments they make are asserted by a
+    /// conditions spend. If two settlement coins with the same puzzle hash made the same notarized
+    /// payment, their announcements would be identical and a single assertion would be satisfied by
+    /// either of them, so one of the spends could be removed from the transaction.
+    fn check_unique_settlement_payments(&self) -> Result<(), DriverError> {
+        let mut announcement_ids = HashSet::new();
+
+        for assertion in self.payment_assertions() {
+            if !announcement_ids.insert(assertion.announcement_id) {
+                return Err(DriverError::DuplicateSettlementPayment);
+            }
+        }
+
+        Ok(())
     }
 
     fn create_change(
@@ -222,7 +318,13 @@ impl Spends<Unfinished> {
         payment_assertions
     }
 
-    fn iter_conditions_spends(&mut self) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
+    /// The spends that emit conditions, one per CAT and singleton. Revocation spends are only
+    /// included if `include_revocations` is true, since they're authorized by the issuer's hidden
+    /// puzzle and the coins they create are wrapped in the revocation layer.
+    fn iter_conditions_spends(
+        &mut self,
+        include_revocations: bool,
+    ) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
         self.xch
             .items
             .iter_mut()
@@ -233,8 +335,12 @@ impl Spends<Unfinished> {
                     None
                 }
             })
-            .chain(self.cats.values_mut().filter_map(|cat| {
+            .chain(self.cats.values_mut().filter_map(move |cat| {
                 cat.items.iter_mut().find_map(|item| {
+                    if item.revoke && !include_revocations {
+                        return None;
+                    }
+
                     if let SpendKind::Conditions(spend) = &mut item.kind {
                         Some((item.asset.coin, spend))
                     } else {
@@ -304,7 +410,7 @@ impl Spends<Unfinished> {
             conditions = conditions.reserve_fee(self.outputs.reserved_fee);
         }
 
-        if let Some((_, spend)) = self.iter_conditions_spends().next() {
+        if let Some((_, spend)) = self.iter_conditions_spends(false).next() {
             spend.add_conditions(conditions);
             return Ok(());
         }
@@ -377,7 +483,7 @@ impl Spends<Unfinished> {
         }
 
         let coin_ids: Vec<Bytes32> = self
-            .iter_conditions_spends()
+            .iter_conditions_spends(true)
             .map(|(coin, _)| coin.coin_id())
             .collect();
 
@@ -387,7 +493,7 @@ impl Spends<Unfinished> {
 
         let len = coin_ids.len();
 
-        self.iter_conditions_spends()
+        self.iter_conditions_spends(true)
             .enumerate()
             .for_each(|(i, (_, spend))| {
                 let conditions = match relation {
@@ -521,14 +627,22 @@ impl Spends<Unfinished> {
     /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
     /// together according to the [`Relation`], and wraps the outputs of revocation spends.
     ///
-    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas.
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas,
+    /// [`DriverError::DuplicateInput`] if the same coin or singleton was added more than once, or
+    /// [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same puzzle hash
+    /// make the same notarized payment.
     pub fn prepare(
         mut self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
+        if self.duplicate_input {
+            return Err(DriverError::DuplicateInput);
+        }
+
         self.create_change(ctx, deltas)?;
+        self.check_unique_settlement_payments()?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
         self.wrap_revocation_outputs(ctx)?;
@@ -543,6 +657,7 @@ impl Spends<Unfinished> {
             change_puzzle_hash: self.change_puzzle_hash,
             outputs: self.outputs,
             conditions: self.conditions,
+            duplicate_input: self.duplicate_input,
             _state: Finished,
         })
     }
@@ -707,12 +822,14 @@ pub trait AddAsset {
 
 impl AddAsset for Coin {
     fn add(self, spends: &mut Spends) {
+        spends.duplicate_input |= spends.contains_coin(self.coin_id());
         spends.xch.items.push(FungibleSpend::new(self, false));
     }
 }
 
 impl AddAsset for Cat {
     fn add(self, spends: &mut Spends) {
+        spends.duplicate_input |= spends.contains_coin(self.coin.coin_id());
         spends
             .cats
             .entry(Id::Existing(self.info.asset_id))
@@ -724,27 +841,36 @@ impl AddAsset for Cat {
 
 impl AddAsset for Did {
     fn add(self, spends: &mut Spends) {
-        spends.dids.insert(
-            Id::Existing(self.info.launcher_id),
-            SingletonSpends::new(self, false),
-        );
+        spends.duplicate_input |= spends
+            .dids
+            .insert(
+                Id::Existing(self.info.launcher_id),
+                SingletonSpends::new(self, false),
+            )
+            .is_some();
     }
 }
 
 impl AddAsset for Nft {
     fn add(self, spends: &mut Spends) {
-        spends.nfts.insert(
-            Id::Existing(self.info.launcher_id),
-            SingletonSpends::new(self, false),
-        );
+        spends.duplicate_input |= spends
+            .nfts
+            .insert(
+                Id::Existing(self.info.launcher_id),
+                SingletonSpends::new(self, false),
+            )
+            .is_some();
     }
 }
 
 impl AddAsset for OptionContract {
     fn add(self, spends: &mut Spends) {
-        spends.options.insert(
-            Id::Existing(self.info.launcher_id),
-            SingletonSpends::new(self, false),
-        );
+        spends.duplicate_input |= spends
+            .options
+            .insert(
+                Id::Existing(self.info.launcher_id),
+                SingletonSpends::new(self, false),
+            )
+            .is_some();
     }
 }

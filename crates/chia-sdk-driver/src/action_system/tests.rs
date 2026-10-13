@@ -2494,3 +2494,326 @@ fn test_overflowing_fees_are_rejected() {
 
     assert!(matches!(result, Err(DriverError::AmountOverflow)));
 }
+
+/// Alice offers 10 XCH for 5 XCH, with the requested payment notarized with the given nonce, or
+/// with the nonce of the offered coins if it's `None`.
+fn make_xch_offer(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    nonce: Option<Bytes32>,
+) -> Result<Result<Offer, DriverError>> {
+    let alice = sim.bls(10);
+
+    let mut requested_payments = RequestedPayments::new();
+    requested_payments.xch.push(NotarizedPayment::new(
+        nonce.unwrap_or_default(),
+        vec![Payment::new(alice.puzzle_hash, 5, Memos::None)],
+    ));
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    if nonce.is_none() {
+        requested_payments.notarize(spends.input_coin_ids());
+    }
+
+    spends.conditions.required = spends
+        .conditions
+        .required
+        .extend(requested_payments.assertions(ctx, &AssetInfo::new())?);
+
+    let (_, coin_spends) = build(
+        ctx,
+        spends,
+        &[Action::send(
+            Id::Xch,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            10,
+            Memos::None,
+        )],
+        Relation::AssertConcurrent,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    let signature = sign_transaction(&coin_spends, &[alice.sk])?;
+
+    Ok(Offer::from_input_spend_bundle(
+        ctx,
+        SpendBundle::new(coin_spends, signature),
+        requested_payments,
+        AssetInfo::new(),
+    ))
+}
+
+#[test]
+fn test_offer_nonce_is_bound_to_offered_coins() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    // A nonce that isn't derived from the offered coins could be reused by another offer, in which
+    // case a taker could combine them and make a single payment for both.
+    let reused = make_xch_offer(&mut sim, &mut ctx, Some(Bytes32::new([1; 32])))?;
+    assert!(matches!(reused, Err(DriverError::InvalidOfferNonce)));
+
+    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+    let parsed = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+    assert_eq!(parsed.requested_payments().xch.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_offer_with_wrong_nonce_is_rejected_when_parsed() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let mut spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+
+    // Re-notarize the requested payment with a different nonce
+    let requested = spend_bundle
+        .coin_spends
+        .last_mut()
+        .expect("requested payment");
+    let solution =
+        chia_puzzle_types::offer::SettlementPaymentsSolution::new(vec![NotarizedPayment::new(
+            Bytes32::new([1; 32]),
+            vec![Payment::new(Bytes32::default(), 5, Memos::None)],
+        )]);
+    requested.solution = ctx.serialize(&solution)?;
+
+    assert!(matches!(
+        Offer::from_spend_bundle(&mut ctx, &spend_bundle),
+        Err(DriverError::InvalidOfferNonce)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_offer_puzzle_reveal_must_match_puzzle_hash() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+
+    for index in [0, spend_bundle.coin_spends.len() - 1] {
+        let mut spend_bundle = spend_bundle.clone();
+        spend_bundle.coin_spends[index].coin.puzzle_hash = Bytes32::new([1; 32]);
+
+        assert!(matches!(
+            Offer::from_spend_bundle(&mut ctx, &spend_bundle),
+            Err(DriverError::WrongPuzzleHash)
+        ));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_offer_with_unknown_requested_asset_is_rejected() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let mut spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+
+    // A requested payment with a puzzle that isn't a supported asset
+    let puzzle = ctx.alloc(&1)?;
+    let puzzle_hash = ctx.tree_hash(puzzle).into();
+    let solution = chia_puzzle_types::offer::SettlementPaymentsSolution::new(vec![]);
+
+    spend_bundle.coin_spends.push(CoinSpend::new(
+        chia_protocol::Coin::new(Bytes32::default(), puzzle_hash, 0),
+        ctx.serialize(&puzzle)?,
+        ctx.serialize(&solution)?,
+    ));
+
+    assert!(matches!(
+        Offer::from_spend_bundle(&mut ctx, &spend_bundle),
+        Err(DriverError::UnsupportedRequestedAsset)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 10);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    // The second payment is made by an intermediate settlement coin, which has the same puzzle hash,
+    // so both would make the same announcement and a single assertion would cover them.
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::new([1; 32]),
+        vec![Payment::new(bob.puzzle_hash, 3, Memos::None)],
+    );
+
+    let result = spends.apply(
+        &mut ctx,
+        &[
+            Action::settle(Id::Xch, notarized_payment.clone()),
+            Action::settle(Id::Xch, notarized_payment),
+        ],
+    );
+    assert!(matches!(
+        result,
+        Err(DriverError::DuplicateSettlementPayment)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_duplicate_inputs_are_rejected() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(10);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+    spends.add(alice.coin);
+
+    assert!(matches!(
+        spends.clone().apply(&mut ctx, &[Action::fee(1)]),
+        Err(DriverError::DuplicateInput)
+    ));
+    assert!(matches!(
+        spends.prepare(&mut ctx, &Deltas::new(), Relation::None),
+        Err(DriverError::DuplicateInput)
+    ));
+
+    let issuer = sim.bls(0);
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, alice.puzzle_hash, &[5])?;
+
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add(revocable.cats[0]);
+    assert!(matches!(
+        spends.add_for_revocation(revocable.cats[0]),
+        Err(DriverError::DuplicateInput)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_global_conditions_are_not_attached_to_revocation_spends() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let issuer = sim.bls(0);
+    let bob = BlsPair::new(1);
+
+    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[5, 6])?;
+    let revoked = revocable.cats[0];
+    let normal = revocable.cats[1];
+
+    // The revocation spend is added first, but the conditions must go to the normal spend
+    let mut spends = Spends::new(issuer.puzzle_hash);
+    spends.add_for_revocation(revoked)?;
+    spends.add(normal);
+    spends.conditions.required = Conditions::new().assert_concurrent_spend(Bytes32::default());
+
+    let deltas = spends.apply(&mut ctx, &[])?;
+    let emitted = emitted_conditions(&mut ctx, &spends, &deltas, Relation::None)?;
+
+    let count_for = |coin_id: Bytes32| {
+        emitted
+            .iter()
+            .filter(|(id, _)| *id == coin_id)
+            .flat_map(|(_, conditions)| conditions.iter())
+            .filter(|condition| matches!(condition, Condition::AssertConcurrentSpend(_)))
+            .count()
+    };
+
+    assert_eq!(count_for(revoked.coin.coin_id()), 0);
+    assert_eq!(count_for(normal.coin.coin_id()), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_missing_asset_info_is_an_error() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let launcher_id = Bytes32::new([1; 32]);
+    let asset_id = Bytes32::new([2; 32]);
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::default(),
+        vec![Payment::new(Bytes32::default(), 1, Memos::None)],
+    );
+
+    let mut requested_payments = RequestedPayments::new();
+    requested_payments
+        .nfts
+        .insert(launcher_id, vec![notarized_payment.clone()]);
+
+    let offer = Offer::new(
+        SpendBundle::new(vec![], chia_bls::Signature::default()),
+        crate::OfferCoins::new(),
+        requested_payments,
+        AssetInfo::new(),
+    );
+    assert!(matches!(
+        offer.offered_royalties(),
+        Err(DriverError::MissingAssetInfo)
+    ));
+
+    let mut requested_payments = RequestedPayments::new();
+    requested_payments
+        .cats
+        .insert(asset_id, vec![notarized_payment]);
+    assert!(matches!(
+        requested_payments.assertions(&mut ctx, &AssetInfo::new()),
+        Err(DriverError::MissingAssetInfo)
+    ));
+
+    let amounts = OfferAmounts {
+        xch: 0,
+        cats: indexmap! { asset_id => 100 },
+    };
+    assert!(matches!(
+        calculate_trade_prices(&amounts, &AssetInfo::new()),
+        Err(DriverError::MissingAssetInfo)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_offered_cats_with_different_revocation_layers_are_not_merged() {
+    let asset_id = Bytes32::new([1; 32]);
+    let cat = |hidden_puzzle_hash: Option<Bytes32>, parent: u8| {
+        let info =
+            crate::CatInfo::new(asset_id, hidden_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+        Cat::new(
+            chia_protocol::Coin::new(Bytes32::new([parent; 32]), info.puzzle_hash().into(), 1),
+            None,
+            info,
+        )
+    };
+
+    let mut coins = crate::OfferCoins::new();
+    coins.cats.insert(asset_id, vec![cat(None, 1)]);
+
+    let mut other = crate::OfferCoins::new();
+    other
+        .cats
+        .insert(asset_id, vec![cat(Some(Bytes32::new([2; 32])), 2)]);
+
+    assert!(matches!(
+        coins.extend(other),
+        Err(DriverError::IncompatibleAssetInfo)
+    ));
+}

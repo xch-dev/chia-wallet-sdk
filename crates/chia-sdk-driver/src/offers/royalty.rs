@@ -4,8 +4,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
 use crate::{
-    AssetInfo, CatAssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext,
-    coin_amount,
+    AssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +57,8 @@ pub fn calculate_trade_price_amounts(
     }
 }
 
-/// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`].
+/// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`], or
+/// [`DriverError::MissingAssetInfo`] if a CAT has no asset info.
 pub fn calculate_trade_prices(
     trade_price_amounts: &OfferAmounts,
     asset_info: &AssetInfo,
@@ -77,8 +77,9 @@ pub fn calculate_trade_prices(
             continue;
         }
 
-        let default = CatAssetInfo::default();
-        let info = asset_info.cat(asset_id).unwrap_or(&default);
+        let info = asset_info
+            .cat(asset_id)
+            .ok_or(DriverError::MissingAssetInfo)?;
         let puzzle_hash = CatInfo::new(
             asset_id,
             info.hidden_puzzle_hash,

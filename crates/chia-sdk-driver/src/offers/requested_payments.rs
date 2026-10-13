@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, Id, Layer, NftAssetInfo, NftInfo,
+    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, Id, Layer, NftAssetInfo, NftInfo, Offer,
     OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SingletonInfo,
     SpendContext,
 };
@@ -44,6 +44,44 @@ impl RequestedPayments {
         }
     }
 
+    /// Every requested notarized payment, in the order they're asserted.
+    pub fn notarized_payments(&self) -> impl Iterator<Item = &NotarizedPayment> {
+        self.xch
+            .iter()
+            .chain(self.cats.values().flatten())
+            .chain(self.nfts.values().flatten())
+            .chain(self.options.values().flatten())
+    }
+
+    /// Notarizes every requested payment with the [nonce](crate::Offer::nonce) of the offered
+    /// coins, which must be done before calculating the [assertions](Self::assertions).
+    ///
+    /// The coin ids should be every coin spent by the maker which isn't created in the offer, such
+    /// as the coins returned by [`Spends::input_coin_ids`](crate::Spends::input_coin_ids).
+    pub fn notarize(&mut self, offered_coin_ids: Vec<Bytes32>) {
+        let nonce = Offer::nonce(offered_coin_ids);
+
+        for notarized_payment in self
+            .xch
+            .iter_mut()
+            .chain(self.cats.values_mut().flatten())
+            .chain(self.nfts.values_mut().flatten())
+            .chain(self.options.values_mut().flatten())
+        {
+            notarized_payment.nonce = nonce;
+        }
+    }
+
+    /// Returns [`DriverError::InvalidOfferNonce`] if any requested payment isn't notarized with
+    /// the given nonce.
+    pub fn validate_nonce(&self, nonce: Bytes32) -> Result<(), DriverError> {
+        if self.notarized_payments().any(|np| np.nonce != nonce) {
+            return Err(DriverError::InvalidOfferNonce);
+        }
+
+        Ok(())
+    }
+
     pub fn assertions(
         &self,
         ctx: &mut SpendContext,
@@ -59,8 +97,9 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let default = CatAssetInfo::default();
-            let info = asset_info.cat(asset_id).unwrap_or(&default);
+            let info = asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
 
             let puzzle_hash = CatInfo::new(
                 asset_id,
@@ -198,7 +237,9 @@ impl RequestedPayments {
 
         if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
             self.xch.extend(notarized_payments);
-        } else if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)? {
+        } else if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)?
+            && cat.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.cats
                 .entry(cat.asset_id)
                 .or_default()
@@ -206,7 +247,9 @@ impl RequestedPayments {
 
             let info = CatAssetInfo::new(cat.hidden_puzzle_hash);
             asset_info.insert_cat(cat.asset_id, info)?;
-        } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)? {
+        } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)?
+            && nft.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.nfts
                 .entry(nft.launcher_id)
                 .or_default()
@@ -219,7 +262,9 @@ impl RequestedPayments {
                 nft.royalty_basis_points,
             );
             asset_info.insert_nft(nft.launcher_id, info)?;
-        } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)? {
+        } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)?
+            && option.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.options
                 .entry(option.launcher_id)
                 .or_default()
@@ -230,6 +275,8 @@ impl RequestedPayments {
                 option.underlying_delegated_puzzle_hash,
             );
             asset_info.insert_option(option.launcher_id, info)?;
+        } else {
+            return Err(DriverError::UnsupportedRequestedAsset);
         }
 
         Ok(())

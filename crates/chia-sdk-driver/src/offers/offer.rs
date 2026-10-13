@@ -3,15 +3,15 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, puzzles::SettlementPayment};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 use indexmap::IndexSet;
 
 use crate::{
-    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
-    OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
+    Arbitrage, AssetInfo, CatInfo, CostBudget, DriverError, Layer, NftInfo, OfferAmounts,
+    OfferCoins, OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     calculate_royalty_amounts, calculate_trade_price_amounts,
 };
 
@@ -40,13 +40,14 @@ impl Offer {
 
     pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>, DriverError> {
         let mut allocator = Allocator::new();
+        let mut budget = CostBudget::offer();
         let mut created_coin_ids = HashSet::new();
 
         for coin_spend in &self.spend_bundle.coin_spends {
             let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
             let solution = coin_spend.solution.to_clvm(&mut allocator)?;
 
-            let output = run_puzzle(&mut allocator, puzzle, solution)?;
+            let (_, output) = budget.run(&mut allocator, puzzle, solution)?;
             let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
 
             for condition in conditions {
@@ -95,21 +96,28 @@ impl Offer {
 
     /// Returns the royalty info for requested NFTs, since those are the royalties
     /// that need to be paid by the offered side.
-    pub fn offered_royalties(&self) -> Vec<RoyaltyInfo> {
-        self.requested_payments
-            .nfts
-            .keys()
-            .filter_map(|&launcher_id| {
-                self.asset_info.nft(launcher_id).map(|nft| {
-                    RoyaltyInfo::new(
-                        launcher_id,
-                        nft.royalty_puzzle_hash,
-                        nft.royalty_basis_points,
-                    )
-                })
-            })
-            .filter(|royalty| royalty.basis_points > 0)
-            .collect()
+    ///
+    /// Returns [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since its
+    /// royalty would otherwise be skipped.
+    pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>, DriverError> {
+        let mut royalties = Vec::new();
+
+        for &launcher_id in self.requested_payments.nfts.keys() {
+            let nft = self
+                .asset_info
+                .nft(launcher_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
+            if nft.royalty_basis_points > 0 {
+                royalties.push(RoyaltyInfo::new(
+                    launcher_id,
+                    nft.royalty_puzzle_hash,
+                    nft.royalty_basis_points,
+                ));
+            }
+        }
+
+        Ok(royalties)
     }
 
     /// Returns the royalty info for offered NFTs, since those are the royalties
@@ -133,7 +141,7 @@ impl Offer {
     /// [`u64`], in which case the royalties can't be paid.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let offered_amounts = self.offered_coins.amounts();
-        let royalties = self.offered_royalties();
+        let royalties = self.offered_royalties()?;
         let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
     }
@@ -214,9 +222,25 @@ impl Offer {
         arbitrage
     }
 
+    /// The nonce that requested payments are notarized with, which is the tree hash of the sorted
+    /// ids of the coins being offered (ie, the coins spent by the maker which aren't created in the
+    /// offer). Since each coin can only be spent once, no two offers that can both be taken share a
+    /// nonce, so a taker can't combine offers and pay for both with the same payment.
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
         coin_ids.sort();
         coin_ids.tree_hash().into()
+    }
+
+    /// The ids of the coins spent in the spend bundle that aren't created by another spend in it.
+    pub fn input_coin_ids(coin_spends: &[CoinSpend]) -> Vec<Bytes32> {
+        let spent_coin_ids: HashSet<Bytes32> =
+            coin_spends.iter().map(|cs| cs.coin.coin_id()).collect();
+
+        coin_spends
+            .iter()
+            .filter(|cs| !spent_coin_ids.contains(&cs.coin.parent_coin_info))
+            .map(|cs| cs.coin.coin_id())
+            .collect()
     }
 
     pub fn from_input_spend_bundle(
@@ -227,6 +251,10 @@ impl Offer {
     ) -> Result<Self, DriverError> {
         let mut offered_coins = OfferCoins::new();
         let mut asset_info = requested_asset_info;
+        let mut budget = CostBudget::offer();
+
+        requested_payments
+            .validate_nonce(Self::nonce(Self::input_coin_ids(&spend_bundle.coin_spends)))?;
 
         let spent_coin_ids: HashSet<Bytes32> = spend_bundle
             .coin_spends
@@ -235,14 +263,13 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = parse_coin_spend(allocator, coin_spend)?;
 
             offered_coins.parse(
                 allocator,
                 &mut asset_info,
                 &spent_coin_ids,
+                &mut budget,
                 coin_spend.coin,
                 puzzle,
                 solution,
@@ -257,6 +284,12 @@ impl Offer {
         ))
     }
 
+    /// Parses an untrusted offer spend bundle. The spends of coins with a parent coin id of zero are
+    /// the requested payments, and the rest are the maker's spends.
+    ///
+    /// The puzzle reveal of every spend must match the coin's puzzle hash, every requested payment
+    /// must be notarized with the [nonce](Offer::nonce) of the offered coins, and the total cost of
+    /// running the maker's spends is limited by [`CostBudget::offer`].
     pub fn from_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: &SpendBundle,
@@ -266,6 +299,7 @@ impl Offer {
         let mut offered_coins = OfferCoins::new();
         let mut requested_payments = RequestedPayments::new();
         let mut asset_info = AssetInfo::new();
+        let mut budget = CostBudget::offer();
 
         let spent_coin_ids: HashSet<Bytes32> = spend_bundle
             .coin_spends
@@ -280,9 +314,7 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = parse_coin_spend(allocator, coin_spend)?;
 
             if coin_spend.coin.parent_coin_info == Bytes32::default() {
                 requested_payments.parse(allocator, &mut asset_info, puzzle, solution)?;
@@ -293,12 +325,17 @@ impl Offer {
                     allocator,
                     &mut asset_info,
                     &spent_coin_ids,
+                    &mut budget,
                     coin_spend.coin,
                     puzzle,
                     solution,
                 )?;
             }
         }
+
+        requested_payments.validate_nonce(Self::nonce(Self::input_coin_ids(
+            &input_spend_bundle.coin_spends,
+        )))?;
 
         Ok(Self::new(
             input_spend_bundle,
@@ -322,11 +359,14 @@ impl Offer {
         }
 
         for (asset_id, notarized_payments) in self.requested_payments.cats {
+            let info = self
+                .asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
             let cat_info = CatInfo::new(
                 asset_id,
-                self.asset_info
-                    .cat(asset_id)
-                    .and_then(|info| info.hidden_puzzle_hash),
+                info.hidden_puzzle_hash,
                 SETTLEMENT_PAYMENT_HASH.into(),
             );
 
@@ -410,6 +450,24 @@ impl Offer {
             self.spend_bundle.aggregated_signature + &spend_bundle.aggregated_signature,
         )
     }
+}
+
+/// Deserializes the puzzle and solution of an untrusted coin spend, and checks that the puzzle
+/// reveal matches the coin's puzzle hash.
+fn parse_coin_spend(
+    allocator: &mut Allocator,
+    coin_spend: &CoinSpend,
+) -> Result<(Puzzle, NodePtr), DriverError> {
+    let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+    let puzzle = Puzzle::parse(allocator, puzzle);
+
+    if puzzle.curried_puzzle_hash() != coin_spend.coin.puzzle_hash.into() {
+        return Err(DriverError::WrongPuzzleHash);
+    }
+
+    let solution = coin_spend.solution.to_clvm(allocator)?;
+
+    Ok((puzzle, solution))
 }
 
 #[cfg(test)]

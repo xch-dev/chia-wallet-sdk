@@ -146,6 +146,21 @@ pub enum DriverError {
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
+    #[error("requested payment nonce does not match the offered coins")]
+    InvalidOfferNonce,
+
+    #[error("requested payment is for an unsupported asset")]
+    UnsupportedRequestedAsset,
+
+    #[error("the cost of parsing the offer exceeds the maximum")]
+    OfferCostExceeded,
+
+    #[error("duplicate settlement payment")]
+    DuplicateSettlementPayment,
+
+    #[error("the same coin or singleton was added more than once")]
+    DuplicateInput,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
