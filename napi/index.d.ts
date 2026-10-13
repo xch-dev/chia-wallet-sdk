@@ -3090,7 +3090,6 @@ export declare class Restriction {
 export declare class RestrictionMemo {
   clone(): RestrictionMemo
   parse(ctx: MipsMemoContext): ParsedRestriction | null
-  static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, restrictions: Array<RestrictionMemo>): RestrictionMemo
   static enforceDelegatedPuzzleWrappers(clvm: Clvm, wrapperMemos: Array<WrapperMemo>): RestrictionMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): RestrictionMemo
   constructor(memberConditionValidator: boolean, puzzleHash: Uint8Array, memo: Program)
@@ -4119,6 +4118,7 @@ export declare class VerifiedSpend {
 export declare class WrapperMemo {
   clone(): WrapperMemo
   parse(ctx: MipsMemoContext): ParsedWrapper | null
+  static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, restrictions: Array<RestrictionMemo>): WrapperMemo
   static preventVaultSideEffects(clvm: Clvm, reveal: boolean): Array<WrapperMemo>
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo

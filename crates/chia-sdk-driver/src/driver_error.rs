@@ -76,6 +76,18 @@ pub enum DriverError {
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
 
+    #[error("m of n requires between 1 and {items} members, but {required} were required")]
+    InvalidMofNRequired { required: usize, items: usize },
+
+    #[error("m of n contains duplicate members")]
+    DuplicateMofNMembers,
+
+    #[error("mips memo is nested too deeply")]
+    MipsMemoTooDeep,
+
+    #[error("mips memo is too large")]
+    MipsMemoTooLarge,
+
     #[error("cannot emit conditions from spend")]
     CannotEmitConditions,
 
@@ -207,4 +219,7 @@ pub enum DriverError {
 
     #[error("singleton melt is not supported here")]
     UnsupportedSingletonMelt,
+
+    #[error("stream payment time is before the last payment time, or the stream has already ended")]
+    InvalidStreamPaymentTime,
 }

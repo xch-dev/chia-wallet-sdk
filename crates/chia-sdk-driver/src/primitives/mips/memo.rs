@@ -8,6 +8,8 @@ mod tests;
 #[cfg(test)]
 mod vault_tests;
 
+use std::collections::HashSet;
+
 use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
@@ -22,22 +24,28 @@ pub use parsed_wrapper::*;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    MerkleTree, Mod,
+    Mod,
     puzzles::{
         BlsMember, BlsMemberPuzzleAssert, BlsTaprootMember, BlsTaprootMemberPuzzleAssert,
-        DelegatedPuzzleFeederArgs, EnforceDelegatedPuzzleWrappers, FORCE_SINGLETON_RECREATION_HASH,
-        FixedPuzzleMember, Force1of2RestrictedVariable, IndexWrapperArgs, K1Member,
-        K1MemberPuzzleAssert, MofNArgs, NofNArgs, OneOfNArgs, PasskeyMember,
+        EnforceDelegatedPuzzleWrappers, FORCE_SINGLETON_RECREATION_HASH, FixedPuzzleMember,
+        Force1of2RestrictedVariable, K1Member, K1MemberPuzzleAssert, PasskeyMember,
         PasskeyMemberPuzzleAssert, PreventConditionOpcode, R1Member, R1MemberPuzzleAssert,
-        RestrictionsArgs, SingletonMember, SingletonMemberWithMode, Timelock,
+        SingletonMember, SingletonMemberWithMode, Timelock,
     },
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::{FromClvm, ToClvm, apply_constants};
-use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
+use clvm_utils::{ToTreeHash, TreeCache, TreeHash, tree_hash_cached};
 use clvmr::{Allocator, NodePtr};
 
-use crate::DriverError;
+use crate::{DriverError, MofN, wrap_mips_puzzle_hash};
+
+/// The maximum nesting depth of M of N memos accepted by [`MipsMemo::from_clvm_bounded`].
+pub const MAX_MIPS_MEMO_DEPTH: usize = 32;
+
+/// The maximum number of inner puzzle and restriction memos accepted by
+/// [`MipsMemo::from_clvm_bounded`]. Shared subtrees are counted once per occurrence.
+pub const MAX_MIPS_MEMO_NODES: usize = 10_000;
 
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
@@ -57,6 +65,94 @@ impl MipsMemo<NodePtr> {
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         self.inner_puzzle.inner_puzzle_hash(true)
     }
+
+    /// Like [`MipsMemo::inner_puzzle_hash`], but fails if the memo describes an M of N that can't
+    /// be spent as described (see [`MofNMemo::try_inner_puzzle_hash`]).
+    pub fn try_inner_puzzle_hash(&self) -> Result<TreeHash, DriverError> {
+        self.inner_puzzle.try_inner_puzzle_hash(true)
+    }
+
+    /// Returns `true` if the memo is well formed and describes the given inner puzzle hash.
+    pub fn verify(&self, expected_inner_puzzle_hash: TreeHash) -> bool {
+        self.try_inner_puzzle_hash()
+            .is_ok_and(|hash| hash == expected_inner_puzzle_hash)
+    }
+
+    /// Parses a memo from untrusted input. Unlike [`FromClvm`], this rejects memos which are nested
+    /// too deeply or which expand to too many nodes (for example by sharing subtrees), as well as
+    /// memos which fail [`MipsMemo::try_inner_puzzle_hash`].
+    pub fn from_clvm_bounded(allocator: &Allocator, node: NodePtr) -> Result<Self, DriverError> {
+        let shallow = ShallowMipsMemo::<NodePtr>::from_clvm(allocator, node)?;
+        check_inner_puzzle_memo_bounds(allocator, shallow.inner_puzzle, 0, &mut 0)?;
+
+        let memo = Self::from_clvm(allocator, node)?;
+        memo.try_inner_puzzle_hash()?;
+
+        Ok(memo)
+    }
+}
+
+/// Mirrors the encoding of [`MipsMemo`] without decoding the inner puzzle.
+#[derive(ToClvm, FromClvm)]
+#[apply_constants]
+#[clvm(list)]
+struct ShallowMipsMemo<T> {
+    #[clvm(constant = "CHIP-0043".to_string())]
+    namespace: String,
+    inner_puzzle: T,
+}
+
+/// Mirrors the encoding of [`InnerPuzzleMemo`] without decoding nested inner puzzles.
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+struct ShallowInnerPuzzleMemo<T> {
+    _nonce: usize,
+    restrictions: Vec<T>,
+    #[clvm(rest)]
+    kind: ShallowMemoKind<T>,
+}
+
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+enum ShallowMemoKind<T> {
+    Member(MemberMemo<T>),
+    MofN(ShallowMofNMemo<T>),
+}
+
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+struct ShallowMofNMemo<T> {
+    _required: usize,
+    items: Vec<T>,
+}
+
+/// Walks the memo tree without recursively decoding it, so that the full decode afterward has
+/// bounded recursion depth and output size.
+fn check_inner_puzzle_memo_bounds(
+    allocator: &Allocator,
+    node: NodePtr,
+    depth: usize,
+    nodes: &mut usize,
+) -> Result<(), DriverError> {
+    if depth > MAX_MIPS_MEMO_DEPTH {
+        return Err(DriverError::MipsMemoTooDeep);
+    }
+
+    let memo = ShallowInnerPuzzleMemo::<NodePtr>::from_clvm(allocator, node)?;
+
+    *nodes += 1 + memo.restrictions.len();
+
+    if *nodes > MAX_MIPS_MEMO_NODES {
+        return Err(DriverError::MipsMemoTooLarge);
+    }
+
+    if let ShallowMemoKind::MofN(m_of_n) = memo.kind {
+        for item in m_of_n.items {
+            check_inner_puzzle_memo_bounds(allocator, item, depth + 1, nodes)?;
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -77,23 +173,30 @@ impl InnerPuzzleMemo<NodePtr> {
         }
     }
 
+    /// Note that an empty restriction list means there is no restrictions layer at all, so a
+    /// restrictions layer with no validators can't be represented (the same is true of
+    /// [`mips_puzzle_hash`](crate::mips_puzzle_hash)).
     pub fn inner_puzzle_hash(&self, top_level: bool) -> TreeHash {
-        let mut puzzle_hash = self.kind.inner_puzzle_hash();
+        self.wrap_puzzle_hash(self.kind.inner_puzzle_hash(), top_level)
+    }
 
-        if !self.restrictions.is_empty() {
-            let (member_validators, delegated_puzzle_validators) =
-                split_restrictions(&self.restrictions);
+    /// Like [`InnerPuzzleMemo::inner_puzzle_hash`], but fails if any nested M of N can't be spent
+    /// as described (see [`MofNMemo::try_inner_puzzle_hash`]).
+    pub fn try_inner_puzzle_hash(&self, top_level: bool) -> Result<TreeHash, DriverError> {
+        Ok(self.wrap_puzzle_hash(self.kind.try_inner_puzzle_hash()?, top_level))
+    }
 
-            puzzle_hash =
-                RestrictionsArgs::new(member_validators, delegated_puzzle_validators, puzzle_hash)
-                    .curry_tree_hash();
-        }
+    fn wrap_puzzle_hash(&self, inner_puzzle_hash: TreeHash, top_level: bool) -> TreeHash {
+        let (member_validators, delegated_puzzle_validators) =
+            split_restrictions(&self.restrictions);
 
-        if top_level {
-            puzzle_hash = DelegatedPuzzleFeederArgs::new(puzzle_hash).curry_tree_hash();
-        }
-
-        IndexWrapperArgs::new(self.nonce, puzzle_hash).curry_tree_hash()
+        wrap_mips_puzzle_hash(
+            self.nonce,
+            member_validators,
+            delegated_puzzle_validators,
+            inner_puzzle_hash,
+            top_level,
+        )
     }
 }
 
@@ -131,23 +234,6 @@ impl RestrictionMemo<NodePtr> {
         }
     }
 
-    /// The restrictions are the ones applied to the new right side once the 1 of 2 is spent.
-    pub fn force_1_of_2_restricted_variable(
-        allocator: &mut Allocator,
-        left_side_subtree_hash: Bytes32,
-        nonce: usize,
-        restrictions: Vec<RestrictionMemo>,
-    ) -> Result<Self, DriverError> {
-        let memo =
-            Force1of2RestrictedVariableMemo::new(left_side_subtree_hash, nonce, restrictions);
-
-        Ok(Self::new(
-            false,
-            memo.restriction().curry_tree_hash().into(),
-            memo.to_clvm(allocator)?,
-        ))
-    }
-
     pub fn enforce_delegated_puzzle_wrappers(
         allocator: &mut Allocator,
         wrapper_memos: &[WrapperMemo],
@@ -182,20 +268,12 @@ impl RestrictionMemo<NodePtr> {
         ))
     }
 
+    /// Only combinations that can be spent are recognized. The delegated puzzle wrapper enforcer
+    /// must validate the delegated puzzle, whereas the timelock and force 1 of 2 puzzles inspect
+    /// conditions, so they must be member condition validators.
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedRestriction> {
-        if let Ok(wrappers) = Vec::<WrapperMemo>::from_clvm(allocator, self.memo) {
-            let wrapper_stack: Vec<TreeHash> = wrappers
-                .iter()
-                .map(|wrapper| wrapper.puzzle_hash.into())
-                .collect();
-            let restriction = EnforceDelegatedPuzzleWrappers::new(&wrapper_stack);
-
-            if restriction.curry_tree_hash() == self.puzzle_hash.into() {
-                return Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(
-                    restriction,
-                    wrappers,
-                ));
-            }
+        if !self.member_condition_validator {
+            return self.parse_delegated_puzzle_validator(allocator);
         }
 
         if let Ok(memo) = Force1of2RestrictedVariableMemo::from_clvm(allocator, self.memo) {
@@ -210,12 +288,32 @@ impl RestrictionMemo<NodePtr> {
         }
 
         if let Ok(seconds) = Option::<u64>::from_clvm(allocator, self.memo) {
-            for &seconds in seconds.iter().chain(ctx.timelocks.iter()) {
+            // A revealed timelock of 0 is encoded as nil, the same as a hidden timelock.
+            for &seconds in [seconds.unwrap_or(0)].iter().chain(ctx.timelocks.iter()) {
                 let restriction = Timelock::new(seconds);
 
                 if restriction.curry_tree_hash() == self.puzzle_hash.into() {
                     return Some(ParsedRestriction::Timelock(restriction));
                 }
+            }
+        }
+
+        None
+    }
+
+    fn parse_delegated_puzzle_validator(&self, allocator: &Allocator) -> Option<ParsedRestriction> {
+        if let Ok(wrappers) = Vec::<WrapperMemo>::from_clvm(allocator, self.memo) {
+            let wrapper_stack: Vec<TreeHash> = wrappers
+                .iter()
+                .map(|wrapper| wrapper.puzzle_hash.into())
+                .collect();
+            let restriction = EnforceDelegatedPuzzleWrappers::new(&wrapper_stack);
+
+            if restriction.curry_tree_hash() == self.puzzle_hash.into() {
+                return Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(
+                    restriction,
+                    wrappers,
+                ));
             }
         }
 
@@ -261,6 +359,22 @@ impl WrapperMemo<NodePtr> {
             puzzle_hash: FORCE_SINGLETON_RECREATION_HASH.into(),
             memo: NodePtr::NIL,
         }
+    }
+
+    /// The restrictions are the ones applied to the new right side once the 1 of 2 is spent.
+    pub fn force_1_of_2_restricted_variable(
+        allocator: &mut Allocator,
+        left_side_subtree_hash: Bytes32,
+        nonce: usize,
+        restrictions: Vec<RestrictionMemo>,
+    ) -> Result<Self, DriverError> {
+        let memo =
+            Force1of2RestrictedVariableMemo::new(left_side_subtree_hash, nonce, restrictions);
+
+        Ok(Self::new(
+            memo.restriction().curry_tree_hash().into(),
+            memo.to_clvm(allocator)?,
+        ))
     }
 
     pub fn timelock(
@@ -322,7 +436,8 @@ impl WrapperMemo<NodePtr> {
         }
 
         if let Ok(seconds) = Option::<u64>::from_clvm(allocator, self.memo) {
-            for &seconds in seconds.iter().chain(ctx.timelocks.iter()) {
+            // A revealed timelock of 0 is encoded as nil, the same as a hidden timelock.
+            for &seconds in [seconds.unwrap_or(0)].iter().chain(ctx.timelocks.iter()) {
                 let wrapper = Timelock::new(seconds);
 
                 if wrapper.curry_tree_hash() == self.puzzle_hash.into() {
@@ -332,7 +447,8 @@ impl WrapperMemo<NodePtr> {
         }
 
         if let Ok(opcode) = Option::<u16>::from_clvm(allocator, self.memo) {
-            for &opcode in opcode.iter().chain(ctx.opcodes.iter()) {
+            // A revealed opcode of 0 is encoded as nil, the same as a hidden opcode.
+            for &opcode in [opcode.unwrap_or(0)].iter().chain(ctx.opcodes.iter()) {
                 let wrapper = PreventConditionOpcode::new(opcode);
 
                 if wrapper.curry_tree_hash() == self.puzzle_hash.into() {
@@ -391,6 +507,13 @@ impl MemoKind<NodePtr> {
         match self {
             Self::Member(member) => member.puzzle_hash.into(),
             Self::MofN(m_of_n) => m_of_n.inner_puzzle_hash(),
+        }
+    }
+
+    pub fn try_inner_puzzle_hash(&self) -> Result<TreeHash, DriverError> {
+        match self {
+            Self::Member(member) => Ok(member.puzzle_hash.into()),
+            Self::MofN(m_of_n) => m_of_n.try_inner_puzzle_hash(),
         }
     }
 }
@@ -634,7 +757,10 @@ impl MemberMemo<NodePtr> {
             }
         }
 
-        if tree_hash(allocator, self.memo) == self.puzzle_hash.into() {
+        // The cache keeps this linear if the memo shares subtrees.
+        if tree_hash_cached(allocator, self.memo, &mut TreeCache::default())
+            == self.puzzle_hash.into()
+        {
             return Some(ParsedMember::Custom(self.memo));
         }
 
@@ -655,26 +781,35 @@ impl MofNMemo<NodePtr> {
     }
 
     pub fn inner_puzzle_hash(&self) -> TreeHash {
-        let leaves = self
+        let items = self
             .items
             .iter()
-            .map(|member| member.inner_puzzle_hash(false).into())
-            .collect::<Vec<_>>();
-        let merkle_tree = MerkleTree::new(&leaves);
+            .map(|member| member.inner_puzzle_hash(false))
+            .collect();
 
-        if self.required == 1 {
-            OneOfNArgs::new(merkle_tree.root()).curry_tree_hash()
-        } else if self.required == self.items.len() {
-            NofNArgs::new(
-                self.items
-                    .iter()
-                    .map(|member| member.inner_puzzle_hash(false))
-                    .collect(),
-            )
-            .curry_tree_hash()
-        } else {
-            MofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
+        MofN::new(self.required, items).inner_puzzle_hash()
+    }
+
+    /// Like [`MofNMemo::inner_puzzle_hash`], but fails if `required` isn't between 1 and the
+    /// number of items, or if any items have the same puzzle hash (which would let a single
+    /// member count more than once towards `required`).
+    pub fn try_inner_puzzle_hash(&self) -> Result<TreeHash, DriverError> {
+        let items = self
+            .items
+            .iter()
+            .map(|member| member.try_inner_puzzle_hash(false))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let m_of_n = MofN::new(self.required, items);
+        m_of_n.validate()?;
+
+        let mut seen = HashSet::with_capacity(m_of_n.items.len());
+
+        if !m_of_n.items.iter().all(|item| seen.insert(*item)) {
+            return Err(DriverError::DuplicateMofNMembers);
         }
+
+        Ok(m_of_n.inner_puzzle_hash())
     }
 }
 

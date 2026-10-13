@@ -127,26 +127,6 @@ impl RestrictionMemo {
         }))
     }
 
-    pub fn force_1_of_2_restricted_variable(
-        clvm: Clvm,
-        left_side_subtree_hash: Bytes32,
-        nonce: u32,
-        restrictions: Vec<RestrictionMemo>,
-    ) -> Result<Self> {
-        let mut ctx = clvm.0.lock().unwrap();
-        let restriction = sdk::RestrictionMemo::force_1_of_2_restricted_variable(
-            &mut ctx,
-            left_side_subtree_hash,
-            nonce.try_into().unwrap(),
-            restrictions.into_iter().map(Into::into).collect(),
-        )?;
-        Ok(Self {
-            member_condition_validator: restriction.member_condition_validator,
-            puzzle_hash: restriction.puzzle_hash,
-            memo: Program(clvm.0.clone(), restriction.memo),
-        })
-    }
-
     pub fn enforce_delegated_puzzle_wrappers(
         clvm: Clvm,
         wrapper_memos: Vec<WrapperMemo>,
@@ -231,6 +211,22 @@ impl WrapperMemo {
                 )
             }
         }))
+    }
+
+    pub fn force_1_of_2_restricted_variable(
+        clvm: Clvm,
+        left_side_subtree_hash: Bytes32,
+        nonce: u32,
+        restrictions: Vec<RestrictionMemo>,
+    ) -> Result<Self> {
+        let mut ctx = clvm.0.lock().unwrap();
+        let wrapper = sdk::WrapperMemo::force_1_of_2_restricted_variable(
+            &mut ctx,
+            left_side_subtree_hash,
+            nonce.try_into().unwrap(),
+            restrictions.into_iter().map(Into::into).collect(),
+        )?;
+        Ok(Self::from_sdk(&clvm.0, wrapper))
     }
 
     pub fn prevent_vault_side_effects(clvm: Clvm, reveal: bool) -> Result<Vec<Self>> {
