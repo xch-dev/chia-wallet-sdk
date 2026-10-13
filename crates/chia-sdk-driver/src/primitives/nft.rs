@@ -251,6 +251,8 @@ impl Nft {
     /// This will automatically run the transfer program or metadata updater, if
     /// they are revealed in the p2 spend's output conditions. This way the returned
     /// [`Nft`] will have the correct owner (if present) and metadata.
+    ///
+    /// If the NFT was melted, this will return [`None`].
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -267,8 +269,12 @@ impl Nft {
                 .inner_solution
                 .inner_solution;
 
-        let (info, create_coin) =
-            parent_info.child_from_p2_spend(allocator, Spend::new(p2_puzzle.ptr(), p2_solution))?;
+        // If the NFT was melted, there is no child to parse.
+        let Some((info, create_coin)) = parent_info
+            .try_child_from_p2_spend(allocator, Spend::new(p2_puzzle.ptr(), p2_solution))?
+        else {
+            return Ok(None);
+        };
 
         Ok(Some(Self {
             coin: Coin::new(
@@ -598,6 +604,70 @@ mod tests {
             .expect("could not parse nft");
 
         assert_eq!(nft, expected_nft);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_melted_nft_child() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(
+                ctx,
+                &NftMint::new(HashedPtr::NIL, alice.puzzle_hash, 0, None),
+            )?;
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // The spend is still added, but there's no child to return.
+        assert!(matches!(
+            nft.spend_with(ctx, &alice_p2, Conditions::new().melt_singleton()),
+            Err(DriverError::MissingChild)
+        ));
+
+        let coin_spend = ctx.take().remove(0);
+        let puzzle = ctx.alloc(&coin_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&coin_spend.solution)?;
+
+        assert_eq!(Nft::parse_child(ctx, nft.coin, puzzle, solution)?, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_nft_info_launcher_id_mismatch() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let info = NftInfo::new(
+            Bytes32::new([1; 32]),
+            HashedPtr::NIL,
+            Bytes32::default(),
+            None,
+            Bytes32::default(),
+            300,
+            Bytes32::default(),
+        );
+        let mut layers = info.into_layers(HashedPtr::NIL);
+        layers.inner_puzzle.inner_puzzle.transfer_layer.launcher_id = Bytes32::new([2; 32]);
+
+        let puzzle = layers.construct_puzzle(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        assert!(matches!(
+            NftInfo::parse(ctx, puzzle),
+            Err(DriverError::InvalidSingletonStruct)
+        ));
 
         Ok(())
     }

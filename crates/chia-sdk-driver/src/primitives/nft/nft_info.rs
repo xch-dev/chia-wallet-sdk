@@ -93,6 +93,12 @@ impl NftInfo {
             return Ok(None);
         };
 
+        // The royalty transfer layer curries in its own copy of the launcher id, which must match the singleton.
+        // Otherwise, the info wouldn't represent the puzzle that was parsed.
+        if layers.inner_puzzle.inner_puzzle.transfer_layer.launcher_id != layers.launcher_id {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
+
         let p2_puzzle = layers.inner_puzzle.inner_puzzle.inner_puzzle;
 
         Ok(Some((Self::from_layers(&layers), p2_puzzle)))
@@ -151,11 +157,26 @@ impl NftInfo {
     /// This will automatically run the transfer program or metadata updater, if
     /// they are revealed in the p2 spend's output conditions. This way the returned
     /// [`NftInfo`] will have the correct owner (if present) and metadata.
+    ///
+    /// If the NFT was melted, this will return [`DriverError::MissingChild`].
+    /// Use [`NftInfo::try_child_from_p2_spend`] to handle melts without an error.
     pub fn child_from_p2_spend(
         &self,
         allocator: &mut Allocator,
         spend: Spend,
     ) -> Result<(Self, CreateCoin<NodePtr>), DriverError> {
+        self.try_child_from_p2_spend(allocator, spend)?
+            .ok_or(DriverError::MissingChild)
+    }
+
+    /// Parses the child of an [`NftInfo`] from the p2 spend, or returns [`None`] if the NFT was melted.
+    ///
+    /// See [`NftInfo::child_from_p2_spend`] for more details.
+    pub fn try_child_from_p2_spend(
+        &self,
+        allocator: &mut Allocator,
+        spend: Spend,
+    ) -> Result<Option<(Self, CreateCoin<NodePtr>)>, DriverError> {
         let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
@@ -179,7 +200,7 @@ impl NftInfo {
         }
 
         let Some(create_coin) = create_coin else {
-            return Err(DriverError::MissingChild);
+            return Ok(None);
         };
 
         let mut info = *self;
@@ -202,7 +223,7 @@ impl NftInfo {
 
         info.p2_puzzle_hash = create_coin.puzzle_hash;
 
-        Ok((info, create_coin))
+        Ok(Some((info, create_coin)))
     }
 }
 

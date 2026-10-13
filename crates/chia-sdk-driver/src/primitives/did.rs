@@ -198,6 +198,9 @@ impl Did {
     ///
     /// This relies on the child being hinted and having the same metadata as the parent.
     /// If this is not the case, the DID cannot be parsed or spent without additional context.
+    ///
+    /// The hint is verified against the puzzle hash of the created coin, and the provided `coin`
+    /// must be the child that was created. Otherwise, this will return [`None`].
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -239,7 +242,8 @@ impl Did {
             .filter_map(Condition::into_create_coin)
             .find(|create_coin| create_coin.amount % 2 == 1)
         else {
-            return Err(DriverError::MissingChild);
+            // The DID was melted, so there is no child.
+            return Ok(None);
         };
 
         let Memos::Some(memos) = create_coin.memos else {
@@ -257,6 +261,21 @@ impl Did {
 
         let mut info = DidInfo::from_layers(&layers);
         info.p2_puzzle_hash = hint;
+
+        // The hint is untrusted, so make sure it actually produces the puzzle hash of the child.
+        if info.inner_puzzle_hash() != create_coin.puzzle_hash.into() {
+            return Ok(None);
+        }
+
+        let child_coin = Coin::new(
+            parent_coin.coin_id(),
+            info.puzzle_hash().into(),
+            create_coin.amount,
+        );
+
+        if coin != child_coin {
+            return Ok(None);
+        }
 
         Ok(Some(Self {
             coin,
@@ -307,7 +326,9 @@ impl Did {
 
 #[cfg(test)]
 mod tests {
-    use chia_protocol::Bytes32;
+    use std::slice;
+
+    use chia_protocol::{Bytes32, CoinSpend};
     use chia_sdk_test::Simulator;
     use clvm_traits::clvm_list;
     use rstest::rstest;
@@ -486,6 +507,148 @@ mod tests {
         .expect("could not parse did");
 
         assert_eq!(did, expected_did);
+
+        Ok(())
+    }
+
+    fn parse_child_from_spend(
+        ctx: &mut SpendContext,
+        coin_spend: &CoinSpend,
+        coin: Coin,
+    ) -> anyhow::Result<Option<Did>> {
+        let puzzle = ctx.alloc(&coin_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&coin_spend.solution)?;
+        Ok(Did::parse_child(
+            ctx,
+            coin_spend.coin,
+            puzzle,
+            solution,
+            coin,
+        )?)
+    }
+
+    #[test]
+    fn test_parse_did_child_verifies_hint() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let bob = sim.bls(0);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // Send the DID to Bob, but hint it to Alice so it would show up in her wallet.
+        let bob_info = DidInfo {
+            p2_puzzle_hash: bob.puzzle_hash,
+            ..did.info
+        };
+        let memos = ctx.hint(alice.puzzle_hash)?;
+        did.spend_with(
+            ctx,
+            &alice_p2,
+            Conditions::new().create_coin(bob_info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+
+        let coin_spend = ctx.take().remove(0);
+        let child_coin = Coin::new(did.coin.coin_id(), bob_info.puzzle_hash().into(), 1);
+        let spoofed_coin = Coin::new(
+            did.coin.coin_id(),
+            DidInfo {
+                p2_puzzle_hash: alice.puzzle_hash,
+                ..did.info
+            }
+            .puzzle_hash()
+            .into(),
+            1,
+        );
+
+        assert_eq!(parse_child_from_spend(ctx, &coin_spend, child_coin)?, None);
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, spoofed_coin)?,
+            None
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_did_child_verifies_coin() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        let child = did.update(ctx, &alice_p2, Conditions::new())?;
+        let coin_spend = ctx.take().remove(0);
+
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, child.coin)?,
+            Some(child)
+        );
+
+        // Any other coin isn't the child, even if it has the same puzzle hash.
+        let unrelated_coin = Coin::new(Bytes32::default(), child.coin.puzzle_hash, 1);
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, unrelated_coin)?,
+            None
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_melted_did_child() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        did.spend_with(ctx, &alice_p2, Conditions::new().melt_singleton())?;
+        let coin_spend = ctx.take().remove(0);
+
+        assert_eq!(parse_child_from_spend(ctx, &coin_spend, did.coin)?, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_did_info_launcher_id_mismatch() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let info = DidInfo::new(
+            Bytes32::new([1; 32]),
+            None,
+            1,
+            HashedPtr::NIL,
+            Bytes32::default(),
+        );
+        let mut layers = info.into_layers(HashedPtr::NIL);
+        layers.inner_puzzle.launcher_id = Bytes32::new([2; 32]);
+
+        let puzzle = layers.construct_puzzle(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        assert!(matches!(
+            DidInfo::parse(ctx, puzzle),
+            Err(DriverError::InvalidSingletonStruct)
+        ));
 
         Ok(())
     }
