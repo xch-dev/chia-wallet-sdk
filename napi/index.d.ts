@@ -1412,11 +1412,11 @@ export declare class DetectedSpCoin {
   get k(): number
   set k(value: number)
   get label(): number | null
-  set label(value?: number | undefined | null)
+  set label(value: number | undefined | null)
   get tweak(): ScalarField
   set tweak(value: ScalarField)
   get wrapper(): SilentPaymentWrapper | null
-  set wrapper(value?: SilentPaymentWrapper | undefined | null)
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
 }
 
 export declare class Did {
@@ -3608,7 +3608,7 @@ export declare class SilentPaymentGroupCoin {
   get secretKey(): SecretKey
   set secretKey(value: SecretKey)
   get wrapper(): SilentPaymentWrapper | null
-  set wrapper(value?: SilentPaymentWrapper | undefined | null)
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
 }
 
 export declare class SilentPaymentGroupOutput {
@@ -3617,7 +3617,7 @@ export declare class SilentPaymentGroupOutput {
   get k(): number
   set k(value: number)
   get wrapper(): SilentPaymentWrapper | null
-  set wrapper(value?: SilentPaymentWrapper | undefined | null)
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
   get puzzleHash(): Buffer
   set puzzleHash(value: Uint8Array)
   get amount(): bigint
@@ -3652,7 +3652,7 @@ export declare class SilentPaymentOtherPayment {
   clone(): SilentPaymentOtherPayment
   constructor(wrapper: SilentPaymentWrapper | undefined | null, payment: Uint8Array)
   get wrapper(): SilentPaymentWrapper | null
-  set wrapper(value?: SilentPaymentWrapper | undefined | null)
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
   get payment(): Buffer
   set payment(value: Uint8Array)
 }
@@ -3712,7 +3712,7 @@ export declare class SilentPaymentSettlementRecipient {
   get spendPk(): PublicKey
   set spendPk(value: PublicKey)
   get wrapper(): SilentPaymentWrapper | null
-  set wrapper(value?: SilentPaymentWrapper | undefined | null)
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
   get settled(): boolean
   set settled(value: boolean)
   get amount(): bigint
@@ -3726,7 +3726,7 @@ export declare class SilentPaymentWrapper {
   get assetId(): Buffer
   set assetId(value: Uint8Array)
   get hiddenPuzzleHash(): Buffer | null
-  set hiddenPuzzleHash(value?: Uint8Array | undefined | null)
+  set hiddenPuzzleHash(value: Uint8Array | undefined | null)
 }
 
 export declare class Simulator {
@@ -4562,7 +4562,7 @@ export declare function sha256(value: Uint8Array): Buffer
 
 export declare const enum SilentPaymentNetwork {
   Mainnet = 0,
-  Testnet = 1
+  Testnet = 1,
 }
 
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean): Buffer
