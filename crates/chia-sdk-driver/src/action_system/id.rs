@@ -1,14 +1,16 @@
 use chia_protocol::Bytes32;
 
-/// Represents either XCH, an existing CAT or singleton, or a new CAT or singleton.
+/// Identifies the asset that an [`Action`](crate::Action) applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Id {
-    /// XCH does not have an asset id on-chain, so we need a special id for it.
+    /// XCH, which doesn't have an asset id on-chain.
     Xch,
 
-    /// An id that already exists on the blockchain.
+    /// The asset id of a CAT, or the launcher id of a singleton, that was added to the
+    /// [`Spends`](crate::Spends).
     Existing(Bytes32),
 
-    /// A unique index for an asset that doesn't exist on the blockchain yet.
+    /// An asset created in the same transaction, by the action at this index in the list passed to
+    /// [`Spends::apply`](crate::Spends::apply).
     New(usize),
 }

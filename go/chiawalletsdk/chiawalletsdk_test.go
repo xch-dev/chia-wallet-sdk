@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -1278,7 +1279,7 @@ func TestIdTypes(t *testing.T) {
 }
 
 func TestDelta(t *testing.T) {
-	delta, err := NewDelta(1000, 500)
+	delta, err := NewDelta(big.NewInt(1000), big.NewInt(500))
 	if err != nil {
 		t.Fatalf("NewDelta: %v", err)
 	}
@@ -1613,7 +1614,7 @@ func TestActionXchSend(t *testing.T) {
 	}
 	defer deltas.Close()
 
-	finished, err := spends.Prepare(deltas)
+	finished, err := spends.Prepare(deltas, nil)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
@@ -1703,7 +1704,7 @@ func TestActionCatIssuance(t *testing.T) {
 	}
 	defer deltas.Close()
 
-	finished, err := spends.Prepare(deltas)
+	finished, err := spends.Prepare(deltas, nil)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
@@ -1865,7 +1866,7 @@ func TestActionNftMint(t *testing.T) {
 	}
 	defer deltas.Close()
 
-	finished, err := spends.Prepare(deltas)
+	finished, err := spends.Prepare(deltas, nil)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}

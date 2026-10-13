@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 native-tls = ["reqwest/native-tls"]
-rustls = ["reqwest/rustls-tls"]
+rustls = ["reqwest/rustls"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

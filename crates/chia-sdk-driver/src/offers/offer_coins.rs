@@ -66,11 +66,16 @@ impl OfferCoins {
 
     pub fn amounts(&self) -> OfferAmounts {
         OfferAmounts {
-            xch: self.xch.iter().map(|c| c.amount).sum(),
+            xch: self.xch.iter().map(|c| u128::from(c.amount)).sum(),
             cats: self
                 .cats
                 .iter()
-                .map(|(&launcher_id, cats)| (launcher_id, cats.iter().map(|c| c.coin.amount).sum()))
+                .map(|(&asset_id, cats)| {
+                    (
+                        asset_id,
+                        cats.iter().map(|c| u128::from(c.coin.amount)).sum(),
+                    )
+                })
                 .collect(),
         }
     }

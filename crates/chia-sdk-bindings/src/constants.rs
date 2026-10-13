@@ -118,6 +118,7 @@ puzzle_constants! {
     k1_member => SECP256K1_MEMBER,
     passkey_member_puzzle_assert => PASSKEY_MEMBER_PUZZLE_ASSERT,
     passkey_member => PASSKEY_MEMBER,
+    eip712_member => EIP712_MEMBER,
     r1_member_puzzle_assert => SECP256R1_MEMBER_PUZZLE_ASSERT,
     r1_member => SECP256R1_MEMBER,
     singleton_member => SINGLETON_MEMBER,

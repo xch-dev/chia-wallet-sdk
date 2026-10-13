@@ -25,7 +25,7 @@ use crate::{
     Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
     MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
     SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
-    mips_puzzle_hash,
+    coin_amount, mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -134,7 +134,7 @@ impl TestVault {
         for &id in deltas.ids() {
             let delta = deltas.get(&id).copied().unwrap_or_default();
 
-            let required_amount = delta.output.saturating_sub(delta.input);
+            let required_amount = coin_amount(delta.output.saturating_sub(delta.input))?;
 
             if required_amount == 0 && !deltas.is_needed(&id) {
                 continue;

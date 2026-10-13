@@ -12,6 +12,7 @@ mod action_layer;
 mod action_system;
 mod address;
 mod bls;
+mod clear_signing;
 mod clvm;
 mod clvm_types;
 mod coin;
@@ -19,6 +20,7 @@ mod compact_representation;
 mod conditions;
 mod constants;
 mod convert;
+mod eip712;
 mod full_node_simulator;
 mod key_pairs;
 mod merkle_tree;
@@ -36,12 +38,14 @@ pub use action_layer::*;
 pub use action_system::*;
 pub use address::*;
 pub use bls::*;
+pub use clear_signing::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
 pub use compact_representation::*;
 pub use conditions::*;
 pub use constants::*;
+pub use eip712::*;
 pub use full_node_simulator::*;
 pub use key_pairs::*;
 pub use merkle_tree::*;
@@ -81,17 +85,18 @@ pub use chia_sdk_coinset::{
 pub use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
-    CatalogRegistryState, Clawback, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta,
-    MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType,
-    OptionUnderlying, P2ParentCoin, RewardDistributorAddEntryActionLog,
-    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
-    RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,
-    RewardDistributorNewEpochActionLog, RewardDistributorNftStakeEntry,
-    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
-    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
-    RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
-    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
-    StreamingPuzzleInfo, UriKind, VaultInfo, XchandlesConstants, XchandlesDelegatedStateActionLog,
+    CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
+    Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionInfo,
+    OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton, P2ParentCoin,
+    RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
+    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
+    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
+    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
+    VaultInfo, VaultOutput, VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
     XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
     XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
     XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,

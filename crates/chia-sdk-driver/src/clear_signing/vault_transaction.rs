@@ -61,13 +61,13 @@ pub struct VaultTransaction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssetFlow {
     pub asset: ClearSigningAsset,
-    pub input_amount: u64,
-    pub output_amount: u64,
-    pub issued_amount: u64,
-    pub melted_amount: u64,
-    pub received_amount: u64,
-    pub paid_amount: u64,
-    pub unaccounted_amount: u64,
+    pub input_amount: u128,
+    pub output_amount: u128,
+    pub issued_amount: u128,
+    pub melted_amount: u128,
+    pub received_amount: u128,
+    pub paid_amount: u128,
+    pub unaccounted_amount: u128,
 }
 
 #[derive(Debug, Clone)]
@@ -384,12 +384,12 @@ fn verify_spend(
 #[derive(Debug, Clone)]
 struct AssetFlowTotals {
     asset: ClearSigningAsset,
-    input_amount: u64,
-    output_amount: u64,
-    issued_amount: u64,
-    melted_amount: u64,
-    received_amount: u64,
-    paid_amount: u64,
+    input_amount: u128,
+    output_amount: u128,
+    issued_amount: u128,
+    melted_amount: u128,
+    received_amount: u128,
+    paid_amount: u128,
 }
 
 fn build_asset_flows(
@@ -421,7 +421,7 @@ fn build_asset_flows(
     for spend in spends {
         if !child_coin_ids.contains(&spend.asset.coin().coin_id()) {
             asset_flow_mut(&mut flows, asset_from_parsed(&spend.asset)).input_amount +=
-                spend.asset.coin().amount;
+                u128::from(spend.asset.coin().amount);
         }
 
         for child in &spend.children {
@@ -429,23 +429,24 @@ fn build_asset_flows(
                 && child.transfer_type != TransferType::Offered
             {
                 asset_flow_mut(&mut flows, asset_from_parsed(&child.asset)).output_amount +=
-                    child.asset.coin().amount;
+                    u128::from(child.asset.coin().amount);
             }
         }
     }
 
     for asserted_payment in received_payments {
         asset_flow_mut(&mut flows, asserted_payment.asset).received_amount +=
-            asserted_payment.payment.amount;
+            u128::from(asserted_payment.payment.amount);
     }
 
     for asserted_payment in external_payments {
         asset_flow_mut(&mut flows, asserted_payment.asset).paid_amount +=
-            asserted_payment.payment.amount;
+            u128::from(asserted_payment.payment.amount);
     }
 
     for drop_coin in drop_coins {
-        asset_flow_mut(&mut flows, ClearSigningAsset::Xch).output_amount += drop_coin.amount;
+        asset_flow_mut(&mut flows, ClearSigningAsset::Xch).output_amount +=
+            u128::from(drop_coin.amount);
     }
 
     for spend in spends {
@@ -453,7 +454,7 @@ fn build_asset_flows(
             && xch_child_coin_ids.contains(&spend.asset.coin().parent_coin_info)
         {
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount +=
-                spend.asset.coin().amount;
+                u128::from(spend.asset.coin().amount);
         }
     }
 
@@ -473,17 +474,18 @@ fn build_asset_flows(
         let cat_asset = asset_from_parsed(&spend.asset);
 
         if xch_child_coin_ids.contains(&issuance.coin_id) {
-            let amount = spend.asset.coin().amount;
+            let amount = u128::from(spend.asset.coin().amount);
             asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
         }
 
+        // The extra delta comes from an untrusted solution, so it can be `i64::MIN`.
+        let amount = u128::from(issuance.extra_delta.unsigned_abs());
+
         if issuance.extra_delta > 0 {
-            let amount = u64::try_from(issuance.extra_delta).unwrap();
             asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
         } else if issuance.extra_delta < 0 {
-            let amount = u64::try_from(-issuance.extra_delta).unwrap();
             asset_flow_mut(&mut flows, cat_asset).melted_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).issued_amount += amount;
         }
@@ -492,17 +494,17 @@ fn build_asset_flows(
     flows
         .into_values()
         .filter_map(|flow| {
-            let unaccounted_amount = flow
-                .input_amount
-                .saturating_add(flow.issued_amount)
-                .saturating_sub(flow.output_amount)
-                .saturating_sub(flow.melted_amount)
-                .saturating_sub(flow.paid_amount)
-                .saturating_sub(if matches!(flow.asset, ClearSigningAsset::Xch) {
-                    reserved_fee
-                } else {
-                    0
-                });
+            // Payments and fees may be covered by other parties, so this is floored at zero.
+            let unaccounted_amount = (flow.input_amount + flow.issued_amount).saturating_sub(
+                flow.output_amount
+                    + flow.melted_amount
+                    + flow.paid_amount
+                    + if matches!(flow.asset, ClearSigningAsset::Xch) {
+                        u128::from(reserved_fee)
+                    } else {
+                        0
+                    },
+            );
 
             let include = flow.input_amount > 0
                 || flow.output_amount > 0

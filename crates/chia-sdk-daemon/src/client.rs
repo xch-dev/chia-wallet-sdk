@@ -186,7 +186,7 @@ mod inner {
                 .sink
                 .lock()
                 .await
-                .send(tungstenite::Message::Text(msg))
+                .send(tungstenite::Message::Text(msg.into()))
                 .await
                 .map_err(|_| DaemonError::SendFailed)?;
 
@@ -249,7 +249,7 @@ mod inner {
                 .sink
                 .lock()
                 .await
-                .send(tungstenite::Message::Text(msg))
+                .send(tungstenite::Message::Text(msg.into()))
                 .await
                 .map_err(|_| DaemonError::SendFailed)?;
 
@@ -355,7 +355,7 @@ mod inner {
                                     .sink
                                     .lock()
                                     .await
-                                    .send(tungstenite::Message::Text(msg))
+                                    .send(tungstenite::Message::Text(msg.into()))
                                     .await
                                     .ok();
                             }
@@ -418,9 +418,8 @@ mod inner {
 
             let text = match message {
                 tungstenite::Message::Text(text) => text,
-                tungstenite::Message::Binary(bin) => {
-                    String::from_utf8(bin).map_err(|_| DaemonError::ConnectionClosed)?
-                }
+                tungstenite::Message::Binary(bin) => tungstenite::Utf8Bytes::try_from(bin)
+                    .map_err(|_| DaemonError::ConnectionClosed)?,
                 tungstenite::Message::Close(..) => break,
                 tungstenite::Message::Ping(..)
                 | tungstenite::Message::Pong(..)

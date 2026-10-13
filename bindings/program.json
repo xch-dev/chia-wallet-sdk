@@ -108,6 +108,9 @@
         "doc": "attempts to parse the program as NFT metadata (data URIs, metadata URIs, license URIs, etc.).",
         "return": "Option<NftMetadata>"
       },
+      "parse_mips_memo": {
+        "return": "Option<MipsMemo>"
+      },
       "parse_remark": {
         "doc": "attempts to parse the program as a REMARK condition.",
         "return": "Option<Remark>"

@@ -2445,25 +2445,29 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
 
     // ── C extern helpers ───────────────────────────────────────────────
 
+    fn c_primitive_type(ty: &str) -> &'static str {
+        match ty {
+            "u8" => "uint8_t",
+            "i8" => "int8_t",
+            "u16" => "uint16_t",
+            "i16" => "int16_t",
+            "u32" => "uint32_t",
+            "i32" => "int32_t",
+            "u64" => "uint64_t",
+            "i64" => "int64_t",
+            "usize" => "size_t",
+            "f32" => "float",
+            "f64" => "double",
+            _ => "uint64_t",
+        }
+    }
+
     fn c_extern_param(&self, name: &str, kind: &FfiKind) -> String {
         match kind {
             FfiKind::Void => String::new(),
             FfiKind::Bool => format!("int {name}"),
             FfiKind::Prim(t) => {
-                let ct = match t.as_str() {
-                    "u8" => "uint8_t",
-                    "i8" => "int8_t",
-                    "u16" => "uint16_t",
-                    "i16" => "int16_t",
-                    "u32" => "uint32_t",
-                    "i32" => "int32_t",
-                    "u64" => "uint64_t",
-                    "i64" => "int64_t",
-                    "usize" => "size_t",
-                    "f32" => "float",
-                    "f64" => "double",
-                    _ => "uint64_t",
-                };
+                let ct = Self::c_primitive_type(t);
                 format!("{ct} {name}")
             }
             FfiKind::Bytes | FfiKind::BigInt => {
@@ -2479,15 +2483,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 FfiKind::Str => format!("const char* {name}, size_t {name}_len"),
                 FfiKind::Bool => format!("int {name}, int {name}_is_some"),
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "uint8_t",
-                        "u16" => "uint16_t",
-                        "u32" => "uint32_t",
-                        "u64" => "uint64_t",
-                        "i32" => "int32_t",
-                        "i64" => "int64_t",
-                        _ => "uint64_t",
-                    };
+                    let ct = Self::c_primitive_type(t);
                     format!("{ct} {name}, int {name}_is_some")
                 }
                 FfiKind::List(list_inner) => {
@@ -2511,16 +2507,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     )
                 }
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "uint8_t",
-                        "u16" => "uint16_t",
-                        "u32" => "uint32_t",
-                        "u64" => "uint64_t",
-                        "i32" => "int32_t",
-                        "i64" => "int64_t",
-                        "usize" => "size_t",
-                        _ => "uint64_t",
-                    };
+                    let ct = Self::c_primitive_type(t);
                     format!("const {ct}* {name}_ptr, size_t {name}_len")
                 }
                 _ => format!("const void* {name}"),
@@ -2533,18 +2520,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
             FfiKind::Void => vec![],
             FfiKind::Bool => vec!["int* out".to_string()],
             FfiKind::Prim(t) => {
-                let ct = match t.as_str() {
-                    "u8" => "uint8_t",
-                    "u16" => "uint16_t",
-                    "u32" => "uint32_t",
-                    "u64" => "uint64_t",
-                    "i32" => "int32_t",
-                    "i64" => "int64_t",
-                    "usize" => "size_t",
-                    "f32" => "float",
-                    "f64" => "double",
-                    _ => "uint64_t",
-                };
+                let ct = Self::c_primitive_type(t);
                 vec![format!("{ct}* out")]
             }
             FfiKind::Bytes | FfiKind::BigInt => {
@@ -2572,12 +2548,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 ],
                 FfiKind::Bool => vec!["int* out".to_string(), "int* out_is_some".to_string()],
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "uint8_t",
-                        "u32" => "uint32_t",
-                        "u64" => "uint64_t",
-                        _ => "uint64_t",
-                    };
+                    let ct = Self::c_primitive_type(t);
                     vec![format!("{ct}* out"), "int* out_is_some".to_string()]
                 }
                 FfiKind::List(_) => vec!["void** out".to_string()],
@@ -2586,16 +2557,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
             },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "uint8_t",
-                        "u16" => "uint16_t",
-                        "u32" => "uint32_t",
-                        "u64" => "uint64_t",
-                        "i32" => "int32_t",
-                        "i64" => "int64_t",
-                        "usize" => "size_t",
-                        _ => "uint64_t",
-                    };
+                    let ct = Self::c_primitive_type(t);
                     vec![format!("{ct}** out_ptr"), "size_t* out_len".to_string()]
                 }
                 _ => vec!["void** out".to_string()],
@@ -2610,20 +2572,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
             FfiKind::Void => (vec![], vec![], vec![]),
             FfiKind::Bool => (vec![], vec![format!("boolToInt({name})")], vec![]),
             FfiKind::Prim(t) => {
-                let ct = match t.as_str() {
-                    "u8" => "C.uint8_t",
-                    "i8" => "C.int8_t",
-                    "u16" => "C.uint16_t",
-                    "i16" => "C.int16_t",
-                    "u32" => "C.uint32_t",
-                    "i32" => "C.int32_t",
-                    "u64" => "C.uint64_t",
-                    "i64" => "C.int64_t",
-                    "usize" => "C.size_t",
-                    "f32" => "C.float",
-                    "f64" => "C.double",
-                    _ => "C.uint64_t",
-                };
+                let ct = format!("C.{}", Self::c_primitive_type(t));
                 (vec![], vec![format!("{ct}({name})")], vec![])
             }
             FfiKind::Bytes => {
@@ -2704,12 +2653,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     )
                 }
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "C.uint8_t",
-                        "u32" => "C.uint32_t",
-                        "u64" => "C.uint64_t",
-                        _ => "C.uint64_t",
-                    };
+                    let ct = format!("C.{}", Self::c_primitive_type(t));
                     let val_var = format!("{name}Val");
                     let some_var = format!("{name}IsSome");
                     (
@@ -2752,13 +2696,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         FfiKind::Bytes => (format!("{name}PtrsC"), "*C.uint8_t".to_string()),
                         FfiKind::Prim(t) => (
                             format!("{name}Ptr"),
-                            format!(
-                                "C.{}",
-                                match t.as_str() {
-                                    "usize" => "size_t".to_string(),
-                                    _ => format!("{}_t", self.go_type(list_inner)),
-                                }
-                            ),
+                            format!("C.{}", Self::c_primitive_type(t)),
                         ),
                         _ => return (pre, args, post),
                     };
@@ -2846,16 +2784,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     )
                 }
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "C.uint8_t",
-                        "u16" => "C.uint16_t",
-                        "u32" => "C.uint32_t",
-                        "u64" => "C.uint64_t",
-                        "i32" => "C.int32_t",
-                        "i64" => "C.int64_t",
-                        "usize" => "C.size_t",
-                        _ => "C.uint64_t",
-                    };
+                    let ct = format!("C.{}", Self::c_primitive_type(t));
                     let ptr_var = format!("{name}Ptr");
                     let len_var = format!("{name}Len");
                     (
@@ -2886,20 +2815,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                 "return cOut != 0, nil".to_string(),
             ),
             FfiKind::Prim(t) => {
-                let ct = match t.as_str() {
-                    "u8" => "C.uint8_t",
-                    "i8" => "C.int8_t",
-                    "u16" => "C.uint16_t",
-                    "i16" => "C.int16_t",
-                    "u32" => "C.uint32_t",
-                    "i32" => "C.int32_t",
-                    "u64" => "C.uint64_t",
-                    "i64" => "C.int64_t",
-                    "usize" => "C.size_t",
-                    "f32" => "C.float",
-                    "f64" => "C.double",
-                    _ => "C.uint64_t",
-                };
+                let ct = format!("C.{}", Self::c_primitive_type(t));
                 let gt = self.go_type(kind);
                 (
                     format!("var cOut {ct}"),
@@ -2974,12 +2890,7 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         .to_string(),
                 ),
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "C.uint8_t",
-                        "u32" => "C.uint32_t",
-                        "u64" => "C.uint64_t",
-                        _ => "C.uint64_t",
-                    };
+                    let ct = format!("C.{}", Self::c_primitive_type(t));
                     let gt = self.go_type(&FfiKind::Prim(t.clone()));
                     (
                         format!("var cOut {ct}\n\tvar cOutIsSome C.int"),
@@ -3084,26 +2995,8 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                      return result, nil".to_string(),
                 ),
                 FfiKind::Prim(t) => {
-                    let ct = match t.as_str() {
-                        "u8" => "C.uint8_t",
-                        "u16" => "C.uint16_t",
-                        "u32" => "C.uint32_t",
-                        "u64" => "C.uint64_t",
-                        "i32" => "C.int32_t",
-                        "i64" => "C.int64_t",
-                        "usize" => "C.size_t",
-                        _ => "C.uint64_t",
-                    };
-                    let go_type = match t.as_str() {
-                        "u8" => "uint8",
-                        "u16" => "uint16",
-                        "u32" => "uint32",
-                        "u64" => "uint64",
-                        "i32" => "int32",
-                        "i64" => "int64",
-                        "usize" => "uint",
-                        _ => "uint64",
-                    };
+                    let ct = format!("C.{}", Self::c_primitive_type(t));
+                    let go_type = self.go_type(inner);
                     (
                         format!("var outPtr *{ct}\n\tvar outLen C.size_t"),
                         "&outPtr, &outLen".to_string(),
@@ -3233,7 +3126,14 @@ fn main() {
     }
 
     let rust_path = root.join("go/src/generated.rs");
-    fs::write(&rust_path, &rust.out)
+    let rust_source = rust
+        .out
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    fs::write(&rust_path, rust_source)
         .unwrap_or_else(|e| panic!("failed to write {}: {e}", rust_path.display()));
     eprintln!("Wrote {}", rust_path.display());
 

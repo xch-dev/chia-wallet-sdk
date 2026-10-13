@@ -523,7 +523,7 @@ func benchmarkBatchXchSend(b *testing.B, n int) {
 		actions = append(actions, fee)
 
 		deltas, _ := spends.Apply(actions)
-		finished, _ := spends.Prepare(deltas)
+		finished, _ := spends.Prepare(deltas, nil)
 		outputs, _ := finished.Spend()
 		coinSpends, _ := clvm.CoinSpends()
 		sim.SpendCoins(coinSpends, []*SecretKey{sk})
@@ -576,7 +576,7 @@ func benchmarkBatchCatIssuance(b *testing.B, n int) {
 		actions = append(actions, fee)
 
 		deltas, _ := spends.Apply(actions)
-		finished, _ := spends.Prepare(deltas)
+		finished, _ := spends.Prepare(deltas, nil)
 		outputs, _ := finished.Spend()
 		coinSpends, _ := clvm.CoinSpends()
 		sim.SpendCoins(coinSpends, []*SecretKey{sk})
@@ -639,7 +639,7 @@ func benchmarkBatchNftMint(b *testing.B, n int) {
 		actions = append(actions, fee)
 
 		deltas, _ := spends.Apply(actions)
-		finished, _ := spends.Prepare(deltas)
+		finished, _ := spends.Prepare(deltas, nil)
 		outputs, _ := finished.Spend()
 		coinSpends, _ := clvm.CoinSpends()
 		sim.SpendCoins(coinSpends, []*SecretKey{sk})

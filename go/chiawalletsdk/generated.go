@@ -35,22 +35,32 @@ extern void go_free_prim_list(void* ptr, size_t len, size_t elem_size);
 extern void go_spends_free(void* ptr);
 extern int go_spends_clone(const void* ptr, void** out);
 extern int go_spends_new(const void* clvm, const uint8_t* change_puzzle_hash_ptr, size_t change_puzzle_hash_len, void** out);
+extern int go_spends_with_separate_change_puzzle_hash(const void* clvm, const uint8_t* intermediate_puzzle_hash_ptr, size_t intermediate_puzzle_hash_len, const uint8_t* change_puzzle_hash_ptr, size_t change_puzzle_hash_len, void** out);
 extern int go_spends_add_xch(const void* ptr, const void* coin);
 extern int go_spends_add_cat(const void* ptr, const void* cat);
+extern int go_spends_add_cat_for_revocation(const void* ptr, const void* cat);
+extern int go_spends_add_offered_coins(const void* ptr, const void* offer);
+extern int go_spends_add_did(const void* ptr, const void* did);
 extern int go_spends_add_nft(const void* ptr, const void* nft);
+extern int go_spends_add_option(const void* ptr, const void* option);
 extern int go_spends_p_2_puzzle_hashes(const void* ptr, void** out);
 extern int go_spends_non_settlement_coin_ids(const void* ptr, void** out);
 extern int go_spends_add_optional_condition(const void* ptr, const void* condition);
 extern int go_spends_add_required_condition(const void* ptr, const void* condition);
 extern int go_spends_disable_settlement_assertions(const void* ptr);
-extern int go_spends_selected_xch_amount(const void* ptr, uint64_t* out);
+extern int go_spends_selected_xch_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_spends_selected_asset_ids(const void* ptr, void** out);
-extern int go_spends_selected_cat_amount(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, uint64_t* out);
+extern int go_spends_selected_cat_amount(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, uint8_t** out_ptr, size_t* out_len);
 extern int go_spends_apply(const void* ptr, const void** actions_ptrs, size_t actions_len, void** out);
-extern int go_spends_prepare(const void* ptr, const void* deltas, void** out);
+extern int go_spends_prepare(const void* ptr, const void* deltas, const void* relation, void** out);
 extern size_t go_spends_list_len(const void* ptr);
 extern int go_spends_list_get(const void* ptr, size_t index, void** out);
 extern void go_spends_list_free(void* ptr);
+
+// Relation
+extern int go_relation_to_int(const void* ptr, int* out);
+extern int go_relation_from_int(int value, void** out);
+extern void go_relation_free(void* ptr);
 
 // FinishedSpends
 extern void go_finished_spends_free(void* ptr);
@@ -70,6 +80,7 @@ extern int go_pending_spend_coin(const void* ptr, void** out);
 extern int go_pending_spend_conditions(const void* ptr, void** out);
 extern int go_pending_spend_as_xch(const void* ptr, void** out);
 extern int go_pending_spend_as_cat(const void* ptr, void** out);
+extern int go_pending_spend_is_revocation(const void* ptr, int* out);
 extern int go_pending_spend_as_did(const void* ptr, void** out);
 extern int go_pending_spend_as_nft(const void* ptr, void** out);
 extern int go_pending_spend_as_option(const void* ptr, void** out);
@@ -81,7 +92,14 @@ extern void go_pending_spend_list_free(void* ptr);
 extern void go_action_free(void* ptr);
 extern int go_action_clone(const void* ptr, void** out);
 extern int go_action_send(const void* id, const uint8_t* puzzle_hash_ptr, size_t puzzle_hash_len, uint64_t amount, const void* memos, void** out);
+extern int go_action_burn(const void* id, uint64_t amount, const void* memos, void** out);
 extern int go_action_settle(const void* id, const void* notarized_payment, void** out);
+extern int go_action_settle_royalty(const void* clvm, const void* id, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const uint8_t* royalty_puzzle_hash_ptr, size_t royalty_puzzle_hash_len, uint64_t royalty_amount, void** out);
+extern int go_action_create_did(const void* metadata, const uint8_t* recovery_list_hash_ptr, size_t recovery_list_hash_len, uint64_t num_verifications_required, uint64_t amount, void** out);
+extern int go_action_create_empty_did(void** out);
+extern int go_action_update_did(const void* id, const void* new_metadata, const uint8_t* new_recovery_list_hash_ptr, size_t new_recovery_list_hash_len, uint64_t new_num_verifications_required, int new_num_verifications_required_is_some, int remove_recovery_list_hash, int remove_recovery_list_hash_is_some, void** out);
+extern int go_action_mint_option(const uint8_t* creator_puzzle_hash_ptr, size_t creator_puzzle_hash_len, uint64_t seconds, const void* underlying_id, uint64_t underlying_amount, const void* strike_type, uint64_t amount, void** out);
+extern int go_action_melt_singleton(const void* id, uint64_t amount, void** out);
 extern int go_action_issue_cat(const void* tail_spend, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, uint64_t amount, void** out);
 extern int go_action_single_issue_cat(const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, uint64_t amount, void** out);
 extern int go_action_run_tail(const void* id, const void* tail_spend, const void* supply_delta, void** out);
@@ -106,11 +124,11 @@ extern void go_deltas_list_free(void* ptr);
 // Delta
 extern void go_delta_free(void* ptr);
 extern int go_delta_clone(const void* ptr, void** out);
-extern int go_delta_new(uint64_t input, uint64_t output, void** out);
-extern int go_delta_get_input(const void* ptr, uint64_t* out);
-extern int go_delta_set_input(void* ptr, uint64_t value);
-extern int go_delta_get_output(const void* ptr, uint64_t* out);
-extern int go_delta_set_output(void* ptr, uint64_t value);
+extern int go_delta_new(const uint8_t* input_ptr, size_t input_len, const uint8_t* output_ptr, size_t output_len, void** out);
+extern int go_delta_get_input(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_delta_set_input(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_delta_get_output(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_delta_set_output(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern size_t go_delta_list_len(const void* ptr);
 extern int go_delta_list_get(const void* ptr, size_t index, void** out);
 extern void go_delta_list_free(void* ptr);
@@ -123,7 +141,7 @@ extern int go_id_existing(const uint8_t* asset_id_ptr, size_t asset_id_len, void
 extern int go_id_new(size_t index, void** out);
 extern int go_id_is_xch(const void* ptr, int* out);
 extern int go_id_as_existing(const void* ptr, uint8_t** out_ptr, size_t* out_len);
-extern int go_id_as_new(const void* ptr, uint64_t* out, int* out_is_some);
+extern int go_id_as_new(const void* ptr, size_t* out, int* out_is_some);
 extern int go_id_equals(const void* ptr, const void* id, int* out);
 extern size_t go_id_list_len(const void* ptr);
 extern int go_id_list_get(const void* ptr, size_t index, void** out);
@@ -137,6 +155,12 @@ extern int go_outputs_cats(const void* ptr, void** out);
 extern int go_outputs_cat(const void* ptr, const void* id, void** out);
 extern int go_outputs_nfts(const void* ptr, void** out);
 extern int go_outputs_nft(const void* ptr, const void* id, void** out);
+extern int go_outputs_dids(const void* ptr, void** out);
+extern int go_outputs_did(const void* ptr, const void* id, void** out);
+extern int go_outputs_options(const void* ptr, void** out);
+extern int go_outputs_option(const void* ptr, const void* id, void** out);
+extern int go_outputs_fee(const void* ptr, uint64_t* out);
+extern int go_outputs_reserved_fee(const void* ptr, uint64_t* out);
 extern size_t go_outputs_list_len(const void* ptr);
 extern int go_outputs_list_get(const void* ptr, size_t index, void** out);
 extern void go_outputs_list_free(void* ptr);
@@ -468,6 +492,388 @@ extern size_t go_catalog_registry_actual_neighbors_result_list_len(const void* p
 extern int go_catalog_registry_actual_neighbors_result_list_get(const void* ptr, size_t index, void** out);
 extern void go_catalog_registry_actual_neighbors_result_list_free(void* ptr);
 
+// Reveals
+extern void go_reveals_free(void* ptr);
+extern int go_reveals_clone(const void* ptr, void** out);
+extern int go_reveals_new(const void* clvm, void** out);
+extern int go_reveals_from_coin_spends(const void* clvm, const void** coin_spends_ptrs, size_t coin_spends_len, void** out);
+extern int go_reveals_reveal_coin_spend(const void* ptr, const void* coin_spend);
+extern int go_reveals_reveal_clawback(const void* ptr, const void* clawback);
+extern int go_reveals_reveal_p_2_conditions_or_singleton(const void* ptr, const void* p2);
+extern int go_reveals_reveal_vault_nonce(const void* ptr, size_t nonce);
+extern size_t go_reveals_list_len(const void* ptr);
+extern int go_reveals_list_get(const void* ptr, size_t index, void** out);
+extern void go_reveals_list_free(void* ptr);
+extern int go_parse_vault_transaction(const void* clvm, const void* reveals, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void* delegated_spend, void** out);
+extern int go_calculate_vault_puzzle_message(const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, const uint8_t* vault_puzzle_hash_ptr, size_t vault_puzzle_hash_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_calculate_vault_coin_message(const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, const uint8_t* vault_coin_id_ptr, size_t vault_coin_id_len, const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, uint8_t** out_ptr, size_t* out_len);
+
+// VaultVersion
+extern int go_vault_version_to_int(const void* ptr, int* out);
+extern int go_vault_version_from_int(int value, void** out);
+extern void go_vault_version_free(void* ptr);
+extern int go_vault_recovery_delegated_puzzle_hash(const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint64_t recovery_timelock, const void* version, uint8_t** out_ptr, size_t* out_len);
+extern int go_calculate_vault_start_recovery_message(const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint64_t recovery_timelock, const uint8_t* vault_coin_id_ptr, size_t vault_coin_id_len, const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, const void* version, uint8_t** out_ptr, size_t* out_len);
+
+// P2ConditionsOrSingleton
+extern void go_p_2_conditions_or_singleton_free(void* ptr);
+extern int go_p_2_conditions_or_singleton_clone(const void* ptr, void** out);
+extern int go_p_2_conditions_or_singleton_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, size_t nonce, const uint8_t* fixed_conditions_hash_ptr, size_t fixed_conditions_hash_len, void** out);
+extern int go_p_2_conditions_or_singleton_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_conditions_or_singleton_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_p_2_conditions_or_singleton_get_nonce(const void* ptr, size_t* out);
+extern int go_p_2_conditions_or_singleton_set_nonce(void* ptr, size_t value);
+extern int go_p_2_conditions_or_singleton_get_fixed_conditions_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_conditions_or_singleton_set_fixed_conditions_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_p_2_conditions_or_singleton_list_len(const void* ptr);
+extern int go_p_2_conditions_or_singleton_list_get(const void* ptr, size_t index, void** out);
+extern void go_p_2_conditions_or_singleton_list_free(void* ptr);
+
+// VaultTransaction
+extern void go_vault_transaction_free(void* ptr);
+extern int go_vault_transaction_clone(const void* ptr, void** out);
+extern int go_vault_transaction_new(const void* vault_child, const void** drop_coins_ptrs, size_t drop_coins_len, const void** spends_ptrs, size_t spends_len, const void** issuances_ptrs, size_t issuances_len, const void** asserted_payments_ptrs, size_t asserted_payments_len, const void** received_payments_ptrs, size_t received_payments_len, const void** external_payments_ptrs, size_t external_payments_len, const void** asset_flows_ptrs, size_t asset_flows_len, const void* linked_offer, uint64_t reserved_fee, const uint8_t** p2_puzzle_hashes_ptrs, const size_t* p2_puzzle_hashes_lens, size_t p2_puzzle_hashes_count, const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, void** out);
+extern int go_vault_transaction_get_vault_child(const void* ptr, void** out);
+extern int go_vault_transaction_set_vault_child(void* ptr, const void* value);
+extern int go_vault_transaction_get_drop_coins(const void* ptr, void** out);
+extern int go_vault_transaction_set_drop_coins(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_spends(const void* ptr, void** out);
+extern int go_vault_transaction_set_spends(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_issuances(const void* ptr, void** out);
+extern int go_vault_transaction_set_issuances(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_asserted_payments(const void* ptr, void** out);
+extern int go_vault_transaction_set_asserted_payments(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_received_payments(const void* ptr, void** out);
+extern int go_vault_transaction_set_received_payments(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_external_payments(const void* ptr, void** out);
+extern int go_vault_transaction_set_external_payments(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_asset_flows(const void* ptr, void** out);
+extern int go_vault_transaction_set_asset_flows(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_vault_transaction_get_linked_offer(const void* ptr, void** out);
+extern int go_vault_transaction_set_linked_offer(void* ptr, const void* value);
+extern int go_vault_transaction_get_reserved_fee(const void* ptr, uint64_t* out);
+extern int go_vault_transaction_set_reserved_fee(void* ptr, uint64_t value);
+extern int go_vault_transaction_get_p_2_puzzle_hashes(const void* ptr, void** out);
+extern int go_vault_transaction_set_p_2_puzzle_hashes(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
+extern int go_vault_transaction_get_delegated_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_vault_transaction_set_delegated_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_vault_transaction_list_len(const void* ptr);
+extern int go_vault_transaction_list_get(const void* ptr, size_t index, void** out);
+extern void go_vault_transaction_list_free(void* ptr);
+
+// VaultOutput
+extern void go_vault_output_free(void* ptr);
+extern int go_vault_output_clone(const void* ptr, void** out);
+extern int go_vault_output_new(const uint8_t* custody_hash_ptr, size_t custody_hash_len, uint64_t amount, void** out);
+extern int go_vault_output_get_custody_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_vault_output_set_custody_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_vault_output_get_amount(const void* ptr, uint64_t* out);
+extern int go_vault_output_set_amount(void* ptr, uint64_t value);
+extern size_t go_vault_output_list_len(const void* ptr);
+extern int go_vault_output_list_get(const void* ptr, size_t index, void** out);
+extern void go_vault_output_list_free(void* ptr);
+
+// DropCoin
+extern void go_drop_coin_free(void* ptr);
+extern int go_drop_coin_clone(const void* ptr, void** out);
+extern int go_drop_coin_new(const uint8_t* puzzle_hash_ptr, size_t puzzle_hash_len, uint64_t amount, void** out);
+extern int go_drop_coin_get_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_drop_coin_set_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_drop_coin_get_amount(const void* ptr, uint64_t* out);
+extern int go_drop_coin_set_amount(void* ptr, uint64_t value);
+extern size_t go_drop_coin_list_len(const void* ptr);
+extern int go_drop_coin_list_get(const void* ptr, size_t index, void** out);
+extern void go_drop_coin_list_free(void* ptr);
+
+// VerifiedSpend
+extern void go_verified_spend_free(void* ptr);
+extern int go_verified_spend_clone(const void* ptr, void** out);
+extern int go_verified_spend_new(const void* asset, const void* clawback, const void* custody, const void** children_ptrs, size_t children_len, int revoked, void** out);
+extern int go_verified_spend_get_asset(const void* ptr, void** out);
+extern int go_verified_spend_set_asset(void* ptr, const void* value);
+extern int go_verified_spend_get_clawback(const void* ptr, void** out);
+extern int go_verified_spend_set_clawback(void* ptr, const void* value);
+extern int go_verified_spend_get_custody(const void* ptr, void** out);
+extern int go_verified_spend_set_custody(void* ptr, const void* value);
+extern int go_verified_spend_get_children(const void* ptr, void** out);
+extern int go_verified_spend_set_children(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_verified_spend_get_revoked(const void* ptr, int* out);
+extern int go_verified_spend_set_revoked(void* ptr, int value);
+extern size_t go_verified_spend_list_len(const void* ptr);
+extern int go_verified_spend_list_get(const void* ptr, size_t index, void** out);
+extern void go_verified_spend_list_free(void* ptr);
+
+// ParsedAsset
+extern void go_parsed_asset_free(void* ptr);
+extern int go_parsed_asset_clone(const void* ptr, void** out);
+extern int go_parsed_asset_coin(const void* ptr, void** out);
+extern int go_parsed_asset_as_xch(const void* ptr, void** out);
+extern int go_parsed_asset_as_cat(const void* ptr, void** out);
+extern int go_parsed_asset_as_nft(const void* ptr, void** out);
+extern int go_parsed_asset_as_bulletin(const void* ptr, void** out);
+extern size_t go_parsed_asset_list_len(const void* ptr);
+extern int go_parsed_asset_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_asset_list_free(void* ptr);
+
+// ClawbackInfo
+extern void go_clawback_info_free(void* ptr);
+extern int go_clawback_info_clone(const void* ptr, void** out);
+extern int go_clawback_info_new(const void* clawback, const void* path, void** out);
+extern int go_clawback_info_get_clawback(const void* ptr, void** out);
+extern int go_clawback_info_set_clawback(void* ptr, const void* value);
+extern int go_clawback_info_get_path(const void* ptr, void** out);
+extern int go_clawback_info_set_path(void* ptr, const void* value);
+extern size_t go_clawback_info_list_len(const void* ptr);
+extern int go_clawback_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_clawback_info_list_free(void* ptr);
+
+// ClawbackPath
+extern int go_clawback_path_to_int(const void* ptr, int* out);
+extern int go_clawback_path_from_int(int value, void** out);
+extern void go_clawback_path_free(void* ptr);
+
+// CustodyInfo
+extern void go_custody_info_free(void* ptr);
+extern int go_custody_info_clone(const void* ptr, void** out);
+extern int go_custody_info_as_p_2_singleton(const void* ptr, void** out);
+extern int go_custody_info_as_delegated_conditions(const void* ptr, void** out);
+extern int go_custody_info_as_p_2_conditions_or_singleton(const void* ptr, void** out);
+extern size_t go_custody_info_list_len(const void* ptr);
+extern int go_custody_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_custody_info_list_free(void* ptr);
+
+// P2SingletonInfo
+extern void go_p_2_singleton_info_free(void* ptr);
+extern int go_p_2_singleton_info_clone(const void* ptr, void** out);
+extern int go_p_2_singleton_info_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, size_t nonce, const void** conditions_ptrs, size_t conditions_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, void** out);
+extern int go_p_2_singleton_info_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_singleton_info_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_p_2_singleton_info_get_nonce(const void* ptr, size_t* out);
+extern int go_p_2_singleton_info_set_nonce(void* ptr, size_t value);
+extern int go_p_2_singleton_info_get_conditions(const void* ptr, void** out);
+extern int go_p_2_singleton_info_set_conditions(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_p_2_singleton_info_get_p_2_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_singleton_info_set_p_2_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_p_2_singleton_info_list_len(const void* ptr);
+extern int go_p_2_singleton_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_p_2_singleton_info_list_free(void* ptr);
+
+// P2ConditionsOrSingletonInfo
+extern void go_p_2_conditions_or_singleton_info_free(void* ptr);
+extern int go_p_2_conditions_or_singleton_info_clone(const void* ptr, void** out);
+extern int go_p_2_conditions_or_singleton_info_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, size_t nonce, const void** conditions_ptrs, size_t conditions_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, void** out);
+extern int go_p_2_conditions_or_singleton_info_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_conditions_or_singleton_info_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_p_2_conditions_or_singleton_info_get_nonce(const void* ptr, size_t* out);
+extern int go_p_2_conditions_or_singleton_info_set_nonce(void* ptr, size_t value);
+extern int go_p_2_conditions_or_singleton_info_get_conditions(const void* ptr, void** out);
+extern int go_p_2_conditions_or_singleton_info_set_conditions(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_p_2_conditions_or_singleton_info_get_p_2_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_p_2_conditions_or_singleton_info_set_p_2_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_p_2_conditions_or_singleton_info_list_len(const void* ptr);
+extern int go_p_2_conditions_or_singleton_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_p_2_conditions_or_singleton_info_list_free(void* ptr);
+
+// ParsedChild
+extern void go_parsed_child_free(void* ptr);
+extern int go_parsed_child_clone(const void* ptr, void** out);
+extern int go_parsed_child_new(const void* asset, const void* memos, const void* transfer_type, void** out);
+extern int go_parsed_child_get_asset(const void* ptr, void** out);
+extern int go_parsed_child_set_asset(void* ptr, const void* value);
+extern int go_parsed_child_get_memos(const void* ptr, void** out);
+extern int go_parsed_child_set_memos(void* ptr, const void* value);
+extern int go_parsed_child_get_transfer_type(const void* ptr, void** out);
+extern int go_parsed_child_set_transfer_type(void* ptr, const void* value);
+extern size_t go_parsed_child_list_len(const void* ptr);
+extern int go_parsed_child_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_child_list_free(void* ptr);
+
+// ParsedMemos
+extern void go_parsed_memos_free(void* ptr);
+extern int go_parsed_memos_clone(const void* ptr, void** out);
+extern int go_parsed_memos_new(const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, const void* clawback, const char** human_readable_memos_ptrs, const size_t* human_readable_memos_lens, size_t human_readable_memos_count, const void** fixed_conditions_ptrs, size_t fixed_conditions_len, void** out);
+extern int go_parsed_memos_get_p_2_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_parsed_memos_set_p_2_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_parsed_memos_get_clawback(const void* ptr, void** out);
+extern int go_parsed_memos_set_clawback(void* ptr, const void* value);
+extern int go_parsed_memos_get_human_readable_memos(const void* ptr, void** out);
+extern int go_parsed_memos_set_human_readable_memos(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
+extern int go_parsed_memos_get_fixed_conditions(const void* ptr, void** out);
+extern int go_parsed_memos_set_fixed_conditions(void* ptr, const void** value_ptrs, size_t value_len);
+extern size_t go_parsed_memos_list_len(const void* ptr);
+extern int go_parsed_memos_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_memos_list_free(void* ptr);
+
+// TransferType
+extern void go_transfer_type_free(void* ptr);
+extern int go_transfer_type_clone(const void* ptr, void** out);
+extern int go_transfer_type_is_sent(const void* ptr, int* out);
+extern int go_transfer_type_is_burned(const void* ptr, int* out);
+extern int go_transfer_type_is_offered(const void* ptr, int* out);
+extern int go_transfer_type_as_offer_pre_split(const void* ptr, void** out);
+extern size_t go_transfer_type_list_len(const void* ptr);
+extern int go_transfer_type_list_get(const void* ptr, size_t index, void** out);
+extern void go_transfer_type_list_free(void* ptr);
+
+// OfferPreSplitInfo
+extern void go_offer_pre_split_info_free(void* ptr);
+extern int go_offer_pre_split_info_clone(const void* ptr, void** out);
+extern int go_offer_pre_split_info_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, size_t nonce, const void** fixed_conditions_ptrs, size_t fixed_conditions_len, uint64_t settlement_amount, void** out);
+extern int go_offer_pre_split_info_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_offer_pre_split_info_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_offer_pre_split_info_get_nonce(const void* ptr, size_t* out);
+extern int go_offer_pre_split_info_set_nonce(void* ptr, size_t value);
+extern int go_offer_pre_split_info_get_fixed_conditions(const void* ptr, void** out);
+extern int go_offer_pre_split_info_set_fixed_conditions(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_offer_pre_split_info_get_settlement_amount(const void* ptr, uint64_t* out);
+extern int go_offer_pre_split_info_set_settlement_amount(void* ptr, uint64_t value);
+extern size_t go_offer_pre_split_info_list_len(const void* ptr);
+extern int go_offer_pre_split_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_offer_pre_split_info_list_free(void* ptr);
+
+// Issuance
+extern void go_issuance_free(void* ptr);
+extern int go_issuance_clone(const void* ptr, void** out);
+extern int go_issuance_new(const uint8_t* coin_id_ptr, size_t coin_id_len, const uint8_t* asset_id_ptr, size_t asset_id_len, int64_t extra_delta, const void* kind, void** out);
+extern int go_issuance_get_coin_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_issuance_set_coin_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_issuance_get_asset_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_issuance_set_asset_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_issuance_get_extra_delta(const void* ptr, int64_t* out);
+extern int go_issuance_set_extra_delta(void* ptr, int64_t value);
+extern int go_issuance_get_kind(const void* ptr, void** out);
+extern int go_issuance_set_kind(void* ptr, const void* value);
+extern size_t go_issuance_list_len(const void* ptr);
+extern int go_issuance_list_get(const void* ptr, size_t index, void** out);
+extern void go_issuance_list_free(void* ptr);
+
+// IssuanceKind
+extern void go_issuance_kind_free(void* ptr);
+extern int go_issuance_kind_clone(const void* ptr, void** out);
+extern int go_issuance_kind_as_everything_with_singleton(const void* ptr, void** out);
+extern int go_issuance_kind_is_unknown(const void* ptr, int* out);
+extern size_t go_issuance_kind_list_len(const void* ptr);
+extern int go_issuance_kind_list_get(const void* ptr, size_t index, void** out);
+extern void go_issuance_kind_list_free(void* ptr);
+
+// EverythingWithSingletonIssuance
+extern void go_everything_with_singleton_issuance_free(void* ptr);
+extern int go_everything_with_singleton_issuance_clone(const void* ptr, void** out);
+extern int go_everything_with_singleton_issuance_new(const uint8_t* singleton_struct_hash_ptr, size_t singleton_struct_hash_len, const uint8_t* nonce_ptr, size_t nonce_len, void** out);
+extern int go_everything_with_singleton_issuance_get_singleton_struct_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_everything_with_singleton_issuance_set_singleton_struct_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_everything_with_singleton_issuance_get_nonce(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_everything_with_singleton_issuance_set_nonce(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_everything_with_singleton_issuance_list_len(const void* ptr);
+extern int go_everything_with_singleton_issuance_list_get(const void* ptr, size_t index, void** out);
+extern void go_everything_with_singleton_issuance_list_free(void* ptr);
+
+// ClearSigningAsset
+extern void go_clear_signing_asset_free(void* ptr);
+extern int go_clear_signing_asset_clone(const void* ptr, void** out);
+extern int go_clear_signing_asset_is_xch(const void* ptr, int* out);
+extern int go_clear_signing_asset_as_cat(const void* ptr, void** out);
+extern int go_clear_signing_asset_as_nft(const void* ptr, void** out);
+extern size_t go_clear_signing_asset_list_len(const void* ptr);
+extern int go_clear_signing_asset_list_get(const void* ptr, size_t index, void** out);
+extern void go_clear_signing_asset_list_free(void* ptr);
+
+// ClearSigningCat
+extern void go_clear_signing_cat_free(void* ptr);
+extern int go_clear_signing_cat_clone(const void* ptr, void** out);
+extern int go_clear_signing_cat_new(const uint8_t* asset_id_ptr, size_t asset_id_len, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, void** out);
+extern int go_clear_signing_cat_get_asset_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_clear_signing_cat_set_asset_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_clear_signing_cat_get_hidden_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_clear_signing_cat_set_hidden_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_clear_signing_cat_list_len(const void* ptr);
+extern int go_clear_signing_cat_list_get(const void* ptr, size_t index, void** out);
+extern void go_clear_signing_cat_list_free(void* ptr);
+
+// ClearSigningNft
+extern void go_clear_signing_nft_free(void* ptr);
+extern int go_clear_signing_nft_clone(const void* ptr, void** out);
+extern int go_clear_signing_nft_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void* metadata, const uint8_t* metadata_updater_puzzle_hash_ptr, size_t metadata_updater_puzzle_hash_len, const uint8_t* royalty_puzzle_hash_ptr, size_t royalty_puzzle_hash_len, uint16_t royalty_basis_points, void** out);
+extern int go_clear_signing_nft_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_clear_signing_nft_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_clear_signing_nft_get_metadata(const void* ptr, void** out);
+extern int go_clear_signing_nft_set_metadata(void* ptr, const void* value);
+extern int go_clear_signing_nft_get_metadata_updater_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_clear_signing_nft_set_metadata_updater_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_clear_signing_nft_get_royalty_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_clear_signing_nft_set_royalty_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_clear_signing_nft_get_royalty_basis_points(const void* ptr, uint16_t* out);
+extern int go_clear_signing_nft_set_royalty_basis_points(void* ptr, uint16_t value);
+extern size_t go_clear_signing_nft_list_len(const void* ptr);
+extern int go_clear_signing_nft_list_get(const void* ptr, size_t index, void** out);
+extern void go_clear_signing_nft_list_free(void* ptr);
+
+// AssertedNotarizedPayment
+extern void go_asserted_notarized_payment_free(void* ptr);
+extern int go_asserted_notarized_payment_clone(const void* ptr, void** out);
+extern int go_asserted_notarized_payment_new(const void* asset, const void* notarized_payment, void** out);
+extern int go_asserted_notarized_payment_get_asset(const void* ptr, void** out);
+extern int go_asserted_notarized_payment_set_asset(void* ptr, const void* value);
+extern int go_asserted_notarized_payment_get_notarized_payment(const void* ptr, void** out);
+extern int go_asserted_notarized_payment_set_notarized_payment(void* ptr, const void* value);
+extern size_t go_asserted_notarized_payment_list_len(const void* ptr);
+extern int go_asserted_notarized_payment_list_get(const void* ptr, size_t index, void** out);
+extern void go_asserted_notarized_payment_list_free(void* ptr);
+
+// AssertedPayment
+extern void go_asserted_payment_free(void* ptr);
+extern int go_asserted_payment_clone(const void* ptr, void** out);
+extern int go_asserted_payment_new(const void* asset, const uint8_t* nonce_ptr, size_t nonce_len, const void* payment, uint16_t royalty_basis_points, int royalty_basis_points_is_some, void** out);
+extern int go_asserted_payment_get_asset(const void* ptr, void** out);
+extern int go_asserted_payment_set_asset(void* ptr, const void* value);
+extern int go_asserted_payment_get_nonce(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asserted_payment_set_nonce(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asserted_payment_get_payment(const void* ptr, void** out);
+extern int go_asserted_payment_set_payment(void* ptr, const void* value);
+extern int go_asserted_payment_get_royalty_basis_points(const void* ptr, uint16_t* out, int* out_is_some);
+extern int go_asserted_payment_set_royalty_basis_points(void* ptr, uint16_t value, int value_is_some);
+extern size_t go_asserted_payment_list_len(const void* ptr);
+extern int go_asserted_payment_list_get(const void* ptr, size_t index, void** out);
+extern void go_asserted_payment_list_free(void* ptr);
+
+// AssetFlow
+extern void go_asset_flow_free(void* ptr);
+extern int go_asset_flow_clone(const void* ptr, void** out);
+extern int go_asset_flow_new(const void* asset, const uint8_t* input_amount_ptr, size_t input_amount_len, const uint8_t* output_amount_ptr, size_t output_amount_len, const uint8_t* issued_amount_ptr, size_t issued_amount_len, const uint8_t* melted_amount_ptr, size_t melted_amount_len, const uint8_t* received_amount_ptr, size_t received_amount_len, const uint8_t* paid_amount_ptr, size_t paid_amount_len, const uint8_t* unaccounted_amount_ptr, size_t unaccounted_amount_len, void** out);
+extern int go_asset_flow_get_asset(const void* ptr, void** out);
+extern int go_asset_flow_set_asset(void* ptr, const void* value);
+extern int go_asset_flow_get_input_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_input_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_output_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_output_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_issued_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_issued_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_melted_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_melted_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_received_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_received_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_paid_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_paid_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_asset_flow_get_unaccounted_amount(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_flow_set_unaccounted_amount(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern size_t go_asset_flow_list_len(const void* ptr);
+extern int go_asset_flow_list_get(const void* ptr, size_t index, void** out);
+extern void go_asset_flow_list_free(void* ptr);
+
+// LinkedOffer
+extern void go_linked_offer_free(void* ptr);
+extern int go_linked_offer_clone(const void* ptr, void** out);
+extern int go_linked_offer_new(uint64_t reserved_fee, const void** received_payments_ptrs, size_t received_payments_len, const void** external_payments_ptrs, size_t external_payments_len, void** out);
+extern int go_linked_offer_get_reserved_fee(const void* ptr, uint64_t* out);
+extern int go_linked_offer_set_reserved_fee(void* ptr, uint64_t value);
+extern int go_linked_offer_get_received_payments(const void* ptr, void** out);
+extern int go_linked_offer_set_received_payments(void* ptr, const void** value_ptrs, size_t value_len);
+extern int go_linked_offer_get_external_payments(const void* ptr, void** out);
+extern int go_linked_offer_set_external_payments(void* ptr, const void** value_ptrs, size_t value_len);
+extern size_t go_linked_offer_list_len(const void* ptr);
+extern int go_linked_offer_list_get(const void* ptr, size_t index, void** out);
+extern void go_linked_offer_list_free(void* ptr);
+
 // Clvm
 extern void go_clvm_free(void* ptr);
 extern int go_clvm_clone(const void* ptr, void** out);
@@ -660,6 +1066,7 @@ extern int go_clvm_k_1_member_puzzle_assert(const void* ptr, void** out);
 extern int go_clvm_k_1_member(const void* ptr, void** out);
 extern int go_clvm_passkey_member_puzzle_assert(const void* ptr, void** out);
 extern int go_clvm_passkey_member(const void* ptr, void** out);
+extern int go_clvm_eip_712_member(const void* ptr, void** out);
 extern int go_clvm_r_1_member_puzzle_assert(const void* ptr, void** out);
 extern int go_clvm_r_1_member(const void* ptr, void** out);
 extern int go_clvm_singleton_member(const void* ptr, void** out);
@@ -1453,6 +1860,8 @@ extern int go_constants_passkey_member_puzzle_assert(uint8_t** out_ptr, size_t* 
 extern int go_constants_passkey_member_puzzle_assert_hash(uint8_t** out_ptr, size_t* out_len);
 extern int go_constants_passkey_member(uint8_t** out_ptr, size_t* out_len);
 extern int go_constants_passkey_member_hash(uint8_t** out_ptr, size_t* out_len);
+extern int go_constants_eip_712_member(uint8_t** out_ptr, size_t* out_len);
+extern int go_constants_eip_712_member_hash(uint8_t** out_ptr, size_t* out_len);
 extern int go_constants_r_1_member_puzzle_assert(uint8_t** out_ptr, size_t* out_len);
 extern int go_constants_r_1_member_puzzle_assert_hash(uint8_t** out_ptr, size_t* out_len);
 extern int go_constants_r_1_member(uint8_t** out_ptr, size_t* out_len);
@@ -1496,6 +1905,11 @@ extern int go_constants_state_scheduler_puzzle_hash(uint8_t** out_ptr, size_t* o
 extern size_t go_constants_list_len(const void* ptr);
 extern int go_constants_list_get(const void* ptr, size_t index, void** out);
 extern void go_constants_list_free(void* ptr);
+extern int go_eip_712_type_hash(uint8_t** out_ptr, size_t* out_len);
+extern int go_eip_712_domain_separator(const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_eip_712_prefix_and_domain_separator(const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_eip_712_hash_to_sign(const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, const uint8_t* coin_id_ptr, size_t coin_id_len, const uint8_t* delegated_puzzle_hash_ptr, size_t delegated_puzzle_hash_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_eip_712_member_inner_puzzle_hash(const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, const void* public_key, uint8_t** out_ptr, size_t* out_len);
 
 // FullNodeSimulator
 extern void go_full_node_simulator_free(void* ptr);
@@ -1657,6 +2071,7 @@ extern int go_bls_member_hash(const void* config, const void* public_key, int fa
 extern int go_passkey_member_hash(const void* config, const void* public_key, int fast_forward, uint8_t** out_ptr, size_t* out_len);
 extern int go_singleton_member_hash(const void* config, const uint8_t* launcher_id_ptr, size_t launcher_id_len, int fast_forward, uint8_t** out_ptr, size_t* out_len);
 extern int go_fixed_member_hash(const void* config, const uint8_t* fixed_puzzle_hash_ptr, size_t fixed_puzzle_hash_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_eip_712_member_hash(const void* config, const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, const void* public_key, uint8_t** out_ptr, size_t* out_len);
 extern int go_custom_member_hash(const void* config, const uint8_t* inner_hash_ptr, size_t inner_hash_len, uint8_t** out_ptr, size_t* out_len);
 
 // Restriction
@@ -1688,6 +2103,7 @@ extern int go_mips_spend_spend(const void* ptr, const uint8_t* custody_hash_ptr,
 extern int go_mips_spend_spend_vault(const void* ptr, const void* vault);
 extern int go_mips_spend_m_of_n(const void* ptr, const void* config, uint32_t required, const uint8_t** items_ptrs, const size_t* items_lens, size_t items_count);
 extern int go_mips_spend_k_1_member(const void* ptr, const void* config, const void* public_key, const void* signature, int fast_forward);
+extern int go_mips_spend_eip_712_member(const void* ptr, const void* config, const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len, const void* public_key, const uint8_t* signed_hash_ptr, size_t signed_hash_len, const void* signature);
 extern int go_mips_spend_r_1_member(const void* ptr, const void* config, const void* public_key, const void* signature, int fast_forward);
 extern int go_mips_spend_bls_member(const void* ptr, const void* config, const void* public_key, int fast_forward);
 extern int go_mips_spend_passkey_member(const void* ptr, const void* config, const void* public_key, const void* signature, const uint8_t* authenticator_data_ptr, size_t authenticator_data_len, const uint8_t* client_data_json_ptr, size_t client_data_json_len, uint32_t challenge_index, int fast_forward);
@@ -1753,7 +2169,7 @@ extern int go_restriction_memo_get_puzzle_hash(const void* ptr, uint8_t** out_pt
 extern int go_restriction_memo_set_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_restriction_memo_get_memo(const void* ptr, void** out);
 extern int go_restriction_memo_set_memo(void* ptr, const void* value);
-extern int go_restriction_memo_force_1_of_2_restricted_variable(const void* clvm, const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint32_t nonce, const uint8_t* member_validator_list_hash_ptr, size_t member_validator_list_hash_len, const uint8_t* delegated_puzzle_validator_list_hash_ptr, size_t delegated_puzzle_validator_list_hash_len, void** out);
+extern int go_restriction_memo_parse(const void* ptr, const void* ctx, void** out);
 extern int go_restriction_memo_enforce_delegated_puzzle_wrappers(const void* clvm, const void** wrapper_memos_ptrs, size_t wrapper_memos_len, void** out);
 extern int go_restriction_memo_timelock(const void* clvm, uint64_t seconds, int reveal, void** out);
 extern size_t go_restriction_memo_list_len(const void* ptr);
@@ -1768,6 +2184,8 @@ extern int go_wrapper_memo_get_puzzle_hash(const void* ptr, uint8_t** out_ptr, s
 extern int go_wrapper_memo_set_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_wrapper_memo_get_memo(const void* ptr, void** out);
 extern int go_wrapper_memo_set_memo(void* ptr, const void* value);
+extern int go_wrapper_memo_parse(const void* ptr, const void* ctx, void** out);
+extern int go_wrapper_memo_force_1_of_2_restricted_variable(const void* clvm, const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint32_t nonce, const void** restrictions_ptrs, size_t restrictions_len, void** out);
 extern int go_wrapper_memo_prevent_vault_side_effects(const void* clvm, int reveal, void** out);
 extern int go_wrapper_memo_force_coin_announcement(const void* clvm, void** out);
 extern int go_wrapper_memo_force_coin_message(const void* clvm, void** out);
@@ -1782,15 +2200,13 @@ extern void go_wrapper_memo_list_free(void* ptr);
 // Force1of2RestrictedVariableMemo
 extern void go_force_1_of_2_restricted_variable_memo_free(void* ptr);
 extern int go_force_1_of_2_restricted_variable_memo_clone(const void* ptr, void** out);
-extern int go_force_1_of_2_restricted_variable_memo_new(const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint32_t nonce, const uint8_t* member_validator_list_hash_ptr, size_t member_validator_list_hash_len, const uint8_t* delegated_puzzle_validator_list_hash_ptr, size_t delegated_puzzle_validator_list_hash_len, void** out);
+extern int go_force_1_of_2_restricted_variable_memo_new(const uint8_t* left_side_subtree_hash_ptr, size_t left_side_subtree_hash_len, uint32_t nonce, const void** restrictions_ptrs, size_t restrictions_len, void** out);
 extern int go_force_1_of_2_restricted_variable_memo_get_left_side_subtree_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_force_1_of_2_restricted_variable_memo_set_left_side_subtree_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_force_1_of_2_restricted_variable_memo_get_nonce(const void* ptr, uint32_t* out);
 extern int go_force_1_of_2_restricted_variable_memo_set_nonce(void* ptr, uint32_t value);
-extern int go_force_1_of_2_restricted_variable_memo_get_member_validator_list_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
-extern int go_force_1_of_2_restricted_variable_memo_set_member_validator_list_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
-extern int go_force_1_of_2_restricted_variable_memo_get_delegated_puzzle_validator_list_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
-extern int go_force_1_of_2_restricted_variable_memo_set_delegated_puzzle_validator_list_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_force_1_of_2_restricted_variable_memo_get_restrictions(const void* ptr, void** out);
+extern int go_force_1_of_2_restricted_variable_memo_set_restrictions(void* ptr, const void** value_ptrs, size_t value_len);
 extern size_t go_force_1_of_2_restricted_variable_memo_list_len(const void* ptr);
 extern int go_force_1_of_2_restricted_variable_memo_list_get(const void* ptr, size_t index, void** out);
 extern void go_force_1_of_2_restricted_variable_memo_list_free(void* ptr);
@@ -1815,6 +2231,7 @@ extern int go_member_memo_get_puzzle_hash(const void* ptr, uint8_t** out_ptr, si
 extern int go_member_memo_set_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_member_memo_get_memo(const void* ptr, void** out);
 extern int go_member_memo_set_memo(void* ptr, const void* value);
+extern int go_member_memo_parse(const void* ptr, const void* ctx, void** out);
 extern int go_member_memo_k_1(const void* clvm, const void* public_key, int fast_forward, int reveal, void** out);
 extern int go_member_memo_r_1(const void* clvm, const void* public_key, int fast_forward, int reveal, void** out);
 extern int go_member_memo_bls(const void* clvm, const void* public_key, int fast_forward, int taproot, int reveal, void** out);
@@ -1853,6 +2270,47 @@ extern size_t go_mips_memo_context_list_len(const void* ptr);
 extern int go_mips_memo_context_list_get(const void* ptr, size_t index, void** out);
 extern void go_mips_memo_context_list_free(void* ptr);
 extern int go_force_singleton_recreation_restriction(void** out);
+
+// ParsedMember
+extern void go_parsed_member_free(void* ptr);
+extern int go_parsed_member_clone(const void* ptr, void** out);
+extern int go_parsed_member_as_k_1(const void* ptr, void** out);
+extern int go_parsed_member_as_r_1(const void* ptr, void** out);
+extern int go_parsed_member_as_bls(const void* ptr, void** out);
+extern int go_parsed_member_as_bls_taproot(const void* ptr, void** out);
+extern int go_parsed_member_as_passkey(const void* ptr, void** out);
+extern int go_parsed_member_as_singleton(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_parsed_member_singleton_mode(const void* ptr, uint8_t* out, int* out_is_some);
+extern int go_parsed_member_as_fixed_puzzle(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_parsed_member_as_custom(const void* ptr, void** out);
+extern int go_parsed_member_fast_forward(const void* ptr, int* out);
+extern size_t go_parsed_member_list_len(const void* ptr);
+extern int go_parsed_member_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_member_list_free(void* ptr);
+
+// ParsedRestriction
+extern void go_parsed_restriction_free(void* ptr);
+extern int go_parsed_restriction_clone(const void* ptr, void** out);
+extern int go_parsed_restriction_as_force_1_of_2_restricted_variable(const void* ptr, void** out);
+extern int go_parsed_restriction_as_enforce_delegated_puzzle_wrappers(const void* ptr, void** out);
+extern int go_parsed_restriction_as_timelock(const void* ptr, uint64_t* out, int* out_is_some);
+extern size_t go_parsed_restriction_list_len(const void* ptr);
+extern int go_parsed_restriction_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_restriction_list_free(void* ptr);
+
+// ParsedWrapper
+extern void go_parsed_wrapper_free(void* ptr);
+extern int go_parsed_wrapper_clone(const void* ptr, void** out);
+extern int go_parsed_wrapper_is_force_coin_announcement(const void* ptr, int* out);
+extern int go_parsed_wrapper_is_force_coin_message(const void* ptr, int* out);
+extern int go_parsed_wrapper_is_force_singleton_recreation(const void* ptr, int* out);
+extern int go_parsed_wrapper_as_prevent_condition_opcode(const void* ptr, uint16_t* out, int* out_is_some);
+extern int go_parsed_wrapper_is_prevent_multiple_create_coins(const void* ptr, int* out);
+extern int go_parsed_wrapper_as_timelock(const void* ptr, uint64_t* out, int* out_is_some);
+extern int go_parsed_wrapper_as_force_1_of_2_restricted_variable(const void* ptr, void** out);
+extern size_t go_parsed_wrapper_list_len(const void* ptr);
+extern int go_parsed_wrapper_list_get(const void* ptr, size_t index, void** out);
+extern void go_parsed_wrapper_list_free(void* ptr);
 
 // Mnemonic
 extern void go_mnemonic_free(void* ptr);
@@ -1895,6 +2353,95 @@ extern int go_payment_set_memos(void* ptr, const void* value);
 extern size_t go_payment_list_len(const void* ptr);
 extern int go_payment_list_get(const void* ptr, size_t index, void** out);
 extern void go_payment_list_free(void* ptr);
+
+// RoyaltyInfo
+extern void go_royalty_info_free(void* ptr);
+extern int go_royalty_info_clone(const void* ptr, void** out);
+extern int go_royalty_info_new(const uint8_t* launcher_id_ptr, size_t launcher_id_len, const uint8_t* puzzle_hash_ptr, size_t puzzle_hash_len, uint16_t basis_points, void** out);
+extern int go_royalty_info_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_royalty_info_set_launcher_id(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_royalty_info_get_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_royalty_info_set_puzzle_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
+extern int go_royalty_info_get_basis_points(const void* ptr, uint16_t* out);
+extern int go_royalty_info_set_basis_points(void* ptr, uint16_t value);
+extern size_t go_royalty_info_list_len(const void* ptr);
+extern int go_royalty_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_royalty_info_list_free(void* ptr);
+
+// RequestedPayments
+extern void go_requested_payments_free(void* ptr);
+extern int go_requested_payments_clone(const void* ptr, void** out);
+extern int go_requested_payments_new(const void* clvm, void** out);
+extern int go_requested_payments_add_xch(const void* ptr, const void* notarized_payment);
+extern int go_requested_payments_add_cat(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, const void* notarized_payment);
+extern int go_requested_payments_add_nft(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void* notarized_payment);
+extern int go_requested_payments_add_option(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void* notarized_payment);
+extern int go_requested_payments_xch(const void* ptr, void** out);
+extern int go_requested_payments_cat_asset_ids(const void* ptr, void** out);
+extern int go_requested_payments_cats(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, void** out);
+extern int go_requested_payments_nft_launcher_ids(const void* ptr, void** out);
+extern int go_requested_payments_nfts(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, void** out);
+extern int go_requested_payments_option_launcher_ids(const void* ptr, void** out);
+extern int go_requested_payments_options(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, void** out);
+extern int go_requested_payments_amounts(const void* ptr, void** out);
+extern int go_requested_payments_actions(const void* ptr, void** out);
+extern int go_requested_payments_assertions(const void* ptr, const void* asset_info, void** out);
+extern size_t go_requested_payments_list_len(const void* ptr);
+extern int go_requested_payments_list_get(const void* ptr, size_t index, void** out);
+extern void go_requested_payments_list_free(void* ptr);
+
+// AssetInfo
+extern void go_asset_info_free(void* ptr);
+extern int go_asset_info_clone(const void* ptr, void** out);
+extern int go_asset_info_new(const void* clvm, void** out);
+extern int go_asset_info_insert_cat(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len);
+extern int go_asset_info_insert_nft(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void* metadata, const uint8_t* metadata_updater_puzzle_hash_ptr, size_t metadata_updater_puzzle_hash_len, const uint8_t* royalty_puzzle_hash_ptr, size_t royalty_puzzle_hash_len, uint16_t royalty_basis_points);
+extern int go_asset_info_insert_option(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const uint8_t* underlying_coin_id_ptr, size_t underlying_coin_id_len, const uint8_t* underlying_delegated_puzzle_hash_ptr, size_t underlying_delegated_puzzle_hash_len);
+extern int go_asset_info_cat_asset_ids(const void* ptr, void** out);
+extern int go_asset_info_cat_hidden_puzzle_hash(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_asset_info_nft_launcher_ids(const void* ptr, void** out);
+extern int go_asset_info_nft_royalty(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, void** out);
+extern size_t go_asset_info_list_len(const void* ptr);
+extern int go_asset_info_list_get(const void* ptr, size_t index, void** out);
+extern void go_asset_info_list_free(void* ptr);
+
+// OfferAmounts
+extern void go_offer_amounts_free(void* ptr);
+extern int go_offer_amounts_clone(const void* ptr, void** out);
+extern int go_offer_amounts_new(void** out);
+extern int go_offer_amounts_xch(const void* ptr, uint8_t** out_ptr, size_t* out_len);
+extern int go_offer_amounts_set_xch(const void* ptr, const uint8_t* amount_ptr, size_t amount_len);
+extern int go_offer_amounts_asset_ids(const void* ptr, void** out);
+extern int go_offer_amounts_cat(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, uint8_t** out_ptr, size_t* out_len);
+extern int go_offer_amounts_set_cat(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, const uint8_t* amount_ptr, size_t amount_len);
+extern size_t go_offer_amounts_list_len(const void* ptr);
+extern int go_offer_amounts_list_get(const void* ptr, size_t index, void** out);
+extern void go_offer_amounts_list_free(void* ptr);
+
+// Offer
+extern void go_offer_free(void* ptr);
+extern int go_offer_clone(const void* ptr, void** out);
+extern int go_offer_from_input_spend_bundle(const void* clvm, const void* spend_bundle, const void* requested_payments, const void* asset_info, void** out);
+extern int go_offer_from_spend_bundle(const void* clvm, const void* spend_bundle, void** out);
+extern int go_offer_to_spend_bundle(const void* ptr, void** out);
+extern int go_offer_take(const void* ptr, const void* spend_bundle, void** out);
+extern int go_offer_nonce(const uint8_t** coin_ids_ptrs, const size_t* coin_ids_lens, size_t coin_ids_count, uint8_t** out_ptr, size_t* out_len);
+extern int go_offer_requested_payments(const void* ptr, void** out);
+extern int go_offer_asset_info(const void* ptr, void** out);
+extern int go_offer_offered_amounts(const void* ptr, void** out);
+extern int go_offer_offered_xch(const void* ptr, void** out);
+extern int go_offer_offered_cats(const void* ptr, const uint8_t* asset_id_ptr, size_t asset_id_len, void** out);
+extern int go_offer_offered_nft_launcher_ids(const void* ptr, void** out);
+extern int go_offer_offered_royalties(const void* ptr, void** out);
+extern int go_offer_requested_royalties(const void* ptr, void** out);
+extern int go_offer_offered_royalty_amounts(const void* ptr, void** out);
+extern int go_offer_requested_royalty_amounts(const void* ptr, void** out);
+extern size_t go_offer_list_len(const void* ptr);
+extern int go_offer_list_get(const void* ptr, size_t index, void** out);
+extern void go_offer_list_free(void* ptr);
+extern int go_calculate_trade_price_amounts(const void* amounts, uint32_t royalty_nft_count, void** out);
+extern int go_calculate_trade_prices(const void* trade_price_amounts, const void* asset_info, void** out);
+extern int go_calculate_royalty_payments(const void* clvm, const void* trade_prices, const void** royalties_ptrs, size_t royalties_len, void** out);
 
 // Certificate
 extern void go_certificate_free(void* ptr);
@@ -2065,7 +2612,7 @@ extern int go_program_length(const void* ptr, uint32_t* out);
 extern int go_program_first(const void* ptr, void** out);
 extern int go_program_rest(const void* ptr, void** out);
 extern int go_program_to_int(const void* ptr, uint8_t** out_ptr, size_t* out_len);
-extern int go_program_to_bound_checked_number(const void* ptr, uint64_t* out, int* out_is_some);
+extern int go_program_to_bound_checked_number(const void* ptr, double* out, int* out_is_some);
 extern int go_program_to_string(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_program_to_bool(const void* ptr, int* out, int* out_is_some);
 extern int go_program_to_atom(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -2074,6 +2621,7 @@ extern int go_program_to_arg_list(const void* ptr, void** out);
 extern int go_program_to_pair(const void* ptr, void** out);
 extern int go_program_puzzle(const void* ptr, void** out);
 extern int go_program_parse_nft_metadata(const void* ptr, void** out);
+extern int go_program_parse_mips_memo(const void* ptr, void** out);
 extern int go_program_parse_remark(const void* ptr, void** out);
 extern int go_program_parse_agg_sig_parent(const void* ptr, void** out);
 extern int go_program_parse_agg_sig_puzzle(const void* ptr, void** out);
@@ -4943,8 +5491,6 @@ extern int go_xchandles_precommit_value_get_num_periods(const void* ptr, uint64_
 extern int go_xchandles_precommit_value_set_num_periods(void* ptr, uint64_t value);
 extern int go_xchandles_precommit_value_get_current_expiration(const void* ptr, uint64_t* out);
 extern int go_xchandles_precommit_value_set_current_expiration(void* ptr, uint64_t value);
-extern int go_xchandles_precommit_value_get_use_expire_pricing(const void* ptr, int* out);
-extern int go_xchandles_precommit_value_set_use_expire_pricing(void* ptr, int value);
 extern int go_xchandles_precommit_value_for_normal_registration(const char* handle, size_t handle_len, const uint8_t* secret_ptr, size_t secret_len, const uint8_t* owner_launcher_id_ptr, size_t owner_launcher_id_len, const uint8_t* resolved_launcher_id_ptr, size_t resolved_launcher_id_len, const uint8_t* payment_asset_id_ptr, size_t payment_asset_id_len, uint64_t base_price, uint64_t registration_period, uint64_t buy_time, uint64_t num_periods, void** out);
 extern int go_xchandles_precommit_value_for_expiry_pricing_registration(const char* handle, size_t handle_len, const uint8_t* secret_ptr, size_t secret_len, const uint8_t* owner_launcher_id_ptr, size_t owner_launcher_id_len, const uint8_t* resolved_launcher_id_ptr, size_t resolved_launcher_id_len, const uint8_t* payment_asset_id_ptr, size_t payment_asset_id_len, uint64_t base_price, uint64_t registration_period, uint64_t buy_time, uint64_t current_expiration, uint64_t num_periods, void** out);
 extern int go_xchandles_precommit_value_commitment_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -5139,12 +5685,22 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_spends_clone
 #cgo noescape go_spends_new
 #cgo nocallback go_spends_new
+#cgo noescape go_spends_with_separate_change_puzzle_hash
+#cgo nocallback go_spends_with_separate_change_puzzle_hash
 #cgo noescape go_spends_add_xch
 #cgo nocallback go_spends_add_xch
 #cgo noescape go_spends_add_cat
 #cgo nocallback go_spends_add_cat
+#cgo noescape go_spends_add_cat_for_revocation
+#cgo nocallback go_spends_add_cat_for_revocation
+#cgo noescape go_spends_add_offered_coins
+#cgo nocallback go_spends_add_offered_coins
+#cgo noescape go_spends_add_did
+#cgo nocallback go_spends_add_did
 #cgo noescape go_spends_add_nft
 #cgo nocallback go_spends_add_nft
+#cgo noescape go_spends_add_option
+#cgo nocallback go_spends_add_option
 #cgo noescape go_spends_p_2_puzzle_hashes
 #cgo nocallback go_spends_p_2_puzzle_hashes
 #cgo noescape go_spends_non_settlement_coin_ids
@@ -5165,6 +5721,12 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_spends_apply
 #cgo noescape go_spends_prepare
 #cgo nocallback go_spends_prepare
+#cgo noescape go_relation_to_int
+#cgo nocallback go_relation_to_int
+#cgo noescape go_relation_from_int
+#cgo nocallback go_relation_from_int
+#cgo noescape go_relation_free
+#cgo nocallback go_relation_free
 #cgo noescape go_finished_spends_free
 #cgo nocallback go_finished_spends_free
 #cgo noescape go_finished_spends_clone
@@ -5189,6 +5751,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_pending_spend_as_xch
 #cgo noescape go_pending_spend_as_cat
 #cgo nocallback go_pending_spend_as_cat
+#cgo noescape go_pending_spend_is_revocation
+#cgo nocallback go_pending_spend_is_revocation
 #cgo noescape go_pending_spend_as_did
 #cgo nocallback go_pending_spend_as_did
 #cgo noescape go_pending_spend_as_nft
@@ -5207,8 +5771,22 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_action_clone
 #cgo noescape go_action_send
 #cgo nocallback go_action_send
+#cgo noescape go_action_burn
+#cgo nocallback go_action_burn
 #cgo noescape go_action_settle
 #cgo nocallback go_action_settle
+#cgo noescape go_action_settle_royalty
+#cgo nocallback go_action_settle_royalty
+#cgo noescape go_action_create_did
+#cgo nocallback go_action_create_did
+#cgo noescape go_action_create_empty_did
+#cgo nocallback go_action_create_empty_did
+#cgo noescape go_action_update_did
+#cgo nocallback go_action_update_did
+#cgo noescape go_action_mint_option
+#cgo nocallback go_action_mint_option
+#cgo noescape go_action_melt_singleton
+#cgo nocallback go_action_melt_singleton
 #cgo noescape go_action_issue_cat
 #cgo nocallback go_action_issue_cat
 #cgo noescape go_action_single_issue_cat
@@ -5221,6 +5799,12 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_action_update_nft
 #cgo noescape go_action_fee
 #cgo nocallback go_action_fee
+#cgo noescape go_action_list_len
+#cgo nocallback go_action_list_len
+#cgo noescape go_action_list_get
+#cgo nocallback go_action_list_get
+#cgo noescape go_action_list_free
+#cgo nocallback go_action_list_free
 #cgo noescape go_deltas_free
 #cgo nocallback go_deltas_free
 #cgo noescape go_deltas_clone
@@ -5285,6 +5869,18 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_outputs_nfts
 #cgo noescape go_outputs_nft
 #cgo nocallback go_outputs_nft
+#cgo noescape go_outputs_dids
+#cgo nocallback go_outputs_dids
+#cgo noescape go_outputs_did
+#cgo nocallback go_outputs_did
+#cgo noescape go_outputs_options
+#cgo nocallback go_outputs_options
+#cgo noescape go_outputs_option
+#cgo nocallback go_outputs_option
+#cgo noescape go_outputs_fee
+#cgo nocallback go_outputs_fee
+#cgo noescape go_outputs_reserved_fee
+#cgo nocallback go_outputs_reserved_fee
 #cgo noescape go_transfer_nft_by_id_free
 #cgo nocallback go_transfer_nft_by_id_free
 #cgo noescape go_transfer_nft_by_id_clone
@@ -5763,6 +6359,554 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_catalog_registry_actual_neighbors_result_get_right_slot
 #cgo noescape go_catalog_registry_actual_neighbors_result_set_right_slot
 #cgo nocallback go_catalog_registry_actual_neighbors_result_set_right_slot
+#cgo noescape go_reveals_free
+#cgo nocallback go_reveals_free
+#cgo noescape go_reveals_clone
+#cgo nocallback go_reveals_clone
+#cgo noescape go_reveals_new
+#cgo nocallback go_reveals_new
+#cgo noescape go_reveals_from_coin_spends
+#cgo nocallback go_reveals_from_coin_spends
+#cgo noescape go_reveals_reveal_coin_spend
+#cgo nocallback go_reveals_reveal_coin_spend
+#cgo noescape go_reveals_reveal_clawback
+#cgo nocallback go_reveals_reveal_clawback
+#cgo noescape go_reveals_reveal_p_2_conditions_or_singleton
+#cgo nocallback go_reveals_reveal_p_2_conditions_or_singleton
+#cgo noescape go_reveals_reveal_vault_nonce
+#cgo nocallback go_reveals_reveal_vault_nonce
+#cgo noescape go_parse_vault_transaction
+#cgo nocallback go_parse_vault_transaction
+#cgo noescape go_calculate_vault_puzzle_message
+#cgo nocallback go_calculate_vault_puzzle_message
+#cgo noescape go_calculate_vault_coin_message
+#cgo nocallback go_calculate_vault_coin_message
+#cgo noescape go_vault_version_to_int
+#cgo nocallback go_vault_version_to_int
+#cgo noescape go_vault_version_from_int
+#cgo nocallback go_vault_version_from_int
+#cgo noescape go_vault_version_free
+#cgo nocallback go_vault_version_free
+#cgo noescape go_vault_recovery_delegated_puzzle_hash
+#cgo nocallback go_vault_recovery_delegated_puzzle_hash
+#cgo noescape go_calculate_vault_start_recovery_message
+#cgo nocallback go_calculate_vault_start_recovery_message
+#cgo noescape go_p_2_conditions_or_singleton_free
+#cgo nocallback go_p_2_conditions_or_singleton_free
+#cgo noescape go_p_2_conditions_or_singleton_clone
+#cgo nocallback go_p_2_conditions_or_singleton_clone
+#cgo noescape go_p_2_conditions_or_singleton_new
+#cgo nocallback go_p_2_conditions_or_singleton_new
+#cgo noescape go_p_2_conditions_or_singleton_get_launcher_id
+#cgo nocallback go_p_2_conditions_or_singleton_get_launcher_id
+#cgo noescape go_p_2_conditions_or_singleton_set_launcher_id
+#cgo nocallback go_p_2_conditions_or_singleton_set_launcher_id
+#cgo noescape go_p_2_conditions_or_singleton_get_nonce
+#cgo nocallback go_p_2_conditions_or_singleton_get_nonce
+#cgo noescape go_p_2_conditions_or_singleton_set_nonce
+#cgo nocallback go_p_2_conditions_or_singleton_set_nonce
+#cgo noescape go_p_2_conditions_or_singleton_get_fixed_conditions_hash
+#cgo nocallback go_p_2_conditions_or_singleton_get_fixed_conditions_hash
+#cgo noescape go_p_2_conditions_or_singleton_set_fixed_conditions_hash
+#cgo nocallback go_p_2_conditions_or_singleton_set_fixed_conditions_hash
+#cgo noescape go_vault_transaction_free
+#cgo nocallback go_vault_transaction_free
+#cgo noescape go_vault_transaction_clone
+#cgo nocallback go_vault_transaction_clone
+#cgo noescape go_vault_transaction_new
+#cgo nocallback go_vault_transaction_new
+#cgo noescape go_vault_transaction_get_vault_child
+#cgo nocallback go_vault_transaction_get_vault_child
+#cgo noescape go_vault_transaction_set_vault_child
+#cgo nocallback go_vault_transaction_set_vault_child
+#cgo noescape go_vault_transaction_get_drop_coins
+#cgo nocallback go_vault_transaction_get_drop_coins
+#cgo noescape go_vault_transaction_set_drop_coins
+#cgo nocallback go_vault_transaction_set_drop_coins
+#cgo noescape go_vault_transaction_get_spends
+#cgo nocallback go_vault_transaction_get_spends
+#cgo noescape go_vault_transaction_set_spends
+#cgo nocallback go_vault_transaction_set_spends
+#cgo noescape go_vault_transaction_get_issuances
+#cgo nocallback go_vault_transaction_get_issuances
+#cgo noescape go_vault_transaction_set_issuances
+#cgo nocallback go_vault_transaction_set_issuances
+#cgo noescape go_vault_transaction_get_asserted_payments
+#cgo nocallback go_vault_transaction_get_asserted_payments
+#cgo noescape go_vault_transaction_set_asserted_payments
+#cgo nocallback go_vault_transaction_set_asserted_payments
+#cgo noescape go_vault_transaction_get_received_payments
+#cgo nocallback go_vault_transaction_get_received_payments
+#cgo noescape go_vault_transaction_set_received_payments
+#cgo nocallback go_vault_transaction_set_received_payments
+#cgo noescape go_vault_transaction_get_external_payments
+#cgo nocallback go_vault_transaction_get_external_payments
+#cgo noescape go_vault_transaction_set_external_payments
+#cgo nocallback go_vault_transaction_set_external_payments
+#cgo noescape go_vault_transaction_get_asset_flows
+#cgo nocallback go_vault_transaction_get_asset_flows
+#cgo noescape go_vault_transaction_set_asset_flows
+#cgo nocallback go_vault_transaction_set_asset_flows
+#cgo noescape go_vault_transaction_get_linked_offer
+#cgo nocallback go_vault_transaction_get_linked_offer
+#cgo noescape go_vault_transaction_set_linked_offer
+#cgo nocallback go_vault_transaction_set_linked_offer
+#cgo noescape go_vault_transaction_get_reserved_fee
+#cgo nocallback go_vault_transaction_get_reserved_fee
+#cgo noescape go_vault_transaction_set_reserved_fee
+#cgo nocallback go_vault_transaction_set_reserved_fee
+#cgo noescape go_vault_transaction_get_p_2_puzzle_hashes
+#cgo nocallback go_vault_transaction_get_p_2_puzzle_hashes
+#cgo noescape go_vault_transaction_set_p_2_puzzle_hashes
+#cgo nocallback go_vault_transaction_set_p_2_puzzle_hashes
+#cgo noescape go_vault_transaction_get_delegated_puzzle_hash
+#cgo nocallback go_vault_transaction_get_delegated_puzzle_hash
+#cgo noescape go_vault_transaction_set_delegated_puzzle_hash
+#cgo nocallback go_vault_transaction_set_delegated_puzzle_hash
+#cgo noescape go_vault_output_free
+#cgo nocallback go_vault_output_free
+#cgo noescape go_vault_output_clone
+#cgo nocallback go_vault_output_clone
+#cgo noescape go_vault_output_new
+#cgo nocallback go_vault_output_new
+#cgo noescape go_vault_output_get_custody_hash
+#cgo nocallback go_vault_output_get_custody_hash
+#cgo noescape go_vault_output_set_custody_hash
+#cgo nocallback go_vault_output_set_custody_hash
+#cgo noescape go_vault_output_get_amount
+#cgo nocallback go_vault_output_get_amount
+#cgo noescape go_vault_output_set_amount
+#cgo nocallback go_vault_output_set_amount
+#cgo noescape go_drop_coin_free
+#cgo nocallback go_drop_coin_free
+#cgo noescape go_drop_coin_clone
+#cgo nocallback go_drop_coin_clone
+#cgo noescape go_drop_coin_new
+#cgo nocallback go_drop_coin_new
+#cgo noescape go_drop_coin_get_puzzle_hash
+#cgo nocallback go_drop_coin_get_puzzle_hash
+#cgo noescape go_drop_coin_set_puzzle_hash
+#cgo nocallback go_drop_coin_set_puzzle_hash
+#cgo noescape go_drop_coin_get_amount
+#cgo nocallback go_drop_coin_get_amount
+#cgo noescape go_drop_coin_set_amount
+#cgo nocallback go_drop_coin_set_amount
+#cgo noescape go_drop_coin_list_len
+#cgo nocallback go_drop_coin_list_len
+#cgo noescape go_drop_coin_list_get
+#cgo nocallback go_drop_coin_list_get
+#cgo noescape go_drop_coin_list_free
+#cgo nocallback go_drop_coin_list_free
+#cgo noescape go_verified_spend_free
+#cgo nocallback go_verified_spend_free
+#cgo noescape go_verified_spend_clone
+#cgo nocallback go_verified_spend_clone
+#cgo noescape go_verified_spend_new
+#cgo nocallback go_verified_spend_new
+#cgo noescape go_verified_spend_get_asset
+#cgo nocallback go_verified_spend_get_asset
+#cgo noescape go_verified_spend_set_asset
+#cgo nocallback go_verified_spend_set_asset
+#cgo noescape go_verified_spend_get_clawback
+#cgo nocallback go_verified_spend_get_clawback
+#cgo noescape go_verified_spend_set_clawback
+#cgo nocallback go_verified_spend_set_clawback
+#cgo noescape go_verified_spend_get_custody
+#cgo nocallback go_verified_spend_get_custody
+#cgo noescape go_verified_spend_set_custody
+#cgo nocallback go_verified_spend_set_custody
+#cgo noescape go_verified_spend_get_children
+#cgo nocallback go_verified_spend_get_children
+#cgo noescape go_verified_spend_set_children
+#cgo nocallback go_verified_spend_set_children
+#cgo noescape go_verified_spend_get_revoked
+#cgo nocallback go_verified_spend_get_revoked
+#cgo noescape go_verified_spend_set_revoked
+#cgo nocallback go_verified_spend_set_revoked
+#cgo noescape go_verified_spend_list_len
+#cgo nocallback go_verified_spend_list_len
+#cgo noescape go_verified_spend_list_get
+#cgo nocallback go_verified_spend_list_get
+#cgo noescape go_verified_spend_list_free
+#cgo nocallback go_verified_spend_list_free
+#cgo noescape go_parsed_asset_free
+#cgo nocallback go_parsed_asset_free
+#cgo noescape go_parsed_asset_clone
+#cgo nocallback go_parsed_asset_clone
+#cgo noescape go_parsed_asset_coin
+#cgo nocallback go_parsed_asset_coin
+#cgo noescape go_parsed_asset_as_xch
+#cgo nocallback go_parsed_asset_as_xch
+#cgo noescape go_parsed_asset_as_cat
+#cgo nocallback go_parsed_asset_as_cat
+#cgo noescape go_parsed_asset_as_nft
+#cgo nocallback go_parsed_asset_as_nft
+#cgo noescape go_parsed_asset_as_bulletin
+#cgo nocallback go_parsed_asset_as_bulletin
+#cgo noescape go_clawback_info_free
+#cgo nocallback go_clawback_info_free
+#cgo noescape go_clawback_info_clone
+#cgo nocallback go_clawback_info_clone
+#cgo noescape go_clawback_info_new
+#cgo nocallback go_clawback_info_new
+#cgo noescape go_clawback_info_get_clawback
+#cgo nocallback go_clawback_info_get_clawback
+#cgo noescape go_clawback_info_set_clawback
+#cgo nocallback go_clawback_info_set_clawback
+#cgo noescape go_clawback_info_get_path
+#cgo nocallback go_clawback_info_get_path
+#cgo noescape go_clawback_info_set_path
+#cgo nocallback go_clawback_info_set_path
+#cgo noescape go_clawback_path_to_int
+#cgo nocallback go_clawback_path_to_int
+#cgo noescape go_clawback_path_from_int
+#cgo nocallback go_clawback_path_from_int
+#cgo noescape go_clawback_path_free
+#cgo nocallback go_clawback_path_free
+#cgo noescape go_custody_info_free
+#cgo nocallback go_custody_info_free
+#cgo noescape go_custody_info_clone
+#cgo nocallback go_custody_info_clone
+#cgo noescape go_custody_info_as_p_2_singleton
+#cgo nocallback go_custody_info_as_p_2_singleton
+#cgo noescape go_custody_info_as_delegated_conditions
+#cgo nocallback go_custody_info_as_delegated_conditions
+#cgo noescape go_custody_info_as_p_2_conditions_or_singleton
+#cgo nocallback go_custody_info_as_p_2_conditions_or_singleton
+#cgo noescape go_p_2_singleton_info_free
+#cgo nocallback go_p_2_singleton_info_free
+#cgo noescape go_p_2_singleton_info_clone
+#cgo nocallback go_p_2_singleton_info_clone
+#cgo noescape go_p_2_singleton_info_new
+#cgo nocallback go_p_2_singleton_info_new
+#cgo noescape go_p_2_singleton_info_get_launcher_id
+#cgo nocallback go_p_2_singleton_info_get_launcher_id
+#cgo noescape go_p_2_singleton_info_set_launcher_id
+#cgo nocallback go_p_2_singleton_info_set_launcher_id
+#cgo noescape go_p_2_singleton_info_get_nonce
+#cgo nocallback go_p_2_singleton_info_get_nonce
+#cgo noescape go_p_2_singleton_info_set_nonce
+#cgo nocallback go_p_2_singleton_info_set_nonce
+#cgo noescape go_p_2_singleton_info_get_conditions
+#cgo nocallback go_p_2_singleton_info_get_conditions
+#cgo noescape go_p_2_singleton_info_set_conditions
+#cgo nocallback go_p_2_singleton_info_set_conditions
+#cgo noescape go_p_2_singleton_info_get_p_2_puzzle_hash
+#cgo nocallback go_p_2_singleton_info_get_p_2_puzzle_hash
+#cgo noescape go_p_2_singleton_info_set_p_2_puzzle_hash
+#cgo nocallback go_p_2_singleton_info_set_p_2_puzzle_hash
+#cgo noescape go_p_2_conditions_or_singleton_info_free
+#cgo nocallback go_p_2_conditions_or_singleton_info_free
+#cgo noescape go_p_2_conditions_or_singleton_info_clone
+#cgo nocallback go_p_2_conditions_or_singleton_info_clone
+#cgo noescape go_p_2_conditions_or_singleton_info_new
+#cgo nocallback go_p_2_conditions_or_singleton_info_new
+#cgo noescape go_p_2_conditions_or_singleton_info_get_launcher_id
+#cgo nocallback go_p_2_conditions_or_singleton_info_get_launcher_id
+#cgo noescape go_p_2_conditions_or_singleton_info_set_launcher_id
+#cgo nocallback go_p_2_conditions_or_singleton_info_set_launcher_id
+#cgo noescape go_p_2_conditions_or_singleton_info_get_nonce
+#cgo nocallback go_p_2_conditions_or_singleton_info_get_nonce
+#cgo noescape go_p_2_conditions_or_singleton_info_set_nonce
+#cgo nocallback go_p_2_conditions_or_singleton_info_set_nonce
+#cgo noescape go_p_2_conditions_or_singleton_info_get_conditions
+#cgo nocallback go_p_2_conditions_or_singleton_info_get_conditions
+#cgo noescape go_p_2_conditions_or_singleton_info_set_conditions
+#cgo nocallback go_p_2_conditions_or_singleton_info_set_conditions
+#cgo noescape go_p_2_conditions_or_singleton_info_get_p_2_puzzle_hash
+#cgo nocallback go_p_2_conditions_or_singleton_info_get_p_2_puzzle_hash
+#cgo noescape go_p_2_conditions_or_singleton_info_set_p_2_puzzle_hash
+#cgo nocallback go_p_2_conditions_or_singleton_info_set_p_2_puzzle_hash
+#cgo noescape go_parsed_child_free
+#cgo nocallback go_parsed_child_free
+#cgo noescape go_parsed_child_clone
+#cgo nocallback go_parsed_child_clone
+#cgo noescape go_parsed_child_new
+#cgo nocallback go_parsed_child_new
+#cgo noescape go_parsed_child_get_asset
+#cgo nocallback go_parsed_child_get_asset
+#cgo noescape go_parsed_child_set_asset
+#cgo nocallback go_parsed_child_set_asset
+#cgo noescape go_parsed_child_get_memos
+#cgo nocallback go_parsed_child_get_memos
+#cgo noescape go_parsed_child_set_memos
+#cgo nocallback go_parsed_child_set_memos
+#cgo noescape go_parsed_child_get_transfer_type
+#cgo nocallback go_parsed_child_get_transfer_type
+#cgo noescape go_parsed_child_set_transfer_type
+#cgo nocallback go_parsed_child_set_transfer_type
+#cgo noescape go_parsed_child_list_len
+#cgo nocallback go_parsed_child_list_len
+#cgo noescape go_parsed_child_list_get
+#cgo nocallback go_parsed_child_list_get
+#cgo noescape go_parsed_child_list_free
+#cgo nocallback go_parsed_child_list_free
+#cgo noescape go_parsed_memos_free
+#cgo nocallback go_parsed_memos_free
+#cgo noescape go_parsed_memos_clone
+#cgo nocallback go_parsed_memos_clone
+#cgo noescape go_parsed_memos_new
+#cgo nocallback go_parsed_memos_new
+#cgo noescape go_parsed_memos_get_p_2_puzzle_hash
+#cgo nocallback go_parsed_memos_get_p_2_puzzle_hash
+#cgo noescape go_parsed_memos_set_p_2_puzzle_hash
+#cgo nocallback go_parsed_memos_set_p_2_puzzle_hash
+#cgo noescape go_parsed_memos_get_clawback
+#cgo nocallback go_parsed_memos_get_clawback
+#cgo noescape go_parsed_memos_set_clawback
+#cgo nocallback go_parsed_memos_set_clawback
+#cgo noescape go_parsed_memos_get_human_readable_memos
+#cgo nocallback go_parsed_memos_get_human_readable_memos
+#cgo noescape go_parsed_memos_set_human_readable_memos
+#cgo nocallback go_parsed_memos_set_human_readable_memos
+#cgo noescape go_parsed_memos_get_fixed_conditions
+#cgo nocallback go_parsed_memos_get_fixed_conditions
+#cgo noescape go_parsed_memos_set_fixed_conditions
+#cgo nocallback go_parsed_memos_set_fixed_conditions
+#cgo noescape go_transfer_type_free
+#cgo nocallback go_transfer_type_free
+#cgo noescape go_transfer_type_clone
+#cgo nocallback go_transfer_type_clone
+#cgo noescape go_transfer_type_is_sent
+#cgo nocallback go_transfer_type_is_sent
+#cgo noescape go_transfer_type_is_burned
+#cgo nocallback go_transfer_type_is_burned
+#cgo noescape go_transfer_type_is_offered
+#cgo nocallback go_transfer_type_is_offered
+#cgo noescape go_transfer_type_as_offer_pre_split
+#cgo nocallback go_transfer_type_as_offer_pre_split
+#cgo noescape go_offer_pre_split_info_free
+#cgo nocallback go_offer_pre_split_info_free
+#cgo noescape go_offer_pre_split_info_clone
+#cgo nocallback go_offer_pre_split_info_clone
+#cgo noescape go_offer_pre_split_info_new
+#cgo nocallback go_offer_pre_split_info_new
+#cgo noescape go_offer_pre_split_info_get_launcher_id
+#cgo nocallback go_offer_pre_split_info_get_launcher_id
+#cgo noescape go_offer_pre_split_info_set_launcher_id
+#cgo nocallback go_offer_pre_split_info_set_launcher_id
+#cgo noescape go_offer_pre_split_info_get_nonce
+#cgo nocallback go_offer_pre_split_info_get_nonce
+#cgo noescape go_offer_pre_split_info_set_nonce
+#cgo nocallback go_offer_pre_split_info_set_nonce
+#cgo noescape go_offer_pre_split_info_get_fixed_conditions
+#cgo nocallback go_offer_pre_split_info_get_fixed_conditions
+#cgo noescape go_offer_pre_split_info_set_fixed_conditions
+#cgo nocallback go_offer_pre_split_info_set_fixed_conditions
+#cgo noescape go_offer_pre_split_info_get_settlement_amount
+#cgo nocallback go_offer_pre_split_info_get_settlement_amount
+#cgo noescape go_offer_pre_split_info_set_settlement_amount
+#cgo nocallback go_offer_pre_split_info_set_settlement_amount
+#cgo noescape go_issuance_free
+#cgo nocallback go_issuance_free
+#cgo noescape go_issuance_clone
+#cgo nocallback go_issuance_clone
+#cgo noescape go_issuance_new
+#cgo nocallback go_issuance_new
+#cgo noescape go_issuance_get_coin_id
+#cgo nocallback go_issuance_get_coin_id
+#cgo noescape go_issuance_set_coin_id
+#cgo nocallback go_issuance_set_coin_id
+#cgo noescape go_issuance_get_asset_id
+#cgo nocallback go_issuance_get_asset_id
+#cgo noescape go_issuance_set_asset_id
+#cgo nocallback go_issuance_set_asset_id
+#cgo noescape go_issuance_get_extra_delta
+#cgo nocallback go_issuance_get_extra_delta
+#cgo noescape go_issuance_set_extra_delta
+#cgo nocallback go_issuance_set_extra_delta
+#cgo noescape go_issuance_get_kind
+#cgo nocallback go_issuance_get_kind
+#cgo noescape go_issuance_set_kind
+#cgo nocallback go_issuance_set_kind
+#cgo noescape go_issuance_list_len
+#cgo nocallback go_issuance_list_len
+#cgo noescape go_issuance_list_get
+#cgo nocallback go_issuance_list_get
+#cgo noescape go_issuance_list_free
+#cgo nocallback go_issuance_list_free
+#cgo noescape go_issuance_kind_free
+#cgo nocallback go_issuance_kind_free
+#cgo noescape go_issuance_kind_clone
+#cgo nocallback go_issuance_kind_clone
+#cgo noescape go_issuance_kind_as_everything_with_singleton
+#cgo nocallback go_issuance_kind_as_everything_with_singleton
+#cgo noescape go_issuance_kind_is_unknown
+#cgo nocallback go_issuance_kind_is_unknown
+#cgo noescape go_everything_with_singleton_issuance_free
+#cgo nocallback go_everything_with_singleton_issuance_free
+#cgo noescape go_everything_with_singleton_issuance_clone
+#cgo nocallback go_everything_with_singleton_issuance_clone
+#cgo noescape go_everything_with_singleton_issuance_new
+#cgo nocallback go_everything_with_singleton_issuance_new
+#cgo noescape go_everything_with_singleton_issuance_get_singleton_struct_hash
+#cgo nocallback go_everything_with_singleton_issuance_get_singleton_struct_hash
+#cgo noescape go_everything_with_singleton_issuance_set_singleton_struct_hash
+#cgo nocallback go_everything_with_singleton_issuance_set_singleton_struct_hash
+#cgo noescape go_everything_with_singleton_issuance_get_nonce
+#cgo nocallback go_everything_with_singleton_issuance_get_nonce
+#cgo noescape go_everything_with_singleton_issuance_set_nonce
+#cgo nocallback go_everything_with_singleton_issuance_set_nonce
+#cgo noescape go_clear_signing_asset_free
+#cgo nocallback go_clear_signing_asset_free
+#cgo noescape go_clear_signing_asset_clone
+#cgo nocallback go_clear_signing_asset_clone
+#cgo noescape go_clear_signing_asset_is_xch
+#cgo nocallback go_clear_signing_asset_is_xch
+#cgo noescape go_clear_signing_asset_as_cat
+#cgo nocallback go_clear_signing_asset_as_cat
+#cgo noescape go_clear_signing_asset_as_nft
+#cgo nocallback go_clear_signing_asset_as_nft
+#cgo noescape go_clear_signing_cat_free
+#cgo nocallback go_clear_signing_cat_free
+#cgo noescape go_clear_signing_cat_clone
+#cgo nocallback go_clear_signing_cat_clone
+#cgo noescape go_clear_signing_cat_new
+#cgo nocallback go_clear_signing_cat_new
+#cgo noescape go_clear_signing_cat_get_asset_id
+#cgo nocallback go_clear_signing_cat_get_asset_id
+#cgo noescape go_clear_signing_cat_set_asset_id
+#cgo nocallback go_clear_signing_cat_set_asset_id
+#cgo noescape go_clear_signing_cat_get_hidden_puzzle_hash
+#cgo nocallback go_clear_signing_cat_get_hidden_puzzle_hash
+#cgo noescape go_clear_signing_cat_set_hidden_puzzle_hash
+#cgo nocallback go_clear_signing_cat_set_hidden_puzzle_hash
+#cgo noescape go_clear_signing_nft_free
+#cgo nocallback go_clear_signing_nft_free
+#cgo noescape go_clear_signing_nft_clone
+#cgo nocallback go_clear_signing_nft_clone
+#cgo noescape go_clear_signing_nft_new
+#cgo nocallback go_clear_signing_nft_new
+#cgo noescape go_clear_signing_nft_get_launcher_id
+#cgo nocallback go_clear_signing_nft_get_launcher_id
+#cgo noescape go_clear_signing_nft_set_launcher_id
+#cgo nocallback go_clear_signing_nft_set_launcher_id
+#cgo noescape go_clear_signing_nft_get_metadata
+#cgo nocallback go_clear_signing_nft_get_metadata
+#cgo noescape go_clear_signing_nft_set_metadata
+#cgo nocallback go_clear_signing_nft_set_metadata
+#cgo noescape go_clear_signing_nft_get_metadata_updater_puzzle_hash
+#cgo nocallback go_clear_signing_nft_get_metadata_updater_puzzle_hash
+#cgo noescape go_clear_signing_nft_set_metadata_updater_puzzle_hash
+#cgo nocallback go_clear_signing_nft_set_metadata_updater_puzzle_hash
+#cgo noescape go_clear_signing_nft_get_royalty_puzzle_hash
+#cgo nocallback go_clear_signing_nft_get_royalty_puzzle_hash
+#cgo noescape go_clear_signing_nft_set_royalty_puzzle_hash
+#cgo nocallback go_clear_signing_nft_set_royalty_puzzle_hash
+#cgo noescape go_clear_signing_nft_get_royalty_basis_points
+#cgo nocallback go_clear_signing_nft_get_royalty_basis_points
+#cgo noescape go_clear_signing_nft_set_royalty_basis_points
+#cgo nocallback go_clear_signing_nft_set_royalty_basis_points
+#cgo noescape go_asserted_notarized_payment_free
+#cgo nocallback go_asserted_notarized_payment_free
+#cgo noescape go_asserted_notarized_payment_clone
+#cgo nocallback go_asserted_notarized_payment_clone
+#cgo noescape go_asserted_notarized_payment_new
+#cgo nocallback go_asserted_notarized_payment_new
+#cgo noescape go_asserted_notarized_payment_get_asset
+#cgo nocallback go_asserted_notarized_payment_get_asset
+#cgo noescape go_asserted_notarized_payment_set_asset
+#cgo nocallback go_asserted_notarized_payment_set_asset
+#cgo noescape go_asserted_notarized_payment_get_notarized_payment
+#cgo nocallback go_asserted_notarized_payment_get_notarized_payment
+#cgo noescape go_asserted_notarized_payment_set_notarized_payment
+#cgo nocallback go_asserted_notarized_payment_set_notarized_payment
+#cgo noescape go_asserted_notarized_payment_list_len
+#cgo nocallback go_asserted_notarized_payment_list_len
+#cgo noescape go_asserted_notarized_payment_list_get
+#cgo nocallback go_asserted_notarized_payment_list_get
+#cgo noescape go_asserted_notarized_payment_list_free
+#cgo nocallback go_asserted_notarized_payment_list_free
+#cgo noescape go_asserted_payment_free
+#cgo nocallback go_asserted_payment_free
+#cgo noescape go_asserted_payment_clone
+#cgo nocallback go_asserted_payment_clone
+#cgo noescape go_asserted_payment_new
+#cgo nocallback go_asserted_payment_new
+#cgo noescape go_asserted_payment_get_asset
+#cgo nocallback go_asserted_payment_get_asset
+#cgo noescape go_asserted_payment_set_asset
+#cgo nocallback go_asserted_payment_set_asset
+#cgo noescape go_asserted_payment_get_nonce
+#cgo nocallback go_asserted_payment_get_nonce
+#cgo noescape go_asserted_payment_set_nonce
+#cgo nocallback go_asserted_payment_set_nonce
+#cgo noescape go_asserted_payment_get_payment
+#cgo nocallback go_asserted_payment_get_payment
+#cgo noescape go_asserted_payment_set_payment
+#cgo nocallback go_asserted_payment_set_payment
+#cgo noescape go_asserted_payment_get_royalty_basis_points
+#cgo nocallback go_asserted_payment_get_royalty_basis_points
+#cgo noescape go_asserted_payment_set_royalty_basis_points
+#cgo nocallback go_asserted_payment_set_royalty_basis_points
+#cgo noescape go_asserted_payment_list_len
+#cgo nocallback go_asserted_payment_list_len
+#cgo noescape go_asserted_payment_list_get
+#cgo nocallback go_asserted_payment_list_get
+#cgo noescape go_asserted_payment_list_free
+#cgo nocallback go_asserted_payment_list_free
+#cgo noescape go_asset_flow_free
+#cgo nocallback go_asset_flow_free
+#cgo noescape go_asset_flow_clone
+#cgo nocallback go_asset_flow_clone
+#cgo noescape go_asset_flow_new
+#cgo nocallback go_asset_flow_new
+#cgo noescape go_asset_flow_get_asset
+#cgo nocallback go_asset_flow_get_asset
+#cgo noescape go_asset_flow_set_asset
+#cgo nocallback go_asset_flow_set_asset
+#cgo noescape go_asset_flow_get_input_amount
+#cgo nocallback go_asset_flow_get_input_amount
+#cgo noescape go_asset_flow_set_input_amount
+#cgo nocallback go_asset_flow_set_input_amount
+#cgo noescape go_asset_flow_get_output_amount
+#cgo nocallback go_asset_flow_get_output_amount
+#cgo noescape go_asset_flow_set_output_amount
+#cgo nocallback go_asset_flow_set_output_amount
+#cgo noescape go_asset_flow_get_issued_amount
+#cgo nocallback go_asset_flow_get_issued_amount
+#cgo noescape go_asset_flow_set_issued_amount
+#cgo nocallback go_asset_flow_set_issued_amount
+#cgo noescape go_asset_flow_get_melted_amount
+#cgo nocallback go_asset_flow_get_melted_amount
+#cgo noescape go_asset_flow_set_melted_amount
+#cgo nocallback go_asset_flow_set_melted_amount
+#cgo noescape go_asset_flow_get_received_amount
+#cgo nocallback go_asset_flow_get_received_amount
+#cgo noescape go_asset_flow_set_received_amount
+#cgo nocallback go_asset_flow_set_received_amount
+#cgo noescape go_asset_flow_get_paid_amount
+#cgo nocallback go_asset_flow_get_paid_amount
+#cgo noescape go_asset_flow_set_paid_amount
+#cgo nocallback go_asset_flow_set_paid_amount
+#cgo noescape go_asset_flow_get_unaccounted_amount
+#cgo nocallback go_asset_flow_get_unaccounted_amount
+#cgo noescape go_asset_flow_set_unaccounted_amount
+#cgo nocallback go_asset_flow_set_unaccounted_amount
+#cgo noescape go_asset_flow_list_len
+#cgo nocallback go_asset_flow_list_len
+#cgo noescape go_asset_flow_list_get
+#cgo nocallback go_asset_flow_list_get
+#cgo noescape go_asset_flow_list_free
+#cgo nocallback go_asset_flow_list_free
+#cgo noescape go_linked_offer_free
+#cgo nocallback go_linked_offer_free
+#cgo noescape go_linked_offer_clone
+#cgo nocallback go_linked_offer_clone
+#cgo noescape go_linked_offer_new
+#cgo nocallback go_linked_offer_new
+#cgo noescape go_linked_offer_get_reserved_fee
+#cgo nocallback go_linked_offer_get_reserved_fee
+#cgo noescape go_linked_offer_set_reserved_fee
+#cgo nocallback go_linked_offer_set_reserved_fee
+#cgo noescape go_linked_offer_get_received_payments
+#cgo nocallback go_linked_offer_get_received_payments
+#cgo noescape go_linked_offer_set_received_payments
+#cgo nocallback go_linked_offer_set_received_payments
+#cgo noescape go_linked_offer_get_external_payments
+#cgo nocallback go_linked_offer_get_external_payments
+#cgo noescape go_linked_offer_set_external_payments
+#cgo nocallback go_linked_offer_set_external_payments
 #cgo noescape go_clvm_free
 #cgo nocallback go_clvm_free
 #cgo noescape go_clvm_clone
@@ -6145,6 +7289,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_clvm_passkey_member_puzzle_assert
 #cgo noescape go_clvm_passkey_member
 #cgo nocallback go_clvm_passkey_member
+#cgo noescape go_clvm_eip_712_member
+#cgo nocallback go_clvm_eip_712_member
 #cgo noescape go_clvm_r_1_member_puzzle_assert
 #cgo nocallback go_clvm_r_1_member_puzzle_assert
 #cgo noescape go_clvm_r_1_member
@@ -7205,6 +8351,10 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_constants_passkey_member
 #cgo noescape go_constants_passkey_member_hash
 #cgo nocallback go_constants_passkey_member_hash
+#cgo noescape go_constants_eip_712_member
+#cgo nocallback go_constants_eip_712_member
+#cgo noescape go_constants_eip_712_member_hash
+#cgo nocallback go_constants_eip_712_member_hash
 #cgo noescape go_constants_r_1_member_puzzle_assert
 #cgo nocallback go_constants_r_1_member_puzzle_assert
 #cgo noescape go_constants_r_1_member_puzzle_assert_hash
@@ -7285,6 +8435,16 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_constants_state_scheduler_puzzle
 #cgo noescape go_constants_state_scheduler_puzzle_hash
 #cgo nocallback go_constants_state_scheduler_puzzle_hash
+#cgo noescape go_eip_712_type_hash
+#cgo nocallback go_eip_712_type_hash
+#cgo noescape go_eip_712_domain_separator
+#cgo nocallback go_eip_712_domain_separator
+#cgo noescape go_eip_712_prefix_and_domain_separator
+#cgo nocallback go_eip_712_prefix_and_domain_separator
+#cgo noescape go_eip_712_hash_to_sign
+#cgo nocallback go_eip_712_hash_to_sign
+#cgo noescape go_eip_712_member_inner_puzzle_hash
+#cgo nocallback go_eip_712_member_inner_puzzle_hash
 #cgo noescape go_full_node_simulator_free
 #cgo nocallback go_full_node_simulator_free
 #cgo noescape go_full_node_simulator_clone
@@ -7529,6 +8689,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_singleton_member_hash
 #cgo noescape go_fixed_member_hash
 #cgo nocallback go_fixed_member_hash
+#cgo noescape go_eip_712_member_hash
+#cgo nocallback go_eip_712_member_hash
 #cgo noescape go_custom_member_hash
 #cgo nocallback go_custom_member_hash
 #cgo noescape go_restriction_free
@@ -7579,6 +8741,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_mips_spend_m_of_n
 #cgo noescape go_mips_spend_k_1_member
 #cgo nocallback go_mips_spend_k_1_member
+#cgo noescape go_mips_spend_eip_712_member
+#cgo nocallback go_mips_spend_eip_712_member
 #cgo noescape go_mips_spend_r_1_member
 #cgo nocallback go_mips_spend_r_1_member
 #cgo noescape go_mips_spend_bls_member
@@ -7675,8 +8839,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_restriction_memo_get_memo
 #cgo noescape go_restriction_memo_set_memo
 #cgo nocallback go_restriction_memo_set_memo
-#cgo noescape go_restriction_memo_force_1_of_2_restricted_variable
-#cgo nocallback go_restriction_memo_force_1_of_2_restricted_variable
+#cgo noescape go_restriction_memo_parse
+#cgo nocallback go_restriction_memo_parse
 #cgo noescape go_restriction_memo_enforce_delegated_puzzle_wrappers
 #cgo nocallback go_restriction_memo_enforce_delegated_puzzle_wrappers
 #cgo noescape go_restriction_memo_timelock
@@ -7701,6 +8865,10 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_wrapper_memo_get_memo
 #cgo noescape go_wrapper_memo_set_memo
 #cgo nocallback go_wrapper_memo_set_memo
+#cgo noescape go_wrapper_memo_parse
+#cgo nocallback go_wrapper_memo_parse
+#cgo noescape go_wrapper_memo_force_1_of_2_restricted_variable
+#cgo nocallback go_wrapper_memo_force_1_of_2_restricted_variable
 #cgo noescape go_wrapper_memo_prevent_vault_side_effects
 #cgo nocallback go_wrapper_memo_prevent_vault_side_effects
 #cgo noescape go_wrapper_memo_force_coin_announcement
@@ -7735,14 +8903,10 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_force_1_of_2_restricted_variable_memo_get_nonce
 #cgo noescape go_force_1_of_2_restricted_variable_memo_set_nonce
 #cgo nocallback go_force_1_of_2_restricted_variable_memo_set_nonce
-#cgo noescape go_force_1_of_2_restricted_variable_memo_get_member_validator_list_hash
-#cgo nocallback go_force_1_of_2_restricted_variable_memo_get_member_validator_list_hash
-#cgo noescape go_force_1_of_2_restricted_variable_memo_set_member_validator_list_hash
-#cgo nocallback go_force_1_of_2_restricted_variable_memo_set_member_validator_list_hash
-#cgo noescape go_force_1_of_2_restricted_variable_memo_get_delegated_puzzle_validator_list_hash
-#cgo nocallback go_force_1_of_2_restricted_variable_memo_get_delegated_puzzle_validator_list_hash
-#cgo noescape go_force_1_of_2_restricted_variable_memo_set_delegated_puzzle_validator_list_hash
-#cgo nocallback go_force_1_of_2_restricted_variable_memo_set_delegated_puzzle_validator_list_hash
+#cgo noescape go_force_1_of_2_restricted_variable_memo_get_restrictions
+#cgo nocallback go_force_1_of_2_restricted_variable_memo_get_restrictions
+#cgo noescape go_force_1_of_2_restricted_variable_memo_set_restrictions
+#cgo nocallback go_force_1_of_2_restricted_variable_memo_set_restrictions
 #cgo noescape go_memo_kind_free
 #cgo nocallback go_memo_kind_free
 #cgo noescape go_memo_kind_clone
@@ -7771,6 +8935,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_member_memo_get_memo
 #cgo noescape go_member_memo_set_memo
 #cgo nocallback go_member_memo_set_memo
+#cgo noescape go_member_memo_parse
+#cgo nocallback go_member_memo_parse
 #cgo noescape go_member_memo_k_1
 #cgo nocallback go_member_memo_k_1
 #cgo noescape go_member_memo_r_1
@@ -7821,6 +8987,58 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_mips_memo_context_add_singleton_mode
 #cgo noescape go_force_singleton_recreation_restriction
 #cgo nocallback go_force_singleton_recreation_restriction
+#cgo noescape go_parsed_member_free
+#cgo nocallback go_parsed_member_free
+#cgo noescape go_parsed_member_clone
+#cgo nocallback go_parsed_member_clone
+#cgo noescape go_parsed_member_as_k_1
+#cgo nocallback go_parsed_member_as_k_1
+#cgo noescape go_parsed_member_as_r_1
+#cgo nocallback go_parsed_member_as_r_1
+#cgo noescape go_parsed_member_as_bls
+#cgo nocallback go_parsed_member_as_bls
+#cgo noescape go_parsed_member_as_bls_taproot
+#cgo nocallback go_parsed_member_as_bls_taproot
+#cgo noescape go_parsed_member_as_passkey
+#cgo nocallback go_parsed_member_as_passkey
+#cgo noescape go_parsed_member_as_singleton
+#cgo nocallback go_parsed_member_as_singleton
+#cgo noescape go_parsed_member_singleton_mode
+#cgo nocallback go_parsed_member_singleton_mode
+#cgo noescape go_parsed_member_as_fixed_puzzle
+#cgo nocallback go_parsed_member_as_fixed_puzzle
+#cgo noescape go_parsed_member_as_custom
+#cgo nocallback go_parsed_member_as_custom
+#cgo noescape go_parsed_member_fast_forward
+#cgo nocallback go_parsed_member_fast_forward
+#cgo noescape go_parsed_restriction_free
+#cgo nocallback go_parsed_restriction_free
+#cgo noescape go_parsed_restriction_clone
+#cgo nocallback go_parsed_restriction_clone
+#cgo noescape go_parsed_restriction_as_force_1_of_2_restricted_variable
+#cgo nocallback go_parsed_restriction_as_force_1_of_2_restricted_variable
+#cgo noescape go_parsed_restriction_as_enforce_delegated_puzzle_wrappers
+#cgo nocallback go_parsed_restriction_as_enforce_delegated_puzzle_wrappers
+#cgo noescape go_parsed_restriction_as_timelock
+#cgo nocallback go_parsed_restriction_as_timelock
+#cgo noescape go_parsed_wrapper_free
+#cgo nocallback go_parsed_wrapper_free
+#cgo noescape go_parsed_wrapper_clone
+#cgo nocallback go_parsed_wrapper_clone
+#cgo noescape go_parsed_wrapper_is_force_coin_announcement
+#cgo nocallback go_parsed_wrapper_is_force_coin_announcement
+#cgo noescape go_parsed_wrapper_is_force_coin_message
+#cgo nocallback go_parsed_wrapper_is_force_coin_message
+#cgo noescape go_parsed_wrapper_is_force_singleton_recreation
+#cgo nocallback go_parsed_wrapper_is_force_singleton_recreation
+#cgo noescape go_parsed_wrapper_as_prevent_condition_opcode
+#cgo nocallback go_parsed_wrapper_as_prevent_condition_opcode
+#cgo noescape go_parsed_wrapper_is_prevent_multiple_create_coins
+#cgo nocallback go_parsed_wrapper_is_prevent_multiple_create_coins
+#cgo noescape go_parsed_wrapper_as_timelock
+#cgo nocallback go_parsed_wrapper_as_timelock
+#cgo noescape go_parsed_wrapper_as_force_1_of_2_restricted_variable
+#cgo nocallback go_parsed_wrapper_as_force_1_of_2_restricted_variable
 #cgo noescape go_mnemonic_free
 #cgo nocallback go_mnemonic_free
 #cgo noescape go_mnemonic_clone
@@ -7887,6 +9105,140 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_payment_list_get
 #cgo noescape go_payment_list_free
 #cgo nocallback go_payment_list_free
+#cgo noescape go_royalty_info_free
+#cgo nocallback go_royalty_info_free
+#cgo noescape go_royalty_info_clone
+#cgo nocallback go_royalty_info_clone
+#cgo noescape go_royalty_info_new
+#cgo nocallback go_royalty_info_new
+#cgo noescape go_royalty_info_get_launcher_id
+#cgo nocallback go_royalty_info_get_launcher_id
+#cgo noescape go_royalty_info_set_launcher_id
+#cgo nocallback go_royalty_info_set_launcher_id
+#cgo noescape go_royalty_info_get_puzzle_hash
+#cgo nocallback go_royalty_info_get_puzzle_hash
+#cgo noescape go_royalty_info_set_puzzle_hash
+#cgo nocallback go_royalty_info_set_puzzle_hash
+#cgo noescape go_royalty_info_get_basis_points
+#cgo nocallback go_royalty_info_get_basis_points
+#cgo noescape go_royalty_info_set_basis_points
+#cgo nocallback go_royalty_info_set_basis_points
+#cgo noescape go_royalty_info_list_len
+#cgo nocallback go_royalty_info_list_len
+#cgo noescape go_royalty_info_list_get
+#cgo nocallback go_royalty_info_list_get
+#cgo noescape go_royalty_info_list_free
+#cgo nocallback go_royalty_info_list_free
+#cgo noescape go_requested_payments_free
+#cgo nocallback go_requested_payments_free
+#cgo noescape go_requested_payments_clone
+#cgo nocallback go_requested_payments_clone
+#cgo noescape go_requested_payments_new
+#cgo nocallback go_requested_payments_new
+#cgo noescape go_requested_payments_add_xch
+#cgo nocallback go_requested_payments_add_xch
+#cgo noescape go_requested_payments_add_cat
+#cgo nocallback go_requested_payments_add_cat
+#cgo noescape go_requested_payments_add_nft
+#cgo nocallback go_requested_payments_add_nft
+#cgo noescape go_requested_payments_add_option
+#cgo nocallback go_requested_payments_add_option
+#cgo noescape go_requested_payments_xch
+#cgo nocallback go_requested_payments_xch
+#cgo noescape go_requested_payments_cat_asset_ids
+#cgo nocallback go_requested_payments_cat_asset_ids
+#cgo noescape go_requested_payments_cats
+#cgo nocallback go_requested_payments_cats
+#cgo noescape go_requested_payments_nft_launcher_ids
+#cgo nocallback go_requested_payments_nft_launcher_ids
+#cgo noescape go_requested_payments_nfts
+#cgo nocallback go_requested_payments_nfts
+#cgo noescape go_requested_payments_option_launcher_ids
+#cgo nocallback go_requested_payments_option_launcher_ids
+#cgo noescape go_requested_payments_options
+#cgo nocallback go_requested_payments_options
+#cgo noescape go_requested_payments_amounts
+#cgo nocallback go_requested_payments_amounts
+#cgo noescape go_requested_payments_actions
+#cgo nocallback go_requested_payments_actions
+#cgo noescape go_requested_payments_assertions
+#cgo nocallback go_requested_payments_assertions
+#cgo noescape go_asset_info_free
+#cgo nocallback go_asset_info_free
+#cgo noescape go_asset_info_clone
+#cgo nocallback go_asset_info_clone
+#cgo noescape go_asset_info_new
+#cgo nocallback go_asset_info_new
+#cgo noescape go_asset_info_insert_cat
+#cgo nocallback go_asset_info_insert_cat
+#cgo noescape go_asset_info_insert_nft
+#cgo nocallback go_asset_info_insert_nft
+#cgo noescape go_asset_info_insert_option
+#cgo nocallback go_asset_info_insert_option
+#cgo noescape go_asset_info_cat_asset_ids
+#cgo nocallback go_asset_info_cat_asset_ids
+#cgo noescape go_asset_info_cat_hidden_puzzle_hash
+#cgo nocallback go_asset_info_cat_hidden_puzzle_hash
+#cgo noescape go_asset_info_nft_launcher_ids
+#cgo nocallback go_asset_info_nft_launcher_ids
+#cgo noescape go_asset_info_nft_royalty
+#cgo nocallback go_asset_info_nft_royalty
+#cgo noescape go_offer_amounts_free
+#cgo nocallback go_offer_amounts_free
+#cgo noescape go_offer_amounts_clone
+#cgo nocallback go_offer_amounts_clone
+#cgo noescape go_offer_amounts_new
+#cgo nocallback go_offer_amounts_new
+#cgo noescape go_offer_amounts_xch
+#cgo nocallback go_offer_amounts_xch
+#cgo noescape go_offer_amounts_set_xch
+#cgo nocallback go_offer_amounts_set_xch
+#cgo noescape go_offer_amounts_asset_ids
+#cgo nocallback go_offer_amounts_asset_ids
+#cgo noescape go_offer_amounts_cat
+#cgo nocallback go_offer_amounts_cat
+#cgo noescape go_offer_amounts_set_cat
+#cgo nocallback go_offer_amounts_set_cat
+#cgo noescape go_offer_free
+#cgo nocallback go_offer_free
+#cgo noescape go_offer_clone
+#cgo nocallback go_offer_clone
+#cgo noescape go_offer_from_input_spend_bundle
+#cgo nocallback go_offer_from_input_spend_bundle
+#cgo noescape go_offer_from_spend_bundle
+#cgo nocallback go_offer_from_spend_bundle
+#cgo noescape go_offer_to_spend_bundle
+#cgo nocallback go_offer_to_spend_bundle
+#cgo noescape go_offer_take
+#cgo nocallback go_offer_take
+#cgo noescape go_offer_nonce
+#cgo nocallback go_offer_nonce
+#cgo noescape go_offer_requested_payments
+#cgo nocallback go_offer_requested_payments
+#cgo noescape go_offer_asset_info
+#cgo nocallback go_offer_asset_info
+#cgo noescape go_offer_offered_amounts
+#cgo nocallback go_offer_offered_amounts
+#cgo noescape go_offer_offered_xch
+#cgo nocallback go_offer_offered_xch
+#cgo noescape go_offer_offered_cats
+#cgo nocallback go_offer_offered_cats
+#cgo noescape go_offer_offered_nft_launcher_ids
+#cgo nocallback go_offer_offered_nft_launcher_ids
+#cgo noescape go_offer_offered_royalties
+#cgo nocallback go_offer_offered_royalties
+#cgo noescape go_offer_requested_royalties
+#cgo nocallback go_offer_requested_royalties
+#cgo noescape go_offer_offered_royalty_amounts
+#cgo nocallback go_offer_offered_royalty_amounts
+#cgo noescape go_offer_requested_royalty_amounts
+#cgo nocallback go_offer_requested_royalty_amounts
+#cgo noescape go_calculate_trade_price_amounts
+#cgo nocallback go_calculate_trade_price_amounts
+#cgo noescape go_calculate_trade_prices
+#cgo nocallback go_calculate_trade_prices
+#cgo noescape go_calculate_royalty_payments
+#cgo nocallback go_calculate_royalty_payments
 #cgo noescape go_certificate_free
 #cgo nocallback go_certificate_free
 #cgo noescape go_certificate_clone
@@ -8131,6 +9483,8 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_program_puzzle
 #cgo noescape go_program_parse_nft_metadata
 #cgo nocallback go_program_parse_nft_metadata
+#cgo noescape go_program_parse_mips_memo
+#cgo nocallback go_program_parse_mips_memo
 #cgo noescape go_program_parse_remark
 #cgo nocallback go_program_parse_remark
 #cgo noescape go_program_parse_agg_sig_parent
@@ -12359,10 +13713,6 @@ extern int go_xchandles_registration_delegated_puzzle_hash(const uint8_t* regist
 #cgo nocallback go_xchandles_precommit_value_get_current_expiration
 #cgo noescape go_xchandles_precommit_value_set_current_expiration
 #cgo nocallback go_xchandles_precommit_value_set_current_expiration
-#cgo noescape go_xchandles_precommit_value_get_use_expire_pricing
-#cgo nocallback go_xchandles_precommit_value_get_use_expire_pricing
-#cgo noescape go_xchandles_precommit_value_set_use_expire_pricing
-#cgo nocallback go_xchandles_precommit_value_set_use_expire_pricing
 #cgo noescape go_xchandles_precommit_value_for_normal_registration
 #cgo nocallback go_xchandles_precommit_value_for_normal_registration
 #cgo noescape go_xchandles_precommit_value_for_expiry_pricing_registration
@@ -12765,6 +14115,36 @@ func NewSpends(clvm *Clvm, changePuzzleHash []byte) (*Spends, error) {
 	return obj, nil
 }
 
+// NewSpendsWithSeparateChangePuzzleHash computes the new spends with separate change puzzle hash for the given clvm, intermediatePuzzleHash, changePuzzleHash.
+func NewSpendsWithSeparateChangePuzzleHash(clvm *Clvm, intermediatePuzzleHash []byte, changePuzzleHash []byte) (*Spends, error) {
+
+	defer runtime.KeepAlive(clvm)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	intermediatePuzzleHashPtr, intermediatePuzzleHashLen := bytesToPtr(intermediatePuzzleHash)
+	changePuzzleHashPtr, changePuzzleHashLen := bytesToPtr(changePuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_spends_with_separate_change_puzzle_hash(clvm.ptr, intermediatePuzzleHashPtr, intermediatePuzzleHashLen, changePuzzleHashPtr, changePuzzleHashLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Spends{ptr: out}
+	runtime.SetFinalizer(obj, (*Spends).Free)
+	return obj, nil
+}
+
 // AddXch adds a standard XCH coin as an input to the transaction.
 func (o *Spends) AddXch(coin *Coin) error {
 
@@ -12831,6 +14211,105 @@ func (o *Spends) AddCat(cat *Cat) error {
 	return nil
 }
 
+// AddCatForRevocation performs add cat for revocation with the given cat.
+func (o *Spends) AddCatForRevocation(cat *Cat) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(cat)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if cat == nil {
+		return fmt.Errorf("cat is nil or already freed")
+	}
+	locks = append(locks, &cat.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if cat.ptr == nil {
+		return fmt.Errorf("cat is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_spends_add_cat_for_revocation(o.ptr, cat.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddOfferedCoins performs add offered coins with the given offer.
+func (o *Spends) AddOfferedCoins(offer *Offer) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(offer)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if offer == nil {
+		return fmt.Errorf("offer is nil or already freed")
+	}
+	locks = append(locks, &offer.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if offer.ptr == nil {
+		return fmt.Errorf("offer is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_spends_add_offered_coins(o.ptr, offer.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddDid performs add did with the given did.
+func (o *Spends) AddDid(did *Did) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(did)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if did == nil {
+		return fmt.Errorf("did is nil or already freed")
+	}
+	locks = append(locks, &did.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if did.ptr == nil {
+		return fmt.Errorf("did is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_spends_add_did(o.ptr, did.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
 // AddNft adds an NFT singleton as an input to the transaction.
 func (o *Spends) AddNft(nft *Nft) error {
 
@@ -12857,6 +14336,39 @@ func (o *Spends) AddNft(nft *Nft) error {
 	defer runtime.UnlockOSThread()
 
 	ret := C.go_spends_add_nft(o.ptr, nft.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddOption performs add option with the given option.
+func (o *Spends) AddOption(option *OptionContract) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(option)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if option == nil {
+		return fmt.Errorf("option is nil or already freed")
+	}
+	locks = append(locks, &option.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if option.ptr == nil {
+		return fmt.Errorf("option is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_spends_add_option(o.ptr, option.ptr)
 	if ret != 0 {
 
 		return lastError()
@@ -13037,29 +14549,33 @@ func (o *Spends) DisableSettlementAssertions() error {
 }
 
 // SelectedXchAmount returns the total amount of XCH coins added to the transaction.
-func (o *Spends) SelectedXchAmount() (uint64, error) {
+func (o *Spends) SelectedXchAmount() (*big.Int, error) {
 
 	defer runtime.KeepAlive(o)
 	var locks handleLocks
 	if o == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	locks = append(locks, &o.mu)
 	defer lockHandles(nil, locks...)()
 	if o.ptr == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var cOut C.uint64_t
-	ret := C.go_spends_selected_xch_amount(o.ptr, &cOut)
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_spends_selected_xch_amount(o.ptr, &outPtr, &outLen)
 	if ret != 0 {
 
-		return 0, lastError()
+		return nil, lastError()
 	}
-	return uint64(cOut), nil
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
 }
 
 // SelectedAssetIds returns the asset IDs of all CAT types added to the transaction.
@@ -13106,30 +14622,34 @@ func (o *Spends) SelectedAssetIDs() ([][]byte, error) {
 }
 
 // SelectedCatAmount returns the total amount of CAT coins for the given asset ID.
-func (o *Spends) SelectedCatAmount(assetId []byte) (uint64, error) {
+func (o *Spends) SelectedCatAmount(assetId []byte) (*big.Int, error) {
 
 	defer runtime.KeepAlive(o)
 	var locks handleLocks
 	if o == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	locks = append(locks, &o.mu)
 	defer lockHandles(nil, locks...)()
 	if o.ptr == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	assetIdPtr, assetIdLen := bytesToPtr(assetId)
 
-	var cOut C.uint64_t
-	ret := C.go_spends_selected_cat_amount(o.ptr, assetIdPtr, assetIdLen, &cOut)
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_spends_selected_cat_amount(o.ptr, assetIdPtr, assetIdLen, &outPtr, &outLen)
 	if ret != 0 {
 
-		return 0, lastError()
+		return nil, lastError()
 	}
-	return uint64(cOut), nil
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
 }
 
 // Apply applies a list of actions (send, settle, mint, etc.) and returns the resulting balance deltas per asset.
@@ -13182,10 +14702,11 @@ func (o *Spends) Apply(actions []*Action) (*Deltas, error) {
 }
 
 // Prepare finalizes the transaction by computing coin spends from the applied deltas, returning spends ready for signing.
-func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
+func (o *Spends) Prepare(deltas *Deltas, relation *Relation) (*FinishedSpends, error) {
 
 	defer runtime.KeepAlive(o)
 	defer runtime.KeepAlive(deltas)
+	defer runtime.KeepAlive(relation)
 	var locks handleLocks
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -13195,6 +14716,9 @@ func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
 		return nil, fmt.Errorf("deltas is nil or already freed")
 	}
 	locks = append(locks, &deltas.mu)
+	if relation != nil {
+		locks = append(locks, &relation.mu)
+	}
 	defer lockHandles(nil, locks...)()
 	if o.ptr == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -13202,12 +14726,19 @@ func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
 	if deltas.ptr == nil {
 		return nil, fmt.Errorf("deltas is nil or already freed")
 	}
+	if relation != nil && relation.ptr == nil {
+		return nil, fmt.Errorf("relation is nil or already freed")
+	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	var relationPtr unsafe.Pointer
+	if relation != nil {
+		relationPtr = relation.ptr
+	}
 
 	var out unsafe.Pointer
-	ret := C.go_spends_prepare(o.ptr, deltas.ptr, &out)
+	ret := C.go_spends_prepare(o.ptr, deltas.ptr, relationPtr, &out)
 	if ret != 0 {
 
 		return nil, lastError()
@@ -13215,6 +14746,100 @@ func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
 	obj := &FinishedSpends{ptr: out}
 	runtime.SetFinalizer(obj, (*FinishedSpends).Free)
 	return obj, nil
+}
+
+// Relation represents a Relation variant.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Use the NewRelation* constructors or [NewRelationFromInt] to create instances.
+type Relation struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *Relation) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_relation_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *Relation) Close() error {
+	o.Free()
+	return nil
+}
+
+// ToInt returns the integer value of this enum variant.
+func (o *Relation) ToInt() (int, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out C.int
+	ret := C.go_relation_to_int(o.ptr, &out)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return int(out), nil
+}
+
+// Integer constants for [Relation] variants.
+const (
+	RelationValueUnrelated            = 0
+	RelationValueAssertConcurrent     = 1
+	RelationValueCoinAnnouncementRing = 2
+	RelationValueCoinAnnouncementHub  = 3
+)
+
+// NewRelationFromInt creates a [Relation] from its integer representation.
+func NewRelationFromInt(value int) (*Relation, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_relation_from_int(C.int(value), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &Relation{ptr: out}
+	runtime.SetFinalizer(obj, (*Relation).Free)
+	return obj, nil
+}
+
+// NewRelationUnrelated creates the Unrelated variant of [Relation].
+func NewRelationUnrelated() (*Relation, error) {
+	return NewRelationFromInt(0)
+}
+
+// NewRelationAssertConcurrent creates the AssertConcurrent variant of [Relation].
+func NewRelationAssertConcurrent() (*Relation, error) {
+	return NewRelationFromInt(1)
+}
+
+// NewRelationCoinAnnouncementRing creates the CoinAnnouncementRing variant of [Relation].
+func NewRelationCoinAnnouncementRing() (*Relation, error) {
+	return NewRelationFromInt(2)
+}
+
+// NewRelationCoinAnnouncementHub creates the CoinAnnouncementHub variant of [Relation].
+func NewRelationCoinAnnouncementHub() (*Relation, error) {
+	return NewRelationFromInt(3)
 }
 
 // FinishedSpends holds the finalized coin spends ready for signing and submission.
@@ -13584,6 +15209,32 @@ func (o *PendingSpend) AsCat() (*Cat, error) {
 	return obj, nil
 }
 
+// IsRevocation reports whether the [PendingSpend] is revocation.
+func (o *PendingSpend) IsRevocation() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_pending_spend_is_revocation(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
 // AsDid returns the coin as a DID singleton, or nil if it is not a DID.
 func (o *PendingSpend) AsDid() (*Did, error) {
 
@@ -13772,6 +15423,45 @@ func NewActionSend(id *Id, puzzleHash []byte, amount uint64, memos *Program) (*A
 	return obj, nil
 }
 
+// NewActionBurn computes the new action burn for the given id, amount, memos.
+func NewActionBurn(id *Id, amount uint64, memos *Program) (*Action, error) {
+
+	defer runtime.KeepAlive(id)
+	defer runtime.KeepAlive(memos)
+	var locks handleLocks
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	if memos != nil {
+		locks = append(locks, &memos.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	if memos != nil && memos.ptr == nil {
+		return nil, fmt.Errorf("memos is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var memosPtr unsafe.Pointer
+	if memos != nil {
+		memosPtr = memos.ptr
+	}
+
+	var out unsafe.Pointer
+	ret := C.go_action_burn(id.ptr, C.uint64_t(amount), memosPtr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
 // NewActionSettle creates an action that settles an offer by producing a notarized payment for atomic swap.
 func NewActionSettle(id *Id, notarizedPayment *NotarizedPayment) (*Action, error) {
 
@@ -13799,6 +15489,207 @@ func NewActionSettle(id *Id, notarizedPayment *NotarizedPayment) (*Action, error
 
 	var out unsafe.Pointer
 	ret := C.go_action_settle(id.ptr, notarizedPayment.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionSettleRoyalty computes the new action settle royalty for the given clvm, id, launcherId, royaltyPuzzleHash, royaltyAmount.
+func NewActionSettleRoyalty(clvm *Clvm, id *Id, launcherId []byte, royaltyPuzzleHash []byte, royaltyAmount uint64) (*Action, error) {
+
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(id)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	royaltyPuzzleHashPtr, royaltyPuzzleHashLen := bytesToPtr(royaltyPuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_action_settle_royalty(clvm.ptr, id.ptr, launcherIdPtr, launcherIdLen, royaltyPuzzleHashPtr, royaltyPuzzleHashLen, C.uint64_t(royaltyAmount), &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionCreateDid computes the new action create did for the given metadata, recoveryListHash, numVerificationsRequired, amount.
+func NewActionCreateDid(metadata *Program, recoveryListHash []byte, numVerificationsRequired uint64, amount uint64) (*Action, error) {
+
+	defer runtime.KeepAlive(metadata)
+	var locks handleLocks
+	if metadata == nil {
+		return nil, fmt.Errorf("metadata is nil or already freed")
+	}
+	locks = append(locks, &metadata.mu)
+	defer lockHandles(nil, locks...)()
+	if metadata.ptr == nil {
+		return nil, fmt.Errorf("metadata is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	recoveryListHashPtr, recoveryListHashLen := bytesToPtr(recoveryListHash)
+
+	var out unsafe.Pointer
+	ret := C.go_action_create_did(metadata.ptr, recoveryListHashPtr, recoveryListHashLen, C.uint64_t(numVerificationsRequired), C.uint64_t(amount), &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionCreateEmptyDid returns the new action create empty did.
+func NewActionCreateEmptyDid() (*Action, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_action_create_empty_did(&out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionUpdateDid computes the new action update did for the given id, newMetadata, newRecoveryListHash, newNumVerificationsRequired, removeRecoveryListHash.
+func NewActionUpdateDid(id *Id, newMetadata *Program, newRecoveryListHash []byte, newNumVerificationsRequired *uint64, removeRecoveryListHash *bool) (*Action, error) {
+
+	defer runtime.KeepAlive(id)
+	defer runtime.KeepAlive(newMetadata)
+	var locks handleLocks
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	if newMetadata != nil {
+		locks = append(locks, &newMetadata.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	if newMetadata != nil && newMetadata.ptr == nil {
+		return nil, fmt.Errorf("newMetadata is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var newMetadataPtr unsafe.Pointer
+	if newMetadata != nil {
+		newMetadataPtr = newMetadata.ptr
+	}
+	newRecoveryListHashPtr, newRecoveryListHashLen := bytesToPtr(newRecoveryListHash)
+	var newNumVerificationsRequiredVal C.uint64_t
+	var newNumVerificationsRequiredIsSome C.int
+	if newNumVerificationsRequired != nil {
+		newNumVerificationsRequiredVal = C.uint64_t(*newNumVerificationsRequired)
+		newNumVerificationsRequiredIsSome = 1
+	}
+	var removeRecoveryListHashVal C.int
+	var removeRecoveryListHashIsSome C.int
+	if removeRecoveryListHash != nil {
+		removeRecoveryListHashVal = boolToInt(*removeRecoveryListHash)
+		removeRecoveryListHashIsSome = 1
+	}
+
+	var out unsafe.Pointer
+	ret := C.go_action_update_did(id.ptr, newMetadataPtr, newRecoveryListHashPtr, newRecoveryListHashLen, newNumVerificationsRequiredVal, newNumVerificationsRequiredIsSome, removeRecoveryListHashVal, removeRecoveryListHashIsSome, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionMintOption computes the new action mint option for the given creatorPuzzleHash, seconds, underlyingId, underlyingAmount, strikeType, amount.
+func NewActionMintOption(creatorPuzzleHash []byte, seconds uint64, underlyingId *Id, underlyingAmount uint64, strikeType *OptionType, amount uint64) (*Action, error) {
+
+	defer runtime.KeepAlive(underlyingId)
+	defer runtime.KeepAlive(strikeType)
+	var locks handleLocks
+	if underlyingId == nil {
+		return nil, fmt.Errorf("underlyingId is nil or already freed")
+	}
+	locks = append(locks, &underlyingId.mu)
+	if strikeType == nil {
+		return nil, fmt.Errorf("strikeType is nil or already freed")
+	}
+	locks = append(locks, &strikeType.mu)
+	defer lockHandles(nil, locks...)()
+	if underlyingId.ptr == nil {
+		return nil, fmt.Errorf("underlyingId is nil or already freed")
+	}
+	if strikeType.ptr == nil {
+		return nil, fmt.Errorf("strikeType is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	creatorPuzzleHashPtr, creatorPuzzleHashLen := bytesToPtr(creatorPuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_action_mint_option(creatorPuzzleHashPtr, creatorPuzzleHashLen, C.uint64_t(seconds), underlyingId.ptr, C.uint64_t(underlyingAmount), strikeType.ptr, C.uint64_t(amount), &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Action{ptr: out}
+	runtime.SetFinalizer(obj, (*Action).Free)
+	return obj, nil
+}
+
+// NewActionMeltSingleton computes the new action melt singleton for the given id, amount.
+func NewActionMeltSingleton(id *Id, amount uint64) (*Action, error) {
+
+	defer runtime.KeepAlive(id)
+	var locks handleLocks
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	defer lockHandles(nil, locks...)()
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_action_melt_singleton(id.ptr, C.uint64_t(amount), &out)
 	if ret != 0 {
 
 		return nil, lastError()
@@ -14293,13 +16184,22 @@ func (o *Delta) Clone() (*Delta, error) {
 }
 
 // NewDelta creates a new [Delta] with the given field values.
-func NewDelta(input uint64, output uint64) (*Delta, error) {
-
+func NewDelta(input *big.Int, output *big.Int) (*Delta, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input must not be nil")
+	}
+	if output == nil {
+		return nil, fmt.Errorf("output must not be nil")
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	inputBytes := bigIntToSignedBytes(input)
+	inputPtr, inputLen := bytesToPtr(inputBytes)
+	outputBytes := bigIntToSignedBytes(output)
+	outputPtr, outputLen := bytesToPtr(outputBytes)
 
 	var out unsafe.Pointer
-	ret := C.go_delta_new(C.uint64_t(input), C.uint64_t(output), &out)
+	ret := C.go_delta_new(inputPtr, inputLen, outputPtr, outputLen, &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -14309,28 +16209,32 @@ func NewDelta(input uint64, output uint64) (*Delta, error) {
 }
 
 // Input returns the Input field of the [Delta].
-func (o *Delta) Input() (uint64, error) {
+func (o *Delta) Input() (*big.Int, error) {
 	if o == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	if o.ptr == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var cOut C.uint64_t
-	ret := C.go_delta_get_input(o.ptr, &cOut)
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_delta_get_input(o.ptr, &outPtr, &outLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
-		return 0, lastError()
+		return nil, lastError()
 	}
-	return uint64(cOut), nil
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
 }
 
 // SetInput updates the Input field of the [Delta].
-func (o *Delta) SetInput(value uint64) error {
+func (o *Delta) SetInput(value *big.Int) error {
 	defer runtime.KeepAlive(o)
 	var locks handleLocks
 	if o == nil {
@@ -14341,10 +16245,15 @@ func (o *Delta) SetInput(value uint64) error {
 	if o.ptr == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
 
-	ret := C.go_delta_set_input(o.ptr, C.uint64_t(value))
+	ret := C.go_delta_set_input(o.ptr, valuePtr, valueLen)
 	if ret != 0 {
 		return lastError()
 	}
@@ -14352,28 +16261,32 @@ func (o *Delta) SetInput(value uint64) error {
 }
 
 // Output returns the Output field of the [Delta].
-func (o *Delta) Output() (uint64, error) {
+func (o *Delta) Output() (*big.Int, error) {
 	if o == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	if o.ptr == nil {
-		return 0, fmt.Errorf("object is nil or already freed")
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var cOut C.uint64_t
-	ret := C.go_delta_get_output(o.ptr, &cOut)
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_delta_get_output(o.ptr, &outPtr, &outLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
-		return 0, lastError()
+		return nil, lastError()
 	}
-	return uint64(cOut), nil
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
 }
 
 // SetOutput updates the Output field of the [Delta].
-func (o *Delta) SetOutput(value uint64) error {
+func (o *Delta) SetOutput(value *big.Int) error {
 	defer runtime.KeepAlive(o)
 	var locks handleLocks
 	if o == nil {
@@ -14384,10 +16297,15 @@ func (o *Delta) SetOutput(value uint64) error {
 	if o.ptr == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
 
-	ret := C.go_delta_set_output(o.ptr, C.uint64_t(value))
+	ret := C.go_delta_set_output(o.ptr, valuePtr, valueLen)
 	if ret != 0 {
 		return lastError()
 	}
@@ -14594,7 +16512,7 @@ func (o *Id) AsNew() (*uint, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var cOut C.uint64_t
+	var cOut C.size_t
 	var cOutIsSome C.int
 	ret := C.go_id_as_new(o.ptr, &cOut, &cOutIsSome)
 	if ret != 0 {
@@ -14891,6 +16809,206 @@ func (o *Outputs) Nft(id *Id) (*Nft, error) {
 	obj := &Nft{ptr: out}
 	runtime.SetFinalizer(obj, (*Nft).Free)
 	return obj, nil
+}
+
+// Dids returns the dids of the [Outputs].
+func (o *Outputs) Dids() ([]*Id, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_outputs_dids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_id_list_len(out)
+	result := make([]*Id, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_id_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_id_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Id{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Id).Free)
+	}
+	C.go_id_list_free(out)
+	return result, nil
+}
+
+// Did computes the did for the given id.
+func (o *Outputs) Did(id *Id) (*Did, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(id)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_outputs_did(o.ptr, id.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Did{ptr: out}
+	runtime.SetFinalizer(obj, (*Did).Free)
+	return obj, nil
+}
+
+// Options returns the options of the [Outputs].
+func (o *Outputs) Options() ([]*Id, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_outputs_options(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_id_list_len(out)
+	result := make([]*Id, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_id_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_id_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Id{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Id).Free)
+	}
+	C.go_id_list_free(out)
+	return result, nil
+}
+
+// Option computes the option for the given id.
+func (o *Outputs) Option(id *Id) (*OptionContract, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(id)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if id == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+	locks = append(locks, &id.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if id.ptr == nil {
+		return nil, fmt.Errorf("id is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_outputs_option(o.ptr, id.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OptionContract{ptr: out}
+	runtime.SetFinalizer(obj, (*OptionContract).Free)
+	return obj, nil
+}
+
+// Fee returns the fee of the [Outputs].
+func (o *Outputs) Fee() (uint64, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint64_t
+	ret := C.go_outputs_fee(o.ptr, &cOut)
+	if ret != 0 {
+
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// ReservedFee returns the reserved fee of the [Outputs].
+func (o *Outputs) ReservedFee() (uint64, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint64_t
+	ret := C.go_outputs_reserved_fee(o.ptr, &cOut)
+	if ret != 0 {
+
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
 }
 
 // TransferNftById specifies an NFT transfer destination including the new owner DID and royalty trade prices.
@@ -21254,6 +23372,7469 @@ func (o *CatalogRegistryActualNeighborsResult) SetRightSlot(value *CatalogSlot) 
 	defer runtime.UnlockOSThread()
 
 	ret := C.go_catalog_registry_actual_neighbors_result_set_right_slot(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Reveals represents a Reveals in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type Reveals struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *Reveals) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_reveals_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *Reveals) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the Reveals.
+func (o *Reveals) Clone() (*Reveals, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_reveals_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &Reveals{ptr: out}
+	runtime.SetFinalizer(clone, (*Reveals).Free)
+	return clone, nil
+}
+
+// NewReveals creates a new [Reveals] with the given clvm.
+func NewReveals(clvm *Clvm) (*Reveals, error) {
+
+	defer runtime.KeepAlive(clvm)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_reveals_new(clvm.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Reveals{ptr: out}
+	runtime.SetFinalizer(obj, (*Reveals).Free)
+	return obj, nil
+}
+
+// NewRevealsFromCoinSpends computes the new reveals from coin spends for the given clvm, coinSpends.
+func NewRevealsFromCoinSpends(clvm *Clvm, coinSpends []*CoinSpend) (*Reveals, error) {
+
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(coinSpends)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	for _, item := range coinSpends {
+		if item == nil {
+			return nil, fmt.Errorf("coinSpends is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	for _, item := range coinSpends {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("coinSpends is nil or already freed")
+		}
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	coinSpendsPtrs := make([]unsafe.Pointer, len(coinSpends))
+	for i, item := range coinSpends {
+		coinSpendsPtrs[i] = item.ptr
+	}
+	var coinSpendsPtrsC *unsafe.Pointer
+	if len(coinSpendsPtrs) > 0 {
+		coinSpendsPtrsC = &coinSpendsPtrs[0]
+	}
+	coinSpendsLen := C.size_t(len(coinSpends))
+
+	var out unsafe.Pointer
+	ret := C.go_reveals_from_coin_spends(clvm.ptr, (*unsafe.Pointer)(unsafe.Pointer(coinSpendsPtrsC)), coinSpendsLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Reveals{ptr: out}
+	runtime.SetFinalizer(obj, (*Reveals).Free)
+	return obj, nil
+}
+
+// RevealCoinSpend performs reveal coin spend with the given coinSpend.
+func (o *Reveals) RevealCoinSpend(coinSpend *CoinSpend) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(coinSpend)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if coinSpend == nil {
+		return fmt.Errorf("coinSpend is nil or already freed")
+	}
+	locks = append(locks, &coinSpend.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if coinSpend.ptr == nil {
+		return fmt.Errorf("coinSpend is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_reveals_reveal_coin_spend(o.ptr, coinSpend.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// RevealClawback performs reveal clawback with the given clawback.
+func (o *Reveals) RevealClawback(clawback *ClawbackV2) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(clawback)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if clawback == nil {
+		return fmt.Errorf("clawback is nil or already freed")
+	}
+	locks = append(locks, &clawback.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if clawback.ptr == nil {
+		return fmt.Errorf("clawback is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_reveals_reveal_clawback(o.ptr, clawback.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// RevealP2ConditionsOrSingleton performs reveal P2 conditions or singleton with the given p2.
+func (o *Reveals) RevealP2ConditionsOrSingleton(p2 *P2ConditionsOrSingleton) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(p2)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if p2 == nil {
+		return fmt.Errorf("p2 is nil or already freed")
+	}
+	locks = append(locks, &p2.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if p2.ptr == nil {
+		return fmt.Errorf("p2 is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_reveals_reveal_p_2_conditions_or_singleton(o.ptr, p2.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// RevealVaultNonce performs reveal vault nonce with the given nonce.
+func (o *Reveals) RevealVaultNonce(nonce uint) error {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_reveals_reveal_vault_nonce(o.ptr, C.size_t(nonce))
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// ParseVaultTransaction computes the parse vault transaction for the given clvm, reveals, launcherId, delegatedSpend.
+func ParseVaultTransaction(clvm *Clvm, reveals *Reveals, launcherId []byte, delegatedSpend *Spend) (*VaultTransaction, error) {
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(reveals)
+	defer runtime.KeepAlive(delegatedSpend)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	if reveals == nil {
+		return nil, fmt.Errorf("reveals is nil or already freed")
+	}
+	locks = append(locks, &reveals.mu)
+	if delegatedSpend == nil {
+		return nil, fmt.Errorf("delegatedSpend is nil or already freed")
+	}
+	locks = append(locks, &delegatedSpend.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	if reveals.ptr == nil {
+		return nil, fmt.Errorf("reveals is nil or already freed")
+	}
+	if delegatedSpend.ptr == nil {
+		return nil, fmt.Errorf("delegatedSpend is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	var out unsafe.Pointer
+	ret := C.go_parse_vault_transaction(clvm.ptr, reveals.ptr, launcherIdPtr, launcherIdLen, delegatedSpend.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &VaultTransaction{ptr: out}
+	runtime.SetFinalizer(obj, (*VaultTransaction).Free)
+	return obj, nil
+}
+
+// CalculateVaultPuzzleMessage computes the calculate vault puzzle message for the given delegatedPuzzleHash, vaultPuzzleHash.
+func CalculateVaultPuzzleMessage(delegatedPuzzleHash []byte, vaultPuzzleHash []byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+	vaultPuzzleHashPtr, vaultPuzzleHashLen := bytesToPtr(vaultPuzzleHash)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_calculate_vault_puzzle_message(delegatedPuzzleHashPtr, delegatedPuzzleHashLen, vaultPuzzleHashPtr, vaultPuzzleHashLen, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// CalculateVaultCoinMessage computes the calculate vault coin message for the given delegatedPuzzleHash, vaultCoinId, genesisChallenge.
+func CalculateVaultCoinMessage(delegatedPuzzleHash []byte, vaultCoinId []byte, genesisChallenge []byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+	vaultCoinIdPtr, vaultCoinIdLen := bytesToPtr(vaultCoinId)
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_calculate_vault_coin_message(delegatedPuzzleHashPtr, delegatedPuzzleHashLen, vaultCoinIdPtr, vaultCoinIdLen, genesisChallengePtr, genesisChallengeLen, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// VaultVersion represents a VaultVersion variant.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Use the NewVaultVersion* constructors or [NewVaultVersionFromInt] to create instances.
+type VaultVersion struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *VaultVersion) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_vault_version_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *VaultVersion) Close() error {
+	o.Free()
+	return nil
+}
+
+// ToInt returns the integer value of this enum variant.
+func (o *VaultVersion) ToInt() (int, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out C.int
+	ret := C.go_vault_version_to_int(o.ptr, &out)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return int(out), nil
+}
+
+// Integer constants for [VaultVersion] variants.
+const (
+	VaultVersionValueLegacy                   = 0
+	VaultVersionValueForceSingletonRecreation = 1
+)
+
+// NewVaultVersionFromInt creates a [VaultVersion] from its integer representation.
+func NewVaultVersionFromInt(value int) (*VaultVersion, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_version_from_int(C.int(value), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &VaultVersion{ptr: out}
+	runtime.SetFinalizer(obj, (*VaultVersion).Free)
+	return obj, nil
+}
+
+// NewVaultVersionLegacy creates the Legacy variant of [VaultVersion].
+func NewVaultVersionLegacy() (*VaultVersion, error) {
+	return NewVaultVersionFromInt(0)
+}
+
+// NewVaultVersionForceSingletonRecreation creates the ForceSingletonRecreation variant of [VaultVersion].
+func NewVaultVersionForceSingletonRecreation() (*VaultVersion, error) {
+	return NewVaultVersionFromInt(1)
+}
+
+// VaultRecoveryDelegatedPuzzleHash computes the vault recovery delegated puzzle hash for the given delegatedPuzzleHash, leftSideSubtreeHash, recoveryTimelock, version.
+func VaultRecoveryDelegatedPuzzleHash(delegatedPuzzleHash []byte, leftSideSubtreeHash []byte, recoveryTimelock uint64, version *VaultVersion) ([]byte, error) {
+	defer runtime.KeepAlive(version)
+	var locks handleLocks
+	if version == nil {
+		return nil, fmt.Errorf("version is nil or already freed")
+	}
+	locks = append(locks, &version.mu)
+	defer lockHandles(nil, locks...)()
+	if version.ptr == nil {
+		return nil, fmt.Errorf("version is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+	leftSideSubtreeHashPtr, leftSideSubtreeHashLen := bytesToPtr(leftSideSubtreeHash)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_vault_recovery_delegated_puzzle_hash(delegatedPuzzleHashPtr, delegatedPuzzleHashLen, leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint64_t(recoveryTimelock), version.ptr, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// CalculateVaultStartRecoveryMessage computes the calculate vault start recovery message for the given delegatedPuzzleHash, leftSideSubtreeHash, recoveryTimelock, vaultCoinId, genesisChallenge, version.
+func CalculateVaultStartRecoveryMessage(delegatedPuzzleHash []byte, leftSideSubtreeHash []byte, recoveryTimelock uint64, vaultCoinId []byte, genesisChallenge []byte, version *VaultVersion) ([]byte, error) {
+	defer runtime.KeepAlive(version)
+	var locks handleLocks
+	if version == nil {
+		return nil, fmt.Errorf("version is nil or already freed")
+	}
+	locks = append(locks, &version.mu)
+	defer lockHandles(nil, locks...)()
+	if version.ptr == nil {
+		return nil, fmt.Errorf("version is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+	leftSideSubtreeHashPtr, leftSideSubtreeHashLen := bytesToPtr(leftSideSubtreeHash)
+	vaultCoinIdPtr, vaultCoinIdLen := bytesToPtr(vaultCoinId)
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_calculate_vault_start_recovery_message(delegatedPuzzleHashPtr, delegatedPuzzleHashLen, leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint64_t(recoveryTimelock), vaultCoinIdPtr, vaultCoinIdLen, genesisChallengePtr, genesisChallengeLen, version.ptr, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// P2ConditionsOrSingleton represents a P2ConditionsOrSingleton in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type P2ConditionsOrSingleton struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *P2ConditionsOrSingleton) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_p_2_conditions_or_singleton_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *P2ConditionsOrSingleton) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the P2ConditionsOrSingleton.
+func (o *P2ConditionsOrSingleton) Clone() (*P2ConditionsOrSingleton, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_p_2_conditions_or_singleton_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &P2ConditionsOrSingleton{ptr: out}
+	runtime.SetFinalizer(clone, (*P2ConditionsOrSingleton).Free)
+	return clone, nil
+}
+
+// NewP2ConditionsOrSingleton creates a new [P2ConditionsOrSingleton] with the given field values.
+func NewP2ConditionsOrSingleton(launcherId []byte, nonce uint, fixedConditionsHash []byte) (*P2ConditionsOrSingleton, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	fixedConditionsHashPtr, fixedConditionsHashLen := bytesToPtr(fixedConditionsHash)
+
+	var out unsafe.Pointer
+	ret := C.go_p_2_conditions_or_singleton_new(launcherIdPtr, launcherIdLen, C.size_t(nonce), fixedConditionsHashPtr, fixedConditionsHashLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &P2ConditionsOrSingleton{ptr: out}
+	runtime.SetFinalizer(obj, (*P2ConditionsOrSingleton).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_conditions_or_singleton_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *P2ConditionsOrSingleton) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_conditions_or_singleton_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *P2ConditionsOrSingleton) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// Nonce returns the Nonce field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) Nonce() (uint, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.size_t
+	ret := C.go_p_2_conditions_or_singleton_get_nonce(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint(cOut), nil
+}
+
+// SetNonce updates the Nonce field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) SetNonce(value uint) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_p_2_conditions_or_singleton_set_nonce(o.ptr, C.size_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// FixedConditionsHash returns the FixedConditionsHash field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) FixedConditionsHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_conditions_or_singleton_get_fixed_conditions_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetFixedConditionsHash updates the FixedConditionsHash field of the [P2ConditionsOrSingleton].
+func (o *P2ConditionsOrSingleton) SetFixedConditionsHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_conditions_or_singleton_set_fixed_conditions_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// VaultTransaction represents a VaultTransaction in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type VaultTransaction struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *VaultTransaction) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_vault_transaction_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *VaultTransaction) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the VaultTransaction.
+func (o *VaultTransaction) Clone() (*VaultTransaction, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &VaultTransaction{ptr: out}
+	runtime.SetFinalizer(clone, (*VaultTransaction).Free)
+	return clone, nil
+}
+
+// NewVaultTransaction creates a new [VaultTransaction] with the given field values.
+func NewVaultTransaction(vaultChild *VaultOutput, dropCoins []*DropCoin, spends []*VerifiedSpend, issuances []*Issuance, assertedPayments []*AssertedNotarizedPayment, receivedPayments []*AssertedPayment, externalPayments []*AssertedPayment, assetFlows []*AssetFlow, linkedOffer *LinkedOffer, reservedFee uint64, p2PuzzleHashes [][]byte, delegatedPuzzleHash []byte) (*VaultTransaction, error) {
+	defer runtime.KeepAlive(vaultChild)
+	defer runtime.KeepAlive(dropCoins)
+	defer runtime.KeepAlive(spends)
+	defer runtime.KeepAlive(issuances)
+	defer runtime.KeepAlive(assertedPayments)
+	defer runtime.KeepAlive(receivedPayments)
+	defer runtime.KeepAlive(externalPayments)
+	defer runtime.KeepAlive(assetFlows)
+	defer runtime.KeepAlive(linkedOffer)
+	var locks handleLocks
+	if vaultChild != nil {
+		locks = append(locks, &vaultChild.mu)
+	}
+	for _, item := range dropCoins {
+		if item == nil {
+			return nil, fmt.Errorf("dropCoins is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range spends {
+		if item == nil {
+			return nil, fmt.Errorf("spends is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range issuances {
+		if item == nil {
+			return nil, fmt.Errorf("issuances is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range assertedPayments {
+		if item == nil {
+			return nil, fmt.Errorf("assertedPayments is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range receivedPayments {
+		if item == nil {
+			return nil, fmt.Errorf("receivedPayments is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range externalPayments {
+		if item == nil {
+			return nil, fmt.Errorf("externalPayments is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range assetFlows {
+		if item == nil {
+			return nil, fmt.Errorf("assetFlows is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	if linkedOffer != nil {
+		locks = append(locks, &linkedOffer.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if vaultChild != nil && vaultChild.ptr == nil {
+		return nil, fmt.Errorf("vaultChild is nil or already freed")
+	}
+	for _, item := range dropCoins {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("dropCoins is nil or already freed")
+		}
+	}
+	for _, item := range spends {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("spends is nil or already freed")
+		}
+	}
+	for _, item := range issuances {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("issuances is nil or already freed")
+		}
+	}
+	for _, item := range assertedPayments {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("assertedPayments is nil or already freed")
+		}
+	}
+	for _, item := range receivedPayments {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("receivedPayments is nil or already freed")
+		}
+	}
+	for _, item := range externalPayments {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("externalPayments is nil or already freed")
+		}
+	}
+	for _, item := range assetFlows {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("assetFlows is nil or already freed")
+		}
+	}
+	if linkedOffer != nil && linkedOffer.ptr == nil {
+		return nil, fmt.Errorf("linkedOffer is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var vaultChildPtr unsafe.Pointer
+	if vaultChild != nil {
+		vaultChildPtr = vaultChild.ptr
+	}
+	dropCoinsPtrs := make([]unsafe.Pointer, len(dropCoins))
+	for i, item := range dropCoins {
+		dropCoinsPtrs[i] = item.ptr
+	}
+	var dropCoinsPtrsC *unsafe.Pointer
+	if len(dropCoinsPtrs) > 0 {
+		dropCoinsPtrsC = &dropCoinsPtrs[0]
+	}
+	dropCoinsLen := C.size_t(len(dropCoins))
+	spendsPtrs := make([]unsafe.Pointer, len(spends))
+	for i, item := range spends {
+		spendsPtrs[i] = item.ptr
+	}
+	var spendsPtrsC *unsafe.Pointer
+	if len(spendsPtrs) > 0 {
+		spendsPtrsC = &spendsPtrs[0]
+	}
+	spendsLen := C.size_t(len(spends))
+	issuancesPtrs := make([]unsafe.Pointer, len(issuances))
+	for i, item := range issuances {
+		issuancesPtrs[i] = item.ptr
+	}
+	var issuancesPtrsC *unsafe.Pointer
+	if len(issuancesPtrs) > 0 {
+		issuancesPtrsC = &issuancesPtrs[0]
+	}
+	issuancesLen := C.size_t(len(issuances))
+	assertedPaymentsPtrs := make([]unsafe.Pointer, len(assertedPayments))
+	for i, item := range assertedPayments {
+		assertedPaymentsPtrs[i] = item.ptr
+	}
+	var assertedPaymentsPtrsC *unsafe.Pointer
+	if len(assertedPaymentsPtrs) > 0 {
+		assertedPaymentsPtrsC = &assertedPaymentsPtrs[0]
+	}
+	assertedPaymentsLen := C.size_t(len(assertedPayments))
+	receivedPaymentsPtrs := make([]unsafe.Pointer, len(receivedPayments))
+	for i, item := range receivedPayments {
+		receivedPaymentsPtrs[i] = item.ptr
+	}
+	var receivedPaymentsPtrsC *unsafe.Pointer
+	if len(receivedPaymentsPtrs) > 0 {
+		receivedPaymentsPtrsC = &receivedPaymentsPtrs[0]
+	}
+	receivedPaymentsLen := C.size_t(len(receivedPayments))
+	externalPaymentsPtrs := make([]unsafe.Pointer, len(externalPayments))
+	for i, item := range externalPayments {
+		externalPaymentsPtrs[i] = item.ptr
+	}
+	var externalPaymentsPtrsC *unsafe.Pointer
+	if len(externalPaymentsPtrs) > 0 {
+		externalPaymentsPtrsC = &externalPaymentsPtrs[0]
+	}
+	externalPaymentsLen := C.size_t(len(externalPayments))
+	assetFlowsPtrs := make([]unsafe.Pointer, len(assetFlows))
+	for i, item := range assetFlows {
+		assetFlowsPtrs[i] = item.ptr
+	}
+	var assetFlowsPtrsC *unsafe.Pointer
+	if len(assetFlowsPtrs) > 0 {
+		assetFlowsPtrsC = &assetFlowsPtrs[0]
+	}
+	assetFlowsLen := C.size_t(len(assetFlows))
+	var linkedOfferPtr unsafe.Pointer
+	if linkedOffer != nil {
+		linkedOfferPtr = linkedOffer.ptr
+	}
+	var p2PuzzleHashesPinner runtime.Pinner
+	defer p2PuzzleHashesPinner.Unpin()
+	p2PuzzleHashesPtrs := make([]*C.uint8_t, len(p2PuzzleHashes))
+	p2PuzzleHashesLens := make([]C.size_t, len(p2PuzzleHashes))
+	for i, b := range p2PuzzleHashes {
+		if len(b) > 0 {
+			p2PuzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+			p2PuzzleHashesPinner.Pin(p2PuzzleHashesPtrs[i])
+		}
+		p2PuzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var p2PuzzleHashesPtrsC **C.uint8_t
+	var p2PuzzleHashesLensC *C.size_t
+	if len(p2PuzzleHashes) > 0 {
+		p2PuzzleHashesPtrsC = &p2PuzzleHashesPtrs[0]
+		p2PuzzleHashesLensC = &p2PuzzleHashesLens[0]
+	}
+	p2PuzzleHashesCount := C.size_t(len(p2PuzzleHashes))
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_new(vaultChildPtr, (*unsafe.Pointer)(unsafe.Pointer(dropCoinsPtrsC)), dropCoinsLen, (*unsafe.Pointer)(unsafe.Pointer(spendsPtrsC)), spendsLen, (*unsafe.Pointer)(unsafe.Pointer(issuancesPtrsC)), issuancesLen, (*unsafe.Pointer)(unsafe.Pointer(assertedPaymentsPtrsC)), assertedPaymentsLen, (*unsafe.Pointer)(unsafe.Pointer(receivedPaymentsPtrsC)), receivedPaymentsLen, (*unsafe.Pointer)(unsafe.Pointer(externalPaymentsPtrsC)), externalPaymentsLen, (*unsafe.Pointer)(unsafe.Pointer(assetFlowsPtrsC)), assetFlowsLen, linkedOfferPtr, C.uint64_t(reservedFee), p2PuzzleHashesPtrsC, p2PuzzleHashesLensC, p2PuzzleHashesCount, delegatedPuzzleHashPtr, delegatedPuzzleHashLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &VaultTransaction{ptr: out}
+	runtime.SetFinalizer(obj, (*VaultTransaction).Free)
+	return obj, nil
+}
+
+// VaultChild returns the VaultChild field of the [VaultTransaction].
+func (o *VaultTransaction) VaultChild() (*VaultOutput, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_vault_child(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &VaultOutput{ptr: out}
+	runtime.SetFinalizer(obj, (*VaultOutput).Free)
+	return obj, nil
+}
+
+// SetVaultChild updates the VaultChild field of the [VaultTransaction].
+func (o *VaultTransaction) SetVaultChild(value *VaultOutput) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value != nil {
+		locks = append(locks, &value.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value != nil && value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePtr unsafe.Pointer
+	if value != nil {
+		valuePtr = value.ptr
+	}
+
+	ret := C.go_vault_transaction_set_vault_child(o.ptr, valuePtr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// DropCoins returns the DropCoins field of the [VaultTransaction].
+func (o *VaultTransaction) DropCoins() ([]*DropCoin, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_drop_coins(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_drop_coin_list_len(out)
+	result := make([]*DropCoin, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_drop_coin_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_drop_coin_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &DropCoin{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*DropCoin).Free)
+	}
+	C.go_drop_coin_list_free(out)
+	return result, nil
+}
+
+// SetDropCoins updates the DropCoins field of the [VaultTransaction].
+func (o *VaultTransaction) SetDropCoins(value []*DropCoin) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_drop_coins(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Spends returns the Spends field of the [VaultTransaction].
+func (o *VaultTransaction) Spends() ([]*VerifiedSpend, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_spends(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_verified_spend_list_len(out)
+	result := make([]*VerifiedSpend, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_verified_spend_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_verified_spend_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &VerifiedSpend{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*VerifiedSpend).Free)
+	}
+	C.go_verified_spend_list_free(out)
+	return result, nil
+}
+
+// SetSpends updates the Spends field of the [VaultTransaction].
+func (o *VaultTransaction) SetSpends(value []*VerifiedSpend) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_spends(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Issuances returns the Issuances field of the [VaultTransaction].
+func (o *VaultTransaction) Issuances() ([]*Issuance, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_issuances(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_issuance_list_len(out)
+	result := make([]*Issuance, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_issuance_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_issuance_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Issuance{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Issuance).Free)
+	}
+	C.go_issuance_list_free(out)
+	return result, nil
+}
+
+// SetIssuances updates the Issuances field of the [VaultTransaction].
+func (o *VaultTransaction) SetIssuances(value []*Issuance) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_issuances(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// AssertedPayments returns the AssertedPayments field of the [VaultTransaction].
+func (o *VaultTransaction) AssertedPayments() ([]*AssertedNotarizedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_asserted_payments(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asserted_notarized_payment_list_len(out)
+	result := make([]*AssertedNotarizedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asserted_notarized_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asserted_notarized_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssertedNotarizedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssertedNotarizedPayment).Free)
+	}
+	C.go_asserted_notarized_payment_list_free(out)
+	return result, nil
+}
+
+// SetAssertedPayments updates the AssertedPayments field of the [VaultTransaction].
+func (o *VaultTransaction) SetAssertedPayments(value []*AssertedNotarizedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_asserted_payments(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ReceivedPayments returns the ReceivedPayments field of the [VaultTransaction].
+func (o *VaultTransaction) ReceivedPayments() ([]*AssertedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_received_payments(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asserted_payment_list_len(out)
+	result := make([]*AssertedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asserted_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asserted_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssertedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssertedPayment).Free)
+	}
+	C.go_asserted_payment_list_free(out)
+	return result, nil
+}
+
+// SetReceivedPayments updates the ReceivedPayments field of the [VaultTransaction].
+func (o *VaultTransaction) SetReceivedPayments(value []*AssertedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_received_payments(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ExternalPayments returns the ExternalPayments field of the [VaultTransaction].
+func (o *VaultTransaction) ExternalPayments() ([]*AssertedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_external_payments(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asserted_payment_list_len(out)
+	result := make([]*AssertedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asserted_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asserted_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssertedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssertedPayment).Free)
+	}
+	C.go_asserted_payment_list_free(out)
+	return result, nil
+}
+
+// SetExternalPayments updates the ExternalPayments field of the [VaultTransaction].
+func (o *VaultTransaction) SetExternalPayments(value []*AssertedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_external_payments(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// AssetFlows returns the AssetFlows field of the [VaultTransaction].
+func (o *VaultTransaction) AssetFlows() ([]*AssetFlow, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_asset_flows(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asset_flow_list_len(out)
+	result := make([]*AssetFlow, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asset_flow_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asset_flow_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssetFlow{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssetFlow).Free)
+	}
+	C.go_asset_flow_list_free(out)
+	return result, nil
+}
+
+// SetAssetFlows updates the AssetFlows field of the [VaultTransaction].
+func (o *VaultTransaction) SetAssetFlows(value []*AssetFlow) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_asset_flows(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// LinkedOffer returns the LinkedOffer field of the [VaultTransaction].
+func (o *VaultTransaction) LinkedOffer() (*LinkedOffer, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_linked_offer(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &LinkedOffer{ptr: out}
+	runtime.SetFinalizer(obj, (*LinkedOffer).Free)
+	return obj, nil
+}
+
+// SetLinkedOffer updates the LinkedOffer field of the [VaultTransaction].
+func (o *VaultTransaction) SetLinkedOffer(value *LinkedOffer) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value != nil {
+		locks = append(locks, &value.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value != nil && value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePtr unsafe.Pointer
+	if value != nil {
+		valuePtr = value.ptr
+	}
+
+	ret := C.go_vault_transaction_set_linked_offer(o.ptr, valuePtr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ReservedFee returns the ReservedFee field of the [VaultTransaction].
+func (o *VaultTransaction) ReservedFee() (uint64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint64_t
+	ret := C.go_vault_transaction_get_reserved_fee(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// SetReservedFee updates the ReservedFee field of the [VaultTransaction].
+func (o *VaultTransaction) SetReservedFee(value uint64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_vault_transaction_set_reserved_fee(o.ptr, C.uint64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// P2PuzzleHashes returns the P2PuzzleHashes field of the [VaultTransaction].
+func (o *VaultTransaction) P2PuzzleHashes() ([][]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_transaction_get_p_2_puzzle_hashes(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// SetP2PuzzleHashes updates the P2PuzzleHashes field of the [VaultTransaction].
+func (o *VaultTransaction) SetP2PuzzleHashes(value [][]byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePinner runtime.Pinner
+	defer valuePinner.Unpin()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+			valuePinner.Pin(valuePtrs[i])
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
+
+	ret := C.go_vault_transaction_set_p_2_puzzle_hashes(o.ptr, valuePtrsC, valueLensC, valueCount)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// DelegatedPuzzleHash returns the DelegatedPuzzleHash field of the [VaultTransaction].
+func (o *VaultTransaction) DelegatedPuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_vault_transaction_get_delegated_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetDelegatedPuzzleHash updates the DelegatedPuzzleHash field of the [VaultTransaction].
+func (o *VaultTransaction) SetDelegatedPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_vault_transaction_set_delegated_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// VaultOutput represents a VaultOutput in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type VaultOutput struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *VaultOutput) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_vault_output_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *VaultOutput) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the VaultOutput.
+func (o *VaultOutput) Clone() (*VaultOutput, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_vault_output_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &VaultOutput{ptr: out}
+	runtime.SetFinalizer(clone, (*VaultOutput).Free)
+	return clone, nil
+}
+
+// NewVaultOutput creates a new [VaultOutput] with the given field values.
+func NewVaultOutput(custodyHash []byte, amount uint64) (*VaultOutput, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	custodyHashPtr, custodyHashLen := bytesToPtr(custodyHash)
+
+	var out unsafe.Pointer
+	ret := C.go_vault_output_new(custodyHashPtr, custodyHashLen, C.uint64_t(amount), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &VaultOutput{ptr: out}
+	runtime.SetFinalizer(obj, (*VaultOutput).Free)
+	return obj, nil
+}
+
+// CustodyHash returns the CustodyHash field of the [VaultOutput].
+func (o *VaultOutput) CustodyHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_vault_output_get_custody_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetCustodyHash updates the CustodyHash field of the [VaultOutput].
+func (o *VaultOutput) SetCustodyHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_vault_output_set_custody_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Amount returns the Amount field of the [VaultOutput].
+func (o *VaultOutput) Amount() (uint64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint64_t
+	ret := C.go_vault_output_get_amount(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// SetAmount updates the Amount field of the [VaultOutput].
+func (o *VaultOutput) SetAmount(value uint64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_vault_output_set_amount(o.ptr, C.uint64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// DropCoin represents a DropCoin in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type DropCoin struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *DropCoin) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_drop_coin_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *DropCoin) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the DropCoin.
+func (o *DropCoin) Clone() (*DropCoin, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_drop_coin_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &DropCoin{ptr: out}
+	runtime.SetFinalizer(clone, (*DropCoin).Free)
+	return clone, nil
+}
+
+// NewDropCoin creates a new [DropCoin] with the given field values.
+func NewDropCoin(puzzleHash []byte, amount uint64) (*DropCoin, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	puzzleHashPtr, puzzleHashLen := bytesToPtr(puzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_drop_coin_new(puzzleHashPtr, puzzleHashLen, C.uint64_t(amount), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &DropCoin{ptr: out}
+	runtime.SetFinalizer(obj, (*DropCoin).Free)
+	return obj, nil
+}
+
+// PuzzleHash returns the PuzzleHash field of the [DropCoin].
+func (o *DropCoin) PuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_drop_coin_get_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetPuzzleHash updates the PuzzleHash field of the [DropCoin].
+func (o *DropCoin) SetPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_drop_coin_set_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Amount returns the Amount field of the [DropCoin].
+func (o *DropCoin) Amount() (uint64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint64_t
+	ret := C.go_drop_coin_get_amount(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// SetAmount updates the Amount field of the [DropCoin].
+func (o *DropCoin) SetAmount(value uint64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_drop_coin_set_amount(o.ptr, C.uint64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// VerifiedSpend represents a VerifiedSpend in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type VerifiedSpend struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *VerifiedSpend) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_verified_spend_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *VerifiedSpend) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the VerifiedSpend.
+func (o *VerifiedSpend) Clone() (*VerifiedSpend, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &VerifiedSpend{ptr: out}
+	runtime.SetFinalizer(clone, (*VerifiedSpend).Free)
+	return clone, nil
+}
+
+// NewVerifiedSpend creates a new [VerifiedSpend] with the given field values.
+func NewVerifiedSpend(asset *ParsedAsset, clawback *ClawbackInfo, custody *CustodyInfo, children []*ParsedChild, revoked bool) (*VerifiedSpend, error) {
+	defer runtime.KeepAlive(asset)
+	defer runtime.KeepAlive(clawback)
+	defer runtime.KeepAlive(custody)
+	defer runtime.KeepAlive(children)
+	var locks handleLocks
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	locks = append(locks, &asset.mu)
+	if clawback != nil {
+		locks = append(locks, &clawback.mu)
+	}
+	if custody == nil {
+		return nil, fmt.Errorf("custody is nil or already freed")
+	}
+	locks = append(locks, &custody.mu)
+	for _, item := range children {
+		if item == nil {
+			return nil, fmt.Errorf("children is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if asset.ptr == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	if clawback != nil && clawback.ptr == nil {
+		return nil, fmt.Errorf("clawback is nil or already freed")
+	}
+	if custody.ptr == nil {
+		return nil, fmt.Errorf("custody is nil or already freed")
+	}
+	for _, item := range children {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("children is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var clawbackPtr unsafe.Pointer
+	if clawback != nil {
+		clawbackPtr = clawback.ptr
+	}
+	childrenPtrs := make([]unsafe.Pointer, len(children))
+	for i, item := range children {
+		childrenPtrs[i] = item.ptr
+	}
+	var childrenPtrsC *unsafe.Pointer
+	if len(childrenPtrs) > 0 {
+		childrenPtrsC = &childrenPtrs[0]
+	}
+	childrenLen := C.size_t(len(children))
+
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_new(asset.ptr, clawbackPtr, custody.ptr, (*unsafe.Pointer)(unsafe.Pointer(childrenPtrsC)), childrenLen, boolToInt(revoked), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &VerifiedSpend{ptr: out}
+	runtime.SetFinalizer(obj, (*VerifiedSpend).Free)
+	return obj, nil
+}
+
+// Asset returns the Asset field of the [VerifiedSpend].
+func (o *VerifiedSpend) Asset() (*ParsedAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_get_asset(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ParsedAsset{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedAsset).Free)
+	return obj, nil
+}
+
+// SetAsset updates the Asset field of the [VerifiedSpend].
+func (o *VerifiedSpend) SetAsset(value *ParsedAsset) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_verified_spend_set_asset(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Clawback returns the Clawback field of the [VerifiedSpend].
+func (o *VerifiedSpend) Clawback() (*ClawbackInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_get_clawback(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ClawbackInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackInfo).Free)
+	return obj, nil
+}
+
+// SetClawback updates the Clawback field of the [VerifiedSpend].
+func (o *VerifiedSpend) SetClawback(value *ClawbackInfo) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value != nil {
+		locks = append(locks, &value.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value != nil && value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePtr unsafe.Pointer
+	if value != nil {
+		valuePtr = value.ptr
+	}
+
+	ret := C.go_verified_spend_set_clawback(o.ptr, valuePtr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Custody returns the Custody field of the [VerifiedSpend].
+func (o *VerifiedSpend) Custody() (*CustodyInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_get_custody(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &CustodyInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*CustodyInfo).Free)
+	return obj, nil
+}
+
+// SetCustody updates the Custody field of the [VerifiedSpend].
+func (o *VerifiedSpend) SetCustody(value *CustodyInfo) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_verified_spend_set_custody(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Children returns the Children field of the [VerifiedSpend].
+func (o *VerifiedSpend) Children() ([]*ParsedChild, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_verified_spend_get_children(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_parsed_child_list_len(out)
+	result := make([]*ParsedChild, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_parsed_child_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_parsed_child_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &ParsedChild{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*ParsedChild).Free)
+	}
+	C.go_parsed_child_list_free(out)
+	return result, nil
+}
+
+// SetChildren updates the Children field of the [VerifiedSpend].
+func (o *VerifiedSpend) SetChildren(value []*ParsedChild) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_verified_spend_set_children(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Revoked returns the Revoked field of the [VerifiedSpend].
+func (o *VerifiedSpend) Revoked() (bool, error) {
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.int
+	ret := C.go_verified_spend_get_revoked(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// SetRevoked updates the Revoked field of the [VerifiedSpend].
+func (o *VerifiedSpend) SetRevoked(value bool) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_verified_spend_set_revoked(o.ptr, boolToInt(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ParsedAsset represents a ParsedAsset in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedAsset struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedAsset) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_asset_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedAsset) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedAsset.
+func (o *ParsedAsset) Clone() (*ParsedAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedAsset{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedAsset).Free)
+	return clone, nil
+}
+
+// Coin returns the coin of the [ParsedAsset].
+func (o *ParsedAsset) Coin() (*Coin, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_coin(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Coin{ptr: out}
+	runtime.SetFinalizer(obj, (*Coin).Free)
+	return obj, nil
+}
+
+// AsXch returns the as xch of the [ParsedAsset].
+func (o *ParsedAsset) AsXch() (*Coin, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_as_xch(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Coin{ptr: out}
+	runtime.SetFinalizer(obj, (*Coin).Free)
+	return obj, nil
+}
+
+// AsCat returns the as cat of the [ParsedAsset].
+func (o *ParsedAsset) AsCat() (*Cat, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_as_cat(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Cat{ptr: out}
+	runtime.SetFinalizer(obj, (*Cat).Free)
+	return obj, nil
+}
+
+// AsNft returns the as nft of the [ParsedAsset].
+func (o *ParsedAsset) AsNft() (*Nft, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_as_nft(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Nft{ptr: out}
+	runtime.SetFinalizer(obj, (*Nft).Free)
+	return obj, nil
+}
+
+// AsBulletin returns the as bulletin of the [ParsedAsset].
+func (o *ParsedAsset) AsBulletin() (*Bulletin, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_asset_as_bulletin(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Bulletin{ptr: out}
+	runtime.SetFinalizer(obj, (*Bulletin).Free)
+	return obj, nil
+}
+
+// ClawbackInfo represents a ClawbackInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ClawbackInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ClawbackInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_clawback_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ClawbackInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ClawbackInfo.
+func (o *ClawbackInfo) Clone() (*ClawbackInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clawback_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ClawbackInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*ClawbackInfo).Free)
+	return clone, nil
+}
+
+// NewClawbackInfo creates a new [ClawbackInfo] with the given field values.
+func NewClawbackInfo(clawback *ClawbackV2, path *ClawbackPath) (*ClawbackInfo, error) {
+	defer runtime.KeepAlive(clawback)
+	defer runtime.KeepAlive(path)
+	var locks handleLocks
+	if clawback == nil {
+		return nil, fmt.Errorf("clawback is nil or already freed")
+	}
+	locks = append(locks, &clawback.mu)
+	if path == nil {
+		return nil, fmt.Errorf("path is nil or already freed")
+	}
+	locks = append(locks, &path.mu)
+	defer lockHandles(nil, locks...)()
+	if clawback.ptr == nil {
+		return nil, fmt.Errorf("clawback is nil or already freed")
+	}
+	if path.ptr == nil {
+		return nil, fmt.Errorf("path is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_clawback_info_new(clawback.ptr, path.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClawbackInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackInfo).Free)
+	return obj, nil
+}
+
+// Clawback returns the Clawback field of the [ClawbackInfo].
+func (o *ClawbackInfo) Clawback() (*ClawbackV2, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clawback_info_get_clawback(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClawbackV2{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackV2).Free)
+	return obj, nil
+}
+
+// SetClawback updates the Clawback field of the [ClawbackInfo].
+func (o *ClawbackInfo) SetClawback(value *ClawbackV2) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_clawback_info_set_clawback(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Path returns the Path field of the [ClawbackInfo].
+func (o *ClawbackInfo) Path() (*ClawbackPath, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clawback_info_get_path(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClawbackPath{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackPath).Free)
+	return obj, nil
+}
+
+// SetPath updates the Path field of the [ClawbackInfo].
+func (o *ClawbackInfo) SetPath(value *ClawbackPath) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_clawback_info_set_path(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ClawbackPath represents a ClawbackPath variant.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Use the NewClawbackPath* constructors or [NewClawbackPathFromInt] to create instances.
+type ClawbackPath struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ClawbackPath) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_clawback_path_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ClawbackPath) Close() error {
+	o.Free()
+	return nil
+}
+
+// ToInt returns the integer value of this enum variant.
+func (o *ClawbackPath) ToInt() (int, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out C.int
+	ret := C.go_clawback_path_to_int(o.ptr, &out)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return int(out), nil
+}
+
+// Integer constants for [ClawbackPath] variants.
+const (
+	ClawbackPathValueSender      = 0
+	ClawbackPathValueReceiver    = 1
+	ClawbackPathValuePushThrough = 2
+)
+
+// NewClawbackPathFromInt creates a [ClawbackPath] from its integer representation.
+func NewClawbackPathFromInt(value int) (*ClawbackPath, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clawback_path_from_int(C.int(value), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClawbackPath{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackPath).Free)
+	return obj, nil
+}
+
+// NewClawbackPathSender creates the Sender variant of [ClawbackPath].
+func NewClawbackPathSender() (*ClawbackPath, error) {
+	return NewClawbackPathFromInt(0)
+}
+
+// NewClawbackPathReceiver creates the Receiver variant of [ClawbackPath].
+func NewClawbackPathReceiver() (*ClawbackPath, error) {
+	return NewClawbackPathFromInt(1)
+}
+
+// NewClawbackPathPushThrough creates the PushThrough variant of [ClawbackPath].
+func NewClawbackPathPushThrough() (*ClawbackPath, error) {
+	return NewClawbackPathFromInt(2)
+}
+
+// CustodyInfo represents a CustodyInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type CustodyInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *CustodyInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_custody_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *CustodyInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the CustodyInfo.
+func (o *CustodyInfo) Clone() (*CustodyInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_custody_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &CustodyInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*CustodyInfo).Free)
+	return clone, nil
+}
+
+// AsP2Singleton returns the as P2 singleton of the [CustodyInfo].
+func (o *CustodyInfo) AsP2Singleton() (*P2SingletonInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_custody_info_as_p_2_singleton(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &P2SingletonInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*P2SingletonInfo).Free)
+	return obj, nil
+}
+
+// AsDelegatedConditions returns the as delegated conditions of the [CustodyInfo].
+func (o *CustodyInfo) AsDelegatedConditions() ([]*Program, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_custody_info_as_delegated_conditions(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// AsP2ConditionsOrSingleton returns the as P2 conditions or singleton of the [CustodyInfo].
+func (o *CustodyInfo) AsP2ConditionsOrSingleton() (*P2ConditionsOrSingletonInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_custody_info_as_p_2_conditions_or_singleton(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &P2ConditionsOrSingletonInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*P2ConditionsOrSingletonInfo).Free)
+	return obj, nil
+}
+
+// P2SingletonInfo represents a P2SingletonInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type P2SingletonInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *P2SingletonInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_p_2_singleton_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *P2SingletonInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the P2SingletonInfo.
+func (o *P2SingletonInfo) Clone() (*P2SingletonInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_p_2_singleton_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &P2SingletonInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*P2SingletonInfo).Free)
+	return clone, nil
+}
+
+// NewP2SingletonInfo creates a new [P2SingletonInfo] with the given field values.
+func NewP2SingletonInfo(launcherId []byte, nonce uint, conditions []*Program, p2PuzzleHash []byte) (*P2SingletonInfo, error) {
+	defer runtime.KeepAlive(conditions)
+	var locks handleLocks
+	for _, item := range conditions {
+		if item == nil {
+			return nil, fmt.Errorf("conditions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	for _, item := range conditions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("conditions is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	conditionsPtrs := make([]unsafe.Pointer, len(conditions))
+	for i, item := range conditions {
+		conditionsPtrs[i] = item.ptr
+	}
+	var conditionsPtrsC *unsafe.Pointer
+	if len(conditionsPtrs) > 0 {
+		conditionsPtrsC = &conditionsPtrs[0]
+	}
+	conditionsLen := C.size_t(len(conditions))
+	p2PuzzleHashPtr, p2PuzzleHashLen := bytesToPtr(p2PuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_p_2_singleton_info_new(launcherIdPtr, launcherIdLen, C.size_t(nonce), (*unsafe.Pointer)(unsafe.Pointer(conditionsPtrsC)), conditionsLen, p2PuzzleHashPtr, p2PuzzleHashLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &P2SingletonInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*P2SingletonInfo).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_singleton_info_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *P2SingletonInfo) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_singleton_info_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *P2SingletonInfo) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// Nonce returns the Nonce field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) Nonce() (uint, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.size_t
+	ret := C.go_p_2_singleton_info_get_nonce(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint(cOut), nil
+}
+
+// SetNonce updates the Nonce field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) SetNonce(value uint) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_p_2_singleton_info_set_nonce(o.ptr, C.size_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Conditions returns the Conditions field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) Conditions() ([]*Program, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_p_2_singleton_info_get_conditions(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// SetConditions updates the Conditions field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) SetConditions(value []*Program) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_p_2_singleton_info_set_conditions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// P2PuzzleHash returns the P2PuzzleHash field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) P2PuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_singleton_info_get_p_2_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetP2PuzzleHash updates the P2PuzzleHash field of the [P2SingletonInfo].
+func (o *P2SingletonInfo) SetP2PuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_singleton_info_set_p_2_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// P2ConditionsOrSingletonInfo represents a P2ConditionsOrSingletonInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type P2ConditionsOrSingletonInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *P2ConditionsOrSingletonInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_p_2_conditions_or_singleton_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *P2ConditionsOrSingletonInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the P2ConditionsOrSingletonInfo.
+func (o *P2ConditionsOrSingletonInfo) Clone() (*P2ConditionsOrSingletonInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_p_2_conditions_or_singleton_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &P2ConditionsOrSingletonInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*P2ConditionsOrSingletonInfo).Free)
+	return clone, nil
+}
+
+// NewP2ConditionsOrSingletonInfo creates a new [P2ConditionsOrSingletonInfo] with the given field values.
+func NewP2ConditionsOrSingletonInfo(launcherId []byte, nonce uint, conditions []*Program, p2PuzzleHash []byte) (*P2ConditionsOrSingletonInfo, error) {
+	defer runtime.KeepAlive(conditions)
+	var locks handleLocks
+	for _, item := range conditions {
+		if item == nil {
+			return nil, fmt.Errorf("conditions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	for _, item := range conditions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("conditions is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	conditionsPtrs := make([]unsafe.Pointer, len(conditions))
+	for i, item := range conditions {
+		conditionsPtrs[i] = item.ptr
+	}
+	var conditionsPtrsC *unsafe.Pointer
+	if len(conditionsPtrs) > 0 {
+		conditionsPtrsC = &conditionsPtrs[0]
+	}
+	conditionsLen := C.size_t(len(conditions))
+	p2PuzzleHashPtr, p2PuzzleHashLen := bytesToPtr(p2PuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_p_2_conditions_or_singleton_info_new(launcherIdPtr, launcherIdLen, C.size_t(nonce), (*unsafe.Pointer)(unsafe.Pointer(conditionsPtrsC)), conditionsLen, p2PuzzleHashPtr, p2PuzzleHashLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &P2ConditionsOrSingletonInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*P2ConditionsOrSingletonInfo).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_conditions_or_singleton_info_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *P2ConditionsOrSingletonInfo) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_conditions_or_singleton_info_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *P2ConditionsOrSingletonInfo) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// Nonce returns the Nonce field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) Nonce() (uint, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.size_t
+	ret := C.go_p_2_conditions_or_singleton_info_get_nonce(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint(cOut), nil
+}
+
+// SetNonce updates the Nonce field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) SetNonce(value uint) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_p_2_conditions_or_singleton_info_set_nonce(o.ptr, C.size_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Conditions returns the Conditions field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) Conditions() ([]*Program, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_p_2_conditions_or_singleton_info_get_conditions(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// SetConditions updates the Conditions field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) SetConditions(value []*Program) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_p_2_conditions_or_singleton_info_set_conditions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// P2PuzzleHash returns the P2PuzzleHash field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) P2PuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_p_2_conditions_or_singleton_info_get_p_2_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetP2PuzzleHash updates the P2PuzzleHash field of the [P2ConditionsOrSingletonInfo].
+func (o *P2ConditionsOrSingletonInfo) SetP2PuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_p_2_conditions_or_singleton_info_set_p_2_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ParsedChild represents a ParsedChild in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedChild struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedChild) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_child_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedChild) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedChild.
+func (o *ParsedChild) Clone() (*ParsedChild, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_child_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedChild{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedChild).Free)
+	return clone, nil
+}
+
+// NewParsedChild creates a new [ParsedChild] with the given field values.
+func NewParsedChild(asset *ParsedAsset, memos *ParsedMemos, transferType *TransferType) (*ParsedChild, error) {
+	defer runtime.KeepAlive(asset)
+	defer runtime.KeepAlive(memos)
+	defer runtime.KeepAlive(transferType)
+	var locks handleLocks
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	locks = append(locks, &asset.mu)
+	if memos == nil {
+		return nil, fmt.Errorf("memos is nil or already freed")
+	}
+	locks = append(locks, &memos.mu)
+	if transferType == nil {
+		return nil, fmt.Errorf("transferType is nil or already freed")
+	}
+	locks = append(locks, &transferType.mu)
+	defer lockHandles(nil, locks...)()
+	if asset.ptr == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	if memos.ptr == nil {
+		return nil, fmt.Errorf("memos is nil or already freed")
+	}
+	if transferType.ptr == nil {
+		return nil, fmt.Errorf("transferType is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_child_new(asset.ptr, memos.ptr, transferType.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ParsedChild{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedChild).Free)
+	return obj, nil
+}
+
+// Asset returns the Asset field of the [ParsedChild].
+func (o *ParsedChild) Asset() (*ParsedAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_child_get_asset(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ParsedAsset{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedAsset).Free)
+	return obj, nil
+}
+
+// SetAsset updates the Asset field of the [ParsedChild].
+func (o *ParsedChild) SetAsset(value *ParsedAsset) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_parsed_child_set_asset(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Memos returns the Memos field of the [ParsedChild].
+func (o *ParsedChild) Memos() (*ParsedMemos, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_child_get_memos(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ParsedMemos{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedMemos).Free)
+	return obj, nil
+}
+
+// SetMemos updates the Memos field of the [ParsedChild].
+func (o *ParsedChild) SetMemos(value *ParsedMemos) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_parsed_child_set_memos(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// TransferType returns the TransferType field of the [ParsedChild].
+func (o *ParsedChild) TransferType() (*TransferType, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_child_get_transfer_type(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &TransferType{ptr: out}
+	runtime.SetFinalizer(obj, (*TransferType).Free)
+	return obj, nil
+}
+
+// SetTransferType updates the TransferType field of the [ParsedChild].
+func (o *ParsedChild) SetTransferType(value *TransferType) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_parsed_child_set_transfer_type(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ParsedMemos represents a ParsedMemos in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedMemos struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedMemos) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_memos_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedMemos) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedMemos.
+func (o *ParsedMemos) Clone() (*ParsedMemos, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_memos_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedMemos{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedMemos).Free)
+	return clone, nil
+}
+
+// NewParsedMemos creates a new [ParsedMemos] with the given field values.
+func NewParsedMemos(p2PuzzleHash []byte, clawback *ClawbackV2, humanReadableMemos []string, fixedConditions []*Program) (*ParsedMemos, error) {
+	defer runtime.KeepAlive(clawback)
+	defer runtime.KeepAlive(fixedConditions)
+	var locks handleLocks
+	if clawback != nil {
+		locks = append(locks, &clawback.mu)
+	}
+	for _, item := range fixedConditions {
+		if item == nil {
+			return nil, fmt.Errorf("fixedConditions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if clawback != nil && clawback.ptr == nil {
+		return nil, fmt.Errorf("clawback is nil or already freed")
+	}
+	for _, item := range fixedConditions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("fixedConditions is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	p2PuzzleHashPtr, p2PuzzleHashLen := bytesToPtr(p2PuzzleHash)
+	var clawbackPtr unsafe.Pointer
+	if clawback != nil {
+		clawbackPtr = clawback.ptr
+	}
+	var humanReadableMemosPinner runtime.Pinner
+	defer humanReadableMemosPinner.Unpin()
+	humanReadableMemosPtrs := make([]*C.char, len(humanReadableMemos))
+	humanReadableMemosLens := make([]C.size_t, len(humanReadableMemos))
+	for i, s := range humanReadableMemos {
+		if len(s) > 0 {
+			humanReadableMemosPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+			humanReadableMemosPinner.Pin(humanReadableMemosPtrs[i])
+		}
+		humanReadableMemosLens[i] = C.size_t(len(s))
+	}
+	var humanReadableMemosPtrsC **C.char
+	var humanReadableMemosLensC *C.size_t
+	if len(humanReadableMemos) > 0 {
+		humanReadableMemosPtrsC = &humanReadableMemosPtrs[0]
+		humanReadableMemosLensC = &humanReadableMemosLens[0]
+	}
+	humanReadableMemosCount := C.size_t(len(humanReadableMemos))
+	fixedConditionsPtrs := make([]unsafe.Pointer, len(fixedConditions))
+	for i, item := range fixedConditions {
+		fixedConditionsPtrs[i] = item.ptr
+	}
+	var fixedConditionsPtrsC *unsafe.Pointer
+	if len(fixedConditionsPtrs) > 0 {
+		fixedConditionsPtrsC = &fixedConditionsPtrs[0]
+	}
+	fixedConditionsLen := C.size_t(len(fixedConditions))
+	var fixedConditionsEmpty unsafe.Pointer
+	if fixedConditions != nil && len(fixedConditions) == 0 {
+		fixedConditionsPtrsC = &fixedConditionsEmpty
+	}
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_memos_new(p2PuzzleHashPtr, p2PuzzleHashLen, clawbackPtr, humanReadableMemosPtrsC, humanReadableMemosLensC, humanReadableMemosCount, (*unsafe.Pointer)(unsafe.Pointer(fixedConditionsPtrsC)), fixedConditionsLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ParsedMemos{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedMemos).Free)
+	return obj, nil
+}
+
+// P2PuzzleHash returns the P2PuzzleHash field of the [ParsedMemos].
+func (o *ParsedMemos) P2PuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_parsed_memos_get_p_2_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetP2PuzzleHash updates the P2PuzzleHash field of the [ParsedMemos].
+func (o *ParsedMemos) SetP2PuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_parsed_memos_set_p_2_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Clawback returns the Clawback field of the [ParsedMemos].
+func (o *ParsedMemos) Clawback() (*ClawbackV2, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_memos_get_clawback(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ClawbackV2{ptr: out}
+	runtime.SetFinalizer(obj, (*ClawbackV2).Free)
+	return obj, nil
+}
+
+// SetClawback updates the Clawback field of the [ParsedMemos].
+func (o *ParsedMemos) SetClawback(value *ClawbackV2) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value != nil {
+		locks = append(locks, &value.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value != nil && value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePtr unsafe.Pointer
+	if value != nil {
+		valuePtr = value.ptr
+	}
+
+	ret := C.go_parsed_memos_set_clawback(o.ptr, valuePtr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// HumanReadableMemos returns the HumanReadableMemos field of the [ParsedMemos].
+func (o *ParsedMemos) HumanReadableMemos() ([]string, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_memos_get_human_readable_memos(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
+}
+
+// SetHumanReadableMemos updates the HumanReadableMemos field of the [ParsedMemos].
+func (o *ParsedMemos) SetHumanReadableMemos(value []string) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valuePinner runtime.Pinner
+	defer valuePinner.Unpin()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		if len(s) > 0 {
+			valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+			valuePinner.Pin(valuePtrs[i])
+		}
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
+
+	ret := C.go_parsed_memos_set_human_readable_memos(o.ptr, valuePtrsC, valueLensC, valueCount)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// FixedConditions returns the FixedConditions field of the [ParsedMemos].
+func (o *ParsedMemos) FixedConditions() ([]*Program, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_memos_get_fixed_conditions(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// SetFixedConditions updates the FixedConditions field of the [ParsedMemos].
+func (o *ParsedMemos) SetFixedConditions(value []*Program) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+	var valueEmpty unsafe.Pointer
+	if value != nil && len(value) == 0 {
+		valuePtrsC = &valueEmpty
+	}
+
+	ret := C.go_parsed_memos_set_fixed_conditions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// TransferType represents a TransferType in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type TransferType struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *TransferType) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_transfer_type_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *TransferType) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the TransferType.
+func (o *TransferType) Clone() (*TransferType, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_transfer_type_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &TransferType{ptr: out}
+	runtime.SetFinalizer(clone, (*TransferType).Free)
+	return clone, nil
+}
+
+// IsSent reports whether the [TransferType] is sent.
+func (o *TransferType) IsSent() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_transfer_type_is_sent(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// IsBurned reports whether the [TransferType] is burned.
+func (o *TransferType) IsBurned() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_transfer_type_is_burned(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// IsOffered reports whether the [TransferType] is offered.
+func (o *TransferType) IsOffered() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_transfer_type_is_offered(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// AsOfferPreSplit returns the as offer pre split of the [TransferType].
+func (o *TransferType) AsOfferPreSplit() (*OfferPreSplitInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_transfer_type_as_offer_pre_split(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &OfferPreSplitInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferPreSplitInfo).Free)
+	return obj, nil
+}
+
+// OfferPreSplitInfo represents a OfferPreSplitInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type OfferPreSplitInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *OfferPreSplitInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_offer_pre_split_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *OfferPreSplitInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the OfferPreSplitInfo.
+func (o *OfferPreSplitInfo) Clone() (*OfferPreSplitInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_offer_pre_split_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &OfferPreSplitInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*OfferPreSplitInfo).Free)
+	return clone, nil
+}
+
+// NewOfferPreSplitInfo creates a new [OfferPreSplitInfo] with the given field values.
+func NewOfferPreSplitInfo(launcherId []byte, nonce uint, fixedConditions []*Program, settlementAmount uint64) (*OfferPreSplitInfo, error) {
+	defer runtime.KeepAlive(fixedConditions)
+	var locks handleLocks
+	for _, item := range fixedConditions {
+		if item == nil {
+			return nil, fmt.Errorf("fixedConditions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	for _, item := range fixedConditions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("fixedConditions is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	fixedConditionsPtrs := make([]unsafe.Pointer, len(fixedConditions))
+	for i, item := range fixedConditions {
+		fixedConditionsPtrs[i] = item.ptr
+	}
+	var fixedConditionsPtrsC *unsafe.Pointer
+	if len(fixedConditionsPtrs) > 0 {
+		fixedConditionsPtrsC = &fixedConditionsPtrs[0]
+	}
+	fixedConditionsLen := C.size_t(len(fixedConditions))
+
+	var out unsafe.Pointer
+	ret := C.go_offer_pre_split_info_new(launcherIdPtr, launcherIdLen, C.size_t(nonce), (*unsafe.Pointer)(unsafe.Pointer(fixedConditionsPtrsC)), fixedConditionsLen, C.uint64_t(settlementAmount), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &OfferPreSplitInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferPreSplitInfo).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_offer_pre_split_info_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *OfferPreSplitInfo) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_offer_pre_split_info_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *OfferPreSplitInfo) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// Nonce returns the Nonce field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) Nonce() (uint, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.size_t
+	ret := C.go_offer_pre_split_info_get_nonce(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint(cOut), nil
+}
+
+// SetNonce updates the Nonce field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) SetNonce(value uint) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_offer_pre_split_info_set_nonce(o.ptr, C.size_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// FixedConditions returns the FixedConditions field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) FixedConditions() ([]*Program, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_offer_pre_split_info_get_fixed_conditions(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// SetFixedConditions updates the FixedConditions field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) SetFixedConditions(value []*Program) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_offer_pre_split_info_set_fixed_conditions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SettlementAmount returns the SettlementAmount field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) SettlementAmount() (uint64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint64_t
+	ret := C.go_offer_pre_split_info_get_settlement_amount(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// SetSettlementAmount updates the SettlementAmount field of the [OfferPreSplitInfo].
+func (o *OfferPreSplitInfo) SetSettlementAmount(value uint64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_offer_pre_split_info_set_settlement_amount(o.ptr, C.uint64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Issuance represents a Issuance in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type Issuance struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *Issuance) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_issuance_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *Issuance) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the Issuance.
+func (o *Issuance) Clone() (*Issuance, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_issuance_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &Issuance{ptr: out}
+	runtime.SetFinalizer(clone, (*Issuance).Free)
+	return clone, nil
+}
+
+// NewIssuance creates a new [Issuance] with the given field values.
+func NewIssuance(coinId []byte, assetId []byte, extraDelta int64, kind *IssuanceKind) (*Issuance, error) {
+	defer runtime.KeepAlive(kind)
+	var locks handleLocks
+	if kind == nil {
+		return nil, fmt.Errorf("kind is nil or already freed")
+	}
+	locks = append(locks, &kind.mu)
+	defer lockHandles(nil, locks...)()
+	if kind.ptr == nil {
+		return nil, fmt.Errorf("kind is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	coinIdPtr, coinIdLen := bytesToPtr(coinId)
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	var out unsafe.Pointer
+	ret := C.go_issuance_new(coinIdPtr, coinIdLen, assetIdPtr, assetIdLen, C.int64_t(extraDelta), kind.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &Issuance{ptr: out}
+	runtime.SetFinalizer(obj, (*Issuance).Free)
+	return obj, nil
+}
+
+// CoinId returns the CoinId field of the [Issuance].
+func (o *Issuance) CoinId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_issuance_get_coin_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// CoinID calls [CoinId].
+func (o *Issuance) CoinID() ([]byte, error) {
+	return o.CoinId()
+}
+
+// SetCoinId updates the CoinId field of the [Issuance].
+func (o *Issuance) SetCoinId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_issuance_set_coin_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetCoinID calls [SetCoinId].
+func (o *Issuance) SetCoinID(value []byte) error {
+	return o.SetCoinId(value)
+}
+
+// AssetId returns the AssetId field of the [Issuance].
+func (o *Issuance) AssetId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_issuance_get_asset_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// AssetID calls [AssetId].
+func (o *Issuance) AssetID() ([]byte, error) {
+	return o.AssetId()
+}
+
+// SetAssetId updates the AssetId field of the [Issuance].
+func (o *Issuance) SetAssetId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_issuance_set_asset_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetAssetID calls [SetAssetId].
+func (o *Issuance) SetAssetID(value []byte) error {
+	return o.SetAssetId(value)
+}
+
+// ExtraDelta returns the ExtraDelta field of the [Issuance].
+func (o *Issuance) ExtraDelta() (int64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.int64_t
+	ret := C.go_issuance_get_extra_delta(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return int64(cOut), nil
+}
+
+// SetExtraDelta updates the ExtraDelta field of the [Issuance].
+func (o *Issuance) SetExtraDelta(value int64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_issuance_set_extra_delta(o.ptr, C.int64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Kind returns the Kind field of the [Issuance].
+func (o *Issuance) Kind() (*IssuanceKind, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_issuance_get_kind(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &IssuanceKind{ptr: out}
+	runtime.SetFinalizer(obj, (*IssuanceKind).Free)
+	return obj, nil
+}
+
+// SetKind updates the Kind field of the [Issuance].
+func (o *Issuance) SetKind(value *IssuanceKind) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_issuance_set_kind(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// IssuanceKind represents a IssuanceKind in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type IssuanceKind struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *IssuanceKind) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_issuance_kind_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *IssuanceKind) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the IssuanceKind.
+func (o *IssuanceKind) Clone() (*IssuanceKind, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_issuance_kind_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &IssuanceKind{ptr: out}
+	runtime.SetFinalizer(clone, (*IssuanceKind).Free)
+	return clone, nil
+}
+
+// AsEverythingWithSingleton returns the as everything with singleton of the [IssuanceKind].
+func (o *IssuanceKind) AsEverythingWithSingleton() (*EverythingWithSingletonIssuance, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_issuance_kind_as_everything_with_singleton(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &EverythingWithSingletonIssuance{ptr: out}
+	runtime.SetFinalizer(obj, (*EverythingWithSingletonIssuance).Free)
+	return obj, nil
+}
+
+// IsUnknown reports whether the [IssuanceKind] is unknown.
+func (o *IssuanceKind) IsUnknown() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_issuance_kind_is_unknown(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// EverythingWithSingletonIssuance represents a EverythingWithSingletonIssuance in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type EverythingWithSingletonIssuance struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *EverythingWithSingletonIssuance) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_everything_with_singleton_issuance_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *EverythingWithSingletonIssuance) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the EverythingWithSingletonIssuance.
+func (o *EverythingWithSingletonIssuance) Clone() (*EverythingWithSingletonIssuance, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_everything_with_singleton_issuance_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &EverythingWithSingletonIssuance{ptr: out}
+	runtime.SetFinalizer(clone, (*EverythingWithSingletonIssuance).Free)
+	return clone, nil
+}
+
+// NewEverythingWithSingletonIssuance creates a new [EverythingWithSingletonIssuance] with the given field values.
+func NewEverythingWithSingletonIssuance(singletonStructHash []byte, nonce []byte) (*EverythingWithSingletonIssuance, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	singletonStructHashPtr, singletonStructHashLen := bytesToPtr(singletonStructHash)
+	noncePtr, nonceLen := bytesToPtr(nonce)
+
+	var out unsafe.Pointer
+	ret := C.go_everything_with_singleton_issuance_new(singletonStructHashPtr, singletonStructHashLen, noncePtr, nonceLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &EverythingWithSingletonIssuance{ptr: out}
+	runtime.SetFinalizer(obj, (*EverythingWithSingletonIssuance).Free)
+	return obj, nil
+}
+
+// SingletonStructHash returns the SingletonStructHash field of the [EverythingWithSingletonIssuance].
+func (o *EverythingWithSingletonIssuance) SingletonStructHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_everything_with_singleton_issuance_get_singleton_struct_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetSingletonStructHash updates the SingletonStructHash field of the [EverythingWithSingletonIssuance].
+func (o *EverythingWithSingletonIssuance) SetSingletonStructHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_everything_with_singleton_issuance_set_singleton_struct_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Nonce returns the Nonce field of the [EverythingWithSingletonIssuance].
+func (o *EverythingWithSingletonIssuance) Nonce() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_everything_with_singleton_issuance_get_nonce(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetNonce updates the Nonce field of the [EverythingWithSingletonIssuance].
+func (o *EverythingWithSingletonIssuance) SetNonce(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_everything_with_singleton_issuance_set_nonce(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ClearSigningAsset represents a ClearSigningAsset in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ClearSigningAsset struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ClearSigningAsset) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_clear_signing_asset_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ClearSigningAsset) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ClearSigningAsset.
+func (o *ClearSigningAsset) Clone() (*ClearSigningAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_asset_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ClearSigningAsset{ptr: out}
+	runtime.SetFinalizer(clone, (*ClearSigningAsset).Free)
+	return clone, nil
+}
+
+// IsXch reports whether the [ClearSigningAsset] is xch.
+func (o *ClearSigningAsset) IsXch() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_clear_signing_asset_is_xch(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// AsCat returns the as cat of the [ClearSigningAsset].
+func (o *ClearSigningAsset) AsCat() (*ClearSigningCat, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_asset_as_cat(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ClearSigningCat{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningCat).Free)
+	return obj, nil
+}
+
+// AsNft returns the as nft of the [ClearSigningAsset].
+func (o *ClearSigningAsset) AsNft() (*ClearSigningNft, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_asset_as_nft(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ClearSigningNft{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningNft).Free)
+	return obj, nil
+}
+
+// ClearSigningCat represents a ClearSigningCat in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ClearSigningCat struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ClearSigningCat) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_clear_signing_cat_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ClearSigningCat) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ClearSigningCat.
+func (o *ClearSigningCat) Clone() (*ClearSigningCat, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_cat_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ClearSigningCat{ptr: out}
+	runtime.SetFinalizer(clone, (*ClearSigningCat).Free)
+	return clone, nil
+}
+
+// NewClearSigningCat creates a new [ClearSigningCat] with the given field values.
+func NewClearSigningCat(assetId []byte, hiddenPuzzleHash []byte) (*ClearSigningCat, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+	hiddenPuzzleHashPtr, hiddenPuzzleHashLen := bytesToPtr(hiddenPuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_cat_new(assetIdPtr, assetIdLen, hiddenPuzzleHashPtr, hiddenPuzzleHashLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClearSigningCat{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningCat).Free)
+	return obj, nil
+}
+
+// AssetId returns the AssetId field of the [ClearSigningCat].
+func (o *ClearSigningCat) AssetId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_clear_signing_cat_get_asset_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// AssetID calls [AssetId].
+func (o *ClearSigningCat) AssetID() ([]byte, error) {
+	return o.AssetId()
+}
+
+// SetAssetId updates the AssetId field of the [ClearSigningCat].
+func (o *ClearSigningCat) SetAssetId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_clear_signing_cat_set_asset_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetAssetID calls [SetAssetId].
+func (o *ClearSigningCat) SetAssetID(value []byte) error {
+	return o.SetAssetId(value)
+}
+
+// HiddenPuzzleHash returns the HiddenPuzzleHash field of the [ClearSigningCat].
+func (o *ClearSigningCat) HiddenPuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_clear_signing_cat_get_hidden_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if outPtr == nil {
+		return nil, nil
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetHiddenPuzzleHash updates the HiddenPuzzleHash field of the [ClearSigningCat].
+func (o *ClearSigningCat) SetHiddenPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_clear_signing_cat_set_hidden_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ClearSigningNft represents a ClearSigningNft in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ClearSigningNft struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ClearSigningNft) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_clear_signing_nft_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ClearSigningNft) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ClearSigningNft.
+func (o *ClearSigningNft) Clone() (*ClearSigningNft, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_nft_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ClearSigningNft{ptr: out}
+	runtime.SetFinalizer(clone, (*ClearSigningNft).Free)
+	return clone, nil
+}
+
+// NewClearSigningNft creates a new [ClearSigningNft] with the given field values.
+func NewClearSigningNft(launcherId []byte, metadata *Program, metadataUpdaterPuzzleHash []byte, royaltyPuzzleHash []byte, royaltyBasisPoints uint16) (*ClearSigningNft, error) {
+	defer runtime.KeepAlive(metadata)
+	var locks handleLocks
+	if metadata == nil {
+		return nil, fmt.Errorf("metadata is nil or already freed")
+	}
+	locks = append(locks, &metadata.mu)
+	defer lockHandles(nil, locks...)()
+	if metadata.ptr == nil {
+		return nil, fmt.Errorf("metadata is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	metadataUpdaterPuzzleHashPtr, metadataUpdaterPuzzleHashLen := bytesToPtr(metadataUpdaterPuzzleHash)
+	royaltyPuzzleHashPtr, royaltyPuzzleHashLen := bytesToPtr(royaltyPuzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_nft_new(launcherIdPtr, launcherIdLen, metadata.ptr, metadataUpdaterPuzzleHashPtr, metadataUpdaterPuzzleHashLen, royaltyPuzzleHashPtr, royaltyPuzzleHashLen, C.uint16_t(royaltyBasisPoints), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClearSigningNft{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningNft).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [ClearSigningNft].
+func (o *ClearSigningNft) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_clear_signing_nft_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *ClearSigningNft) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [ClearSigningNft].
+func (o *ClearSigningNft) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_clear_signing_nft_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *ClearSigningNft) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// Metadata returns the Metadata field of the [ClearSigningNft].
+func (o *ClearSigningNft) Metadata() (*Program, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_clear_signing_nft_get_metadata(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &Program{ptr: out}
+	runtime.SetFinalizer(obj, (*Program).Free)
+	return obj, nil
+}
+
+// SetMetadata updates the Metadata field of the [ClearSigningNft].
+func (o *ClearSigningNft) SetMetadata(value *Program) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_clear_signing_nft_set_metadata(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// MetadataUpdaterPuzzleHash returns the MetadataUpdaterPuzzleHash field of the [ClearSigningNft].
+func (o *ClearSigningNft) MetadataUpdaterPuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_clear_signing_nft_get_metadata_updater_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetMetadataUpdaterPuzzleHash updates the MetadataUpdaterPuzzleHash field of the [ClearSigningNft].
+func (o *ClearSigningNft) SetMetadataUpdaterPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_clear_signing_nft_set_metadata_updater_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// RoyaltyPuzzleHash returns the RoyaltyPuzzleHash field of the [ClearSigningNft].
+func (o *ClearSigningNft) RoyaltyPuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_clear_signing_nft_get_royalty_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetRoyaltyPuzzleHash updates the RoyaltyPuzzleHash field of the [ClearSigningNft].
+func (o *ClearSigningNft) SetRoyaltyPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_clear_signing_nft_set_royalty_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// RoyaltyBasisPoints returns the RoyaltyBasisPoints field of the [ClearSigningNft].
+func (o *ClearSigningNft) RoyaltyBasisPoints() (uint16, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint16_t
+	ret := C.go_clear_signing_nft_get_royalty_basis_points(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint16(cOut), nil
+}
+
+// SetRoyaltyBasisPoints updates the RoyaltyBasisPoints field of the [ClearSigningNft].
+func (o *ClearSigningNft) SetRoyaltyBasisPoints(value uint16) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_clear_signing_nft_set_royalty_basis_points(o.ptr, C.uint16_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// AssertedNotarizedPayment represents a AssertedNotarizedPayment in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type AssertedNotarizedPayment struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *AssertedNotarizedPayment) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_asserted_notarized_payment_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *AssertedNotarizedPayment) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the AssertedNotarizedPayment.
+func (o *AssertedNotarizedPayment) Clone() (*AssertedNotarizedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_notarized_payment_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &AssertedNotarizedPayment{ptr: out}
+	runtime.SetFinalizer(clone, (*AssertedNotarizedPayment).Free)
+	return clone, nil
+}
+
+// NewAssertedNotarizedPayment creates a new [AssertedNotarizedPayment] with the given field values.
+func NewAssertedNotarizedPayment(asset *ClearSigningAsset, notarizedPayment *NotarizedPayment) (*AssertedNotarizedPayment, error) {
+	defer runtime.KeepAlive(asset)
+	defer runtime.KeepAlive(notarizedPayment)
+	var locks handleLocks
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	locks = append(locks, &asset.mu)
+	if notarizedPayment == nil {
+		return nil, fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	locks = append(locks, &notarizedPayment.mu)
+	defer lockHandles(nil, locks...)()
+	if asset.ptr == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	if notarizedPayment.ptr == nil {
+		return nil, fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_asserted_notarized_payment_new(asset.ptr, notarizedPayment.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &AssertedNotarizedPayment{ptr: out}
+	runtime.SetFinalizer(obj, (*AssertedNotarizedPayment).Free)
+	return obj, nil
+}
+
+// Asset returns the Asset field of the [AssertedNotarizedPayment].
+func (o *AssertedNotarizedPayment) Asset() (*ClearSigningAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_notarized_payment_get_asset(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClearSigningAsset{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningAsset).Free)
+	return obj, nil
+}
+
+// SetAsset updates the Asset field of the [AssertedNotarizedPayment].
+func (o *AssertedNotarizedPayment) SetAsset(value *ClearSigningAsset) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_asserted_notarized_payment_set_asset(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// NotarizedPayment returns the NotarizedPayment field of the [AssertedNotarizedPayment].
+func (o *AssertedNotarizedPayment) NotarizedPayment() (*NotarizedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_notarized_payment_get_notarized_payment(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &NotarizedPayment{ptr: out}
+	runtime.SetFinalizer(obj, (*NotarizedPayment).Free)
+	return obj, nil
+}
+
+// SetNotarizedPayment updates the NotarizedPayment field of the [AssertedNotarizedPayment].
+func (o *AssertedNotarizedPayment) SetNotarizedPayment(value *NotarizedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_asserted_notarized_payment_set_notarized_payment(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// AssertedPayment represents a AssertedPayment in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type AssertedPayment struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *AssertedPayment) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_asserted_payment_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *AssertedPayment) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the AssertedPayment.
+func (o *AssertedPayment) Clone() (*AssertedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_payment_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &AssertedPayment{ptr: out}
+	runtime.SetFinalizer(clone, (*AssertedPayment).Free)
+	return clone, nil
+}
+
+// NewAssertedPayment creates a new [AssertedPayment] with the given field values.
+func NewAssertedPayment(asset *ClearSigningAsset, nonce []byte, payment *Payment, royaltyBasisPoints *uint16) (*AssertedPayment, error) {
+	defer runtime.KeepAlive(asset)
+	defer runtime.KeepAlive(payment)
+	var locks handleLocks
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	locks = append(locks, &asset.mu)
+	if payment == nil {
+		return nil, fmt.Errorf("payment is nil or already freed")
+	}
+	locks = append(locks, &payment.mu)
+	defer lockHandles(nil, locks...)()
+	if asset.ptr == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	if payment.ptr == nil {
+		return nil, fmt.Errorf("payment is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	noncePtr, nonceLen := bytesToPtr(nonce)
+	var royaltyBasisPointsVal C.uint16_t
+	var royaltyBasisPointsIsSome C.int
+	if royaltyBasisPoints != nil {
+		royaltyBasisPointsVal = C.uint16_t(*royaltyBasisPoints)
+		royaltyBasisPointsIsSome = 1
+	}
+
+	var out unsafe.Pointer
+	ret := C.go_asserted_payment_new(asset.ptr, noncePtr, nonceLen, payment.ptr, royaltyBasisPointsVal, royaltyBasisPointsIsSome, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &AssertedPayment{ptr: out}
+	runtime.SetFinalizer(obj, (*AssertedPayment).Free)
+	return obj, nil
+}
+
+// Asset returns the Asset field of the [AssertedPayment].
+func (o *AssertedPayment) Asset() (*ClearSigningAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_payment_get_asset(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClearSigningAsset{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningAsset).Free)
+	return obj, nil
+}
+
+// SetAsset updates the Asset field of the [AssertedPayment].
+func (o *AssertedPayment) SetAsset(value *ClearSigningAsset) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_asserted_payment_set_asset(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Nonce returns the Nonce field of the [AssertedPayment].
+func (o *AssertedPayment) Nonce() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asserted_payment_get_nonce(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetNonce updates the Nonce field of the [AssertedPayment].
+func (o *AssertedPayment) SetNonce(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_asserted_payment_set_nonce(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// Payment returns the Payment field of the [AssertedPayment].
+func (o *AssertedPayment) Payment() (*Payment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asserted_payment_get_payment(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &Payment{ptr: out}
+	runtime.SetFinalizer(obj, (*Payment).Free)
+	return obj, nil
+}
+
+// SetPayment updates the Payment field of the [AssertedPayment].
+func (o *AssertedPayment) SetPayment(value *Payment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_asserted_payment_set_payment(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// RoyaltyBasisPoints returns the RoyaltyBasisPoints field of the [AssertedPayment].
+func (o *AssertedPayment) RoyaltyBasisPoints() (*uint16, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint16_t
+	var cOutIsSome C.int
+	ret := C.go_asserted_payment_get_royalty_basis_points(o.ptr, &cOut, &cOutIsSome)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	if cOutIsSome == 0 {
+		return nil, nil
+	}
+	v := uint16(cOut)
+	return &v, nil
+}
+
+// SetRoyaltyBasisPoints updates the RoyaltyBasisPoints field of the [AssertedPayment].
+func (o *AssertedPayment) SetRoyaltyBasisPoints(value *uint16) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var valueVal C.uint16_t
+	var valueIsSome C.int
+	if value != nil {
+		valueVal = C.uint16_t(*value)
+		valueIsSome = 1
+	}
+
+	ret := C.go_asserted_payment_set_royalty_basis_points(o.ptr, valueVal, valueIsSome)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// AssetFlow represents a AssetFlow in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type AssetFlow struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *AssetFlow) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_asset_flow_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *AssetFlow) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the AssetFlow.
+func (o *AssetFlow) Clone() (*AssetFlow, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asset_flow_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &AssetFlow{ptr: out}
+	runtime.SetFinalizer(clone, (*AssetFlow).Free)
+	return clone, nil
+}
+
+// NewAssetFlow creates a new [AssetFlow] with the given field values.
+func NewAssetFlow(asset *ClearSigningAsset, inputAmount *big.Int, outputAmount *big.Int, issuedAmount *big.Int, meltedAmount *big.Int, receivedAmount *big.Int, paidAmount *big.Int, unaccountedAmount *big.Int) (*AssetFlow, error) {
+	defer runtime.KeepAlive(asset)
+	var locks handleLocks
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	locks = append(locks, &asset.mu)
+	defer lockHandles(nil, locks...)()
+	if asset.ptr == nil {
+		return nil, fmt.Errorf("asset is nil or already freed")
+	}
+	if inputAmount == nil {
+		return nil, fmt.Errorf("inputAmount must not be nil")
+	}
+	if outputAmount == nil {
+		return nil, fmt.Errorf("outputAmount must not be nil")
+	}
+	if issuedAmount == nil {
+		return nil, fmt.Errorf("issuedAmount must not be nil")
+	}
+	if meltedAmount == nil {
+		return nil, fmt.Errorf("meltedAmount must not be nil")
+	}
+	if receivedAmount == nil {
+		return nil, fmt.Errorf("receivedAmount must not be nil")
+	}
+	if paidAmount == nil {
+		return nil, fmt.Errorf("paidAmount must not be nil")
+	}
+	if unaccountedAmount == nil {
+		return nil, fmt.Errorf("unaccountedAmount must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	inputAmountBytes := bigIntToSignedBytes(inputAmount)
+	inputAmountPtr, inputAmountLen := bytesToPtr(inputAmountBytes)
+	outputAmountBytes := bigIntToSignedBytes(outputAmount)
+	outputAmountPtr, outputAmountLen := bytesToPtr(outputAmountBytes)
+	issuedAmountBytes := bigIntToSignedBytes(issuedAmount)
+	issuedAmountPtr, issuedAmountLen := bytesToPtr(issuedAmountBytes)
+	meltedAmountBytes := bigIntToSignedBytes(meltedAmount)
+	meltedAmountPtr, meltedAmountLen := bytesToPtr(meltedAmountBytes)
+	receivedAmountBytes := bigIntToSignedBytes(receivedAmount)
+	receivedAmountPtr, receivedAmountLen := bytesToPtr(receivedAmountBytes)
+	paidAmountBytes := bigIntToSignedBytes(paidAmount)
+	paidAmountPtr, paidAmountLen := bytesToPtr(paidAmountBytes)
+	unaccountedAmountBytes := bigIntToSignedBytes(unaccountedAmount)
+	unaccountedAmountPtr, unaccountedAmountLen := bytesToPtr(unaccountedAmountBytes)
+
+	var out unsafe.Pointer
+	ret := C.go_asset_flow_new(asset.ptr, inputAmountPtr, inputAmountLen, outputAmountPtr, outputAmountLen, issuedAmountPtr, issuedAmountLen, meltedAmountPtr, meltedAmountLen, receivedAmountPtr, receivedAmountLen, paidAmountPtr, paidAmountLen, unaccountedAmountPtr, unaccountedAmountLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &AssetFlow{ptr: out}
+	runtime.SetFinalizer(obj, (*AssetFlow).Free)
+	return obj, nil
+}
+
+// Asset returns the Asset field of the [AssetFlow].
+func (o *AssetFlow) Asset() (*ClearSigningAsset, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asset_flow_get_asset(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &ClearSigningAsset{ptr: out}
+	runtime.SetFinalizer(obj, (*ClearSigningAsset).Free)
+	return obj, nil
+}
+
+// SetAsset updates the Asset field of the [AssetFlow].
+func (o *AssetFlow) SetAsset(value *ClearSigningAsset) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if value == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	locks = append(locks, &value.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value.ptr == nil {
+		return fmt.Errorf("value is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_asset_flow_set_asset(o.ptr, value.ptr)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// InputAmount returns the InputAmount field of the [AssetFlow].
+func (o *AssetFlow) InputAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_input_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetInputAmount updates the InputAmount field of the [AssetFlow].
+func (o *AssetFlow) SetInputAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_input_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// OutputAmount returns the OutputAmount field of the [AssetFlow].
+func (o *AssetFlow) OutputAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_output_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetOutputAmount updates the OutputAmount field of the [AssetFlow].
+func (o *AssetFlow) SetOutputAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_output_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// IssuedAmount returns the IssuedAmount field of the [AssetFlow].
+func (o *AssetFlow) IssuedAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_issued_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetIssuedAmount updates the IssuedAmount field of the [AssetFlow].
+func (o *AssetFlow) SetIssuedAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_issued_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// MeltedAmount returns the MeltedAmount field of the [AssetFlow].
+func (o *AssetFlow) MeltedAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_melted_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetMeltedAmount updates the MeltedAmount field of the [AssetFlow].
+func (o *AssetFlow) SetMeltedAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_melted_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ReceivedAmount returns the ReceivedAmount field of the [AssetFlow].
+func (o *AssetFlow) ReceivedAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_received_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetReceivedAmount updates the ReceivedAmount field of the [AssetFlow].
+func (o *AssetFlow) SetReceivedAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_received_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// PaidAmount returns the PaidAmount field of the [AssetFlow].
+func (o *AssetFlow) PaidAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_paid_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetPaidAmount updates the PaidAmount field of the [AssetFlow].
+func (o *AssetFlow) SetPaidAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_paid_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// UnaccountedAmount returns the UnaccountedAmount field of the [AssetFlow].
+func (o *AssetFlow) UnaccountedAmount() (*big.Int, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_flow_get_unaccounted_amount(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetUnaccountedAmount updates the UnaccountedAmount field of the [AssetFlow].
+func (o *AssetFlow) SetUnaccountedAmount(value *big.Int) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if value == nil {
+		return fmt.Errorf("value must not be nil")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valueBytes := bigIntToSignedBytes(value)
+	valuePtr, valueLen := bytesToPtr(valueBytes)
+
+	ret := C.go_asset_flow_set_unaccounted_amount(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// LinkedOffer represents a LinkedOffer in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type LinkedOffer struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *LinkedOffer) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_linked_offer_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *LinkedOffer) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the LinkedOffer.
+func (o *LinkedOffer) Clone() (*LinkedOffer, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_linked_offer_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &LinkedOffer{ptr: out}
+	runtime.SetFinalizer(clone, (*LinkedOffer).Free)
+	return clone, nil
+}
+
+// NewLinkedOffer creates a new [LinkedOffer] with the given field values.
+func NewLinkedOffer(reservedFee uint64, receivedPayments []*AssertedPayment, externalPayments []*AssertedPayment) (*LinkedOffer, error) {
+	defer runtime.KeepAlive(receivedPayments)
+	defer runtime.KeepAlive(externalPayments)
+	var locks handleLocks
+	for _, item := range receivedPayments {
+		if item == nil {
+			return nil, fmt.Errorf("receivedPayments is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	for _, item := range externalPayments {
+		if item == nil {
+			return nil, fmt.Errorf("externalPayments is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	for _, item := range receivedPayments {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("receivedPayments is nil or already freed")
+		}
+	}
+	for _, item := range externalPayments {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("externalPayments is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	receivedPaymentsPtrs := make([]unsafe.Pointer, len(receivedPayments))
+	for i, item := range receivedPayments {
+		receivedPaymentsPtrs[i] = item.ptr
+	}
+	var receivedPaymentsPtrsC *unsafe.Pointer
+	if len(receivedPaymentsPtrs) > 0 {
+		receivedPaymentsPtrsC = &receivedPaymentsPtrs[0]
+	}
+	receivedPaymentsLen := C.size_t(len(receivedPayments))
+	externalPaymentsPtrs := make([]unsafe.Pointer, len(externalPayments))
+	for i, item := range externalPayments {
+		externalPaymentsPtrs[i] = item.ptr
+	}
+	var externalPaymentsPtrsC *unsafe.Pointer
+	if len(externalPaymentsPtrs) > 0 {
+		externalPaymentsPtrsC = &externalPaymentsPtrs[0]
+	}
+	externalPaymentsLen := C.size_t(len(externalPayments))
+
+	var out unsafe.Pointer
+	ret := C.go_linked_offer_new(C.uint64_t(reservedFee), (*unsafe.Pointer)(unsafe.Pointer(receivedPaymentsPtrsC)), receivedPaymentsLen, (*unsafe.Pointer)(unsafe.Pointer(externalPaymentsPtrsC)), externalPaymentsLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &LinkedOffer{ptr: out}
+	runtime.SetFinalizer(obj, (*LinkedOffer).Free)
+	return obj, nil
+}
+
+// ReservedFee returns the ReservedFee field of the [LinkedOffer].
+func (o *LinkedOffer) ReservedFee() (uint64, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint64_t
+	ret := C.go_linked_offer_get_reserved_fee(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint64(cOut), nil
+}
+
+// SetReservedFee updates the ReservedFee field of the [LinkedOffer].
+func (o *LinkedOffer) SetReservedFee(value uint64) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_linked_offer_set_reserved_fee(o.ptr, C.uint64_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ReceivedPayments returns the ReceivedPayments field of the [LinkedOffer].
+func (o *LinkedOffer) ReceivedPayments() ([]*AssertedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_linked_offer_get_received_payments(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asserted_payment_list_len(out)
+	result := make([]*AssertedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asserted_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asserted_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssertedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssertedPayment).Free)
+	}
+	C.go_asserted_payment_list_free(out)
+	return result, nil
+}
+
+// SetReceivedPayments updates the ReceivedPayments field of the [LinkedOffer].
+func (o *LinkedOffer) SetReceivedPayments(value []*AssertedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_linked_offer_set_received_payments(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// ExternalPayments returns the ExternalPayments field of the [LinkedOffer].
+func (o *LinkedOffer) ExternalPayments() ([]*AssertedPayment, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_linked_offer_get_external_payments(o.ptr, &out)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_asserted_payment_list_len(out)
+	result := make([]*AssertedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_asserted_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_asserted_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &AssertedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*AssertedPayment).Free)
+	}
+	C.go_asserted_payment_list_free(out)
+	return result, nil
+}
+
+// SetExternalPayments updates the ExternalPayments field of the [LinkedOffer].
+func (o *LinkedOffer) SetExternalPayments(value []*AssertedPayment) error {
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
+
+	ret := C.go_linked_offer_set_external_payments(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	if ret != 0 {
 		return lastError()
 	}
@@ -27926,6 +37507,34 @@ func (o *Clvm) PasskeyMember() (*Program, error) {
 
 	var out unsafe.Pointer
 	ret := C.go_clvm_passkey_member(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Program{ptr: out}
+	runtime.SetFinalizer(obj, (*Program).Free)
+	return obj, nil
+}
+
+// Eip712Member returns the eip712 member of the [Clvm].
+func (o *Clvm) Eip712Member() (*Program, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_clvm_eip_712_member(o.ptr, &out)
 	if ret != 0 {
 
 		return nil, lastError()
@@ -40394,6 +50003,42 @@ func ConstantsPasskeyMemberHash() ([]byte, error) {
 	return result, nil
 }
 
+// ConstantsEip712Member returns the constants eip712 member.
+func ConstantsEip712Member() ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_constants_eip_712_member(&outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// ConstantsEip712MemberHash returns the constants eip712 member hash.
+func ConstantsEip712MemberHash() ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_constants_eip_712_member_hash(&outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
 // ConstantsR1MemberPuzzleAssert returns the constants R1 member puzzle assert.
 func ConstantsR1MemberPuzzleAssert() ([]byte, error) {
 
@@ -41107,6 +50752,106 @@ func ConstantsStateSchedulerPuzzleHash() ([]byte, error) {
 	ret := C.go_constants_state_scheduler_puzzle_hash(&outPtr, &outLen)
 	if ret != 0 {
 
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// Eip712TypeHash returns the eip712 type hash.
+func Eip712TypeHash() ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_type_hash(&outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// Eip712DomainSeparator computes the eip712 domain separator for the given genesisChallenge.
+func Eip712DomainSeparator(genesisChallenge []byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_domain_separator(genesisChallengePtr, genesisChallengeLen, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// Eip712PrefixAndDomainSeparator computes the eip712 prefix and domain separator for the given genesisChallenge.
+func Eip712PrefixAndDomainSeparator(genesisChallenge []byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_prefix_and_domain_separator(genesisChallengePtr, genesisChallengeLen, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// Eip712HashToSign computes the eip712 hash to sign for the given genesisChallenge, coinId, delegatedPuzzleHash.
+func Eip712HashToSign(genesisChallenge []byte, coinId []byte, delegatedPuzzleHash []byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+	coinIdPtr, coinIdLen := bytesToPtr(coinId)
+	delegatedPuzzleHashPtr, delegatedPuzzleHashLen := bytesToPtr(delegatedPuzzleHash)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_hash_to_sign(genesisChallengePtr, genesisChallengeLen, coinIdPtr, coinIdLen, delegatedPuzzleHashPtr, delegatedPuzzleHashLen, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// Eip712MemberInnerPuzzleHash computes the eip712 member inner puzzle hash for the given genesisChallenge, publicKey.
+func Eip712MemberInnerPuzzleHash(genesisChallenge []byte, publicKey *K1PublicKey) ([]byte, error) {
+	defer runtime.KeepAlive(publicKey)
+	var locks handleLocks
+	if publicKey == nil {
+		return nil, fmt.Errorf("publicKey is nil or already freed")
+	}
+	locks = append(locks, &publicKey.mu)
+	defer lockHandles(nil, locks...)()
+	if publicKey.ptr == nil {
+		return nil, fmt.Errorf("publicKey is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_member_inner_puzzle_hash(genesisChallengePtr, genesisChallengeLen, publicKey.ptr, &outPtr, &outLen)
+	if ret != 0 {
 		return nil, lastError()
 	}
 	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
@@ -44657,6 +54402,41 @@ func FixedMemberHash(config *MemberConfig, fixedPuzzleHash []byte) ([]byte, erro
 	return result, nil
 }
 
+// Eip712MemberHash computes the eip712 member hash for the given config, genesisChallenge, publicKey.
+func Eip712MemberHash(config *MemberConfig, genesisChallenge []byte, publicKey *K1PublicKey) ([]byte, error) {
+	defer runtime.KeepAlive(config)
+	defer runtime.KeepAlive(publicKey)
+	var locks handleLocks
+	if config == nil {
+		return nil, fmt.Errorf("config is nil or already freed")
+	}
+	locks = append(locks, &config.mu)
+	if publicKey == nil {
+		return nil, fmt.Errorf("publicKey is nil or already freed")
+	}
+	locks = append(locks, &publicKey.mu)
+	defer lockHandles(nil, locks...)()
+	if config.ptr == nil {
+		return nil, fmt.Errorf("config is nil or already freed")
+	}
+	if publicKey.ptr == nil {
+		return nil, fmt.Errorf("publicKey is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_eip_712_member_hash(config.ptr, genesisChallengePtr, genesisChallengeLen, publicKey.ptr, &outPtr, &outLen)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
 // CustomMemberHash computes the custody hash for a custom member with an arbitrary inner puzzle hash.
 func CustomMemberHash(config *MemberConfig, innerHash []byte) ([]byte, error) {
 	defer runtime.KeepAlive(config)
@@ -45256,6 +55036,57 @@ func (o *MipsSpend) K1Member(config *MemberConfig, publicKey *K1PublicKey, signa
 	defer runtime.UnlockOSThread()
 
 	ret := C.go_mips_spend_k_1_member(o.ptr, config.ptr, publicKey.ptr, signature.ptr, boolToInt(fastForward))
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// Eip712Member performs eip712 member with the given config, genesisChallenge, publicKey, signedHash, signature.
+func (o *MipsSpend) Eip712Member(config *MemberConfig, genesisChallenge []byte, publicKey *K1PublicKey, signedHash []byte, signature *K1Signature) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(config)
+	defer runtime.KeepAlive(publicKey)
+	defer runtime.KeepAlive(signature)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if config == nil {
+		return fmt.Errorf("config is nil or already freed")
+	}
+	locks = append(locks, &config.mu)
+	if publicKey == nil {
+		return fmt.Errorf("publicKey is nil or already freed")
+	}
+	locks = append(locks, &publicKey.mu)
+	if signature == nil {
+		return fmt.Errorf("signature is nil or already freed")
+	}
+	locks = append(locks, &signature.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if config.ptr == nil {
+		return fmt.Errorf("config is nil or already freed")
+	}
+	if publicKey.ptr == nil {
+		return fmt.Errorf("publicKey is nil or already freed")
+	}
+	if signature.ptr == nil {
+		return fmt.Errorf("signature is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	genesisChallengePtr, genesisChallengeLen := bytesToPtr(genesisChallenge)
+	signedHashPtr, signedHashLen := bytesToPtr(signedHash)
+
+	ret := C.go_mips_spend_eip_712_member(o.ptr, config.ptr, genesisChallengePtr, genesisChallengeLen, publicKey.ptr, signedHashPtr, signedHashLen, signature.ptr)
 	if ret != 0 {
 
 		return lastError()
@@ -46626,34 +56457,42 @@ func (o *RestrictionMemo) SetMemo(value *Program) error {
 	return nil
 }
 
-// NewRestrictionMemoForce1Of2RestrictedVariable creates a restriction memo for the force-1-of-2 recovery restriction.
-func NewRestrictionMemoForce1Of2RestrictedVariable(clvm *Clvm, leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte) (*RestrictionMemo, error) {
+// Parse computes the parse for the given ctx.
+func (o *RestrictionMemo) Parse(ctx *MipsMemoContext) (*ParsedRestriction, error) {
 
-	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(ctx)
 	var locks handleLocks
-	if clvm == nil {
-		return nil, fmt.Errorf("clvm is nil or already freed")
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	locks = append(locks, &clvm.mu)
+	locks = append(locks, &o.mu)
+	if ctx == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
+	}
+	locks = append(locks, &ctx.mu)
 	defer lockHandles(nil, locks...)()
-	if clvm.ptr == nil {
-		return nil, fmt.Errorf("clvm is nil or already freed")
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if ctx.ptr == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
 	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	leftSideSubtreeHashPtr, leftSideSubtreeHashLen := bytesToPtr(leftSideSubtreeHash)
-	memberValidatorListHashPtr, memberValidatorListHashLen := bytesToPtr(memberValidatorListHash)
-	delegatedPuzzleValidatorListHashPtr, delegatedPuzzleValidatorListHashLen := bytesToPtr(delegatedPuzzleValidatorListHash)
 
 	var out unsafe.Pointer
-	ret := C.go_restriction_memo_force_1_of_2_restricted_variable(clvm.ptr, leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint32_t(nonce), memberValidatorListHashPtr, memberValidatorListHashLen, delegatedPuzzleValidatorListHashPtr, delegatedPuzzleValidatorListHashLen, &out)
+	ret := C.go_restriction_memo_parse(o.ptr, ctx.ptr, &out)
 	if ret != 0 {
 
 		return nil, lastError()
 	}
-	obj := &RestrictionMemo{ptr: out}
-	runtime.SetFinalizer(obj, (*RestrictionMemo).Free)
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ParsedRestriction{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedRestriction).Free)
 	return obj, nil
 }
 
@@ -46913,6 +56752,95 @@ func (o *WrapperMemo) SetMemo(value *Program) error {
 		return lastError()
 	}
 	return nil
+}
+
+// Parse computes the parse for the given ctx.
+func (o *WrapperMemo) Parse(ctx *MipsMemoContext) (*ParsedWrapper, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(ctx)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if ctx == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
+	}
+	locks = append(locks, &ctx.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if ctx.ptr == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_wrapper_memo_parse(o.ptr, ctx.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ParsedWrapper{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedWrapper).Free)
+	return obj, nil
+}
+
+// NewWrapperMemoForce1Of2RestrictedVariable creates a wrapper memo for the force-1-of-2 recovery restriction.
+func NewWrapperMemoForce1Of2RestrictedVariable(clvm *Clvm, leftSideSubtreeHash []byte, nonce uint32, restrictions []*RestrictionMemo) (*WrapperMemo, error) {
+
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(restrictions)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	for _, item := range restrictions {
+		if item == nil {
+			return nil, fmt.Errorf("restrictions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	for _, item := range restrictions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("restrictions is nil or already freed")
+		}
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	leftSideSubtreeHashPtr, leftSideSubtreeHashLen := bytesToPtr(leftSideSubtreeHash)
+	restrictionsPtrs := make([]unsafe.Pointer, len(restrictions))
+	for i, item := range restrictions {
+		restrictionsPtrs[i] = item.ptr
+	}
+	var restrictionsPtrsC *unsafe.Pointer
+	if len(restrictionsPtrs) > 0 {
+		restrictionsPtrsC = &restrictionsPtrs[0]
+	}
+	restrictionsLen := C.size_t(len(restrictions))
+
+	var out unsafe.Pointer
+	ret := C.go_wrapper_memo_force_1_of_2_restricted_variable(clvm.ptr, leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint32_t(nonce), (*unsafe.Pointer)(unsafe.Pointer(restrictionsPtrsC)), restrictionsLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &WrapperMemo{ptr: out}
+	runtime.SetFinalizer(obj, (*WrapperMemo).Free)
+	return obj, nil
 }
 
 // WrapperMemoPreventVaultSideEffects creates wrapper memos for all standard vault side-effect prevention wrappers.
@@ -47180,16 +57108,36 @@ func (o *Force1of2RestrictedVariableMemo) Clone() (*Force1of2RestrictedVariableM
 type Force1Of2RestrictedVariableMemo = Force1of2RestrictedVariableMemo
 
 // NewForce1of2RestrictedVariableMemo creates a new [Force1of2RestrictedVariableMemo] with the given field values.
-func NewForce1of2RestrictedVariableMemo(leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte) (*Force1of2RestrictedVariableMemo, error) {
-
+func NewForce1of2RestrictedVariableMemo(leftSideSubtreeHash []byte, nonce uint32, restrictions []*RestrictionMemo) (*Force1of2RestrictedVariableMemo, error) {
+	defer runtime.KeepAlive(restrictions)
+	var locks handleLocks
+	for _, item := range restrictions {
+		if item == nil {
+			return nil, fmt.Errorf("restrictions is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	for _, item := range restrictions {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("restrictions is nil or already freed")
+		}
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	leftSideSubtreeHashPtr, leftSideSubtreeHashLen := bytesToPtr(leftSideSubtreeHash)
-	memberValidatorListHashPtr, memberValidatorListHashLen := bytesToPtr(memberValidatorListHash)
-	delegatedPuzzleValidatorListHashPtr, delegatedPuzzleValidatorListHashLen := bytesToPtr(delegatedPuzzleValidatorListHash)
+	restrictionsPtrs := make([]unsafe.Pointer, len(restrictions))
+	for i, item := range restrictions {
+		restrictionsPtrs[i] = item.ptr
+	}
+	var restrictionsPtrsC *unsafe.Pointer
+	if len(restrictionsPtrs) > 0 {
+		restrictionsPtrsC = &restrictionsPtrs[0]
+	}
+	restrictionsLen := C.size_t(len(restrictions))
 
 	var out unsafe.Pointer
-	ret := C.go_force_1_of_2_restricted_variable_memo_new(leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint32_t(nonce), memberValidatorListHashPtr, memberValidatorListHashLen, delegatedPuzzleValidatorListHashPtr, delegatedPuzzleValidatorListHashLen, &out)
+	ret := C.go_force_1_of_2_restricted_variable_memo_new(leftSideSubtreeHashPtr, leftSideSubtreeHashLen, C.uint32_t(nonce), (*unsafe.Pointer)(unsafe.Pointer(restrictionsPtrsC)), restrictionsLen, &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -47199,8 +57147,8 @@ func NewForce1of2RestrictedVariableMemo(leftSideSubtreeHash []byte, nonce uint32
 }
 
 // NewForce1Of2RestrictedVariableMemo calls [NewForce1of2RestrictedVariableMemo].
-func NewForce1Of2RestrictedVariableMemo(leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte) (*Force1of2RestrictedVariableMemo, error) {
-	return NewForce1of2RestrictedVariableMemo(leftSideSubtreeHash, nonce, memberValidatorListHash, delegatedPuzzleValidatorListHash)
+func NewForce1Of2RestrictedVariableMemo(leftSideSubtreeHash []byte, nonce uint32, restrictions []*RestrictionMemo) (*Force1of2RestrictedVariableMemo, error) {
+	return NewForce1of2RestrictedVariableMemo(leftSideSubtreeHash, nonce, restrictions)
 }
 
 // LeftSideSubtreeHash returns the LeftSideSubtreeHash field of the [Force1of2RestrictedVariableMemo].
@@ -47293,8 +57241,8 @@ func (o *Force1of2RestrictedVariableMemo) SetNonce(value uint32) error {
 	return nil
 }
 
-// MemberValidatorListHash returns the MemberValidatorListHash field of the [Force1of2RestrictedVariableMemo].
-func (o *Force1of2RestrictedVariableMemo) MemberValidatorListHash() ([]byte, error) {
+// Restrictions returns the Restrictions field of the [Force1of2RestrictedVariableMemo].
+func (o *Force1of2RestrictedVariableMemo) Restrictions() ([]*RestrictionMemo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -47305,82 +57253,64 @@ func (o *Force1of2RestrictedVariableMemo) MemberValidatorListHash() ([]byte, err
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var outPtr *C.uint8_t
-	var outLen C.size_t
-	ret := C.go_force_1_of_2_restricted_variable_memo_get_member_validator_list_hash(o.ptr, &outPtr, &outLen)
+	var out unsafe.Pointer
+	ret := C.go_force_1_of_2_restricted_variable_memo_get_restrictions(o.ptr, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
 	}
-	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
-	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	listLen := C.go_restriction_memo_list_len(out)
+	result := make([]*RestrictionMemo, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_restriction_memo_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_restriction_memo_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &RestrictionMemo{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*RestrictionMemo).Free)
+	}
+	C.go_restriction_memo_list_free(out)
 	return result, nil
 }
 
-// SetMemberValidatorListHash updates the MemberValidatorListHash field of the [Force1of2RestrictedVariableMemo].
-func (o *Force1of2RestrictedVariableMemo) SetMemberValidatorListHash(value []byte) error {
+// SetRestrictions updates the Restrictions field of the [Force1of2RestrictedVariableMemo].
+func (o *Force1of2RestrictedVariableMemo) SetRestrictions(value []*RestrictionMemo) error {
 	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(value)
 	var locks handleLocks
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
 	locks = append(locks, &o.mu)
+	for _, item := range value {
+		if item == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
 	defer lockHandles(&o.mu, locks...)()
 	if o.ptr == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	valuePtr, valueLen := bytesToPtr(value)
-
-	ret := C.go_force_1_of_2_restricted_variable_memo_set_member_validator_list_hash(o.ptr, valuePtr, valueLen)
-	if ret != 0 {
-		return lastError()
-	}
-	return nil
-}
-
-// DelegatedPuzzleValidatorListHash returns the DelegatedPuzzleValidatorListHash field of the [Force1of2RestrictedVariableMemo].
-func (o *Force1of2RestrictedVariableMemo) DelegatedPuzzleValidatorListHash() ([]byte, error) {
-	if o == nil {
-		return nil, fmt.Errorf("object is nil or already freed")
-	}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {
-		return nil, fmt.Errorf("object is nil or already freed")
+	for _, item := range value {
+		if item.ptr == nil {
+			return fmt.Errorf("value is nil or already freed")
+		}
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var outPtr *C.uint8_t
-	var outLen C.size_t
-	ret := C.go_force_1_of_2_restricted_variable_memo_get_delegated_puzzle_validator_list_hash(o.ptr, &outPtr, &outLen)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
 	}
-	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
-	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
-	return result, nil
-}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-// SetDelegatedPuzzleValidatorListHash updates the DelegatedPuzzleValidatorListHash field of the [Force1of2RestrictedVariableMemo].
-func (o *Force1of2RestrictedVariableMemo) SetDelegatedPuzzleValidatorListHash(value []byte) error {
-	defer runtime.KeepAlive(o)
-	var locks handleLocks
-	if o == nil {
-		return fmt.Errorf("object is nil or already freed")
-	}
-	locks = append(locks, &o.mu)
-	defer lockHandles(&o.mu, locks...)()
-	if o.ptr == nil {
-		return fmt.Errorf("object is nil or already freed")
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	valuePtr, valueLen := bytesToPtr(value)
-
-	ret := C.go_force_1_of_2_restricted_variable_memo_set_delegated_puzzle_validator_list_hash(o.ptr, valuePtr, valueLen)
+	ret := C.go_force_1_of_2_restricted_variable_memo_set_restrictions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	if ret != 0 {
 		return lastError()
 	}
@@ -47768,6 +57698,45 @@ func (o *MemberMemo) SetMemo(value *Program) error {
 		return lastError()
 	}
 	return nil
+}
+
+// Parse computes the parse for the given ctx.
+func (o *MemberMemo) Parse(ctx *MipsMemoContext) (*ParsedMember, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(ctx)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if ctx == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
+	}
+	locks = append(locks, &ctx.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if ctx.ptr == nil {
+		return nil, fmt.Errorf("ctx is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_member_memo_parse(o.ptr, ctx.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &ParsedMember{ptr: out}
+	runtime.SetFinalizer(obj, (*ParsedMember).Free)
+	return obj, nil
 }
 
 // NewMemberMemoK1 creates a member memo for a secp256k1 (Bitcoin-compatible) signer.
@@ -48501,6 +58470,778 @@ func ForceSingletonRecreationRestriction() (*Restriction, error) {
 	return obj, nil
 }
 
+// ParsedMember represents a ParsedMember in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedMember struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedMember) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_member_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedMember) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedMember.
+func (o *ParsedMember) Clone() (*ParsedMember, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedMember{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedMember).Free)
+	return clone, nil
+}
+
+// AsK1 returns the as K1 of the [ParsedMember].
+func (o *ParsedMember) AsK1() (*K1PublicKey, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_k_1(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &K1PublicKey{ptr: out}
+	runtime.SetFinalizer(obj, (*K1PublicKey).Free)
+	return obj, nil
+}
+
+// AsR1 returns the as R1 of the [ParsedMember].
+func (o *ParsedMember) AsR1() (*R1PublicKey, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_r_1(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &R1PublicKey{ptr: out}
+	runtime.SetFinalizer(obj, (*R1PublicKey).Free)
+	return obj, nil
+}
+
+// AsBls returns the as bls of the [ParsedMember].
+func (o *ParsedMember) AsBls() (*PublicKey, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_bls(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &PublicKey{ptr: out}
+	runtime.SetFinalizer(obj, (*PublicKey).Free)
+	return obj, nil
+}
+
+// AsBlsTaproot returns the as bls taproot of the [ParsedMember].
+func (o *ParsedMember) AsBlsTaproot() (*PublicKey, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_bls_taproot(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &PublicKey{ptr: out}
+	runtime.SetFinalizer(obj, (*PublicKey).Free)
+	return obj, nil
+}
+
+// AsPasskey returns the as passkey of the [ParsedMember].
+func (o *ParsedMember) AsPasskey() (*R1PublicKey, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_passkey(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &R1PublicKey{ptr: out}
+	runtime.SetFinalizer(obj, (*R1PublicKey).Free)
+	return obj, nil
+}
+
+// AsSingleton returns the as singleton of the [ParsedMember].
+func (o *ParsedMember) AsSingleton() ([]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_parsed_member_as_singleton(o.ptr, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if outPtr == nil {
+		return nil, nil
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SingletonMode returns the singleton mode of the [ParsedMember].
+func (o *ParsedMember) SingletonMode() (*uint8, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint8_t
+	var cOutIsSome C.int
+	ret := C.go_parsed_member_singleton_mode(o.ptr, &cOut, &cOutIsSome)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if cOutIsSome == 0 {
+		return nil, nil
+	}
+	v := uint8(cOut)
+	return &v, nil
+}
+
+// AsFixedPuzzle returns the as fixed puzzle of the [ParsedMember].
+func (o *ParsedMember) AsFixedPuzzle() ([]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_parsed_member_as_fixed_puzzle(o.ptr, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if outPtr == nil {
+		return nil, nil
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// AsCustom returns the as custom of the [ParsedMember].
+func (o *ParsedMember) AsCustom() (*Program, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_member_as_custom(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Program{ptr: out}
+	runtime.SetFinalizer(obj, (*Program).Free)
+	return obj, nil
+}
+
+// FastForward returns the fast forward of the [ParsedMember].
+func (o *ParsedMember) FastForward() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_parsed_member_fast_forward(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// ParsedRestriction represents a ParsedRestriction in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedRestriction struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedRestriction) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_restriction_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedRestriction) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedRestriction.
+func (o *ParsedRestriction) Clone() (*ParsedRestriction, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_restriction_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedRestriction{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedRestriction).Free)
+	return clone, nil
+}
+
+// AsForce1Of2RestrictedVariable returns the as force1 of2 restricted variable of the [ParsedRestriction].
+func (o *ParsedRestriction) AsForce1Of2RestrictedVariable() (*Force1of2RestrictedVariableMemo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_restriction_as_force_1_of_2_restricted_variable(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Force1of2RestrictedVariableMemo{ptr: out}
+	runtime.SetFinalizer(obj, (*Force1of2RestrictedVariableMemo).Free)
+	return obj, nil
+}
+
+// AsEnforceDelegatedPuzzleWrappers returns the as enforce delegated puzzle wrappers of the [ParsedRestriction].
+func (o *ParsedRestriction) AsEnforceDelegatedPuzzleWrappers() ([]*WrapperMemo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_restriction_as_enforce_delegated_puzzle_wrappers(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	listLen := C.go_wrapper_memo_list_len(out)
+	result := make([]*WrapperMemo, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_wrapper_memo_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_wrapper_memo_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &WrapperMemo{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*WrapperMemo).Free)
+	}
+	C.go_wrapper_memo_list_free(out)
+	return result, nil
+}
+
+// AsTimelock returns the as timelock of the [ParsedRestriction].
+func (o *ParsedRestriction) AsTimelock() (*uint64, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint64_t
+	var cOutIsSome C.int
+	ret := C.go_parsed_restriction_as_timelock(o.ptr, &cOut, &cOutIsSome)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if cOutIsSome == 0 {
+		return nil, nil
+	}
+	v := uint64(cOut)
+	return &v, nil
+}
+
+// ParsedWrapper represents a ParsedWrapper in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type ParsedWrapper struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *ParsedWrapper) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_parsed_wrapper_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *ParsedWrapper) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the ParsedWrapper.
+func (o *ParsedWrapper) Clone() (*ParsedWrapper, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_parsed_wrapper_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &ParsedWrapper{ptr: out}
+	runtime.SetFinalizer(clone, (*ParsedWrapper).Free)
+	return clone, nil
+}
+
+// IsForceCoinAnnouncement reports whether the [ParsedWrapper] is force coin announcement.
+func (o *ParsedWrapper) IsForceCoinAnnouncement() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_parsed_wrapper_is_force_coin_announcement(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// IsForceCoinMessage reports whether the [ParsedWrapper] is force coin message.
+func (o *ParsedWrapper) IsForceCoinMessage() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_parsed_wrapper_is_force_coin_message(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// IsForceSingletonRecreation reports whether the [ParsedWrapper] is force singleton recreation.
+func (o *ParsedWrapper) IsForceSingletonRecreation() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_parsed_wrapper_is_force_singleton_recreation(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// AsPreventConditionOpcode returns the as prevent condition opcode of the [ParsedWrapper].
+func (o *ParsedWrapper) AsPreventConditionOpcode() (*uint16, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint16_t
+	var cOutIsSome C.int
+	ret := C.go_parsed_wrapper_as_prevent_condition_opcode(o.ptr, &cOut, &cOutIsSome)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if cOutIsSome == 0 {
+		return nil, nil
+	}
+	v := uint16(cOut)
+	return &v, nil
+}
+
+// IsPreventMultipleCreateCoins reports whether the [ParsedWrapper] is prevent multiple create coins.
+func (o *ParsedWrapper) IsPreventMultipleCreateCoins() (bool, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return false, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.int
+	ret := C.go_parsed_wrapper_is_prevent_multiple_create_coins(o.ptr, &cOut)
+	if ret != 0 {
+
+		return false, lastError()
+	}
+	return cOut != 0, nil
+}
+
+// AsTimelock returns the as timelock of the [ParsedWrapper].
+func (o *ParsedWrapper) AsTimelock() (*uint64, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cOut C.uint64_t
+	var cOutIsSome C.int
+	ret := C.go_parsed_wrapper_as_timelock(o.ptr, &cOut, &cOutIsSome)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if cOutIsSome == 0 {
+		return nil, nil
+	}
+	v := uint64(cOut)
+	return &v, nil
+}
+
+// AsForce1Of2RestrictedVariable returns the as force1 of2 restricted variable of the [ParsedWrapper].
+func (o *ParsedWrapper) AsForce1Of2RestrictedVariable() (*Force1of2RestrictedVariableMemo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_parsed_wrapper_as_force_1_of_2_restricted_variable(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &Force1of2RestrictedVariableMemo{ptr: out}
+	runtime.SetFinalizer(obj, (*Force1of2RestrictedVariableMemo).Free)
+	return obj, nil
+}
+
 // Mnemonic represents a BIP-39 mnemonic phrase used for key derivation.
 //
 // All methods are safe for concurrent use from multiple goroutines.
@@ -49204,6 +59945,2103 @@ func (o *Payment) SetMemos(value *Program) error {
 		return lastError()
 	}
 	return nil
+}
+
+// RoyaltyInfo represents a RoyaltyInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type RoyaltyInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *RoyaltyInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_royalty_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *RoyaltyInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the RoyaltyInfo.
+func (o *RoyaltyInfo) Clone() (*RoyaltyInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_royalty_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &RoyaltyInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*RoyaltyInfo).Free)
+	return clone, nil
+}
+
+// NewRoyaltyInfo creates a new [RoyaltyInfo] with the given field values.
+func NewRoyaltyInfo(launcherId []byte, puzzleHash []byte, basisPoints uint16) (*RoyaltyInfo, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	puzzleHashPtr, puzzleHashLen := bytesToPtr(puzzleHash)
+
+	var out unsafe.Pointer
+	ret := C.go_royalty_info_new(launcherIdPtr, launcherIdLen, puzzleHashPtr, puzzleHashLen, C.uint16_t(basisPoints), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &RoyaltyInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*RoyaltyInfo).Free)
+	return obj, nil
+}
+
+// LauncherId returns the LauncherId field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) LauncherId() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_royalty_info_get_launcher_id(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// LauncherID calls [LauncherId].
+func (o *RoyaltyInfo) LauncherID() ([]byte, error) {
+	return o.LauncherId()
+}
+
+// SetLauncherId updates the LauncherId field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) SetLauncherId(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_royalty_info_set_launcher_id(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// SetLauncherID calls [SetLauncherId].
+func (o *RoyaltyInfo) SetLauncherID(value []byte) error {
+	return o.SetLauncherId(value)
+}
+
+// PuzzleHash returns the PuzzleHash field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) PuzzleHash() ([]byte, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_royalty_info_get_puzzle_hash(o.ptr, &outPtr, &outLen)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// SetPuzzleHash updates the PuzzleHash field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) SetPuzzleHash(value []byte) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	valuePtr, valueLen := bytesToPtr(value)
+
+	ret := C.go_royalty_info_set_puzzle_hash(o.ptr, valuePtr, valueLen)
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// BasisPoints returns the BasisPoints field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) BasisPoints() (uint16, error) {
+	if o == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return 0, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var cOut C.uint16_t
+	ret := C.go_royalty_info_get_basis_points(o.ptr, &cOut)
+	runtime.KeepAlive(o)
+	if ret != 0 {
+		return 0, lastError()
+	}
+	return uint16(cOut), nil
+}
+
+// SetBasisPoints updates the BasisPoints field of the [RoyaltyInfo].
+func (o *RoyaltyInfo) SetBasisPoints(value uint16) error {
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(&o.mu, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_royalty_info_set_basis_points(o.ptr, C.uint16_t(value))
+	if ret != 0 {
+		return lastError()
+	}
+	return nil
+}
+
+// RequestedPayments represents a RequestedPayments in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type RequestedPayments struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *RequestedPayments) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_requested_payments_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *RequestedPayments) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the RequestedPayments.
+func (o *RequestedPayments) Clone() (*RequestedPayments, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &RequestedPayments{ptr: out}
+	runtime.SetFinalizer(clone, (*RequestedPayments).Free)
+	return clone, nil
+}
+
+// NewRequestedPayments creates a new [RequestedPayments] with the given clvm.
+func NewRequestedPayments(clvm *Clvm) (*RequestedPayments, error) {
+
+	defer runtime.KeepAlive(clvm)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_new(clvm.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &RequestedPayments{ptr: out}
+	runtime.SetFinalizer(obj, (*RequestedPayments).Free)
+	return obj, nil
+}
+
+// AddXch performs add xch with the given notarizedPayment.
+func (o *RequestedPayments) AddXch(notarizedPayment *NotarizedPayment) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(notarizedPayment)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if notarizedPayment == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	locks = append(locks, &notarizedPayment.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if notarizedPayment.ptr == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ret := C.go_requested_payments_add_xch(o.ptr, notarizedPayment.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddCat performs add cat with the given assetId, notarizedPayment.
+func (o *RequestedPayments) AddCat(assetId []byte, notarizedPayment *NotarizedPayment) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(notarizedPayment)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if notarizedPayment == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	locks = append(locks, &notarizedPayment.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if notarizedPayment.ptr == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	ret := C.go_requested_payments_add_cat(o.ptr, assetIdPtr, assetIdLen, notarizedPayment.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddNft performs add nft with the given launcherId, notarizedPayment.
+func (o *RequestedPayments) AddNft(launcherId []byte, notarizedPayment *NotarizedPayment) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(notarizedPayment)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if notarizedPayment == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	locks = append(locks, &notarizedPayment.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if notarizedPayment.ptr == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	ret := C.go_requested_payments_add_nft(o.ptr, launcherIdPtr, launcherIdLen, notarizedPayment.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AddOption performs add option with the given launcherId, notarizedPayment.
+func (o *RequestedPayments) AddOption(launcherId []byte, notarizedPayment *NotarizedPayment) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(notarizedPayment)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if notarizedPayment == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+	locks = append(locks, &notarizedPayment.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if notarizedPayment.ptr == nil {
+		return fmt.Errorf("notarizedPayment is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	ret := C.go_requested_payments_add_option(o.ptr, launcherIdPtr, launcherIdLen, notarizedPayment.ptr)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// Xch returns the xch of the [RequestedPayments].
+func (o *RequestedPayments) Xch() ([]*NotarizedPayment, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_xch(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_notarized_payment_list_len(out)
+	result := make([]*NotarizedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_notarized_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_notarized_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &NotarizedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*NotarizedPayment).Free)
+	}
+	C.go_notarized_payment_list_free(out)
+	return result, nil
+}
+
+// CatAssetIds returns the cat asset ids of the [RequestedPayments].
+func (o *RequestedPayments) CatAssetIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_cat_asset_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// CatAssetIDs calls [CatAssetIds].
+func (o *RequestedPayments) CatAssetIDs() ([][]byte, error) {
+	return o.CatAssetIds()
+}
+
+// Cats computes the cats for the given assetId.
+func (o *RequestedPayments) Cats(assetId []byte) ([]*NotarizedPayment, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_cats(o.ptr, assetIdPtr, assetIdLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_notarized_payment_list_len(out)
+	result := make([]*NotarizedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_notarized_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_notarized_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &NotarizedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*NotarizedPayment).Free)
+	}
+	C.go_notarized_payment_list_free(out)
+	return result, nil
+}
+
+// NftLauncherIds returns the nft launcher ids of the [RequestedPayments].
+func (o *RequestedPayments) NftLauncherIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_nft_launcher_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// NftLauncherIDs calls [NftLauncherIds].
+func (o *RequestedPayments) NftLauncherIDs() ([][]byte, error) {
+	return o.NftLauncherIds()
+}
+
+// Nfts computes the nfts for the given launcherId.
+func (o *RequestedPayments) Nfts(launcherId []byte) ([]*NotarizedPayment, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_nfts(o.ptr, launcherIdPtr, launcherIdLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_notarized_payment_list_len(out)
+	result := make([]*NotarizedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_notarized_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_notarized_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &NotarizedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*NotarizedPayment).Free)
+	}
+	C.go_notarized_payment_list_free(out)
+	return result, nil
+}
+
+// OptionLauncherIds returns the option launcher ids of the [RequestedPayments].
+func (o *RequestedPayments) OptionLauncherIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_option_launcher_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// OptionLauncherIDs calls [OptionLauncherIds].
+func (o *RequestedPayments) OptionLauncherIDs() ([][]byte, error) {
+	return o.OptionLauncherIds()
+}
+
+// Options computes the options for the given launcherId.
+func (o *RequestedPayments) Options(launcherId []byte) ([]*NotarizedPayment, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_options(o.ptr, launcherIdPtr, launcherIdLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_notarized_payment_list_len(out)
+	result := make([]*NotarizedPayment, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_notarized_payment_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_notarized_payment_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &NotarizedPayment{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*NotarizedPayment).Free)
+	}
+	C.go_notarized_payment_list_free(out)
+	return result, nil
+}
+
+// Amounts returns the amounts of the [RequestedPayments].
+func (o *RequestedPayments) Amounts() (*OfferAmounts, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_amounts(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// Actions returns the actions of the [RequestedPayments].
+func (o *RequestedPayments) Actions() ([]*Action, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_actions(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_action_list_len(out)
+	result := make([]*Action, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_action_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_action_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Action{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Action).Free)
+	}
+	C.go_action_list_free(out)
+	return result, nil
+}
+
+// Assertions computes the assertions for the given assetInfo.
+func (o *RequestedPayments) Assertions(assetInfo *AssetInfo) ([]*Program, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(assetInfo)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if assetInfo == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+	locks = append(locks, &assetInfo.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if assetInfo.ptr == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_requested_payments_assertions(o.ptr, assetInfo.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
+}
+
+// AssetInfo represents a AssetInfo in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type AssetInfo struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *AssetInfo) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_asset_info_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *AssetInfo) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the AssetInfo.
+func (o *AssetInfo) Clone() (*AssetInfo, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_asset_info_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &AssetInfo{ptr: out}
+	runtime.SetFinalizer(clone, (*AssetInfo).Free)
+	return clone, nil
+}
+
+// NewAssetInfo creates a new [AssetInfo] with the given clvm.
+func NewAssetInfo(clvm *Clvm) (*AssetInfo, error) {
+
+	defer runtime.KeepAlive(clvm)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_asset_info_new(clvm.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &AssetInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*AssetInfo).Free)
+	return obj, nil
+}
+
+// InsertCat performs insert cat with the given assetId, hiddenPuzzleHash.
+func (o *AssetInfo) InsertCat(assetId []byte, hiddenPuzzleHash []byte) error {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+	hiddenPuzzleHashPtr, hiddenPuzzleHashLen := bytesToPtr(hiddenPuzzleHash)
+
+	ret := C.go_asset_info_insert_cat(o.ptr, assetIdPtr, assetIdLen, hiddenPuzzleHashPtr, hiddenPuzzleHashLen)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// InsertNft performs insert nft with the given launcherId, metadata, metadataUpdaterPuzzleHash, royaltyPuzzleHash, royaltyBasisPoints.
+func (o *AssetInfo) InsertNft(launcherId []byte, metadata *Program, metadataUpdaterPuzzleHash []byte, royaltyPuzzleHash []byte, royaltyBasisPoints uint16) error {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(metadata)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if metadata == nil {
+		return fmt.Errorf("metadata is nil or already freed")
+	}
+	locks = append(locks, &metadata.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if metadata.ptr == nil {
+		return fmt.Errorf("metadata is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	metadataUpdaterPuzzleHashPtr, metadataUpdaterPuzzleHashLen := bytesToPtr(metadataUpdaterPuzzleHash)
+	royaltyPuzzleHashPtr, royaltyPuzzleHashLen := bytesToPtr(royaltyPuzzleHash)
+
+	ret := C.go_asset_info_insert_nft(o.ptr, launcherIdPtr, launcherIdLen, metadata.ptr, metadataUpdaterPuzzleHashPtr, metadataUpdaterPuzzleHashLen, royaltyPuzzleHashPtr, royaltyPuzzleHashLen, C.uint16_t(royaltyBasisPoints))
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// InsertOption performs insert option with the given launcherId, underlyingCoinId, underlyingDelegatedPuzzleHash.
+func (o *AssetInfo) InsertOption(launcherId []byte, underlyingCoinId []byte, underlyingDelegatedPuzzleHash []byte) error {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+	underlyingCoinIdPtr, underlyingCoinIdLen := bytesToPtr(underlyingCoinId)
+	underlyingDelegatedPuzzleHashPtr, underlyingDelegatedPuzzleHashLen := bytesToPtr(underlyingDelegatedPuzzleHash)
+
+	ret := C.go_asset_info_insert_option(o.ptr, launcherIdPtr, launcherIdLen, underlyingCoinIdPtr, underlyingCoinIdLen, underlyingDelegatedPuzzleHashPtr, underlyingDelegatedPuzzleHashLen)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// CatAssetIds returns the cat asset ids of the [AssetInfo].
+func (o *AssetInfo) CatAssetIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_asset_info_cat_asset_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// CatAssetIDs calls [CatAssetIds].
+func (o *AssetInfo) CatAssetIDs() ([][]byte, error) {
+	return o.CatAssetIds()
+}
+
+// CatHiddenPuzzleHash computes the cat hidden puzzle hash for the given assetId.
+func (o *AssetInfo) CatHiddenPuzzleHash(assetId []byte) ([]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_asset_info_cat_hidden_puzzle_hash(o.ptr, assetIdPtr, assetIdLen, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if outPtr == nil {
+		return nil, nil
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// NftLauncherIds returns the nft launcher ids of the [AssetInfo].
+func (o *AssetInfo) NftLauncherIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_asset_info_nft_launcher_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// NftLauncherIDs calls [NftLauncherIds].
+func (o *AssetInfo) NftLauncherIDs() ([][]byte, error) {
+	return o.NftLauncherIds()
+}
+
+// NftRoyalty computes the nft royalty for the given launcherId.
+func (o *AssetInfo) NftRoyalty(launcherId []byte) (*RoyaltyInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	launcherIdPtr, launcherIdLen := bytesToPtr(launcherId)
+
+	var out unsafe.Pointer
+	ret := C.go_asset_info_nft_royalty(o.ptr, launcherIdPtr, launcherIdLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &RoyaltyInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*RoyaltyInfo).Free)
+	return obj, nil
+}
+
+// OfferAmounts represents a OfferAmounts in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type OfferAmounts struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *OfferAmounts) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_offer_amounts_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *OfferAmounts) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the OfferAmounts.
+func (o *OfferAmounts) Clone() (*OfferAmounts, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_offer_amounts_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(clone, (*OfferAmounts).Free)
+	return clone, nil
+}
+
+// NewOfferAmounts creates a new [OfferAmounts].
+func NewOfferAmounts() (*OfferAmounts, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_amounts_new(&out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// Xch returns the xch of the [OfferAmounts].
+func (o *OfferAmounts) Xch() (*big.Int, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_offer_amounts_xch(o.ptr, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetXch performs set xch with the given amount.
+func (o *OfferAmounts) SetXch(amount *big.Int) error {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if amount == nil {
+		return fmt.Errorf("amount must not be nil")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	amountBytes := bigIntToSignedBytes(amount)
+	amountPtr, amountLen := bytesToPtr(amountBytes)
+
+	ret := C.go_offer_amounts_set_xch(o.ptr, amountPtr, amountLen)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// AssetIds returns the asset ids of the [OfferAmounts].
+func (o *OfferAmounts) AssetIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_amounts_asset_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// AssetIDs calls [AssetIds].
+func (o *OfferAmounts) AssetIDs() ([][]byte, error) {
+	return o.AssetIds()
+}
+
+// Cat computes the cat for the given assetId.
+func (o *OfferAmounts) Cat(assetId []byte) (*big.Int, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_offer_amounts_cat(o.ptr, assetIdPtr, assetIdLen, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	bytes := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	result := bigIntFromSignedBytes(bytes)
+	return result, nil
+}
+
+// SetCat performs set cat with the given assetId, amount.
+func (o *OfferAmounts) SetCat(assetId []byte, amount *big.Int) error {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return fmt.Errorf("object is nil or already freed")
+	}
+	if amount == nil {
+		return fmt.Errorf("amount must not be nil")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+	amountBytes := bigIntToSignedBytes(amount)
+	amountPtr, amountLen := bytesToPtr(amountBytes)
+
+	ret := C.go_offer_amounts_set_cat(o.ptr, assetIdPtr, assetIdLen, amountPtr, amountLen)
+	if ret != 0 {
+
+		return lastError()
+	}
+	return nil
+}
+
+// Offer represents a Offer in the Chia wallet SDK.
+//
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
+type Offer struct {
+	ptr unsafe.Pointer
+	mu  sync.RWMutex
+}
+
+// Free releases the underlying Rust object.
+// Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
+func (o *Offer) Free() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {
+		return
+	}
+	C.go_offer_free(o.ptr)
+	o.ptr = nil
+}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *Offer) Close() error {
+	o.Free()
+	return nil
+}
+
+// Clone returns a deep copy of the Offer.
+func (o *Offer) Clone() (*Offer, error) {
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var out unsafe.Pointer
+	ret := C.go_offer_clone(o.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	clone := &Offer{ptr: out}
+	runtime.SetFinalizer(clone, (*Offer).Free)
+	return clone, nil
+}
+
+// NewOfferFromInputSpendBundle computes the new offer from input spend bundle for the given clvm, spendBundle, requestedPayments, assetInfo.
+func NewOfferFromInputSpendBundle(clvm *Clvm, spendBundle *SpendBundle, requestedPayments *RequestedPayments, assetInfo *AssetInfo) (*Offer, error) {
+
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(spendBundle)
+	defer runtime.KeepAlive(requestedPayments)
+	defer runtime.KeepAlive(assetInfo)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	if spendBundle == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+	locks = append(locks, &spendBundle.mu)
+	if requestedPayments == nil {
+		return nil, fmt.Errorf("requestedPayments is nil or already freed")
+	}
+	locks = append(locks, &requestedPayments.mu)
+	if assetInfo == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+	locks = append(locks, &assetInfo.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	if spendBundle.ptr == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+	if requestedPayments.ptr == nil {
+		return nil, fmt.Errorf("requestedPayments is nil or already freed")
+	}
+	if assetInfo.ptr == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_from_input_spend_bundle(clvm.ptr, spendBundle.ptr, requestedPayments.ptr, assetInfo.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Offer{ptr: out}
+	runtime.SetFinalizer(obj, (*Offer).Free)
+	return obj, nil
+}
+
+// NewOfferFromSpendBundle computes the new offer from spend bundle for the given clvm, spendBundle.
+func NewOfferFromSpendBundle(clvm *Clvm, spendBundle *SpendBundle) (*Offer, error) {
+
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(spendBundle)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	if spendBundle == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+	locks = append(locks, &spendBundle.mu)
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	if spendBundle.ptr == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_from_spend_bundle(clvm.ptr, spendBundle.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &Offer{ptr: out}
+	runtime.SetFinalizer(obj, (*Offer).Free)
+	return obj, nil
+}
+
+// SpendBundle returns the spend bundle representation of the [Offer].
+func (o *Offer) SpendBundle() (*SpendBundle, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_to_spend_bundle(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &SpendBundle{ptr: out}
+	runtime.SetFinalizer(obj, (*SpendBundle).Free)
+	return obj, nil
+}
+
+// Take computes the take for the given spendBundle.
+func (o *Offer) Take(spendBundle *SpendBundle) (*SpendBundle, error) {
+
+	defer runtime.KeepAlive(o)
+	defer runtime.KeepAlive(spendBundle)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	if spendBundle == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+	locks = append(locks, &spendBundle.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	if spendBundle.ptr == nil {
+		return nil, fmt.Errorf("spendBundle is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_take(o.ptr, spendBundle.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &SpendBundle{ptr: out}
+	runtime.SetFinalizer(obj, (*SpendBundle).Free)
+	return obj, nil
+}
+
+// OfferNonce computes the offer nonce for the given coinIds.
+func OfferNonce(coinIds [][]byte) ([]byte, error) {
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var coinIdsPinner runtime.Pinner
+	defer coinIdsPinner.Unpin()
+	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	coinIdsLens := make([]C.size_t, len(coinIds))
+	for i, b := range coinIds {
+		if len(b) > 0 {
+			coinIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+			coinIdsPinner.Pin(coinIdsPtrs[i])
+		}
+		coinIdsLens[i] = C.size_t(len(b))
+	}
+	var coinIdsPtrsC **C.uint8_t
+	var coinIdsLensC *C.size_t
+	if len(coinIds) > 0 {
+		coinIdsPtrsC = &coinIdsPtrs[0]
+		coinIdsLensC = &coinIdsLens[0]
+	}
+	coinIdsCount := C.size_t(len(coinIds))
+
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	ret := C.go_offer_nonce(coinIdsPtrsC, coinIdsLensC, coinIdsCount, &outPtr, &outLen)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	result := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
+	C.go_free_bytes((*C.uint8_t)(unsafe.Pointer(outPtr)), outLen)
+	return result, nil
+}
+
+// RequestedPayments returns the requested payments of the [Offer].
+func (o *Offer) RequestedPayments() (*RequestedPayments, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_requested_payments(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &RequestedPayments{ptr: out}
+	runtime.SetFinalizer(obj, (*RequestedPayments).Free)
+	return obj, nil
+}
+
+// AssetInfo returns the asset info of the [Offer].
+func (o *Offer) AssetInfo() (*AssetInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_asset_info(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &AssetInfo{ptr: out}
+	runtime.SetFinalizer(obj, (*AssetInfo).Free)
+	return obj, nil
+}
+
+// OfferedAmounts returns the offered amounts of the [Offer].
+func (o *Offer) OfferedAmounts() (*OfferAmounts, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_amounts(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// OfferedXch returns the offered xch of the [Offer].
+func (o *Offer) OfferedXch() ([]*Coin, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_xch(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_coin_list_len(out)
+	result := make([]*Coin, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Coin{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Coin).Free)
+	}
+	C.go_coin_list_free(out)
+	return result, nil
+}
+
+// OfferedCats computes the offered cats for the given assetId.
+func (o *Offer) OfferedCats(assetId []byte) ([]*Cat, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	assetIdPtr, assetIdLen := bytesToPtr(assetId)
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_cats(o.ptr, assetIdPtr, assetIdLen, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_cat_list_len(out)
+	result := make([]*Cat, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_cat_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_cat_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Cat{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Cat).Free)
+	}
+	C.go_cat_list_free(out)
+	return result, nil
+}
+
+// OfferedNftLauncherIds returns the offered nft launcher ids of the [Offer].
+func (o *Offer) OfferedNftLauncherIds() ([][]byte, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_nft_launcher_ids(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
+}
+
+// OfferedNftLauncherIDs calls [OfferedNftLauncherIds].
+func (o *Offer) OfferedNftLauncherIDs() ([][]byte, error) {
+	return o.OfferedNftLauncherIds()
+}
+
+// OfferedRoyalties returns the offered royalties of the [Offer].
+func (o *Offer) OfferedRoyalties() ([]*RoyaltyInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_royalties(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_royalty_info_list_len(out)
+	result := make([]*RoyaltyInfo, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_royalty_info_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_royalty_info_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &RoyaltyInfo{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*RoyaltyInfo).Free)
+	}
+	C.go_royalty_info_list_free(out)
+	return result, nil
+}
+
+// RequestedRoyalties returns the requested royalties of the [Offer].
+func (o *Offer) RequestedRoyalties() ([]*RoyaltyInfo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_requested_royalties(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	listLen := C.go_royalty_info_list_len(out)
+	result := make([]*RoyaltyInfo, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_royalty_info_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_royalty_info_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &RoyaltyInfo{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*RoyaltyInfo).Free)
+	}
+	C.go_royalty_info_list_free(out)
+	return result, nil
+}
+
+// OfferedRoyaltyAmounts returns the offered royalty amounts of the [Offer].
+func (o *Offer) OfferedRoyaltyAmounts() (*OfferAmounts, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_offered_royalty_amounts(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// RequestedRoyaltyAmounts returns the requested royalty amounts of the [Offer].
+func (o *Offer) RequestedRoyaltyAmounts() (*OfferAmounts, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_offer_requested_royalty_amounts(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// CalculateTradePriceAmounts computes the calculate trade price amounts for the given amounts, royaltyNftCount.
+func CalculateTradePriceAmounts(amounts *OfferAmounts, royaltyNftCount uint32) (*OfferAmounts, error) {
+	defer runtime.KeepAlive(amounts)
+	var locks handleLocks
+	if amounts == nil {
+		return nil, fmt.Errorf("amounts is nil or already freed")
+	}
+	locks = append(locks, &amounts.mu)
+	defer lockHandles(nil, locks...)()
+	if amounts.ptr == nil {
+		return nil, fmt.Errorf("amounts is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_calculate_trade_price_amounts(amounts.ptr, C.uint32_t(royaltyNftCount), &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &OfferAmounts{ptr: out}
+	runtime.SetFinalizer(obj, (*OfferAmounts).Free)
+	return obj, nil
+}
+
+// CalculateTradePrices computes the calculate trade prices for the given tradePriceAmounts, assetInfo.
+func CalculateTradePrices(tradePriceAmounts *OfferAmounts, assetInfo *AssetInfo) ([]*TradePrice, error) {
+	defer runtime.KeepAlive(tradePriceAmounts)
+	defer runtime.KeepAlive(assetInfo)
+	var locks handleLocks
+	if tradePriceAmounts == nil {
+		return nil, fmt.Errorf("tradePriceAmounts is nil or already freed")
+	}
+	locks = append(locks, &tradePriceAmounts.mu)
+	if assetInfo == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+	locks = append(locks, &assetInfo.mu)
+	defer lockHandles(nil, locks...)()
+	if tradePriceAmounts.ptr == nil {
+		return nil, fmt.Errorf("tradePriceAmounts is nil or already freed")
+	}
+	if assetInfo.ptr == nil {
+		return nil, fmt.Errorf("assetInfo is nil or already freed")
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_calculate_trade_prices(tradePriceAmounts.ptr, assetInfo.ptr, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	listLen := C.go_trade_price_list_len(out)
+	result := make([]*TradePrice, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_trade_price_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_trade_price_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &TradePrice{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*TradePrice).Free)
+	}
+	C.go_trade_price_list_free(out)
+	return result, nil
+}
+
+// CalculateRoyaltyPayments computes the calculate royalty payments for the given clvm, tradePrices, royalties.
+func CalculateRoyaltyPayments(clvm *Clvm, tradePrices *OfferAmounts, royalties []*RoyaltyInfo) (*RequestedPayments, error) {
+	defer runtime.KeepAlive(clvm)
+	defer runtime.KeepAlive(tradePrices)
+	defer runtime.KeepAlive(royalties)
+	var locks handleLocks
+	if clvm == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	locks = append(locks, &clvm.mu)
+	if tradePrices == nil {
+		return nil, fmt.Errorf("tradePrices is nil or already freed")
+	}
+	locks = append(locks, &tradePrices.mu)
+	for _, item := range royalties {
+		if item == nil {
+			return nil, fmt.Errorf("royalties is nil or already freed")
+		}
+		locks = append(locks, &item.mu)
+	}
+	defer lockHandles(nil, locks...)()
+	if clvm.ptr == nil {
+		return nil, fmt.Errorf("clvm is nil or already freed")
+	}
+	if tradePrices.ptr == nil {
+		return nil, fmt.Errorf("tradePrices is nil or already freed")
+	}
+	for _, item := range royalties {
+		if item.ptr == nil {
+			return nil, fmt.Errorf("royalties is nil or already freed")
+		}
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	royaltiesPtrs := make([]unsafe.Pointer, len(royalties))
+	for i, item := range royalties {
+		royaltiesPtrs[i] = item.ptr
+	}
+	var royaltiesPtrsC *unsafe.Pointer
+	if len(royaltiesPtrs) > 0 {
+		royaltiesPtrsC = &royaltiesPtrs[0]
+	}
+	royaltiesLen := C.size_t(len(royalties))
+
+	var out unsafe.Pointer
+	ret := C.go_calculate_royalty_payments(clvm.ptr, tradePrices.ptr, (*unsafe.Pointer)(unsafe.Pointer(royaltiesPtrsC)), royaltiesLen, &out)
+	if ret != 0 {
+		return nil, lastError()
+	}
+	obj := &RequestedPayments{ptr: out}
+	runtime.SetFinalizer(obj, (*RequestedPayments).Free)
+	return obj, nil
 }
 
 // Certificate holds a TLS certificate and private key in PEM format for authenticating peer connections.
@@ -52479,7 +65317,7 @@ func (o *Program) BoundCheckedNumber() (*float64, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var cOut C.uint64_t
+	var cOut C.double
 	var cOutIsSome C.int
 	ret := C.go_program_to_bound_checked_number(o.ptr, &cOut, &cOutIsSome)
 	if ret != 0 {
@@ -52757,6 +65595,37 @@ func (o *Program) ParseNftMetadata() (*NftMetadata, error) {
 	}
 	obj := &NftMetadata{ptr: out}
 	runtime.SetFinalizer(obj, (*NftMetadata).Free)
+	return obj, nil
+}
+
+// ParseMipsMemo returns the parse mips memo of the [Program].
+func (o *Program) ParseMipsMemo() (*MipsMemo, error) {
+
+	defer runtime.KeepAlive(o)
+	var locks handleLocks
+	if o == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	locks = append(locks, &o.mu)
+	defer lockHandles(nil, locks...)()
+	if o.ptr == nil {
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var out unsafe.Pointer
+	ret := C.go_program_parse_mips_memo(o.ptr, &out)
+	if ret != 0 {
+
+		return nil, lastError()
+	}
+	if out == nil {
+		return nil, nil
+	}
+	obj := &MipsMemo{ptr: out}
+	runtime.SetFinalizer(obj, (*MipsMemo).Free)
 	return obj, nil
 }
 
@@ -109949,49 +122818,6 @@ func (o *XchandlesPrecommitValue) SetCurrentExpiration(value uint64) error {
 	defer runtime.UnlockOSThread()
 
 	ret := C.go_xchandles_precommit_value_set_current_expiration(o.ptr, C.uint64_t(value))
-	if ret != 0 {
-		return lastError()
-	}
-	return nil
-}
-
-// UseExpirePricing returns the UseExpirePricing field of the [XchandlesPrecommitValue].
-func (o *XchandlesPrecommitValue) UseExpirePricing() (bool, error) {
-	if o == nil {
-		return false, fmt.Errorf("object is nil or already freed")
-	}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {
-		return false, fmt.Errorf("object is nil or already freed")
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	var cOut C.int
-	ret := C.go_xchandles_precommit_value_get_use_expire_pricing(o.ptr, &cOut)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return false, lastError()
-	}
-	return cOut != 0, nil
-}
-
-// SetUseExpirePricing updates the UseExpirePricing field of the [XchandlesPrecommitValue].
-func (o *XchandlesPrecommitValue) SetUseExpirePricing(value bool) error {
-	defer runtime.KeepAlive(o)
-	var locks handleLocks
-	if o == nil {
-		return fmt.Errorf("object is nil or already freed")
-	}
-	locks = append(locks, &o.mu)
-	defer lockHandles(&o.mu, locks...)()
-	if o.ptr == nil {
-		return fmt.Errorf("object is nil or already freed")
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	ret := C.go_xchandles_precommit_value_set_use_expire_pricing(o.ptr, boolToInt(value))
 	if ret != 0 {
 		return lastError()
 	}

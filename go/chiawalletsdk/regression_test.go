@@ -64,6 +64,127 @@ func TestAllocIntegerRange(t *testing.T) {
 	}
 }
 
+func TestAggregateAmountsBeyondUint64(t *testing.T) {
+	clvm, err := NewClvm()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clvm.Close()
+	spends, err := NewSpends(clvm, make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer spends.Close()
+	for i := range 2 {
+		parent := make([]byte, 32)
+		parent[0] = byte(i)
+		coin, err := NewCoin(parent, make([]byte, 32), math.MaxUint64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = spends.AddXch(coin)
+		coin.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := new(big.Int).Lsh(new(big.Int).SetUint64(math.MaxUint64), 1)
+	got, err := spends.SelectedXchAmount()
+	if err != nil || got.Cmp(want) != 0 {
+		t.Fatalf("selected amount: got %v, want %v, error %v", got, want, err)
+	}
+	amounts, err := NewOfferAmounts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer amounts.Close()
+	if err := amounts.SetXch(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err = amounts.Xch()
+	if err != nil || got.Cmp(want) != 0 {
+		t.Fatalf("offer amount: got %v, want %v, error %v", got, want, err)
+	}
+	for _, invalid := range []*big.Int{big.NewInt(-1), new(big.Int).Lsh(big.NewInt(1), 128)} {
+		if err := amounts.SetXch(invalid); err == nil {
+			t.Fatalf("accepted an amount outside u128: %v", invalid)
+		}
+	}
+}
+
+func TestForce1Of2WrapperMemoParse(t *testing.T) {
+	clvm, err := NewClvm()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clvm.Close()
+	memo, err := NewWrapperMemoForce1Of2RestrictedVariable(clvm, make([]byte, 32), 7, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer memo.Close()
+	ctx, err := NewMipsMemoContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ctx.Close()
+	parsed, err := memo.Parse(ctx)
+	if err != nil || parsed == nil {
+		t.Fatalf("Parse: got %v, error %v", parsed, err)
+	}
+	defer parsed.Close()
+	recovery, err := parsed.AsForce1Of2RestrictedVariable()
+	if err != nil || recovery == nil {
+		t.Fatalf("AsForce1Of2RestrictedVariable: got %v, error %v", recovery, err)
+	}
+	defer recovery.Close()
+	nonce, err := recovery.Nonce()
+	if err != nil || nonce != 7 {
+		t.Fatalf("nonce: got %d, want 7, error %v", nonce, err)
+	}
+	restrictions, err := recovery.Restrictions()
+	defer CloseAll(restrictions)
+	if err != nil || len(restrictions) != 0 {
+		t.Fatalf("restrictions: got %d, want 0, error %v", len(restrictions), err)
+	}
+}
+
+func TestOptionalNumericValues(t *testing.T) {
+	clvm, err := NewClvm()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clvm.Close()
+	program, err := clvm.BoundCheckedNumber(42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer program.Close()
+	number, err := program.BoundCheckedNumber()
+	if err != nil || number == nil || *number != 42 {
+		t.Fatalf("number: got %v, error %v", number, err)
+	}
+	memo, err := NewWrapperMemoPreventConditionOpcode(clvm, 60, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer memo.Close()
+	ctx, err := NewMipsMemoContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ctx.Close()
+	parsed, err := memo.Parse(ctx)
+	if err != nil || parsed == nil {
+		t.Fatalf("Parse: got %v, error %v", parsed, err)
+	}
+	defer parsed.Close()
+	opcode, err := parsed.AsPreventConditionOpcode()
+	if err != nil || opcode == nil || *opcode != 60 {
+		t.Fatalf("opcode: got %v, error %v", opcode, err)
+	}
+}
+
 func TestEmptyCollections(t *testing.T) {
 	clvm, err := NewClvm()
 	if err != nil {

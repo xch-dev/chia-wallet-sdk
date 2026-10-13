@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
-    Memos,
+    CoinProof, Memos,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
     singleton::SingletonStruct,
 };
@@ -27,9 +27,9 @@ use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
     ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
     DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft,
-    OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, Spend, SpendContext,
-    SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput,
-    iter_final_children, parse_vault_transaction,
+    OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, SingleCatSpend,
+    Spend, SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType,
+    VaultOutput, iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,11 +92,11 @@ fn issue_asset(
 
         let xch = xch_asset_flow(&tx.asset_flows);
         assert_eq!(xch.issued_amount, 0);
-        assert_eq!(xch.melted_amount, amount);
+        assert_eq!(xch.melted_amount, amount.into());
         assert_eq!(xch.unaccounted_amount, 0);
 
         let cat = cat_asset_flow(&tx.asset_flows);
-        assert_eq!(cat.issued_amount, amount);
+        assert_eq!(cat.issued_amount, amount.into());
         assert_eq!(cat.melted_amount, 0);
         assert_eq!(cat.unaccounted_amount, 0);
 
@@ -363,7 +363,7 @@ fn test_clear_signing_reserved_fee(
     assert_eq!(
         asset_flow(&tx.asset_flows, ClearSigningAsset::Xch)
             .map_or(0, |flow| flow.unaccounted_amount),
-        total_fee - reserved_fee
+        u128::from(total_fee - reserved_fee)
     );
     assert_eq!(tx.reserved_fee, reserved_fee);
 
@@ -1111,6 +1111,84 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
         .find(|spend| matches!(spend.asset, ParsedAsset::Cat(_)))
         .expect("expected the eve cat spend to be verified");
     assert_eq!(cat_spend.asset.coin().coin_id(), issuance.coin_id);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_minimum_extra_delta() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+    let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+    let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+    let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
+
+    let actions = [Action::send(
+        Id::Xch,
+        eve_info.puzzle_hash().into(),
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let eve_coin = Coin::new(input_coin_id, eve_info.puzzle_hash().into(), 1000);
+    let eve = Cat::new(eve_coin, None, eve_info);
+
+    // An untrusted transaction can claim to melt the most that an extra delta can represent
+    eve.spend(
+        &mut ctx,
+        SingleCatSpend {
+            p2_spend: delegated_spend,
+            prev_coin_id: eve_coin.coin_id(),
+            next_coin_proof: CoinProof {
+                parent_coin_info: eve_coin.parent_coin_info,
+                inner_puzzle_hash: delegated_puzzle_hash,
+                amount: eve_coin.amount,
+            },
+            prev_subtotal: 0,
+            extra_delta: i64::MIN,
+            revoke: false,
+        },
+    )?;
+
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_concurrent_spend(eve_coin.coin_id()));
+
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.issuances.len(), 1);
+    assert_eq!(tx.issuances[0].extra_delta, i64::MIN);
+
+    let melted = u128::from(i64::MIN.unsigned_abs());
+    assert_eq!(cat_asset_flow(&tx.asset_flows).melted_amount, melted);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).issued_amount, melted);
 
     Ok(())
 }

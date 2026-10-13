@@ -1,6 +1,7 @@
 use chia_sdk_types::puzzles::{
     BlsMemberPuzzleAssert, BlsTaprootMemberPuzzleAssert, SingletonMemberWithMode,
 };
+use clvmr::NodePtr;
 
 use super::{
     BlsMember, BlsTaprootMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert, PasskeyMember,
@@ -22,4 +23,6 @@ pub enum ParsedMember {
     Singleton(SingletonMember),
     SingletonWithMode(SingletonMemberWithMode),
     FixedPuzzle(FixedPuzzleMember),
+    /// A member whose memo is the full puzzle reveal.
+    Custom(NodePtr),
 }
