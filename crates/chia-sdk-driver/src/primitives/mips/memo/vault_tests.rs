@@ -16,7 +16,7 @@ use chia_sdk_types::{
 use chia_secp::{K1PublicKey, R1PublicKey};
 use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm, clvm_list};
-use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{
     Allocator, NodePtr,
     serde::{node_from_bytes, node_to_bytes},
@@ -28,7 +28,7 @@ use crate::{
     StandardLayer, mips_puzzle_hash,
 };
 
-use super::{tests::legacy_delegated_puzzle_wrappers, *};
+use super::*;
 
 #[derive(Debug, Clone, Copy)]
 enum Key {
@@ -338,12 +338,12 @@ fn vault_memo_list(
 
     let recovery = match state {
         State::Custody => {
+            let clawback = RestrictionMemo::timelock(ctx, keys.clawback_timelock, true)?;
             let force_1_of_2 = RestrictionMemo::force_1_of_2_restricted_variable(
                 ctx,
                 custody.hash.into(),
                 0,
-                member_validator_list_hash(keys.clawback_timelock),
-                delegated_puzzle_validator_list_hash(),
+                vec![clawback],
             )?;
 
             let mut wrappers = vec![WrapperMemo::new(
@@ -417,67 +417,234 @@ fn parse_memo_list(allocator: &mut Allocator, memos: NodePtr) -> anyhow::Result<
     Ok(MipsMemo::from_clvm(&*allocator, *memo)?)
 }
 
-#[derive(Default)]
-struct Found {
-    members: usize,
-    custom_members: usize,
-    force_1_of_2_wrappers: usize,
-    wrappers: usize,
-    timelock_restrictions: usize,
+/// Everything needed to reconstruct a vault, recovered from its memo alone.
+struct DecodedVault {
+    keys: VaultKeys,
+    state: State,
+    recovery_finish_memos: NodePtr,
+    post_recovery: Option<Box<DecodedVault>>,
 }
 
-/// Walks the memo tree, asserting that every node resolves to a known type without any context.
-fn assert_fully_known(
-    allocator: &mut Allocator,
-    memo: &InnerPuzzleMemo,
-    found: &mut Found,
-) -> anyhow::Result<()> {
+/// Inverse of `signer_tree`, which ignores the restrictions on the root node.
+fn decode_signers(allocator: &Allocator, memo: &InnerPuzzleMemo) -> anyhow::Result<Signers> {
     let ctx = MipsMemoContext::default();
 
-    for restriction in &memo.restrictions {
-        match restriction.parse(allocator, &ctx) {
-            Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(parsed, wrappers)) => {
-                // Cloud Wallet memos written before wrapper puzzle hashes were included.
-                let legacy = legacy_delegated_puzzle_wrappers(allocator, &wrappers)?;
-                assert_eq!(
-                    legacy.parse(allocator, &ctx),
-                    Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(
-                        parsed,
-                        wrappers.clone()
-                    ))
-                );
+    let (threshold, members) = match &memo.kind {
+        MemoKind::Member(member) => (1, vec![member]),
+        MemoKind::MofN(m_of_n) => (
+            m_of_n.required,
+            m_of_n
+                .items
+                .iter()
+                .map(|item| {
+                    anyhow::ensure!(item.nonce == 0 && item.restrictions.is_empty());
+                    let MemoKind::Member(member) = &item.kind else {
+                        anyhow::bail!("signers can't be nested");
+                    };
+                    Ok(member)
+                })
+                .collect::<anyhow::Result<_>>()?,
+        ),
+    };
 
-                for wrapper in wrappers {
-                    let parsed = wrapper.parse(allocator, &ctx).expect("unknown wrapper");
+    let mut keys = Vec::new();
+    let mut vault_launcher_ids = Vec::new();
 
-                    found.wrappers += 1;
-
-                    if matches!(parsed, ParsedWrapper::Force1of2RestrictedVariable(_)) {
-                        found.force_1_of_2_wrappers += 1;
-                    }
-                }
+    for member in members {
+        match member.parse(allocator, &ctx) {
+            Some(ParsedMember::K1PuzzleAssert(member)) => keys.push(Key::K1(member.public_key)),
+            Some(ParsedMember::R1PuzzleAssert(member)) => keys.push(Key::R1(member.public_key)),
+            Some(ParsedMember::PasskeyPuzzleAssert(member)) => {
+                keys.push(Key::Passkey(member.public_key));
             }
-            Some(ParsedRestriction::Timelock(_)) => found.timelock_restrictions += 1,
-            Some(ParsedRestriction::Force1of2RestrictedVariable(_)) => {}
-            None => panic!("unknown restriction"),
+            Some(ParsedMember::Bls(member)) => keys.push(Key::Bls(member.public_key)),
+            Some(ParsedMember::Singleton(member)) => {
+                vault_launcher_ids.push(member.singleton_struct.launcher_id);
+            }
+            parsed => anyhow::bail!("unexpected signer {parsed:?}"),
         }
     }
 
-    match &memo.kind {
-        MemoKind::Member(member) => {
-            let parsed = member.parse(allocator, &ctx).expect("unknown member");
+    Ok(Signers::new(keys, vault_launcher_ids, threshold))
+}
 
-            found.members += 1;
+/// Recovers the vault keys and state from the memo, without any context.
+fn decode_vault(allocator: &mut Allocator, memo: &MipsMemo) -> anyhow::Result<DecodedVault> {
+    let ctx = MipsMemoContext::default();
 
-            if matches!(parsed, ParsedMember::Custom(_)) {
-                found.custom_members += 1;
+    let top_level = &memo.inner_puzzle;
+    anyhow::ensure!(top_level.nonce == 0 && top_level.restrictions.is_empty());
+    let MemoKind::MofN(top_level) = &top_level.kind else {
+        anyhow::bail!("expected a 1 of 2 at the top level");
+    };
+    let (1, [custody, recovery]) = (top_level.required, top_level.items.as_slice()) else {
+        anyhow::bail!("expected a 1 of 2 at the top level");
+    };
+    anyhow::ensure!(custody.nonce == 0 && custody.restrictions.is_empty());
+    anyhow::ensure!(recovery.nonce == 0);
+
+    let custody_signers = decode_signers(allocator, custody)?;
+
+    let [restriction] = recovery.restrictions.as_slice() else {
+        anyhow::bail!("expected a single recovery restriction");
+    };
+
+    match restriction.parse(allocator, &ctx) {
+        Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(_, wrappers)) => {
+            let mut clawback_timelock = None;
+            let mut opcodes = Vec::new();
+            let mut prevent_multiple_create_coins = false;
+            let mut force_singleton_recreation = false;
+
+            for wrapper in wrappers {
+                match wrapper.parse(allocator, &ctx) {
+                    Some(ParsedWrapper::Force1of2RestrictedVariable(_, restrictions)) => {
+                        for restriction in restrictions {
+                            match restriction.parse(allocator, &ctx) {
+                                Some(ParsedRestriction::Timelock(timelock))
+                                    if restriction.member_condition_validator =>
+                                {
+                                    clawback_timelock = Some(timelock.seconds);
+                                }
+                                parsed => anyhow::bail!(
+                                    "unexpected restriction after recovery {parsed:?}"
+                                ),
+                            }
+                        }
+                    }
+                    Some(ParsedWrapper::PreventConditionOpcode(wrapper)) => {
+                        opcodes.push(wrapper.condition_opcode);
+                    }
+                    Some(ParsedWrapper::PreventMultipleCreateCoins) => {
+                        prevent_multiple_create_coins = true;
+                    }
+                    Some(ParsedWrapper::ForceSingletonRecreation) => {
+                        force_singleton_recreation = true;
+                    }
+                    parsed => anyhow::bail!("unexpected recovery wrapper {parsed:?}"),
+                }
             }
+
+            anyhow::ensure!(
+                opcodes
+                    == [
+                        CREATE_COIN_ANNOUNCEMENT,
+                        CREATE_PUZZLE_ANNOUNCEMENT,
+                        SEND_MESSAGE,
+                        RECEIVE_MESSAGE,
+                    ]
+            );
+            anyhow::ensure!(prevent_multiple_create_coins);
+
+            let clawback_timelock = clawback_timelock.ok_or_else(|| {
+                anyhow::anyhow!("the clawback timelock isn't revealed by the force 1 of 2")
+            })?;
+
+            Ok(DecodedVault {
+                keys: VaultKeys {
+                    custody: custody_signers,
+                    recovery: decode_signers(allocator, recovery)?,
+                    clawback_timelock,
+                    force_singleton_recreation,
+                },
+                state: State::Custody,
+                recovery_finish_memos: NodePtr::NIL,
+                post_recovery: None,
+            })
         }
-        MemoKind::MofN(m_of_n) => {
-            for item in &m_of_n.items {
-                assert_fully_known(allocator, item, found)?;
-            }
+        Some(ParsedRestriction::Timelock(timelock)) => {
+            let MemoKind::Member(recovery_finish) = &recovery.kind else {
+                anyhow::bail!("expected a recovery finish member");
+            };
+            let Some(ParsedMember::Custom(puzzle)) = recovery_finish.parse(allocator, &ctx) else {
+                anyhow::bail!("expected the recovery finish puzzle to be revealed");
+            };
+
+            let output = clvmr::run_program(
+                allocator,
+                &clvmr::ChiaDialect::new(0),
+                puzzle,
+                NodePtr::NIL,
+                u64::MAX,
+            )?
+            .1;
+            let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+            let force_singleton_recreation = conditions
+                .iter()
+                .any(|condition| matches!(condition, Condition::AssertMyAmount(_)));
+            let create_coin = conditions
+                .into_iter()
+                .find_map(Condition::into_create_coin)
+                .ok_or_else(|| anyhow::anyhow!("missing create coin"))?;
+            let Memos::Some(memos) = create_coin.memos else {
+                anyhow::bail!("missing post recovery memos");
+            };
+
+            let post_recovery_memo = parse_memo_list(allocator, memos)?;
+            anyhow::ensure!(
+                post_recovery_memo.inner_puzzle_hash() == create_coin.puzzle_hash.into()
+            );
+            let post_recovery = decode_vault(allocator, &post_recovery_memo)?;
+
+            Ok(DecodedVault {
+                keys: VaultKeys {
+                    custody: custody_signers,
+                    recovery: post_recovery.keys.custody.clone(),
+                    clawback_timelock: timelock.seconds,
+                    force_singleton_recreation,
+                },
+                state: State::Recovery {
+                    post_recovery_inner_puzzle_hash: create_coin.puzzle_hash,
+                    amount: create_coin.amount,
+                },
+                recovery_finish_memos: memos,
+                post_recovery: Some(Box::new(post_recovery)),
+            })
         }
+        parsed => anyhow::bail!("unexpected recovery restriction {parsed:?}"),
+    }
+}
+
+/// Rebuilds the vault from the decoded keys and checks that it's identical to the original,
+/// including the memo bytes.
+fn assert_rebuilds(
+    ctx: &mut SpendContext,
+    decoded: &DecodedVault,
+    inner_puzzle_hash: TreeHash,
+    memo_list_bytes: &[u8],
+) -> anyhow::Result<()> {
+    let internals = vault_internals(
+        ctx,
+        &decoded.keys,
+        decoded.state,
+        decoded.recovery_finish_memos,
+    )?;
+    assert_eq!(internals.inner_puzzle_hash, inner_puzzle_hash);
+
+    let (memo_list, _) = vault_memo_list(
+        ctx,
+        &decoded.keys,
+        decoded.state,
+        decoded.recovery_finish_memos,
+    )?;
+    assert_eq!(node_to_bytes(ctx, memo_list)?, memo_list_bytes);
+
+    if let (
+        State::Recovery {
+            post_recovery_inner_puzzle_hash,
+            ..
+        },
+        Some(post_recovery),
+    ) = (decoded.state, &decoded.post_recovery)
+    {
+        let memo_list_bytes = node_to_bytes(ctx, decoded.recovery_finish_memos)?;
+        assert_rebuilds(
+            ctx,
+            post_recovery,
+            post_recovery_inner_puzzle_hash.into(),
+            &memo_list_bytes,
+        )?;
     }
 
     Ok(())
@@ -586,54 +753,14 @@ fn test_vault_memo_roundtrip(
         internals.recovery_hash
     );
 
-    let mut found = Found::default();
-    assert_fully_known(&mut ctx, &parsed.inner_puzzle, &mut found)?;
-
-    let custody_members = keys.custody.count();
-
-    if recovery_state {
-        assert_eq!(found.members, custody_members + 1);
-        assert_eq!(found.custom_members, 1);
-        assert_eq!(found.timelock_restrictions, 1);
-        assert_eq!(found.wrappers, 0);
-
-        // The recovery finish member's puzzle reveal contains the post recovery memo, which
-        // can itself be parsed.
-        let MemoKind::Member(recovery_finish) = &top_level.items[1].kind else {
-            panic!("expected recovery finish member");
-        };
-        let Some(ParsedMember::Custom(puzzle)) =
-            recovery_finish.parse(&ctx, &MipsMemoContext::default())
-        else {
-            panic!("expected custom member");
-        };
-        assert_eq!(tree_hash(&ctx, puzzle), recovery_finish.puzzle_hash.into());
-
-        let output = ctx.run(puzzle, NodePtr::NIL)?;
-        let conditions = Vec::<Condition>::from_clvm(&*ctx, output)?;
-        let create_coin = conditions
-            .into_iter()
-            .find_map(Condition::into_create_coin)
-            .expect("missing create coin");
-        let Memos::Some(memos) = create_coin.memos else {
-            panic!("missing memos");
-        };
-        let post_recovery = parse_memo_list(&mut ctx, memos)?;
-        assert_eq!(
-            post_recovery.inner_puzzle_hash(),
-            create_coin.puzzle_hash.into()
-        );
-    } else {
-        let recovery_members = keys.recovery.count();
-        assert_eq!(found.members, custody_members + recovery_members);
-        assert_eq!(found.custom_members, 0);
-        assert_eq!(found.timelock_restrictions, 0);
-        assert_eq!(found.force_1_of_2_wrappers, 1);
-        assert_eq!(
-            found.wrappers,
-            if force_singleton_recreation { 7 } else { 6 }
-        );
-    }
+    let decoded = decode_vault(&mut ctx, &parsed)?;
+    assert_eq!(decoded.keys.clawback_timelock, keys.clawback_timelock);
+    assert_eq!(
+        decoded.keys.force_singleton_recreation,
+        keys.force_singleton_recreation
+    );
+    assert_eq!(decoded.post_recovery.is_some(), recovery_state);
+    assert_rebuilds(&mut ctx, &decoded, internals.inner_puzzle_hash, &bytes)?;
 
     Ok(())
 }
@@ -738,10 +865,14 @@ fn test_vault_memo_on_chain() -> anyhow::Result<()> {
     let parsed = parse_memo_list(&mut allocator, memos)?;
     assert_eq!(parsed.inner_puzzle_hash(), child.info.custody_hash);
 
-    let mut found = Found::default();
-    assert_fully_known(&mut allocator, &parsed.inner_puzzle, &mut found)?;
-    assert_eq!(found.members, 2);
-    assert_eq!(found.force_1_of_2_wrappers, 1);
+    let decoded = decode_vault(&mut allocator, &parsed)?;
+    assert_eq!(decoded.keys.clawback_timelock, keys.clawback_timelock);
+    assert_rebuilds(
+        &mut ctx,
+        &decoded,
+        child.info.custody_hash,
+        &node_to_bytes(&allocator, memos)?,
+    )?;
 
     Ok(())
 }

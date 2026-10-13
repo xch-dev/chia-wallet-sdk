@@ -88,8 +88,7 @@ def test_vault_custody_memo_round_trip():
         clvm,
         custody.inner_puzzle_hash(False),
         0,
-        member_validator_list_hash,
-        clvm.nil().tree_hash(),
+        [RestrictionMemo.timelock(clvm, clawback_timelock, True)],
     )
     recovery = member_node(
         clvm,
@@ -137,10 +136,11 @@ def test_vault_custody_memo_round_trip():
         wrapper.parse(ctx)
         for wrapper in parsed_restriction.as_enforce_delegated_puzzle_wrappers()
     ]
-    assert (
-        wrappers[0].as_force_1_of_2_restricted_variable().left_side_subtree_hash
-        == custody_hash
-    )
+    force_1_of_2 = wrappers[0].as_force_1_of_2_restricted_variable()
+    assert force_1_of_2.left_side_subtree_hash == custody_hash
+    assert [
+        restriction.parse(ctx).as_timelock() for restriction in force_1_of_2.restrictions
+    ] == [clawback_timelock]
     assert [wrapper.as_prevent_condition_opcode() for wrapper in wrappers[1:5]] == [
         60,
         62,

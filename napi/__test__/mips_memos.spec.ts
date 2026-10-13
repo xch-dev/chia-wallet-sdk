@@ -267,20 +267,32 @@ test("parse restrictions and wrappers", (t) => {
   t.is(hiddenTimelock.parse(timelockCtx)?.asTimelock(), 200n);
 
   const leftSideSubtreeHash = fromHex("66".repeat(32));
-  const memberValidatorListHash = fromHex("77".repeat(32));
-  const delegatedPuzzleValidatorListHash = clvm.nil().treeHash();
   const force1Of2 = RestrictionMemo.force1Of2RestrictedVariable(
     clvm,
     leftSideSubtreeHash,
     0,
-    memberValidatorListHash,
-    delegatedPuzzleValidatorListHash,
+    [RestrictionMemo.timelock(clvm, 300n, true)],
+  );
+  t.deepEqual(
+    force1Of2.puzzleHash,
+    force1Of2Restriction(
+      leftSideSubtreeHash,
+      0,
+      treeHashPair(timelockRestriction(300n).puzzleHash, clvm.nil().treeHash()),
+      clvm.nil().treeHash(),
+    ).puzzleHash,
   );
   const parsedForce1Of2 = force1Of2
     .parse(ctx)!
     .asForce1Of2RestrictedVariable()!;
   t.deepEqual(parsedForce1Of2.leftSideSubtreeHash, leftSideSubtreeHash);
-  t.deepEqual(parsedForce1Of2.memberValidatorListHash, memberValidatorListHash);
+  t.is(parsedForce1Of2.nonce, 0);
+  t.deepEqual(
+    parsedForce1Of2.restrictions.map((restriction) =>
+      restriction.parse(ctx)?.asTimelock(),
+    ),
+    [300n],
+  );
 
   const wrappers = [
     new WrapperMemo(force1Of2.puzzleHash, force1Of2.memo),
@@ -590,13 +602,11 @@ function vaultMemoList(
   let recovery: MemoNode;
 
   if (state.state === "CUSTODY") {
-    const timelock = timelockRestriction(keys.clawbackTimelock);
     const force1Of2 = RestrictionMemo.force1Of2RestrictedVariable(
       clvm,
       custody.hash,
       0,
-      treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
-      clvm.nil().treeHash(),
+      [RestrictionMemo.timelock(clvm, keys.clawbackTimelock, true)],
     );
     recovery = signerTree(clvm, keys.recovery, [
       RestrictionMemo.enforceDelegatedPuzzleWrappers(clvm, [
@@ -638,6 +648,19 @@ interface Found {
   members: string[];
   restrictions: string[];
   wrappers: string[];
+  // Restrictions applied to the recovery path once the force 1 of 2 is spent.
+  recoveryRestrictions: string[];
+  clawbackTimelocks: bigint[];
+}
+
+function emptyFound(): Found {
+  return {
+    members: [],
+    restrictions: [],
+    wrappers: [],
+    recoveryRestrictions: [],
+    clawbackTimelocks: [],
+  };
 }
 
 function collect(
@@ -656,6 +679,18 @@ function collect(
       const parsedWrapper = wrapper.parse(ctx);
       t.not(parsedWrapper, null, "wrapper should parse");
       found.wrappers.push(wrapperName(parsedWrapper!));
+
+      const force1Of2 = parsedWrapper!.asForce1Of2RestrictedVariable();
+      for (const restriction of force1Of2?.restrictions ?? []) {
+        const parsedRestriction = restriction.parse(ctx);
+        t.not(parsedRestriction, null, "recovery restriction should parse");
+        found.recoveryRestrictions.push(restrictionName(parsedRestriction!));
+
+        const timelock = parsedRestriction!.asTimelock();
+        if (timelock !== null) {
+          found.clawbackTimelocks.push(timelock);
+        }
+      }
     }
   }
 
@@ -728,12 +763,14 @@ for (const [custodyName, custody] of Object.entries(custodyCases)) {
         t.deepEqual(memo!.innerPuzzleHash(), expected);
         t.deepEqual(clvm.alloc([clvm.mipsMemo(memo!)]).serialize(), bytes);
 
-        const found: Found = { members: [], restrictions: [], wrappers: [] };
+        const found = emptyFound();
         collect(t, memo!.innerPuzzle, found);
         t.is(found.members.length, custody.signers.length + recovery.signers.length);
         t.deepEqual(found.restrictions, ["wrappers"]);
         t.is(found.wrappers.length, forceSingletonRecreation ? 7 : 6);
         t.is(found.wrappers[0], "force1Of2");
+        t.deepEqual(found.recoveryRestrictions, ["timelock"]);
+        t.deepEqual(found.clawbackTimelocks, [keys.clawbackTimelock]);
       });
 
       test(`vault recovery memo round trip: ${name}`, (t) => {
@@ -777,10 +814,11 @@ for (const [custodyName, custody] of Object.entries(custodyCases)) {
         t.deepEqual(memo!.innerPuzzleHash(), expected);
         t.deepEqual(clvm.alloc([clvm.mipsMemo(memo!)]).serialize(), bytes);
 
-        const found: Found = { members: [], restrictions: [], wrappers: [] };
+        const found = emptyFound();
         collect(t, memo!.innerPuzzle, found);
         t.is(found.members.at(-1), "custom");
         t.deepEqual(found.restrictions, ["timelock"]);
+        t.deepEqual(found.recoveryRestrictions, []);
 
         const recoveryFinish = memo!.innerPuzzle.kind.asMOfN()!.items[1];
         const puzzle = recoveryFinish.kind
@@ -793,6 +831,12 @@ for (const [custodyName, custody] of Object.entries(custodyCases)) {
         const nested = createCoin[3].first().parseMipsMemo();
         t.not(nested, null);
         t.deepEqual(nested!.innerPuzzleHash(), postRecoveryInnerPuzzleHash);
+
+        const nestedFound = emptyFound();
+        collect(t, nested!.innerPuzzle, nestedFound);
+        t.deepEqual(nestedFound.clawbackTimelocks, [
+          postRecoveryKeys.clawbackTimelock,
+        ]);
       });
     }
   }

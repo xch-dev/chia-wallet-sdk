@@ -8,8 +8,6 @@ mod tests;
 #[cfg(test)]
 mod vault_tests;
 
-use std::collections::HashSet;
-
 use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
@@ -36,9 +34,8 @@ use chia_sdk_types::{
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::{FromClvm, ToClvm, apply_constants};
-use clvm_utils::{TreeHash, tree_hash};
-use clvmr::{Allocator, NodePtr, SExp};
-use itertools::Itertools;
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
+use clvmr::{Allocator, NodePtr};
 
 use crate::DriverError;
 
@@ -84,16 +81,8 @@ impl InnerPuzzleMemo<NodePtr> {
         let mut puzzle_hash = self.kind.inner_puzzle_hash();
 
         if !self.restrictions.is_empty() {
-            let mut member_validators: Vec<TreeHash> = Vec::new();
-            let mut delegated_puzzle_validators: Vec<TreeHash> = Vec::new();
-
-            for restriction in &self.restrictions {
-                if restriction.member_condition_validator {
-                    member_validators.push(restriction.puzzle_hash.into());
-                } else {
-                    delegated_puzzle_validators.push(restriction.puzzle_hash.into());
-                }
-            }
+            let (member_validators, delegated_puzzle_validators) =
+                split_restrictions(&self.restrictions);
 
             puzzle_hash =
                 RestrictionsArgs::new(member_validators, delegated_puzzle_validators, puzzle_hash)
@@ -106,6 +95,23 @@ impl InnerPuzzleMemo<NodePtr> {
 
         IndexWrapperArgs::new(self.nonce, puzzle_hash).curry_tree_hash()
     }
+}
+
+/// Splits restrictions into the member validator and delegated puzzle validator lists curried
+/// into the restrictions puzzle, preserving the order within each list.
+fn split_restrictions(restrictions: &[RestrictionMemo]) -> (Vec<TreeHash>, Vec<TreeHash>) {
+    let mut member_validators = Vec::new();
+    let mut delegated_puzzle_validators = Vec::new();
+
+    for restriction in restrictions {
+        if restriction.member_condition_validator {
+            member_validators.push(restriction.puzzle_hash.into());
+        } else {
+            delegated_puzzle_validators.push(restriction.puzzle_hash.into());
+        }
+    }
+
+    (member_validators, delegated_puzzle_validators)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -125,30 +131,20 @@ impl RestrictionMemo<NodePtr> {
         }
     }
 
+    /// The restrictions are the ones applied to the new right side once the 1 of 2 is spent.
     pub fn force_1_of_2_restricted_variable(
         allocator: &mut Allocator,
         left_side_subtree_hash: Bytes32,
         nonce: usize,
-        member_validator_list_hash: Bytes32,
-        delegated_puzzle_validator_list_hash: Bytes32,
+        restrictions: Vec<RestrictionMemo>,
     ) -> Result<Self, DriverError> {
+        let memo =
+            Force1of2RestrictedVariableMemo::new(left_side_subtree_hash, nonce, restrictions);
+
         Ok(Self::new(
             false,
-            Force1of2RestrictedVariable::new(
-                left_side_subtree_hash,
-                nonce,
-                member_validator_list_hash,
-                delegated_puzzle_validator_list_hash,
-            )
-            .curry_tree_hash()
-            .into(),
-            Force1of2RestrictedVariableMemo::new(
-                left_side_subtree_hash,
-                nonce,
-                member_validator_list_hash,
-                delegated_puzzle_validator_list_hash,
-            )
-            .to_clvm(allocator)?,
+            memo.restriction().curry_tree_hash().into(),
+            memo.to_clvm(allocator)?,
         ))
     }
 
@@ -187,41 +183,6 @@ impl RestrictionMemo<NodePtr> {
     }
 
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedRestriction> {
-        if let Some(parsed) = self.parse_delegated_puzzle_wrappers(allocator, ctx) {
-            return Some(parsed);
-        }
-
-        if let Ok(memo) = Force1of2RestrictedVariableMemo::from_clvm(allocator, self.memo) {
-            let restriction = Force1of2RestrictedVariable::new(
-                memo.left_side_subtree_hash,
-                memo.nonce,
-                memo.member_validator_list_hash,
-                memo.delegated_puzzle_validator_list_hash,
-            );
-
-            if restriction.curry_tree_hash() == self.puzzle_hash.into() {
-                return Some(ParsedRestriction::Force1of2RestrictedVariable(restriction));
-            }
-        }
-
-        if let Ok(seconds) = Option::<u64>::from_clvm(allocator, self.memo) {
-            for &seconds in seconds.iter().chain(ctx.timelocks.iter()) {
-                let restriction = Timelock::new(seconds);
-
-                if restriction.curry_tree_hash() == self.puzzle_hash.into() {
-                    return Some(ParsedRestriction::Timelock(restriction));
-                }
-            }
-        }
-
-        None
-    }
-
-    fn parse_delegated_puzzle_wrappers(
-        &self,
-        allocator: &Allocator,
-        ctx: &MipsMemoContext,
-    ) -> Option<ParsedRestriction> {
         if let Ok(wrappers) = Vec::<WrapperMemo>::from_clvm(allocator, self.memo) {
             let wrapper_stack: Vec<TreeHash> = wrappers
                 .iter()
@@ -237,57 +198,28 @@ impl RestrictionMemo<NodePtr> {
             }
         }
 
-        self.search_legacy_delegated_puzzle_wrappers(allocator, ctx)
-    }
+        if let Ok(memo) = Force1of2RestrictedVariableMemo::from_clvm(allocator, self.memo) {
+            let restriction = memo.restriction();
 
-    /// Memos written before wrapper puzzle hashes were included only contain the memo of each
-    /// wrapper. Each one is resolved to its possible puzzle hashes, and the combination which
-    /// matches the restriction's puzzle hash is searched for.
-    fn search_legacy_delegated_puzzle_wrappers(
-        &self,
-        allocator: &Allocator,
-        ctx: &MipsMemoContext,
-    ) -> Option<ParsedRestriction> {
-        const MAX_COMBINATIONS: usize = 1 << 12;
-
-        let memos = Vec::<NodePtr>::from_clvm(allocator, self.memo).ok()?;
-
-        let candidates: Vec<Vec<Bytes32>> = memos
-            .iter()
-            .map(|&memo| WrapperMemo::candidate_puzzle_hashes(allocator, memo, ctx))
-            .collect();
-
-        let combinations = candidates
-            .iter()
-            .try_fold(1usize, |total, items| total.checked_mul(items.len()))?;
-
-        if combinations == 0 || combinations > MAX_COMBINATIONS {
-            return None;
+            if restriction.curry_tree_hash() == self.puzzle_hash.into() {
+                return Some(ParsedRestriction::Force1of2RestrictedVariable(
+                    restriction,
+                    memo.restrictions,
+                ));
+            }
         }
 
-        candidates
-            .into_iter()
-            .multi_cartesian_product()
-            .find_map(|puzzle_hashes| {
-                let wrapper_stack: Vec<TreeHash> =
-                    puzzle_hashes.iter().map(|&hash| hash.into()).collect();
-                let restriction = EnforceDelegatedPuzzleWrappers::new(&wrapper_stack);
+        if let Ok(seconds) = Option::<u64>::from_clvm(allocator, self.memo) {
+            for &seconds in seconds.iter().chain(ctx.timelocks.iter()) {
+                let restriction = Timelock::new(seconds);
 
-                if restriction.curry_tree_hash() != self.puzzle_hash.into() {
-                    return None;
+                if restriction.curry_tree_hash() == self.puzzle_hash.into() {
+                    return Some(ParsedRestriction::Timelock(restriction));
                 }
+            }
+        }
 
-                let wrappers = puzzle_hashes
-                    .into_iter()
-                    .zip(&memos)
-                    .map(|(puzzle_hash, &memo)| WrapperMemo::new(puzzle_hash, memo))
-                    .collect();
-
-                Some(ParsedRestriction::EnforceDelegatedPuzzleWrappers(
-                    restriction,
-                    wrappers,
-                ))
-            })
+        None
     }
 }
 
@@ -361,61 +293,6 @@ impl WrapperMemo<NodePtr> {
         })
     }
 
-    /// Lists the puzzle hashes of the known wrappers that could have been constructed with this memo.
-    fn candidate_puzzle_hashes(
-        allocator: &Allocator,
-        memo: NodePtr,
-        ctx: &MipsMemoContext,
-    ) -> Vec<Bytes32> {
-        let mut hashes = Vec::new();
-
-        if matches!(allocator.sexp(memo), SExp::Atom) && allocator.atom_len(memo) == 0 {
-            hashes.extend::<[Bytes32; 4]>([
-                FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into(),
-                FORCE_COIN_MESSAGE_HASH.into(),
-                FORCE_SINGLETON_RECREATION_HASH.into(),
-                PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
-            ]);
-        }
-
-        // Context values are only candidates for hidden (nil) memos, since a revealed
-        // memo already pins down the value.
-        if let Ok(seconds) = Option::<u64>::from_clvm(allocator, memo) {
-            let candidates = seconds
-                .as_ref()
-                .map_or(ctx.timelocks.as_slice(), std::slice::from_ref);
-            for &seconds in candidates {
-                hashes.push(Timelock::new(seconds).curry_tree_hash().into());
-            }
-        }
-
-        if let Ok(opcode) = Option::<u16>::from_clvm(allocator, memo) {
-            let candidates = opcode
-                .as_ref()
-                .map_or(ctx.opcodes.as_slice(), std::slice::from_ref);
-            for &opcode in candidates {
-                hashes.push(PreventConditionOpcode::new(opcode).curry_tree_hash().into());
-            }
-        }
-
-        if let Ok(memo) = Force1of2RestrictedVariableMemo::from_clvm(allocator, memo) {
-            hashes.push(
-                Force1of2RestrictedVariable::new(
-                    memo.left_side_subtree_hash,
-                    memo.nonce,
-                    memo.member_validator_list_hash,
-                    memo.delegated_puzzle_validator_list_hash,
-                )
-                .curry_tree_hash()
-                .into(),
-            );
-        }
-
-        let mut seen = HashSet::new();
-        hashes.retain(|hash| seen.insert(*hash));
-        hashes
-    }
-
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedWrapper> {
         if self.puzzle_hash == FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into() {
             return Some(ParsedWrapper::ForceAssertCoinAnnouncement);
@@ -434,15 +311,13 @@ impl WrapperMemo<NodePtr> {
         }
 
         if let Ok(memo) = Force1of2RestrictedVariableMemo::from_clvm(allocator, self.memo) {
-            let wrapper = Force1of2RestrictedVariable::new(
-                memo.left_side_subtree_hash,
-                memo.nonce,
-                memo.member_validator_list_hash,
-                memo.delegated_puzzle_validator_list_hash,
-            );
+            let wrapper = memo.restriction();
 
             if wrapper.curry_tree_hash() == self.puzzle_hash.into() {
-                return Some(ParsedWrapper::Force1of2RestrictedVariable(wrapper));
+                return Some(ParsedWrapper::Force1of2RestrictedVariable(
+                    wrapper,
+                    memo.restrictions,
+                ));
             }
         }
 
@@ -470,28 +345,37 @@ impl WrapperMemo<NodePtr> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct Force1of2RestrictedVariableMemo {
+pub struct Force1of2RestrictedVariableMemo<T = NodePtr> {
     pub left_side_subtree_hash: Bytes32,
     pub nonce: usize,
-    pub member_validator_list_hash: Bytes32,
-    pub delegated_puzzle_validator_list_hash: Bytes32,
+    pub restrictions: Vec<RestrictionMemo<T>>,
 }
 
-impl Force1of2RestrictedVariableMemo {
+impl Force1of2RestrictedVariableMemo<NodePtr> {
     pub fn new(
         left_side_subtree_hash: Bytes32,
         nonce: usize,
-        member_validator_list_hash: Bytes32,
-        delegated_puzzle_validator_list_hash: Bytes32,
+        restrictions: Vec<RestrictionMemo>,
     ) -> Self {
         Self {
             left_side_subtree_hash,
             nonce,
-            member_validator_list_hash,
-            delegated_puzzle_validator_list_hash,
+            restrictions,
         }
+    }
+
+    pub fn restriction(&self) -> Force1of2RestrictedVariable {
+        let (member_validators, delegated_puzzle_validators) =
+            split_restrictions(&self.restrictions);
+
+        Force1of2RestrictedVariable::new(
+            self.left_side_subtree_hash,
+            self.nonce,
+            member_validators.tree_hash().into(),
+            delegated_puzzle_validators.tree_hash().into(),
+        )
     }
 }
 

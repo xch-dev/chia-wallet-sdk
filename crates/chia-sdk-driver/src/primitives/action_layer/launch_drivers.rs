@@ -2547,6 +2547,236 @@ mod tests {
         Ok(())
     }
 
+    /// Expiry-pricing + `current_expiration = 0` + no Handle slot is stranded
+    /// on the deployed puzzles: register rejects the pricing hash, refund
+    /// treats the coin as spendable and then casts a nil slot.
+    #[test]
+    #[allow(clippy::similar_names)]
+    fn test_expiry_pricing_ordinary_precommit_is_rejected_or_stranded() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let base_price = 2000_u64;
+        let registration_period = 366 * 24 * 60 * 60;
+        let xchandles_constants = XchandlesConstants {
+            launcher_id: Bytes32::from([1; 32]),
+            precommit_payout_puzzle_hash: Bytes32::from([8; 32]),
+            relative_block_height: 1,
+            price_singleton_launcher_id: Bytes32::from(hex!(
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            )),
+        };
+
+        let user_bls = sim.bls(0);
+        let user_p2 = StandardLayer::new(user_bls.pk);
+
+        let offer_amount = 1;
+        let launcher_bls = sim.bls(offer_amount);
+        let offer_spend = StandardLayer::new(launcher_bls.pk).spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                offer_amount,
+                Memos::None,
+            ),
+        )?;
+        let puzzle_reveal = ctx.serialize(&offer_spend.puzzle)?;
+        let solution = ctx.serialize(&offer_spend.solution)?;
+        let agg_sig = sign_standard_transaction(
+            ctx,
+            launcher_bls.coin,
+            offer_spend,
+            &launcher_bls.sk,
+            &TESTNET11_CONSTANTS,
+        )?;
+        let offer = Offer::from_spend_bundle(
+            ctx,
+            &SpendBundle {
+                coin_spends: vec![CoinSpend::new(launcher_bls.coin, puzzle_reveal, solution)],
+                aggregated_signature: agg_sig,
+            },
+        )?;
+
+        let payment_cat_amount = 10_000_000;
+        let minter_bls = sim.bls(payment_cat_amount);
+        let minter_p2 = StandardLayer::new(minter_bls.pk);
+        let (issue_cat, payment_cat) = Cat::single_issuance(
+            ctx,
+            minter_bls.coin.coin_id(),
+            None,
+            payment_cat_amount,
+            Conditions::new().create_coin(minter_bls.puzzle_hash, payment_cat_amount, Memos::None),
+        )?;
+        let payment_cat = payment_cat[0];
+        minter_p2.spend(ctx, minter_bls.coin, issue_cat)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&minter_bls.sk))?;
+
+        let (price_singleton_launcher_id, _, _, _, _, _) = launch_test_singleton(ctx, &mut sim)?;
+        let (_, security_sk, registry, slots, _) = launch_xchandles_registry(
+            ctx,
+            &offer,
+            base_price,
+            registration_period,
+            |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
+                Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
+            },
+            &TESTNET11_CONSTANTS,
+            (
+                xchandles_constants.with_price_singleton(price_singleton_launcher_id),
+                payment_cat.info.asset_id,
+            ),
+        )?;
+        sim.spend_coins(ctx.take(), &[launcher_bls.sk, security_sk])?;
+
+        let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+        let (_, did) = launcher.create_simple_did(ctx, &user_p2)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
+
+        let handle = "yak7".to_string();
+        // After the 28-day auction the expiry premium is 0, so the amount
+        // matches factor pricing and refund treats the coin as spendable.
+        let buy_time = 28 * 24 * 60 * 60 + 1;
+        let expire_args =
+            XchandlesExpirePricingPuzzle::from_info(ctx, base_price, registration_period)?;
+        let precommit_amount = XchandlesExpirePricingPuzzle::get_price(
+            ctx,
+            expire_args,
+            handle.clone(),
+            0,
+            buy_time,
+            1,
+        )? as u64;
+
+        let value = XchandlesPrecommitValue::for_normal_registration(
+            payment_cat.info.asset_id.tree_hash(),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period),
+            &XchandlesPricingSolution {
+                buy_time,
+                current_expiration: 0,
+                handle: handle.clone(),
+                num_periods: 1,
+            }
+            .tree_hash(),
+            handle.clone(),
+            Bytes32::default(),
+            did.info.launcher_id,
+            did.info.launcher_id,
+        );
+
+        let refund_puzzle = ctx.alloc(&1)?;
+        let refund_puzzle_hash = ctx.tree_hash(refund_puzzle);
+        let precommit_coin = PrecommitCoin::new(
+            ctx,
+            payment_cat.coin.coin_id(),
+            payment_cat.child_lineage_proof(),
+            payment_cat.info.asset_id,
+            SingletonStruct::new(registry.info.constants.launcher_id)
+                .tree_hash()
+                .into(),
+            xchandles_constants.relative_block_height,
+            xchandles_constants.precommit_payout_puzzle_hash,
+            refund_puzzle_hash.into(),
+            value,
+            precommit_amount,
+        )?;
+
+        let payment_cat_inner_spend = minter_p2.spend_with_conditions(
+            ctx,
+            Conditions::new()
+                .create_coin(
+                    precommit_coin.inner_puzzle_hash,
+                    precommit_amount,
+                    Memos::None,
+                )
+                .create_coin(
+                    minter_bls.puzzle_hash,
+                    payment_cat.coin.amount - precommit_amount,
+                    Memos::None,
+                ),
+        )?;
+        Cat::spend_all(
+            ctx,
+            &[CatSpend {
+                cat: payment_cat,
+                spend: payment_cat_inner_spend,
+                hidden: false,
+            }],
+        )?;
+        sim.spend_coins(ctx.take(), &[user_bls.sk.clone(), minter_bls.sk.clone()])?;
+        assert!(sim.coin_state(precommit_coin.coin.coin_id()).is_some());
+
+        let (left_slot, right_slot) = if slots[0].info.value < slots[1].info.value {
+            (slots[0].clone(), slots[1].clone())
+        } else {
+            (slots[1].clone(), slots[0].clone())
+        };
+
+        let pricing_puzzle =
+            XchandlesRegisterAction::expiry_pricing_puzzle(ctx, base_price, registration_period)?;
+        let pricing_solution = XchandlesPricingSolution {
+            buy_time,
+            current_expiration: 0,
+            handle: handle.clone(),
+            num_periods: 1,
+        };
+
+        let mut register_registry = registry.clone();
+        let register_err = register_registry
+            .new_action::<XchandlesRegisterAction>()
+            .spend_with_pricing(
+                ctx,
+                &mut register_registry,
+                left_slot,
+                right_slot,
+                &precommit_coin,
+                pricing_puzzle,
+                pricing_solution,
+                did.info.inner_puzzle_hash().into(),
+                did.info.inner_puzzle_hash().into(),
+            );
+        let _ = ctx.take();
+        assert!(
+            register_err.is_err(),
+            "expiry-pricing ordinary register must fail CLVM, got {register_err:?}"
+        );
+        assert!(
+            sim.coin_state(precommit_coin.coin.coin_id())
+                .is_some_and(|s| s.spent_height.is_none()),
+            "failed register must leave the precommit unspent"
+        );
+
+        let mut refund_registry = registry;
+        let refund_pricing_puzzle =
+            XchandlesRegisterAction::expiry_pricing_puzzle(ctx, base_price, registration_period)?;
+        let refund_pricing_solution = ctx.alloc(&XchandlesPricingSolution {
+            buy_time,
+            current_expiration: 0,
+            handle,
+            num_periods: 1,
+        })?;
+        let refund_err = refund_registry.new_action::<XchandlesRefundAction>().spend(
+            ctx,
+            &mut refund_registry,
+            &precommit_coin,
+            refund_pricing_puzzle,
+            refund_pricing_solution,
+            None,
+        );
+        let _ = ctx.take();
+        assert!(
+            refund_err.is_err(),
+            "expiry-pricing refund with slot=nil must fail CLVM, got {refund_err:?}"
+        );
+        assert!(
+            sim.coin_state(precommit_coin.coin.coin_id())
+                .is_some_and(|s| s.spent_height.is_none()),
+            "failed refund must leave the precommit unspent"
+        );
+
+        Ok(())
+    }
+
     #[test]
     #[allow(clippy::similar_names)]
     fn test_nft_with_any_metadata_updater() -> anyhow::Result<()> {

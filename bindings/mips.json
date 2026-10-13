@@ -119,6 +119,15 @@
     },
     "return": "TreeHash"
   },
+  "eip712_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  },
   "custom_member_hash": {
     "type": "function",
     "args": {
@@ -206,6 +215,15 @@
           "public_key": "K1PublicKey",
           "signature": "K1Signature",
           "fast_forward": "bool"
+        }
+      },
+      "eip712_member": {
+        "args": {
+          "config": "MemberConfig",
+          "genesis_challenge": "Bytes32",
+          "public_key": "K1PublicKey",
+          "signed_hash": "Bytes32",
+          "signature": "K1Signature"
         }
       },
       "r1_member": {
@@ -345,8 +363,7 @@
           "clvm": "Clvm",
           "left_side_subtree_hash": "Bytes32",
           "nonce": "u32",
-          "member_validator_list_hash": "Bytes32",
-          "delegated_puzzle_validator_list_hash": "Bytes32"
+          "restrictions": "Vec<RestrictionMemo>"
         }
       },
       "enforce_delegated_puzzle_wrappers": {
@@ -436,8 +453,7 @@
     "fields": {
       "left_side_subtree_hash": "Bytes32",
       "nonce": "u32",
-      "member_validator_list_hash": "Bytes32",
-      "delegated_puzzle_validator_list_hash": "Bytes32"
+      "restrictions": "Vec<RestrictionMemo>"
     }
   },
   "MemoKind": {

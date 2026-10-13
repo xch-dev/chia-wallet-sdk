@@ -105,12 +105,12 @@ impl RestrictionMemo {
         };
 
         Ok(Some(match parsed {
-            sdk::ParsedRestriction::Force1of2RestrictedVariable(_) => {
+            sdk::ParsedRestriction::Force1of2RestrictedVariable(..) => {
                 let memo =
                     sdk::Force1of2RestrictedVariableMemo::from_clvm(&**allocator, self.memo.1)
                         .map_err(DriverError::from)?;
                 ParsedRestriction::Force1of2RestrictedVariable(
-                    Force1of2RestrictedVariableMemo::from_sdk(memo)?,
+                    Force1of2RestrictedVariableMemo::from_sdk(clvm, memo)?,
                 )
             }
             sdk::ParsedRestriction::EnforceDelegatedPuzzleWrappers(_, wrappers) => {
@@ -131,16 +131,14 @@ impl RestrictionMemo {
         clvm: Clvm,
         left_side_subtree_hash: Bytes32,
         nonce: u32,
-        member_validator_list_hash: Bytes32,
-        delegated_puzzle_validator_list_hash: Bytes32,
+        restrictions: Vec<RestrictionMemo>,
     ) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
         let restriction = sdk::RestrictionMemo::force_1_of_2_restricted_variable(
             &mut ctx,
             left_side_subtree_hash,
             nonce.try_into().unwrap(),
-            member_validator_list_hash,
-            delegated_puzzle_validator_list_hash,
+            restrictions.into_iter().map(Into::into).collect(),
         )?;
         Ok(Self {
             member_condition_validator: restriction.member_condition_validator,
@@ -204,7 +202,9 @@ impl WrapperMemo {
     }
 
     pub fn parse(&self, ctx: MipsMemoContext) -> Result<Option<ParsedWrapper>> {
-        let allocator = self.memo.0.lock().unwrap();
+        let clvm = &self.memo.0;
+
+        let allocator = clvm.lock().unwrap();
         let ctx = ctx.0.lock().unwrap();
 
         let Some(parsed) = sdk::WrapperMemo::from(self.clone()).parse(&allocator, &ctx) else {
@@ -222,12 +222,12 @@ impl WrapperMemo {
                 ParsedWrapper::PreventMultipleCreateCoins
             }
             sdk::ParsedWrapper::Timelock(wrapper) => ParsedWrapper::Timelock(wrapper.seconds),
-            sdk::ParsedWrapper::Force1of2RestrictedVariable(_) => {
+            sdk::ParsedWrapper::Force1of2RestrictedVariable(..) => {
                 let memo =
                     sdk::Force1of2RestrictedVariableMemo::from_clvm(&**allocator, self.memo.1)
                         .map_err(DriverError::from)?;
                 ParsedWrapper::Force1of2RestrictedVariable(
-                    Force1of2RestrictedVariableMemo::from_sdk(memo)?,
+                    Force1of2RestrictedVariableMemo::from_sdk(clvm, memo)?,
                 )
             }
         }))
@@ -304,17 +304,22 @@ impl From<WrapperMemo> for sdk::WrapperMemo {
 pub struct Force1of2RestrictedVariableMemo {
     pub left_side_subtree_hash: Bytes32,
     pub nonce: u32,
-    pub member_validator_list_hash: Bytes32,
-    pub delegated_puzzle_validator_list_hash: Bytes32,
+    pub restrictions: Vec<RestrictionMemo>,
 }
 
 impl Force1of2RestrictedVariableMemo {
-    pub(crate) fn from_sdk(value: sdk::Force1of2RestrictedVariableMemo) -> Result<Self> {
+    pub(crate) fn from_sdk(
+        clvm: &SharedContext,
+        value: sdk::Force1of2RestrictedVariableMemo,
+    ) -> Result<Self> {
         Ok(Self {
             left_side_subtree_hash: value.left_side_subtree_hash,
             nonce: to_u32(value.nonce)?,
-            member_validator_list_hash: value.member_validator_list_hash,
-            delegated_puzzle_validator_list_hash: value.delegated_puzzle_validator_list_hash,
+            restrictions: value
+                .restrictions
+                .into_iter()
+                .map(|restriction| RestrictionMemo::from_sdk(clvm, restriction))
+                .collect::<Result<_>>()?,
         })
     }
 }
@@ -324,8 +329,7 @@ impl From<Force1of2RestrictedVariableMemo> for sdk::Force1of2RestrictedVariableM
         Self::new(
             value.left_side_subtree_hash,
             value.nonce.try_into().unwrap(),
-            value.member_validator_list_hash,
-            value.delegated_puzzle_validator_list_hash,
+            value.restrictions.into_iter().map(Into::into).collect(),
         )
     }
 }

@@ -184,4 +184,127 @@ mod tests {
 
         Ok(())
     }
+
+    #[cfg(feature = "chip-0037")]
+    fn eip712_member_spend(
+        ctx: &mut SpendContext,
+        vault: &Vault,
+        spend: &MipsSpend,
+        member: chia_sdk_types::puzzles::Eip712Member,
+        k1: &K1SecretKey,
+    ) -> anyhow::Result<Spend> {
+        use chia_sdk_types::puzzles::{Eip712MemberSolution, eip712_hash_to_sign};
+
+        let signed_hash = eip712_hash_to_sign(
+            &member.prefix_and_domain_separator,
+            vault.coin.coin_id(),
+            ctx.tree_hash(spend.delegated.puzzle).into(),
+        );
+        let signature = k1.sign_prehashed(&signed_hash.to_bytes())?;
+
+        let puzzle = ctx.curry(member)?;
+        let solution = ctx.alloc(&Eip712MemberSolution::new(
+            vault.coin.coin_id(),
+            signed_hash,
+            signature,
+        ))?;
+
+        Ok(Spend::new(puzzle, solution))
+    }
+
+    #[cfg(feature = "chip-0037")]
+    #[test]
+    fn test_eip712_vault() -> anyhow::Result<()> {
+        use chia_consensus::consensus_constants::TEST_CONSTANTS;
+        use chia_sdk_types::puzzles::{
+            Eip712Member, eip712_prefix_and_domain_separator, eip712_type_hash,
+        };
+
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let k1 = K1Pair::default();
+        let custody = Eip712Member::new(
+            eip712_prefix_and_domain_separator(TEST_CONSTANTS.genesis_challenge),
+            eip712_type_hash(),
+            k1.pk,
+        );
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.curry_tree_hash(), true);
+
+        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+
+        let conditions =
+            Conditions::new().create_coin(vault.info.custody_hash.into(), 1, Memos::None);
+        let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
+
+        let member_spend = eip712_member_spend(ctx, &vault, &spend, custody, &k1.sk)?;
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::new(0, Vec::new(), member_spend),
+        );
+
+        vault.spend(ctx, &spend)?;
+
+        sim.spend_coins(ctx.take(), &[])?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "chip-0037")]
+    #[test]
+    fn test_eip712_and_k1_2_of_2_vault() -> anyhow::Result<()> {
+        use chia_consensus::consensus_constants::TEST_CONSTANTS;
+        use chia_sdk_types::puzzles::{
+            Eip712Member, eip712_prefix_and_domain_separator, eip712_type_hash,
+        };
+
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let keys = K1Pair::range_vec(2);
+
+        let k1_member = K1Member::new(keys[0].pk);
+        let eip712_member = Eip712Member::new(
+            eip712_prefix_and_domain_separator(TEST_CONSTANTS.genesis_challenge),
+            eip712_type_hash(),
+            keys[1].pk,
+        );
+
+        let k1_hash = mips_puzzle_hash(0, Vec::new(), k1_member.curry_tree_hash(), false);
+        let eip712_hash = mips_puzzle_hash(0, Vec::new(), eip712_member.curry_tree_hash(), false);
+
+        let custody = MofN::new(2, vec![k1_hash, eip712_hash]);
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.inner_puzzle_hash(), true);
+
+        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+
+        let conditions =
+            Conditions::new().create_coin(vault.info.custody_hash.into(), 1, Memos::None);
+        let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
+
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, Vec::new(), custody.required, custody.items.clone()),
+        );
+
+        let signature = k1_sign(ctx, &vault, &spend, &keys[0].sk)?;
+        let k1_puzzle = ctx.curry(k1_member)?;
+        let k1_solution = ctx.alloc(&K1MemberSolution::new(vault.coin.coin_id(), signature))?;
+        spend.members.insert(
+            k1_hash,
+            InnerPuzzleSpend::new(0, Vec::new(), Spend::new(k1_puzzle, k1_solution)),
+        );
+
+        let member_spend = eip712_member_spend(ctx, &vault, &spend, eip712_member, &keys[1].sk)?;
+        spend.members.insert(
+            eip712_hash,
+            InnerPuzzleSpend::new(0, Vec::new(), member_spend),
+        );
+
+        vault.spend(ctx, &spend)?;
+
+        sim.spend_coins(ctx.take(), &[])?;
+
+        Ok(())
+    }
 }

@@ -149,7 +149,7 @@ fn alloc(
         });
     }
 
-    if let Ok(_value) = value.downcast::<PyNone>() {
+    if let Ok(_value) = value.cast::<PyNone>() {
         Ok(clvm.nil()?)
     } else if let Ok(value) = value.extract::<BigInt>() {
         Ok(clvm.int(value)?)
@@ -159,7 +159,7 @@ fn alloc(
         Ok(clvm.string(value)?)
     } else if let Ok(value) = value.extract::<Vec<u8>>() {
         Ok(clvm.atom(value.into())?)
-    } else if let Ok(value) = value.downcast::<PyTuple>() {
+    } else if let Ok(value) = value.cast::<PyTuple>() {
         if value.len() != 2 {
             return PyResult::Err(PyErr::new::<PyTypeError, _>(
                 "Expected a tuple with 2 items",
@@ -170,7 +170,7 @@ fn alloc(
         let rest = alloc(clvm, value.get_item(1)?)?;
 
         Ok(clvm.pair(first, rest)?)
-    } else if let Ok(value) = value.downcast::<PyList>() {
+    } else if let Ok(value) = value.cast::<PyList>() {
         let mut list = Vec::new();
 
         for item in value.iter() {
