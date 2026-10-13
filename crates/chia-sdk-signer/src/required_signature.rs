@@ -282,7 +282,7 @@ mod tests {
         invalid.coin.puzzle_hash = Bytes32::from([0; 32]);
 
         assert_eq!(
-            RequiredSignature::from_coin_spends(&mut a, &[valid.clone()], &constants())
+            RequiredSignature::from_coin_spends(&mut a, std::slice::from_ref(&valid), &constants())
                 .unwrap()
                 .len(),
             1
