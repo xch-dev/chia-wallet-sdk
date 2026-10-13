@@ -6,12 +6,12 @@ use chia_puzzle_types::{
     LineageProof, Proof,
     singleton::{SingletonSolution, SingletonStruct},
 };
+use chia_sdk_types::Conditions;
 use chia_sdk_types::puzzles::{
     RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorCommitmentSlotValue,
     RewardDistributorDepositSlotValue, RewardDistributorEntrySlotValue,
     RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, SlotInfo,
 };
-use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{FromClvm, clvm_tuple, match_tuple};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::NodePtr;
@@ -25,7 +25,7 @@ use crate::{
     RewardDistributorStakeAction, RewardDistributorStateTransition, RewardDistributorSyncAction,
     RewardDistributorType, RewardDistributorUnstakeAction,
     RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, Spend,
-    SpendContext,
+    SpendContext, singleton_child_create_coin,
 };
 
 use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
@@ -506,14 +506,7 @@ impl RewardDistributor {
         let eve_coin_output = ctx.run(eve_coin_puzzle_ptr, eve_coin_solution_ptr)?;
         let eve_coin_output = ctx.extract::<Conditions<NodePtr>>(eve_coin_output)?;
 
-        let Some(Condition::CreateCoin(odd_create_coin)) = eve_coin_output.into_iter().find(|c| {
-            if let Condition::CreateCoin(create_coin) = c {
-                // singletons with amount != 1 are weird and I don't support them
-                create_coin.amount % 2 == 1
-            } else {
-                false
-            }
-        }) else {
+        let Some(odd_create_coin) = singleton_child_create_coin(eve_coin_output) else {
             return Err(DriverError::Custom(
                 "Eve coin did not create a coin".to_string(),
             ));

@@ -8,7 +8,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DriverError, HashedPtr, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SingletonInfo, SingletonLayer, Spend, run_metadata_updater,
+    SingletonInfo, SingletonLayer, Spend, run_metadata_updater, singleton_child_create_coin,
 };
 
 pub type StandardNftLayers<M, I> =
@@ -159,15 +159,12 @@ impl NftInfo {
         let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
-        let mut create_coin = None;
+        let create_coin = singleton_child_create_coin(conditions.clone());
         let mut new_owner = None;
         let mut new_metadata = None;
 
         for condition in conditions {
             match condition {
-                Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
-                    create_coin = Some(condition);
-                }
                 Condition::TransferNft(condition) => {
                     new_owner = Some(condition);
                 }

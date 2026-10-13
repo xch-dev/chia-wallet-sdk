@@ -1,5 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonArgs};
+use chia_sdk_types::{Condition, conditions::CreateCoin};
 use clvm_utils::TreeHash;
 
 /// A generic singleton primitive, which can be extended with the [`SingletonInfo`] trait.
@@ -72,5 +73,76 @@ pub trait SingletonInfo {
     /// Calculates the full puzzle hash of the the outer [`SingletonLayer`](crate::SingletonLayer).
     fn puzzle_hash(&self) -> TreeHash {
         SingletonArgs::curry_tree_hash(self.launcher_id(), self.inner_puzzle_hash())
+    }
+}
+
+/// Finds the `CREATE_COIN` condition that the singleton top layer would treat as the child singleton,
+/// given the output conditions of the singleton's inner puzzle.
+///
+/// The singleton top layer only considers the first `CREATE_COIN` with an odd amount. If that has the
+/// magic amount of -113, the singleton is melted and there is no child. Any odd outputs after it are
+/// ordinary coins.
+pub fn singleton_child_create_coin<T>(
+    conditions: impl IntoIterator<Item = Condition<T>>,
+) -> Option<CreateCoin<T>> {
+    for condition in conditions {
+        if condition.has_magic_amount() {
+            return None;
+        }
+
+        if let Condition::CreateCoin(create_coin) = condition
+            && create_coin.amount % 2 == 1
+        {
+            return Some(create_coin);
+        }
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_puzzle_types::Memos;
+    use clvmr::NodePtr;
+
+    use super::*;
+
+    #[test]
+    fn test_singleton_child_create_coin() {
+        let ph = Bytes32::new([1; 32]);
+        let other_ph = Bytes32::new([2; 32]);
+
+        // The first odd output is the child, even if there are more after it.
+        let child = singleton_child_create_coin::<NodePtr>([
+            Condition::create_coin(other_ph, 2, Memos::None),
+            Condition::create_coin(ph, 1, Memos::None),
+            Condition::create_coin(other_ph, 3, Memos::None),
+        ]);
+        assert_eq!(child, Some(CreateCoin::new(ph, 1, Memos::None)));
+
+        // A melt before any odd output means there's no child.
+        let child = singleton_child_create_coin::<NodePtr>([
+            Condition::melt_singleton(),
+            Condition::create_coin(ph, 1, Memos::None),
+        ]);
+        assert_eq!(child, None);
+
+        // The magic amount melts the singleton regardless of the puzzle hash.
+        let child = singleton_child_create_coin([
+            Condition::magic_create_coin(other_ph, NodePtr::NIL),
+            Condition::create_coin(ph, 1, Memos::None),
+        ]);
+        assert_eq!(child, None);
+
+        // A melt after the child is just another output.
+        let child = singleton_child_create_coin::<NodePtr>([
+            Condition::create_coin(ph, 1, Memos::None),
+            Condition::melt_singleton(),
+        ]);
+        assert_eq!(child, Some(CreateCoin::new(ph, 1, Memos::None)));
+
+        let child =
+            singleton_child_create_coin::<NodePtr>([Condition::create_coin(ph, 2, Memos::None)]);
+        assert_eq!(child, None);
     }
 }

@@ -14,6 +14,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, Puzzle, Singleton, SingletonInfo, Spend, SpendContext, SpendWithConditions,
+    singleton_child_create_coin,
 };
 
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
@@ -41,11 +42,7 @@ impl OptionContract {
         )?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
-        let Some(create_coin) = conditions
-            .into_iter()
-            .filter_map(Condition::into_create_coin)
-            .find(|cond| cond.amount % 2 == 1)
-        else {
+        let Some(create_coin) = singleton_child_create_coin(conditions) else {
             return Err(DriverError::MissingChild);
         };
 
@@ -137,17 +134,8 @@ impl OptionContract {
         let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
 
-        for condition in conditions {
-            if let Some(create_coin) = condition.into_create_coin()
-                && create_coin.amount % 2 == 1
-            {
-                return Ok(Some(
-                    self.child(create_coin.puzzle_hash, create_coin.amount),
-                ));
-            }
-        }
-
-        Ok(None)
+        Ok(singleton_child_create_coin(conditions)
+            .map(|create_coin| self.child(create_coin.puzzle_hash, create_coin.amount)))
     }
 
     pub fn spend_with<I>(

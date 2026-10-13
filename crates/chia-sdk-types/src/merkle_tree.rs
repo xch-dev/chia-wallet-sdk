@@ -33,6 +33,7 @@ enum BinaryTree<T> {
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
     root: Bytes32,
+    leaves: Vec<Bytes32>,
     proofs: HashMap<Bytes32, MerkleProof>,
 }
 
@@ -60,12 +61,17 @@ impl MerkleTree {
         if leaves.is_empty() {
             return Self {
                 root: Bytes32::default(),
+                leaves: Vec::new(),
                 proofs: HashMap::new(),
             };
         }
 
         let (root, proofs) = MerkleTree::build_merkle_tree(leaves);
-        Self { root, proofs }
+        Self {
+            root,
+            leaves: leaves.to_vec(),
+            proofs,
+        }
     }
 
     /// Get the precomputed root hash of the merkle tree. Typically this will
@@ -74,9 +80,9 @@ impl MerkleTree {
         self.root
     }
 
-    /// Get the leaves of the merkle tree.
+    /// Get the leaves of the merkle tree, in the order they were provided.
     pub fn leaves(&self) -> Vec<Bytes32> {
-        self.proofs.keys().copied().collect()
+        self.leaves.clone()
     }
 
     /// Get the proof for a given leaf, if it exists in the tree.
@@ -213,6 +219,7 @@ mod tests {
         let merkle_tree = MerkleTree::new(leaves);
 
         assert_eq!(merkle_tree.root(), expected_root);
+        assert_eq!(merkle_tree.leaves(), leaves);
 
         for (leaf, path, proof) in expected_proofs {
             assert_eq!(merkle_tree.proof(leaf), Some(MerkleProof::new(path, proof)));

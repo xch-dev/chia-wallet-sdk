@@ -20,4 +20,5 @@ proc-macro = true
 [dependencies]
 syn = { workspace = true, features = ["visit-mut", "extra-traits"] }
 quote = { workspace = true }
+proc-macro2 = { workspace = true }
 convert_case = { workspace = true }

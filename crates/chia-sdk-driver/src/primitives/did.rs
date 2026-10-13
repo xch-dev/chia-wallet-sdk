@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DidLayer, DriverError, HashedPtr, Layer, Puzzle, Singleton, SingletonInfo, SingletonLayer,
-    Spend, SpendContext, SpendWithConditions,
+    Spend, SpendContext, SpendWithConditions, singleton_child_create_coin,
 };
 
 mod did_info;
@@ -64,24 +64,22 @@ impl Did {
         let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
 
-        for condition in conditions {
-            if let Some(create_coin) = condition.into_create_coin()
-                && create_coin.amount % 2 == 1
-            {
-                let Memos::Some(memos) = create_coin.memos else {
-                    return Ok(None);
-                };
+        let Some(create_coin) = singleton_child_create_coin(conditions) else {
+            return Ok(None);
+        };
 
-                let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
-                    return Ok(None);
-                };
+        let Memos::Some(memos) = create_coin.memos else {
+            return Ok(None);
+        };
 
-                let child = self.child(hint, self.info.metadata, create_coin.amount);
+        let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
+            return Ok(None);
+        };
 
-                if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
-                    return Ok(Some(child));
-                }
-            }
+        let child = self.child(hint, self.info.metadata, create_coin.amount);
+
+        if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
+            return Ok(Some(child));
         }
 
         Ok(None)
@@ -234,11 +232,7 @@ impl Did {
         )?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
-        let Some(create_coin) = conditions
-            .into_iter()
-            .filter_map(Condition::into_create_coin)
-            .find(|create_coin| create_coin.amount % 2 == 1)
-        else {
+        let Some(create_coin) = singleton_child_create_coin(conditions) else {
             return Err(DriverError::MissingChild);
         };
 
