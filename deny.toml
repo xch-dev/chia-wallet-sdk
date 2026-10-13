@@ -1,0 +1,29 @@
+# Configuration for `cargo deny` (https://embarkstudios.github.io/cargo-deny/)
+# Run locally with: cargo deny check advisories bans sources
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # rsa: Marvin Attack timing side channel. Pulled in by chia-ssl, which only uses RSA to
+    # generate/load the self-signed TLS certificates used for peer connections, never to decrypt
+    # attacker-supplied ciphertexts. No fixed version of rsa exists upstream.
+    { id = "RUSTSEC-2023-0071", reason = "transitive via chia-ssl; no fixed rsa release, not used for decryption" },
+    # bincode is unmaintained but considered complete; used only by chia-sdk-test.
+    { id = "RUSTSEC-2025-0141", reason = "unmaintained, no vulnerability; test-only dependency of chia-sdk-test" },
+    # paste is unmaintained but stable; compile-time proc-macro pulled in by rue-ast.
+    { id = "RUSTSEC-2024-0436", reason = "unmaintained, no vulnerability; transitive proc-macro via rue-ast" },
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
