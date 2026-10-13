@@ -745,8 +745,8 @@ dependencies = [
  "chia-secp",
  "chia-sha2 0.36.1",
  "clvm-traits 0.36.1",
+ "clvm-utils",
  "clvmr",
- "colored",
  "hex",
  "hex-literal 1.1.0",
  "k256",
@@ -754,6 +754,7 @@ dependencies = [
  "rand_chacha 0.9.0",
  "rue-lir",
  "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]

@@ -339,17 +339,12 @@ fn vault_memo_list(
     let recovery = match state {
         State::Custody => {
             let clawback = RestrictionMemo::timelock(ctx, keys.clawback_timelock, true)?;
-            let force_1_of_2 = RestrictionMemo::force_1_of_2_restricted_variable(
+            let mut wrappers = vec![WrapperMemo::force_1_of_2_restricted_variable(
                 ctx,
                 custody.hash.into(),
                 0,
                 vec![clawback],
-            )?;
-
-            let mut wrappers = vec![WrapperMemo::new(
-                force_1_of_2.puzzle_hash,
-                force_1_of_2.memo,
-            )];
+            )?];
 
             for opcode in [
                 CREATE_COIN_ANNOUNCEMENT,
@@ -414,7 +409,7 @@ fn parse_memo_list(allocator: &mut Allocator, memos: NodePtr) -> anyhow::Result<
     let [memo] = items.as_slice() else {
         anyhow::bail!("expected a single memo, found {}", items.len());
     };
-    Ok(MipsMemo::from_clvm(&*allocator, *memo)?)
+    Ok(MipsMemo::from_clvm_bounded(allocator, *memo)?)
 }
 
 /// Everything needed to reconstruct a vault, recovered from its memo alone.
