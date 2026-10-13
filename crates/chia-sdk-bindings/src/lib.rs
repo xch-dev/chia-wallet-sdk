@@ -96,7 +96,7 @@ pub use chia_sdk_driver::{
     RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
     RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
-    VaultInfo, VaultOutput, XchandlesConstants, XchandlesDelegatedStateActionLog,
+    VaultInfo, VaultOutput, VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
     XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
     XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
     XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,

@@ -4570,7 +4570,7 @@ export declare function calculateVaultCoinMessage(delegatedPuzzleHash: Uint8Arra
 
 export declare function calculateVaultPuzzleMessage(delegatedPuzzleHash: Uint8Array, vaultPuzzleHash: Uint8Array): Buffer
 
-export declare function calculateVaultStartRecoveryMessage(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, vaultCoinId: Uint8Array, genesisChallenge: Uint8Array): Buffer
+export declare function calculateVaultStartRecoveryMessage(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, vaultCoinId: Uint8Array, genesisChallenge: Uint8Array, version: VaultVersion): Buffer
 
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Buffer
 
@@ -4665,6 +4665,13 @@ export declare const enum UriKind {
   Data = 0,
   Metadata = 1,
   License = 2,
+}
+
+export declare function vaultRecoveryDelegatedPuzzleHash(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, version: VaultVersion): Buffer
+
+export declare const enum VaultVersion {
+  Legacy = 0,
+  ForceSingletonRecreation = 1,
 }
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer

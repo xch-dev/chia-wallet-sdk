@@ -64,6 +64,20 @@
     },
     "return": "Bytes"
   },
+  "VaultVersion": {
+    "type": "enum",
+    "values": ["Legacy", "ForceSingletonRecreation"]
+  },
+  "vault_recovery_delegated_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "version": "VaultVersion"
+    },
+    "return": "Bytes32"
+  },
   "calculate_vault_start_recovery_message": {
     "type": "function",
     "args": {
@@ -71,7 +85,8 @@
       "left_side_subtree_hash": "Bytes32",
       "recovery_timelock": "u64",
       "vault_coin_id": "Bytes32",
-      "genesis_challenge": "Bytes32"
+      "genesis_challenge": "Bytes32",
+      "version": "VaultVersion"
     },
     "return": "Bytes"
   },
