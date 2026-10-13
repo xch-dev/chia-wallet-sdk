@@ -6,6 +6,7 @@ use clvmr::{
     Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, dialect::Dialect, run_program,
 };
 use rue_lir::DebugDialect;
+use tracing::debug;
 
 use crate::{
     AggSigConstants, RequiredBlsSignature, RequiredSecpSignature, SecpDialect, SignerError,
@@ -39,12 +40,19 @@ impl RequiredSignature {
         constants: &AggSigConstants,
     ) -> Result<Vec<Self>, SignerError> {
         if is_debug_dialect_enabled() {
-            Self::from_coin_spend_with_dialect(
-                allocator,
-                coin_spend,
-                constants,
-                &DebugDialect::new(DIALECT_FLAGS, false),
-            )
+            let dialect = DebugDialect::new(DIALECT_FLAGS, false);
+
+            let result =
+                Self::from_coin_spend_with_dialect(allocator, coin_spend, constants, &dialect);
+
+            if result.is_err() {
+                let coin_id = coin_spend.coin.coin_id();
+                for item in dialect.log() {
+                    debug!(%coin_id, srcloc = %item.srcloc, "{}", item.message);
+                }
+            }
+
+            result
         } else {
             Self::from_coin_spend_with_dialect(
                 allocator,
