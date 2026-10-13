@@ -4,7 +4,7 @@ use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
     self as sdk, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin, P2ConditionsOrSingleton,
-    SpendContext, VaultOutput,
+    SpendContext, VaultOutput, VaultVersion,
 };
 use chia_sdk_types::Condition;
 
@@ -112,12 +112,27 @@ pub fn calculate_vault_coin_message(
     ))
 }
 
+pub fn vault_recovery_delegated_puzzle_hash(
+    delegated_puzzle_hash: Bytes32,
+    left_side_subtree_hash: Bytes32,
+    recovery_timelock: u64,
+    version: VaultVersion,
+) -> Result<Bytes32> {
+    Ok(sdk::vault_recovery_delegated_puzzle_hash(
+        delegated_puzzle_hash,
+        left_side_subtree_hash,
+        recovery_timelock,
+        version,
+    ))
+}
+
 pub fn calculate_vault_start_recovery_message(
     delegated_puzzle_hash: Bytes32,
     left_side_subtree_hash: Bytes32,
     recovery_timelock: u64,
     vault_coin_id: Bytes32,
     genesis_challenge: Bytes32,
+    version: VaultVersion,
 ) -> Result<Bytes> {
     Ok(sdk::calculate_vault_start_recovery_message(
         delegated_puzzle_hash,
@@ -125,6 +140,7 @@ pub fn calculate_vault_start_recovery_message(
         recovery_timelock,
         vault_coin_id,
         genesis_challenge,
+        version,
     ))
 }
 

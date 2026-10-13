@@ -9,10 +9,12 @@ import {
   Coin,
   customMemberHash,
   force1Of2Restriction,
+  forceSingletonRecreationRestriction,
   fromHex,
   k1MemberHash,
   K1Pair,
   MemberConfig,
+  MipsSpend,
   mOfNHash,
   parseVaultTransaction,
   preventVaultSideEffectsRestriction,
@@ -24,6 +26,8 @@ import {
   timelockRestriction,
   treeHashPair,
   Vault,
+  vaultRecoveryDelegatedPuzzleHash,
+  VaultVersion,
 } from "../index.js";
 
 // The simulator validates signatures against testnet11's AGG_SIG_ME additional data.
@@ -152,19 +156,148 @@ test("signs the vault puzzle message for fast forward members", (t) => {
   t.notThrows(() => sim.spendCoins(clvm.coinSpends(), []));
 });
 
-test("signs the start recovery message", (t) => {
+for (const [name, version] of [
+  ["legacy", VaultVersion.Legacy],
+  ["force singleton recreation", VaultVersion.ForceSingletonRecreation],
+] as const) {
+  test(`signs the start recovery coin message (${name})`, (t) => {
+    const sim = new Simulator();
+    const clvm = new Clvm();
+    const recoveryKey = sim.bls(0n);
+
+    const recovery = startRecovery(
+      sim,
+      clvm,
+      version,
+      (config) => blsMemberHash(config, recoveryKey.pk, false),
+      (mips, config) => mips.blsMember(config, recoveryKey.pk, false),
+    );
+
+    const message = calculateVaultStartRecoveryMessage(
+      recovery.delegatedPuzzleHash,
+      recovery.leftSideSubtreeHash,
+      recovery.recoveryTimelock,
+      recovery.vault.coin.coinId(),
+      GENESIS_CHALLENGE,
+      version,
+    );
+
+    t.notThrows(() =>
+      sim.newTransaction(
+        new SpendBundle(clvm.coinSpends(), recoveryKey.sk.sign(message)),
+      ),
+    );
+  });
+
+  test(`signs the start recovery puzzle message (${name})`, (t) => {
+    const sim = new Simulator();
+    const clvm = new Clvm();
+    const recoveryKey = K1Pair.fromSeed(2n);
+
+    startRecovery(
+      sim,
+      clvm,
+      version,
+      (config) => k1MemberHash(config, recoveryKey.pk, true),
+      (mips, config, recovery) => {
+        const message = calculateVaultPuzzleMessage(
+          vaultRecoveryDelegatedPuzzleHash(
+            recovery.delegatedPuzzleHash,
+            recovery.leftSideSubtreeHash,
+            recovery.recoveryTimelock,
+            version,
+          ),
+          recovery.vault.coin.puzzleHash,
+        );
+
+        mips.k1Member(
+          config,
+          recoveryKey.pk,
+          recoveryKey.sk.signPrehashed(sha256(message)),
+          true,
+        );
+      },
+    );
+
+    t.notThrows(() => sim.spendCoins(clvm.coinSpends(), []));
+  });
+}
+
+test("legacy start recovery message is rejected for force singleton recreation vaults", (t) => {
   const sim = new Simulator();
   const clvm = new Clvm();
-
-  const custodyKey = K1Pair.fromSeed(1n);
   const recoveryKey = sim.bls(0n);
+
+  const recovery = startRecovery(
+    sim,
+    clvm,
+    VaultVersion.ForceSingletonRecreation,
+    (config) => blsMemberHash(config, recoveryKey.pk, false),
+    (mips, config) => mips.blsMember(config, recoveryKey.pk, false),
+  );
+
+  const message = calculateVaultStartRecoveryMessage(
+    recovery.delegatedPuzzleHash,
+    recovery.leftSideSubtreeHash,
+    recovery.recoveryTimelock,
+    recovery.vault.coin.coinId(),
+    GENESIS_CHALLENGE,
+    VaultVersion.Legacy,
+  );
+
+  t.throws(() =>
+    sim.newTransaction(
+      new SpendBundle(clvm.coinSpends(), recoveryKey.sk.sign(message)),
+    ),
+  );
+});
+
+test("start recovery messages differ by vault version", (t) => {
+  const args = [
+    new Uint8Array(32).fill(1),
+    new Uint8Array(32).fill(2),
+    1n,
+    new Uint8Array(32).fill(3),
+    GENESIS_CHALLENGE,
+  ] as const;
+
+  t.notDeepEqual(
+    calculateVaultStartRecoveryMessage(...args, VaultVersion.Legacy),
+    calculateVaultStartRecoveryMessage(
+      ...args,
+      VaultVersion.ForceSingletonRecreation,
+    ),
+  );
+});
+
+interface StartedRecovery {
+  vault: Vault;
+  delegatedPuzzleHash: Uint8Array;
+  leftSideSubtreeHash: Uint8Array;
+  recoveryTimelock: bigint;
+}
+
+// Spends a vault through its recovery path without submitting the transaction, so the
+// caller can sign the start recovery message for the given vault version.
+function startRecovery(
+  sim: Simulator,
+  clvm: Clvm,
+  version: VaultVersion,
+  recoveryMemberHash: (config: MemberConfig) => Uint8Array,
+  addRecoveryMember: (
+    mips: MipsSpend,
+    config: MemberConfig,
+    recovery: StartedRecovery,
+  ) => void,
+): StartedRecovery {
+  const custodyKey = K1Pair.fromSeed(1n);
 
   const config = new MemberConfig();
   const memberHash = k1MemberHash(config, custodyKey.pk, false);
 
   const recoveryTimelock = 1n;
   const timelock = timelockRestriction(recoveryTimelock);
-  const recoveryRestrictions = [
+  const recoveryConfig = config.withRestrictions([
     force1Of2Restriction(
       memberHash,
       0,
@@ -172,12 +305,11 @@ test("signs the start recovery message", (t) => {
       clvm.nil().treeHash(),
     ),
     ...preventVaultSideEffectsRestriction(),
-  ];
-  const recoveryHash = blsMemberHash(
-    config.withRestrictions(recoveryRestrictions),
-    recoveryKey.pk,
-    false,
-  );
+    ...(version === VaultVersion.ForceSingletonRecreation
+      ? [forceSingletonRecreationRestriction()]
+      : []),
+  ]);
+  const recoveryHash = recoveryMemberHash(recoveryConfig);
 
   const vault = mintVault(
     sim,
@@ -200,16 +332,23 @@ test("signs the start recovery message", (t) => {
 
   const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(custodyHash, vault.coin.amount, null),
+    clvm.assertMyAmount(vault.coin.amount),
   ]);
+
+  const recovery = {
+    vault,
+    delegatedPuzzleHash: delegatedSpend.puzzle.treeHash(),
+    leftSideSubtreeHash: memberHash,
+    recoveryTimelock,
+  };
 
   const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
   mips.mOfN(config.withTopLevel(true), 1, [memberHash, recoveryHash]);
-  mips.blsMember(
-    config.withRestrictions(recoveryRestrictions),
-    recoveryKey.pk,
-    false,
-  );
+  addRecoveryMember(mips, recoveryConfig, recovery);
   mips.preventVaultSideEffects();
+  if (version === VaultVersion.ForceSingletonRecreation) {
+    mips.forceSingletonRecreation();
+  }
   mips.force1Of2RestrictedVariable(
     memberHash,
     0,
@@ -219,20 +358,8 @@ test("signs the start recovery message", (t) => {
   );
   mips.spendVault(vault);
 
-  const message = calculateVaultStartRecoveryMessage(
-    delegatedSpend.puzzle.treeHash(),
-    memberHash,
-    recoveryTimelock,
-    vault.coin.coinId(),
-    GENESIS_CHALLENGE,
-  );
-
-  t.notThrows(() =>
-    sim.newTransaction(
-      new SpendBundle(clvm.coinSpends(), recoveryKey.sk.sign(message)),
-    ),
-  );
-});
+  return recovery;
+}
 
 function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {
   const p2 = sim.bls(1n);
