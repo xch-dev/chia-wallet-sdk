@@ -78,7 +78,7 @@ jobs:
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
       - name: Save cargo cache
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
         uses: actions/cache/save@v5
         with:
           path: |
@@ -127,7 +127,7 @@ jobs:
           working-directory: pyo3
           docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
       - name: Save cargo cache
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
         uses: actions/cache/save@v5
         with:
           path: |
@@ -145,7 +145,7 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: blacksmith-8vcpu-windows-2025
+          - runner: windows-2022
             target: x64
     steps:
       - uses: actions/checkout@v6
@@ -160,7 +160,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -183,7 +183,7 @@ jobs:
           python-version: 3.x
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
       - name: Build wheels (aarch64)
         uses: PyO3/maturin-action@v1
         with:
@@ -244,7 +244,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
 
       - name: Test
         run: |
@@ -265,7 +265,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
 
       - name: Check type stubs
         run: |
