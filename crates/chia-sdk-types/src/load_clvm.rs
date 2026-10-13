@@ -207,7 +207,7 @@ mod tests {
     use clvm_utils::CurriedProgram;
     use clvmr::{NodePtr, serde::node_from_bytes};
 
-    use crate::{Mod, run_puzzle};
+    use crate::{Mod, run_puzzle, set_debug_dialect_enabled};
 
     use super::*;
 
@@ -250,6 +250,9 @@ mod tests {
             b: T,
         }
 
+        // The puzzle uses debug prints, which require the debug dialect.
+        set_debug_dialect_enabled(true);
+
         compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue");
 
         let args = TestArgs { a: 10, b: 20 };
@@ -279,6 +282,9 @@ mod tests {
             a: u64,
             b: T,
         }
+
+        // The puzzle uses debug prints, which require the debug dialect.
+        set_debug_dialect_enabled(true);
 
         compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue", "another");
 

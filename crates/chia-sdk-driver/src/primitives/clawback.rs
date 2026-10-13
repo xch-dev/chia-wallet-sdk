@@ -370,6 +370,8 @@ mod tests {
         let receiver_spend = clawback.receiver_spend(ctx, bob_inner)?;
         ctx.spend(clawback_coin, receiver_spend)?;
 
+        // The timelock is relative to the block the clawback coin was created in.
+        sim.create_block();
         sim.spend_coins(ctx.take(), &[bob.sk])?;
 
         Ok(())
@@ -404,6 +406,8 @@ mod tests {
 
         clawback.claim_coin_spend(ctx, clawback_coin, &bob_p2, Conditions::new())?;
 
+        // The timelock is relative to the block the clawback coin was created in.
+        sim.create_block();
         sim.spend_coins(ctx.take(), &[bob.sk])?;
 
         assert!(

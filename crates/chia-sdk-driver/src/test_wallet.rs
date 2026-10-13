@@ -211,7 +211,7 @@ impl TestVault {
                         ctx,
                         asset.p2_puzzle_hash(),
                         delegated_spend,
-                        sim.next_timestamp(),
+                        sim.timestamp(),
                     )?;
 
                     coin_spends.insert(asset.coin().coin_id(), spend);

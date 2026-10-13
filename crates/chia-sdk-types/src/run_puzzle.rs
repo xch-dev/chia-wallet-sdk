@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use clvmr::{
     Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, MEMPOOL_MODE, NodePtr, error::EvalErr,
     reduction::Reduction, run_program,
@@ -53,21 +55,23 @@ pub fn run_puzzle_with_cost(
     }
 }
 
-pub fn is_debug_dialect_enabled() -> bool {
-    if cfg!(debug_assertions) || cfg!(test) {
-        return true;
-    }
+static DEBUG_DIALECT_ENABLED: AtomicBool = AtomicBool::new(false);
 
-    match option_env!("DEBUG_CLVM") {
-        Some(value) => {
-            // Convert the value to lowercase for case-insensitive comparison
-            let lowercased_value = value.to_lowercase();
-            // Consider "true", "yes", "1" as enabled
-            lowercased_value == "true" || lowercased_value == "yes" || lowercased_value == "1"
-        }
-        None => {
-            // Environment variable is not set, so it's not "enabled"
-            false
-        }
-    }
+/// Opts in to running puzzles with Rue's debug dialect, which supports debug print operators.
+///
+/// This applies to the whole process. It's disabled by default, regardless of build profile, so
+/// that puzzles run with the same dialect as mainnet unless debugging is explicitly requested.
+pub fn set_debug_dialect_enabled(enabled: bool) {
+    DEBUG_DIALECT_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// Whether puzzles are run with Rue's debug dialect.
+///
+/// This is enabled either by [`set_debug_dialect_enabled`], or by setting the `DEBUG_CLVM`
+/// environment variable to `true`, `yes`, or `1` when compiling this crate. Note that `DEBUG_CLVM`
+/// is read with `option_env!`, so it must be set at build time and has no effect at runtime.
+pub fn is_debug_dialect_enabled() -> bool {
+    DEBUG_DIALECT_ENABLED.load(Ordering::Relaxed)
+        || option_env!("DEBUG_CLVM")
+            .is_some_and(|value| matches!(value.to_lowercase().as_str(), "true" | "yes" | "1"))
 }

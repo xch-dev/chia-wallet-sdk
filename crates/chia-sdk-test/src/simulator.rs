@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use chia_bls::SecretKey;
-use chia_consensus::validation_error::ErrorCode;
+use chia_consensus::{flags::MEMPOOL_MODE, validation_error::ErrorCode};
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
@@ -10,8 +12,8 @@ use rand_chacha::ChaCha8Rng;
 use crate::{
     BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction,
     spend_bundle_validation::{
-        CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
-        validate_relative_conditions,
+        ValidationClock, ValidationSettings, coin_record, ephemeral_coin_record,
+        validate_conditions, validate_reserve_fee, validate_time_locks,
     },
 };
 
@@ -40,10 +42,19 @@ impl Simulator {
     }
 
     pub fn with_config(config: SimulatorConfig) -> Self {
+        let genesis_timestamp = config.timestamp_mode.genesis_timestamp();
         Self {
             config,
-            data: SimulatorData::new(ChaCha8Rng::seed_from_u64(config.seed)),
+            data: SimulatorData::new(
+                ChaCha8Rng::seed_from_u64(config.seed),
+                genesis_timestamp,
+                config.timestamp_mode.next_timestamp(genesis_timestamp),
+            ),
         }
+    }
+
+    pub fn config(&self) -> SimulatorConfig {
+        self.config
     }
 
     #[cfg(feature = "serde")]
@@ -66,12 +77,33 @@ impl Simulator {
         Self::deserialize_with_config(data, SimulatorConfig::default())
     }
 
+    /// The height of the peak block.
+    ///
+    /// Like mainnet, transactions are validated against the peak and included in the next block,
+    /// so a height lock of `height() + 1` only passes after another block has been created.
     pub fn height(&self) -> u32 {
         self.data.height
     }
 
+    /// The timestamp of the peak block, which transactions are validated against.
+    pub fn timestamp(&self) -> u64 {
+        self.block_timestamp(self.data.height)
+    }
+
+    /// The timestamp the next block will have.
+    ///
+    /// Transactions are validated against [`Simulator::timestamp`], so time locks that depend on
+    /// this timestamp only pass after the next block has been created.
     pub fn next_timestamp(&self) -> u64 {
         self.data.next_timestamp
+    }
+
+    fn block_timestamp(&self, height: u32) -> u64 {
+        self.data
+            .block_timestamps
+            .get(&height)
+            .copied()
+            .unwrap_or_default()
     }
 
     pub fn header_hash(&self) -> Bytes32 {
@@ -101,12 +133,10 @@ impl Simulator {
         BlsPairWithCoin::new(pair, coin)
     }
 
+    /// Sets the timestamp of the next block. Call [`Simulator::create_block`] afterward for
+    /// transactions to be validated against it.
     pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
-        if self.data.height > 0
-            && let Some(last_block_timestamp) =
-                self.data.block_timestamps.get(&(self.data.height - 1))
-            && time < *last_block_timestamp
-        {
+        if time < self.timestamp() {
             return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
         }
         self.data.next_timestamp = time;
@@ -114,6 +144,8 @@ impl Simulator {
         Ok(())
     }
 
+    /// Advances the timestamp of the next block. Call [`Simulator::create_block`] afterward for
+    /// transactions to be validated against it.
     pub fn pass_time(&mut self, time: u64) {
         self.data.next_timestamp += time;
     }
@@ -183,26 +215,33 @@ impl Simulator {
         self.new_transaction(SpendBundle::new(coin_spends, signature))
     }
 
-    /// Processes a spend bunndle and returns the updated coin states.
+    /// Validates a spend bundle against the peak, includes it in a new block, and returns the
+    /// updated coin states.
     pub fn new_transaction(
         &mut self,
         spend_bundle: SpendBundle,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
         let clock = ValidationClock {
             height: self.data.height,
-            timestamp: self.data.next_timestamp,
+            timestamp: self.timestamp(),
         };
+        let mut flags = ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+        if self.config.mempool_mode {
+            flags |= MEMPOOL_MODE;
+        }
         let validation = validate_conditions(
             &spend_bundle,
             ValidationSettings {
                 constants: &TESTNET11_CONSTANTS,
                 max_cost: 11_000_000_000 / 2,
-                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
-                clock,
+                flags,
             },
         )
         .map_err(SimulatorError::Validation)?;
         let conds = validation.conditions;
+        validate_reserve_fee(&conds, validation.fee).map_err(SimulatorError::Validation)?;
+
+        let block_height = self.data.height + 1;
 
         let mut removed_coins = IndexMap::new();
         let mut added_coins = IndexMap::new();
@@ -213,14 +252,13 @@ impl Simulator {
             coin_spends.insert(coin_spend.coin.coin_id(), coin_spend);
         }
 
-        // Calculate additions and removals.
-        for (spend, parsed) in conds.spends.iter().zip(validation.additions) {
-            debug_assert_eq!(parsed.coin_id, spend.coin_id);
+        // Calculate additions.
+        for parsed in validation.additions {
             for addition in parsed.additions {
                 let coin = addition.coin;
                 added_coins.insert(
                     coin.coin_id(),
-                    CoinState::new(coin, None, Some(self.data.height)),
+                    CoinState::new(coin, None, Some(block_height)),
                 );
 
                 let Some(hint) = addition.hint else {
@@ -232,46 +270,42 @@ impl Simulator {
                     .or_insert_with(IndexSet::new)
                     .insert(coin.coin_id());
             }
-
-            let coin = Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount);
-
-            let coin_state = self
-                .data
-                .coin_states
-                .get(&spend.coin_id)
-                .copied()
-                .unwrap_or(CoinState::new(coin, None, Some(self.data.height)));
-
-            let created_timestamp = coin_state
-                .created_height
-                .and_then(|height| self.data.block_timestamps.get(&height).copied());
-            validate_relative_conditions(
-                spend,
-                CoinRecord {
-                    created_height: coin_state.created_height,
-                    created_timestamp,
-                },
-                clock,
-            )
-            .map_err(SimulatorError::Validation)?;
-
-            removed_coins.insert(spend.coin_id, coin_state);
         }
 
         // Validate removals.
-        for (coin_id, coin_state) in &mut removed_coins {
-            let height = self.data.height;
+        let mut removal_records = HashMap::new();
 
-            if !self.data.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
-                return Err(SimulatorError::Validation(ErrorCode::UnknownUnspent));
-            }
+        for spend in &conds.spends {
+            let (coin_state, record) =
+                if let Some(coin_state) = self.data.coin_states.get(&spend.coin_id) {
+                    if coin_state.spent_height.is_some() {
+                        return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
+                    }
+                    let created_height = coin_state.created_height.unwrap_or_default();
+                    let record = coin_record(
+                        coin_state.coin,
+                        created_height,
+                        false,
+                        self.block_timestamp(created_height),
+                    );
+                    (*coin_state, record)
+                } else if let Some(coin_state) = added_coins.get(&spend.coin_id) {
+                    (*coin_state, ephemeral_coin_record(coin_state.coin, clock))
+                } else {
+                    return Err(SimulatorError::Validation(ErrorCode::UnknownUnspent));
+                };
 
-            if coin_state.spent_height.is_some() {
-                return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
-            }
-
-            coin_state.spent_height = Some(height);
+            removal_records.insert(spend.coin_id, record);
+            removed_coins.insert(
+                spend.coin_id,
+                CoinState {
+                    spent_height: Some(block_height),
+                    ..coin_state
+                },
+            );
         }
+
+        validate_time_locks(&conds, &removal_records, clock).map_err(SimulatorError::Validation)?;
 
         // Update the coin data.
         let mut updates = added_coins.clone();
@@ -314,15 +348,18 @@ impl Simulator {
 
         for (coin_id, coin_state) in &self.data.coin_states {
             if puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
-                coin_states.insert(*coin_id, self.data.coin_states[coin_id]);
+                coin_states.insert(*coin_id, *coin_state);
             }
         }
 
         if include_hints {
             for puzzle_hash in puzzle_hashes {
                 if let Some(hinted_coins) = self.data.hinted_coins.get(&puzzle_hash) {
+                    // Coins can be hinted with `hint_coin` before (or without) being created.
                     for coin_id in hinted_coins {
-                        coin_states.insert(*coin_id, self.data.coin_states[coin_id]);
+                        if let Some(coin_state) = self.data.coin_states.get(coin_id) {
+                            coin_states.insert(*coin_id, *coin_state);
+                        }
                     }
                 }
             }
@@ -343,11 +380,12 @@ impl Simulator {
         let mut header_hash = [0; 32];
         self.data.rng.fill(&mut header_hash);
         self.data.header_hashes.push(header_hash.into());
+
+        let timestamp = self.data.next_timestamp;
+        self.data.height += 1;
         self.data
             .block_timestamps
-            .insert(self.data.height, self.data.next_timestamp);
-
-        self.data.height += 1;
-        self.data.next_timestamp += 1;
+            .insert(self.data.height, timestamp);
+        self.data.next_timestamp = self.config.timestamp_mode.next_timestamp(timestamp);
     }
 }
