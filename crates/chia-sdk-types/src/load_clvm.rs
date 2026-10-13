@@ -152,7 +152,7 @@ pub fn compile_rue(
 #[macro_export]
 macro_rules! compile_chialisp {
     ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {
-        static $mod_name: ::std::sync::LazyLock<Compilation> =
+        static $mod_name: ::std::sync::LazyLock<$crate::Compilation> =
             ::std::sync::LazyLock::new(|| $crate::compile_chialisp(::std::path::Path::new($path), &[".".to_string(), "include".to_string()]).unwrap());
 
         impl$(<$($generic),+>)? $crate::Mod for $args$(<$($generic),+>)? {
@@ -186,7 +186,7 @@ macro_rules! compile_rue {
     };
 
     ( @impl $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident $path:literal $debug:literal $export_name:expr ) => {
-        static $mod_name: ::std::sync::LazyLock<Compilation> =
+        static $mod_name: ::std::sync::LazyLock<$crate::Compilation> =
             ::std::sync::LazyLock::new(|| $crate::compile_rue(::std::path::Path::new($path), $debug, $export_name).unwrap());
 
         impl$(<$($generic),+>)? $crate::Mod for $args$(<$($generic),+>)? {
@@ -299,5 +299,32 @@ mod tests {
         assert_eq!(hex::encode(node_to_bytes(&allocator, output)?), "8200e6");
 
         Ok(())
+    }
+}
+
+/// The macros must be usable without importing anything else from this crate.
+#[cfg(test)]
+mod macro_hygiene_tests {
+    #[test]
+    fn test_compile_macros_without_imports() {
+        #[derive(clvm_traits::ToClvm, clvm_traits::FromClvm)]
+        #[clvm(curry)]
+        struct ChialispArgs<T, U> {
+            a: T,
+            b: U,
+        }
+
+        #[derive(clvm_traits::ToClvm, clvm_traits::FromClvm)]
+        #[clvm(curry)]
+        struct RueArgs<T> {
+            a: u64,
+            b: T,
+        }
+
+        crate::compile_chialisp!(ChialispArgs<T, U> = CHIALISP_MOD, "compile_chialisp_test.clsp");
+        crate::compile_rue!(RueArgs<T> = RUE_MOD, "compile_rue_test.rue");
+
+        assert!(!<ChialispArgs<(), ()> as crate::Mod>::mod_reveal().is_empty());
+        assert!(!<RueArgs<()> as crate::Mod>::mod_reveal().is_empty());
     }
 }

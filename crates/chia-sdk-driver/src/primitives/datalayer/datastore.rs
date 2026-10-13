@@ -21,7 +21,7 @@ use num_bigint::BigInt;
 
 use crate::{
     DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext,
-    run_metadata_updater,
+    run_metadata_updater, singleton_child_create_coin,
 };
 
 use super::{
@@ -325,18 +325,12 @@ where
         let inner_output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
         let inner_conditions = Vec::<Condition>::from_clvm(allocator, inner_output)?;
 
-        let mut inner_create_coin_condition = None;
+        let inner_create_coin_condition = singleton_child_create_coin(inner_conditions.clone());
         let mut inner_new_metadata_condition = None;
 
         for condition in inner_conditions {
-            match condition {
-                Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
-                    inner_create_coin_condition = Some(condition);
-                }
-                Condition::UpdateNftMetadata(condition) => {
-                    inner_new_metadata_condition = Some(condition);
-                }
-                _ => {}
+            if let Condition::UpdateNftMetadata(condition) = condition {
+                inner_new_metadata_condition = Some(condition);
             }
         }
 
@@ -431,13 +425,8 @@ where
                 delegation_layer_solution.puzzle_solution,
             )?;
 
-            let odd_create_coin = Vec::<NodePtr>::from_clvm(allocator, output)?
-                .iter()
-                .map(|cond| Condition::<NodePtr>::from_clvm(allocator, *cond))
-                .find(|cond| match cond {
-                    Ok(Condition::CreateCoin(create_coin)) => create_coin.amount % 2 == 1,
-                    _ => false,
-                });
+            let odd_create_coin =
+                singleton_child_create_coin(Vec::<Condition>::from_clvm(allocator, output)?);
 
             let Some(odd_create_coin) = odd_create_coin else {
                 // no CREATE_COIN was created by the innermost puzzle
@@ -454,31 +443,27 @@ where
                 }));
             };
 
-            let odd_create_coin = odd_create_coin?;
-
             // if there were any memos, the if above would have caught it since it processes
             // output conditions of the state layer inner puzzle (i.e., it runs the delegation layer)
             // therefore, this spend is either 'exiting' the delegation layer or re-creatign it
-            if let Condition::CreateCoin(create_coin) = odd_create_coin {
-                let prev_deleg_layer_ph = delegation_layer_maybe.tree_hash();
+            let prev_deleg_layer_ph = delegation_layer_maybe.tree_hash();
 
-                if create_coin.puzzle_hash == prev_deleg_layer_ph.into() {
-                    // owner is re-creating the delegation layer with the same options
-                    return Ok(Some(Datastore {
-                        coin: new_coin,
-                        proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
-                        info: DatastoreInfo {
-                            launcher_id: singleton_layer.launcher_id,
-                            metadata: new_metadata,
-                            owner_puzzle_hash, // owner puzzle was ran
-                            delegated_puzzles: parent_delegated_puzzles.to_vec(),
-                        },
-                    }));
-                }
-
-                // owner is exiting the delegation layer
-                owner_puzzle_hash = create_coin.puzzle_hash;
+            if odd_create_coin.puzzle_hash == prev_deleg_layer_ph.into() {
+                // owner is re-creating the delegation layer with the same options
+                return Ok(Some(Datastore {
+                    coin: new_coin,
+                    proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
+                    info: DatastoreInfo {
+                        launcher_id: singleton_layer.launcher_id,
+                        metadata: new_metadata,
+                        owner_puzzle_hash, // owner puzzle was ran
+                        delegated_puzzles: parent_delegated_puzzles.to_vec(),
+                    },
+                }));
             }
+
+            // owner is exiting the delegation layer
+            owner_puzzle_hash = odd_create_coin.puzzle_hash;
         }
 
         // all methods exhausted; this coin doesn't seem to have a delegation layer

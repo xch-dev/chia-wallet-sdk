@@ -35,6 +35,7 @@ struct ConditionField {
     name: Ident,
     ty: Type,
     constant: Option<Expr>,
+    guard: Option<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -149,11 +150,19 @@ impl Parse for ConditionField {
             None
         };
 
+        let guard = if input.peek(Token![where]) {
+            input.parse::<Token![where]>()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
+
         Ok(Self {
             modifier,
             name,
             ty,
             constant,
+            guard,
         })
     }
 }
@@ -180,6 +189,139 @@ impl VisitMut for IdentReplacer {
 fn replace_ident_in_type(ty: &mut Type, from: Ident, to: Ident) {
     let mut replacer = IdentReplacer { from, to };
     replacer.visit_type_mut(ty);
+}
+
+/// Integer fields are decoded canonically, since the lenient `FromClvm` implementations for
+/// primitive integers in `clvm-traits` accept encodings that consensus rejects.
+fn is_integer(ty: &Type) -> bool {
+    let Type::Path(type_path) = ty else {
+        return false;
+    };
+
+    type_path.qself.is_none()
+        && type_path.path.get_ident().is_some_and(|ident| {
+            matches!(
+                ident.to_string().as_str(),
+                "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64"
+            )
+        })
+}
+
+fn is_unit(ty: &Type) -> bool {
+    matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
+}
+
+fn decode_field(ty: &Type, node: &Ident) -> proc_macro2::TokenStream {
+    if is_integer(ty) {
+        quote! {
+            crate::condition::canonical::decode_canonical_int::<D, #ty>(decoder, &#node)?
+        }
+    } else {
+        quote! {
+            <#ty as ::clvm_traits::FromClvm<D>>::from_clvm(decoder, #node)?
+        }
+    }
+}
+
+/// Generates a `FromClvm` implementation for a condition in list form. This mirrors what
+/// `clvm-traits` would derive (including ignoring extraneous trailing arguments), except that
+/// integers must be canonically encoded and fields can have a `where` guard.
+fn impl_from_clvm(
+    condition: &Ident,
+    generic_list: Option<&Punctuated<Ident, Token![,]>>,
+    fields: &Punctuated<ConditionField, Token![,]>,
+) -> proc_macro2::TokenStream {
+    let generics: Vec<&Ident> =
+        generic_list.map_or_else(Vec::new, |idents| idents.iter().collect());
+    let type_generics = (!generics.is_empty()).then(|| quote!( < #( #generics ),* > ));
+    let node = Ident::new("node", Span::mixed_site().into());
+    let value = Ident::new("value", Span::mixed_site().into());
+    let rest = Ident::new("rest", Span::mixed_site().into());
+
+    let mut body = Vec::new();
+    let mut names = Vec::new();
+
+    for field in fields {
+        let ConditionField {
+            modifier,
+            name,
+            ty,
+            constant,
+            guard,
+        } = field;
+
+        let decoded = decode_field(ty, &value);
+
+        match modifier {
+            Modifier::Spread => body.push(quote! {
+                let #name = <#ty as ::clvm_traits::FromClvm<D>>::from_clvm(decoder, #node)?;
+            }),
+            Modifier::Optional => body.push(quote! {
+                let #name = match decoder.decode_pair(&#node) {
+                    Ok((#value, #rest)) => {
+                        #node = #rest;
+                        #decoded
+                    }
+                    Err(_) => <#ty as ::std::default::Default>::default(),
+                };
+            }),
+            // A unit constant is fully checked by decoding it, and comparing it would be redundant.
+            Modifier::None if constant.is_some() && is_unit(ty) => body.push(quote! {
+                let (#value, #rest) = decoder.decode_pair(&#node)?;
+                #node = #rest;
+                #decoded;
+            }),
+            Modifier::None => body.push(quote! {
+                let (#value, #rest) = decoder.decode_pair(&#node)?;
+                #node = #rest;
+                let #name: #ty = #decoded;
+            }),
+        }
+
+        if let Some(constant) = constant {
+            if !is_unit(ty) {
+                body.push(quote! {
+                    if #name != #constant {
+                        return Err(::clvm_traits::FromClvmError::Custom(format!(
+                            "constant `{}` has an incorrect value",
+                            stringify!(#name),
+                        )));
+                    }
+                });
+            }
+        } else {
+            names.push(name);
+        }
+
+        if let Some(guard) = guard {
+            body.push(quote! {
+                if !(#guard) {
+                    return Err(::clvm_traits::FromClvmError::Custom(format!(
+                        "field `{}` failed the check `{}`",
+                        stringify!(#name),
+                        stringify!(#guard),
+                    )));
+                }
+            });
+        }
+    }
+
+    quote! {
+        impl<D, #( #generics, )*> ::clvm_traits::FromClvm<D> for #condition #type_generics
+        where
+            D: ::clvm_traits::ClvmDecoder,
+            #( #generics: ::clvm_traits::FromClvm<D>, )*
+        {
+            #[allow(unused_mut, unused_assignments)]
+            fn from_clvm(
+                decoder: &D,
+                mut #node: D::Node,
+            ) -> ::std::result::Result<Self, ::clvm_traits::FromClvmError> {
+                #( #body )*
+                Ok(Self { #( #names, )* })
+            }
+        }
+    }
 }
 
 pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
@@ -234,12 +376,15 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             }
         });
 
+        let from_clvm = impl_from_clvm(&condition, generic_list.as_ref(), &fields);
+
         let definitions = fields.clone().into_iter().map(|field| {
             let ConditionField {
                 modifier,
                 name,
                 ty,
                 constant,
+                ..
             } = field;
 
             match modifier {
@@ -297,7 +442,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         let new_names = names.clone();
 
         conditions.push(quote! {
-            #[derive(::clvm_traits::ToClvm, ::clvm_traits::FromClvm)]
+            #[derive(::clvm_traits::ToClvm)]
             #[::clvm_traits::apply_constants]
             #[derive(Debug, Clone, PartialEq, Eq)]
             #additional_derives
@@ -311,6 +456,8 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
                     Self { #( #new_names, )* }
                 }
             }
+
+            #from_clvm
         });
 
         let snake_case = Ident::new(
@@ -370,7 +517,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         });
 
         impls.push(quote! {
-            impl<#enum_generic> From<conditions::#condition #generics_remapped> for Condition<#enum_generic> {
+            impl<#enum_generic> From<conditions::#condition #generics_remapped> for #name<#enum_generic> {
                 fn from(inner: conditions::#condition #generics_remapped) -> Self {
                     Self::#condition(inner)
                 }
@@ -384,7 +531,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         #[clvm(transparent)]
         pub enum #name<#enum_generic = ::clvmr::NodePtr> {
             #( #variants )*
-            Other(T),
+            Other(#enum_generic),
         }
 
         impl<#enum_generic> #name<#enum_generic> {
