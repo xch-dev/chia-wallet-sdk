@@ -22,11 +22,11 @@ chia-consensus = { workspace = true }
 chia-sha2 = { workspace = true }
 clvm-traits = { workspace = true, features = ["chia-secp"] }
 clvmr = { workspace = true }
+clvm-utils = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
 k256 = { workspace = true }
 rue-lir = { workspace = true }
-colored = { workspace = true }
 
 [dev-dependencies]
 chia-puzzle-types = { workspace = true }

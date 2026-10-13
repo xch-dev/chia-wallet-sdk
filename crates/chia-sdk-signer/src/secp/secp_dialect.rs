@@ -16,6 +16,18 @@ use super::{RequiredSecpSignature, SecpPublicKey};
 const SECP256R1_VERIFY_COST: Cost = 1_850_000;
 const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 
+/// A dialect wrapper that intercepts `secp256k1_verify` and `secp256r1_verify` operators,
+/// records the public key and message hash as a [`RequiredSecpSignature`], and treats the
+/// verification as successful so that the rest of the puzzle can run.
+///
+/// # Security
+///
+/// The collected `message_hash` is an arbitrary 32-byte value computed by the puzzle being run.
+/// Nothing here checks what that hash commits to, so signing it is only as safe as the puzzle
+/// that produced it. Always run the real puzzle for the coin being spent (for example, through
+/// [`RequiredSignature::from_coin_spend`](crate::RequiredSignature::from_coin_spend), which
+/// rejects puzzle reveals that don't match the coin's puzzle hash). Running an untrusted puzzle
+/// with this dialect and signing the result would let it request a signature over any hash.
 #[derive(Debug, Default, Clone)]
 pub struct SecpDialect<T> {
     dialect: T,
