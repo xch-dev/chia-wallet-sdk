@@ -625,6 +625,9 @@ mod tests {
 
         assert_eq!(parse_child_from_spend(ctx, &coin_spend, did.coin)?, None);
 
+        // Make sure the melt is actually valid.
+        sim.spend_coins(vec![coin_spend], slice::from_ref(&alice.sk))?;
+
         Ok(())
     }
 
