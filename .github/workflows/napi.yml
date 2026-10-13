@@ -34,22 +34,22 @@ jobs:
       matrix:
         settings:
           # Build both macOS targets on a single runner (macOS minutes are the most expensive)
-          - host: blacksmith-6vcpu-macos-latest
+          - host: macos-latest
             target: apple-darwin
             build: |
               pnpm build:macos-x64
               pnpm build:macos-arm64
               pnpm universal
-          - host: blacksmith-8vcpu-windows-2025
+          - host: windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
           # Linux builds use napi's glibc 2.17 cross toolchain. Each target is built on the other
           # architecture, since cc-rs ignores the cross C compiler when the host and target match
           # and would compile C dependencies against the runner's newer glibc headers instead.
-          - host: blacksmith-8vcpu-ubuntu-2404-arm
+          - host: ubuntu-24.04-arm
             target: x86_64-unknown-linux-gnu
             build: pnpm build:linux-x64 --use-napi-cross
-          - host: blacksmith-4vcpu-ubuntu-2404
+          - host: ubuntu-24.04
             target: aarch64-unknown-linux-gnu
             build: |
               # napi's cross gcc doesn't define __ARM_ARCH, which ring's assembly requires
@@ -124,7 +124,7 @@ jobs:
       run:
         working-directory: ./napi
     # Test every Node version in one job, since macOS minutes are the most expensive
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -240,7 +240,7 @@ jobs:
           - "20"
           - "22"
           - "24"
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - uses: pnpm/action-setup@v5
         with:
@@ -293,7 +293,7 @@ jobs:
           - "20"
           - "22"
           - "24"
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: pnpm/action-setup@v5
         with:
