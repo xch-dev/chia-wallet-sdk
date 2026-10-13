@@ -44,6 +44,30 @@ impl RequestedPayments {
         }
     }
 
+    /// The XCH or CAT payments for an asset.
+    pub fn fungible_mut(&mut self, asset: Id) -> &mut Vec<NotarizedPayment> {
+        match asset {
+            Id::Existing(asset_id) => self.cats.entry(asset_id).or_default(),
+            _ => &mut self.xch,
+        }
+    }
+
+    /// Each XCH and CAT payment, along with its asset.
+    pub fn fungible(&self) -> impl Iterator<Item = (Id, &NotarizedPayment)> {
+        self.xch
+            .iter()
+            .map(|notarized_payment| (Id::Xch, notarized_payment))
+            .chain(
+                self.cats
+                    .iter()
+                    .flat_map(|(&asset_id, notarized_payments)| {
+                        notarized_payments.iter().map(move |notarized_payment| {
+                            (Id::Existing(asset_id), notarized_payment)
+                        })
+                    }),
+            )
+    }
+
     pub fn assertions(
         &self,
         ctx: &mut SpendContext,
@@ -59,16 +83,7 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let default = CatAssetInfo::default();
-            let info = asset_info.cat(asset_id).unwrap_or(&default);
-
-            let puzzle_hash = CatInfo::new(
-                asset_id,
-                info.hidden_puzzle_hash,
-                SETTLEMENT_PAYMENT_HASH.into(),
-            )
-            .puzzle_hash()
-            .into();
+            let puzzle_hash = asset_info.settlement_puzzle_hash(Id::Existing(asset_id));
 
             for notarized_payment in notarized_payments {
                 assertions.push(payment_assertion(
