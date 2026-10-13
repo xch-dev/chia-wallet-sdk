@@ -40,7 +40,7 @@ jobs:
               pnpm build:macos-x64
               pnpm build:macos-arm64
               pnpm universal
-          - host: windows-2022
+          - host: blacksmith-8vcpu-windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
           # Linux builds use napi's glibc 2.17 cross toolchain. Each target is built on the other
@@ -86,7 +86,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.settings.target }}
-          save-if: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'ci-windows-github') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}
