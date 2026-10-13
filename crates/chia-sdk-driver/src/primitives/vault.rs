@@ -260,6 +260,50 @@ mod tests {
     }
 
     #[test]
+    fn test_m_of_n_duplicate_member_counts_once() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let keys = K1Pair::range_vec(2);
+        let members = keys.iter().map(|k| K1Member::new(k.pk)).collect::<Vec<_>>();
+        let hashes = members
+            .iter()
+            .map(|m| mips_puzzle_hash(0, Vec::new(), m.curry_tree_hash(), false))
+            .collect::<Vec<_>>();
+
+        // A 2 of 3 where the first member appears twice.
+        let custody = MofN::new(2, vec![hashes[0], hashes[0], hashes[1]]);
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.inner_puzzle_hash(), true);
+
+        let mut spend = MipsSpend::new(ctx.delegated_spend(Conditions::new())?);
+        spend.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, Vec::new(), custody.required, custody.items.clone()),
+        );
+
+        let puzzle = ctx.curry(members[0])?;
+        spend.members.insert(
+            hashes[0],
+            InnerPuzzleSpend::new(0, Vec::new(), Spend::new(puzzle, clvmr::NodePtr::NIL)),
+        );
+
+        // The duplicated member alone can't fill both slots.
+        assert!(matches!(
+            spend.spend(ctx, custody_hash),
+            Err(DriverError::InvalidSubpathSpendCount)
+        ));
+
+        // With the other member, each is spent once.
+        let puzzle = ctx.curry(members[1])?;
+        spend.members.insert(
+            hashes[1],
+            InnerPuzzleSpend::new(0, Vec::new(), Spend::new(puzzle, clvmr::NodePtr::NIL)),
+        );
+        assert_eq!(custody.selected_items(&spend)?, vec![0, 2]);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_vault_wrapper_stacks_of_different_lengths() -> anyhow::Result<()> {
         use chia_sdk_types::puzzles::{AddDelegatedPuzzleWrapper, PreventConditionOpcode};
         use chia_secp::K1PublicKey;

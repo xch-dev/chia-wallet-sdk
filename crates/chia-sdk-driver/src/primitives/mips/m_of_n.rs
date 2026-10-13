@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
     MerkleTree, Mod,
@@ -127,16 +129,20 @@ impl MofN {
         Ok(())
     }
 
-    /// Returns the indices of the items that will be spent, which are the first `required` items
-    /// that have a member spend. The M of N puzzle requires exactly `required` members to be spent.
-    fn selected_items(&self, spend: &MipsSpend) -> Result<Vec<usize>, DriverError> {
+    /// Returns the indices of the items that will be spent, which are the first `required` distinct
+    /// items that have a member spend. The M of N puzzle requires exactly `required` members to be
+    /// spent, and a member that appears more than once only counts once, so that it can't satisfy
+    /// the quorum on its own.
+    pub(crate) fn selected_items(&self, spend: &MipsSpend) -> Result<Vec<usize>, DriverError> {
         self.validate()?;
+
+        let mut seen = HashSet::with_capacity(self.required);
 
         let selected: Vec<usize> = self
             .items
             .iter()
             .enumerate()
-            .filter(|(_, item)| spend.members.contains_key(item))
+            .filter(|(_, item)| spend.members.contains_key(item) && seen.insert(**item))
             .map(|(index, _)| index)
             .take(self.required)
             .collect();
