@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ClawbackV2, P2ConditionsOrSingletonVersion, RevealedP2Puzzle, Reveals};
+use crate::{ClawbackV2, RevealedP2Puzzle, Reveals};
 
 #[derive(Debug, Clone)]
 pub struct ParsedMemos {
@@ -53,10 +53,8 @@ pub fn parse_memos(
     }
 
     // If we're parsing a p2 conditions or singleton, we can try to parse the fixed conditions.
-    // Only the current version is supported, since its fixed path can only output the fixed conditions.
     if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton)) =
         reveals.p2_puzzle(p2_create_coin.puzzle_hash.into())
-        && p2_conditions_or_singleton.version == P2ConditionsOrSingletonVersion::FixedPuzzleMember
         && let Ok((_hint, (memo, rest))) =
             <(Bytes32, (NodePtr, NodePtr))>::from_clvm(allocator, memos)
         && let Ok(conditions) = Vec::<Condition>::from_clvm(allocator, memo)

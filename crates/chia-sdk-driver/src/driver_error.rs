@@ -208,9 +208,6 @@ pub enum DriverError {
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
-    #[error("unsupported p2 conditions or singleton version")]
-    UnsupportedP2ConditionsOrSingletonVersion,
-
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
 }

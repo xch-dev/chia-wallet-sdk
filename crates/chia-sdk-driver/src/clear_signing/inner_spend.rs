@@ -8,8 +8,8 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     AugmentedConditionLayer, ClawbackV2, DelegatedPuzzleFeederLayer, DriverError,
-    IndexWrapperLayer, Layer, P2ConditionsOrSingletonVersion, P2OneOfManyLayer, Puzzle,
-    RevealedP2Puzzle, Reveals, SingletonMemberLayer, Spend, parse_delegated_spend,
+    IndexWrapperLayer, Layer, P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, Reveals,
+    SingletonMemberLayer, Spend, parse_delegated_spend,
 };
 
 #[derive(Debug, Clone)]
@@ -164,12 +164,6 @@ pub fn parse_inner_spend(
                 Ok(result)
             }
             RevealedP2Puzzle::P2ConditionsOrSingleton(info) => {
-                // The singleton path's conditions can only be relied on if the fixed path can't
-                // be used in its place, which is only guaranteed by the current version.
-                if info.version != P2ConditionsOrSingletonVersion::FixedPuzzleMember {
-                    return Err(DriverError::UnsupportedP2ConditionsOrSingletonVersion);
-                }
-
                 let solution = DelegatedPuzzleFeederSolution::<
                     NodePtr,
                     NodePtr,

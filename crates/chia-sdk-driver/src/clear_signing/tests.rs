@@ -1751,8 +1751,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, p2.tree_hash().into());
 
-    // Only the current version is recognized as an offer pre-split.
-    if revealed_up_front && version == P2ConditionsOrSingletonVersion::FixedPuzzleMember {
+    if revealed_up_front {
         assert_eq!(
             child.transfer_type,
             TransferType::OfferPreSplit(OfferPreSplitInfo {
@@ -1914,22 +1913,12 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault(
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_p2_conditions_or_singleton(p2);
-    let result = parse_vault_transaction(
+    let tx = parse_vault_transaction(
         reveals,
         &mut ctx,
         alice.info.launcher_id,
         result.delegated_spend,
-    );
-
-    if version == P2ConditionsOrSingletonVersion::Legacy {
-        assert!(matches!(
-            result.unwrap_err(),
-            DriverError::UnsupportedP2ConditionsOrSingletonVersion
-        ));
-        return Ok(());
-    }
-
-    let tx = result?;
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
