@@ -3,15 +3,15 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, puzzles::SettlementPayment};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
-    OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
+    Arbitrage, AssetInfo, CatInfo, CostBudget, DriverError, Layer, NftInfo, OfferAmounts,
+    OfferCoins, OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     calculate_royalty_amounts, calculate_trade_price_amounts,
 };
 
@@ -40,13 +40,14 @@ impl Offer {
 
     pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>, DriverError> {
         let mut allocator = Allocator::new();
+        let mut budget = CostBudget::offer();
         let mut created_coin_ids = HashSet::new();
 
         for coin_spend in &self.spend_bundle.coin_spends {
             let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
             let solution = coin_spend.solution.to_clvm(&mut allocator)?;
 
-            let output = run_puzzle(&mut allocator, puzzle, solution)?;
+            let (_, output) = budget.run(&mut allocator, puzzle, solution)?;
             let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
 
             for condition in conditions {
@@ -227,6 +228,7 @@ impl Offer {
     ) -> Result<Self, DriverError> {
         let mut offered_coins = OfferCoins::new();
         let mut asset_info = requested_asset_info;
+        let mut budget = CostBudget::offer();
 
         let spent_coin_ids: HashSet<Bytes32> = spend_bundle
             .coin_spends
@@ -243,6 +245,7 @@ impl Offer {
                 allocator,
                 &mut asset_info,
                 &spent_coin_ids,
+                &mut budget,
                 coin_spend.coin,
                 puzzle,
                 solution,
@@ -266,6 +269,7 @@ impl Offer {
         let mut offered_coins = OfferCoins::new();
         let mut requested_payments = RequestedPayments::new();
         let mut asset_info = AssetInfo::new();
+        let mut budget = CostBudget::offer();
 
         let spent_coin_ids: HashSet<Bytes32> = spend_bundle
             .coin_spends
@@ -293,6 +297,7 @@ impl Offer {
                     allocator,
                     &mut asset_info,
                     &spent_coin_ids,
+                    &mut budget,
                     coin_spend.coin,
                     puzzle,
                     solution,

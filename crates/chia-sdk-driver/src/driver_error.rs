@@ -158,6 +158,9 @@ pub enum DriverError {
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
+    #[error("the cost of parsing the offer exceeds the maximum")]
+    OfferCostExceeded,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
