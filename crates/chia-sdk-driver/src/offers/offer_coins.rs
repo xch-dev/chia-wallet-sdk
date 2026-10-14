@@ -2,14 +2,14 @@ use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo, OfferAmounts,
-    OptionAssetInfo, OptionContract, Outputs, Puzzle, Spends,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, CostBudget, DriverError, Nft, NftAssetInfo,
+    OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle, Spends,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -144,61 +144,27 @@ impl OfferCoins {
         Ok(())
     }
 
+    /// Parses the coins sent to the settlement puzzle by a spend in an offer, and the fee it
+    /// reserves.
+    ///
+    /// The spend is run once, with its cost deducted from the budget. Offered children are found by
+    /// comparing the coins it creates to the puzzle hashes they would have if they were sent to the
+    /// settlement puzzle, rather than running the inner puzzle again.
+    #[allow(clippy::too_many_arguments)]
     pub fn parse(
         &mut self,
         allocator: &mut Allocator,
         asset_info: &mut AssetInfo,
         spent_coin_ids: &HashSet<Bytes32>,
+        budget: &mut CostBudget,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
     ) -> Result<(), DriverError> {
-        if let Some(cats) =
-            Cat::parse_children(allocator, parent_coin, parent_puzzle, parent_solution)?
-        {
-            for cat in cats {
-                if !spent_coin_ids.contains(&cat.coin.coin_id())
-                    && cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-                {
-                    self.cats.entry(cat.info.asset_id).or_default().push(cat);
-                }
-
-                let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash);
-                asset_info.insert_cat(cat.info.asset_id, info)?;
-            }
-        }
-
-        if let Some(nft) = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
-            && !spent_coin_ids.contains(&nft.coin.coin_id())
-            && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-        {
-            self.nfts.insert(nft.info.launcher_id, nft);
-
-            let info = NftAssetInfo::new(
-                nft.info.metadata,
-                nft.info.metadata_updater_puzzle_hash,
-                nft.info.royalty_puzzle_hash,
-                nft.info.royalty_basis_points,
-            );
-            asset_info.insert_nft(nft.info.launcher_id, info)?;
-        }
-
-        if let Some(option) =
-            OptionContract::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
-            && !spent_coin_ids.contains(&option.coin.coin_id())
-            && option.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-        {
-            self.options.insert(option.info.launcher_id, option);
-
-            let info = OptionAssetInfo::new(
-                option.info.underlying_coin_id,
-                option.info.underlying_delegated_puzzle_hash,
-            );
-            asset_info.insert_option(option.info.launcher_id, info)?;
-        }
-
-        let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
+        let (cost, output) = budget.run(allocator, parent_puzzle.ptr(), parent_solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let mut create_coins = Vec::new();
 
         for condition in conditions {
             if let Some(reserve_fee) = condition.as_reserve_fee() {
@@ -208,20 +174,142 @@ impl OfferCoins {
                     .ok_or(DriverError::FeeOverflow)?;
             }
 
-            let Some(create_coin) = condition.into_create_coin() else {
-                continue;
-            };
+            if let Some(create_coin) = condition.into_create_coin() {
+                create_coins.push(create_coin);
+            }
+        }
 
+        let is_offered = |coin: Coin| !spent_coin_ids.contains(&coin.coin_id());
+
+        for create_coin in &create_coins {
             let coin = Coin::new(
                 parent_coin.coin_id(),
                 create_coin.puzzle_hash,
                 create_coin.amount,
             );
 
-            if !spent_coin_ids.contains(&coin.coin_id())
-                && coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-            {
+            if is_offered(coin) && coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
                 self.xch.push(coin);
+            }
+        }
+
+        if let Some(parsed) = Cat::parse(allocator, parent_coin, parent_puzzle, parent_solution)? {
+            let parent = parsed.cat;
+
+            for create_coin in &create_coins {
+                let child = parent.child(SETTLEMENT_PAYMENT_HASH.into(), create_coin.amount);
+                let unrevocable_child =
+                    parent.unrevocable_child(SETTLEMENT_PAYMENT_HASH.into(), create_coin.amount);
+
+                // The children of a revoked CAT can be created with or without the revocation layer.
+                let cat = if child.coin.puzzle_hash == create_coin.puzzle_hash {
+                    child
+                } else if parsed.revoked
+                    && unrevocable_child.coin.puzzle_hash == create_coin.puzzle_hash
+                {
+                    unrevocable_child
+                } else {
+                    continue;
+                };
+
+                if !is_offered(cat.coin) {
+                    continue;
+                }
+
+                asset_info.insert_cat(
+                    cat.info.asset_id,
+                    CatAssetInfo::new(cat.info.hidden_puzzle_hash),
+                )?;
+
+                self.cats.entry(cat.info.asset_id).or_default().push(cat);
+            }
+        } else if let Some((parent, _, _)) =
+            Nft::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+        {
+            let Some(create_coin) = create_coins
+                .iter()
+                .find(|create_coin| create_coin.amount % 2 == 1)
+            else {
+                return Ok(());
+            };
+
+            // The NFT is usually sent to the settlement puzzle without updating its metadata, and
+            // either keeps its owner or has it removed. Otherwise, the p2 spend has to be run again
+            // to find the new metadata and owner, which costs no more than the spend did.
+            let nft = [parent.info.current_owner, None]
+                .into_iter()
+                .map(|owner| {
+                    parent.child(
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                        owner,
+                        parent.info.metadata,
+                        create_coin.amount,
+                    )
+                })
+                .find(|child| child.coin.puzzle_hash == create_coin.puzzle_hash);
+
+            let nft = if let Some(nft) = nft {
+                nft
+            } else {
+                budget.charge(cost)?;
+
+                let Some(nft) =
+                    Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+                else {
+                    return Ok(());
+                };
+
+                nft
+            };
+
+            if is_offered(nft.coin) && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+                asset_info.insert_nft(
+                    nft.info.launcher_id,
+                    NftAssetInfo::new(
+                        nft.info.metadata,
+                        nft.info.metadata_updater_puzzle_hash,
+                        nft.info.royalty_puzzle_hash,
+                        nft.info.royalty_basis_points,
+                    ),
+                )?;
+
+                if self.nfts.insert(nft.info.launcher_id, nft).is_some() {
+                    return Err(DriverError::ConflictingOfferInputs);
+                }
+            }
+        } else if let Some((parent, _, _)) =
+            OptionContract::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+        {
+            let option = create_coins
+                .iter()
+                .filter(|create_coin| create_coin.amount % 2 == 1)
+                .map(|create_coin| {
+                    (
+                        create_coin,
+                        parent.child(SETTLEMENT_PAYMENT_HASH.into(), create_coin.amount),
+                    )
+                })
+                .find(|(create_coin, child)| child.coin.puzzle_hash == create_coin.puzzle_hash)
+                .map(|(_, child)| child);
+
+            if let Some(option) = option
+                && is_offered(option.coin)
+            {
+                asset_info.insert_option(
+                    option.info.launcher_id,
+                    OptionAssetInfo::new(
+                        option.info.underlying_coin_id,
+                        option.info.underlying_delegated_puzzle_hash,
+                    ),
+                )?;
+
+                if self
+                    .options
+                    .insert(option.info.launcher_id, option)
+                    .is_some()
+                {
+                    return Err(DriverError::ConflictingOfferInputs);
+                }
             }
         }
 
