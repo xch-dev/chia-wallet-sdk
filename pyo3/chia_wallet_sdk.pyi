@@ -359,12 +359,16 @@ class Reveals:
 class VaultVersion(IntEnum):
     Legacy = 0
     ForceSingletonRecreation = 1
+class P2ConditionsOrSingletonVersion(IntEnum):
+    Legacy = 0
+    FixedPuzzleMember = 1
 class P2ConditionsOrSingleton:
     def clone(self) -> P2ConditionsOrSingleton: ...
-    def __init__(self, launcher_id: bytes, nonce: int, fixed_conditions_hash: bytes) -> None: ...
+    def __init__(self, launcher_id: bytes, nonce: int, quoted_conditions_hash: bytes, version: P2ConditionsOrSingletonVersion) -> None: ...
     launcher_id: bytes
     nonce: int
-    fixed_conditions_hash: bytes
+    quoted_conditions_hash: bytes
+    version: P2ConditionsOrSingletonVersion
 class VaultTransaction:
     def clone(self) -> VaultTransaction: ...
     def __init__(self, vault_child: Optional[VaultOutput], drop_coins: List[DropCoin], spends: List[VerifiedSpend], issuances: List[Issuance], asserted_payments: List[AssertedNotarizedPayment], received_payments: List[AssertedPayment], external_payments: List[AssertedPayment], asset_flows: List[AssetFlow], linked_offer: Optional[LinkedOffer], reserved_fee: int, p2_puzzle_hashes: List[bytes], delegated_puzzle_hash: bytes) -> None: ...

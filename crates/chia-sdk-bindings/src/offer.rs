@@ -484,7 +484,7 @@ impl Offer {
 
     /// The royalties of the requested NFTs, which are paid by the maker.
     pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>> {
-        Ok(self.inner.offered_royalties())
+        Ok(self.inner.offered_royalties()?)
     }
 
     /// The royalties of the offered NFTs, which are paid by the taker.

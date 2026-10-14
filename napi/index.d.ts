@@ -2485,13 +2485,15 @@ export declare class Outputs {
 
 export declare class P2ConditionsOrSingleton {
   clone(): P2ConditionsOrSingleton
-  constructor(launcherId: Uint8Array, nonce: bigint, fixedConditionsHash: Uint8Array)
+  constructor(launcherId: Uint8Array, nonce: bigint, quotedConditionsHash: Uint8Array, version: P2ConditionsOrSingletonVersion)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get nonce(): bigint
   set nonce(value: bigint)
-  get fixedConditionsHash(): Buffer
-  set fixedConditionsHash(value: Uint8Array)
+  get quotedConditionsHash(): Buffer
+  set quotedConditionsHash(value: Uint8Array)
+  get version(): P2ConditionsOrSingletonVersion
+  set version(value: P2ConditionsOrSingletonVersion)
 }
 
 export declare class P2ConditionsOrSingletonInfo {
@@ -4613,6 +4615,11 @@ export declare function generateBytes(bytes: number): Buffer
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Buffer
 
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Buffer
+
+export declare const enum P2ConditionsOrSingletonVersion {
+  Legacy = 0,
+  FixedPuzzleMember = 1,
+}
 
 export declare function parseVaultTransaction(clvm: Clvm, reveals: Reveals, launcherId: Uint8Array, delegatedSpend: Spend): VaultTransaction
 

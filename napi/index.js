@@ -1138,6 +1138,7 @@ module.exports.fromHex = nativeBinding.fromHex
 module.exports.generateBytes = nativeBinding.generateBytes
 module.exports.k1MemberHash = nativeBinding.k1MemberHash
 module.exports.mOfNHash = nativeBinding.mOfNHash
+module.exports.P2ConditionsOrSingletonVersion = nativeBinding.P2ConditionsOrSingletonVersion
 module.exports.parseVaultTransaction = nativeBinding.parseVaultTransaction
 module.exports.passkeyMemberHash = nativeBinding.passkeyMemberHash
 module.exports.predictBlankHandleNftCoinId = nativeBinding.predictBlankHandleNftCoinId

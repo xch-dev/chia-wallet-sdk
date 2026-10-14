@@ -25,7 +25,7 @@ env:
 
 jobs:
   lint:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -51,7 +51,7 @@ jobs:
         run: cargo machete
 
   check-crates:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -86,7 +86,7 @@ jobs:
           cargo check -p chia-sdk-bindings -F pyo3
 
   test:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6

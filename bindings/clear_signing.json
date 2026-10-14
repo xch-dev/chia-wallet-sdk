@@ -90,6 +90,10 @@
     },
     "return": "Bytes"
   },
+  "P2ConditionsOrSingletonVersion": {
+    "type": "enum",
+    "values": ["Legacy", "FixedPuzzleMember"]
+  },
   "P2ConditionsOrSingleton": {
     "type": "class",
     "new": true,
@@ -97,7 +101,8 @@
     "fields": {
       "launcher_id": "Bytes32",
       "nonce": "usize",
-      "fixed_conditions_hash": "Bytes32"
+      "quoted_conditions_hash": "Bytes32",
+      "version": "P2ConditionsOrSingletonVersion"
     }
   },
   "VaultTransaction": {

@@ -1,4 +1,7 @@
-use std::{collections::HashMap, mem};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+};
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
@@ -132,6 +135,9 @@ impl Spends<Unfinished> {
 
     /// Applies each action in order, and returns the [`Deltas`] of the actions for
     /// [`Spends::prepare`].
+    ///
+    /// Returns [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same
+    /// puzzle hash make the same notarized payment.
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
@@ -141,7 +147,26 @@ impl Spends<Unfinished> {
         for (index, action) in actions.iter().enumerate() {
             action.spend(ctx, self, index)?;
         }
+
+        self.check_unique_settlement_payments()?;
+
         Ok(deltas)
+    }
+
+    /// Settlement coins can be spent by anyone, so the payments they make are asserted by a
+    /// conditions spend. If two settlement coins with the same puzzle hash made the same notarized
+    /// payment, their announcements would be identical and a single assertion would be satisfied by
+    /// either of them, so one of the spends could be removed from the transaction.
+    fn check_unique_settlement_payments(&self) -> Result<(), DriverError> {
+        let mut announcement_ids = HashSet::new();
+
+        for assertion in self.payment_assertions() {
+            if !announcement_ids.insert(assertion.announcement_id) {
+                return Err(DriverError::DuplicateSettlementPayment);
+            }
+        }
+
+        Ok(())
     }
 
     fn create_change(
@@ -521,7 +546,9 @@ impl Spends<Unfinished> {
     /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
     /// together according to the [`Relation`], and wraps the outputs of revocation spends.
     ///
-    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas.
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas, or
+    /// [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same puzzle hash
+    /// make the same notarized payment.
     pub fn prepare(
         mut self,
         ctx: &mut SpendContext,
@@ -529,6 +556,7 @@ impl Spends<Unfinished> {
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
         self.create_change(ctx, deltas)?;
+        self.check_unique_settlement_payments()?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
         self.wrap_revocation_outputs(ctx)?;

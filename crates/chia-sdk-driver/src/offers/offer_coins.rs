@@ -113,6 +113,15 @@ impl OfferCoins {
             let existing = self.cats.entry(asset_id).or_default();
 
             for cat in cats {
+                // Revocable and non-revocable CATs with the same asset id are different assets, but
+                // offered amounts are keyed by asset id alone.
+                if existing
+                    .iter()
+                    .any(|c| c.info.hidden_puzzle_hash != cat.info.hidden_puzzle_hash)
+                {
+                    return Err(DriverError::IncompatibleAssetInfo);
+                }
+
                 if existing
                     .iter()
                     .any(|c| c.coin.coin_id() == cat.coin.coin_id())
@@ -248,5 +257,38 @@ impl AddAsset for OfferCoins {
         for option in self.options.into_values() {
             spends.add(option);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CatInfo;
+
+    use super::*;
+
+    #[test]
+    fn test_offered_cats_with_different_revocation_layers_are_not_merged() {
+        let asset_id = Bytes32::new([1; 32]);
+        let cat = |hidden_puzzle_hash: Option<Bytes32>, parent: u8| {
+            let info = CatInfo::new(asset_id, hidden_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+            Cat::new(
+                Coin::new(Bytes32::new([parent; 32]), info.puzzle_hash().into(), 1),
+                None,
+                info,
+            )
+        };
+
+        let mut coins = OfferCoins::new();
+        coins.cats.insert(asset_id, vec![cat(None, 1)]);
+
+        let mut other = OfferCoins::new();
+        other
+            .cats
+            .insert(asset_id, vec![cat(Some(Bytes32::new([2; 32])), 2)]);
+
+        assert!(matches!(
+            coins.extend(other),
+            Err(DriverError::IncompatibleAssetInfo)
+        ));
     }
 }
