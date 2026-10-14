@@ -175,7 +175,7 @@ jobs:
 
   # Build both macOS wheels on a single runner, since macOS minutes are the most expensive
   macos:
-    runs-on: macos-latest
+    runs-on: blacksmith-6vcpu-macos-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

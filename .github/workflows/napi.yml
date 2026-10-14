@@ -34,7 +34,7 @@ jobs:
       matrix:
         settings:
           # Build both macOS targets on a single runner (macOS minutes are the most expensive)
-          - host: macos-latest
+          - host: blacksmith-6vcpu-macos-latest
             target: apple-darwin
             build: |
               pnpm build:macos-x64
@@ -124,7 +124,7 @@ jobs:
       run:
         working-directory: ./napi
     # Test every Node version in one job, since macOS minutes are the most expensive
-    runs-on: macos-latest
+    runs-on: blacksmith-6vcpu-macos-latest
     steps:
       - uses: actions/checkout@v6
 
