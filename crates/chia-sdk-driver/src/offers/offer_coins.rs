@@ -8,8 +8,9 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo, OfferAmounts,
-    OptionAssetInfo, OptionContract, Outputs, Puzzle, Spends,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo,
+    OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
+    Spends,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -153,6 +154,10 @@ impl OfferCoins {
         Ok(())
     }
 
+    /// Adds the settlement coins that the spend creates, which aren't spent in the same bundle.
+    ///
+    /// Fails with [`DriverError::OldSettlementPayment`] if the spend creates a coin with the old
+    /// settlement payments puzzle, since the offer would be insecure.
     pub fn parse(
         &mut self,
         allocator: &mut Allocator,
@@ -166,6 +171,8 @@ impl OfferCoins {
             Cat::parse_children(allocator, parent_coin, parent_puzzle, parent_solution)?
         {
             for cat in cats {
+                check_not_old_settlement(cat.info.p2_puzzle_hash)?;
+
                 if !spent_coin_ids.contains(&cat.coin.coin_id())
                     && cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
                 {
@@ -177,7 +184,13 @@ impl OfferCoins {
             }
         }
 
-        if let Some(nft) = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+        let nft = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?;
+
+        if let Some(nft) = nft {
+            check_not_old_settlement(nft.info.p2_puzzle_hash)?;
+        }
+
+        if let Some(nft) = nft
             && !spent_coin_ids.contains(&nft.coin.coin_id())
             && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
@@ -192,8 +205,14 @@ impl OfferCoins {
             asset_info.insert_nft(nft.info.launcher_id, info)?;
         }
 
-        if let Some(option) =
-            OptionContract::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+        let option =
+            OptionContract::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?;
+
+        if let Some(option) = option {
+            check_not_old_settlement(option.info.p2_puzzle_hash)?;
+        }
+
+        if let Some(option) = option
             && !spent_coin_ids.contains(&option.coin.coin_id())
             && option.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
@@ -221,6 +240,8 @@ impl OfferCoins {
                 continue;
             };
 
+            check_not_old_settlement(create_coin.puzzle_hash)?;
+
             let coin = Coin::new(
                 parent_coin.coin_id(),
                 create_coin.puzzle_hash,
@@ -236,6 +257,14 @@ impl OfferCoins {
 
         Ok(())
     }
+}
+
+fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> {
+    if p2_puzzle_hash == OLD_SETTLEMENT_PAYMENT_HASH.into() {
+        return Err(DriverError::OldSettlementPayment);
+    }
+
+    Ok(())
 }
 
 impl AddAsset for OfferCoins {

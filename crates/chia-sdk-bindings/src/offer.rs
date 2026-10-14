@@ -1,13 +1,14 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
-use chia_protocol::{Bytes32, Coin, SpendBundle};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
 };
 use chia_sdk_driver::{self as sdk, Cat, SpendContext};
 use chia_sdk_types::conditions::TradePrice;
+use num_bigint::BigInt;
 
 use crate::{Action, AsProgram, AsPtr, Clvm, Program, RoyaltyInfo};
 
@@ -332,6 +333,15 @@ impl AssetInfo {
         Ok(self.inner.lock().unwrap().nfts().copied().collect())
     }
 
+    pub fn nft_metadata(&self, launcher_id: Bytes32) -> Result<Option<Program>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .nft(launcher_id)
+            .map(|info| info.metadata.as_program(&self.clvm)))
+    }
+
     pub fn nft_royalty(&self, launcher_id: Bytes32) -> Result<Option<RoyaltyInfo>> {
         Ok(self.inner.lock().unwrap().nft(launcher_id).map(|info| {
             RoyaltyInfo::new(
@@ -437,6 +447,33 @@ impl Offer {
         Ok(self.inner.clone().to_spend_bundle(&mut ctx)?)
     }
 
+    /// The maker's spend bundle, without the requested payments. Its hash identifies the offer.
+    pub fn spend_bundle(&self) -> Result<SpendBundle> {
+        Ok(self.inner.spend_bundle().clone())
+    }
+
+    /// The spends of the coins that the offer spends, but doesn't create. Spending any of these
+    /// coins elsewhere cancels the offer.
+    pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>> {
+        Ok(self.inner.cancellable_coin_spends()?)
+    }
+
+    /// The amount that the maker's spends don't assign to any coin, which goes to the farmer.
+    pub fn fee(&self) -> Result<BigInt> {
+        Ok(BigInt::from(self.inner.fee()?))
+    }
+
+    /// What the taker has to give to take the offer (`offered`), and what it receives in return
+    /// (`requested`), after netting out anything the offer both offers and requests.
+    pub fn arbitrage(&self) -> Result<Arbitrage> {
+        let arbitrage = self.inner.arbitrage();
+
+        Ok(Arbitrage {
+            offered: ArbitrageSide::from_sdk(arbitrage.offered),
+            requested: ArbitrageSide::from_sdk(arbitrage.requested),
+        })
+    }
+
     /// Combines the maker's spends with the taker's spend bundle into the final transaction.
     pub fn take(&self, spend_bundle: SpendBundle) -> Result<SpendBundle> {
         Ok(self.inner.clone().take(spend_bundle))
@@ -502,6 +539,29 @@ impl Offer {
         Ok(OfferAmounts::from_sdk(
             self.inner.requested_royalty_amounts()?,
         ))
+    }
+}
+
+#[derive(Clone)]
+pub struct Arbitrage {
+    pub offered: ArbitrageSide,
+    pub requested: ArbitrageSide,
+}
+
+#[derive(Clone)]
+pub struct ArbitrageSide {
+    pub amounts: OfferAmounts,
+    pub nfts: Vec<Bytes32>,
+    pub options: Vec<Bytes32>,
+}
+
+impl ArbitrageSide {
+    fn from_sdk(side: sdk::ArbitrageSide) -> Self {
+        Self {
+            amounts: OfferAmounts::from_sdk(side.amounts()),
+            nfts: side.nfts,
+            options: side.options,
+        }
     }
 }
 

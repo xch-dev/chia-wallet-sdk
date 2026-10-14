@@ -124,6 +124,24 @@ export declare class AggSigUnsafe {
   set message(value: Uint8Array)
 }
 
+export declare class Arbitrage {
+  clone(): Arbitrage
+  get offered(): ArbitrageSide
+  set offered(value: ArbitrageSide)
+  get requested(): ArbitrageSide
+  set requested(value: ArbitrageSide)
+}
+
+export declare class ArbitrageSide {
+  clone(): ArbitrageSide
+  get amounts(): OfferAmounts
+  set amounts(value: OfferAmounts)
+  get nfts(): Array<Buffer>
+  set nfts(value: Array<Uint8Array>)
+  get options(): Array<Buffer>
+  set options(value: Array<Uint8Array>)
+}
+
 export declare class AssertBeforeHeightAbsolute {
   clone(): AssertBeforeHeightAbsolute
   constructor(height: number)
@@ -307,6 +325,7 @@ export declare class AssetInfo {
   catAssetIds(): Array<Buffer>
   catHiddenPuzzleHash(assetId: Uint8Array): Buffer | null
   nftLauncherIds(): Array<Buffer>
+  nftMetadata(launcherId: Uint8Array): Program | null
   nftRoyalty(launcherId: Uint8Array): RoyaltyInfo | null
 }
 
@@ -2313,6 +2332,10 @@ export declare class Offer {
   static fromInputSpendBundle(clvm: Clvm, spendBundle: SpendBundle, requestedPayments: RequestedPayments, assetInfo: AssetInfo): Offer
   static fromSpendBundle(clvm: Clvm, spendBundle: SpendBundle): Offer
   toSpendBundle(): SpendBundle
+  spendBundle(): SpendBundle
+  cancellableCoinSpends(): Array<CoinSpend>
+  fee(): bigint
+  arbitrage(): Arbitrage
   take(spendBundle: SpendBundle): SpendBundle
   static nonce(coinIds: Array<Uint8Array>): Buffer
   requestedPayments(): RequestedPayments

@@ -159,6 +159,12 @@
       "nft_launcher_ids": {
         "return": "Vec<Bytes32>"
       },
+      "nft_metadata": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Option<Program>"
+      },
       "nft_royalty": {
         "args": {
           "launcher_id": "Bytes32"
@@ -220,6 +226,18 @@
       "to_spend_bundle": {
         "return": "SpendBundle"
       },
+      "spend_bundle": {
+        "return": "SpendBundle"
+      },
+      "cancellable_coin_spends": {
+        "return": "Vec<CoinSpend>"
+      },
+      "fee": {
+        "return": "BigInt"
+      },
+      "arbitrage": {
+        "return": "Arbitrage"
+      },
       "take": {
         "args": {
           "spend_bundle": "SpendBundle"
@@ -266,6 +284,21 @@
       "requested_royalty_amounts": {
         "return": "OfferAmounts"
       }
+    }
+  },
+  "Arbitrage": {
+    "type": "class",
+    "fields": {
+      "offered": "ArbitrageSide",
+      "requested": "ArbitrageSide"
+    }
+  },
+  "ArbitrageSide": {
+    "type": "class",
+    "fields": {
+      "amounts": "OfferAmounts",
+      "nfts": "Vec<Bytes32>",
+      "options": "Vec<Bytes32>"
     }
   },
   "calculate_trade_price_amounts": {
