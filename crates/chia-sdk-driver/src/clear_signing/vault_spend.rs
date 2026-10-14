@@ -1,11 +1,15 @@
-use chia_consensus::opcodes::SEND_MESSAGE;
+use chia_consensus::opcodes::{
+    CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
+};
 use chia_protocol::Bytes32;
 use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message};
+use crate::{
+    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend_with_melt, parse_vault_message,
+};
 
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
@@ -49,7 +53,7 @@ pub fn parse_vault_delegated_spend(
     allocator: &mut Allocator,
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
-    let conditions = parse_delegated_spend(allocator, delegated_spend)?;
+    let (conditions, melted) = parse_delegated_spend_with_melt(allocator, delegated_spend)?;
 
     let mut child = None;
     let mut drop_coins = Vec::new();
@@ -66,6 +70,9 @@ pub fn parse_vault_delegated_spend(
             Condition::AssertBeforeSecondsAbsolute(condition) => {
                 facts.update_actual_expiration_time(condition.seconds);
             }
+            Condition::AssertSecondsAbsolute(condition) => {
+                facts.update_actual_start_time(condition.seconds);
+            }
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
             }
@@ -80,6 +87,11 @@ pub fn parse_vault_delegated_spend(
                 // the special (puzzle specific) MELT_SINGLETON condition is included, but if it's not, then
                 // the transaction is invalid anyways.
                 if condition.amount % 2 == 1 {
+                    // The singleton layer doesn't allow more than one odd output, including the melt.
+                    if melted || child.is_some() {
+                        return Err(DriverError::InvalidDelegatedSpendFormat);
+                    }
+
                     child = Some(VaultOutput {
                         custody_hash: condition.puzzle_hash,
                         amount: condition.amount,
@@ -99,6 +111,14 @@ pub fn parse_vault_delegated_spend(
                 let vault_message = parse_vault_message(allocator, condition)?;
                 messages.push(vault_message);
             }
+            // These conditions aren't included in the summary, so we can't allow them.
+            Condition::CreateCoinAnnouncement(_)
+            | Condition::CreatePuzzleAnnouncement(_)
+            | Condition::ReceiveMessage(_)
+            // The vault isn't a CAT, and this would melt the vault.
+            | Condition::RunCatTail(_) => {
+                return Err(DriverError::UnsupportedClearSigningCondition);
+            }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
 
@@ -107,6 +127,17 @@ pub fn parse_vault_delegated_spend(
                 // If this happened, we wouldn't enforce the spend to be revealed, thus clear signing would be insecure.
                 if opcode == BigInt::from(SEND_MESSAGE) {
                     return Err(DriverError::InvalidVaultMessageFormat);
+                }
+
+                if [
+                    CREATE_COIN_ANNOUNCEMENT,
+                    CREATE_PUZZLE_ANNOUNCEMENT,
+                    RECEIVE_MESSAGE,
+                ]
+                .into_iter()
+                .any(|unsupported| opcode == BigInt::from(unsupported))
+                {
+                    return Err(DriverError::UnsupportedClearSigningCondition);
                 }
             }
             _ => {}

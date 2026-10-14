@@ -1,8 +1,12 @@
 use std::collections::VecDeque;
 
+use chia_consensus::opcodes::{CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, SEND_MESSAGE};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
+use clvm_traits::FromClvm;
+use clvmr::NodePtr;
+use num_bigint::BigInt;
 
 use crate::{
     BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
@@ -32,6 +36,13 @@ pub struct OfferPreSplitInfo {
     pub settlement_amount: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct ParsedChildren {
+    pub children: Vec<ParsedChild>,
+    /// Announcements and messages created by the spend, which aren't otherwise reflected in the summary.
+    pub extra_conditions: Vec<Condition>,
+}
+
 pub fn parse_children(
     reveals: &mut Reveals,
     facts: &mut Facts,
@@ -40,9 +51,10 @@ pub fn parse_children(
     spend: RevealedCoinSpend,
     conditions: &[Condition],
     is_claw_back: bool,
-) -> Result<Vec<ParsedChild>, DriverError> {
+) -> Result<ParsedChildren, DriverError> {
     // Now, we should be able to assume that the conditions will be output if the transaction is valid.
     let mut children = Vec::new();
+    let mut extra_conditions = Vec::new();
 
     // We should parse CAT children up front, so that we can hydrate their details when adding children later.
     let mut cats = if matches!(asset, ParsedAsset::Cat(_)) {
@@ -72,14 +84,33 @@ pub fn parse_children(
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
             }
+            // These conditions can authorize other spends which assert them, so they must be surfaced.
+            Condition::CreateCoinAnnouncement(_)
+            | Condition::CreatePuzzleAnnouncement(_)
+            | Condition::SendMessage(_) => {
+                extra_conditions.push(condition.clone());
+            }
+            Condition::Other(raw_condition) => {
+                let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(&**ctx, *raw_condition)?;
+
+                if [
+                    CREATE_COIN_ANNOUNCEMENT,
+                    CREATE_PUZZLE_ANNOUNCEMENT,
+                    SEND_MESSAGE,
+                ]
+                .into_iter()
+                .any(|extra_opcode| opcode == BigInt::from(extra_opcode))
+                {
+                    extra_conditions.push(condition.clone());
+                }
+            }
             Condition::CreateCoin(condition) => {
                 match &asset {
                     // All XCH and bulletin children are considered to be XCH.
                     // However, ephemeral bulletin children are hydrated later based on the spend.
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(reveals, ctx, *condition, false);
-                        let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                        let transfer_type = calculate_transfer_type(reveals, &memos)?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -102,8 +133,7 @@ pub fn parse_children(
                             };
 
                             let memos = parse_memos(reveals, ctx, *condition, true);
-                            let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount)?;
+                            let transfer_type = calculate_transfer_type(reveals, &memos)?;
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Nft(nft),
@@ -112,8 +142,7 @@ pub fn parse_children(
                             });
                         } else {
                             let memos = parse_memos(reveals, ctx, *condition, false);
-                            let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount)?;
+                            let transfer_type = calculate_transfer_type(reveals, &memos)?;
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Xch(Coin::new(
@@ -146,8 +175,7 @@ pub fn parse_children(
                             ),
                             true,
                         );
-                        let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                        let transfer_type = calculate_transfer_type(reveals, &memos)?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Cat(cat),
@@ -165,41 +193,73 @@ pub fn parse_children(
         return Err(DriverError::MissingChild);
     }
 
-    Ok(children)
+    Ok(ParsedChildren {
+        children,
+        extra_conditions,
+    })
 }
 
 fn calculate_transfer_type(
     reveals: &Reveals,
     memos: &ParsedMemos,
-    input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    // The p2 puzzle hash of a clawback is the receiver's, but the coin can also be clawed back by
+    // the sender, so it can't be treated as anything other than a regular send.
+    if memos.clawback.is_some() {
+        return Ok(TransferType::Sent);
+    }
+
     Ok(if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
-    } else if memos.clawback.is_none()
-        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
-            reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+    } else if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
+        reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let reserved_fee: u128 = fixed_conditions
-            .iter()
-            .filter_map(|condition| match condition {
-                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
-                _ => None,
-            })
-            .sum();
-
-        let reserved_fee: u64 = reserved_fee.try_into()?;
-
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
-            // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
-            settlement_amount: input_amount.saturating_sub(reserved_fee),
+            settlement_amount: calculate_settlement_amount(fixed_conditions)?,
         })
     } else {
         TransferType::Sent
     })
+}
+
+/// The fixed conditions of an offer pre-split coin can be output by anyone, so we only allow
+/// creating settlement coins, reserving fees, and assertions which restrict when they can be output.
+fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<u64, DriverError> {
+    let mut settlement_amount = 0_u128;
+
+    for condition in fixed_conditions {
+        match condition {
+            Condition::CreateCoin(condition)
+                if condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() =>
+            {
+                settlement_amount += u128::from(condition.amount);
+            }
+            Condition::ReserveFee(_)
+            | Condition::AssertPuzzleAnnouncement(_)
+            | Condition::AssertCoinAnnouncement(_)
+            | Condition::AssertConcurrentSpend(_)
+            | Condition::AssertConcurrentPuzzle(_)
+            | Condition::AssertMyCoinId(_)
+            | Condition::AssertMyParentId(_)
+            | Condition::AssertMyPuzzleHash(_)
+            | Condition::AssertMyAmount(_)
+            | Condition::AssertSecondsRelative(_)
+            | Condition::AssertSecondsAbsolute(_)
+            | Condition::AssertHeightRelative(_)
+            | Condition::AssertHeightAbsolute(_)
+            | Condition::AssertBeforeSecondsRelative(_)
+            | Condition::AssertBeforeSecondsAbsolute(_)
+            | Condition::AssertBeforeHeightRelative(_)
+            | Condition::AssertBeforeHeightAbsolute(_) => {}
+            _ => return Err(DriverError::InvalidOfferPreSplitConditions),
+        }
+    }
+
+    Ok(settlement_amount.try_into()?)
 }

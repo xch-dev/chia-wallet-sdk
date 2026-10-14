@@ -208,6 +208,18 @@ pub enum DriverError {
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
+    #[error("transaction is not guaranteed to be valid only after the clawback timelock")]
+    UnguaranteedClawBackTimelock,
+
+    #[error("unsupported condition in clear signing")]
+    UnsupportedClearSigningCondition,
+
+    #[error("invalid offer pre-split conditions")]
+    InvalidOfferPreSplitConditions,
+
+    #[error("singleton melt is not supported here")]
+    UnsupportedSingletonMelt,
+
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
 }

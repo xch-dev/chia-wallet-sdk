@@ -1,4 +1,7 @@
-use std::{cmp::min, collections::HashSet};
+use std::{
+    cmp::{max, min},
+    collections::HashSet,
+};
 
 use chia_protocol::Bytes32;
 
@@ -6,6 +9,8 @@ use chia_protocol::Bytes32;
 pub struct Facts {
     actual_expiration_time: Option<u64>,
     required_expiration_time: Option<u64>,
+    actual_start_time: Option<u64>,
+    required_start_time: Option<u64>,
     reserved_fees: u128,
     asserted_puzzle_announcements: HashSet<Bytes32>,
     asserted_spends: HashSet<Bytes32>,
@@ -34,6 +39,27 @@ impl Facts {
         }
     }
 
+    /// Updates the earliest time the transaction can be valid to the maximum of the current start
+    /// time and the given time. This is used to ensure that the transaction will not be valid before
+    /// the given time (i.e., before a clawback's receiver path is available).
+    pub fn update_actual_start_time(&mut self, start_time: u64) {
+        if let Some(old_time) = self.actual_start_time {
+            self.actual_start_time = Some(max(old_time, start_time));
+        } else {
+            self.actual_start_time = Some(start_time);
+        }
+    }
+
+    /// Updates the required start time to the maximum of the current required start time and
+    /// the given time. The transaction must not be valid before this time.
+    pub fn update_required_start_time(&mut self, required_start_time: u64) {
+        if let Some(old_time) = self.required_start_time {
+            self.required_start_time = Some(max(old_time, required_start_time));
+        } else {
+            self.required_start_time = Some(required_start_time);
+        }
+    }
+
     /// Adds to the total reserved fees, from coins that have been validated to be linked.
     pub fn add_reserved_fees(&mut self, amount: u64) {
         self.reserved_fees += u128::from(amount);
@@ -55,6 +81,14 @@ impl Facts {
 
     pub fn required_expiration_time(&self) -> Option<u64> {
         self.required_expiration_time
+    }
+
+    pub fn actual_start_time(&self) -> Option<u64> {
+        self.actual_start_time
+    }
+
+    pub fn required_start_time(&self) -> Option<u64> {
+        self.required_start_time
     }
 
     pub fn reserved_fees(&self) -> u128 {

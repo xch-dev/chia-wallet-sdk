@@ -144,7 +144,8 @@
       "clawback": "Option<ClawbackInfo>",
       "custody": "CustodyInfo",
       "children": "Vec<ParsedChild>",
-      "revoked": "bool"
+      "revoked": "bool",
+      "extra_conditions": "Vec<Program>"
     }
   },
   "ParsedAsset": {
@@ -266,7 +267,8 @@
       "coin_id": "Bytes32",
       "asset_id": "Bytes32",
       "extra_delta": "i64",
-      "kind": "IssuanceKind"
+      "kind": "IssuanceKind",
+      "verified": "bool"
     }
   },
   "IssuanceKind": {
