@@ -27,9 +27,10 @@ use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
     ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
     DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft,
-    OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, SingleCatSpend,
-    Spend, SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType,
-    VaultOutput, iter_final_children, parse_vault_transaction,
+    OfferPreSplitInfo, P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset,
+    Puzzle, Reveals, SingleCatSpend, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
+    TestVault, TransferNftById, TransferType, VaultOutput, iter_final_children,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1700,6 +1701,11 @@ fn test_clear_signing_revocable_cat_child_uses_unwrapped_p2_puzzle_hash() -> Res
 #[rstest]
 fn test_clear_signing_create_p2_conditions_or_singleton(
     #[values(false, true)] revealed_up_front: bool,
+    #[values(
+        P2ConditionsOrSingletonVersion::Legacy,
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember
+    )]
+    version: P2ConditionsOrSingletonVersion,
 ) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
@@ -1711,11 +1717,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
-        alice.info.launcher_id,
-        0,
-        conditions_hash,
-    );
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash, version);
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
@@ -1749,7 +1751,8 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, p2.tree_hash().into());
 
-    if revealed_up_front {
+    // Only the current version is recognized as an offer pre-split.
+    if revealed_up_front && version == P2ConditionsOrSingletonVersion::FixedPuzzleMember {
         assert_eq!(
             child.transfer_type,
             TransferType::OfferPreSplit(OfferPreSplitInfo {
@@ -1778,7 +1781,13 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
 }
 
 #[rstest]
-fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
+fn test_clear_signing_spend_p2_conditions_or_singleton_fixed(
+    #[values(
+        P2ConditionsOrSingletonVersion::Legacy,
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember
+    )]
+    version: P2ConditionsOrSingletonVersion,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -1790,11 +1799,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
-        alice.info.launcher_id,
-        0,
-        conditions_hash,
-    );
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash, version);
 
     alice
         .p2_puzzles
@@ -1860,7 +1865,13 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
 }
 
 #[rstest]
-fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
+fn test_clear_signing_spend_p2_conditions_or_singleton_vault(
+    #[values(
+        P2ConditionsOrSingletonVersion::Legacy,
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember
+    )]
+    version: P2ConditionsOrSingletonVersion,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -1871,11 +1882,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
-        alice.info.launcher_id,
-        0,
-        conditions_hash,
-    );
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash, version);
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
@@ -1907,12 +1914,22 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_p2_conditions_or_singleton(p2);
-    let tx = parse_vault_transaction(
+    let result = parse_vault_transaction(
         reveals,
         &mut ctx,
         alice.info.launcher_id,
         result.delegated_spend,
-    )?;
+    );
+
+    if version == P2ConditionsOrSingletonVersion::Legacy {
+        assert!(matches!(
+            result.unwrap_err(),
+            DriverError::UnsupportedP2ConditionsOrSingletonVersion
+        ));
+        return Ok(());
+    }
+
+    let tx = result?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -2417,10 +2434,11 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle).into();
 
-    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+    let p2 = P2ConditionsOrSingleton::new(
         alice.info.launcher_id,
         0,
         delegated_puzzle_hash,
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember,
     );
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
