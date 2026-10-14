@@ -6,7 +6,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 use indexmap::IndexSet;
 
 use crate::{
@@ -242,9 +242,7 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = parse_coin_spend(allocator, coin_spend)?;
 
             offered_coins.parse(
                 allocator,
@@ -264,6 +262,11 @@ impl Offer {
         ))
     }
 
+    /// Parses an untrusted offer spend bundle. The spends of coins with a parent coin id of zero are
+    /// the requested payments, and the rest are the maker's spends.
+    ///
+    /// Returns [`DriverError::WrongPuzzleHash`] if the puzzle reveal of a spend doesn't match the
+    /// coin's puzzle hash.
     pub fn from_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: &SpendBundle,
@@ -287,9 +290,7 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = parse_coin_spend(allocator, coin_spend)?;
 
             if coin_spend.coin.parent_coin_info == Bytes32::default() {
                 requested_payments.parse(allocator, &mut asset_info, puzzle, solution)?;
@@ -422,10 +423,29 @@ impl Offer {
     }
 }
 
+/// Deserializes the puzzle and solution of an untrusted coin spend, and checks that the puzzle
+/// reveal matches the coin's puzzle hash.
+fn parse_coin_spend(
+    allocator: &mut Allocator,
+    coin_spend: &CoinSpend,
+) -> Result<(Puzzle, NodePtr), DriverError> {
+    let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+    let puzzle = Puzzle::parse(allocator, puzzle);
+
+    if puzzle.curried_puzzle_hash() != coin_spend.coin.puzzle_hash.into() {
+        return Err(DriverError::WrongPuzzleHash);
+    }
+
+    let solution = coin_spend.solution.to_clvm(allocator)?;
+
+    Ok((puzzle, solution))
+}
+
 #[cfg(test)]
 mod tests {
     use std::slice;
 
+    use chia_bls::Signature;
     use chia_puzzle_types::{
         Memos,
         offer::{NotarizedPayment, Payment},
@@ -555,6 +575,41 @@ mod tests {
 
         assert_eq!(final_bob_nft.info.p2_puzzle_hash, bob.puzzle_hash);
         assert_eq!(final_alice_nft.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_puzzle_reveal_must_match_puzzle_hash() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let puzzle = ctx.alloc(&1)?;
+        let puzzle = ctx.serialize(&puzzle)?;
+        let solution = ctx.serialize(&NodePtr::NIL)?;
+
+        // Both the requested payments (with a parent coin id of zero) and the maker's spends
+        for parent_coin_id in [Bytes32::default(), Bytes32::new([1; 32])] {
+            let coin = Coin::new(parent_coin_id, Bytes32::new([2; 32]), 1);
+            let spend_bundle = SpendBundle::new(
+                vec![CoinSpend::new(coin, puzzle.clone(), solution.clone())],
+                Signature::default(),
+            );
+
+            assert!(matches!(
+                Offer::from_spend_bundle(&mut ctx, &spend_bundle),
+                Err(DriverError::WrongPuzzleHash)
+            ));
+
+            assert!(matches!(
+                Offer::from_input_spend_bundle(
+                    &mut ctx,
+                    spend_bundle,
+                    RequestedPayments::new(),
+                    AssetInfo::new(),
+                ),
+                Err(DriverError::WrongPuzzleHash)
+            ));
+        }
 
         Ok(())
     }
