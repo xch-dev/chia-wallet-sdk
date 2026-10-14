@@ -214,6 +214,10 @@ impl Offer {
         arbitrage
     }
 
+    /// The nonce that requested payments are notarized with, which is the tree hash of the sorted
+    /// ids of the coins being offered (ie, the coins spent by the maker which aren't created in the
+    /// offer). Since each coin can only be spent once, no two offers that can both be taken share a
+    /// nonce, so a taker can't combine offers and pay for both with the same payment.
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
         coin_ids.sort();
         coin_ids.tree_hash().into()

@@ -106,6 +106,9 @@ pub enum DriverError {
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
+    DuplicateSettlementPayment,
+
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
 
