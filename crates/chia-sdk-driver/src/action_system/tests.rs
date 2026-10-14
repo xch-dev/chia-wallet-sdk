@@ -2495,27 +2495,18 @@ fn test_overflowing_fees_are_rejected() {
     assert!(matches!(result, Err(DriverError::AmountOverflow)));
 }
 
-/// Alice offers 10 XCH for 5 XCH, with the requested payment notarized with the given nonce, or
-/// with the nonce of the offered coins if it's `None`.
-fn make_xch_offer(
-    sim: &mut Simulator,
-    ctx: &mut SpendContext,
-    nonce: Option<Bytes32>,
-) -> Result<Result<Offer, DriverError>> {
+/// Alice offers 10 XCH for 5 XCH.
+fn make_xch_offer(sim: &mut Simulator, ctx: &mut SpendContext) -> Result<Offer> {
     let alice = sim.bls(10);
 
     let mut requested_payments = RequestedPayments::new();
     requested_payments.xch.push(NotarizedPayment::new(
-        nonce.unwrap_or_default(),
+        Offer::nonce(vec![alice.coin.coin_id()]),
         vec![Payment::new(alice.puzzle_hash, 5, Memos::None)],
     ));
 
     let mut spends = Spends::new(alice.puzzle_hash);
     spends.add(alice.coin);
-
-    if nonce.is_none() {
-        requested_payments.notarize(spends.input_coin_ids());
-    }
 
     spends.conditions.required = spends
         .conditions
@@ -2542,53 +2533,7 @@ fn make_xch_offer(
         SpendBundle::new(coin_spends, signature),
         requested_payments,
         AssetInfo::new(),
-    ))
-}
-
-#[test]
-fn test_offer_nonce_is_bound_to_offered_coins() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    // A nonce that isn't derived from the offered coins could be reused by another offer, in which
-    // case a taker could combine them and make a single payment for both.
-    let reused = make_xch_offer(&mut sim, &mut ctx, Some(Bytes32::new([1; 32])))?;
-    assert!(matches!(reused, Err(DriverError::InvalidOfferNonce)));
-
-    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
-    let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
-    let parsed = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
-    assert_eq!(parsed.requested_payments().xch.len(), 1);
-
-    Ok(())
-}
-
-#[test]
-fn test_offer_with_wrong_nonce_is_rejected_when_parsed() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
-    let mut spend_bundle = offer.to_spend_bundle(&mut ctx)?;
-
-    // Re-notarize the requested payment with a different nonce
-    let requested = spend_bundle
-        .coin_spends
-        .last_mut()
-        .expect("requested payment");
-    let solution =
-        chia_puzzle_types::offer::SettlementPaymentsSolution::new(vec![NotarizedPayment::new(
-            Bytes32::new([1; 32]),
-            vec![Payment::new(Bytes32::default(), 5, Memos::None)],
-        )]);
-    requested.solution = ctx.serialize(&solution)?;
-
-    assert!(matches!(
-        Offer::from_spend_bundle(&mut ctx, &spend_bundle),
-        Err(DriverError::InvalidOfferNonce)
-    ));
-
-    Ok(())
+    )?)
 }
 
 #[test]
@@ -2596,7 +2541,7 @@ fn test_offer_puzzle_reveal_must_match_puzzle_hash() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let offer = make_xch_offer(&mut sim, &mut ctx)?;
     let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
 
     for index in [0, spend_bundle.coin_spends.len() - 1] {
@@ -2617,7 +2562,7 @@ fn test_offer_with_unknown_requested_asset_is_rejected() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let offer = make_xch_offer(&mut sim, &mut ctx, None)??;
+    let offer = make_xch_offer(&mut sim, &mut ctx)?;
     let mut spend_bundle = offer.to_spend_bundle(&mut ctx)?;
 
     // A requested payment with a puzzle that isn't a supported asset

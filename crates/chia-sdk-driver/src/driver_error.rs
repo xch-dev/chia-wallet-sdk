@@ -146,9 +146,6 @@ pub enum DriverError {
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
-    #[error("requested payment nonce does not match the offered coins")]
-    InvalidOfferNonce,
-
     #[error("requested payment is for an unsupported asset")]
     UnsupportedRequestedAsset,
 

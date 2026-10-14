@@ -231,18 +231,6 @@ impl Offer {
         coin_ids.tree_hash().into()
     }
 
-    /// The ids of the coins spent in the spend bundle that aren't created by another spend in it.
-    pub fn input_coin_ids(coin_spends: &[CoinSpend]) -> Vec<Bytes32> {
-        let spent_coin_ids: HashSet<Bytes32> =
-            coin_spends.iter().map(|cs| cs.coin.coin_id()).collect();
-
-        coin_spends
-            .iter()
-            .filter(|cs| !spent_coin_ids.contains(&cs.coin.parent_coin_info))
-            .map(|cs| cs.coin.coin_id())
-            .collect()
-    }
-
     pub fn from_input_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: SpendBundle,
@@ -252,9 +240,6 @@ impl Offer {
         let mut offered_coins = OfferCoins::new();
         let mut asset_info = requested_asset_info;
         let mut budget = CostBudget::offer();
-
-        requested_payments
-            .validate_nonce(Self::nonce(Self::input_coin_ids(&spend_bundle.coin_spends)))?;
 
         let spent_coin_ids: HashSet<Bytes32> = spend_bundle
             .coin_spends
@@ -287,8 +272,7 @@ impl Offer {
     /// Parses an untrusted offer spend bundle. The spends of coins with a parent coin id of zero are
     /// the requested payments, and the rest are the maker's spends.
     ///
-    /// The puzzle reveal of every spend must match the coin's puzzle hash, every requested payment
-    /// must be notarized with the [nonce](Offer::nonce) of the offered coins, and the total cost of
+    /// The puzzle reveal of every spend must match the coin's puzzle hash, and the total cost of
     /// running the maker's spends is limited by [`CostBudget::offer`].
     pub fn from_spend_bundle(
         allocator: &mut Allocator,
@@ -332,10 +316,6 @@ impl Offer {
                 )?;
             }
         }
-
-        requested_payments.validate_nonce(Self::nonce(Self::input_coin_ids(
-            &input_spend_bundle.coin_spends,
-        )))?;
 
         Ok(Self::new(
             input_spend_bundle,

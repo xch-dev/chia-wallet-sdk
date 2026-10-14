@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, Id, Layer, NftAssetInfo, NftInfo, Offer,
+    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, Id, Layer, NftAssetInfo, NftInfo,
     OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SingletonInfo,
     SpendContext,
 };
@@ -42,44 +42,6 @@ impl RequestedPayments {
                 .map(|(&asset_id, nps)| (asset_id, total(nps)))
                 .collect(),
         }
-    }
-
-    /// Every requested notarized payment, in the order they're asserted.
-    pub fn notarized_payments(&self) -> impl Iterator<Item = &NotarizedPayment> {
-        self.xch
-            .iter()
-            .chain(self.cats.values().flatten())
-            .chain(self.nfts.values().flatten())
-            .chain(self.options.values().flatten())
-    }
-
-    /// Notarizes every requested payment with the [nonce](crate::Offer::nonce) of the offered
-    /// coins, which must be done before calculating the [assertions](Self::assertions).
-    ///
-    /// The coin ids should be every coin spent by the maker which isn't created in the offer, such
-    /// as the coins returned by [`Spends::input_coin_ids`](crate::Spends::input_coin_ids).
-    pub fn notarize(&mut self, offered_coin_ids: Vec<Bytes32>) {
-        let nonce = Offer::nonce(offered_coin_ids);
-
-        for notarized_payment in self
-            .xch
-            .iter_mut()
-            .chain(self.cats.values_mut().flatten())
-            .chain(self.nfts.values_mut().flatten())
-            .chain(self.options.values_mut().flatten())
-        {
-            notarized_payment.nonce = nonce;
-        }
-    }
-
-    /// Returns [`DriverError::InvalidOfferNonce`] if any requested payment isn't notarized with
-    /// the given nonce.
-    pub fn validate_nonce(&self, nonce: Bytes32) -> Result<(), DriverError> {
-        if self.notarized_payments().any(|np| np.nonce != nonce) {
-            return Err(DriverError::InvalidOfferNonce);
-        }
-
-        Ok(())
     }
 
     pub fn assertions(

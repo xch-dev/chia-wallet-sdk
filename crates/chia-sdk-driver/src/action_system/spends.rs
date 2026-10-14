@@ -166,52 +166,6 @@ impl Spends<Unfinished> {
         Ok(deltas)
     }
 
-    /// The ids of the selected coins (ie, not created by this transaction), which are the offered
-    /// coins when making an offer. See [`RequestedPayments::notarize`](crate::RequestedPayments::notarize).
-    pub fn input_coin_ids(&self) -> Vec<Bytes32> {
-        let mut coin_ids = Vec::new();
-
-        for item in &self.xch.items {
-            if !item.ephemeral {
-                coin_ids.push(item.asset.coin_id());
-            }
-        }
-
-        for cat in self.cats.values() {
-            for item in &cat.items {
-                if !item.ephemeral {
-                    coin_ids.push(item.asset.coin.coin_id());
-                }
-            }
-        }
-
-        for did in self.dids.values() {
-            if !did.ephemeral
-                && let Some(item) = did.lineage.first()
-            {
-                coin_ids.push(item.asset.coin.coin_id());
-            }
-        }
-
-        for nft in self.nfts.values() {
-            if !nft.ephemeral
-                && let Some(item) = nft.lineage.first()
-            {
-                coin_ids.push(item.asset.coin.coin_id());
-            }
-        }
-
-        for option in self.options.values() {
-            if !option.ephemeral
-                && let Some(item) = option.lineage.first()
-            {
-                coin_ids.push(item.asset.coin.coin_id());
-            }
-        }
-
-        coin_ids
-    }
-
     fn contains_coin(&self, coin_id: Bytes32) -> bool {
         self.xch
             .items
