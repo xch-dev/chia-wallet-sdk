@@ -95,21 +95,28 @@ impl Offer {
 
     /// Returns the royalty info for requested NFTs, since those are the royalties
     /// that need to be paid by the offered side.
-    pub fn offered_royalties(&self) -> Vec<RoyaltyInfo> {
-        self.requested_payments
-            .nfts
-            .keys()
-            .filter_map(|&launcher_id| {
-                self.asset_info.nft(launcher_id).map(|nft| {
-                    RoyaltyInfo::new(
-                        launcher_id,
-                        nft.royalty_puzzle_hash,
-                        nft.royalty_basis_points,
-                    )
-                })
-            })
-            .filter(|royalty| royalty.basis_points > 0)
-            .collect()
+    ///
+    /// Returns [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since its
+    /// royalty would otherwise be skipped.
+    pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>, DriverError> {
+        let mut royalties = Vec::new();
+
+        for &launcher_id in self.requested_payments.nfts.keys() {
+            let nft = self
+                .asset_info
+                .nft(launcher_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
+            if nft.royalty_basis_points > 0 {
+                royalties.push(RoyaltyInfo::new(
+                    launcher_id,
+                    nft.royalty_puzzle_hash,
+                    nft.royalty_basis_points,
+                ));
+            }
+        }
+
+        Ok(royalties)
     }
 
     /// Returns the royalty info for offered NFTs, since those are the royalties
@@ -133,7 +140,7 @@ impl Offer {
     /// [`u64`], in which case the royalties can't be paid.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let offered_amounts = self.offered_coins.amounts();
-        let royalties = self.offered_royalties();
+        let royalties = self.offered_royalties()?;
         let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
     }
@@ -322,11 +329,14 @@ impl Offer {
         }
 
         for (asset_id, notarized_payments) in self.requested_payments.cats {
+            let info = self
+                .asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
             let cat_info = CatInfo::new(
                 asset_id,
-                self.asset_info
-                    .cat(asset_id)
-                    .and_then(|info| info.hidden_puzzle_hash),
+                info.hidden_puzzle_hash,
                 SETTLEMENT_PAYMENT_HASH.into(),
             );
 
