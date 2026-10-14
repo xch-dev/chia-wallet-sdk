@@ -285,6 +285,8 @@ fn verify_spend(
         | CustodyInfo::DelegatedConditions(conditions) => conditions,
     };
 
+    // The coin id is committed to by the conditions, and therefore the message. Since the coin id
+    // depends on the fixed conditions, they can't be made to receive the same message.
     if matches!(&custody, CustodyInfo::P2ConditionsOrSingleton(_))
         && !conditions.contains(&Condition::assert_my_coin_id(spend.coin.coin_id()))
     {
