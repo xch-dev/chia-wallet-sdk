@@ -2494,3 +2494,38 @@ fn test_overflowing_fees_are_rejected() {
 
     assert!(matches!(result, Err(DriverError::AmountOverflow)));
 }
+
+#[test]
+fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(0);
+    let bob = BlsPair::new(1);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 10);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    // The second payment is made by an intermediate settlement coin, which has the same puzzle hash,
+    // so both would make the same announcement and a single assertion would cover them.
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::new([1; 32]),
+        vec![Payment::new(bob.puzzle_hash, 3, Memos::None)],
+    );
+
+    let result = spends.apply(
+        &mut ctx,
+        &[
+            Action::settle(Id::Xch, notarized_payment.clone()),
+            Action::settle(Id::Xch, notarized_payment),
+        ],
+    );
+    assert!(matches!(
+        result,
+        Err(DriverError::DuplicateSettlementPayment)
+    ));
+
+    Ok(())
+}
