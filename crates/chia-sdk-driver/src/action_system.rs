@@ -41,8 +41,6 @@
 //!   [`DriverError::DuplicateSettlementPayment`](crate::DriverError::DuplicateSettlementPayment) if
 //!   two settlement coins with the same puzzle hash would make the same notarized payment, since a
 //!   single assertion would be satisfied by either of them.
-//! - Transaction-wide conditions are never attached to a revocation spend, since it's authorized by
-//!   the issuer's hidden puzzle and the coins it creates are wrapped in the revocation layer.
 //! - Building the same actions against the same coins always produces the same coin spends.
 //! - With [`Relation::AssertConcurrent`] or [`Relation::CoinAnnouncementRing`], the spends can't be
 //!   split into separate transactions. With [`Relation::CoinAnnouncementHub`], every spend requires

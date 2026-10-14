@@ -247,13 +247,7 @@ impl Spends<Unfinished> {
         payment_assertions
     }
 
-    /// The spends that emit conditions, one per CAT and singleton. Revocation spends are only
-    /// included if `include_revocations` is true, since they're authorized by the issuer's hidden
-    /// puzzle and the coins they create are wrapped in the revocation layer.
-    fn iter_conditions_spends(
-        &mut self,
-        include_revocations: bool,
-    ) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
+    fn iter_conditions_spends(&mut self) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
         self.xch
             .items
             .iter_mut()
@@ -264,12 +258,8 @@ impl Spends<Unfinished> {
                     None
                 }
             })
-            .chain(self.cats.values_mut().filter_map(move |cat| {
+            .chain(self.cats.values_mut().filter_map(|cat| {
                 cat.items.iter_mut().find_map(|item| {
-                    if item.revoke && !include_revocations {
-                        return None;
-                    }
-
                     if let SpendKind::Conditions(spend) = &mut item.kind {
                         Some((item.asset.coin, spend))
                     } else {
@@ -339,7 +329,7 @@ impl Spends<Unfinished> {
             conditions = conditions.reserve_fee(self.outputs.reserved_fee);
         }
 
-        if let Some((_, spend)) = self.iter_conditions_spends(false).next() {
+        if let Some((_, spend)) = self.iter_conditions_spends().next() {
             spend.add_conditions(conditions);
             return Ok(());
         }
@@ -412,7 +402,7 @@ impl Spends<Unfinished> {
         }
 
         let coin_ids: Vec<Bytes32> = self
-            .iter_conditions_spends(true)
+            .iter_conditions_spends()
             .map(|(coin, _)| coin.coin_id())
             .collect();
 
@@ -422,7 +412,7 @@ impl Spends<Unfinished> {
 
         let len = coin_ids.len();
 
-        self.iter_conditions_spends(true)
+        self.iter_conditions_spends()
             .enumerate()
             .for_each(|(i, (_, spend))| {
                 let conditions = match relation {

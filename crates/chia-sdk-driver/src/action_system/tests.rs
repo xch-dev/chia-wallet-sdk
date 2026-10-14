@@ -2620,42 +2620,6 @@ fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
 }
 
 #[test]
-fn test_global_conditions_are_not_attached_to_revocation_spends() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let issuer = sim.bls(0);
-    let bob = BlsPair::new(1);
-
-    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, bob.puzzle_hash, &[5, 6])?;
-    let revoked = revocable.cats[0];
-    let normal = revocable.cats[1];
-
-    // The revocation spend is added first, but the conditions must go to the normal spend
-    let mut spends = Spends::new(issuer.puzzle_hash);
-    spends.add_for_revocation(revoked)?;
-    spends.add(normal);
-    spends.conditions.required = Conditions::new().assert_concurrent_spend(Bytes32::default());
-
-    let deltas = spends.apply(&mut ctx, &[])?;
-    let emitted = emitted_conditions(&mut ctx, &spends, &deltas, Relation::None)?;
-
-    let count_for = |coin_id: Bytes32| {
-        emitted
-            .iter()
-            .filter(|(id, _)| *id == coin_id)
-            .flat_map(|(_, conditions)| conditions.iter())
-            .filter(|condition| matches!(condition, Condition::AssertConcurrentSpend(_)))
-            .count()
-    };
-
-    assert_eq!(count_for(revoked.coin.coin_id()), 0);
-    assert_eq!(count_for(normal.coin.coin_id()), 1);
-
-    Ok(())
-}
-
-#[test]
 fn test_missing_asset_info_is_an_error() -> Result<()> {
     let mut ctx = SpendContext::new();
 
