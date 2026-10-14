@@ -155,9 +155,6 @@ pub enum DriverError {
     #[error("duplicate settlement payment")]
     DuplicateSettlementPayment,
 
-    #[error("the same coin or singleton was added more than once")]
-    DuplicateInput,
-
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 

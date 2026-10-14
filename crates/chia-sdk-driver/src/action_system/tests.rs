@@ -2620,39 +2620,6 @@ fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
 }
 
 #[test]
-fn test_duplicate_inputs_are_rejected() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let alice = sim.bls(10);
-
-    let mut spends = Spends::new(alice.puzzle_hash);
-    spends.add(alice.coin);
-    spends.add(alice.coin);
-
-    assert!(matches!(
-        spends.clone().apply(&mut ctx, &[Action::fee(1)]),
-        Err(DriverError::DuplicateInput)
-    ));
-    assert!(matches!(
-        spends.prepare(&mut ctx, &Deltas::new(), Relation::None),
-        Err(DriverError::DuplicateInput)
-    ));
-
-    let issuer = sim.bls(0);
-    let revocable = issue_revocable_cats(&mut sim, &mut ctx, &issuer, alice.puzzle_hash, &[5])?;
-
-    let mut spends = Spends::new(issuer.puzzle_hash);
-    spends.add(revocable.cats[0]);
-    assert!(matches!(
-        spends.add_for_revocation(revocable.cats[0]),
-        Err(DriverError::DuplicateInput)
-    ));
-
-    Ok(())
-}
-
-#[test]
 fn test_global_conditions_are_not_attached_to_revocation_spends() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();

@@ -43,8 +43,6 @@
 //!   single assertion would be satisfied by either of them.
 //! - Transaction-wide conditions are never attached to a revocation spend, since it's authorized by
 //!   the issuer's hidden puzzle and the coins it creates are wrapped in the revocation layer.
-//! - Adding the same coin or singleton more than once is rejected with
-//!   [`DriverError::DuplicateInput`](crate::DriverError::DuplicateInput).
 //! - Building the same actions against the same coins always produces the same coin spends.
 //! - With [`Relation::AssertConcurrent`] or [`Relation::CoinAnnouncementRing`], the spends can't be
 //!   split into separate transactions. With [`Relation::CoinAnnouncementHub`], every spend requires

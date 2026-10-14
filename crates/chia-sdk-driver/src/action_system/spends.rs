@@ -39,9 +39,6 @@ pub struct Spends<S = Unfinished> {
     /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
     /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
-    /// Whether the same coin or singleton was added more than once, which is reported as
-    /// [`DriverError::DuplicateInput`] by [`Spends::apply`] and [`Spends::prepare`].
-    duplicate_input: bool,
     _state: S,
 }
 
@@ -105,7 +102,6 @@ impl Spends<Unfinished> {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
-            duplicate_input: false,
             _state: Unfinished,
         }
     }
@@ -128,10 +124,6 @@ impl Spends<Unfinished> {
     pub fn add_for_revocation(&mut self, cat: Cat) -> Result<(), DriverError> {
         let spend = FungibleSpend::revocation(cat)?;
 
-        if self.contains_coin(cat.coin.coin_id()) {
-            return Err(DriverError::DuplicateInput);
-        }
-
         self.cats
             .entry(Id::Existing(cat.info.asset_id))
             .or_default()
@@ -144,18 +136,13 @@ impl Spends<Unfinished> {
     /// Applies each action in order, and returns the [`Deltas`] of the actions for
     /// [`Spends::prepare`].
     ///
-    /// Returns [`DriverError::DuplicateInput`] if the same coin or singleton was added more than
-    /// once, or [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same
+    /// Returns [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same
     /// puzzle hash make the same notarized payment.
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<Deltas, DriverError> {
-        if self.duplicate_input {
-            return Err(DriverError::DuplicateInput);
-        }
-
         let deltas = Deltas::from_actions(actions);
         for (index, action) in actions.iter().enumerate() {
             action.spend(ctx, self, index)?;
@@ -164,18 +151,6 @@ impl Spends<Unfinished> {
         self.check_unique_settlement_payments()?;
 
         Ok(deltas)
-    }
-
-    fn contains_coin(&self, coin_id: Bytes32) -> bool {
-        self.xch
-            .items
-            .iter()
-            .any(|item| item.asset.coin_id() == coin_id)
-            || self
-                .cats
-                .values()
-                .flat_map(|cat| &cat.items)
-                .any(|item| item.asset.coin.coin_id() == coin_id)
     }
 
     /// Settlement coins can be spent by anyone, so the payments they make are asserted by a
@@ -581,8 +556,7 @@ impl Spends<Unfinished> {
     /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
     /// together according to the [`Relation`], and wraps the outputs of revocation spends.
     ///
-    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas,
-    /// [`DriverError::DuplicateInput`] if the same coin or singleton was added more than once, or
+    /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas, or
     /// [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same puzzle hash
     /// make the same notarized payment.
     pub fn prepare(
@@ -591,10 +565,6 @@ impl Spends<Unfinished> {
         deltas: &Deltas,
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
-        if self.duplicate_input {
-            return Err(DriverError::DuplicateInput);
-        }
-
         self.create_change(ctx, deltas)?;
         self.check_unique_settlement_payments()?;
         self.emit_conditions(ctx)?;
@@ -611,7 +581,6 @@ impl Spends<Unfinished> {
             change_puzzle_hash: self.change_puzzle_hash,
             outputs: self.outputs,
             conditions: self.conditions,
-            duplicate_input: self.duplicate_input,
             _state: Finished,
         })
     }
@@ -776,14 +745,12 @@ pub trait AddAsset {
 
 impl AddAsset for Coin {
     fn add(self, spends: &mut Spends) {
-        spends.duplicate_input |= spends.contains_coin(self.coin_id());
         spends.xch.items.push(FungibleSpend::new(self, false));
     }
 }
 
 impl AddAsset for Cat {
     fn add(self, spends: &mut Spends) {
-        spends.duplicate_input |= spends.contains_coin(self.coin.coin_id());
         spends
             .cats
             .entry(Id::Existing(self.info.asset_id))
@@ -795,36 +762,27 @@ impl AddAsset for Cat {
 
 impl AddAsset for Did {
     fn add(self, spends: &mut Spends) {
-        spends.duplicate_input |= spends
-            .dids
-            .insert(
-                Id::Existing(self.info.launcher_id),
-                SingletonSpends::new(self, false),
-            )
-            .is_some();
+        spends.dids.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
     }
 }
 
 impl AddAsset for Nft {
     fn add(self, spends: &mut Spends) {
-        spends.duplicate_input |= spends
-            .nfts
-            .insert(
-                Id::Existing(self.info.launcher_id),
-                SingletonSpends::new(self, false),
-            )
-            .is_some();
+        spends.nfts.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
     }
 }
 
 impl AddAsset for OptionContract {
     fn add(self, spends: &mut Spends) {
-        spends.duplicate_input |= spends
-            .options
-            .insert(
-                Id::Existing(self.info.launcher_id),
-                SingletonSpends::new(self, false),
-            )
-            .is_some();
+        spends.options.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
     }
 }
