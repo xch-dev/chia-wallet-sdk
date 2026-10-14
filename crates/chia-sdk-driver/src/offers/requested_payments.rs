@@ -59,8 +59,9 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let default = CatAssetInfo::default();
-            let info = asset_info.cat(asset_id).unwrap_or(&default);
+            let info = asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
 
             let puzzle_hash = CatInfo::new(
                 asset_id,
