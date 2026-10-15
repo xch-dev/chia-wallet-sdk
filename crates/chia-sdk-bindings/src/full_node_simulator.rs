@@ -34,7 +34,7 @@ pub struct FullNodeSimulatorReorgEvent {
     pub new_header_hashes: Vec<Bytes32>,
 }
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
 #[derive(Clone)]
 pub struct FullNodeSimulatorServer {
     pub url: String,
@@ -307,7 +307,7 @@ impl FullNodeSimulator {
             .map_err(|error| bindy::Error::Custom(error.to_string()))
     }
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
     pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
         let server = chia_sdk_test::FullNodeSimulatorServer::with_simulator(self.0.clone())
             .await
@@ -365,7 +365,7 @@ impl FullNodeSimulatorEvent {
     }
 }
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "go"))]
 impl FullNodeSimulatorServer {
     pub fn close(&self) -> Result<()> {
         self.server.lock().unwrap().take();

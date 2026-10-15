@@ -1,37 +1,46 @@
 {
   "Simulator": {
     "type": "class",
+    "doc": "provides a local in-memory Chia blockchain simulator for testing transactions without a real network.",
     "methods": {
       "new": {
+        "doc": "creates a new simulator with a random seed.",
         "type": "constructor"
       },
       "with_seed": {
+        "doc": "creates a new simulator with a deterministic seed for reproducible tests.",
         "type": "factory",
         "args": {
           "seed": "u64"
         }
       },
       "height": {
+        "doc": "returns the current block height of the simulated chain.",
         "return": "u32"
       },
       "next_timestamp": {
+        "doc": "returns the timestamp that will be used for the next block.",
         "return": "u64"
       },
       "header_hash": {
+        "doc": "returns the header hash of the current peak block.",
         "return": "Bytes32"
       },
       "header_hash_of": {
+        "doc": "returns the header hash at the given height, or nil if the height doesn't exist.",
         "args": {
           "height": "u32"
         },
         "return": "Option<Bytes32>"
       },
       "insert_coin": {
+        "doc": "inserts a coin directly into the simulator's coin set as an unspent coin.",
         "args": {
           "coin": "Coin"
         }
       },
       "new_coin": {
+        "doc": "creates and inserts a new coin with the given puzzle hash and amount, returning the coin.",
         "args": {
           "puzzle_hash": "Bytes32",
           "amount": "u64"
@@ -39,69 +48,81 @@
         "return": "Coin"
       },
       "bls": {
+        "doc": "creates a BLS key pair and a coin locked to its standard puzzle hash with the given amount.",
         "args": {
           "amount": "u64"
         },
         "return": "BlsPairWithCoin"
       },
       "set_next_timestamp": {
+        "doc": "sets the exact timestamp for the next block.",
         "args": {
           "time": "u64"
         }
       },
       "pass_time": {
+        "doc": "advances the next block timestamp by the given number of seconds.",
         "args": {
           "time": "u64"
         }
       },
       "hint_coin": {
+        "doc": "adds a hint for a coin, allowing it to be discovered by puzzle hash lookups with hints enabled.",
         "args": {
           "coin_id": "Bytes32",
           "hint": "Bytes32"
         }
       },
       "coin_state": {
+        "doc": "returns the current state of a coin by its ID, or nil if the coin doesn't exist.",
         "args": {
           "coin_id": "Bytes32"
         },
         "return": "Option<CoinState>"
       },
       "children": {
+        "doc": "returns the child coin states created by spending the coin with the given ID.",
         "args": {
           "coin_id": "Bytes32"
         },
         "return": "Vec<CoinState>"
       },
       "hinted_coins": {
+        "doc": "returns the coin IDs of all coins hinted with the given puzzle hash.",
         "args": {
           "hint": "Bytes32"
         },
         "return": "Vec<Bytes32>"
       },
       "coin_spend": {
+        "doc": "returns the coin spend (puzzle reveal + solution) for a spent coin, or nil if not spent.",
         "args": {
           "coin_id": "Bytes32"
         },
         "return": "Option<CoinSpend>"
       },
       "spend_coins": {
+        "doc": "spends coins using the given coin spends and BLS secret keys for signing, then creates a block.",
         "args": {
           "coin_spends": "Vec<CoinSpend>",
           "secret_keys": "Vec<SecretKey>"
         }
       },
       "new_transaction": {
+        "doc": "submits a complete spend bundle (coin spends + aggregated signature) and creates a block.",
         "args": {
           "spend_bundle": "SpendBundle"
         }
       },
       "lookup_coin_ids": {
+        "doc": "returns the coin states for the given coin IDs.",
         "args": {
           "coin_ids": "Vec<Bytes32>"
         },
         "return": "Vec<CoinState>"
       },
       "lookup_puzzle_hashes": {
+        "doc": "returns coin states matching the given puzzle hashes, optionally including hinted coins.",
         "args": {
           "puzzle_hashes": "Vec<Bytes32>",
           "include_hints": "bool"
@@ -109,17 +130,21 @@
         "return": "Vec<CoinState>"
       },
       "unspent_coins": {
+        "doc": "returns all unspent coins matching the given puzzle hash, optionally including hinted coins.",
         "args": {
           "puzzle_hash": "Bytes32",
           "include_hints": "bool"
         },
         "return": "Vec<Coin>"
       },
-      "create_block": {}
+      "create_block": {
+        "doc": "creates a new block at the current height, confirming all pending transactions."
+      }
     }
   },
   "BlsPair": {
     "type": "class",
+    "doc": "holds a BLS secret key and its corresponding public key, used for testing.",
     "new": true,
     "fields": {
       "sk": "SecretKey",
@@ -127,12 +152,14 @@
     },
     "methods": {
       "from_seed": {
+        "doc": "derives a BLS key pair from a deterministic seed value.",
         "type": "factory",
         "args": {
           "seed": "u64"
         }
       },
       "many_from_seed": {
+        "doc": "derives multiple BLS key pairs from a seed, each with a unique derivation index.",
         "type": "static",
         "args": {
           "seed": "u64",
@@ -144,6 +171,7 @@
   },
   "BlsPairWithCoin": {
     "type": "class",
+    "doc": "holds a BLS key pair along with its standard puzzle hash and a funded coin, used for testing.",
     "new": true,
     "fields": {
       "sk": "SecretKey",
@@ -154,6 +182,7 @@
   },
   "K1Pair": {
     "type": "class",
+    "doc": "holds a secp256k1 secret key and its corresponding public key, used for testing MIPS vault signing.",
     "new": true,
     "fields": {
       "sk": "K1SecretKey",
@@ -161,12 +190,14 @@
     },
     "methods": {
       "from_seed": {
+        "doc": "derives a secp256k1 key pair from a deterministic seed value.",
         "type": "factory",
         "args": {
           "seed": "u64"
         }
       },
       "many_from_seed": {
+        "doc": "derives multiple secp256k1 key pairs from a seed, each with a unique derivation index.",
         "type": "static",
         "args": {
           "seed": "u64",
@@ -178,6 +209,7 @@
   },
   "R1Pair": {
     "type": "class",
+    "doc": "holds a secp256r1 (P-256) secret key and its corresponding public key, used for testing passkey/WebAuthn signing.",
     "new": true,
     "fields": {
       "sk": "R1SecretKey",
@@ -185,12 +217,14 @@
     },
     "methods": {
       "from_seed": {
+        "doc": "derives a secp256r1 key pair from a deterministic seed value.",
         "type": "factory",
         "args": {
           "seed": "u64"
         }
       },
       "many_from_seed": {
+        "doc": "derives multiple secp256r1 key pairs from a seed, each with a unique derivation index.",
         "type": "static",
         "args": {
           "seed": "u64",

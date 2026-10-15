@@ -18,6 +18,7 @@ workspace = true
 napi = ["dep:napi", "dep:chia-sdk-client", "dep:chia-ssl"]
 wasm = ["dep:js-sys"]
 pyo3 = ["dep:pyo3", "dep:chia-sdk-client", "dep:chia-ssl"]
+go = ["dep:chia-sdk-client", "dep:chia-ssl"]
 
 [dependencies]
 thiserror = { workspace = true }

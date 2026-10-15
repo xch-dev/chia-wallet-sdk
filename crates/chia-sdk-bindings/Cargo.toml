@@ -30,6 +30,13 @@ pyo3 = [
     "bindy/pyo3",
     "chia-sdk-test/full-node-simulator-http",
 ]
+go = [
+    "dep:chia-sdk-client",
+    "dep:chia-ssl",
+    "dep:tokio",
+    "bindy/go",
+    "chia-sdk-test/full-node-simulator-http",
+]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }

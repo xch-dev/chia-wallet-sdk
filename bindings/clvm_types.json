@@ -1,6 +1,7 @@
 {
   "Output": {
     "type": "class",
+    "doc": "holds the result of running a CLVM program: the output value and the execution cost.",
     "new": true,
     "fields": {
       "value": "Program",
@@ -9,6 +10,7 @@
   },
   "Pair": {
     "type": "class",
+    "doc": "represents a CLVM cons pair with first and rest elements.",
     "new": true,
     "fields": {
       "first": "Program",
@@ -17,6 +19,7 @@
   },
   "CurriedProgram": {
     "type": "class",
+    "doc": "represents an uncurried CLVM program: the base module and the list of curried arguments.",
     "new": true,
     "fields": {
       "program": "Program",
@@ -25,6 +28,7 @@
   },
   "Proof": {
     "type": "class",
+    "doc": "represents a singleton lineage proof with an optional inner puzzle hash (nil for eve spends).",
     "new": true,
     "fields": {
       "parent_parent_coin_info": "Bytes32",
@@ -33,12 +37,14 @@
     },
     "methods": {
       "to_lineage_proof": {
+        "doc": "converts to a LineageProof if the inner puzzle hash is present, or nil for eve proofs.",
         "return": "Option<LineageProof>"
       }
     }
   },
   "LineageProof": {
     "type": "class",
+    "doc": "represents a full singleton lineage proof with all fields required (non-eve spends).",
     "remote": true,
     "new": true,
     "fields": {
@@ -48,12 +54,14 @@
     },
     "methods": {
       "to_proof": {
+        "doc": "converts to a Proof, which can represent both eve and non-eve lineage proofs.",
         "return": "Proof"
       }
     }
   },
   "OfferSecurityCoinDetails": {
     "type": "class",
+    "doc": "holds the security coin and its secret key used to ensure offer settlement atomicity.",
     "new": true,
     "fields": {
       "security_coin": "Coin",
@@ -62,6 +70,7 @@
   },
   "SettlementNftSpendResult": {
     "type": "class",
+    "doc": "holds the result of settling an NFT in an offer: the updated NFT and security conditions to include.",
     "new": true,
     "fields": {
       "new_nft": "Nft",
