@@ -96,23 +96,41 @@ const SETTLEMENT_PAYMENT_V1: [u8; 267] = hex!(
     "
 );
 
-static COMPRESSION_ZDICT: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE);
-    bytes.extend_from_slice(&CAT_PUZZLE_V1);
-    bytes.extend_from_slice(&SETTLEMENT_PAYMENT_V1);
-    bytes.extend_from_slice(&SINGLETON_TOP_LAYER_V1_1);
-    bytes.extend_from_slice(&NFT_STATE_LAYER);
-    bytes.extend_from_slice(&NFT_OWNERSHIP_LAYER);
-    bytes.extend_from_slice(&NFT_METADATA_UPDATER_DEFAULT);
-    bytes.extend_from_slice(&NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES);
-    bytes.extend_from_slice(&CAT_PUZZLE);
-    bytes.extend_from_slice(&SETTLEMENT_PAYMENT);
-    bytes
+/// The dictionaries added by each version of the offer compression format, in the same order as
+/// chia-blockchain. The dictionary for a version is the concatenation of every dictionary up to and
+/// including it, so offers compressed with older versions need a shorter dictionary.
+///
+/// See <https://github.com/Chia-Network/chia-blockchain/blob/main/chia/wallet/util/puzzle_compression.py>.
+static ZDICTS: LazyLock<[Vec<u8>; 6]> = LazyLock::new(|| {
+    [
+        [&P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE[..], &CAT_PUZZLE_V1].concat(),
+        SETTLEMENT_PAYMENT_V1.to_vec(),
+        [
+            &SINGLETON_TOP_LAYER_V1_1[..],
+            &NFT_STATE_LAYER,
+            &NFT_OWNERSHIP_LAYER,
+            &NFT_METADATA_UPDATER_DEFAULT,
+            &NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES,
+        ]
+        .concat(),
+        CAT_PUZZLE.to_vec(),
+        SETTLEMENT_PAYMENT.to_vec(),
+        // Version 6 purposefully breaks compatibility with older versions, without a new dictionary.
+        Vec::new(),
+    ]
 });
 
+const LATEST_VERSION: u16 = 6;
+
+/// The compression dictionary for the given version of the offer compression format.
+pub fn zdict_for_version(version: u16) -> Vec<u8> {
+    ZDICTS[..usize::from(version).min(ZDICTS.len())].concat()
+}
+
+static COMPRESSION_ZDICT: LazyLock<Vec<u8>> = LazyLock::new(|| zdict_for_version(LATEST_VERSION));
+
 pub fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
-    let mut output = 6u16.to_be_bytes().to_vec();
+    let mut output = LATEST_VERSION.to_be_bytes().to_vec();
     output.extend(zlib_compress(bytes, &COMPRESSION_ZDICT)?);
     Ok(output)
 }
@@ -125,11 +143,11 @@ pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
 
     let version = u16::from_be_bytes(version_bytes);
 
-    if version > 6 {
+    if version > LATEST_VERSION {
         return Err(DriverError::UnsupportedVersion);
     }
 
-    zlib_decompress(&bytes[2..], &COMPRESSION_ZDICT)
+    zlib_decompress(&bytes[2..], &zdict_for_version(version))
 }
 
 pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
@@ -217,6 +235,26 @@ mod tests {
         let compressed = zlib_compress(&data, zdict).unwrap();
         let output = zlib_decompress(&compressed, zdict).unwrap();
         assert_eq!(output.len(), MAX_DECOMPRESSED_SIZE);
+    }
+
+    #[test]
+    fn test_decompress_older_versions() {
+        let decompressed_offer = hex::decode(DECOMPRESSED_OFFER.trim()).unwrap();
+
+        for version in 1..=LATEST_VERSION {
+            let zdict = zdict_for_version(version);
+            let mut compressed = version.to_be_bytes().to_vec();
+            compressed.extend(zlib_compress(&decompressed_offer, &zdict).unwrap());
+
+            let output = decompress_offer_bytes(&compressed).unwrap();
+            assert_eq!(output, decompressed_offer);
+        }
+
+        // Versions before 4 use a different dictionary than the latest one
+        let mut compressed = 3u16.to_be_bytes().to_vec();
+        compressed.extend(zlib_compress(&decompressed_offer, &zdict_for_version(3)).unwrap());
+        assert!(zlib_decompress(&compressed[2..], &COMPRESSION_ZDICT).is_err());
+        assert_eq!(zdict_for_version(6), zdict_for_version(5));
     }
 
     #[test]

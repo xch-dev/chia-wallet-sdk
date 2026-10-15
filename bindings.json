@@ -41,11 +41,14 @@
   "napi": {
     "{bytes}": "napi::bindgen_prelude::Uint8Array",
     "{bigint}": "napi::bindgen_prelude::BigInt",
+    "{number}": "f64",
     "{usize}": "napi::bindgen_prelude::BigInt"
   },
   "wasm": {
     "{bytes}": "Vec<u8>",
     "{bigint}": "js_sys::BigInt",
+    "{number}": "f64",
+    "{usize}": "js_sys::BigInt",
     "Vec<Bytes32>": "js_sys::Array",
     "Vec<Bytes>": "js_sys::Array",
     "Vec<TreeHash>": "js_sys::Array",
@@ -55,6 +58,7 @@
     "{bytes}": "Uint8Array",
     "{bigint}": "bigint",
     "{number}": "number",
+    "{usize}": "bigint",
     "f64": "number",
     "bool": "boolean",
     "String": "string",
@@ -78,6 +82,7 @@
     "{bytes}": "bytes",
     "{bigint}": "int",
     "{number}": "int",
+    "{usize}": "int",
     "f64": "float",
     "String": "str",
     "()": "None"

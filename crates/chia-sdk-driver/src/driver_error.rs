@@ -106,6 +106,9 @@ pub enum DriverError {
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
+    DuplicateSettlementPayment,
+
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
 
@@ -149,6 +152,9 @@ pub enum DriverError {
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
 
+    #[error("requested payment is for an unsupported asset")]
+    UnsupportedRequestedAsset,
+
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,
 
@@ -157,6 +163,9 @@ pub enum DriverError {
 
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
+
+    #[error("offer uses the old settlement payments puzzle")]
+    OldSettlementPayment,
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
