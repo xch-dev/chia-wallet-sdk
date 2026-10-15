@@ -898,8 +898,8 @@ impl Clvm {
             new_nft: new_nft.as_program(&self.0),
             security_conditions: security_conditions
                 .into_iter()
-                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
-                .collect(),
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
         })
     }
 
@@ -941,8 +941,8 @@ impl Clvm {
             created_cats,
             security_conditions: security_conditions
                 .into_iter()
-                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
-                .collect(),
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
         })
     }
 

@@ -22,4 +22,17 @@ impl MipsSpendKind {
             Self::MofN(m_of_n) => m_of_n.spend(ctx, spend, delegated_puzzle_wrappers),
         }
     }
+
+    pub fn collect_delegated_puzzle_wrappers(
+        &self,
+        spend: &MipsSpend,
+        delegated_puzzle_wrappers: &mut Vec<TreeHash>,
+    ) -> Result<(), DriverError> {
+        match self {
+            Self::Member(_) => Ok(()),
+            Self::MofN(m_of_n) => {
+                m_of_n.collect_delegated_puzzle_wrappers(spend, delegated_puzzle_wrappers)
+            }
+        }
+    }
 }

@@ -12,6 +12,9 @@ mod r1_member_puzzle_assert;
 mod singleton_member;
 mod singleton_member_with_mode;
 
+#[cfg(feature = "chip-0037")]
+mod eip712_member;
+
 pub use bls_member::*;
 pub use bls_member_puzzle_assert::*;
 pub use bls_taproot_member::*;
@@ -25,3 +28,6 @@ pub use r1_member::*;
 pub use r1_member_puzzle_assert::*;
 pub use singleton_member::*;
 pub use singleton_member_with_mode::*;
+
+#[cfg(feature = "chip-0037")]
+pub use eip712_member::*;

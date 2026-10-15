@@ -128,43 +128,75 @@
       "insert_cat": {
         "args": {
           "asset_id": "Bytes32",
-          "hidden_puzzle_hash": "Option<Bytes32>"
+          "info": "CatAssetInfo"
         }
       },
       "insert_nft": {
         "args": {
           "launcher_id": "Bytes32",
-          "metadata": "Program",
-          "metadata_updater_puzzle_hash": "Bytes32",
-          "royalty_puzzle_hash": "Bytes32",
-          "royalty_basis_points": "u16"
+          "info": "NftAssetInfo"
         }
       },
       "insert_option": {
         "args": {
           "launcher_id": "Bytes32",
-          "underlying_coin_id": "Bytes32",
-          "underlying_delegated_puzzle_hash": "Bytes32"
+          "info": "OptionAssetInfo"
         }
       },
       "cat_asset_ids": {
         "return": "Vec<Bytes32>"
       },
-      "cat_hidden_puzzle_hash": {
-        "args": {
-          "asset_id": "Bytes32"
-        },
-        "return": "Option<Bytes32>"
-      },
       "nft_launcher_ids": {
         "return": "Vec<Bytes32>"
       },
-      "nft_royalty": {
+      "option_launcher_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "cat": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "Option<CatAssetInfo>"
+      },
+      "nft": {
         "args": {
           "launcher_id": "Bytes32"
         },
-        "return": "Option<RoyaltyInfo>"
+        "return": "Option<NftAssetInfo>"
+      },
+      "option": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Option<OptionAssetInfo>"
       }
+    }
+  },
+  "CatAssetInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "hidden_puzzle_hash": "Option<Bytes32>"
+    }
+  },
+  "NftAssetInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16"
+    }
+  },
+  "OptionAssetInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "underlying_coin_id": "Bytes32",
+      "underlying_delegated_puzzle_hash": "Bytes32"
     }
   },
   "OfferAmounts": {
@@ -220,6 +252,18 @@
       "to_spend_bundle": {
         "return": "SpendBundle"
       },
+      "spend_bundle": {
+        "return": "SpendBundle"
+      },
+      "cancellable_coin_spends": {
+        "return": "Vec<CoinSpend>"
+      },
+      "fee": {
+        "return": "BigInt"
+      },
+      "arbitrage": {
+        "return": "Arbitrage"
+      },
       "take": {
         "args": {
           "spend_bundle": "SpendBundle"
@@ -266,6 +310,21 @@
       "requested_royalty_amounts": {
         "return": "OfferAmounts"
       }
+    }
+  },
+  "Arbitrage": {
+    "type": "class",
+    "fields": {
+      "offered": "ArbitrageSide",
+      "requested": "ArbitrageSide"
+    }
+  },
+  "ArbitrageSide": {
+    "type": "class",
+    "fields": {
+      "amounts": "OfferAmounts",
+      "nfts": "Vec<Bytes32>",
+      "options": "Vec<Bytes32>"
     }
   },
   "calculate_trade_price_amounts": {
