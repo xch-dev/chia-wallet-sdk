@@ -29,10 +29,14 @@ mod datalayer;
 pub use datalayer::*;
 
 #[cfg(feature = "chip-0037")]
+mod eip712;
+#[cfg(feature = "chip-0037")]
 mod p2_controller_puzzle;
 #[cfg(feature = "chip-0037")]
 mod p2_eip712_message;
 
+#[cfg(feature = "chip-0037")]
+pub use eip712::*;
 #[cfg(feature = "chip-0037")]
 pub use p2_controller_puzzle::*;
 #[cfg(feature = "chip-0037")]

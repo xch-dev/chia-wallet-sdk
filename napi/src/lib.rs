@@ -9,10 +9,10 @@ bindy_macro::bindy_napi!("bindings.json");
 
 #[napi]
 impl Clvm {
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn alloc(&self, env: Env, value: Value<'_>) -> Result<Program> {
         Ok(Program::from_rust(
-            alloc(env, &self.0, value)?,
+            alloc(env, &self.0, value, 0)?,
             &NapiReturnContext(env),
         )?)
     }
@@ -21,10 +21,15 @@ impl Clvm {
 pub type Value<'a> =
     Either9<f64, BigInt, bool, String, Uint8Array, Array<'a>, Null, Undefined, Value1<'a>>;
 
+/// Limits how deeply nested arrays can be, so that deep or cyclic arrays
+/// result in an error rather than overflowing the stack.
+const MAX_ALLOC_DEPTH: usize = 512;
+
 fn alloc<'a>(
     env: Env,
     clvm: &chia_sdk_bindings::Clvm,
     value: Value<'a>,
+    depth: usize,
 ) -> bindy::Result<chia_sdk_bindings::Program> {
     match value {
         Value::A(value) => clvm.bound_checked_number(value),
@@ -33,11 +38,19 @@ fn alloc<'a>(
         Value::D(value) => clvm.string(value),
         Value::E(value) => clvm.atom(value.to_vec().into()),
         Value::F(value) => {
+            if depth >= MAX_ALLOC_DEPTH {
+                return Err(bindy::Error::Custom(format!(
+                    "Array nesting exceeds the maximum depth of {MAX_ALLOC_DEPTH}"
+                )));
+            }
+
             let mut list = Vec::new();
 
             for index in 0..value.len() {
-                let item = value.get::<Value<'a>>(index)?.unwrap();
-                list.push(alloc(env, clvm, item)?);
+                let item = value.get::<Value<'a>>(index)?.ok_or_else(|| {
+                    bindy::Error::Custom(format!("Missing array item at index {index}"))
+                })?;
+                list.push(alloc(env, clvm, item, depth + 1)?);
             }
 
             Ok(clvm.list(list)?)

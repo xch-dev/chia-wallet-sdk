@@ -51,12 +51,17 @@ impl InnerPuzzleSpend {
         delegated_puzzle_wrappers: &mut Vec<TreeHash>,
         delegated_spend: bool,
     ) -> Result<Spend, DriverError> {
+        // Each enforcer only knows about a prefix of the wrapper stack, so the full stack must be
+        // known up front in order to calculate the delegated puzzle hash inside of that prefix.
+        if delegated_spend {
+            self.collect_delegated_puzzle_wrappers(spend, delegated_puzzle_wrappers)?;
+        }
+
         let mut result = self.kind.spend(ctx, spend, delegated_puzzle_wrappers)?;
 
         if !self.restrictions.is_empty() {
             let mut member_validators = Vec::new();
             let mut delegated_puzzle_validators = Vec::new();
-            let mut local_delegated_puzzle_wrappers = Vec::new();
 
             let mut member_validator_solutions = Vec::new();
             let mut delegated_puzzle_validator_solutions = Vec::new();
@@ -81,28 +86,38 @@ impl InnerPuzzleSpend {
                         delegated_puzzle_validators.push(restriction_spend.puzzle);
                         delegated_puzzle_validator_solutions.push(restriction_spend.solution);
                     }
-                    RestrictionKind::DelegatedPuzzleWrapper => {
-                        local_delegated_puzzle_wrappers.push(restriction.puzzle_hash);
-                    }
+                    RestrictionKind::DelegatedPuzzleWrapper => {}
                 }
             }
 
-            for (i, &wrapper) in local_delegated_puzzle_wrappers.iter().enumerate() {
-                if i >= delegated_puzzle_wrappers.len() {
-                    delegated_puzzle_wrappers.push(wrapper);
-                } else if delegated_puzzle_wrappers[i] != wrapper {
-                    return Err(DriverError::DelegatedPuzzleWrapperConflict);
-                }
-            }
+            let local_delegated_puzzle_wrappers = self.local_delegated_puzzle_wrappers();
+
+            merge_delegated_puzzle_wrappers(
+                delegated_puzzle_wrappers,
+                &local_delegated_puzzle_wrappers,
+            )?;
 
             if !local_delegated_puzzle_wrappers.is_empty() {
                 delegated_puzzle_validators.push(ctx.curry(
                     EnforceDelegatedPuzzleWrappers::new(&local_delegated_puzzle_wrappers),
                 )?);
 
+                // The enforcer wraps this hash in its own wrappers, so it must already include
+                // the remaining wrappers further down the stack.
+                let mut inner_delegated_puzzle_hash = ctx.tree_hash(spend.delegated.puzzle);
+
+                for &wrapper in delegated_puzzle_wrappers[local_delegated_puzzle_wrappers.len()..]
+                    .iter()
+                    .rev()
+                {
+                    inner_delegated_puzzle_hash =
+                        AddDelegatedPuzzleWrapper::new(wrapper, inner_delegated_puzzle_hash)
+                            .curry_tree_hash();
+                }
+
                 delegated_puzzle_validator_solutions.push(ctx.alloc(
                     &EnforceDelegatedPuzzleWrappersSolution::new(
-                        ctx.tree_hash(spend.delegated.puzzle).into(),
+                        inner_delegated_puzzle_hash.into(),
                     ),
                 )?);
             }
@@ -157,6 +172,49 @@ impl InnerPuzzleSpend {
             result.solution,
         ))
     }
+
+    /// Merges the delegated puzzle wrappers of this inner puzzle, and of any members that will be
+    /// spent beneath it, into the stack.
+    pub fn collect_delegated_puzzle_wrappers(
+        &self,
+        spend: &MipsSpend,
+        delegated_puzzle_wrappers: &mut Vec<TreeHash>,
+    ) -> Result<(), DriverError> {
+        self.kind
+            .collect_delegated_puzzle_wrappers(spend, delegated_puzzle_wrappers)?;
+
+        merge_delegated_puzzle_wrappers(
+            delegated_puzzle_wrappers,
+            &self.local_delegated_puzzle_wrappers(),
+        )
+    }
+
+    fn local_delegated_puzzle_wrappers(&self) -> Vec<TreeHash> {
+        self.restrictions
+            .iter()
+            .filter(|restriction| {
+                matches!(restriction.kind, RestrictionKind::DelegatedPuzzleWrapper)
+            })
+            .map(|restriction| restriction.puzzle_hash)
+            .collect()
+    }
+}
+
+/// Every inner puzzle's wrappers must be a prefix of the same stack, since they all wrap the same
+/// delegated puzzle.
+fn merge_delegated_puzzle_wrappers(
+    delegated_puzzle_wrappers: &mut Vec<TreeHash>,
+    local_delegated_puzzle_wrappers: &[TreeHash],
+) -> Result<(), DriverError> {
+    for (i, &wrapper) in local_delegated_puzzle_wrappers.iter().enumerate() {
+        if i >= delegated_puzzle_wrappers.len() {
+            delegated_puzzle_wrappers.push(wrapper);
+        } else if delegated_puzzle_wrappers[i] != wrapper {
+            return Err(DriverError::DelegatedPuzzleWrapperConflict);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn mips_puzzle_hash(
@@ -165,33 +223,51 @@ pub fn mips_puzzle_hash(
     inner_puzzle_hash: TreeHash,
     top_level: bool,
 ) -> TreeHash {
-    let mut puzzle_hash = inner_puzzle_hash;
+    let mut member_validators = Vec::new();
+    let mut delegated_puzzle_validators = Vec::new();
+    let mut delegated_puzzle_wrappers = Vec::new();
 
-    if !restrictions.is_empty() {
-        let mut member_validators = Vec::new();
-        let mut delegated_puzzle_validators = Vec::new();
-        let mut delegated_puzzle_wrappers = Vec::new();
-
-        for restriction in restrictions {
-            match restriction.kind {
-                RestrictionKind::MemberCondition => {
-                    member_validators.push(restriction.puzzle_hash);
-                }
-                RestrictionKind::DelegatedPuzzleHash => {
-                    delegated_puzzle_validators.push(restriction.puzzle_hash);
-                }
-                RestrictionKind::DelegatedPuzzleWrapper => {
-                    delegated_puzzle_wrappers.push(restriction.puzzle_hash);
-                }
+    for restriction in restrictions {
+        match restriction.kind {
+            RestrictionKind::MemberCondition => {
+                member_validators.push(restriction.puzzle_hash);
+            }
+            RestrictionKind::DelegatedPuzzleHash => {
+                delegated_puzzle_validators.push(restriction.puzzle_hash);
+            }
+            RestrictionKind::DelegatedPuzzleWrapper => {
+                delegated_puzzle_wrappers.push(restriction.puzzle_hash);
             }
         }
+    }
 
-        if !delegated_puzzle_wrappers.is_empty() {
-            delegated_puzzle_validators.push(
-                EnforceDelegatedPuzzleWrappers::new(&delegated_puzzle_wrappers).curry_tree_hash(),
-            );
-        }
+    if !delegated_puzzle_wrappers.is_empty() {
+        delegated_puzzle_validators.push(
+            EnforceDelegatedPuzzleWrappers::new(&delegated_puzzle_wrappers).curry_tree_hash(),
+        );
+    }
 
+    wrap_mips_puzzle_hash(
+        nonce,
+        member_validators,
+        delegated_puzzle_validators,
+        inner_puzzle_hash,
+        top_level,
+    )
+}
+
+/// Wraps an inner puzzle hash in the restrictions layer (if there are any validators), the
+/// delegated puzzle feeder (if it's the top level), and the index wrapper.
+pub fn wrap_mips_puzzle_hash(
+    nonce: usize,
+    member_validators: Vec<TreeHash>,
+    delegated_puzzle_validators: Vec<TreeHash>,
+    inner_puzzle_hash: TreeHash,
+    top_level: bool,
+) -> TreeHash {
+    let mut puzzle_hash = inner_puzzle_hash;
+
+    if !member_validators.is_empty() || !delegated_puzzle_validators.is_empty() {
         puzzle_hash =
             RestrictionsArgs::new(member_validators, delegated_puzzle_validators, puzzle_hash)
                 .curry_tree_hash();

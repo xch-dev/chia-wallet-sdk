@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 chip-0035 = []
-chip-0037 = []
+chip-0037 = ["dep:sha3"]
 action-layer = []
 
 [dependencies]
@@ -38,6 +38,7 @@ chialisp = { workspace = true }
 rue-compiler = { workspace = true }
 rue-options = { workspace = true }
 rue-lir = { workspace = true }
+sha3 = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex = { workspace = true }

@@ -4,8 +4,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
 use crate::{
-    AssetInfo, CatAssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext,
-    coin_amount,
+    AssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +57,8 @@ pub fn calculate_trade_price_amounts(
     }
 }
 
-/// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`].
+/// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`], or
+/// [`DriverError::MissingAssetInfo`] if a CAT has no asset info.
 pub fn calculate_trade_prices(
     trade_price_amounts: &OfferAmounts,
     asset_info: &AssetInfo,
@@ -77,8 +77,9 @@ pub fn calculate_trade_prices(
             continue;
         }
 
-        let default = CatAssetInfo::default();
-        let info = asset_info.cat(asset_id).unwrap_or(&default);
+        let info = asset_info
+            .cat(asset_id)
+            .ok_or(DriverError::MissingAssetInfo)?;
         let puzzle_hash = CatInfo::new(
             asset_id,
             info.hidden_puzzle_hash,
@@ -159,4 +160,64 @@ pub fn calculate_nft_trade_price(amount: u128, royalty_nft_count: usize) -> u128
 /// Royalties above 100% are representable on chain, so the royalty can exceed the trade price.
 pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u128 {
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_bls::Signature;
+    use chia_protocol::SpendBundle;
+    use chia_puzzle_types::Memos;
+    use indexmap::indexmap;
+
+    use crate::{Offer, OfferCoins};
+
+    use super::*;
+
+    #[test]
+    fn test_missing_asset_info_is_an_error() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let launcher_id = Bytes32::new([1; 32]);
+        let asset_id = Bytes32::new([2; 32]);
+        let notarized_payment = NotarizedPayment::new(
+            Bytes32::default(),
+            vec![Payment::new(Bytes32::default(), 1, Memos::None)],
+        );
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments
+            .nfts
+            .insert(launcher_id, vec![notarized_payment.clone()]);
+
+        let offer = Offer::new(
+            SpendBundle::new(vec![], Signature::default()),
+            OfferCoins::new(),
+            requested_payments,
+            AssetInfo::new(),
+        );
+        assert!(matches!(
+            offer.offered_royalties(),
+            Err(DriverError::MissingAssetInfo)
+        ));
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments
+            .cats
+            .insert(asset_id, vec![notarized_payment]);
+        assert!(matches!(
+            requested_payments.assertions(&mut ctx, &AssetInfo::new()),
+            Err(DriverError::MissingAssetInfo)
+        ));
+
+        let amounts = OfferAmounts {
+            xch: 0,
+            cats: indexmap! { asset_id => 100 },
+        };
+        assert!(matches!(
+            calculate_trade_prices(&amounts, &AssetInfo::new()),
+            Err(DriverError::MissingAssetInfo)
+        ));
+
+        Ok(())
+    }
 }

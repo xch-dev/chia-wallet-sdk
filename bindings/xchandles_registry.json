@@ -316,8 +316,7 @@
       "registration_period": "u64",
       "buy_time": "u64",
       "num_periods": "u64",
-      "current_expiration": "u64",
-      "use_expire_pricing": "bool"
+      "current_expiration": "u64"
     },
     "methods": {
       "for_normal_registration": {

@@ -119,6 +119,15 @@
     },
     "return": "TreeHash"
   },
+  "eip712_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  },
   "custom_member_hash": {
     "type": "function",
     "args": {
@@ -206,6 +215,15 @@
           "public_key": "K1PublicKey",
           "signature": "K1Signature",
           "fast_forward": "bool"
+        }
+      },
+      "eip712_member": {
+        "args": {
+          "config": "MemberConfig",
+          "genesis_challenge": "Bytes32",
+          "public_key": "K1PublicKey",
+          "signed_hash": "Bytes32",
+          "signature": "K1Signature"
         }
       },
       "r1_member": {
@@ -339,15 +357,6 @@
         },
         "return": "Option<ParsedRestriction>"
       },
-      "force_1_of_2_restricted_variable": {
-        "type": "factory",
-        "args": {
-          "clvm": "Clvm",
-          "left_side_subtree_hash": "Bytes32",
-          "nonce": "u32",
-          "restrictions": "Vec<RestrictionMemo>"
-        }
-      },
       "enforce_delegated_puzzle_wrappers": {
         "type": "factory",
         "args": {
@@ -378,6 +387,15 @@
           "ctx": "MipsMemoContext"
         },
         "return": "Option<ParsedWrapper>"
+      },
+      "force_1_of_2_restricted_variable": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "left_side_subtree_hash": "Bytes32",
+          "nonce": "u32",
+          "restrictions": "Vec<RestrictionMemo>"
+        }
       },
       "prevent_vault_side_effects": {
         "type": "static",

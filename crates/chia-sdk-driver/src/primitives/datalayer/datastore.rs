@@ -257,14 +257,21 @@ where
                     let mut memos: Vec<Bytes> = vec![launcher_id.into()];
                     memos.extend(solution.key_value_list.memos);
 
-                    Ok(Some(Self::build_datastore(
+                    let datastore = Self::build_datastore(
                         new_coin,
                         launcher_id,
                         proof,
                         metadata,
                         solution.key_value_list.state_layer_inner_puzzle_hash,
                         memos,
-                    )?))
+                    )?;
+
+                    // The key value list is untrusted, so it must match the singleton being launched.
+                    if !datastore.info.matches_puzzle_hash(new_coin.puzzle_hash)? {
+                        return Ok(None);
+                    }
+
+                    Ok(Some(datastore))
                 }
                 Err(err) => match err {
                     FromClvmError::ExpectedPair => {
@@ -280,14 +287,21 @@ where
                             amount: solution.amount,
                         };
 
-                        Ok(Some(Self::build_datastore(
+                        let datastore = Self::build_datastore(
                             coin,
                             launcher_id,
                             proof,
                             M::root_hash_only(solution.key_value_list.root_hash),
                             solution.key_value_list.state_layer_inner_puzzle_hash,
                             solution.key_value_list.memos,
-                        )?))
+                        )?;
+
+                        // The key value list is untrusted, so it must match the singleton being launched.
+                        if !datastore.info.matches_puzzle_hash(coin.puzzle_hash)? {
+                            return Ok(None);
+                        }
+
+                        Ok(Some(datastore))
                     }
                     _ => Err(DriverError::FromClvm(err)),
                 },
@@ -306,11 +320,20 @@ where
             return Ok(None);
         };
 
-        let Some(state_layer) =
-            NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
+        let Some(state_layer) = NftStateLayer::<NodePtr, Puzzle>::parse_puzzle(
+            allocator,
+            singleton_layer.inner_puzzle,
+        )?
         else {
             return Ok(None);
         };
+
+        // Datastores always use the DataLayer metadata updater, so this is some other kind of NFT.
+        if state_layer.metadata_updater_puzzle_hash != DL_METADATA_UPDATER_PUZZLE_HASH.into() {
+            return Ok(None);
+        }
+
+        let metadata = M::from_clvm(allocator, state_layer.metadata)?;
 
         let parent_solution_ptr = cs.solution.to_clvm(allocator)?;
         let parent_solution = SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(
@@ -344,19 +367,24 @@ where
             return Err(DriverError::MissingChild);
         };
 
-        let new_metadata = if let Some(inner_new_metadata_condition) = inner_new_metadata_condition
-        {
-            run_metadata_updater(
-                allocator,
-                &state_layer.metadata,
-                state_layer.metadata_updater_puzzle_hash,
-                inner_new_metadata_condition.updater_puzzle_reveal,
-                inner_new_metadata_condition.updater_solution,
-            )?
-            .new_metadata
-        } else {
-            state_layer.metadata
-        };
+        let (new_metadata, new_metadata_updater_puzzle_hash) =
+            if let Some(inner_new_metadata_condition) = inner_new_metadata_condition {
+                let output = run_metadata_updater(
+                    allocator,
+                    &metadata,
+                    state_layer.metadata_updater_puzzle_hash,
+                    inner_new_metadata_condition.updater_puzzle_reveal,
+                    inner_new_metadata_condition.updater_solution,
+                )?;
+                (output.new_metadata, output.new_updater_puzzle_hash)
+            } else {
+                (metadata, state_layer.metadata_updater_puzzle_hash)
+            };
+
+        // The metadata updater can change itself, in which case the child is no longer a datastore.
+        if new_metadata_updater_puzzle_hash != DL_METADATA_UPDATER_PUZZLE_HASH.into() {
+            return Ok(None);
+        }
 
         // first, just compute new coin info - will be used in any case
 
@@ -368,7 +396,7 @@ where
                 args: NftStateLayerArgs::<TreeHash, TreeHash> {
                     mod_hash: NFT_STATE_LAYER_HASH.into(),
                     metadata: tree_hash(allocator, new_metadata_ptr),
-                    metadata_updater_puzzle_hash: state_layer.metadata_updater_puzzle_hash,
+                    metadata_updater_puzzle_hash: new_metadata_updater_puzzle_hash,
                     inner_puzzle: inner_create_coin_condition.puzzle_hash.into(),
                 },
             }
@@ -394,17 +422,26 @@ where
 
         if inner_memos.len() > 1 {
             // keep in mind that there's always the launcher id memo being added
-            return Ok(Some(Self::build_datastore(
+            let datastore = Self::build_datastore(
                 new_coin,
                 singleton_layer.launcher_id,
                 Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
                 new_metadata,
                 state_layer.inner_puzzle.tree_hash().into(),
                 inner_memos,
-            )?));
+            )?;
+
+            // The memos are only hints, so make sure they match the coin that was created.
+            // This also rejects a delegation layer with no delegated puzzles, which can't be represented.
+            if !datastore.info.matches_puzzle_hash(new_coin.puzzle_hash)? {
+                return Err(DriverError::WrongPuzzleHash);
+            }
+
+            return Ok(Some(datastore));
         }
 
-        let mut owner_puzzle_hash: Bytes32 = state_layer.inner_puzzle.tree_hash().into();
+        // without a delegation layer, the owner puzzle is the inner puzzle of the new coin
+        let mut owner_puzzle_hash: Bytes32 = inner_create_coin_condition.puzzle_hash;
 
         // does the parent coin currently have a delegation layer?
         let delegation_layer_maybe = state_layer.inner_puzzle;
@@ -442,15 +479,22 @@ where
             let Some(odd_create_coin) = odd_create_coin else {
                 // no CREATE_COIN was created by the innermost puzzle
                 // delegation layer therefore added one (assuming the spend is valid)]
+                let info = DatastoreInfo {
+                    launcher_id: singleton_layer.launcher_id,
+                    metadata: new_metadata,
+                    owner_puzzle_hash,
+                    delegated_puzzles: parent_delegated_puzzles.to_vec(),
+                };
+
+                // the parent delegated puzzles must be the ones the delegation layer was created with
+                if !info.matches_puzzle_hash(new_coin.puzzle_hash)? {
+                    return Err(DriverError::WrongPuzzleHash);
+                }
+
                 return Ok(Some(Datastore {
                     coin: new_coin,
                     proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
-                    info: DatastoreInfo {
-                        launcher_id: singleton_layer.launcher_id,
-                        metadata: new_metadata,
-                        owner_puzzle_hash,
-                        delegated_puzzles: parent_delegated_puzzles.to_vec(),
-                    },
+                    info,
                 }));
             };
 
@@ -464,15 +508,22 @@ where
 
                 if create_coin.puzzle_hash == prev_deleg_layer_ph.into() {
                     // owner is re-creating the delegation layer with the same options
+                    let info = DatastoreInfo {
+                        launcher_id: singleton_layer.launcher_id,
+                        metadata: new_metadata,
+                        owner_puzzle_hash, // owner puzzle was ran
+                        delegated_puzzles: parent_delegated_puzzles.to_vec(),
+                    };
+
+                    // the parent delegated puzzles must be the ones the delegation layer was created with
+                    if !info.matches_puzzle_hash(new_coin.puzzle_hash)? {
+                        return Err(DriverError::WrongPuzzleHash);
+                    }
+
                     return Ok(Some(Datastore {
                         coin: new_coin,
                         proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
-                        info: DatastoreInfo {
-                            launcher_id: singleton_layer.launcher_id,
-                            metadata: new_metadata,
-                            owner_puzzle_hash, // owner puzzle was ran
-                            delegated_puzzles: parent_delegated_puzzles.to_vec(),
-                        },
+                        info,
                     }));
                 }
 
@@ -610,8 +661,11 @@ pub mod tests {
     use clvmr::error::EvalErr;
     use rstest::rstest;
 
+    use std::slice;
+
     use crate::{
-        DelegationLayer, Launcher, OracleLayer, SpendWithConditions, StandardLayer, WriterLayer,
+        DelegationLayer, HashedPtr, Launcher, NftMint, OracleLayer, SpendWithConditions,
+        StandardLayer, WriterLayer,
     };
 
     use super::*;
@@ -1058,9 +1112,18 @@ pub mod tests {
             ctx,
             &new_spend,
             &src_datastore.info.delegated_puzzles,
-        )?
-        .unwrap();
+        );
         ctx.insert(new_spend);
+
+        // An admin can't remove the delegation layer, so removing every delegated puzzle leaves
+        // a delegation layer with an empty merkle tree, which a datastore can't represent.
+        if dst_delegated_puzzles.is_empty() {
+            assert!(matches!(dst_datastore, Err(DriverError::WrongPuzzleHash)));
+            sim.spend_coins(ctx.take(), &[owner.sk, admin.sk, writer.sk])?;
+            return Ok(());
+        }
+
+        let dst_datastore = dst_datastore?.unwrap();
 
         assert_eq!(src_datastore.info.delegated_puzzles, src_delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
@@ -2125,6 +2188,206 @@ pub mod tests {
             .coin_state(eve_coin.coin_id())
             .expect("expected eve coin");
         assert!(eve_coin_state.created_height.is_some());
+
+        Ok(())
+    }
+
+    fn mint_simple_datastore(
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        owner: &BlsPair,
+        owner_coin: Coin,
+    ) -> anyhow::Result<Datastore> {
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner.pk);
+
+        let (launch_singleton, datastore) = Launcher::new(owner_coin.coin_id(), 1).mint_datastore(
+            ctx,
+            DatastoreMetadata::root_hash_only(RootHash::Zero.value()),
+            owner_puzzle_hash,
+            vec![],
+        )?;
+        StandardLayer::new(owner.pk).spend(ctx, owner_coin, launch_singleton)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&owner.sk))?;
+
+        Ok(datastore)
+    }
+
+    #[test]
+    fn test_from_spend_verifies_recreation_memos() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let [alice, bob] = BlsPair::range();
+        let alice_puzzle_hash: Bytes32 = StandardArgs::curry_tree_hash(alice.pk).into();
+        let bob_puzzle_hash = StandardArgs::curry_tree_hash(bob.pk);
+        let coin = sim.new_coin(alice_puzzle_hash, 1);
+
+        let datastore = mint_simple_datastore(&mut sim, ctx, &alice, coin)?;
+
+        // The memos claim Bob is the owner, but the datastore is recreated with Alice as the owner.
+        let memos = ctx.memos(&Datastore::<DatastoreMetadata>::get_recreation_memos(
+            datastore.info.launcher_id,
+            bob_puzzle_hash,
+            vec![],
+        ))?;
+        let inner_spend = StandardLayer::new(alice.pk).spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(alice_puzzle_hash, 1, memos),
+        )?;
+        let spoofed_spend = datastore.clone().spend(ctx, inner_spend)?;
+
+        assert!(matches!(
+            Datastore::<DatastoreMetadata>::from_spend(ctx, &spoofed_spend, &[]),
+            Err(DriverError::WrongPuzzleHash)
+        ));
+
+        // The memos claim there are delegated puzzles, but there's no delegation layer.
+        let memos = ctx.memos(&Datastore::<DatastoreMetadata>::get_recreation_memos(
+            datastore.info.launcher_id,
+            alice_puzzle_hash.into(),
+            vec![DelegatedPuzzle::Admin(bob_puzzle_hash)],
+        ))?;
+        let inner_spend = StandardLayer::new(alice.pk).spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(alice_puzzle_hash, 1, memos),
+        )?;
+        let spoofed_spend = datastore.clone().spend(ctx, inner_spend)?;
+
+        assert!(matches!(
+            Datastore::<DatastoreMetadata>::from_spend(ctx, &spoofed_spend, &[]),
+            Err(DriverError::WrongPuzzleHash)
+        ));
+
+        // Memos that match the new coin are still parsed.
+        let memos = ctx.memos(&Datastore::<DatastoreMetadata>::get_recreation_memos(
+            datastore.info.launcher_id,
+            bob_puzzle_hash,
+            vec![],
+        ))?;
+        let inner_spend = StandardLayer::new(alice.pk).spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(bob_puzzle_hash.into(), 1, memos),
+        )?;
+        let spend = datastore.clone().spend(ctx, inner_spend)?;
+
+        let new_datastore = Datastore::<DatastoreMetadata>::from_spend(ctx, &spend, &[])?
+            .expect("expected a datastore");
+        assert_eq!(new_datastore.info.owner_puzzle_hash, bob_puzzle_hash.into());
+        assert_eq!(
+            new_datastore.info.puzzle_hash(ctx)?,
+            new_datastore.coin.puzzle_hash.into()
+        );
+
+        ctx.insert(spend);
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_spend_verifies_launcher_kv_list() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        // The key value list describes a datastore, but the launcher creates a different singleton.
+        let launcher = Launcher::new(alice.coin.coin_id(), 1);
+        let launcher_id = launcher.coin().coin_id();
+        let (launch_singleton, _) = launcher.spend(
+            ctx,
+            Bytes32::default(),
+            DlLauncherKvList {
+                metadata: DatastoreMetadata::root_hash_only(RootHash::Zero.value()),
+                state_layer_inner_puzzle_hash: alice.puzzle_hash,
+                memos: Vec::<Bytes>::new(),
+            },
+        )?;
+        alice_p2.spend(ctx, alice.coin, launch_singleton)?;
+
+        let launcher_spend = ctx
+            .take()
+            .into_iter()
+            .find(|spend| spend.coin.coin_id() == launcher_id)
+            .expect("missing launcher spend");
+
+        assert_eq!(
+            Datastore::<DatastoreMetadata>::from_spend(ctx, &launcher_spend, &[])?,
+            None
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_spend_metadata_updater_change() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let [alice] = BlsPair::range();
+        let alice_puzzle_hash: Bytes32 = StandardArgs::curry_tree_hash(alice.pk).into();
+        let coin = sim.new_coin(alice_puzzle_hash, 1);
+
+        let datastore = mint_simple_datastore(&mut sim, ctx, &alice, coin)?;
+
+        // The DataLayer metadata updater allows the updater itself to be changed.
+        let new_metadata_condition =
+            UpdateNftMetadata::<i32, NewMetadataOutput<DatastoreMetadata, ()>> {
+                updater_puzzle_reveal: 11,
+                updater_solution: NewMetadataOutput {
+                    metadata_info: NewMetadataInfo {
+                        new_metadata: datastore.info.metadata.clone(),
+                        new_updater_puzzle_hash: Bytes32::new([1; 32]),
+                    },
+                    conditions: (),
+                },
+            };
+        let new_metadata_condition = ctx.alloc(&new_metadata_condition)?;
+
+        let inner_spend = StandardLayer::new(alice.pk).spend_with_conditions(
+            ctx,
+            Conditions::new()
+                .with(Condition::Other(new_metadata_condition))
+                .create_coin(alice_puzzle_hash, 1, Memos::None),
+        )?;
+        let spend = datastore.spend(ctx, inner_spend)?;
+
+        // The child is no longer a datastore, since it has a different metadata updater.
+        assert_eq!(
+            Datastore::<DatastoreMetadata>::from_spend(ctx, &spend, &[])?,
+            None
+        );
+
+        ctx.insert(spend);
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_spend_non_datastore_nft() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let (mint_nft, nft) = Launcher::new(alice.coin.coin_id(), 1).mint_nft(
+            ctx,
+            &NftMint::new(HashedPtr::NIL, alice.puzzle_hash, 0, None),
+        )?;
+        alice_p2.spend(ctx, alice.coin, mint_nft)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
+        let nft_spend = ctx.take().remove(0);
+        assert_eq!(nft_spend.coin, nft.coin);
+
+        assert_eq!(
+            Datastore::<DatastoreMetadata>::from_spend(ctx, &nft_spend, &[])?,
+            None
+        );
 
         Ok(())
     }

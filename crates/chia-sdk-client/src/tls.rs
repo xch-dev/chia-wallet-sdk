@@ -48,7 +48,9 @@ pub fn create_rustls_connector(cert: &ChiaCertificate) -> Result<Connector, Clie
         ClientConfig, DigitallySignedStruct, RootCertStore,
         client::danger::HandshakeSignatureValid,
         crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signature},
-        pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
+        pki_types::{
+            CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime, pem::PemObject,
+        },
     };
 
     #[derive(Debug)]
@@ -102,14 +104,14 @@ pub fn create_rustls_connector(cert: &ChiaCertificate) -> Result<Connector, Clie
     let mut root_cert_store = RootCertStore::empty();
 
     let ca: Vec<CertificateDer<'_>> =
-        rustls_pemfile::certs(&mut CHIA_CA_CRT.as_bytes()).collect::<Result<_, _>>()?;
+        CertificateDer::pem_slice_iter(CHIA_CA_CRT.as_bytes()).collect::<Result<_, _>>()?;
 
     root_cert_store.add(ca.into_iter().next().ok_or(ClientError::MissingCa)?)?;
 
     let cert_chain: Vec<CertificateDer<'_>> =
-        rustls_pemfile::certs(&mut cert.cert_pem.as_bytes()).collect::<Result<_, _>>()?;
+        CertificateDer::pem_slice_iter(cert.cert_pem.as_bytes()).collect::<Result<_, _>>()?;
 
-    let key = rustls_pemfile::pkcs8_private_keys(&mut cert.key_pem.as_bytes())
+    let key = PrivatePkcs8KeyDer::pem_slice_iter(cert.key_pem.as_bytes())
         .next()
         .ok_or(ClientError::MissingPkcs8Key)??;
 
@@ -124,4 +126,25 @@ pub fn create_rustls_connector(cert: &ChiaCertificate) -> Result<Connector, Clie
         )));
 
     Ok(Connector::Rustls(Arc::new(config)))
+}
+
+#[cfg(all(test, any(feature = "native-tls", feature = "rustls")))]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "rustls")]
+    #[test]
+    fn test_create_rustls_connector() -> Result<(), ClientError> {
+        let cert = ChiaCertificate::generate()?;
+        create_rustls_connector(&cert)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "native-tls")]
+    #[test]
+    fn test_create_native_tls_connector() -> Result<(), ClientError> {
+        let cert = ChiaCertificate::generate()?;
+        create_native_tls_connector(&cert)?;
+        Ok(())
+    }
 }

@@ -3,8 +3,12 @@ use chia_protocol::Bytes32;
 use chia_sdk_test::{BlsPair, K1Pair, R1Pair};
 use chia_sdk_types::puzzles::{EnforceDelegatedPuzzleWrappers, PreventConditionOpcode, Timelock};
 use clvm_traits::{clvm_list, clvm_quote};
-use clvmr::serde::{node_from_bytes, node_to_bytes};
+use clvm_utils::tree_hash;
+use clvmr::serde::{
+    node_from_bytes, node_from_bytes_backrefs, node_to_bytes, node_to_bytes_backrefs,
+};
 use rstest::rstest;
+use std::time::{Duration, Instant};
 
 use crate::{MofN, Restriction, RestrictionKind, mips_puzzle_hash};
 
@@ -141,6 +145,7 @@ fn serialized_roundtrip(allocator: &mut Allocator, memo: &MipsMemo) -> anyhow::R
     let bytes = node_to_bytes(allocator, node)?;
     let node = node_from_bytes(allocator, &bytes)?;
     let parsed = MipsMemo::<NodePtr>::from_clvm(&*allocator, node)?;
+    assert_eq!(MipsMemo::from_clvm_bounded(allocator, node)?, parsed);
 
     let reencoded = parsed.to_clvm(allocator)?;
     assert_eq!(node_to_bytes(allocator, reencoded)?, bytes);
@@ -307,12 +312,12 @@ fn force_1_of_2(
     nonce: usize,
     reveal: bool,
 ) -> anyhow::Result<(
-    RestrictionMemo,
+    WrapperMemo,
     Force1of2RestrictedVariable,
     Vec<RestrictionMemo>,
 )> {
     let restrictions = right_side_restrictions(allocator, reveal)?;
-    let restriction = RestrictionMemo::force_1_of_2_restricted_variable(
+    let restriction = WrapperMemo::force_1_of_2_restricted_variable(
         allocator,
         left_side_subtree_hash,
         nonce,
@@ -345,11 +350,21 @@ fn test_force_1_of_2_restriction(#[values(true, false)] reveal: bool) -> anyhow:
     let mut allocator = Allocator::new();
 
     let left = Bytes32::new([1; 32]);
-    let (restriction, expected, restrictions) = force_1_of_2(&mut allocator, left, 5, reveal)?;
-    assert!(!restriction.member_condition_validator);
-    assert_eq!(restriction.puzzle_hash, expected.curry_tree_hash().into());
+    let (wrapper, expected, restrictions) = force_1_of_2(&mut allocator, left, 5, reveal)?;
+    assert_eq!(wrapper.puzzle_hash, expected.curry_tree_hash().into());
 
     let ctx = MipsMemoContext::default();
+
+    assert_eq!(
+        wrapper.parse(&allocator, &ctx),
+        Some(ParsedWrapper::Force1of2RestrictedVariable(
+            expected,
+            restrictions.clone()
+        ))
+    );
+
+    // It inspects conditions, so it also works as a member condition validator.
+    let restriction = RestrictionMemo::new(true, wrapper.puzzle_hash, wrapper.memo);
 
     let Some(ParsedRestriction::Force1of2RestrictedVariable(parsed, parsed_restrictions)) =
         restriction.parse(&allocator, &ctx)
@@ -359,14 +374,9 @@ fn test_force_1_of_2_restriction(#[values(true, false)] reveal: bool) -> anyhow:
     assert_eq!(parsed, expected);
     assert_eq!(parsed_restrictions, restrictions);
 
-    let wrapper = WrapperMemo::new(restriction.puzzle_hash, restriction.memo);
-    assert_eq!(
-        wrapper.parse(&allocator, &ctx),
-        Some(ParsedWrapper::Force1of2RestrictedVariable(
-            expected,
-            restrictions.clone()
-        ))
-    );
+    // But it can't validate a delegated puzzle hash.
+    let delegated_puzzle_validator = RestrictionMemo::new(false, wrapper.puzzle_hash, wrapper.memo);
+    assert_eq!(delegated_puzzle_validator.parse(&allocator, &ctx), None);
 
     // The right side's restrictions are parsed the same way as any other restriction, so hidden
     // timelocks need to be in the context.
@@ -397,7 +407,7 @@ fn test_force_1_of_2_restriction(#[values(true, false)] reveal: bool) -> anyhow:
     }
 
     // A restriction whose memo doesn't match its puzzle hash is left unknown.
-    let mismatched = RestrictionMemo::new(false, Bytes32::new([2; 32]), restriction.memo);
+    let mismatched = RestrictionMemo::new(true, Bytes32::new([2; 32]), restriction.memo);
     assert_eq!(mismatched.parse(&allocator, &ctx), None);
 
     Ok(())
@@ -570,7 +580,7 @@ fn test_restrictions_hash() -> anyhow::Result<()> {
     let (force_1_of_2, _, _) = force_1_of_2(&mut allocator, Bytes32::new([4; 32]), 1, true)?;
     let restrictions = vec![
         RestrictionMemo::timelock(&mut allocator, 1000, true)?,
-        force_1_of_2,
+        RestrictionMemo::new(true, force_1_of_2.puzzle_hash, force_1_of_2.memo),
     ];
 
     let memo = MipsMemo::new(InnerPuzzleMemo::new(
@@ -806,6 +816,241 @@ fn test_malformed_shapes() -> anyhow::Result<()> {
     let unknown_kind =
         clvm_list!("CHIP-0043", (0, ((), clvm_list!(2, ())))).to_clvm(&mut allocator)?;
     assert!(MipsMemo::<NodePtr>::from_clvm(&allocator, unknown_kind).is_err());
+
+    Ok(())
+}
+
+/// Builds an M of N memo whose items all point to the same node, without expanding it.
+fn shared_m_of_n(
+    allocator: &mut Allocator,
+    required: usize,
+    items: Vec<NodePtr>,
+) -> anyhow::Result<NodePtr> {
+    Ok(ShallowInnerPuzzleMemo {
+        _nonce: 0,
+        restrictions: vec![],
+        kind: ShallowMemoKind::MofN(ShallowMofNMemo {
+            _required: required,
+            items,
+        }),
+    }
+    .to_clvm(allocator)?)
+}
+
+fn leaf_memo(allocator: &mut Allocator) -> anyhow::Result<InnerPuzzleMemo> {
+    Ok(InnerPuzzleMemo::new(
+        0,
+        vec![],
+        MemoKind::Member(MemberMemo::k1(
+            allocator,
+            K1Pair::default().pk,
+            false,
+            true,
+        )?),
+    ))
+}
+
+#[test]
+fn test_deeply_nested_memo_hashes_quickly() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    // Each level is a 2 of 2 between the next level and a leaf. Hashing each child more than once
+    // would double the cost at every level, which wouldn't finish at this depth.
+    let leaf = leaf_memo(&mut allocator)?;
+    let mut inner = InnerPuzzleMemo::new(1, vec![], leaf.kind.clone());
+
+    for nonce in 2..=64 {
+        inner = InnerPuzzleMemo::new(
+            nonce,
+            vec![],
+            MemoKind::MofN(MofNMemo::new(2, vec![inner, leaf.clone()])),
+        );
+    }
+
+    let memo = MipsMemo::new(inner);
+
+    let start = Instant::now();
+    let hash = memo.inner_puzzle_hash();
+    assert_eq!(memo.try_inner_puzzle_hash()?, hash);
+    assert!(memo.verify(hash));
+    assert!(!memo.verify(TreeHash::new([0; 32])));
+    assert!(start.elapsed() < Duration::from_secs(5));
+
+    Ok(())
+}
+
+#[test]
+fn test_bounded_parse_rejects_deep_memo() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    let leaf = leaf_memo(&mut allocator)?.to_clvm(&mut allocator)?;
+    let mut node = leaf;
+
+    // Deep enough that recursive decoding could overflow the stack.
+    for _ in 0..100_000 {
+        node = shared_m_of_n(&mut allocator, 1, vec![node])?;
+    }
+
+    let memo = clvm_list!("CHIP-0043", node).to_clvm(&mut allocator)?;
+
+    let start = Instant::now();
+    assert!(matches!(
+        MipsMemo::from_clvm_bounded(&allocator, memo),
+        Err(DriverError::MipsMemoTooDeep)
+    ));
+    assert!(start.elapsed() < Duration::from_secs(5));
+
+    // Right at the limit is fine.
+    let mut node = leaf;
+    for _ in 0..MAX_MIPS_MEMO_DEPTH {
+        node = shared_m_of_n(&mut allocator, 1, vec![node])?;
+    }
+    let memo = clvm_list!("CHIP-0043", node).to_clvm(&mut allocator)?;
+    MipsMemo::from_clvm_bounded(&allocator, memo)?;
+
+    Ok(())
+}
+
+#[test]
+fn test_bounded_parse_rejects_shared_subtrees() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    // A few hundred bytes of CLVM which expands to 2^30 inner puzzles when decoded naively.
+    let mut node = leaf_memo(&mut allocator)?.to_clvm(&mut allocator)?;
+    for _ in 0..30 {
+        node = shared_m_of_n(&mut allocator, 1, vec![node, node])?;
+    }
+
+    let memo = clvm_list!("CHIP-0043", node).to_clvm(&mut allocator)?;
+    let bytes = node_to_bytes_backrefs(&allocator, memo)?;
+    assert!(bytes.len() < 1000);
+    let memo = node_from_bytes_backrefs(&mut allocator, &bytes)?;
+
+    let start = Instant::now();
+    assert!(matches!(
+        MipsMemo::from_clvm_bounded(&allocator, memo),
+        Err(DriverError::MipsMemoTooLarge)
+    ));
+    assert!(start.elapsed() < Duration::from_secs(5));
+
+    Ok(())
+}
+
+#[test]
+fn test_custom_member_with_shared_subtrees() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    let mut puzzle = NodePtr::NIL;
+    for _ in 0..64 {
+        puzzle = allocator.new_pair(puzzle, puzzle)?;
+    }
+
+    let start = Instant::now();
+    let puzzle_hash = tree_hash_cached(&allocator, puzzle, &mut TreeCache::default());
+    let member = MemberMemo::new(puzzle_hash.into(), puzzle);
+    assert_eq!(
+        member.parse(&allocator, &MipsMemoContext::default()),
+        Some(ParsedMember::Custom(puzzle))
+    );
+    assert!(start.elapsed() < Duration::from_secs(5));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::zero_of_two(0, 2)]
+#[case::three_of_two(3, 2)]
+#[case::one_of_zero(1, 0)]
+#[case::zero_of_zero(0, 0)]
+fn test_invalid_m_of_n_required(
+    #[case] required: usize,
+    #[case] count: usize,
+) -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    let items = k1_items(&mut allocator, count)?;
+    let memo = MipsMemo::new(InnerPuzzleMemo::new(
+        0,
+        vec![],
+        MemoKind::MofN(MofNMemo::new(required, items)),
+    ));
+
+    assert!(matches!(
+        memo.try_inner_puzzle_hash(),
+        Err(DriverError::InvalidMofNRequired { .. })
+    ));
+    assert!(!memo.verify(memo.inner_puzzle_hash()));
+
+    let node = memo.to_clvm(&mut allocator)?;
+    assert!(MipsMemo::<NodePtr>::from_clvm(&allocator, node).is_ok());
+    assert!(MipsMemo::from_clvm_bounded(&allocator, node).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn test_duplicate_m_of_n_items() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+
+    // A 2 of 3 where the same key appears twice can be spent by that key alone.
+    let mut items = k1_items(&mut allocator, 2)?;
+    items.push(items[0].clone());
+
+    let memo = MipsMemo::new(InnerPuzzleMemo::new(
+        0,
+        vec![],
+        MemoKind::MofN(MofNMemo::new(2, items)),
+    ));
+
+    assert!(matches!(
+        memo.try_inner_puzzle_hash(),
+        Err(DriverError::DuplicateMofNMembers)
+    ));
+
+    let node = memo.to_clvm(&mut allocator)?;
+    assert!(MipsMemo::from_clvm_bounded(&allocator, node).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn test_revealed_zero_timelock() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+    let ctx = MipsMemoContext::default();
+
+    let restriction = RestrictionMemo::timelock(&mut allocator, 0, true)?;
+    assert_eq!(
+        restriction.parse(&allocator, &ctx),
+        Some(ParsedRestriction::Timelock(Timelock::new(0)))
+    );
+
+    let wrapper = WrapperMemo::timelock(&mut allocator, 0, true)?;
+    assert_eq!(
+        wrapper.parse(&allocator, &ctx),
+        Some(ParsedWrapper::Timelock(Timelock::new(0)))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_restriction_kind_must_match() -> anyhow::Result<()> {
+    let mut allocator = Allocator::new();
+    let ctx = MipsMemoContext::default();
+
+    // A timelock inspects conditions, so it can't validate the delegated puzzle hash.
+    let timelock = RestrictionMemo::timelock(&mut allocator, 100, true)?;
+    let flipped = RestrictionMemo::new(false, timelock.puzzle_hash, timelock.memo);
+    assert_eq!(flipped.parse(&allocator, &ctx), None);
+
+    // The wrapper enforcer validates the delegated puzzle hash, so it can't inspect conditions.
+    let enforce = RestrictionMemo::enforce_delegated_puzzle_wrappers(
+        &mut allocator,
+        &[WrapperMemo::prevent_multiple_create_coins()],
+    )?;
+    assert!(enforce.parse(&allocator, &ctx).is_some());
+    let flipped = RestrictionMemo::new(true, enforce.puzzle_hash, enforce.memo);
+    assert_eq!(flipped.parse(&allocator, &ctx), None);
 
     Ok(())
 }

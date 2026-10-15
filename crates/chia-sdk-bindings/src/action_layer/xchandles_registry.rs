@@ -306,39 +306,21 @@ pub struct XchandlesPrecommitValue {
     pub registration_period: u64,
     pub buy_time: u64,
     pub num_periods: u64,
-    /// Pricing-solution `current_expiration`. Zero for ordinary available-Handle
-    /// registrations; the exact slot expiration for expiry-auction purchases.
+    /// Pricing-solution `current_expiration`. 0 means factor pricing (ordinary
+    /// register). Nonzero is the Handle slot expiration and means expiry pricing.
     pub current_expiration: u64,
-    /// When true, commit the deployed expiry-pricing puzzle. When false, keep the
-    /// historical factor-pricing tree hash used by `for_normal_registration`.
-    pub use_expire_pricing: bool,
 }
 
-/// Validate expiry-pricing precommit fields for ordinary `register`.
+/// Ordinary `register` only accepts factor-pricing precommits (`current_expiration = 0`).
 ///
-/// Register reveals the committed pricing solution; that solution must use
-/// `current_expiration = 0` (available-Handle registration), not an auction
-/// vector intended for `expire`.
-fn validate_register_expiry_pricing_commitment(
-    value: &XchandlesPrecommitValue,
-    base_handle_price: u64,
-    registration_period: u64,
-    start_time: u64,
-) -> Result<()> {
-    if base_handle_price != value.base_price || registration_period != value.registration_period {
+/// On-chain register asserts the reveal equals `State.Pricing_Puzzle_Hash`
+/// (factor pricing). An expiry-pricing commitment cannot register, and a
+/// correctly priced expiry-pricing coin for a missing Handle cannot refund
+/// (`refund.rue` then requires a slot).
+fn reject_register_expiry_pricing(value: &XchandlesPrecommitValue) -> Result<()> {
+    if value.uses_expire_pricing() {
         return Err(Error::Custom(
-            "register base_price/registration_period must match expiry-pricing precommit"
-                .to_string(),
-        ));
-    }
-    if start_time != value.buy_time {
-        return Err(Error::Custom(
-            "register start_time must match committed buy_time".to_string(),
-        ));
-    }
-    if value.current_expiration != 0 {
-        return Err(Error::Custom(
-            "register requires committed current_expiration = 0 (use expire for auction purchases)"
+            "register requires factor-pricing (for_normal_registration); expiry-pricing precommits are only valid for expire"
                 .to_string(),
         ));
     }
@@ -407,17 +389,16 @@ impl XchandlesPrecommitValue {
             buy_time,
             num_periods,
             current_expiration: 0,
-            use_expire_pricing: false,
         })
     }
 
-    /// Expiry-pricing precommit for the currently deployed pricing puzzle.
+    /// Expiry-auction precommit (nonzero slot expiration).
     ///
-    /// Accepts the explicit `XchandlesPricingSolution` fields (`buy_time`,
-    /// `current_expiration`, `handle`, `num_periods`) plus base price and the
-    /// fixed registration period. Usable for both ordinary
-    /// (`current_expiration = 0`) and expiry-auction (nonzero) vectors, and
-    /// remains consumable by `XchandlesPrecommitCoin`.
+    /// Commits the deployed expiry-pricing puzzle. `current_expiration` must
+    /// be the existing Handle slot expiration. Ordinary available-Handle
+    /// registration (`current_expiration = 0`) must use
+    /// [`Self::for_normal_registration`]; that path is not valid on-chain with
+    /// expiry pricing and is not refundable when no Handle slot exists.
     #[allow(clippy::too_many_arguments)]
     pub fn for_expiry_pricing_registration(
         handle: String,
@@ -436,6 +417,12 @@ impl XchandlesPrecommitValue {
                 "num_periods must be greater than 0".to_string(),
             ));
         }
+        if current_expiration == 0 {
+            return Err(Error::Custom(
+                "expiry-pricing precommits require a nonzero slot expiration; use for_normal_registration for ordinary register"
+                    .to_string(),
+            ));
+        }
         Ok(Self {
             handle,
             secret,
@@ -447,12 +434,15 @@ impl XchandlesPrecommitValue {
             buy_time,
             num_periods,
             current_expiration,
-            use_expire_pricing: true,
         })
     }
 
+    fn uses_expire_pricing(&self) -> bool {
+        self.current_expiration != 0
+    }
+
     fn pricing_puzzle_hash(&self) -> TreeHash {
-        if self.use_expire_pricing {
+        if self.uses_expire_pricing() {
             XchandlesExpirePricingPuzzle::curry_tree_hash(self.base_price, self.registration_period)
         } else {
             XchandlesFactorPricingPuzzleArgs {
@@ -472,11 +462,7 @@ impl XchandlesPrecommitValue {
     pub fn pricing_solution(&self) -> XchandlesPricingSolution {
         XchandlesPricingSolution {
             buy_time: self.buy_time,
-            current_expiration: if self.use_expire_pricing {
-                self.current_expiration
-            } else {
-                0
-            },
+            current_expiration: self.current_expiration,
             handle: self.handle.clone(),
             num_periods: self.num_periods,
         }
@@ -881,13 +867,11 @@ impl XchandlesRegistry {
         })
     }
 
-    /// Ordinary Handle registration.
+    /// Ordinary Handle registration (factor pricing only).
     ///
-    /// When `precommit_coin.value.use_expire_pricing` is true, reveals the same
-    /// deployed expiry-pricing puzzle and exact committed
-    /// `XchandlesPricingSolution` as the precommit. Requires ordinary
-    /// `current_expiration = 0` (auction vectors belong on `expire`). Otherwise
-    /// preserves the historical factor-pricing helper path.
+    /// Rejects expiry-pricing precommits. On-chain register requires the
+    /// pricing reveal to equal `State.Pricing_Puzzle_Hash`, which is factor
+    /// pricing, not the expired-Handle puzzle.
     #[allow(clippy::too_many_arguments)]
     pub fn register(
         &self,
@@ -900,49 +884,24 @@ impl XchandlesRegistry {
         owner_inner_puzzle_hash: Bytes32,
         resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<XchandlesTripleConditionsResult> {
+        reject_register_expiry_pricing(&precommit_coin.value)?;
+
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
         let action = registry.new_action::<XchandlesRegisterAction>();
 
-        let (registry_conditions, owner_conditions, resolved_conditions) =
-            if precommit_coin.value.use_expire_pricing {
-                validate_register_expiry_pricing_commitment(
-                    &precommit_coin.value,
-                    base_handle_price,
-                    registration_period,
-                    start_time,
-                )?;
-                let pricing_puzzle = XchandlesRegisterAction::expiry_pricing_puzzle(
-                    &mut ctx,
-                    base_handle_price,
-                    registration_period,
-                )?;
-                let pricing_solution = precommit_coin.value.pricing_solution();
-                action.spend_with_pricing(
-                    &mut ctx,
-                    &mut registry,
-                    left_slot.to_slot(),
-                    right_slot.to_slot(),
-                    &precommit_coin.to_precommit_coin(),
-                    pricing_puzzle,
-                    pricing_solution,
-                    owner_inner_puzzle_hash,
-                    resolved_inner_puzzle_hash,
-                )?
-            } else {
-                action.spend(
-                    &mut ctx,
-                    &mut registry,
-                    left_slot.to_slot(),
-                    right_slot.to_slot(),
-                    &precommit_coin.to_precommit_coin(),
-                    base_handle_price,
-                    registration_period,
-                    start_time,
-                    owner_inner_puzzle_hash,
-                    resolved_inner_puzzle_hash,
-                )?
-            };
+        let (registry_conditions, owner_conditions, resolved_conditions) = action.spend(
+            &mut ctx,
+            &mut registry,
+            left_slot.to_slot(),
+            right_slot.to_slot(),
+            &precommit_coin.to_precommit_coin(),
+            base_handle_price,
+            registration_period,
+            start_time,
+            owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash,
+        )?;
 
         self.triple_conditions_to_result(
             &mut ctx,
@@ -993,7 +952,7 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let pricing_puzzle = if precommit_coin.value.use_expire_pricing {
+        let pricing_puzzle = if precommit_coin.value.uses_expire_pricing() {
             XchandlesRegisterAction::expiry_pricing_puzzle(
                 &mut ctx,
                 precommit_coin.value.base_price,
@@ -1054,9 +1013,9 @@ impl XchandlesRegistry {
 
     /// Expiry-auction purchase (nonzero current expiration).
     ///
-    /// When `precommit_coin.value.use_expire_pricing` is true, `start_time`,
-    /// `num_periods`, and `current_expiration` must match the committed pricing
-    /// solution (`current_expiration` must equal the Handle slot expiration).
+    /// When `current_expiration != 0`, `start_time`, `num_periods`, and
+    /// `current_expiration` must match the committed pricing solution
+    /// (`current_expiration` must equal the Handle slot expiration).
     #[allow(clippy::too_many_arguments)]
     pub fn expire(
         &self,
@@ -1072,7 +1031,7 @@ impl XchandlesRegistry {
         let mut ctx = self.clvm.lock().unwrap();
         let mut registry = self.registry.lock().unwrap();
 
-        let (start_time, num_periods) = if precommit_coin.value.use_expire_pricing {
+        let (start_time, num_periods) = if precommit_coin.value.uses_expire_pricing() {
             validate_expire_expiry_pricing_commitment(
                 &precommit_coin.value,
                 base_handle_price,
@@ -1475,7 +1434,6 @@ mod tests {
         )
         .unwrap();
 
-        assert!(!binding.use_expire_pricing);
         assert_eq!(binding.current_expiration, 0);
 
         let expected = driver_commitment_hash(
@@ -1500,52 +1458,68 @@ mod tests {
     }
 
     #[test]
-    fn expiry_pricing_factory_matches_driver_for_zero_and_nonzero_expiration() {
+    fn expiry_pricing_factory_rejects_zero_expiration() {
+        let err = XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "alice".into(),
+            Bytes32::new([0xbb; 32]),
+            Bytes32::new([0xcc; 32]),
+            Bytes32::new([0xcc; 32]),
+            Bytes32::new([0xaa; 32]),
+            5_000,
+            31_557_600,
+            1_787_216_820,
+            0,
+            1,
+        )
+        .err()
+        .expect("ordinary expiry-pricing registration must be rejected");
+        assert!(
+            err.to_string().contains("nonzero slot expiration"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn expiry_pricing_factory_matches_driver_for_nonzero_expiration() {
         let payment = Bytes32::new([0xaa; 32]);
         let secret = Bytes32::new([0xbb; 32]);
         let owner = Bytes32::new([0xcc; 32]);
         let registration_period = 31_557_600_u64;
         let base_price = 5_000_u64;
         let buy_time = 1_787_216_820_u64;
+        let current_expiration = 1_800_000_000_u64;
 
-        for current_expiration in [0_u64, 1_800_000_000_u64] {
-            let binding = XchandlesPrecommitValue::for_expiry_pricing_registration(
-                "alice".into(),
-                secret,
-                owner,
-                owner,
-                payment,
-                base_price,
-                registration_period,
+        let binding = XchandlesPrecommitValue::for_expiry_pricing_registration(
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+            payment,
+            base_price,
+            registration_period,
+            buy_time,
+            current_expiration,
+            1,
+        )
+        .unwrap();
+
+        assert_eq!(binding.current_expiration, current_expiration);
+
+        let expected = driver_commitment_hash(
+            payment,
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period),
+            &XchandlesPricingSolution {
                 buy_time,
                 current_expiration,
-                1,
-            )
-            .unwrap();
-
-            assert!(binding.use_expire_pricing);
-            assert_eq!(binding.current_expiration, current_expiration);
-
-            let expected = driver_commitment_hash(
-                payment,
-                XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period),
-                &XchandlesPricingSolution {
-                    buy_time,
-                    current_expiration,
-                    handle: "alice".into(),
-                    num_periods: 1,
-                },
-                "alice".into(),
-                secret,
-                owner,
-                owner,
-            );
-            assert_eq!(
-                binding.commitment_hash().unwrap(),
-                expected,
-                "commitment mismatch for current_expiration={current_expiration}"
-            );
-        }
+                handle: "alice".into(),
+                num_periods: 1,
+            },
+            "alice".into(),
+            secret,
+            owner,
+            owner,
+        );
+        assert_eq!(binding.commitment_hash().unwrap(), expected);
     }
 
     #[test]
@@ -1593,41 +1567,17 @@ mod tests {
 
         assert_eq!(coin.value.handle, "bob");
         assert_eq!(coin.value.current_expiration, 1_800_000_000);
-        assert!(coin.value.use_expire_pricing);
         assert_eq!(coin.coin.amount, 10_000);
     }
 
     #[test]
-    fn expiry_pricing_solution_fields_are_exact_for_register_and_expire_vectors() {
+    fn expiry_pricing_solution_fields_are_exact_for_expire_vector() {
         let payment = Bytes32::new([0x11; 32]);
         let secret = Bytes32::new([0x22; 32]);
         let owner = Bytes32::new([0x33; 32]);
         let buy_time = 1_787_216_820_u64;
         let base_price = 5_000_u64;
         let registration_period = 31_557_600_u64;
-
-        let ordinary = XchandlesPrecommitValue::for_expiry_pricing_registration(
-            "alice".into(),
-            secret,
-            owner,
-            owner,
-            payment,
-            base_price,
-            registration_period,
-            buy_time,
-            0,
-            2,
-        )
-        .unwrap();
-        let ordinary_solution = ordinary.pricing_solution();
-        assert_eq!(ordinary_solution.buy_time, buy_time);
-        assert_eq!(ordinary_solution.current_expiration, 0);
-        assert_eq!(ordinary_solution.handle, "alice");
-        assert_eq!(ordinary_solution.num_periods, 2);
-        assert_eq!(
-            ordinary.committed_pricing_puzzle_hash(),
-            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period)
-        );
 
         let auction = XchandlesPrecommitValue::for_expiry_pricing_registration(
             "alice".into(),
@@ -1643,11 +1593,30 @@ mod tests {
         )
         .unwrap();
         let auction_solution = auction.pricing_solution();
+        assert_eq!(auction_solution.buy_time, buy_time);
         assert_eq!(auction_solution.current_expiration, 1_800_000_000);
+        assert_eq!(auction_solution.handle, "alice");
         assert_eq!(auction_solution.num_periods, 1);
+        assert_eq!(
+            auction.committed_pricing_puzzle_hash(),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period)
+        );
         assert_ne!(
-            ordinary.commitment_hash().unwrap(),
-            auction.commitment_hash().unwrap()
+            auction.commitment_hash().unwrap(),
+            XchandlesPrecommitValue::for_normal_registration(
+                "alice".into(),
+                secret,
+                owner,
+                owner,
+                payment,
+                base_price,
+                registration_period,
+                buy_time,
+                1,
+            )
+            .unwrap()
+            .commitment_hash()
+            .unwrap()
         );
     }
 
@@ -1671,22 +1640,14 @@ mod tests {
     }
 
     #[test]
-    fn register_rejects_nonzero_committed_expiration() {
+    fn register_rejects_expiry_pricing_precommit() {
         let value = sample_expiry_precommit(1_800_000_000, 1);
-        let err =
-            validate_register_expiry_pricing_commitment(&value, 5_000, 31_557_600, 1_787_216_820)
-                .expect_err("auction precommit must not register");
+        let err = reject_register_expiry_pricing(&value)
+            .expect_err("expiry-pricing precommit must not register");
         assert!(
-            err.to_string().contains("current_expiration"),
+            err.to_string().contains("for_normal_registration"),
             "unexpected error: {err}"
         );
-    }
-
-    #[test]
-    fn register_accepts_zero_committed_expiration() {
-        let value = sample_expiry_precommit(0, 2);
-        validate_register_expiry_pricing_commitment(&value, 5_000, 31_557_600, 1_787_216_820)
-            .unwrap();
     }
 
     #[test]

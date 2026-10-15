@@ -10,11 +10,15 @@ from chia_wallet_sdk import (
     MofNMemo,
     PublicKey,
     RestrictionMemo,
+    Reveals,
     RunCatTail,
     WrapperMemo,
+    calculate_vault_coin_message,
+    calculate_vault_puzzle_message,
     force_1_of_2_restriction,
     k1_member_hash,
     m_of_n_hash,
+    parse_vault_transaction,
     prevent_vault_side_effects_restriction,
     timelock_restriction,
     to_hex,
@@ -84,7 +88,7 @@ def test_vault_custody_memo_round_trip():
         key=lambda node: node.inner_puzzle_hash(False),
     )
     custody = InnerPuzzleMemo(0, [], MemoKind.m_of_n(MofNMemo(2, custody_nodes)))
-    force_1_of_2 = RestrictionMemo.force_1_of_2_restricted_variable(
+    force_1_of_2 = WrapperMemo.force_1_of_2_restricted_variable(
         clvm,
         custody.inner_puzzle_hash(False),
         0,
@@ -97,7 +101,7 @@ def test_vault_custody_memo_round_trip():
             RestrictionMemo.enforce_delegated_puzzle_wrappers(
                 clvm,
                 [
-                    WrapperMemo(force_1_of_2.puzzle_hash, force_1_of_2.memo),
+                    force_1_of_2,
                     *WrapperMemo.prevent_vault_side_effects(clvm, True),
                 ],
             )
@@ -160,3 +164,34 @@ def test_malformed_mips_memo():
     assert memo.parse_mips_memo() is not None
     assert clvm.alloc(["CHIP-0042", inner]).parse_mips_memo() is None
     assert clvm.alloc(["CHIP-0043"]).parse_mips_memo() is None
+
+def test_clear_signing_vault_transaction():
+    clvm = Clvm()
+
+    launcher_id = bytes([1] * 32)
+    custody_hash = bytes([2] * 32)
+
+    delegated_spend = clvm.delegated_spend([clvm.create_coin(custody_hash, 1, None)])
+    delegated_puzzle_hash = delegated_spend.puzzle.tree_hash()
+
+    tx = parse_vault_transaction(clvm, Reveals(clvm), launcher_id, delegated_spend)
+
+    assert tx.vault_child is not None
+    assert tx.vault_child.custody_hash == custody_hash
+    assert tx.vault_child.amount == 1
+    assert tx.spends == []
+    assert tx.delegated_puzzle_hash == delegated_puzzle_hash
+    assert len(tx.p2_puzzle_hashes) == 1
+
+    vault_puzzle_hash = bytes([3] * 32)
+    coin_id = bytes([4] * 32)
+    genesis_challenge = bytes([5] * 32)
+
+    assert (
+        calculate_vault_puzzle_message(delegated_puzzle_hash, vault_puzzle_hash)
+        == delegated_puzzle_hash + vault_puzzle_hash
+    )
+    assert (
+        calculate_vault_coin_message(delegated_puzzle_hash, coin_id, genesis_challenge)
+        == delegated_puzzle_hash + coin_id + genesis_challenge
+    )
