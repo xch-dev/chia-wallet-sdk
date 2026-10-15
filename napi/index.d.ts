@@ -319,14 +319,15 @@ export declare class AssetFlow {
 export declare class AssetInfo {
   clone(): AssetInfo
   constructor(clvm: Clvm)
-  insertCat(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null): void
-  insertNft(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): void
-  insertOption(launcherId: Uint8Array, underlyingCoinId: Uint8Array, underlyingDelegatedPuzzleHash: Uint8Array): void
+  insertCat(assetId: Uint8Array, info: CatAssetInfo): void
+  insertNft(launcherId: Uint8Array, info: NftAssetInfo): void
+  insertOption(launcherId: Uint8Array, info: OptionAssetInfo): void
   catAssetIds(): Array<Buffer>
-  catHiddenPuzzleHash(assetId: Uint8Array): Buffer | null
   nftLauncherIds(): Array<Buffer>
-  nftMetadata(launcherId: Uint8Array): Program | null
-  nftRoyalty(launcherId: Uint8Array): RoyaltyInfo | null
+  optionLauncherIds(): Array<Buffer>
+  cat(assetId: Uint8Array): CatAssetInfo | null
+  nft(launcherId: Uint8Array): NftAssetInfo | null
+  option(launcherId: Uint8Array): OptionAssetInfo | null
 }
 
 export declare class BlockchainState {
@@ -682,6 +683,13 @@ export declare class CatalogSlotValue {
   set assetId(value: Uint8Array)
   get neighbors(): SlotNeigborsInfo
   set neighbors(value: SlotNeigborsInfo)
+}
+
+export declare class CatAssetInfo {
+  clone(): CatAssetInfo
+  constructor(hiddenPuzzleHash?: Uint8Array | undefined | null)
+  get hiddenPuzzleHash(): Buffer | null
+  set hiddenPuzzleHash(value: Uint8Array | undefined | null)
 }
 
 export declare class CatInfo {
@@ -2250,6 +2258,19 @@ export declare class Nft {
   set info(value: NftInfo)
 }
 
+export declare class NftAssetInfo {
+  clone(): NftAssetInfo
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
+}
+
 export declare class NftInfo {
   clone(): NftInfo
   innerPuzzleHash(): Buffer
@@ -2380,6 +2401,15 @@ export declare class OfferSecurityCoinDetails {
   set securityCoin(value: Coin)
   get securityCoinSk(): SecretKey
   set securityCoinSk(value: SecretKey)
+}
+
+export declare class OptionAssetInfo {
+  clone(): OptionAssetInfo
+  constructor(underlyingCoinId: Uint8Array, underlyingDelegatedPuzzleHash: Uint8Array)
+  get underlyingCoinId(): Buffer
+  set underlyingCoinId(value: Uint8Array)
+  get underlyingDelegatedPuzzleHash(): Buffer
+  set underlyingDelegatedPuzzleHash(value: Uint8Array)
 }
 
 export declare class OptionContract {
