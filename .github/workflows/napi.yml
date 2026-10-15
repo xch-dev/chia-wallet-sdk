@@ -34,7 +34,7 @@ jobs:
       matrix:
         settings:
           # Build both macOS targets on a single runner (macOS minutes are the most expensive)
-          - host: blacksmith-6vcpu-macos-latest
+          - host: macos-latest
             target: apple-darwin
             build: |
               pnpm build:macos-x64
@@ -83,10 +83,16 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.settings.target == 'apple-darwin' && 'x86_64-apple-darwin,aarch64-apple-darwin' || matrix.settings.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache cargo
+        uses: actions/cache@v5
         with:
-          key: ${{ matrix.settings.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
 
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}
@@ -124,7 +130,7 @@ jobs:
       run:
         working-directory: ./napi
     # Test every Node version in one job, since macOS minutes are the most expensive
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 

@@ -50,13 +50,8 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-pack
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
 
       - name: Tests
         run: pnpm test
