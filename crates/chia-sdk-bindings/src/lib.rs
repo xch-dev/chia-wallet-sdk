@@ -83,11 +83,11 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatInfo, CatalogDelegatedStateActionLog,
+    Bulletin, BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
     CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
-    Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionInfo,
-    OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
+    Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
+    OptionInfo, OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
     P2ConditionsOrSingletonVersion, P2ParentCoin, RewardDistributorAddEntryActionLog,
     RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
     RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,

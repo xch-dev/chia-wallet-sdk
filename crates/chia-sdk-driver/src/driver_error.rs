@@ -164,6 +164,9 @@ pub enum DriverError {
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
+    #[error("offer uses the old settlement payments puzzle")]
+    OldSettlementPayment,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
