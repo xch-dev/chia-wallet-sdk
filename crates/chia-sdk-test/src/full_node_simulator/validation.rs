@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+
 use chia_consensus::{
-    conditions::ELIGIBLE_FOR_DEDUP, flags::COMPUTE_FINGERPRINT, validation_error::ErrorCode,
+    conditions::ELIGIBLE_FOR_DEDUP,
+    consensus_constants::ConsensusConstants,
+    flags::{COMPUTE_FINGERPRINT, MEMPOOL_MODE},
+    validation_error::ErrorCode,
 };
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_sdk_types::default_constants;
@@ -10,27 +15,35 @@ use crate::{
     FullNodeSimulator, SimulatorError,
     full_node_simulator::{SIMULATOR_GENESIS_CHALLENGE, ValidatedBundle, ValidatedSpend},
     spend_bundle_validation::{
-        CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
-        validate_relative_conditions, validate_reserve_fee,
+        ValidationClock, ValidationSettings, coin_record, ephemeral_coin_record,
+        has_relative_time_lock, validate_conditions, validate_reserve_fee, validate_time_locks,
     },
 };
 
 #[derive(Debug, Default)]
 pub(super) struct ValidationOverlay {
-    additions: IndexSet<Bytes32>,
+    additions: IndexMap<Bytes32, Coin>,
     removals: IndexSet<Bytes32>,
 }
 
 impl ValidationOverlay {
     #[cfg(feature = "serde")]
     pub(super) fn apply(&mut self, bundle: &ValidatedBundle) {
-        self.additions
-            .extend(bundle.additions.iter().map(|(coin, _)| coin.coin_id()));
+        self.additions.extend(
+            bundle
+                .additions
+                .iter()
+                .map(|(coin, _)| (coin.coin_id(), *coin)),
+        );
         self.removals.extend(bundle.removals.iter().copied());
     }
 }
 
 impl FullNodeSimulator {
+    pub(super) fn constants() -> ConsensusConstants {
+        default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE)
+    }
+
     pub(super) fn validate_bundle(
         &self,
         spend_bundle: SpendBundle,
@@ -52,18 +65,21 @@ impl FullNodeSimulator {
         spend_bundle: SpendBundle,
         overlay: Option<&ValidationOverlay>,
     ) -> Result<ValidatedBundle, SimulatorError> {
-        let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
+        let constants = Self::constants();
         let clock = ValidationClock {
             height: self.state.height,
-            timestamp: self.state.next_timestamp,
+            timestamp: self.state.peak_timestamp(),
         };
+        let mut flags = ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT;
+        if self.mempool_mode {
+            flags |= MEMPOOL_MODE;
+        }
         let validation = validate_conditions(
             &spend_bundle,
             ValidationSettings {
                 constants: &constants,
                 max_cost: 11_000_000_000 / 2,
-                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
-                clock,
+                flags,
             },
         )
         .map_err(SimulatorError::Validation)?;
@@ -112,6 +128,8 @@ impl FullNodeSimulator {
             );
         }
 
+        let mut removal_records = HashMap::new();
+
         for spend in &conds.spends {
             let coin_id = spend.coin_id;
             if !removals.insert(coin_id) {
@@ -121,38 +139,34 @@ impl FullNodeSimulator {
                 return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
             }
 
-            if let Some(record) = self.state.coins.get(&coin_id) {
+            let record = if let Some(record) = self.state.coins.get(&coin_id) {
                 if record.spent_block_index.is_some() {
                     return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
                 }
-
-                validate_relative_conditions(
-                    spend,
-                    CoinRecord {
-                        created_height: Some(record.confirmed_block_index),
-                        created_timestamp: Some(record.timestamp),
-                    },
-                    clock,
+                coin_record(
+                    record.coin,
+                    record.confirmed_block_index,
+                    record.coinbase,
+                    record.timestamp,
                 )
-                .map_err(SimulatorError::Validation)?;
-            } else if additions.contains_key(&coin_id)
-                || overlay.is_some_and(|overlay| overlay.additions.contains(&coin_id))
-                || self.mempool_addition_coin(coin_id).is_some()
-            {
-                validate_relative_conditions(
-                    spend,
-                    CoinRecord {
-                        created_height: Some(clock.height),
-                        created_timestamp: Some(clock.timestamp),
-                    },
-                    clock,
-                )
-                .map_err(SimulatorError::Validation)?;
+            } else if let Some((coin, _)) = additions.get(&coin_id) {
+                ephemeral_coin_record(*coin, clock)
+            } else if let Some(coin) = self.unconfirmed_addition(coin_id, overlay) {
+                // The coin is created by another transaction in the same block, so consensus
+                // treats it as ephemeral. Condition parsing can't detect this across bundles.
+                if has_relative_time_lock(spend) {
+                    return Err(SimulatorError::Validation(
+                        ErrorCode::EphemeralRelativeCondition,
+                    ));
+                }
+                ephemeral_coin_record(coin, clock)
             } else {
                 return Err(SimulatorError::Validation(ErrorCode::UnknownUnspent));
-            }
+            };
+            removal_records.insert(coin_id, record);
         }
 
+        validate_time_locks(&conds, &removal_records, clock).map_err(SimulatorError::Validation)?;
         validate_reserve_fee(&conds, validation.fee).map_err(SimulatorError::Validation)?;
 
         Ok(ValidatedBundle {
@@ -165,7 +179,16 @@ impl FullNodeSimulator {
         })
     }
 
-    fn mempool_addition_coin(&self, coin_id: Bytes32) -> Option<Coin> {
+    fn unconfirmed_addition(
+        &self,
+        coin_id: Bytes32,
+        overlay: Option<&ValidationOverlay>,
+    ) -> Option<Coin> {
+        if let Some(overlay) = overlay
+            && let Some(coin) = overlay.additions.get(&coin_id)
+        {
+            return Some(*coin);
+        }
         self.mempool
             .values()
             .flat_map(|item| item.additions.iter().map(|(coin, _)| *coin))
@@ -230,7 +253,7 @@ mod tests {
             let coin = sim.new_coin(puzzle_hash, 100);
             let condition = match expected_error {
                 ErrorCode::AssertBeforeSecondsAbsoluteFailed => {
-                    AssertBeforeSecondsAbsolute::new(sim.state.next_timestamp).into()
+                    AssertBeforeSecondsAbsolute::new(sim.state.peak_timestamp()).into()
                 }
                 _ => condition,
             };

@@ -86,6 +86,7 @@ test("test clawback v2 (receiver spend)", (t) => {
 
   sim.spendCoins(clvm.coinSpends(), [alice.sk]);
   sim.passTime(10n);
+  sim.createBlock();
 
   const clawbackSpend = clawback.receiverSpend(
     clvm.standardSpend(
@@ -132,6 +133,7 @@ test("test clawback v2 (push through)", (t) => {
 
   sim.spendCoins(clvm.coinSpends(), [alice.sk]);
   sim.passTime(10n);
+  sim.createBlock();
 
   const clawbackSpend = clawback.pushThroughSpend(clvm);
   clvm.spendCoin(clawbackCoin, clawbackSpend);

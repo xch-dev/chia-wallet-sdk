@@ -1429,6 +1429,7 @@ fn test_clear_signing_spend_clawback(
     )?;
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     bob.p2_puzzles
         .insert(clawback.tree_hash(), TestP2Puzzle::Clawback(clawback));

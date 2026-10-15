@@ -1988,6 +1988,7 @@ mod tests {
                 .collect::<Vec<_>>();
             registry = registry.finish_spend(ctx)?.0;
             sim.pass_time(100); // registration start was at timestamp 100
+            sim.create_block();
 
             // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
             let spends = ctx.take();
@@ -2328,6 +2329,7 @@ mod tests {
             payment_cat.child(minter_bls.puzzle_hash, payment_cat.coin.amount - reg_amount);
 
         sim.set_next_timestamp(buy_time)?;
+        sim.create_block();
         // sim.spend_coins(ctx.take(), &[user_bls.sk.clone(), minter_bls.sk.clone()])?;
         let spends = ctx.take();
         benchmark.add_spends(
@@ -3762,6 +3764,7 @@ mod tests {
 
         registry = registry.finish_spend(ctx, vec![])?.0;
         sim.set_next_timestamp(first_epoch_start)?;
+        sim.create_block();
         // sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
         let spends = ctx.take();
         benchmark.add_spends(
@@ -3817,6 +3820,7 @@ mod tests {
 
         registry = registry.finish_spend(ctx, vec![])?.0;
         sim.pass_time(100);
+        sim.create_block();
         // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
         benchmark.add_spends(ctx, &mut sim, spends, "new_epoch", &[])?;
@@ -3865,6 +3869,7 @@ mod tests {
 
         registry = registry.finish_spend(ctx, vec![])?.0;
         sim.pass_time(400);
+        sim.create_block();
         // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
         benchmark.add_spends(ctx, &mut sim, spends, "sync", &[])?;
@@ -3995,6 +4000,7 @@ mod tests {
 
             registry = registry.finish_spend(ctx, vec![])?.0;
             sim.pass_time(250);
+            sim.create_block();
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "add_entry", &[])?;
@@ -4075,6 +4081,7 @@ mod tests {
             );
 
             sim.pass_time(250);
+            sim.create_block();
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(
@@ -4346,6 +4353,7 @@ mod tests {
             let _new_offer3_nft = offer3_nft.spend(ctx, nft3_inner_spend)?;
 
             sim.pass_time(250);
+            sim.create_block();
             // sim.spend_coins(spends, &[nft2_bls.sk.clone(), nft3_bls.sk.clone()])?;
             let spends = ctx.take();
             benchmark.add_spends(
@@ -4816,6 +4824,7 @@ mod tests {
 
             registry = registry.finish_spend(ctx, vec![])?.0;
             sim.set_next_timestamp(update_time)?;
+            sim.create_block();
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "sync_and_new_epoch", &[])?;
@@ -4927,6 +4936,7 @@ mod tests {
 
             registry = registry.finish_spend(ctx, vec![])?.0;
             sim.set_next_timestamp(update_time)?;
+            sim.create_block();
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "sync", &[])?;
@@ -4960,6 +4970,7 @@ mod tests {
         let _registry = registry.finish_spend(ctx, vec![])?.0;
 
         sim.set_next_timestamp(update_time)?;
+        sim.create_block();
         // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
         benchmark.add_spends(
@@ -5144,6 +5155,7 @@ mod tests {
         )?;
 
         sim.set_next_timestamp(first_epoch_start + 1)?;
+        sim.create_block();
         assert!(sim.coin_state(source_cat.coin.coin_id()).is_some());
 
         // commit incentives for second epoch (this will create the reward slot for 2nd epoch - not benchmarked)

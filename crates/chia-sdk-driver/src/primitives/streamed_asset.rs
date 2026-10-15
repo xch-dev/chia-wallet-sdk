@@ -559,6 +559,7 @@ mod tests {
             if i < claim_intervals.len() - 1 {
                 sim.pass_time(claim_intervals[i + 1]);
             }
+            sim.create_block();
 
             // to claim the payment, user needs to send a message to the streaming CAT
             let user_coin = sim.new_coin(user_bls.puzzle_hash, 0);
