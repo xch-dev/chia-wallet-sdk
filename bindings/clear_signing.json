@@ -101,8 +101,29 @@
     "fields": {
       "launcher_id": "Bytes32",
       "nonce": "usize",
-      "quoted_conditions_hash": "Bytes32",
-      "version": "P2ConditionsOrSingletonVersion"
+      "fixed_conditions_hash": "Bytes32"
+    },
+    "methods": {
+      "from_quoted_conditions_hash": {
+        "type": "factory",
+        "args": {
+          "launcher_id": "Bytes32",
+          "nonce": "usize",
+          "quoted_conditions_hash": "Bytes32",
+          "version": "P2ConditionsOrSingletonVersion"
+        }
+      },
+      "calculate_fixed_conditions_hash": {
+        "type": "static",
+        "args": {
+          "quoted_conditions_hash": "Bytes32",
+          "version": "P2ConditionsOrSingletonVersion"
+        },
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "VaultTransaction": {

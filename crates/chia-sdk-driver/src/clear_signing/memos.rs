@@ -58,8 +58,11 @@ pub fn parse_memos(
         && let Ok((_hint, (memo, rest))) =
             <(Bytes32, (NodePtr, NodePtr))>::from_clvm(allocator, memos)
         && let Ok(conditions) = Vec::<Condition>::from_clvm(allocator, memo)
-        && Bytes32::from(clvm_quote!(tree_hash(allocator, memo)).tree_hash())
-            == p2_conditions_or_singleton.quoted_conditions_hash
+        && p2_conditions_or_singleton
+            .match_quoted_conditions_hash(
+                clvm_quote!(tree_hash(allocator, memo)).tree_hash().into(),
+            )
+            .is_some()
     {
         return ParsedMemos {
             p2_puzzle_hash: p2_create_coin.puzzle_hash,

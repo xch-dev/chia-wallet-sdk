@@ -2538,15 +2538,16 @@ export declare class Outputs {
 
 export declare class P2ConditionsOrSingleton {
   clone(): P2ConditionsOrSingleton
-  constructor(launcherId: Uint8Array, nonce: bigint, quotedConditionsHash: Uint8Array, version: P2ConditionsOrSingletonVersion)
+  static fromQuotedConditionsHash(launcherId: Uint8Array, nonce: bigint, quotedConditionsHash: Uint8Array, version: P2ConditionsOrSingletonVersion): P2ConditionsOrSingleton
+  static calculateFixedConditionsHash(quotedConditionsHash: Uint8Array, version: P2ConditionsOrSingletonVersion): Buffer
+  puzzleHash(): Buffer
+  constructor(launcherId: Uint8Array, nonce: bigint, fixedConditionsHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get nonce(): bigint
   set nonce(value: bigint)
-  get quotedConditionsHash(): Buffer
-  set quotedConditionsHash(value: Uint8Array)
-  get version(): P2ConditionsOrSingletonVersion
-  set version(value: P2ConditionsOrSingletonVersion)
+  get fixedConditionsHash(): Buffer
+  set fixedConditionsHash(value: Uint8Array)
 }
 
 export declare class P2ConditionsOrSingletonInfo {
