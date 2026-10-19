@@ -1210,7 +1210,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
 name = "cni-wallet-sdk-wasm"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "bindy",
  "bindy-macro",
