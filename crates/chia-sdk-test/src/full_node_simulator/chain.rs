@@ -22,8 +22,17 @@ impl FullNodeSimulator {
         let mut included_tx_ids = Vec::new();
         let mut included = Vec::new();
         let mut included_spends_by_coin = IndexMap::<Bytes32, ValidatedSpend>::new();
+        let max_block_cost = Self::constants().max_block_cost_clvm;
+        let mut block_cost = 0_u64;
         for (tx_id, item) in self.mempool.clone() {
             let Ok(validated) = self.validate_bundle(item.spend_bundle.clone()) else {
+                continue;
+            };
+            // Transactions that don't fit are left in the mempool for a later block.
+            let Some(new_block_cost) = block_cost
+                .checked_add(validated.cost)
+                .filter(|cost| *cost <= max_block_cost)
+            else {
                 continue;
             };
             let has_conflict = validated.removals.iter().any(|coin_id| {
@@ -46,6 +55,7 @@ impl FullNodeSimulator {
                     .entry(*coin_id)
                     .or_insert_with(|| spend.clone());
             }
+            block_cost = new_block_cost;
             included_tx_ids.push(tx_id);
             included.push(validated);
         }

@@ -121,6 +121,14 @@ impl ChainState {
         Ok(Some(block))
     }
 
+    /// The timestamp of the peak block, which transactions are validated against.
+    pub(super) fn peak_timestamp(&self) -> u64 {
+        self.blocks
+            .get(&self.header_hash())
+            .and_then(|block| block.record.timestamp)
+            .unwrap_or_else(|| self.next_timestamp.saturating_sub(1))
+    }
+
     pub(super) fn insert_manual_coin(&mut self, coin_id: Bytes32, record: SimCoinRecord) {
         self.coins.insert(coin_id, record);
     }

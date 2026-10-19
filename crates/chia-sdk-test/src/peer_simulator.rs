@@ -494,8 +494,8 @@ mod tests {
             .find(|cs| cs.coin.amount == 2)
             .copied();
 
-        let expected_1 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 1), None, Some(0));
-        let expected_2 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 2), None, Some(0));
+        let expected_1 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 1), None, Some(1));
+        let expected_2 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 2), None, Some(1));
 
         assert_eq!(found_1, Some(expected_1));
         assert_eq!(found_2, Some(expected_2));
@@ -526,13 +526,13 @@ mod tests {
         assert_eq!(ack.status, 1);
 
         let response = peer
-            .request_puzzle_and_solution(coin.coin_id(), 0)
+            .request_puzzle_and_solution(coin.coin_id(), 1)
             .await?
             .unwrap();
         assert_eq!(response.coin_name, coin.coin_id());
         assert_eq!(response.puzzle, puzzle_reveal);
         assert_eq!(response.solution, solution);
-        assert_eq!(response.height, 0);
+        assert_eq!(response.height, 1);
 
         Ok(())
     }
@@ -566,7 +566,7 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        coin_state.spent_height = Some(0);
+        coin_state.spent_height = Some(1);
 
         let updates = coin_state_updates(&mut receiver);
         assert_eq!(updates.len(), 1);
@@ -610,7 +610,7 @@ mod tests {
         let updates = coin_state_updates(&mut receiver);
         assert_eq!(updates.len(), 1);
 
-        let coin_state = CoinState::new(child_coin, None, Some(0));
+        let coin_state = CoinState::new(child_coin, None, Some(1));
 
         assert_eq!(
             updates[0],
@@ -649,7 +649,7 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        coin_state.spent_height = Some(0);
+        coin_state.spent_height = Some(1);
 
         let updates = coin_state_updates(&mut receiver);
         assert_eq!(updates.len(), 1);
@@ -697,7 +697,7 @@ mod tests {
         let updates = coin_state_updates(&mut receiver);
         assert_eq!(updates.len(), 1);
 
-        let coin_state = CoinState::new(child_coin, None, Some(0));
+        let coin_state = CoinState::new(child_coin, None, Some(1));
 
         assert_eq!(
             updates[0],
@@ -739,7 +739,7 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        coin_state.spent_height = Some(0);
+        coin_state.spent_height = Some(1);
 
         let updates = coin_state_updates(&mut receiver);
         assert_eq!(updates.len(), 1);
@@ -792,7 +792,7 @@ mod tests {
                 vec![CoinState::new(
                     Coin::new(coin.coin_id(), puzzle_hash, 0),
                     None,
-                    Some(0)
+                    Some(1)
                 )]
             )
         );
@@ -836,7 +836,7 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        coin_state.spent_height = Some(0);
+        coin_state.spent_height = Some(1);
 
         let response = peer
             .request_coin_state(
@@ -901,7 +901,7 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        coin_state.spent_height = Some(0);
+        coin_state.spent_height = Some(1);
 
         let response = peer
             .request_puzzle_state(

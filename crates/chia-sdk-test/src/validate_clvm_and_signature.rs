@@ -17,7 +17,7 @@ use chia_protocol::{Bytes, SpendBundle};
 use chia_sdk_types::run_puzzle_with_cost;
 use chia_sha2::Sha256;
 use clvm_utils::tree_hash;
-use clvmr::{Allocator, LIMIT_HEAP, reduction::Reduction, serde::node_from_bytes};
+use clvmr::{Allocator, LIMIT_HEAP, MEMPOOL_MODE, reduction::Reduction, serde::node_from_bytes};
 
 // TODO: This function is copied here because WASM doesn't support std::time::Instant
 // Should this be changed upstream?
@@ -90,7 +90,8 @@ pub fn run_spendbundle(
         let sol = node_from_bytes(a, coin_spend.solution.as_slice())?;
         let parent = a.new_atom(coin_spend.coin.parent_coin_info.as_slice())?;
         let amount = a.new_number(coin_spend.coin.amount.into())?;
-        let Reduction(clvm_cost, conditions) = run_puzzle_with_cost(a, puz, sol, cost_left, false)?;
+        let Reduction(clvm_cost, conditions) =
+            run_puzzle_with_cost(a, puz, sol, cost_left, (flags & MEMPOOL_MODE) != 0)?;
 
         ret.execution_cost += clvm_cost;
         subtract_cost(a, &mut cost_left, clvm_cost)?;

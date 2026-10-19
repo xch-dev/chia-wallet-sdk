@@ -65,6 +65,9 @@ fn push_tx_error_name(error: &SimulatorError) -> &'static str {
         ErrorCode::AssertSecondsRelativeFailed => "ASSERT_SECONDS_RELATIVE_FAILED",
         ErrorCode::AssertBeforeHeightRelativeFailed => "ASSERT_BEFORE_HEIGHT_RELATIVE_FAILED",
         ErrorCode::AssertBeforeSecondsRelativeFailed => "ASSERT_BEFORE_SECONDS_RELATIVE_FAILED",
+        ErrorCode::AssertMyBirthHeightFailed => "ASSERT_MY_BIRTH_HEIGHT_FAILED",
+        ErrorCode::AssertMyBirthSecondsFailed => "ASSERT_MY_BIRTH_SECONDS_FAILED",
+        ErrorCode::EphemeralRelativeCondition => "EPHEMERAL_RELATIVE_CONDITION",
         _ => "UNKNOWN",
     }
 }
