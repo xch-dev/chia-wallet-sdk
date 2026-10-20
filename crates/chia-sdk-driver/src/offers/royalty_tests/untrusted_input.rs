@@ -2,36 +2,26 @@ use super::*;
 
 #[test]
 fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
+    let mut ctx = SpendContext::new();
     let launcher_id = Bytes32::new([4; 32]);
-    let hint = Memos::None;
+    let royalty = RoyaltyInfo::new(launcher_id, ROYALTY_A, 1);
 
     let mut offered_coins = OfferCoins::new();
-    offered_coins.settled_payments.xch = vec![
-        NotarizedPayment::new(
-            launcher_id,
-            vec![
-                Payment::new(ROYALTY_A, u64::MAX, hint),
-                Payment::new(ROYALTY_B, 1000, hint),
-            ],
-        ),
-        NotarizedPayment::new(launcher_id, vec![Payment::new(ROYALTY_A, u64::MAX, hint)]),
-        NotarizedPayment::new(
-            Bytes32::new([5; 32]),
-            vec![Payment::new(ROYALTY_A, 1000, hint)],
-        ),
+    offered_coins.prepaid_royalties.xch = vec![
+        royalty.payment(&mut ctx, u64::MAX)?,
+        royalty.payment(&mut ctx, u64::MAX)?,
+        RoyaltyInfo::new(launcher_id, ROYALTY_B, 1).payment(&mut ctx, 1000)?,
+        RoyaltyInfo::new(Bytes32::new([5; 32]), ROYALTY_A, 1).payment(&mut ctx, 1000)?,
     ];
 
-    // A requested NFT without asset info has no known royalty address
     let mut requested_payments = RequestedPayments::new();
-    for id in [launcher_id, Bytes32::new([6; 32])] {
-        requested_payments.nfts.insert(
-            id,
-            vec![NotarizedPayment::new(
-                Bytes32::default(),
-                vec![Payment::new(ROYALTY_C, 1, hint)],
-            )],
-        );
-    }
+    requested_payments.nfts.insert(
+        launcher_id,
+        vec![NotarizedPayment::new(
+            Bytes32::default(),
+            vec![Payment::new(ROYALTY_C, 1, Memos::None)],
+        )],
+    );
 
     let mut asset_info = AssetInfo::new();
     asset_info.insert_nft(
@@ -41,9 +31,9 @@ fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
 
     let offer = Offer::new(
         SpendBundle::new(Vec::new(), Signature::default()),
-        offered_coins,
-        requested_payments,
-        asset_info,
+        offered_coins.clone(),
+        requested_payments.clone(),
+        asset_info.clone(),
     );
 
     // Only payments to the royalty address with the NFT's nonce count, and the total can exceed a
@@ -58,8 +48,25 @@ fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
 
     // No trade price is large enough to produce these royalties
     assert_eq!(offer.requested_nft_trade_prices(launcher_id), Vec::new());
+
+    // A requested NFT without asset info has no known royalty address
+    let unknown_launcher_id = Bytes32::new([6; 32]);
+    requested_payments
+        .nfts
+        .insert(unknown_launcher_id, Vec::new());
+    let offer = Offer::new(
+        SpendBundle::new(Vec::new(), Signature::default()),
+        offered_coins,
+        requested_payments,
+        asset_info,
+    );
+
+    assert!(matches!(
+        offer.offered_royalty_amounts(),
+        Err(DriverError::MissingAssetInfo)
+    ));
     assert_eq!(
-        offer.requested_nft_trade_prices(Bytes32::new([6; 32])),
+        offer.requested_nft_trade_prices(unknown_launcher_id),
         Vec::new()
     );
 
@@ -67,7 +74,7 @@ fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_unparseable_settled_payments_are_ignored() -> anyhow::Result<()> {
+fn test_unparseable_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
     let mut t = Tester::new();
     let alice = t.pair();
     let settlement = t.ctx.alloc_mod::<SettlementPayment>()?;
@@ -98,8 +105,8 @@ fn test_unparseable_settled_payments_are_ignored() -> anyhow::Result<()> {
         &SpendBundle::new(coin_spends, Signature::default()),
     )?;
 
-    assert!(offer.offered_coins().settled_payments.xch.is_empty());
-    assert!(offer.offered_coins().settled_payments.cats.is_empty());
+    assert!(offer.offered_coins().prepaid_royalties.xch.is_empty());
+    assert!(offer.offered_coins().prepaid_royalties.cats.is_empty());
 
     Ok(())
 }

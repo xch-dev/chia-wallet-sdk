@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, SettlementPaymentsSolution},
+};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::TradePrice, run_puzzle};
 use clvm_traits::FromClvm;
@@ -26,9 +29,12 @@ pub struct OfferCoins {
     ///
     /// Keyed by launcher id like `nfts`, and only has entries for NFTs in it.
     pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
-    /// Payments already made by settlement spends in the offer, such as royalties paid up front
-    /// for requested NFTs.
-    pub settled_payments: RequestedPayments,
+    /// Royalties paid up front for requested NFTs by settlement spends in the offer.
+    ///
+    /// Only notarized payments in the form an NFT's royalty transfer program asserts are kept: a
+    /// single payment whose memos are exactly its puzzle hash. Any other payment can't satisfy an
+    /// NFT's royalty assertion, so it doesn't count as a royalty.
+    pub prepaid_royalties: RequestedPayments,
 }
 
 impl OfferCoins {
@@ -150,7 +156,7 @@ impl OfferCoins {
         }
 
         self.nft_trade_prices.extend(other.nft_trade_prices);
-        self.settled_payments.extend(other.settled_payments);
+        self.prepaid_royalties.extend(other.prepaid_royalties);
 
         for (launcher_id, option) in other.options {
             if self.options.insert(launcher_id, option).is_some() {
@@ -244,16 +250,19 @@ impl OfferCoins {
             asset_info.insert_option(option.info.launcher_id, info)?;
         }
 
-        // Settled payments are informational, so ones that can't be parsed are ignored rather
-        // than rejecting a spend that's otherwise valid
+        // Prepaid royalties are informational, so settlement solutions that can't be parsed are
+        // ignored rather than rejecting a spend that's otherwise valid
         if let Some((asset_id, settlement_solution)) =
             settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
             && let Ok(solution) =
                 SettlementPaymentsSolution::from_clvm(allocator, settlement_solution)
         {
-            self.settled_payments
-                .fungible_mut(asset_id)
-                .extend(solution.notarized_payments);
+            self.prepaid_royalties.fungible_mut(asset_id).extend(
+                solution
+                    .notarized_payments
+                    .into_iter()
+                    .filter(|notarized_payment| is_royalty_payment(allocator, notarized_payment)),
+            );
         }
 
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
@@ -296,6 +305,21 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     }
 
     Ok(())
+}
+
+/// Whether a notarized payment has the form of an NFT royalty payment, which is
+/// `(launcher_id ((royalty_puzzle_hash amount (royalty_puzzle_hash))))`. The nonce and amount are
+/// checked against each NFT when the royalties are read.
+fn is_royalty_payment(allocator: &Allocator, notarized_payment: &NotarizedPayment) -> bool {
+    let [payment] = notarized_payment.payments.as_slice() else {
+        return false;
+    };
+
+    let Memos::Some(memos) = payment.memos else {
+        return false;
+    };
+
+    <(Bytes32, ())>::from_clvm(allocator, memos).is_ok_and(|(memo, ())| memo == payment.puzzle_hash)
 }
 
 /// The CAT asset id, which is `None` for XCH, and settlement solution of a spend of a settlement
