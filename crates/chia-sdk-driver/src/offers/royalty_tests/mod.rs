@@ -37,7 +37,7 @@ use indexmap::{IndexMap, indexmap};
 use crate::{
     Action, AssetInfo, Cat, CatAssetInfo, CatInfo, CatSpend, DriverError, HashedPtr, Id, Layer,
     Nft, NftAssetInfo, Offer, OfferAmounts, OfferCoins, Outputs, Relation, RequestedPayments,
-    Spend, SpendContext, Spends, TransferNftById, calculate_nft_royalty,
+    RoyaltyInfo, Spend, SpendContext, Spends, TransferNftById, calculate_nft_royalty,
     calculate_trade_price_amounts, calculate_trade_prices, coin_amount, payable_trade_prices,
 };
 
@@ -375,13 +375,46 @@ impl Tester {
         nft: &Nft,
         prices: &[(Price, u64)],
     ) -> anyhow::Result<SpendBundle> {
+        let royalty = RoyaltyInfo::new(
+            nft.info.launcher_id,
+            nft.info.royalty_puzzle_hash,
+            nft.info.royalty_basis_points,
+        );
+        let mut with_settlements = Vec::new();
+
+        for &(price, amount) in prices {
+            let settlements = if amount > 0 {
+                vec![royalty.payment(&mut self.ctx, amount)?]
+            } else {
+                Vec::new()
+            };
+            with_settlements.push((price, settlements));
+        }
+
+        self.bid_with_settlements(maker, nft, &with_settlements)
+    }
+
+    /// Offers fungible assets for an NFT, making the given settlement payments in each asset up
+    /// front.
+    fn bid_with_settlements(
+        &mut self,
+        maker: &BlsPair,
+        nft: &Nft,
+        prices: &[(Price, Vec<NotarizedPayment>)],
+    ) -> anyhow::Result<SpendBundle> {
         let launcher_id = nft.info.launcher_id;
         let mut spends = Spends::new(maker.puzzle_hash);
         let mut actions = Vec::new();
         let mut coin_ids = Vec::new();
 
-        for &(price, royalty) in prices {
-            let total = price.amount() + royalty;
+        for (price, settlements) in prices {
+            let price = *price;
+            let total = price.amount()
+                + settlements
+                    .iter()
+                    .flat_map(|settlement| &settlement.payments)
+                    .map(|payment| payment.amount)
+                    .sum::<u64>();
 
             let (id, coin_id) = match price {
                 Price::Xch(_) => {
@@ -409,14 +442,8 @@ impl Tester {
                 Memos::None,
             ));
 
-            if royalty > 0 {
-                actions.push(Action::settle_royalty(
-                    &mut self.ctx,
-                    id,
-                    launcher_id,
-                    nft.info.royalty_puzzle_hash,
-                    royalty,
-                )?);
+            for settlement in settlements {
+                actions.push(Action::settle(id, settlement.clone()));
             }
         }
 

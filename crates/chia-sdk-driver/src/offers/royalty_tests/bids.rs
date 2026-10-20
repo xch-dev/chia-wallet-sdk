@@ -278,11 +278,11 @@ fn test_smallest_trade_price_for_prepaid_royalty() -> anyhow::Result<()> {
     let launcher_id = Bytes32::new([4; 32]);
 
     let trade_prices = |basis_points: u16, royalty: u64| -> anyhow::Result<Vec<TradePrice>> {
+        let mut ctx = SpendContext::new();
         let mut offered_coins = OfferCoins::new();
-        offered_coins.settled_payments.xch = vec![NotarizedPayment::new(
-            launcher_id,
-            vec![Payment::new(ROYALTY_A, royalty, Memos::None)],
-        )];
+        offered_coins.prepaid_royalties.xch = vec![
+            RoyaltyInfo::new(launcher_id, ROYALTY_A, basis_points).payment(&mut ctx, royalty)?,
+        ];
 
         let mut requested_payments = RequestedPayments::new();
         requested_payments.nfts.insert(launcher_id, Vec::new());
@@ -355,12 +355,82 @@ fn test_aggregate_sale_and_bid_for_same_nft() -> anyhow::Result<()> {
     assert_eq!(offer.requested_royalty_amounts()?, xch(50));
     assert_eq!(offer.offered_royalty_amounts()?, xch(75));
 
+    // Carol doesn't transfer the NFT, so it doesn't reveal the trade price Bob paid a royalty on
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft.info.launcher_id),
+        Vec::new()
+    );
+
     t.take(&carol, &offer, |_| {})?;
 
     assert!(t.owns_nft(&nft, bob.puzzle_hash));
     assert_eq!(t.balance(alice.puzzle_hash), 1000);
     assert_eq!(t.balance(carol.puzzle_hash), 450);
     assert_eq!(t.balance(ROYALTY_A), 50 + 75);
+
+    Ok(())
+}
+
+#[test]
+fn test_malformed_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+
+    let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
+    let launcher_id = nft.info.launcher_id;
+    let royalty_hint = t.ctx.hint(ROYALTY_A)?;
+    let other_hint = t.ctx.hint(ROYALTY_B)?;
+
+    // The NFT only asserts a notarized payment with a single payment, whose memos are exactly the
+    // royalty address, so none of these can satisfy it
+    let malformed = vec![
+        NotarizedPayment::new(launcher_id, vec![Payment::new(ROYALTY_A, 30, Memos::None)]),
+        NotarizedPayment::new(launcher_id, vec![Payment::new(ROYALTY_A, 30, other_hint)]),
+        NotarizedPayment::new(
+            launcher_id,
+            vec![
+                Payment::new(ROYALTY_A, 30, royalty_hint),
+                Payment::new(ROYALTY_B, 1, other_hint),
+            ],
+        ),
+    ];
+
+    let offer = t.bid_with_settlements(&alice, &nft, &[(Price::Xch(1000), malformed.clone())])?;
+    let offer = t.aggregate(&[offer])?;
+
+    assert!(offer.offered_coins().prepaid_royalties.xch.is_empty());
+    assert_eq!(offer.offered_royalty_amounts()?, OfferAmounts::new());
+    assert_eq!(offer.requested_nft_trade_prices(launcher_id), Vec::new());
+
+    // Revealing a trade price for them would assert a payment that was never made
+    t.take(&bob, &offer, |spends| spends.add(nft))?;
+
+    assert!(t.owns_nft(&nft, alice.puzzle_hash));
+    assert_eq!(t.balance(ROYALTY_A), 90);
+
+    // A royalty paid in the right form alongside them is still revealed
+    let nft = t.mint_nft(&bob, ROYALTY_B, 300)?;
+    let mut settlements = vec![NotarizedPayment::new(
+        nft.info.launcher_id,
+        vec![Payment::new(ROYALTY_B, 30, Memos::None)],
+    )];
+    settlements
+        .push(RoyaltyInfo::new(nft.info.launcher_id, ROYALTY_B, 300).payment(&mut t.ctx, 30)?);
+
+    let offer = t.bid_with_settlements(&alice, &nft, &[(Price::Xch(1000), settlements)])?;
+    let offer = t.aggregate(&[offer])?;
+
+    assert_eq!(offer.offered_royalty_amounts()?, xch(30));
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft.info.launcher_id),
+        vec![xch_trade_price(1000)]
+    );
+
+    t.take(&bob, &offer, |spends| spends.add(nft))?;
+
+    assert!(t.owns_nft(&nft, alice.puzzle_hash));
+    assert_eq!(t.balance(ROYALTY_B), 1 + 30 + 30);
 
     Ok(())
 }

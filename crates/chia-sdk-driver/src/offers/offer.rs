@@ -172,11 +172,19 @@ impl Offer {
     }
 
     /// Returns the royalties already paid in the offer for requested NFTs.
+    ///
+    /// Fails with [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since
+    /// its royalty address isn't known.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let mut amounts = OfferAmounts::new();
 
         for &launcher_id in self.requested_payments.nfts.keys() {
-            for (asset_id, amount) in self.prepaid_royalties(launcher_id) {
+            let nft = self
+                .asset_info
+                .nft(launcher_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
+            for (asset_id, amount) in self.prepaid_royalties(launcher_id, nft.royalty_puzzle_hash) {
                 amounts.add_amount(asset_id, amount.into());
             }
         }
@@ -248,14 +256,20 @@ impl Offer {
     /// Prepaid royalties that no trade price could produce, or that are paid in a CAT without
     /// asset info, are left out, since the NFT can't assert them.
     ///
-    /// An NFT that's also offered only passes through settlement, so the taker shouldn't
-    /// transfer it or reveal any trade prices for it.
+    /// There are none for an NFT that isn't requested. There are also none for an NFT that's
+    /// also offered, since it only passes through settlement, so the taker shouldn't transfer it.
     pub fn requested_nft_trade_prices(&self, launcher_id: Bytes32) -> Vec<TradePrice> {
+        if !self.requested_payments.nfts.contains_key(&launcher_id)
+            || self.offered_coins.nfts.contains_key(&launcher_id)
+        {
+            return Vec::new();
+        }
+
         let Some(nft) = self.asset_info.nft(launcher_id) else {
             return Vec::new();
         };
 
-        self.prepaid_royalties(launcher_id)
+        self.prepaid_royalties(launcher_id, nft.royalty_puzzle_hash)
             .filter_map(|(asset_id, royalty)| {
                 let amount = calculate_min_trade_price(royalty, nft.royalty_basis_points)?;
                 Some(TradePrice::new(
@@ -297,21 +311,17 @@ impl Offer {
     fn prepaid_royalties(
         &self,
         launcher_id: Bytes32,
+        royalty_puzzle_hash: Bytes32,
     ) -> impl Iterator<Item = (Option<Bytes32>, u64)> {
-        let royalty_puzzle_hash = self
-            .asset_info
-            .nft(launcher_id)
-            .map(|nft| nft.royalty_puzzle_hash);
-
         self.offered_coins
-            .settled_payments
+            .prepaid_royalties
             .fungible()
             .filter(move |(_, notarized_payment)| notarized_payment.nonce == launcher_id)
             .flat_map(move |(asset_id, notarized_payment)| {
                 notarized_payment
                     .payments
                     .iter()
-                    .filter(move |payment| Some(payment.puzzle_hash) == royalty_puzzle_hash)
+                    .filter(move |payment| payment.puzzle_hash == royalty_puzzle_hash)
                     .map(move |payment| (asset_id, payment.amount))
             })
     }
