@@ -171,8 +171,8 @@ pub enum DriverError {
     #[error("nft {0} has a trade price whose royalty rounds to zero, so it can't be settled")]
     ZeroRoyaltyPayment(Bytes32),
 
-    #[error("trade price is paid in an unknown asset with settlement puzzle hash {0}")]
-    UnknownTradePriceAsset(Bytes32),
+    #[error("unknown asset with settlement puzzle hash {0}")]
+    UnknownSettlementAsset(Bytes32),
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),

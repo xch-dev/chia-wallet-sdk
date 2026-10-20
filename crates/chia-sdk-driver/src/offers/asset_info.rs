@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chia_protocol::Bytes32;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 
-use crate::{CatInfo, DriverError, HashedPtr, Id};
+use crate::{CatInfo, DriverError, HashedPtr};
 
 #[derive(Debug, Default, Clone)]
 pub struct AssetInfo {
@@ -41,11 +41,14 @@ impl AssetInfo {
         self.options.get(&launcher_id)
     }
 
-    /// The puzzle hash of settlement coins for XCH or a CAT. Fails with
+    /// The puzzle hash of settlement coins for a CAT, or XCH if `asset_id` is `None`. Fails with
     /// [`DriverError::MissingAssetInfo`] for an unknown CAT, since its hidden puzzle hash affects
     /// the puzzle hash.
-    pub fn settlement_puzzle_hash(&self, asset: Id) -> Result<Bytes32, DriverError> {
-        let Id::Existing(asset_id) = asset else {
+    pub fn settlement_puzzle_hash(
+        &self,
+        asset_id: Option<Bytes32>,
+    ) -> Result<Bytes32, DriverError> {
+        let Some(asset_id) = asset_id else {
             return Ok(SETTLEMENT_PAYMENT_HASH.into());
         };
 
@@ -60,16 +63,23 @@ impl AssetInfo {
         .into())
     }
 
-    /// The XCH or known CAT whose settlement coins have the given puzzle hash.
-    pub fn settlement_asset(&self, settlement_puzzle_hash: Bytes32) -> Option<Id> {
+    /// The asset id of the known CAT whose settlement coins have the given puzzle hash, or `None`
+    /// for XCH. Fails with [`DriverError::UnknownSettlementAsset`] if it's neither.
+    pub fn settlement_asset_id(
+        &self,
+        settlement_puzzle_hash: Bytes32,
+    ) -> Result<Option<Bytes32>, DriverError> {
         if settlement_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
-            return Some(Id::Xch);
+            return Ok(None);
         }
 
         self.cats
             .keys()
-            .map(|&asset_id| Id::Existing(asset_id))
-            .find(|&asset| self.settlement_puzzle_hash(asset).ok() == Some(settlement_puzzle_hash))
+            .find(|&&asset_id| {
+                self.settlement_puzzle_hash(Some(asset_id)).ok() == Some(settlement_puzzle_hash)
+            })
+            .map(|&asset_id| Some(asset_id))
+            .ok_or(DriverError::UnknownSettlementAsset(settlement_puzzle_hash))
     }
 
     pub fn insert_cat(&mut self, asset_id: Bytes32, info: CatAssetInfo) -> Result<(), DriverError> {

@@ -485,7 +485,7 @@ fn test_unknown_trade_price_asset_is_rejected() -> anyhow::Result<()> {
     assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
     assert!(matches!(
         offer.requested_royalty_payments(&mut t.ctx),
-        Err(DriverError::UnknownTradePriceAsset(puzzle_hash)) if puzzle_hash == unknown.puzzle_hash
+        Err(DriverError::UnknownSettlementAsset(puzzle_hash)) if puzzle_hash == unknown.puzzle_hash
     ));
 
     Ok(())
