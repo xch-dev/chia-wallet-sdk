@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Id, Layer, Nft, NftAssetInfo,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Layer, Nft, NftAssetInfo,
     OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
     RequestedPayments, SettlementLayer, Spends,
 };
@@ -246,13 +246,13 @@ impl OfferCoins {
 
         // Settled payments are informational, so ones that can't be parsed are ignored rather
         // than rejecting a spend that's otherwise valid
-        if let Some((asset, settlement_solution)) =
+        if let Some((asset_id, settlement_solution)) =
             settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
             && let Ok(solution) =
                 SettlementPaymentsSolution::from_clvm(allocator, settlement_solution)
         {
             self.settled_payments
-                .fungible_mut(asset)
+                .fungible_mut(asset_id)
                 .extend(solution.notarized_payments);
         }
 
@@ -298,15 +298,16 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     Ok(())
 }
 
-/// The asset and settlement solution of a spend of an XCH or CAT settlement coin.
+/// The CAT asset id, which is `None` for XCH, and settlement solution of a spend of a settlement
+/// coin.
 fn settlement_spend(
     allocator: &Allocator,
     coin: Coin,
     puzzle: Puzzle,
     solution: NodePtr,
-) -> Result<Option<(Id, NodePtr)>, DriverError> {
+) -> Result<Option<(Option<Bytes32>, NodePtr)>, DriverError> {
     if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
-        return Ok(Some((Id::Xch, solution)));
+        return Ok(Some((None, solution)));
     }
 
     let Some(cat) = Cat::parse(allocator, coin, puzzle, solution)? else {
@@ -315,7 +316,7 @@ fn settlement_spend(
 
     Ok(SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?
         .is_some()
-        .then_some((Id::Existing(cat.cat.info.asset_id), cat.p2_solution)))
+        .then_some((Some(cat.cat.info.asset_id), cat.p2_solution)))
 }
 
 impl AddAsset for OfferCoins {

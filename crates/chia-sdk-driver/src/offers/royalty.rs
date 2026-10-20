@@ -3,9 +3,7 @@ use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
-use crate::{
-    AssetInfo, DriverError, Id, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
-};
+use crate::{AssetInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoyaltyInfo {
@@ -79,7 +77,7 @@ pub fn calculate_trade_prices(
 
         trade_prices.push(TradePrice::new(
             coin_amount(amount)?,
-            asset_info.settlement_puzzle_hash(Id::Existing(asset_id))?,
+            asset_info.settlement_puzzle_hash(Some(asset_id))?,
         ));
     }
 

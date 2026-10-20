@@ -11,7 +11,7 @@ use hex_literal::hex;
 use indexmap::IndexSet;
 
 use crate::{
-    Arbitrage, AssetInfo, CatInfo, DriverError, Id, Layer, NftInfo, OfferAmounts, OfferCoins,
+    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
     OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     calculate_min_trade_price, calculate_nft_royalty, coin_amount,
 };
@@ -176,8 +176,8 @@ impl Offer {
         let mut amounts = OfferAmounts::new();
 
         for &launcher_id in self.requested_payments.nfts.keys() {
-            for (asset, amount) in self.prepaid_royalties(launcher_id) {
-                amounts.add_amount(asset, amount.into());
+            for (asset_id, amount) in self.prepaid_royalties(launcher_id) {
+                amounts.add_amount(asset_id, amount.into());
             }
         }
 
@@ -191,10 +191,12 @@ impl Offer {
         let mut amounts = OfferAmounts::new();
 
         for committed in self.committed_royalties() {
-            if let Some(asset) = committed.asset
-                && committed.amount > 0
+            if committed.amount > 0
+                && let Ok(asset_id) = self
+                    .asset_info
+                    .settlement_asset_id(committed.settlement_puzzle_hash)
             {
-                amounts.add_amount(asset, committed.amount);
+                amounts.add_amount(asset_id, committed.amount);
             }
         }
 
@@ -210,7 +212,8 @@ impl Offer {
     ///
     /// Settlement payments must be positive, so this fails with
     /// [`DriverError::ZeroRoyaltyPayment`] if a trade price's royalty rounds down to zero. It fails
-    /// with [`DriverError::AmountOverflow`] if a royalty doesn't fit in a [`u64`].
+    /// with [`DriverError::UnknownSettlementAsset`] if a trade price is paid in an asset the offer
+    /// doesn't know, and with [`DriverError::AmountOverflow`] if a royalty doesn't fit in a [`u64`].
     pub fn requested_royalty_payments(
         &self,
         ctx: &mut SpendContext,
@@ -220,18 +223,19 @@ impl Offer {
         for CommittedRoyalty {
             royalty,
             settlement_puzzle_hash,
-            asset,
             amount,
         } in self.committed_royalties()
         {
-            let asset = asset.ok_or(DriverError::UnknownTradePriceAsset(settlement_puzzle_hash))?;
+            let asset_id = self
+                .asset_info
+                .settlement_asset_id(settlement_puzzle_hash)?;
 
             if amount == 0 {
                 return Err(DriverError::ZeroRoyaltyPayment(royalty.launcher_id));
             }
 
             payments
-                .fungible_mut(asset)
+                .fungible_mut(asset_id)
                 .push(royalty.payment(ctx, coin_amount(amount)?)?);
         }
 
@@ -252,11 +256,11 @@ impl Offer {
         };
 
         self.prepaid_royalties(launcher_id)
-            .filter_map(|(asset, royalty)| {
+            .filter_map(|(asset_id, royalty)| {
                 let amount = calculate_min_trade_price(royalty, nft.royalty_basis_points)?;
                 Some(TradePrice::new(
                     amount,
-                    self.asset_info.settlement_puzzle_hash(asset).ok()?,
+                    self.asset_info.settlement_puzzle_hash(asset_id).ok()?,
                 ))
             })
             .collect()
@@ -282,7 +286,6 @@ impl Offer {
                     .map(move |trade_price| CommittedRoyalty {
                         royalty,
                         settlement_puzzle_hash: trade_price.puzzle_hash,
-                        asset: self.asset_info.settlement_asset(trade_price.puzzle_hash),
                         amount: calculate_nft_royalty(trade_price.amount, royalty.basis_points),
                     })
             })
@@ -290,8 +293,11 @@ impl Offer {
     }
 
     /// Royalty payments for a requested NFT made by settlement spends in the offer, along with
-    /// the asset they're paid in.
-    fn prepaid_royalties(&self, launcher_id: Bytes32) -> impl Iterator<Item = (Id, u64)> {
+    /// the asset id of the CAT they're paid in, which is `None` for XCH.
+    fn prepaid_royalties(
+        &self,
+        launcher_id: Bytes32,
+    ) -> impl Iterator<Item = (Option<Bytes32>, u64)> {
         let royalty_puzzle_hash = self
             .asset_info
             .nft(launcher_id)
@@ -301,12 +307,12 @@ impl Offer {
             .settled_payments
             .fungible()
             .filter(move |(_, notarized_payment)| notarized_payment.nonce == launcher_id)
-            .flat_map(move |(asset, notarized_payment)| {
+            .flat_map(move |(asset_id, notarized_payment)| {
                 notarized_payment
                     .payments
                     .iter()
                     .filter(move |payment| Some(payment.puzzle_hash) == royalty_puzzle_hash)
-                    .map(move |payment| (asset, payment.amount))
+                    .map(move |payment| (asset_id, payment.amount))
             })
     }
 
@@ -652,8 +658,6 @@ fn check_not_old_settlement_payment(
 struct CommittedRoyalty {
     royalty: RoyaltyInfo,
     settlement_puzzle_hash: Bytes32,
-    /// The asset paid to the settlement puzzle hash, if it's known.
-    asset: Option<Id>,
     amount: u128,
 }
 
@@ -669,7 +673,7 @@ mod tests {
     use chia_sdk_test::{Simulator, sign_transaction};
     use indexmap::indexmap;
 
-    use crate::{Action, NftAssetInfo, Relation, SpendContext, Spends};
+    use crate::{Action, Id, NftAssetInfo, Relation, SpendContext, Spends};
 
     use super::*;
 
