@@ -261,8 +261,6 @@ impl Nft {
             .map(|parsed| parsed.map(|(nft, _)| nft))
     }
 
-    /// Like [`Nft::parse_child`], but also returns the transfer condition revealed by the parent's
-    /// p2 spend, if any.
     pub(crate) fn parse_child_with_transfer(
         allocator: &mut Allocator,
         parent_coin: Coin,

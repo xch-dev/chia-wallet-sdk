@@ -171,10 +171,8 @@ impl Offer {
             .collect()
     }
 
-    /// Returns the royalties already paid in the offer for requested NFTs.
-    ///
-    /// Fails with [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since
-    /// its royalty address isn't known.
+    /// Returns the royalties already paid for requested NFTs. Fails with
+    /// [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let mut amounts = OfferAmounts::new();
 
@@ -192,9 +190,8 @@ impl Offer {
         Ok(amounts)
     }
 
-    /// Returns the royalties that need to be paid for offered NFTs.
-    ///
-    /// Trade prices whose royalty can't be paid are left out, see [`Offer::requested_royalty_payments`].
+    /// Returns the royalties owed for offered NFTs, leaving out trade prices whose royalty can't
+    /// be paid.
     pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let mut amounts = OfferAmounts::new();
 
@@ -211,17 +208,9 @@ impl Offer {
         Ok(amounts)
     }
 
-    /// Returns the royalty payments that need to be settled for offered NFTs.
-    ///
-    /// Each offered NFT asserts a royalty payment for every trade price it revealed when it was
-    /// spent into settlement. Since those trade prices are chosen by each maker, they can't be
-    /// derived from the totals of an aggregated offer. Identical payments are only included once,
-    /// since a single announcement satisfies all of the NFT's assertions for it.
-    ///
-    /// Settlement payments must be positive, so this fails with
-    /// [`DriverError::ZeroRoyaltyPayment`] if a trade price's royalty rounds down to zero. It fails
-    /// with [`DriverError::UnknownSettlementAsset`] if a trade price is paid in an asset the offer
-    /// doesn't know, and with [`DriverError::AmountOverflow`] if a royalty doesn't fit in a [`u64`].
+    /// Returns the royalty payments owed for the trade prices offered NFTs revealed. Fails with
+    /// [`DriverError::ZeroRoyaltyPayment`], [`DriverError::UnknownSettlementAsset`] or
+    /// [`DriverError::AmountOverflow`] if a royalty can't be paid.
     pub fn requested_royalty_payments(
         &self,
         ctx: &mut SpendContext,
@@ -250,14 +239,8 @@ impl Offer {
         Ok(payments)
     }
 
-    /// Returns the trade prices a requested NFT should reveal when the taker spends it into
-    /// settlement, so that it asserts exactly the royalties the offer already paid for it.
-    ///
-    /// Prepaid royalties that no trade price could produce, or that are paid in a CAT without
-    /// asset info, are left out, since the NFT can't assert them.
-    ///
-    /// There are none for an NFT that isn't requested. There are also none for an NFT that's
-    /// also offered, since it only passes through settlement, so the taker shouldn't transfer it.
+    /// Returns the trade prices a requested NFT should reveal so that it asserts exactly the
+    /// royalties already paid for it. There are none for an NFT that's also offered.
     pub fn requested_nft_trade_prices(&self, launcher_id: Bytes32) -> Vec<TradePrice> {
         if !self.requested_payments.nfts.contains_key(&launcher_id)
             || self.offered_coins.nfts.contains_key(&launcher_id)
@@ -280,7 +263,6 @@ impl Offer {
             .collect()
     }
 
-    /// Each distinct royalty payment asserted by offered NFTs.
     fn committed_royalties(&self) -> IndexSet<CommittedRoyalty> {
         self.offered_coins
             .nfts
@@ -306,8 +288,6 @@ impl Offer {
             .collect()
     }
 
-    /// Royalty payments for a requested NFT made by settlement spends in the offer, along with
-    /// the asset id of the CAT they're paid in, which is `None` for XCH.
     fn prepaid_royalties(
         &self,
         launcher_id: Bytes32,
@@ -663,7 +643,6 @@ fn check_not_old_settlement_payment(
     Ok(())
 }
 
-/// A royalty payment an offered NFT asserts for one of the trade prices it revealed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct CommittedRoyalty {
     royalty: RoyaltyInfo,

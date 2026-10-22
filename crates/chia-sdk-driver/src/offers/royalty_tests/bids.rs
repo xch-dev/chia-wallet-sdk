@@ -6,7 +6,6 @@ fn test_bid_for_nft() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // 3% of 1999 is 59, which Alice pays up front
     let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
     let offer = t.bid(&alice, &nft, Price::Xch(1999))?;
     let offer = t.aggregate(&[offer])?;
@@ -14,7 +13,6 @@ fn test_bid_for_nft() -> anyhow::Result<()> {
     assert_eq!(offer.offered_royalty_amounts()?, xch(59));
     assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
 
-    // The smallest trade price with a 59 royalty
     assert_eq!(
         offer.requested_nft_trade_prices(nft.info.launcher_id),
         vec![xch_trade_price(1967)]
@@ -89,7 +87,6 @@ fn test_bid_for_nft_in_two_assets() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // Alice prepays a royalty in each asset, so the NFT reveals a trade price for each
     let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
     let offer = t.bid_in_assets(&alice, &nft, &[Price::Xch(1000), Price::Cat(2000)])?;
     let offer = t.aggregate(&[offer])?;
@@ -195,7 +192,6 @@ fn test_extend_bids() -> anyhow::Result<()> {
     let alice_offer = t.bid(&alice, &first_nft, Price::Xch(10_000))?;
     let bob_offer = t.bid(&bob, &second_nft, Price::Xch(30_000))?;
 
-    // Extending parsed offers keeps each bidder's prepaid royalties
     let mut offer = t.aggregate(&[alice_offer])?;
     offer.extend(t.aggregate(&[bob_offer])?)?;
 
@@ -229,7 +225,6 @@ fn test_unmatchable_prepaid_royalty_is_not_revealed() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // At 200%, every royalty is even, so a prepaid royalty of 3 has no matching trade price
     let nft = t.mint_nft(&bob, ROYALTY_A, 20_000)?;
     let offer = t.bid_with_royalty(&alice, &nft, Price::Xch(1000), 3)?;
     let offer = t.aggregate(&[offer])?;
@@ -254,7 +249,6 @@ fn test_prepaid_royalties_for_royalty_free_nft_are_not_revealed() -> anyhow::Res
     let alice = t.pair();
     let bob = t.pair();
 
-    // Alice still pays the royalty, even though the NFT can't assert it
     let nft = t.mint_nft(&bob, ROYALTY_A, 0)?;
     let offer = t.bid_with_royalty(&alice, &nft, Price::Xch(1000), 5)?;
     let offer = t.aggregate(&[offer])?;
@@ -303,22 +297,18 @@ fn test_smallest_trade_price_for_prepaid_royalty() -> anyhow::Result<()> {
         Ok(offer.requested_nft_trade_prices(launcher_id))
     };
 
-    // Exact, rounded, 100%, and above 100%
     assert_eq!(trade_prices(300, 30)?, vec![xch_trade_price(1000)]);
     assert_eq!(trade_prices(300, 31)?, vec![xch_trade_price(1034)]);
     assert_eq!(trade_prices(10_000, 7)?, vec![xch_trade_price(7)]);
     assert_eq!(trade_prices(20_000, 8)?, vec![xch_trade_price(4)]);
 
-    // At 200% every royalty is even, and a 0.01% royalty of u64::MAX needs a larger trade price
     assert_eq!(trade_prices(20_000, 7)?, Vec::new());
     assert_eq!(trade_prices(1, u64::MAX)?, Vec::new());
 
-    // Otherwise, the trade price is the smallest one that produces exactly the royalty
     for basis_points in [1, 3, 250, 300, 9999, 10_000, 10_001, 65_535] {
         for royalty in (1..=200).chain([u64::MAX / 7, u64::MAX]) {
             let trade_prices = trade_prices(basis_points, royalty)?;
 
-            // Up to 100%, each unit of trade price adds at most one unit of royalty
             if basis_points <= 10_000 && royalty <= 200 {
                 assert_eq!(trade_prices.len(), 1);
             }
@@ -346,7 +336,6 @@ fn test_aggregate_sale_and_bid_for_same_nft() -> anyhow::Result<()> {
     let bob = t.pair();
     let carol = t.pair();
 
-    // The NFT passes through settlement from Alice to Bob, so Carol never owns it
     let nft = t.mint_nft(&alice, ROYALTY_A, 500)?;
     let alice_offer = t.sell_nfts(&alice, &[nft], &xch(1000))?;
     let bob_offer = t.bid(&bob, &nft, Price::Xch(1500))?;
@@ -355,7 +344,6 @@ fn test_aggregate_sale_and_bid_for_same_nft() -> anyhow::Result<()> {
     assert_eq!(offer.requested_royalty_amounts()?, xch(50));
     assert_eq!(offer.offered_royalty_amounts()?, xch(75));
 
-    // Carol doesn't transfer the NFT, so it doesn't reveal the trade price Bob paid a royalty on
     assert_eq!(
         offer.requested_nft_trade_prices(nft.info.launcher_id),
         Vec::new()
@@ -382,8 +370,6 @@ fn test_malformed_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
     let royalty_hint = t.ctx.hint(ROYALTY_A)?;
     let other_hint = t.ctx.hint(ROYALTY_B)?;
 
-    // The NFT only asserts a notarized payment with a single payment, whose memos are exactly the
-    // royalty address, so none of these can satisfy it
     let malformed = vec![
         NotarizedPayment::new(launcher_id, vec![Payment::new(ROYALTY_A, 30, Memos::None)]),
         NotarizedPayment::new(launcher_id, vec![Payment::new(ROYALTY_A, 30, other_hint)]),
@@ -403,13 +389,11 @@ fn test_malformed_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
     assert_eq!(offer.offered_royalty_amounts()?, OfferAmounts::new());
     assert_eq!(offer.requested_nft_trade_prices(launcher_id), Vec::new());
 
-    // Revealing a trade price for them would assert a payment that was never made
     t.take(&bob, &offer, |spends| spends.add(nft))?;
 
     assert!(t.owns_nft(&nft, alice.puzzle_hash));
     assert_eq!(t.balance(ROYALTY_A), 90);
 
-    // A royalty paid in the right form alongside them is still revealed
     let nft = t.mint_nft(&bob, ROYALTY_B, 300)?;
     let mut settlements = vec![NotarizedPayment::new(
         nft.info.launcher_id,

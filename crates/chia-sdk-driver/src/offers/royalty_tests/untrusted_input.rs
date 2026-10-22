@@ -36,8 +36,6 @@ fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
         asset_info.clone(),
     );
 
-    // Only payments to the royalty address with the NFT's nonce count, and the total can exceed a
-    // u64
     assert_eq!(
         offer.offered_royalty_amounts()?,
         OfferAmounts {
@@ -46,10 +44,8 @@ fn test_prepaid_royalties_from_untrusted_offer() -> anyhow::Result<()> {
         }
     );
 
-    // No trade price is large enough to produce these royalties
     assert_eq!(offer.requested_nft_trade_prices(launcher_id), Vec::new());
 
-    // A requested NFT without asset info has no known royalty address
     let unknown_launcher_id = Bytes32::new([6; 32]);
     requested_payments
         .nfts
@@ -79,7 +75,6 @@ fn test_unparseable_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
     let alice = t.pair();
     let settlement = t.ctx.alloc_mod::<SettlementPayment>()?;
 
-    // Settlement accepts a nonce that isn't 32 bytes, but it can't be parsed as a payment
     let solution = t.ctx.alloc(&clvm_list!(clvm_list!(1)))?;
     let xch_spend = CoinSpend::new(
         Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 1),
@@ -136,7 +131,6 @@ fn test_invalid_nft_spends_are_rejected() -> anyhow::Result<()> {
         Ok(())
     };
 
-    // The NFT's solution doesn't match its layers
     spend_nft(&mut t.ctx, raise)?;
     let mut coin_spends = t.ctx.take();
     coin_spends[0].solution = t.ctx.serialize(&1)?;
@@ -148,7 +142,6 @@ fn test_invalid_nft_spends_are_rejected() -> anyhow::Result<()> {
         .is_err()
     );
 
-    // The NFT's inner puzzle raises
     spend_nft(&mut t.ctx, raise)?;
     let coin_spends = t.ctx.take();
     assert!(
@@ -196,8 +189,6 @@ fn test_royalty_larger_than_a_coin_is_rejected() -> anyhow::Result<()> {
     let mut t = Tester::new();
     let alice = t.pair();
 
-    // Royalties above 100% are allowed, so a trade price that fits in a coin can have a royalty
-    // that doesn't
     let nft = t.mint_nft(&alice, ROYALTY_A, u16::MAX)?;
     let offer = t.sell_nfts_with(&alice, &[nft], &xch(1), |_, _| {
         vec![xch_trade_price(u64::MAX)]

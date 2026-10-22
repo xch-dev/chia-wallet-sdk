@@ -928,7 +928,7 @@ test("offer nft for xch with royalty", (t) => {
   t.is(royalties[0].basisPoints, 300);
   t.is(offer.requestedRoyaltyAmounts().xch(), 30n);
 
-  // Bob takes the offer and pays the royalty the NFT asserts for its trade price
+  // Bob takes the offer and pays the royalty
   const takerSpends = new Spends(clvm, bob.puzzleHash);
   takerSpends.addOfferedCoins(offer);
   for (const coin of bob.fetchXch(sim)) {
@@ -982,7 +982,6 @@ test("bid xch for an nft with royalty", (t) => {
   const launcherId = nft.info.launcherId;
   const nftId = Id.existing(launcherId);
 
-  // Alice bids 1000 XCH for the NFT, paying its royalty up front
   const makerSpends = new Spends(clvm, alice.puzzleHash);
   const coins = alice.fetchXch(sim);
   for (const coin of coins) {
@@ -1030,7 +1029,6 @@ test("bid xch for an nft with royalty", (t) => {
   t.is(offer.offeredRoyaltyAmounts().xch(), 30n);
   t.is(offer.requestedRoyaltyPayments().xch().length, 0);
 
-  // Bob transfers the NFT, revealing the trade price Alice paid the royalty on
   const tradePrices = offer.requestedNftTradePrices(launcherId);
   t.is(tradePrices.length, 1);
   t.is(tradePrices[0].amount, 1000n);

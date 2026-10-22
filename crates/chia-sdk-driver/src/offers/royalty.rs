@@ -84,10 +84,8 @@ pub fn calculate_trade_prices(
     Ok(trade_prices)
 }
 
-/// Returns the trade prices an NFT can reveal while still being possible to take.
-///
-/// The NFT asserts a royalty payment for each trade price it reveals, but settlement payments must
-/// be positive, so trade prices whose royalty rounds down to zero are left out.
+/// Returns the trade prices an NFT can reveal while still being possible to take, leaving out
+/// any whose royalty rounds down to zero.
 pub fn payable_trade_prices(
     trade_prices: &[TradePrice],
     royalty_basis_points: u16,
@@ -167,7 +165,6 @@ pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u12
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
 }
 
-/// Returns the smallest trade price whose royalty is exactly `royalty`, if there is one.
 pub(crate) fn calculate_min_trade_price(royalty: u64, royalty_basis_points: u16) -> Option<u64> {
     if royalty_basis_points == 0 {
         return None;

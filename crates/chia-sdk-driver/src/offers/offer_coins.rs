@@ -24,16 +24,10 @@ pub struct OfferCoins {
     pub nfts: IndexMap<Bytes32, Nft>,
     pub options: IndexMap<Bytes32, OptionContract>,
     pub fee: u64,
-    /// The trade prices each offered NFT revealed when it was spent into settlement. Its royalty
-    /// transfer program asserts a royalty payment for each of them.
-    ///
-    /// Keyed by launcher id like `nfts`, and only has entries for NFTs in it.
+    /// The trade prices each offered NFT revealed when it was spent into settlement.
     pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
-    /// Royalties paid up front for requested NFTs by settlement spends in the offer.
-    ///
-    /// Only notarized payments in the form an NFT's royalty transfer program asserts are kept: a
-    /// single payment whose memos are exactly its puzzle hash. Any other payment can't satisfy an
-    /// NFT's royalty assertion, so it doesn't count as a royalty.
+    /// Royalties paid up front for requested NFTs, in the only form an NFT's royalty assertion
+    /// accepts.
     pub prepaid_royalties: RequestedPayments,
 }
 
@@ -250,8 +244,7 @@ impl OfferCoins {
             asset_info.insert_option(option.info.launcher_id, info)?;
         }
 
-        // Prepaid royalties are informational, so settlement solutions that can't be parsed are
-        // ignored rather than rejecting a spend that's otherwise valid
+        // Prepaid royalties are informational, so unparseable settlement solutions are ignored
         if let Some((asset_id, settlement_solution)) =
             settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
             && let Ok(solution) =
@@ -307,9 +300,6 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     Ok(())
 }
 
-/// Whether a notarized payment has the form of an NFT royalty payment, which is
-/// `(launcher_id ((royalty_puzzle_hash amount (royalty_puzzle_hash))))`. The nonce and amount are
-/// checked against each NFT when the royalties are read.
 fn is_royalty_payment(allocator: &Allocator, notarized_payment: &NotarizedPayment) -> bool {
     let [payment] = notarized_payment.payments.as_slice() else {
         return false;
@@ -322,8 +312,6 @@ fn is_royalty_payment(allocator: &Allocator, notarized_payment: &NotarizedPaymen
     <(Bytes32, ())>::from_clvm(allocator, memos).is_ok_and(|(memo, ())| memo == payment.puzzle_hash)
 }
 
-/// The CAT asset id, which is `None` for XCH, and settlement solution of a spend of a settlement
-/// coin.
 fn settlement_spend(
     allocator: &Allocator,
     coin: Coin,

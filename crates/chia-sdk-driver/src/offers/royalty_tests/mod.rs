@@ -1,16 +1,3 @@
-//! Royalty behavior of offers, validated against the simulator.
-//!
-//! An NFT spent into settlement reveals a list of trade prices in its transfer condition. For each
-//! trade price, the royalty transfer program asserts a puzzle announcement from the trade price's
-//! settlement puzzle hash for a notarized payment of exactly
-//! `(launcher_id ((royalty_puzzle_hash floor(amount * basis_points / 10000) (royalty_puzzle_hash))))`.
-//! The settlement puzzle rejects payments that aren't positive, so a trade price whose royalty
-//! rounds to zero can never be paid.
-//!
-//! Those trade prices are chosen by each maker for their own NFTs, so royalties owed when taking an
-//! aggregated offer can't be derived from its combined totals. Buyers requesting an NFT pay its
-//! royalty up front, and the taker's NFT has to reveal trade prices matching those payments.
-
 mod bids;
 mod combined_sales;
 mod puzzle_rules;
@@ -273,9 +260,6 @@ impl Tester {
         Ok((requested_payments, asset_info))
     }
 
-    /// Offers NFTs for fungible assets, committing to trade prices the way a wallet would: the
-    /// requested amounts are split evenly between NFTs with royalties, leaving out any trade
-    /// price whose royalty rounds to zero.
     fn sell_nfts(
         &mut self,
         maker: &BlsPair,
@@ -337,12 +321,10 @@ impl Tester {
         self.finish_offer(maker, coin_spends, requested_payments, asset_info)
     }
 
-    /// Offers fungible assets for an NFT, paying its royalty on the offered price up front.
     fn bid(&mut self, maker: &BlsPair, nft: &Nft, price: Price) -> anyhow::Result<SpendBundle> {
         self.bid_in_assets(maker, nft, &[price])
     }
 
-    /// Offers fungible assets for an NFT, paying its royalty on each offered price up front.
     fn bid_in_assets(
         &mut self,
         maker: &BlsPair,
@@ -394,8 +376,6 @@ impl Tester {
         self.bid_with_settlements(maker, nft, &with_settlements)
     }
 
-    /// Offers fungible assets for an NFT, making the given settlement payments in each asset up
-    /// front.
     fn bid_with_settlements(
         &mut self,
         maker: &BlsPair,
@@ -478,7 +458,6 @@ impl Tester {
         self.finish_offer(maker, coin_spends, requested_payments, asset_info)
     }
 
-    /// Offers XCH for a CAT, without any NFTs involved.
     fn trade_xch_for_cat(
         &mut self,
         maker: &BlsPair,
@@ -535,7 +514,6 @@ impl Tester {
         )?)
     }
 
-    /// Takes the offer, paying the royalties and revealing the trade prices the SDK derives.
     fn take(
         &mut self,
         taker: &BlsPair,
@@ -563,7 +541,6 @@ impl Tester {
         let mut actions = Vec::new();
 
         for &launcher_id in offer.requested_payments().nfts.keys() {
-            // Offered NFTs only pass through settlement, so they don't reveal trade prices
             if offer.offered_coins().nfts.contains_key(&launcher_id) {
                 continue;
             }
