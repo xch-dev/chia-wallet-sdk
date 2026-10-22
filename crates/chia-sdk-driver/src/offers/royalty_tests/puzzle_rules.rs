@@ -9,7 +9,6 @@ fn test_payable_trade_prices() {
         cat_trade_price(asset_id, 1000),
     ];
 
-    // 3% of 10 rounds down to zero, but 3% of 34 is 1
     assert_eq!(
         payable_trade_prices(&trade_prices, 300),
         vec![xch_trade_price(34), cat_trade_price(asset_id, 1000)]
@@ -47,7 +46,6 @@ fn test_royalty_rounds_down() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // 3% of 1999 is 59.97
     let nft = t.mint_nft(&alice, ROYALTY_A, 300)?;
     let offer = t.sell_nfts(&alice, &[nft], &xch(1999))?;
     let offer = t.aggregate(&[offer])?;
@@ -197,7 +195,6 @@ fn test_sell_nft_for_revocable_cat() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // The hidden puzzle hash changes the CAT's settlement puzzle hash
     let bob_cat = t.issue_revocable_cat(&bob, 1030)?;
     let asset_id = bob_cat.info.asset_id;
     let nft = t.mint_nft(&alice, ROYALTY_A, 300)?;
@@ -285,7 +282,6 @@ fn test_identical_royalty_payments_are_paid_once() -> anyhow::Result<()> {
     let alice = t.pair();
     let bob = t.pair();
 
-    // 1% of both 100 and 101 is 1, so the NFT asserts the same announcement twice
     let nft = t.mint_nft(&alice, ROYALTY_A, 100)?;
     let offer = t.sell_nfts_with(&alice, &[nft], &xch(201), |_, _| {
         vec![xch_trade_price(100), xch_trade_price(101)]
@@ -413,7 +409,6 @@ fn test_zero_royalty_trade_price_is_unpayable() -> anyhow::Result<()> {
             Err(DriverError::ZeroRoyaltyPayment(launcher_id)) if launcher_id == nft.info.launcher_id
         ));
 
-        // The NFT asserts a payment of zero, which settlement refuses to make
         let coin = t.fund(&bob, price);
         let hint = t.ctx.hint(ROYALTY_A)?;
         let zero_royalty = Action::settle(

@@ -170,8 +170,6 @@ impl NftInfo {
             .map(|(info, create_coin, _)| (info, create_coin))
     }
 
-    /// Like [`NftInfo::child_from_p2_spend`], but also returns the transfer condition revealed by
-    /// the p2 spend, if any.
     pub(crate) fn child_and_transfer_from_p2_spend(
         &self,
         allocator: &mut Allocator,

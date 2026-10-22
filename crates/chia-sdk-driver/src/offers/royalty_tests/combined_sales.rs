@@ -40,7 +40,6 @@ fn test_aggregate_sells_different_prices_different_royalties() -> anyhow::Result
 
     assert_eq!(offer.requested_royalty_amounts()?, xch(500 + 3000));
 
-    // Extending parsed offers keeps each maker's trade prices too
     let mut extended = t.aggregate(&[alice_offer])?;
     extended.extend(t.aggregate(&[bob_offer])?)?;
     assert_eq!(extended.requested_royalty_amounts()?, xch(500 + 3000));
@@ -87,7 +86,6 @@ fn test_aggregate_identical_royalties_for_different_nfts() -> anyhow::Result<()>
     let bob = t.pair();
     let carol = t.pair();
 
-    // Both NFTs pay the same royalty to the same address, but each asserts its own payment
     let alice_nft = t.mint_nft(&alice, ROYALTY_A, 500)?;
     let bob_nft = t.mint_nft(&bob, ROYALTY_A, 500)?;
     let alice_offer = t.sell_nfts(&alice, &[alice_nft], &xch(10_000))?;
@@ -114,7 +112,6 @@ fn test_aggregate_multi_nft_offer_with_single_nft_offer() -> anyhow::Result<()> 
     let bob = t.pair();
     let carol = t.pair();
 
-    // Alice's two NFTs each commit to half of her price
     let first_nft = t.mint_nft(&alice, ROYALTY_A, 500)?;
     let second_nft = t.mint_nft(&alice, ROYALTY_B, 500)?;
     let bob_nft = t.mint_nft(&bob, ROYALTY_C, 500)?;
@@ -188,7 +185,6 @@ fn test_aggregate_nft_sale_with_unrelated_cat_trade() -> anyhow::Result<()> {
     let bob_offer = t.trade_xch_for_cat(&bob, 5000, asset_id, 20_000)?;
     let offer = t.aggregate(&[alice_offer, bob_offer])?;
 
-    // Only Alice's NFT is sold, and only for XCH
     assert_eq!(offer.requested_royalty_amounts()?, xch(500));
 
     let coin = t.fund(&carol, 5500);

@@ -533,22 +533,18 @@ impl Offer {
         Ok(self.inner.requested_royalties())
     }
 
-    /// The royalties the maker already paid for the requested NFTs.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts> {
         Ok(OfferAmounts::from_sdk(
             self.inner.offered_royalty_amounts()?,
         ))
     }
 
-    /// The royalties the taker owes for the offered NFTs, on the trade prices they revealed.
     pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts> {
         Ok(OfferAmounts::from_sdk(
             self.inner.requested_royalty_amounts()?,
         ))
     }
 
-    /// The royalty payments the taker owes for the offered NFTs, one for each distinct payment
-    /// the trade prices they revealed assert.
     pub fn requested_royalty_payments(&self) -> Result<RequestedPayments> {
         let payments = {
             let mut ctx = self.clvm.lock().unwrap();
@@ -558,8 +554,6 @@ impl Offer {
         Ok(RequestedPayments::from_sdk(payments, &self.clvm))
     }
 
-    /// The trade prices a requested NFT should reveal when the taker transfers it, so that it
-    /// asserts exactly the royalties the maker already paid.
     pub fn requested_nft_trade_prices(&self, launcher_id: Bytes32) -> Result<Vec<TradePrice>> {
         Ok(self.inner.requested_nft_trade_prices(launcher_id))
     }
@@ -608,8 +602,6 @@ pub fn calculate_trade_prices(
     )?)
 }
 
-/// The trade prices an NFT can reveal while still being possible to take, leaving out any whose
-/// royalty rounds down to zero.
 pub fn payable_trade_prices(
     trade_prices: Vec<TradePrice>,
     royalty_basis_points: u16,

@@ -1713,8 +1713,7 @@ fn test_offer_with_overflowing_amounts() -> Result<()> {
         asset_info,
     )?;
 
-    // A taker parsing the offer sees the exact totals. The NFT didn't reveal any trade prices, so
-    // it doesn't assert any royalties.
+    // A taker parsing the offer sees the exact totals
     let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
     let offer = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
 

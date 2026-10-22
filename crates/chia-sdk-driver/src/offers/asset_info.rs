@@ -42,8 +42,7 @@ impl AssetInfo {
     }
 
     /// The puzzle hash of settlement coins for a CAT, or XCH if `asset_id` is `None`. Fails with
-    /// [`DriverError::MissingAssetInfo`] for an unknown CAT, since its hidden puzzle hash affects
-    /// the puzzle hash.
+    /// [`DriverError::MissingAssetInfo`] for an unknown CAT.
     pub fn settlement_puzzle_hash(
         &self,
         asset_id: Option<Bytes32>,
