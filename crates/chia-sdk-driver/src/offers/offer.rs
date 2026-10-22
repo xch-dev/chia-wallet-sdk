@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, conditions::TradePrice, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
@@ -13,7 +13,7 @@ use indexmap::IndexSet;
 use crate::{
     Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
     OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
-    calculate_royalty_amounts, calculate_trade_price_amounts,
+    calculate_min_trade_price, calculate_nft_royalty, coin_amount,
 };
 
 /// The tree hash of the retired `settlement_payments_old.clsp` puzzle. Offers that use it are
@@ -171,22 +171,139 @@ impl Offer {
             .collect()
     }
 
-    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
-    /// [`u64`], in which case the royalties can't be paid.
+    /// Returns the royalties already paid for requested NFTs. Fails with
+    /// [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info.
     pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
-        let offered_amounts = self.offered_coins.amounts();
-        let royalties = self.offered_royalties()?;
-        let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
-        calculate_royalty_amounts(&trade_prices, &royalties)
+        let mut amounts = OfferAmounts::new();
+
+        for &launcher_id in self.requested_payments.nfts.keys() {
+            let nft = self
+                .asset_info
+                .nft(launcher_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
+            for (asset_id, amount) in self.prepaid_royalties(launcher_id, nft.royalty_puzzle_hash) {
+                amounts.add_amount(asset_id, amount.into());
+            }
+        }
+
+        Ok(amounts)
     }
 
-    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
-    /// [`u64`], in which case the royalties can't be paid.
+    /// Returns the royalties owed for offered NFTs, leaving out trade prices whose royalty can't
+    /// be paid.
     pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
-        let requested_amounts = self.requested_payments.amounts();
-        let royalties = self.requested_royalties();
-        let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
-        calculate_royalty_amounts(&trade_prices, &royalties)
+        let mut amounts = OfferAmounts::new();
+
+        for committed in self.committed_royalties() {
+            if committed.amount > 0
+                && let Ok(asset_id) = self
+                    .asset_info
+                    .settlement_asset_id(committed.settlement_puzzle_hash)
+            {
+                amounts.add_amount(asset_id, committed.amount);
+            }
+        }
+
+        Ok(amounts)
+    }
+
+    /// Returns the royalty payments owed for the trade prices offered NFTs revealed. Fails with
+    /// [`DriverError::ZeroRoyaltyPayment`], [`DriverError::UnknownSettlementAsset`] or
+    /// [`DriverError::AmountOverflow`] if a royalty can't be paid.
+    pub fn requested_royalty_payments(
+        &self,
+        ctx: &mut SpendContext,
+    ) -> Result<RequestedPayments, DriverError> {
+        let mut payments = RequestedPayments::new();
+
+        for CommittedRoyalty {
+            royalty,
+            settlement_puzzle_hash,
+            amount,
+        } in self.committed_royalties()
+        {
+            let asset_id = self
+                .asset_info
+                .settlement_asset_id(settlement_puzzle_hash)?;
+
+            if amount == 0 {
+                return Err(DriverError::ZeroRoyaltyPayment(royalty.launcher_id));
+            }
+
+            payments
+                .fungible_mut(asset_id)
+                .push(royalty.payment(ctx, coin_amount(amount)?)?);
+        }
+
+        Ok(payments)
+    }
+
+    /// Returns the trade prices a requested NFT should reveal so that it asserts exactly the
+    /// royalties already paid for it. There are none for an NFT that's also offered.
+    pub fn requested_nft_trade_prices(&self, launcher_id: Bytes32) -> Vec<TradePrice> {
+        if !self.requested_payments.nfts.contains_key(&launcher_id)
+            || self.offered_coins.nfts.contains_key(&launcher_id)
+        {
+            return Vec::new();
+        }
+
+        let Some(nft) = self.asset_info.nft(launcher_id) else {
+            return Vec::new();
+        };
+
+        self.prepaid_royalties(launcher_id, nft.royalty_puzzle_hash)
+            .filter_map(|(asset_id, royalty)| {
+                let amount = calculate_min_trade_price(royalty, nft.royalty_basis_points)?;
+                Some(TradePrice::new(
+                    amount,
+                    self.asset_info.settlement_puzzle_hash(asset_id).ok()?,
+                ))
+            })
+            .collect()
+    }
+
+    fn committed_royalties(&self) -> IndexSet<CommittedRoyalty> {
+        self.offered_coins
+            .nfts
+            .iter()
+            .flat_map(|(&launcher_id, nft)| {
+                let royalty = RoyaltyInfo::new(
+                    launcher_id,
+                    nft.info.royalty_puzzle_hash,
+                    nft.info.royalty_basis_points,
+                );
+
+                self.offered_coins
+                    .nft_trade_prices
+                    .get(&launcher_id)
+                    .into_iter()
+                    .flatten()
+                    .map(move |trade_price| CommittedRoyalty {
+                        royalty,
+                        settlement_puzzle_hash: trade_price.puzzle_hash,
+                        amount: calculate_nft_royalty(trade_price.amount, royalty.basis_points),
+                    })
+            })
+            .collect()
+    }
+
+    fn prepaid_royalties(
+        &self,
+        launcher_id: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+    ) -> impl Iterator<Item = (Option<Bytes32>, u64)> {
+        self.offered_coins
+            .prepaid_royalties
+            .fungible()
+            .filter(move |(_, notarized_payment)| notarized_payment.nonce == launcher_id)
+            .flat_map(move |(asset_id, notarized_payment)| {
+                notarized_payment
+                    .payments
+                    .iter()
+                    .filter(move |payment| payment.puzzle_hash == royalty_puzzle_hash)
+                    .map(move |payment| (asset_id, payment.amount))
+            })
     }
 
     pub fn arbitrage(&self) -> Arbitrage {
@@ -524,6 +641,13 @@ fn check_not_old_settlement_payment(
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CommittedRoyalty {
+    royalty: RoyaltyInfo,
+    settlement_puzzle_hash: Bytes32,
+    amount: u128,
 }
 
 #[cfg(test)]
