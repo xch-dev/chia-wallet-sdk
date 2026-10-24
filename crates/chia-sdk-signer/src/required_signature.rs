@@ -2,9 +2,7 @@ use chia_protocol::{Bytes32, CoinSpend};
 use chia_sdk_types::{Condition, is_debug_dialect_enabled};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash;
-use clvmr::{
-    Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, dialect::Dialect, run_program,
-};
+use clvmr::{Allocator, ChiaDialect, ClvmFlags, dialect::Dialect, run_program};
 use rue_lir::DebugDialect;
 use tracing::debug;
 
@@ -15,7 +13,7 @@ use crate::{
 /// The CLVM flags used to run puzzles when calculating required signatures.
 /// These match `chia_sdk_types::run_puzzle` and the flags consensus uses after
 /// the keccak256 operator was enabled outside of the softfork guard.
-const DIALECT_FLAGS: u32 = ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+const DIALECT_FLAGS: ClvmFlags = ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 
 /// The maximum cost allowed when running a puzzle to calculate required signatures.
 const MAX_COST: u64 = 11_000_000_000;
@@ -397,7 +395,7 @@ mod tests {
             &mut a,
             &coin_spend,
             &constants(),
-            &ChiaDialect::new(0),
+            &ChiaDialect::new(ClvmFlags::empty()),
         );
         assert!(
             !matches!(result, Ok(ref required) if bls(required)[0].raw_message.as_ref() == keccak_abc)

@@ -159,7 +159,7 @@ mod tests {
     use chia_secp::K1SecretKey;
     use clvm_traits::{ToClvm, clvm_quote};
     use clvm_utils::ToTreeHash;
-    use clvmr::chia_dialect::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+    use clvmr::ClvmFlags;
     use clvmr::reduction::Reduction;
     use clvmr::serde::node_from_bytes;
     use hex_literal::hex;
@@ -252,7 +252,7 @@ mod tests {
 
         let Reduction(cost, _) = clvmr::run_program(
             &mut ctx,
-            &clvmr::ChiaDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD),
+            &clvmr::ChiaDialect::new(ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD),
             puzzle_ptr,
             solution_ptr,
             11_000_000_000,

@@ -4,7 +4,7 @@ use chia_protocol::Bytes32;
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::FromClvm;
 use clvmr::{
-    Allocator, NodePtr,
+    Allocator, ClvmFlags, NodePtr,
     cost::Cost,
     dialect::{Dialect, OperatorSet},
     op_utils::get_args,
@@ -69,6 +69,14 @@ where
 
     fn softfork_extension(&self, ext: u32) -> OperatorSet {
         self.dialect.softfork_extension(ext)
+    }
+
+    fn flags(&self) -> ClvmFlags {
+        self.dialect.flags()
+    }
+
+    fn gc_candidate(&self, allocator: &Allocator, op: NodePtr) -> bool {
+        self.dialect.gc_candidate(allocator, op)
     }
 
     fn op(
@@ -150,7 +158,7 @@ mod tests {
         )
         .to_clvm(&mut a)?;
 
-        let dialect = ChiaDialect::new(0);
+        let dialect = ChiaDialect::new(ClvmFlags::empty());
         let dialect = SecpDialect::new(&dialect);
 
         let reduction = run_program(&mut a, &dialect, program, NodePtr::NIL, u64::MAX).unwrap();
