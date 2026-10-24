@@ -4,7 +4,6 @@
 [![documentation](https://docs.rs/chia-wallet-sdk/badge.svg)](https://docs.rs/chia-wallet-sdk)
 [![npm](https://img.shields.io/npm/v/chia-wallet-sdk.svg)](https://www.npmjs.com/package/chia-wallet-sdk)
 [![PyPI](https://img.shields.io/pypi/v/chia-wallet-sdk.svg)](https://pypi.org/project/chia-wallet-sdk)
-[![codecov](https://codecov.io/github/Rigidity/chia-wallet-sdk/graph/badge.svg?token=M2MPMFGCCA)](https://codecov.io/github/Rigidity/chia-wallet-sdk)
 
 A high-performance Rust SDK for building applications that interact with coins on the [Chia blockchain](https://chia.net), with bindings for Node.js, WebAssembly, and Python.
 
