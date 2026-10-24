@@ -65,9 +65,9 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         max_generator_ref_list_size: 512,
         pool_sub_slot_iters: 37_600_000_000,
         hard_fork_height: 5_496_000,
-        hard_fork2_height: 0xffff_ffff, // Placeholder
+        hard_fork2_height: 0xffff_fffa, // Placeholder
         soft_fork8_height: 8_655_000,
-        soft_fork9_height: 0xffff_ffff, // Placeholder
+        soft_fork9_height: 8_655_000,
         plot_v1_phase_out_epoch_bits: 8,
         plot_filter_128_height: 10_542_000,
         plot_filter_64_height: 15_592_000,
@@ -75,7 +75,7 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
 
         // Placeholders
         min_plot_strength: 2,
-        max_plot_strength: 32,
+        max_plot_strength: 17,
         plot_filter_v2_relative_height: [
             50_494_000, 45_444_000, 40_394_000, 35_343_000, 30_298_000, 25_247_000, 20_197_000,
             15_146_000, 10_101_000,
