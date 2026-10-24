@@ -377,10 +377,10 @@ mod tests {
         }
 
         for ((key, restrictions), hash) in keys.iter().zip(member_restrictions).zip(&hashes) {
-            let mut hasher = Sha256::new();
-            hasher.update(delegated_puzzle_hash);
-            hasher.update(vault.coin.coin_id());
-            let signature = key.sk.sign_prehashed(&hasher.finalize())?;
+            let mut message = Sha256::new();
+            message.update(delegated_puzzle_hash);
+            message.update(vault.coin.coin_id());
+            let signature = key.sk.sign_prehashed(&message.finalize())?;
 
             let puzzle = ctx.curry(member(key.pk))?;
             let solution = ctx.alloc(&K1MemberSolution::new(vault.coin.coin_id(), signature))?;
