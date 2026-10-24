@@ -2,14 +2,14 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     LineageProof, Memos, Proof, did::DidSolution, singleton::SingletonSolution,
 };
-use chia_sdk_types::{Condition, Conditions, run_puzzle};
+use chia_sdk_types::{Condition, Conditions, conditions::CreateCoin, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DidLayer, DriverError, HashedPtr, Layer, Puzzle, Singleton, SingletonInfo, SingletonLayer,
-    Spend, SpendContext, SpendWithConditions,
+    ClawbackV2, DidLayer, DriverError, HashedPtr, Layer, Puzzle, Singleton, SingletonInfo,
+    SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
 mod did_info;
@@ -72,14 +72,23 @@ impl Did {
                     return Ok(None);
                 };
 
-                let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
+                let Some((hint, rest)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
                     return Ok(None);
                 };
 
-                let child = self.child(hint, self.info.metadata, create_coin.amount);
-
-                if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
-                    return Ok(Some(child));
+                if let Some(p2_puzzle_hash) = child_p2_puzzle_hash(
+                    ctx,
+                    self.info,
+                    create_coin.puzzle_hash,
+                    create_coin.amount,
+                    hint,
+                    rest,
+                ) {
+                    return Ok(Some(self.child(
+                        p2_puzzle_hash,
+                        self.info.metadata,
+                        create_coin.amount,
+                    )));
                 }
             }
         }
@@ -198,9 +207,14 @@ impl Did {
     ///
     /// This relies on the child being hinted and having the same metadata as the parent.
     /// If this is not the case, the DID cannot be parsed or spent without additional context.
+    /// If the DID was sent with a [`ClawbackV2`], the p2 puzzle hash of the child will be the
+    /// clawback's puzzle hash, rather than the hinted receiver's puzzle hash.
     ///
     /// The hint is verified against the puzzle hash of the created coin, and the provided `coin`
     /// must be the child that was created. Otherwise, this will return [`None`].
+    ///
+    /// If the child has a p2 puzzle hash that can't be determined from its memos, you can use
+    /// [`Did::parse_child_trusted`] instead.
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -211,81 +225,64 @@ impl Did {
     where
         Self: Sized,
     {
-        let Some(singleton_layer) =
-            SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
+        let Some(parent) =
+            ParentSpend::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
         else {
             return Ok(None);
         };
 
-        let Some(did_layer) =
-            DidLayer::<HashedPtr, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
-        else {
-            return Ok(None);
-        };
-
-        if singleton_layer.launcher_id != did_layer.launcher_id {
-            return Err(DriverError::InvalidSingletonStruct);
-        }
-
-        let singleton_solution =
-            SingletonLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
-
-        let output = run_puzzle(
-            allocator,
-            singleton_layer.inner_puzzle.ptr(),
-            singleton_solution.inner_solution,
-        )?;
-        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
-
-        let Some(create_coin) = conditions
-            .into_iter()
-            .filter_map(Condition::into_create_coin)
-            .find(|create_coin| create_coin.amount % 2 == 1)
-        else {
-            // The DID was melted, so there is no child.
-            return Ok(None);
-        };
-
-        let Memos::Some(memos) = create_coin.memos else {
+        let Memos::Some(memos) = parent.create_coin.memos else {
             return Err(DriverError::MissingHint);
         };
 
-        let (hint, _) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos)?;
+        let (hint, rest) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos)?;
 
-        let metadata_ptr = did_layer.metadata.to_clvm(allocator)?;
-        let metadata_hash = tree_hash(allocator, metadata_ptr);
-        let did_layer_hashed = did_layer.with_metadata(metadata_hash);
+        let Some(p2_puzzle_hash) = child_p2_puzzle_hash(
+            allocator,
+            parent.info,
+            parent.create_coin.puzzle_hash,
+            parent.create_coin.amount,
+            hint,
+            rest,
+        ) else {
+            return Ok(None);
+        };
 
-        let parent_inner_puzzle_hash = did_layer_hashed.tree_hash().into();
-        let layers = SingletonLayer::new(singleton_layer.launcher_id, did_layer);
+        let child = parent.child(p2_puzzle_hash);
 
-        let mut info = DidInfo::from_layers(&layers);
-        info.p2_puzzle_hash = hint;
-
-        // The hint is untrusted, so make sure it actually produces the puzzle hash of the child.
-        if info.inner_puzzle_hash() != create_coin.puzzle_hash.into() {
+        if child.coin != coin {
             return Ok(None);
         }
 
-        let child_coin = Coin::new(
-            parent_coin.coin_id(),
-            info.puzzle_hash().into(),
-            create_coin.amount,
-        );
+        Ok(Some(child))
+    }
 
-        if coin != child_coin {
+    /// Parses the child of an [`Did`] from the parent coin spend, using the provided p2 puzzle hash.
+    ///
+    /// This relies on the child having the same metadata as the parent, but unlike
+    /// [`Did::parse_child`], it doesn't use the hint and supports any p2 puzzle hash.
+    ///
+    /// The p2 puzzle hash is trusted and isn't verified against the puzzle hash of the created coin.
+    /// The coin of the returned [`Did`] is calculated from it, so if the p2 puzzle hash is wrong it
+    /// will not match the actual child coin. Make sure to check this if the p2 puzzle hash came from
+    /// an untrusted source, such as a hint.
+    pub fn parse_child_trusted(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<Option<Self>, DriverError>
+    where
+        Self: Sized,
+    {
+        let Some(parent) =
+            ParentSpend::parse(allocator, parent_coin, parent_puzzle, parent_solution)?
+        else {
             return Ok(None);
-        }
+        };
 
-        Ok(Some(Self {
-            coin,
-            proof: Proof::Lineage(LineageProof {
-                parent_parent_coin_info: parent_coin.parent_coin_info,
-                parent_inner_puzzle_hash,
-                parent_amount: parent_coin.amount,
-            }),
-            info,
-        }))
+        Ok(Some(parent.child(p2_puzzle_hash)))
     }
 
     /// Parses a [`Did`] and its p2 spend from a coin spend.
@@ -324,6 +321,135 @@ impl Did {
     }
 }
 
+/// The parts of a DID's parent spend that are needed to construct its child.
+struct ParentSpend {
+    coin: Coin,
+    inner_puzzle_hash: Bytes32,
+    info: DidInfo,
+    create_coin: CreateCoin<NodePtr>,
+}
+
+impl ParentSpend {
+    /// Parses the parent DID spend. If the parent isn't a DID or was melted, this returns [`None`].
+    fn parse(
+        allocator: &mut Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<Self>, DriverError> {
+        let Some(singleton_layer) = SingletonLayer::<Puzzle>::parse_puzzle(allocator, puzzle)?
+        else {
+            return Ok(None);
+        };
+
+        let Some(did_layer) =
+            DidLayer::<HashedPtr, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
+        else {
+            return Ok(None);
+        };
+
+        if singleton_layer.launcher_id != did_layer.launcher_id {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
+
+        let singleton_solution = SingletonLayer::<Puzzle>::parse_solution(allocator, solution)?;
+
+        let output = run_puzzle(
+            allocator,
+            singleton_layer.inner_puzzle.ptr(),
+            singleton_solution.inner_solution,
+        )?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let Some(create_coin) = conditions
+            .into_iter()
+            .filter_map(Condition::into_create_coin)
+            .find(|create_coin| create_coin.amount % 2 == 1)
+        else {
+            // The DID was melted, so there is no child.
+            return Ok(None);
+        };
+
+        let metadata_ptr = did_layer.metadata.to_clvm(allocator)?;
+        let metadata_hash = tree_hash(allocator, metadata_ptr);
+        let did_layer_hashed = did_layer.with_metadata(metadata_hash);
+
+        let inner_puzzle_hash = did_layer_hashed.tree_hash().into();
+        let layers = SingletonLayer::new(singleton_layer.launcher_id, did_layer);
+
+        Ok(Some(Self {
+            coin,
+            inner_puzzle_hash,
+            info: DidInfo::from_layers(&layers),
+            create_coin,
+        }))
+    }
+
+    /// Constructs the child DID with the given p2 puzzle hash.
+    fn child(&self, p2_puzzle_hash: Bytes32) -> Did {
+        let info = DidInfo {
+            p2_puzzle_hash,
+            ..self.info
+        };
+
+        Did::new(
+            Coin::new(
+                self.coin.coin_id(),
+                info.puzzle_hash().into(),
+                self.create_coin.amount,
+            ),
+            Proof::Lineage(LineageProof {
+                parent_parent_coin_info: self.coin.parent_coin_info,
+                parent_inner_puzzle_hash: self.inner_puzzle_hash,
+                parent_amount: self.coin.amount,
+            }),
+            info,
+        )
+    }
+}
+
+/// Determines the p2 puzzle hash of a DID child from the memos of the `CREATE_COIN` that created it.
+///
+/// Usually the hint is the p2 puzzle hash itself. However, if the DID was sent with a [`ClawbackV2`],
+/// the hint is the receiver's puzzle hash and the next memo is the clawback memo, so the p2 puzzle
+/// hash is the clawback's puzzle hash instead.
+///
+/// The memos are untrusted, so a candidate is only returned if it actually produces the puzzle hash
+/// of the child's inner puzzle.
+fn child_p2_puzzle_hash(
+    allocator: &Allocator,
+    info: DidInfo,
+    inner_puzzle_hash: Bytes32,
+    amount: u64,
+    hint: Bytes32,
+    rest: NodePtr,
+) -> Option<Bytes32> {
+    let produces_child = |p2_puzzle_hash: Bytes32| {
+        DidInfo {
+            p2_puzzle_hash,
+            ..info
+        }
+        .inner_puzzle_hash()
+            == inner_puzzle_hash.into()
+    };
+
+    if produces_child(hint) {
+        return Some(hint);
+    }
+
+    let (memo, _) = <(NodePtr, NodePtr)>::from_clvm(allocator, rest).ok()?;
+    let (sender_puzzle_hash, (seconds, ())) =
+        <(Bytes32, (u64, ()))>::from_clvm(allocator, memo).ok()?;
+
+    // Whether the clawback hints its outputs isn't included in the memo, so try both.
+    [true, false].into_iter().find_map(|hinted| {
+        let p2_puzzle_hash = ClawbackV2::new(sender_puzzle_hash, hint, seconds, amount, hinted)
+            .tree_hash()
+            .into();
+        produces_child(p2_puzzle_hash).then_some(p2_puzzle_hash)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::slice;
@@ -333,7 +459,7 @@ mod tests {
     use clvm_traits::clvm_list;
     use rstest::rstest;
 
-    use crate::{HashedPtr, Launcher, StandardLayer};
+    use crate::{HashedPtr, Launcher, SpendWithConditions, StandardLayer};
 
     use super::*;
 
@@ -572,6 +698,185 @@ mod tests {
             parse_child_from_spend(ctx, &coin_spend, spoofed_coin)?,
             None
         );
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_parse_did_child_with_clawback(
+        #[values(false, true)] hinted: bool,
+        #[values(false, true)] claw_back: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let bob = sim.bls(0);
+        let bob_p2 = StandardLayer::new(bob.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // Send the DID to Bob with a clawback, hinted to Bob so it shows up in his wallet.
+        let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, hinted);
+        let clawback_puzzle_hash: Bytes32 = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        let expected_did = did.child(clawback_puzzle_hash, did.info.metadata, 1);
+
+        let spent_did = did.spend_with(
+            ctx,
+            &alice_p2,
+            Conditions::new().create_coin(expected_did.info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+        assert_eq!(spent_did, Some(expected_did));
+
+        let coin_spend = ctx.take().remove(0);
+        sim.spend_coins(vec![coin_spend.clone()], slice::from_ref(&alice.sk))?;
+        assert!(sim.coin_state(expected_did.coin.coin_id()).is_some());
+
+        let clawback_did = parse_child_from_spend(ctx, &coin_spend, expected_did.coin)?
+            .expect("could not parse clawback did");
+        assert_eq!(clawback_did, expected_did);
+        assert_eq!(clawback_did.info.p2_puzzle_hash, clawback_puzzle_hash);
+
+        // Make sure the parsed DID can actually be spent by either the sender or the receiver.
+        let (owner, owner_p2, owner_sk) = if claw_back {
+            (alice.puzzle_hash, alice_p2, alice.sk)
+        } else {
+            sim.set_next_timestamp(100)?;
+            (bob.puzzle_hash, bob_p2, bob.sk)
+        };
+
+        let owner_info = DidInfo {
+            p2_puzzle_hash: owner,
+            ..clawback_did.info
+        };
+        let memos = ctx.hint(owner)?;
+        let inner_spend = owner_p2.spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(owner_info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+        let clawback_spend = if claw_back {
+            clawback.sender_spend(ctx, inner_spend)?
+        } else {
+            clawback.receiver_spend(ctx, inner_spend)?
+        };
+
+        let child = clawback_did
+            .spend(ctx, clawback_spend)?
+            .expect("missing child");
+        assert_eq!(child.info.p2_puzzle_hash, owner);
+
+        let coin_spend = ctx.take().remove(0);
+        sim.spend_coins(vec![coin_spend.clone()], &[owner_sk])?;
+        assert!(sim.coin_state(child.coin.coin_id()).is_some());
+
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, child.coin)?,
+            Some(child)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_did_child_verifies_clawback_memo() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let bob = sim.bls(0);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // Send the DID to a clawback from Alice to Bob, but claim in the memo that Bob is the sender.
+        let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
+        let spoofed_clawback = ClawbackV2::new(bob.puzzle_hash, bob.puzzle_hash, 100, 1, true);
+        let child = did.child(clawback.tree_hash().into(), did.info.metadata, 1);
+
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, spoofed_clawback.memo()))?;
+        let spent_did = did.spend_with(
+            ctx,
+            &alice_p2,
+            Conditions::new().create_coin(child.info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+        assert_eq!(spent_did, None);
+
+        let coin_spend = ctx.take().remove(0);
+        let spoofed_child = did.child(spoofed_clawback.tree_hash().into(), did.info.metadata, 1);
+
+        assert_eq!(parse_child_from_spend(ctx, &coin_spend, child.coin)?, None);
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, spoofed_child.coin)?,
+            None
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_did_child_trusted() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let bob = sim.bls(0);
+        let bob_p2 = StandardLayer::new(bob.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // Send the DID to Bob without hinting it, so the p2 puzzle hash can't be found from the memos.
+        let expected_did = did.child(bob.puzzle_hash, did.info.metadata, 1);
+        did.spend_with(
+            ctx,
+            &alice_p2,
+            Conditions::new().create_coin(
+                expected_did.info.inner_puzzle_hash().into(),
+                1,
+                Memos::None,
+            ),
+        )?;
+
+        let coin_spend = ctx.take().remove(0);
+        sim.spend_coins(vec![coin_spend.clone()], slice::from_ref(&alice.sk))?;
+
+        let puzzle = ctx.alloc(&coin_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&coin_spend.solution)?;
+
+        assert!(matches!(
+            Did::parse_child(ctx, coin_spend.coin, puzzle, solution, expected_did.coin),
+            Err(DriverError::MissingHint)
+        ));
+
+        let bob_did =
+            Did::parse_child_trusted(ctx, coin_spend.coin, puzzle, solution, bob.puzzle_hash)?
+                .expect("could not parse did");
+        assert_eq!(bob_did, expected_did);
+
+        // The p2 puzzle hash isn't verified, but the coin won't match the actual child.
+        let alice_did =
+            Did::parse_child_trusted(ctx, coin_spend.coin, puzzle, solution, alice.puzzle_hash)?
+                .expect("could not parse did");
+        assert_eq!(alice_did.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_ne!(alice_did.coin, expected_did.coin);
+
+        // Make sure the trusted DID can actually be spent.
+        let child = bob_did.update(ctx, &bob_p2, Conditions::new())?;
+        sim.spend_coins(ctx.take(), &[bob.sk])?;
+        assert!(sim.coin_state(child.coin.coin_id()).is_some());
 
         Ok(())
     }

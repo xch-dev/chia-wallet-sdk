@@ -174,7 +174,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_missing_asset_info_is_an_error() -> anyhow::Result<()> {
+    fn test_missing_asset_info_is_an_error() {
         let mut ctx = SpendContext::new();
 
         let launcher_id = Bytes32::new([1; 32]);
@@ -217,7 +217,5 @@ mod tests {
             calculate_trade_prices(&amounts, &AssetInfo::new()),
             Err(DriverError::MissingAssetInfo)
         ));
-
-        Ok(())
     }
 }

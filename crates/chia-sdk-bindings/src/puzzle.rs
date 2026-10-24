@@ -224,6 +224,30 @@ impl Puzzle {
         Ok(Some(did.as_program(&self.program.0)))
     }
 
+    pub fn parse_child_did_trusted(
+        &self,
+        parent_coin: Coin,
+        parent_solution: Program,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<Option<Did>> {
+        let mut ctx = self.program.0.lock().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let Some(did) = chia_sdk_driver::Did::parse_child_trusted(
+            &mut ctx,
+            parent_coin,
+            parent_puzzle,
+            parent_solution.1,
+            p2_puzzle_hash,
+        )?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(did.as_program(&self.program.0)))
+    }
+
     pub fn parse_option_info(&self) -> Result<Option<ParsedOptionInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 

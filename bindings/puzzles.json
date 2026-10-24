@@ -61,6 +61,14 @@
         },
         "return": "Option<Did>"
       },
+      "parse_child_did_trusted": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_solution": "Program",
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "Option<Did>"
+      },
       "parse_option_info": {
         "return": "Option<ParsedOptionInfo>"
       },

@@ -2997,6 +2997,7 @@ export declare class Puzzle {
   parseDidInfo(): ParsedDidInfo | null
   parseDid(coin: Coin, solution: Program): ParsedDid | null
   parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
+  parseChildDidTrusted(parentCoin: Coin, parentSolution: Program, p2PuzzleHash: Uint8Array): Did | null
   parseOptionInfo(): ParsedOptionInfo | null
   parseOption(coin: Coin, solution: Program): ParsedOption | null
   parseChildOption(parentCoin: Coin, parentSolution: Program): OptionContract | null
