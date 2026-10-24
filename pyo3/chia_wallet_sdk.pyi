@@ -2834,7 +2834,7 @@ class MempoolItem:
     fee: int
 class FullBlock:
     def clone(self) -> FullBlock: ...
-    def __init__(self, finished_sub_slots: List[EndOfSubSlotBundle], reward_chain_block: RewardChainBlock, challenge_chain_sp_proof: Optional[VDFProof], challenge_chain_ip_proof: VDFProof, reward_chain_sp_proof: Optional[VDFProof], reward_chain_ip_proof: VDFProof, infused_challenge_chain_ip_proof: Optional[VDFProof], foliage: Foliage, foliage_transaction_block: Optional[FoliageTransactionBlock], transactions_info: Optional[TransactionsInfo], transactions_generator: Optional[bytes], transactions_generator_ref_list: List[int]) -> None: ...
+    def __init__(self, finished_sub_slots: List[EndOfSubSlotBundle], reward_chain_block: RewardChainBlock, challenge_chain_sp_proof: Optional[VDFProof], challenge_chain_ip_proof: VDFProof, reward_chain_sp_proof: Optional[VDFProof], reward_chain_ip_proof: VDFProof, infused_challenge_chain_ip_proof: Optional[VDFProof], foliage: Foliage, foliage_transaction_block: Optional[FoliageTransactionBlock], transactions_info: Optional[TransactionsInfo], transactions_generator: Optional[bytes], transactions_generator_ref_list: List[int], transactions_generator_buffer: Optional[bytes], version: int) -> None: ...
     finished_sub_slots: List[EndOfSubSlotBundle]
     reward_chain_block: RewardChainBlock
     challenge_chain_sp_proof: Optional[VDFProof]
@@ -2847,6 +2847,8 @@ class FullBlock:
     transactions_info: Optional[TransactionsInfo]
     transactions_generator: Optional[bytes]
     transactions_generator_ref_list: List[int]
+    transactions_generator_buffer: Optional[bytes]
+    version: int
 class EndOfSubSlotBundle:
     def clone(self) -> EndOfSubSlotBundle: ...
     def __init__(self, challenge_chain: ChallengeChainSubSlot, infused_challenge_chain: Optional[InfusedChallengeChainSubSlot], reward_chain: RewardChainSubSlot, proofs: SubSlotProofs) -> None: ...
@@ -2979,12 +2981,16 @@ class BlockRecord:
     sub_epoch_summary_included: Optional[SubEpochSummary]
 class ProofOfSpace:
     def clone(self) -> ProofOfSpace: ...
-    def __init__(self, challenge: bytes, pool_public_key: Optional[PublicKey], pool_contract_puzzle_hash: Optional[bytes], plot_public_key: PublicKey, version_and_size: int, proof: bytes) -> None: ...
+    def __init__(self, challenge: bytes, pool_public_key: Optional[PublicKey], pool_contract_puzzle_hash: Optional[bytes], plot_public_key: PublicKey, version: int, plot_index: int, meta_group: int, strength: int, size: int, proof: bytes) -> None: ...
     challenge: bytes
     pool_public_key: Optional[PublicKey]
     pool_contract_puzzle_hash: Optional[bytes]
     plot_public_key: PublicKey
-    version_and_size: int
+    version: int
+    plot_index: int
+    meta_group: int
+    strength: int
+    size: int
     proof: bytes
 class SubEpochSummary:
     def clone(self) -> SubEpochSummary: ...

@@ -1,0 +1,7 @@
+[package]
+publish = false
+name = "chia-pos2"
+version = "0.6.1"
+edition = "2024"
+license = "Apache-2.0"
+description = "Patched over the upstream chia-pos2 so that chia-protocol can be compiled for WASM."

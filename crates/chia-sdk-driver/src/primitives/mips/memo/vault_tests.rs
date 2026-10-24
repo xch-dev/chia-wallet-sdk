@@ -557,7 +557,7 @@ fn decode_vault(allocator: &mut Allocator, memo: &MipsMemo) -> anyhow::Result<De
 
             let output = clvmr::run_program(
                 allocator,
-                &clvmr::ChiaDialect::new(0),
+                &clvmr::ChiaDialect::new(clvmr::ClvmFlags::empty()),
                 puzzle,
                 NodePtr::NIL,
                 u64::MAX,
@@ -834,7 +834,7 @@ fn test_vault_memo_on_chain() -> anyhow::Result<()> {
     let solution = node_from_bytes(&mut allocator, solution.as_ref())?;
     let output = clvmr::run_program(
         &mut allocator,
-        &clvmr::ChiaDialect::new(0),
+        &clvmr::ChiaDialect::new(clvmr::ClvmFlags::empty()),
         puzzle,
         solution,
         u64::MAX,

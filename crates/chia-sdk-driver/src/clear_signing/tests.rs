@@ -93,11 +93,11 @@ fn issue_asset(
 
         let xch = xch_asset_flow(&tx.asset_flows);
         assert_eq!(xch.issued_amount, 0);
-        assert_eq!(xch.melted_amount, amount.into());
+        assert_eq!(xch.melted_amount, u128::from(amount));
         assert_eq!(xch.unaccounted_amount, 0);
 
         let cat = cat_asset_flow(&tx.asset_flows);
-        assert_eq!(cat.issued_amount, amount.into());
+        assert_eq!(cat.issued_amount, u128::from(amount));
         assert_eq!(cat.melted_amount, 0);
         assert_eq!(cat.unaccounted_amount, 0);
 

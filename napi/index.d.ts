@@ -1663,7 +1663,7 @@ export type Force1of2RestrictedVariableMemo = Force1Of2RestrictedVariableMemo
 
 export declare class FullBlock {
   clone(): FullBlock
-  constructor(finishedSubSlots: Array<EndOfSubSlotBundle>, rewardChainBlock: RewardChainBlock, challengeChainSpProof: VDFProof | undefined | null, challengeChainIpProof: VDFProof, rewardChainSpProof: VDFProof | undefined | null, rewardChainIpProof: VDFProof, infusedChallengeChainIpProof: VDFProof | undefined | null, foliage: Foliage, foliageTransactionBlock: FoliageTransactionBlock | undefined | null, transactionsInfo: TransactionsInfo | undefined | null, transactionsGenerator: Uint8Array | undefined | null, transactionsGeneratorRefList: Array<number>)
+  constructor(finishedSubSlots: Array<EndOfSubSlotBundle>, rewardChainBlock: RewardChainBlock, challengeChainSpProof: VDFProof | undefined | null, challengeChainIpProof: VDFProof, rewardChainSpProof: VDFProof | undefined | null, rewardChainIpProof: VDFProof, infusedChallengeChainIpProof: VDFProof | undefined | null, foliage: Foliage, foliageTransactionBlock: FoliageTransactionBlock | undefined | null, transactionsInfo: TransactionsInfo | undefined | null, transactionsGenerator: Uint8Array | undefined | null, transactionsGeneratorRefList: Array<number>, transactionsGeneratorBuffer: Uint8Array | undefined | null, version: number)
   get finishedSubSlots(): Array<EndOfSubSlotBundle>
   set finishedSubSlots(value: Array<EndOfSubSlotBundle>)
   get rewardChainBlock(): RewardChainBlock
@@ -1688,6 +1688,10 @@ export declare class FullBlock {
   set transactionsGenerator(value: Uint8Array | undefined | null)
   get transactionsGeneratorRefList(): Array<number>
   set transactionsGeneratorRefList(value: Array<number>)
+  get transactionsGeneratorBuffer(): Buffer | null
+  set transactionsGeneratorBuffer(value: Uint8Array | undefined | null)
+  get version(): number
+  set version(value: number)
 }
 
 export declare class FullNodeSimulator {
@@ -2931,7 +2935,7 @@ export declare class Proof {
 
 export declare class ProofOfSpace {
   clone(): ProofOfSpace
-  constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, versionAndSize: number, proof: Uint8Array)
+  constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, version: number, plotIndex: number, metaGroup: number, strength: number, size: number, proof: Uint8Array)
   get challenge(): Buffer
   set challenge(value: Uint8Array)
   get poolPublicKey(): PublicKey | null
@@ -2940,8 +2944,16 @@ export declare class ProofOfSpace {
   set poolContractPuzzleHash(value: Uint8Array | undefined | null)
   get plotPublicKey(): PublicKey
   set plotPublicKey(value: PublicKey)
-  get versionAndSize(): number
-  set versionAndSize(value: number)
+  get version(): number
+  set version(value: number)
+  get plotIndex(): number
+  set plotIndex(value: number)
+  get metaGroup(): number
+  set metaGroup(value: number)
+  get strength(): number
+  set strength(value: number)
+  get size(): number
+  set size(value: number)
   get proof(): Buffer
   set proof(value: Uint8Array)
 }

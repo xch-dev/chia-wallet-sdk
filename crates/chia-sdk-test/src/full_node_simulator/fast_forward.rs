@@ -1,11 +1,11 @@
 use chia_bls::Signature;
 use chia_consensus::{
-    conditions::ELIGIBLE_FOR_FF, fast_forward::fast_forward_singleton, flags::COMPUTE_FINGERPRINT,
+    conditions::ELIGIBLE_FOR_FF, fast_forward::fast_forward_singleton, flags::ConsensusFlags,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_sdk_types::default_constants;
 use clvmr::{
-    Allocator, ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+    Allocator,
     serde::{node_from_bytes, node_to_bytes},
 };
 
@@ -99,7 +99,7 @@ impl FullNodeSimulator {
             spend_bundle,
             11_000_000_000 / 2,
             &constants,
-            ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
+            ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD | ConsensusFlags::COMPUTE_FINGERPRINT,
         ) else {
             return FastForwardResult::NoProgress;
         };

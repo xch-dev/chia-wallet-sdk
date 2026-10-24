@@ -21,7 +21,8 @@ members = [
     "napi",
     "wasm",
     "pyo3",
-    "pyo3/stub-generator"
+    "pyo3/stub-generator",
+    "patches/chia-pos2"
 ]
 
 [workspace.package]
@@ -120,20 +121,20 @@ chia-sdk-daemon = { version = "0.36.0", path = "./crates/chia-sdk-daemon" }
 chia-sdk-bindings = { version = "0.36.0", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.36.0", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.36.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
-chia-ssl = "0.42.1"
-chia-protocol = "0.36.1"
-chia-consensus = "0.36.1"
-chia-traits = "0.36.1"
-chia-bls = "0.36.1"
-chia-secp = "0.36.1"
-chia-puzzle-types = "0.36.1"
-clvm-traits = "0.36.1"
-clvm-utils = "0.36.1"
-chia-sha2 = "0.36.1"
-chia_streamable_macro = "0.36.1"
-chia-serde = "0.36.1"
+chia-ssl = "0.52.1"
+chia-protocol = "0.52.1"
+chia-consensus = "0.52.1"
+chia-traits = "0.52.1"
+chia-bls = "0.52.1"
+chia-secp = "0.52.1"
+chia-puzzle-types = "0.52.1"
+clvm-traits = "0.52.1"
+clvm-utils = "0.52.1"
+chia-sha2 = "0.52.1"
+chia_streamable_macro = "0.52.1"
+chia-serde = "0.52.1"
 chia-puzzles = "0.20.3"
-clvmr = "0.16.2"
+clvmr = "0.21.0"
 thiserror = "2.0.17"
 hex = "0.4.3"
 bech32 = "0.9.1"
@@ -163,9 +164,9 @@ napi = { version = "3.3.0", default-features = false }
 napi-derive = { version = "3.2.5" }
 napi-build = "2.3"
 paste = "1.0.15"
-k256 = "0.13.4"
-p256 = "0.13.2"
-signature = "2.2.0"
+k256 = "0.14.0"
+p256 = "0.14.0"
+signature = "3.0.0"
 serde = "1.0.228"
 serde_json = "1.0.145"
 reqwest = { version = "0.13.5", default-features = false, features = ["json"] }
@@ -174,22 +175,27 @@ wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 wasm-bindgen-derive = "0.4.0"
 getrandom = "0.3.4"
+getrandom-04 = { package = "getrandom", version = "0.4.3" }
 sha2 = "0.10.9"
 sha3 = "0.10.8"
 pyo3 = "0.29.3"
 js-sys = "0.3.77"
 parking_lot = "0.12.5"
-chialisp = "0.4.6"
+chialisp = "0.6.0"
 pyo3-async-runtimes = "0.29"
 indoc = "2.0.6"
 console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
 clap = "4.5.50"
 bincode = "2.0.1"
-rue-compiler = "0.8.5"
-rue-options = "0.8.5"
-rue-lir = "0.8.5"
+rue-compiler = "0.11.0"
+rue-options = "0.11.0"
+rue-lir = "0.11.0"
 colored = "3.1.1"
+
+# chia-protocol depends on chia-pos2, which compiles C++ that can't target WASM.
+[patch.crates-io]
+chia-pos2 = { path = "./patches/chia-pos2" }
 
 [profile.release]
 lto = true
