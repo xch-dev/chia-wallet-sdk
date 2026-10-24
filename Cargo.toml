@@ -21,7 +21,8 @@ members = [
     "napi",
     "wasm",
     "pyo3",
-    "pyo3/stub-generator"
+    "pyo3/stub-generator",
+    "patches/chia-pos2"
 ]
 
 [workspace.package]
@@ -174,6 +175,7 @@ wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 wasm-bindgen-derive = "0.4.0"
 getrandom = "0.3.4"
+getrandom-04 = { package = "getrandom", version = "0.4.3" }
 sha2 = "0.10.9"
 sha3 = "0.10.8"
 pyo3 = "0.29.3"
@@ -190,6 +192,10 @@ rue-compiler = "0.11.0"
 rue-options = "0.11.0"
 rue-lir = "0.11.0"
 colored = "3.1.1"
+
+# chia-protocol depends on chia-pos2, which compiles C++ that can't target WASM.
+[patch.crates-io]
+chia-pos2 = { path = "./patches/chia-pos2" }
 
 [profile.release]
 lto = true

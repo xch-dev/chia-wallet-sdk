@@ -536,14 +536,7 @@ dependencies = [
 
 [[package]]
 name = "chia-pos2"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1339d81e9d02b42597f314786fea68bd4b5e91b082d5de36eeee5372e6d61b80"
-dependencies = [
- "cc",
- "serde",
- "serde-big-array",
-]
+version = "0.6.1"
 
 [[package]]
 name = "chia-protocol"
@@ -980,6 +973,7 @@ dependencies = [
  "chia-sdk-bindings",
  "console_error_panic_hook",
  "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-derive",
@@ -3829,15 +3823,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-big-array"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_arrays"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4151,7 +4136,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
