@@ -296,7 +296,7 @@ dependencies = [
  "clang-sys",
  "itertools 0.13.0",
  "log",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "regex",
@@ -315,7 +315,7 @@ dependencies = [
  "cexpr",
  "clang-sys",
  "log",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
  "regex",
@@ -343,7 +343,7 @@ dependencies = [
  "hex",
  "js-sys",
  "napi",
- "num-bigint 0.5.1",
+ "num-bigint",
  "pyo3",
  "reqwest",
  "signature",
@@ -591,7 +591,7 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex-literal 0.4.1",
- "num-bigint 0.4.8",
+ "num-bigint",
 ]
 
 [[package]]
@@ -629,7 +629,7 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex",
- "num-bigint 0.5.1",
+ "num-bigint",
  "paste",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
@@ -729,11 +729,11 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "flate2",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "hex",
  "hex-literal 1.1.0",
  "indexmap",
- "num-bigint 0.5.1",
+ "num-bigint",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
  "rstest 0.28.0",
@@ -976,7 +976,7 @@ dependencies = [
  "bindy",
  "bindy-macro",
  "chia-sdk-bindings",
- "num-bigint 0.5.1",
+ "num-bigint",
  "openssl",
  "openssl-sys",
  "pyo3",
@@ -991,6 +991,7 @@ dependencies = [
  "bindy-macro",
  "chia-sdk-bindings",
  "console_error_panic_hook",
+ "getrandom 0.3.4",
  "getrandom 0.4.3",
  "js-sys",
  "wasm-bindgen",
@@ -1038,7 +1039,7 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "num",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-traits",
  "pyo3-build-config",
  "regex",
@@ -1120,7 +1121,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7ea3eeec6cc601989e4b59e4a447d9b73698808e99dc9836651d3d33dab9d72"
 dependencies = [
  "clvmr",
- "num-bigint 0.4.8",
+ "num-bigint",
  "thiserror 2.0.21",
 ]
 
@@ -1134,7 +1135,7 @@ dependencies = [
  "chia-secp",
  "clvm-derive",
  "clvmr",
- "num-bigint 0.4.8",
+ "num-bigint",
  "thiserror 2.0.21",
 ]
 
@@ -1167,7 +1168,7 @@ dependencies = [
  "k256",
  "lazy_static",
  "malachite-bigint",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-integer",
  "num-traits",
  "p256",
@@ -1423,7 +1424,7 @@ dependencies = [
  "asn1-rs",
  "displaydoc",
  "nom",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-traits",
  "rusticata-macros",
 ]
@@ -1802,9 +1803,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2669,7 +2672,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
 dependencies = [
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-complex",
  "num-integer",
  "num-iter",
@@ -2686,16 +2689,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "serde",
-]
-
-[[package]]
-name = "num-bigint"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
-dependencies = [
- "num-integer",
- "num-traits",
 ]
 
 [[package]]
@@ -2749,7 +2742,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
 dependencies = [
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -2987,6 +2980,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
+dependencies = [
+ "proc-macro2",
+ "syn 3.0.8",
+]
+
+[[package]]
 name = "prettytable-rs"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3063,7 +3066,7 @@ checksum = "700d18fa267b73b9b521fd7e13580e2f446916f176cacee1ab63fcc8191f1655"
 dependencies = [
  "inventory",
  "libc",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-traits",
  "once_cell",
  "portable-atomic",
@@ -3526,7 +3529,7 @@ checksum = "8ba2ef740266638545f8e01f8cdf339918be036914db4126b6728dc2e803dff4"
 dependencies = [
  "clvmr",
  "hex",
- "num-bigint 0.4.8",
+ "num-bigint",
  "thiserror 2.0.21",
 ]
 
@@ -3542,7 +3545,7 @@ dependencies = [
  "include_dir",
  "indexmap",
  "log",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-traits",
  "rowan",
  "rue-ast",
@@ -3576,7 +3579,7 @@ dependencies = [
  "id-arena",
  "indexmap",
  "log",
- "num-bigint 0.4.8",
+ "num-bigint",
  "rue-diagnostic",
  "rue-lir",
  "rue-options",
@@ -3599,7 +3602,7 @@ dependencies = [
  "clvmr",
  "colored",
  "id-arena",
- "num-bigint 0.4.8",
+ "num-bigint",
  "num-integer",
  "rue-clvm",
  "sha2 0.10.9",

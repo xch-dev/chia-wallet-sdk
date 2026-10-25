@@ -136,7 +136,7 @@ mod tests {
     use chia_secp::K1SecretKey;
     use clvm_traits::{ToClvm, clvm_list, clvm_quote};
     use clvmr::{ChiaDialect, run_program};
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 
     use super::*;
