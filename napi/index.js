@@ -1146,6 +1146,7 @@ module.exports.mOfNHash = nativeBinding.mOfNHash
 module.exports.P2ConditionsOrSingletonVersion = nativeBinding.P2ConditionsOrSingletonVersion
 module.exports.parseVaultTransaction = nativeBinding.parseVaultTransaction
 module.exports.passkeyMemberHash = nativeBinding.passkeyMemberHash
+module.exports.payableTradePrices = nativeBinding.payableTradePrices
 module.exports.predictBlankHandleNftCoinId = nativeBinding.predictBlankHandleNftCoinId
 module.exports.preventConditionOpcodeRestriction = nativeBinding.preventConditionOpcodeRestriction
 module.exports.preventMultipleCreateCoinsRestriction = nativeBinding.preventMultipleCreateCoinsRestriction

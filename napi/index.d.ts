@@ -2373,6 +2373,8 @@ export declare class Offer {
   requestedRoyalties(): Array<RoyaltyInfo>
   offeredRoyaltyAmounts(): OfferAmounts
   requestedRoyaltyAmounts(): OfferAmounts
+  requestedRoyaltyPayments(): RequestedPayments
+  requestedNftTradePrices(launcherId: Uint8Array): Array<TradePrice>
 }
 
 export declare class OfferAmounts {
@@ -4690,6 +4692,8 @@ export declare const enum P2ConditionsOrSingletonVersion {
 export declare function parseVaultTransaction(clvm: Clvm, reveals: Reveals, launcherId: Uint8Array, delegatedSpend: Spend): VaultTransaction
 
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare function payableTradePrices(tradePrices: Array<TradePrice>, royaltyBasisPoints: number): Array<TradePrice>
 
 export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Buffer
 

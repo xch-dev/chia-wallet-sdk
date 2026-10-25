@@ -544,6 +544,19 @@ impl Offer {
             self.inner.requested_royalty_amounts()?,
         ))
     }
+
+    pub fn requested_royalty_payments(&self) -> Result<RequestedPayments> {
+        let payments = {
+            let mut ctx = self.clvm.lock().unwrap();
+            self.inner.requested_royalty_payments(&mut ctx)?
+        };
+
+        Ok(RequestedPayments::from_sdk(payments, &self.clvm))
+    }
+
+    pub fn requested_nft_trade_prices(&self, launcher_id: Bytes32) -> Result<Vec<TradePrice>> {
+        Ok(self.inner.requested_nft_trade_prices(launcher_id))
+    }
 }
 
 #[derive(Clone)]
@@ -587,6 +600,16 @@ pub fn calculate_trade_prices(
         &trade_price_amounts.to_sdk(),
         &asset_info.to_sdk(),
     )?)
+}
+
+pub fn payable_trade_prices(
+    trade_prices: Vec<TradePrice>,
+    royalty_basis_points: u16,
+) -> Result<Vec<TradePrice>> {
+    Ok(sdk::payable_trade_prices(
+        &trade_prices,
+        royalty_basis_points,
+    ))
 }
 
 pub fn calculate_royalty_payments(
