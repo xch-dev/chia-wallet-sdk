@@ -164,13 +164,6 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
-
-      - name: Test bindings on node@20 (arm64)
-        run: pnpm test
-
-      - uses: actions/setup-node@v7
-        with:
           node-version: 24
           architecture: x64
 
@@ -191,7 +184,6 @@ jobs:
           - host: windows-2022
             target: x86_64-pc-windows-msvc
         node:
-          - "20"
           - "22"
           - "24"
     runs-on: ${{ matrix.settings.host }}
@@ -237,7 +229,6 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "20"
           - "22"
           - "24"
     runs-on: ubuntu-24.04
@@ -290,7 +281,6 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "20"
           - "22"
           - "24"
     runs-on: ubuntu-24.04-arm

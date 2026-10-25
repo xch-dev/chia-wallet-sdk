@@ -33,7 +33,7 @@ import {
   Spends,
   standardPuzzleHash,
   TransferNftById,
-} from "..";
+} from "../index.js";
 
 class Wallet {
   pair: BlsPair;

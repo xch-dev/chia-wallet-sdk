@@ -40,8 +40,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.10.9",
     "@types/node": "^26.6.5",
-    "ava": "^8.1.0",
-    "ts-node": "^10.9.2"
+    "ava": "^8.1.0"
   },
   "ava": {
     "timeout": "3m",
@@ -50,9 +49,6 @@
     "workerThreads": false,
     "extensions": [
       "ts"
-    ],
-    "require": [
-      "./register-ts-node.cjs"
     ]
   }
 }
