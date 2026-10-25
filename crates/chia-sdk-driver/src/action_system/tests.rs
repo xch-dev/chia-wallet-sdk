@@ -2496,7 +2496,7 @@ fn test_overflowing_fees_are_rejected() {
 }
 
 #[test]
-fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
+fn test_duplicate_settlement_payments_are_rejected() {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -2526,6 +2526,4 @@ fn test_duplicate_settlement_payments_are_rejected() -> Result<()> {
         result,
         Err(DriverError::DuplicateSettlementPayment)
     ));
-
-    Ok(())
 }

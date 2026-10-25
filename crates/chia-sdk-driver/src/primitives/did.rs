@@ -199,8 +199,22 @@ impl Did {
     /// This relies on the child being hinted and having the same metadata as the parent.
     /// If this is not the case, the DID cannot be parsed or spent without additional context.
     ///
-    /// The hint is verified against the puzzle hash of the created coin, and the provided `coin`
-    /// must be the child that was created. Otherwise, this will return [`None`].
+    /// # Trusting the hint
+    ///
+    /// The p2 puzzle hash of the returned DID is taken from the hint, and the provided `coin` is
+    /// used as is. Neither is verified against the coin that was actually created, since the hint
+    /// isn't always the p2 puzzle hash. For example, when a DID is sent with a
+    /// [`ClawbackV2`](crate::ClawbackV2), the p2 puzzle hash is the clawback's puzzle hash, but the
+    /// hint is the receiver's puzzle hash so they can find the coin. In that case, the memos are
+    /// `(receiver_puzzle_hash (sender_puzzle_hash seconds) ...)` (see
+    /// [`ClawbackV2::memo`](crate::ClawbackV2::memo)), and you can replace the `p2_puzzle_hash`
+    /// with the clawback's tree hash if it produces the coin's puzzle hash.
+    ///
+    /// Because anyone can choose the hint, the caller is responsible for checking that the
+    /// returned DID is correct before trusting it. Make sure that `did.info.puzzle_hash()`
+    /// matches `coin.puzzle_hash` (after replacing the p2 puzzle hash, if needed), and that the
+    /// `coin` is actually a child of the `parent_coin`. Otherwise, a spoofed hint could produce a
+    /// DID that looks like it belongs to you, but can't be spent.
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -262,21 +276,6 @@ impl Did {
         let mut info = DidInfo::from_layers(&layers);
         info.p2_puzzle_hash = hint;
 
-        // The hint is untrusted, so make sure it actually produces the puzzle hash of the child.
-        if info.inner_puzzle_hash() != create_coin.puzzle_hash.into() {
-            return Ok(None);
-        }
-
-        let child_coin = Coin::new(
-            parent_coin.coin_id(),
-            info.puzzle_hash().into(),
-            create_coin.amount,
-        );
-
-        if coin != child_coin {
-            return Ok(None);
-        }
-
         Ok(Some(Self {
             coin,
             proof: Proof::Lineage(LineageProof {
@@ -333,7 +332,7 @@ mod tests {
     use clvm_traits::clvm_list;
     use rstest::rstest;
 
-    use crate::{HashedPtr, Launcher, StandardLayer};
+    use crate::{ClawbackV2, HashedPtr, Launcher, SpendWithConditions, StandardLayer};
 
     use super::*;
 
@@ -529,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_did_child_verifies_hint() -> anyhow::Result<()> {
+    fn test_parse_did_child_trusts_hint() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -556,28 +555,111 @@ mod tests {
 
         let coin_spend = ctx.take().remove(0);
         let child_coin = Coin::new(did.coin.coin_id(), bob_info.puzzle_hash().into(), 1);
-        let spoofed_coin = Coin::new(
-            did.coin.coin_id(),
-            DidInfo {
-                p2_puzzle_hash: alice.puzzle_hash,
-                ..did.info
-            }
-            .puzzle_hash()
-            .into(),
-            1,
+
+        // The hint isn't verified, so it's up to the caller to check the puzzle hash.
+        let parsed =
+            parse_child_from_spend(ctx, &coin_spend, child_coin)?.expect("could not parse did");
+        assert_eq!(parsed.coin, child_coin);
+        assert_eq!(parsed.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_ne!(parsed.info.puzzle_hash(), child_coin.puzzle_hash.into());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_parse_did_child_with_clawback(
+        #[values(false, true)] hinted: bool,
+        #[values(false, true)] claw_back: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let bob = sim.bls(0);
+        let bob_p2 = StandardLayer::new(bob.pk);
+
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        // Send the DID to Bob with a clawback, hinted to Bob so it shows up in his wallet.
+        let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, hinted);
+        let clawback_puzzle_hash: Bytes32 = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        let expected_did = did.child(clawback_puzzle_hash, did.info.metadata, 1);
+
+        did.spend_with(
+            ctx,
+            &alice_p2,
+            Conditions::new().create_coin(expected_did.info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+
+        let coin_spend = ctx.take().remove(0);
+        sim.spend_coins(vec![coin_spend.clone()], slice::from_ref(&alice.sk))?;
+        assert!(sim.coin_state(expected_did.coin.coin_id()).is_some());
+
+        // The DID is parsed with the hinted receiver as its p2 puzzle hash, so the caller has to
+        // replace it with the clawback's puzzle hash.
+        let mut clawback_did = parse_child_from_spend(ctx, &coin_spend, expected_did.coin)?
+            .expect("could not parse clawback did");
+        assert_eq!(clawback_did.info.p2_puzzle_hash, bob.puzzle_hash);
+        assert_ne!(
+            clawback_did.info.puzzle_hash(),
+            expected_did.coin.puzzle_hash.into()
         );
 
-        assert_eq!(parse_child_from_spend(ctx, &coin_spend, child_coin)?, None);
+        clawback_did.info.p2_puzzle_hash = clawback_puzzle_hash;
         assert_eq!(
-            parse_child_from_spend(ctx, &coin_spend, spoofed_coin)?,
-            None
+            clawback_did.info.puzzle_hash(),
+            expected_did.coin.puzzle_hash.into()
+        );
+        assert_eq!(clawback_did, expected_did);
+
+        // Make sure the parsed DID can actually be spent by either the sender or the receiver.
+        let (owner, owner_p2, owner_sk) = if claw_back {
+            (alice.puzzle_hash, alice_p2, alice.sk)
+        } else {
+            sim.set_next_timestamp(100)?;
+            (bob.puzzle_hash, bob_p2, bob.sk)
+        };
+
+        let owner_info = DidInfo {
+            p2_puzzle_hash: owner,
+            ..clawback_did.info
+        };
+        let memos = ctx.hint(owner)?;
+        let inner_spend = owner_p2.spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(owner_info.inner_puzzle_hash().into(), 1, memos),
+        )?;
+        let clawback_spend = if claw_back {
+            clawback.sender_spend(ctx, inner_spend)?
+        } else {
+            clawback.receiver_spend(ctx, inner_spend)?
+        };
+
+        let child = clawback_did
+            .spend(ctx, clawback_spend)?
+            .expect("missing child");
+        assert_eq!(child.info.p2_puzzle_hash, owner);
+
+        let coin_spend = ctx.take().remove(0);
+        sim.spend_coins(vec![coin_spend.clone()], &[owner_sk])?;
+        assert!(sim.coin_state(child.coin.coin_id()).is_some());
+
+        assert_eq!(
+            parse_child_from_spend(ctx, &coin_spend, child.coin)?,
+            Some(child)
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_parse_did_child_verifies_coin() -> anyhow::Result<()> {
+    fn test_parse_updated_did_child() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -595,13 +677,6 @@ mod tests {
         assert_eq!(
             parse_child_from_spend(ctx, &coin_spend, child.coin)?,
             Some(child)
-        );
-
-        // Any other coin isn't the child, even if it has the same puzzle hash.
-        let unrelated_coin = Coin::new(Bytes32::default(), child.coin.puzzle_hash, 1);
-        assert_eq!(
-            parse_child_from_spend(ctx, &coin_spend, unrelated_coin)?,
-            None
         );
 
         Ok(())
