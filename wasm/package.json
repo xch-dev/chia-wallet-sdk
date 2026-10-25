@@ -5,17 +5,13 @@
     "test": "wasm-pack build --target nodejs && ava"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "ava": "^8.0.1",
-    "ts-node": "^10.9.2"
+    "@types/node": "^26.6.5",
+    "ava": "^8.1.0"
   },
   "ava": {
     "timeout": "3m",
     "extensions": [
       "ts"
-    ],
-    "require": [
-      "ts-node/register"
     ]
   }
 }
