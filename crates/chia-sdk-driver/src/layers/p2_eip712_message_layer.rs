@@ -163,7 +163,7 @@ mod tests {
     use clvmr::reduction::Reduction;
     use clvmr::serde::node_from_bytes;
     use hex_literal::hex;
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use rstest::rstest;
 
