@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::cat::CatSolution;
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
@@ -56,6 +56,9 @@ pub struct VaultTransaction {
     pub p2_puzzle_hashes: Vec<Bytes32>,
     /// The delegated puzzle hash that is being signed for.
     pub delegated_puzzle_hash: Bytes32,
+    /// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), these are the
+    /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else.
+    pub signed_messages: Vec<Bytes>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,6 +264,7 @@ pub fn parse_vault_transaction(
         reserved_fee,
         p2_puzzle_hashes,
         delegated_puzzle_hash,
+        signed_messages: vault_spend.signed_messages,
     })
 }
 

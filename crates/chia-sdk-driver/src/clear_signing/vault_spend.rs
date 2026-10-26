@@ -1,17 +1,21 @@
 use chia_consensus::opcodes::SEND_MESSAGE;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message};
+use crate::{
+    DriverError, Facts, Spend, VaultMessage, is_vault_message_envelope_coin_id,
+    parse_delegated_spend, parse_vault_message,
+};
 
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub messages: Vec<VaultMessage>,
+    pub signed_messages: Vec<Bytes>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -50,10 +54,12 @@ pub fn parse_vault_delegated_spend(
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
     let conditions = parse_delegated_spend(allocator, delegated_spend)?;
+    let condition_count = conditions.len();
 
     let mut child = None;
     let mut drop_coins = Vec::new();
     let mut messages = Vec::new();
+    let mut signed_messages = Vec::new();
 
     for condition in conditions {
         match condition {
@@ -96,8 +102,16 @@ pub fn parse_vault_delegated_spend(
                 // that the corresponding coin spend is revealed and matches the delegated puzzle hash in the message.
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
+                //
+                // Messages sent to the zero coin id are an exception, since that coin can never be spent. They're
+                // used to sign arbitrary messages off-chain, and are returned separately in their original order.
                 let vault_message = parse_vault_message(allocator, condition)?;
-                messages.push(vault_message);
+
+                if is_vault_message_envelope_coin_id(vault_message.spent_coin_id) {
+                    signed_messages.push(vault_message.data);
+                } else {
+                    messages.push(vault_message);
+                }
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -113,9 +127,16 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
+    // A delegated spend that signs messages must do nothing else, so that signing a message can't also
+    // authorize a transaction. Any other condition makes the whole spend invalid.
+    if !signed_messages.is_empty() && signed_messages.len() != condition_count {
+        return Err(DriverError::MixedVaultMessageEnvelope);
+    }
+
     Ok(VaultSpendSummary {
         child,
         drop_coins,
         messages,
+        signed_messages,
     })
 }

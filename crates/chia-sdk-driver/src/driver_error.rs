@@ -132,7 +132,6 @@ pub enum DriverError {
     #[error("unsupported compression version")]
     UnsupportedVersion,
 
-    #[cfg(feature = "offer-compression")]
     #[error("streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
@@ -148,7 +147,6 @@ pub enum DriverError {
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
 
@@ -219,4 +217,49 @@ pub enum DriverError {
 
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
+
+    #[error("a vault message envelope must contain at least one message")]
+    EmptyVaultMessageEnvelope,
+
+    #[error("the delegated puzzle is not a vault message envelope")]
+    InvalidVaultMessageEnvelope,
+
+    #[error(
+        "a delegated spend that signs vault messages can't contain any other conditions or messages"
+    )]
+    MixedVaultMessageEnvelope,
+
+    #[error("missing vault message proof version")]
+    MissingVaultMessageProofVersion,
+
+    #[error("unsupported vault message proof version {0}")]
+    UnsupportedVaultMessageProofVersion(u8),
+
+    #[error("the vault message proof is for a different vault launcher id")]
+    WrongVaultLauncherId,
+
+    #[error("the vault message proof's custody puzzle doesn't match the vault's custody hash")]
+    WrongVaultCustodyHash,
+
+    #[error("the vault message proof's custody puzzle is not a top level MIPS puzzle")]
+    InvalidVaultMessageCustody,
+
+    #[error("the custody puzzle asserted a puzzle hash other than the vault's")]
+    VaultPuzzleHashMismatch,
+
+    #[error("the custody puzzle output a condition that isn't allowed in a vault message proof")]
+    UnexpectedVaultMessageCondition,
+
+    #[error(
+        "the custody puzzle output an AGG_SIG condition, which isn't supported in vault message proofs"
+    )]
+    UnsupportedVaultMessageSignature,
+
+    #[error(
+        "the custody puzzle didn't assert the vault's puzzle hash, so nothing was signed for this vault"
+    )]
+    UnsignedVaultMessage,
+
+    #[error("the messages output by the custody puzzle don't match the envelope")]
+    VaultMessageMismatch,
 }

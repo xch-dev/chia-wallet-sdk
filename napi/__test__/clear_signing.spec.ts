@@ -17,7 +17,10 @@ import {
   MipsSpend,
   mOfNHash,
   parseVaultTransaction,
+  passkeyMemberHash,
   preventVaultSideEffectsRestriction,
+  r1MemberHash,
+  R1Pair,
   Reveals,
   sha256,
   Simulator,
@@ -26,8 +29,11 @@ import {
   timelockRestriction,
   treeHashPair,
   Vault,
+  vaultMessageEnvelope,
+  VaultMessageProof,
   vaultRecoveryDelegatedPuzzleHash,
   VaultVersion,
+  verifyVaultSignedMessage,
 } from "../index.js";
 
 // The simulator validates signatures against testnet11's AGG_SIG_ME additional data.
@@ -360,6 +366,120 @@ function startRecovery(
 
   return recovery;
 }
+
+test("signs and verifies vault messages", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const passkey = R1Pair.fromSeed(2n);
+
+  const config = new MemberConfig();
+  const r1Hash = r1MemberHash(config, r1.pk, true);
+  const passkeyHash = passkeyMemberHash(config, passkey.pk, true);
+
+  const vault = mintVault(
+    sim,
+    clvm,
+    mOfNHash(config.withTopLevel(true), 2, [r1Hash, passkeyHash]),
+  );
+
+  const messages = [
+    Buffer.from("Sign in to example.com\nNonce: 4f9a2c", "utf-8"),
+    Buffer.from([0xff, 0x00, 0x80]),
+  ];
+  const envelope = vaultMessageEnvelope(clvm, messages);
+
+  // Clear signing shows the messages, and nothing else.
+  const tx = parseVaultTransaction(
+    clvm,
+    new Reveals(clvm),
+    vault.info.launcherId,
+    envelope,
+  );
+  t.deepEqual(
+    tx.signedMessages.map((message) => Buffer.from(message)),
+    messages,
+  );
+  t.is(tx.vaultChild, null);
+  t.is(tx.spends.length, 0);
+
+  // Each member signs the envelope for the vault's puzzle hash, as with any fast forward signature.
+  const message = sha256(
+    calculateVaultPuzzleMessage(
+      envelope.puzzle.treeHash(),
+      vault.coin.puzzleHash,
+    ),
+  );
+
+  const authenticatorData = Buffer.from(
+    "49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000009",
+    "hex",
+  );
+  const clientDataJSON = Buffer.from(
+    `{"type":"webauthn.get","challenge":"${Buffer.from(message).toString(
+      "base64url",
+    )}","origin":"http://localhost:3000","crossOrigin":false}`,
+    "utf-8",
+  );
+  const challengeIndex = clientDataJSON.indexOf('"challenge":');
+
+  const mips = clvm.mipsSpend(vault.coin, envelope);
+  mips.mOfN(config.withTopLevel(true), 2, [r1Hash, passkeyHash]);
+  mips.r1Member(config, r1.pk, r1.sk.signPrehashed(message), true);
+  mips.passkeyMember(
+    config,
+    passkey.pk,
+    passkey.sk.signPrehashed(
+      sha256(Buffer.concat([authenticatorData, sha256(clientDataJSON)])),
+    ),
+    authenticatorData,
+    clientDataJSON,
+    challengeIndex,
+    true,
+  );
+
+  const proof = VaultMessageProof.fromCustodySpend(
+    vault.info.launcherId,
+    mips.spend(vault.info.custodyHash),
+  );
+
+  const encoded = proof.encodeString();
+  t.true(encoded.startsWith("vaultsig1"));
+
+  for (const decoded of [
+    VaultMessageProof.decodeString(encoded),
+    VaultMessageProof.decode(proof.encode()),
+  ]) {
+    t.deepEqual(
+      verifyVaultSignedMessage(
+        decoded,
+        vault.info.launcherId,
+        vault.info.custodyHash,
+      ).map((message) => Buffer.from(message)),
+      messages,
+    );
+  }
+
+  t.throws(() =>
+    verifyVaultSignedMessage(
+      proof,
+      vault.info.launcherId,
+      mOfNHash(config.withTopLevel(true), 1, [r1Hash, passkeyHash]),
+    ),
+  );
+  t.throws(() =>
+    verifyVaultSignedMessage(
+      proof,
+      new Uint8Array(32),
+      vault.info.custodyHash,
+    ),
+  );
+
+  // The same signatures can never be used to spend the vault.
+  mips.spendVault(vault);
+  t.throws(() => sim.spendCoins(clvm.coinSpends(), []));
+});
 
 function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {
   const p2 = sim.bls(1n);

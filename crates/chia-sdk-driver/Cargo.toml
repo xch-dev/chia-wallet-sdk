@@ -21,7 +21,7 @@ workspace = true
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
 action-layer = ["chia-sdk-types/action-layer", "chip-0035"]
-offer-compression = ["dep:flate2", "dep:chia-sdk-utils"]
+offer-compression = ["dep:flate2"]
 
 [dependencies]
 chia-sdk-signer = { workspace = true }
@@ -40,7 +40,7 @@ chia-sdk-types = { workspace = true }
 hex-literal = { workspace = true }
 num-bigint = { workspace = true }
 hex = { workspace = true }
-chia-sdk-utils = { workspace = true, optional = true }
+chia-sdk-utils = { workspace = true }
 chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true }
@@ -53,7 +53,6 @@ bip39 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 chia-sdk-test = { workspace = true }
-chia-sdk-utils = { workspace = true }
 anyhow = { workspace = true }
 chia-consensus = { workspace = true }
 hex = { workspace = true }
