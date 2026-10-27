@@ -255,6 +255,17 @@ pub enum DriverError {
     #[error("the vault message proof is for a coin that isn't the expected vault")]
     WrongVaultPuzzleHash,
 
+    #[error("the vault message proof is for a vault whose custody isn't a top-level MIPS puzzle")]
+    UnsupportedVaultCustody,
+
+    #[error(
+        "a vault message envelope must recreate the vault with the same custody hash and amount"
+    )]
+    VaultMessageEnvelopeChangesVault,
+
+    #[error("the vault message proof asserts a timelock, which can't be checked without the chain")]
+    VaultMessageTimelocked,
+
     #[error("the vault message proof's aggregated signature is invalid")]
     InvalidVaultMessageSignature,
 

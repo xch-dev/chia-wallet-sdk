@@ -6,8 +6,8 @@ use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
 use crate::{
-    DriverError, Facts, Spend, VaultMessage, is_vault_message_envelope_coin_id,
-    parse_delegated_spend, parse_vault_message,
+    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message,
+    parse_vault_message_envelope,
 };
 
 #[derive(Debug, Clone)]
@@ -54,12 +54,21 @@ pub fn parse_vault_delegated_spend(
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
     let conditions = parse_delegated_spend(allocator, delegated_spend)?;
-    let condition_count = conditions.len();
+
+    // A delegated spend that signs messages can't do anything other than recreate the vault, so that signing a message
+    // can't look like it also authorizes a transaction. The messages are returned separately, in their original order.
+    if let Some(envelope) = parse_vault_message_envelope(allocator, &conditions)? {
+        return Ok(VaultSpendSummary {
+            child: Some(envelope.vault_child),
+            drop_coins: Vec::new(),
+            messages: Vec::new(),
+            signed_messages: envelope.messages,
+        });
+    }
 
     let mut child = None;
     let mut drop_coins = Vec::new();
     let mut messages = Vec::new();
-    let mut signed_messages = Vec::new();
 
     for condition in conditions {
         match condition {
@@ -102,16 +111,7 @@ pub fn parse_vault_delegated_spend(
                 // that the corresponding coin spend is revealed and matches the delegated puzzle hash in the message.
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
-                //
-                // Messages sent to the vault message coin are an exception, since that coin can never exist. They're
-                // used to sign arbitrary messages off-chain, and are returned separately in their original order.
-                let vault_message = parse_vault_message(allocator, condition)?;
-
-                if is_vault_message_envelope_coin_id(vault_message.spent_coin_id) {
-                    signed_messages.push(vault_message.data);
-                } else {
-                    messages.push(vault_message);
-                }
+                messages.push(parse_vault_message(allocator, condition)?);
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -127,19 +127,10 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
-    // A delegated spend that signs messages must do nothing other than recreate the vault, so that signing a message
-    // can't look like it also authorizes a transaction, such as melting the vault. Any other condition, or a missing
-    // vault recreation, makes the whole spend invalid.
-    if !signed_messages.is_empty()
-        && (child.is_none() || signed_messages.len() + 1 != condition_count)
-    {
-        return Err(DriverError::MixedVaultMessageEnvelope);
-    }
-
     Ok(VaultSpendSummary {
         child,
         drop_coins,
         messages,
-        signed_messages,
+        signed_messages: Vec::new(),
     })
 }
