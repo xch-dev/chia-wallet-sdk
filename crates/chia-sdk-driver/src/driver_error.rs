@@ -165,6 +165,26 @@ pub enum DriverError {
     #[error("offer uses the old settlement payments puzzle")]
     OldSettlementPayment,
 
+    #[error("invalid partial offer terms")]
+    InvalidPartialOffer,
+
+    #[error(
+        "partial offer fill is below the minimum, pays out nothing, or exceeds the remaining amount"
+    )]
+    InvalidPartialOfferFill,
+
+    #[error("partial offer has unsupported persistent conditions")]
+    UnsupportedPartialOfferConditions,
+
+    #[error("partial offer coin is not created by the maker's spends")]
+    PartialOfferNotCreated,
+
+    #[error("partial offer coins with the same maker and requested asset can't share a parent")]
+    PartialOfferSiblings,
+
+    #[error("partial offer coin must not be created by a settlement payments coin")]
+    UnsignedPartialOfferCreation,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 

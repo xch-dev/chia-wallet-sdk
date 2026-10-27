@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use chia_protocol::Coin;
 use indexmap::IndexSet;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
 

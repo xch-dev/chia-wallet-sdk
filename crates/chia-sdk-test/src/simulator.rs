@@ -4,7 +4,7 @@ use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use indexmap::{IndexMap, IndexSet, indexset};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{

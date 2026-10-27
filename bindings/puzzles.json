@@ -100,6 +100,22 @@
           "parent_solution": "Program"
         },
         "return": "Option<P2ParentCoinChildParseResult>"
+      },
+      "parse_partial_offer": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program",
+          "requested_asset": "Option<PartialOfferAsset>"
+        },
+        "return": "Option<ParsedPartialOffer>"
+      },
+      "parse_child_partial_offer": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_solution": "Program",
+          "requested_asset": "Option<PartialOfferAsset>"
+        },
+        "return": "Option<PartialOffer>"
       }
     }
   },

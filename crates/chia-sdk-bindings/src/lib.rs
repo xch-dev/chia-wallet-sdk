@@ -27,6 +27,7 @@ mod merkle_tree;
 mod mips;
 mod mnemonic;
 mod offer;
+mod partial_offer;
 mod program;
 mod puzzle;
 mod rpc;
@@ -52,6 +53,7 @@ pub use merkle_tree::*;
 pub use mips::*;
 pub use mnemonic::*;
 pub use offer::*;
+pub use partial_offer::*;
 pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
@@ -88,19 +90,20 @@ pub use chia_sdk_driver::{
     CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
     Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
     OptionInfo, OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
-    P2ConditionsOrSingletonVersion, P2ParentCoin, RewardDistributorAddEntryActionLog,
-    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
-    RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,
-    RewardDistributorNewEpochActionLog, RewardDistributorNftStakeEntry,
-    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
-    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
-    RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
-    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, RoyaltyInfo,
-    StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo, VaultMessageProof, VaultOutput,
-    VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
-    XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
-    XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
-    XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,
+    P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
+    RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
+    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
+    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
+    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
+    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion, XchandlesConstants,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
+    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
+    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
+    XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};

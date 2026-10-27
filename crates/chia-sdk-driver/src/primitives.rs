@@ -1,5 +1,6 @@
 mod bulletin;
 mod cat;
+mod cat_maker;
 mod clawback;
 mod clawback_v2;
 mod did;
@@ -14,6 +15,7 @@ mod vault;
 
 pub use bulletin::*;
 pub use cat::*;
+pub use cat_maker::*;
 pub use clawback::*;
 pub use clawback_v2::*;
 pub use did::*;
@@ -25,6 +27,12 @@ pub use option::*;
 pub use singleton::*;
 pub use streamed_asset::*;
 pub use vault::*;
+
+#[cfg(feature = "chip-0052")]
+mod partial_offer;
+
+#[cfg(feature = "chip-0052")]
+pub use partial_offer::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;

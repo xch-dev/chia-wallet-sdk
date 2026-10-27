@@ -139,4 +139,8 @@ puzzle_constants! {
     one_of_n => ONE_OF_N,
     any_metadata_updater => ANY_METADATA_UPDATER,
     state_scheduler_puzzle => STATE_SCHEDULER_PUZZLE,
+    default_cat_maker => DEFAULT_CAT_MAKER_PUZZLE,
+    revocable_cat_maker => REVOCABLE_CAT_MAKER_PUZZLE,
+    xch_cat_maker => XCH_CAT_MAKER_PUZZLE,
+    partial_offer => PARTIAL_OFFER_PUZZLE,
 }
