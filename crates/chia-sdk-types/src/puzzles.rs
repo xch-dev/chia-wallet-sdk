@@ -9,7 +9,6 @@ mod p2_delegated_conditions;
 mod p2_one_of_many;
 mod p2_parent;
 mod p2_singleton;
-mod partial_offer;
 mod revocation;
 
 pub use augmented_condition::*;
@@ -23,8 +22,13 @@ pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;
 pub use p2_parent::*;
 pub use p2_singleton::*;
-pub use partial_offer::*;
 pub use revocation::*;
+
+#[cfg(feature = "chip-0052")]
+mod partial_offer;
+
+#[cfg(feature = "chip-0052")]
+pub use partial_offer::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;

@@ -32,12 +32,14 @@ pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
 }
 
+#[cfg(feature = "chip-0052")]
 /// Encodes a partial offer (CHIP-0052), which is compressed like an offer but has a different
 /// prefix. See [`PartialOfferBundle`](crate::PartialOfferBundle).
 pub fn encode_partial_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
     Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "partial".to_string()).encode()?)
 }
 
+#[cfg(feature = "chip-0052")]
 pub fn decode_partial_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("partial")?)
 }

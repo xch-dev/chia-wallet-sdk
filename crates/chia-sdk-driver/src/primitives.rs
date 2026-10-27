@@ -9,7 +9,6 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
-mod partial_offer;
 mod singleton;
 mod streamed_asset;
 mod vault;
@@ -25,10 +24,15 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
-pub use partial_offer::*;
 pub use singleton::*;
 pub use streamed_asset::*;
 pub use vault::*;
+
+#[cfg(feature = "chip-0052")]
+mod partial_offer;
+
+#[cfg(feature = "chip-0052")]
+pub use partial_offer::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;
