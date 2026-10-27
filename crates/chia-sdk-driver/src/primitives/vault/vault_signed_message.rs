@@ -4,24 +4,22 @@ use chia_consensus::{
     spendbundle_validation::get_flags_for_height_and_constants,
 };
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program, SpendBundle};
-use chia_puzzle_types::{
-    Memos,
-    singleton::{SingletonArgs, SingletonSolution},
-};
+use chia_puzzle_types::{Memos, singleton::SingletonArgs};
 use chia_sdk_types::{
     Condition, Conditions, Mod,
     conditions::{ReceiveMessage, SendMessage},
     default_constants,
     puzzles::{
-        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedPuzzleFeederArgs,
-        DelegatedPuzzleFeederSolution, IndexWrapperArgs,
+        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, Force1of2RestrictedVariable,
+        ForceAssertCoinAnnouncementMod, ForceCoinMessageMod, ForceSingletonRecreationMod,
+        PreventConditionOpcode, PreventMultipleCreateCoinsMod, Timelock,
     },
 };
 use chia_sdk_utils::Bech32;
 use chia_streamable_macro::streamable;
 use chia_traits::Streamable;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{TreeHash, tree_hash_from_bytes};
+use clvm_utils::{CurriedProgram, TreeHash, tree_hash};
 use clvmr::{
     Allocator, NodePtr,
     serde::{node_from_bytes, node_to_bytes},
@@ -29,8 +27,8 @@ use clvmr::{
 use hex_literal::hex;
 
 use crate::{
-    DriverError, Puzzle, Spend, SpendContext, Vault, VaultOutput, parse_delegated_spend,
-    parse_vault_message,
+    DelegatedPuzzleFeederLayer, DriverError, IndexWrapperLayer, Layer, Puzzle, SingletonLayer,
+    Spend, SpendContext, Vault, VaultOutput, parse_delegated_spend, parse_vault_message,
 };
 
 /// The puzzle hash of the coin that every message in a vault message envelope is sent to, which is the tree hash
@@ -52,6 +50,27 @@ pub const VAULT_MESSAGE_PROOF_VERSION: u8 = 1;
 
 /// The bech32m prefix of the string form of a [`VaultMessageProof`].
 pub const VAULT_MESSAGE_PROOF_PREFIX: &str = "vaultsig";
+
+/// The maximum length of each message in a vault message envelope, which is the consensus limit for the message in a
+/// `SEND_MESSAGE` condition.
+pub const VAULT_MESSAGE_MAX_LENGTH: usize = 1024;
+
+/// The maximum combined size in bytes of the puzzle reveal and solution in a [`VaultMessageProof`], which bounds the
+/// work done before the spend is run, and the data that the vault's puzzle runs on. A 3 of 4 vault with passkey members
+/// is about 6.5 KB.
+pub const VAULT_MESSAGE_PROOF_MAX_SIZE: usize = 65_536;
+
+/// The maximum cost of running the spends in a [`VaultMessageProof`], which bounds the work done to verify it. This
+/// includes the cost of each byte of the spend, and a 3 of 4 vault with passkey members costs about 214 million.
+pub const VAULT_MESSAGE_PROOF_MAX_COST: u64 = 1_000_000_000;
+
+/// The maximum size of an encoded [`VaultMessageProof`] that can be verified, which allows for the coin, the length
+/// prefixes, the signature, and the version byte in addition to the puzzle reveal and solution.
+const MAX_ENCODED_PROOF_SIZE: usize = VAULT_MESSAGE_PROOF_MAX_SIZE + 1024;
+
+/// The maximum number of delegated puzzle wrappers around the delegated spend in a [`VaultMessageProof`]. Each one
+/// must be one of the wrappers that MIPS restrictions use, such as [`PreventConditionOpcode`].
+pub const VAULT_MESSAGE_PROOF_MAX_WRAPPERS: usize = 32;
 
 /// The coin that receives the messages in a vault message envelope.
 ///
@@ -77,6 +96,13 @@ pub fn vault_message_envelope(
 ) -> Result<Spend, DriverError> {
     if messages.is_empty() {
         return Err(DriverError::EmptyVaultMessageEnvelope);
+    }
+
+    if messages
+        .iter()
+        .any(|message| message.len() > VAULT_MESSAGE_MAX_LENGTH)
+    {
+        return Err(DriverError::VaultMessageTooLong);
     }
 
     let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
@@ -109,8 +135,9 @@ pub(crate) struct VaultMessageEnvelope {
 ///
 /// Returns [`None`] if no messages are sent to [`VAULT_MESSAGE_COIN_ID`]. Otherwise, the only other condition allowed
 /// is a single `CREATE_COIN` with an odd amount that recreates the vault, and anything else (including a missing vault
-/// recreation, which would melt it) is a [`DriverError::MixedVaultMessageEnvelope`]. This is shared by clear signing
-/// and [`verify_vault_signed_message`], so that they accept the same delegated spends.
+/// recreation, which would melt it) is a [`DriverError::MixedVaultMessageEnvelope`]. Each message can be at most
+/// [`VAULT_MESSAGE_MAX_LENGTH`] bytes, since a longer one could never be verified. This is shared by clear signing and
+/// [`verify_vault_signed_message`], so that they accept the same delegated spends.
 pub(crate) fn parse_vault_message_envelope(
     allocator: &Allocator,
     conditions: &[Condition],
@@ -125,6 +152,10 @@ pub(crate) fn parse_vault_message_envelope(
                 let message = parse_vault_message(allocator, condition.clone())?;
 
                 if message.spent_coin_id == VAULT_MESSAGE_COIN_ID {
+                    if message.data.len() > VAULT_MESSAGE_MAX_LENGTH {
+                        return Err(DriverError::VaultMessageTooLong);
+                    }
+
                     messages.push(message.data);
                 } else {
                     is_mixed = true;
@@ -175,7 +206,13 @@ impl VaultMessageProof {
     }
 
     /// Deserializes a proof that was serialized with [`VaultMessageProof::encode`].
+    ///
+    /// Proofs that are too large to verify are rejected before they're deserialized.
     pub fn decode(bytes: &[u8]) -> Result<Self, DriverError> {
+        if bytes.len() > MAX_ENCODED_PROOF_SIZE {
+            return Err(DriverError::VaultMessageProofTooLarge);
+        }
+
         let Some((&version, rest)) = bytes.split_first() else {
             return Err(DriverError::MissingVaultMessageProofVersion);
         };
@@ -193,7 +230,14 @@ impl VaultMessageProof {
     }
 
     /// Decodes a proof that was encoded with [`VaultMessageProof::encode_string`].
+    ///
+    /// Proofs that are too large to verify are rejected before they're decoded.
     pub fn decode_string(proof: &str) -> Result<Self, DriverError> {
+        // Each character of a bech32m string encodes 5 bits, and the prefix and checksum are much less than 1024.
+        if proof.len() > MAX_ENCODED_PROOF_SIZE * 8 / 5 + 1024 {
+            return Err(DriverError::VaultMessageProofTooLarge);
+        }
+
         let bytes = Bech32::decode(proof)?.expect_prefix(VAULT_MESSAGE_PROOF_PREFIX)?;
         Self::decode(&bytes)
     }
@@ -210,21 +254,24 @@ impl VaultMessageProof {
 /// # What is verified
 ///
 /// - The vault coin's puzzle hash, and the hash of the puzzle reveal, are the singleton puzzle hash for the expected
-///   launcher id and custody hash. This is checked before anything is run.
-/// - The custody is a top-level MIPS puzzle, and the delegated puzzle in the solution (inside of any delegated puzzle
-///   wrappers) is a quoted list of conditions, which only sends messages to [`VAULT_MESSAGE_COIN_ID`] and recreates the
+///   launcher id and custody hash.
+/// - The custody is a top-level MIPS puzzle, and the delegated puzzle in the solution (inside of any known MIPS
+///   delegated puzzle wrappers) is a quoted list of conditions, which only sends messages to [`VAULT_MESSAGE_COIN_ID`] and recreates the
 ///   vault with the same custody hash and amount. This is the same check that clear signing does, so a delegated spend
 ///   that would be shown as a transaction can't be used as a message signature.
-/// - The puzzle reveal runs successfully on the solution within the maximum block cost, with the same rules as the
-///   mempool, so unknown operators and conditions are rejected. This is where the vault's secp256r1, passkey and BLS
-///   members, m-of-n thresholds, restrictions, and singleton rules are checked.
+/// - The puzzle reveal runs successfully on the solution, with the consensus rules that are active today in mempool
+///   mode, so operators and conditions that aren't known or active yet are rejected. This is where the vault's
+///   secp256r1, passkey and BLS members, m-of-n thresholds, restrictions, and singleton rules are checked.
+/// - The vault's actual output, after any delegated puzzle wrappers, creates no coin other than the recreated vault
+///   and reserves no fee.
 /// - Any assertions about the coin itself (such as `ASSERT_MY_PUZZLEHASH`, `ASSERT_MY_COIN_ID`, `ASSERT_MY_PARENT_ID`,
 ///   and `ASSERT_MY_AMOUNT`) hold for the coin in the proof.
 /// - Conditions between the spends in the bundle hold. Every message must be received the right number of times, so
 ///   the vault must have sent exactly the returned messages to [`VAULT_MESSAGE_COIN_ID`] and no other messages.
-/// - There are no assertions of a minimum height or time, either absolute or relative, since they can't be checked
-///   without the chain. Otherwise, a member that is only allowed to spend after a timelock (such as during recovery)
-///   could sign messages right away. Assertions of a maximum height or time must not conflict with each other.
+/// - There are no assertions about height or time at all, such as `ASSERT_SECONDS_RELATIVE`,
+///   `ASSERT_BEFORE_HEIGHT_ABSOLUTE`, or `ASSERT_MY_BIRTH_HEIGHT`, since they can't be checked without the chain.
+///   Otherwise, a member that is only allowed to spend after a timelock (such as during recovery), or before a
+///   deadline, could sign messages at any time.
 /// - The aggregated BLS signature is valid for every `AGG_SIG_*` condition, using the given genesis challenge as
 ///   the additional data for `AGG_SIG_ME` and the other coin-bound variants.
 ///
@@ -236,16 +283,30 @@ impl VaultMessageProof {
 /// - The vault coin isn't checked to exist, or to be unspent. The proof can be for any coin with the vault's puzzle
 ///   hash, including one that was spent long ago or never existed, and its lineage proof only has to match the coin's
 ///   parent coin id in the proof rather than the chain's history. This is why the custody hash must be trusted.
-/// - Assertions of a maximum height or time (such as `ASSERT_BEFORE_SECONDS_ABSOLUTE`) aren't checked against the
-///   chain, and neither are assertions of the coin's creation height or time.
-/// - There's no minimum fee or mempool cost limit. The cost limit is the maximum cost of a block, rather than what's
-///   left in one after other transactions.
+/// - There's no minimum fee, and the limits are [`VAULT_MESSAGE_PROOF_MAX_SIZE`] and [`VAULT_MESSAGE_PROOF_MAX_COST`]
+///   rather than what's left in a block after other transactions.
 /// - The coins created by the vault spend aren't checked to be new, and nothing is checked against other spends in
 ///   the same block or mempool, such as conflicting spends of the vault coin.
 ///
 /// The expected custody hash must come from a trusted source, such as the vault's coin on chain. Without it, anyone
 /// could make up a custody puzzle for any launcher id that doesn't require a signature. Since a vault's custody hash
 /// changes when its signers are changed, this also determines which signers the proof is checked against.
+///
+/// # Denial of service
+///
+/// The proof is untrusted, so the work it can cause is bounded before a signature is checked:
+///
+/// - Its puzzle reveal and solution are at most [`VAULT_MESSAGE_PROOF_MAX_SIZE`] bytes, which is checked before they're
+///   parsed. Back-references aren't supported, so that the size of each program is the size of its serialization.
+/// - Everything before the spends are run is linear in the size, including at most
+///   [`VAULT_MESSAGE_PROOF_MAX_WRAPPERS`] delegated puzzle wrappers.
+/// - The only code that runs is the vault's puzzle, which is committed to by the custody hash, the known MIPS
+///   delegated puzzle wrappers, and the quoted delegated puzzle. So an unsigned proof can only choose the data that this
+///   code runs on, rather than running arbitrary code.
+/// - Running the spends is limited to [`VAULT_MESSAGE_PROOF_MAX_COST`], which also limits the number of BLS
+///   signatures that are checked.
+///
+/// Custody with other kinds of delegated puzzle wrappers isn't supported.
 ///
 /// # Replay
 ///
@@ -259,47 +320,48 @@ pub fn verify_vault_signed_message(
     expected_custody_hash: Bytes32,
     genesis_challenge: Bytes32,
 ) -> Result<Vec<Bytes>, DriverError> {
+    let coin_spend = &proof.coin_spend;
+
+    if coin_spend.puzzle_reveal.len() + coin_spend.solution.len() > VAULT_MESSAGE_PROOF_MAX_SIZE {
+        return Err(DriverError::VaultMessageProofTooLarge);
+    }
+
     let vault_puzzle_hash: Bytes32 =
         SingletonArgs::curry_tree_hash(expected_launcher_id, TreeHash::from(expected_custody_hash))
             .into();
 
-    // The puzzle reveal is checked before it's run, so that an untrusted proof can't make the verifier run an
-    // arbitrary puzzle.
-    if proof.coin_spend.coin.puzzle_hash != vault_puzzle_hash
-        || tree_hash_from_bytes(&proof.coin_spend.puzzle_reveal)? != vault_puzzle_hash.into()
-    {
+    if coin_spend.coin.puzzle_hash != vault_puzzle_hash {
         return Err(DriverError::WrongVaultPuzzleHash);
     }
 
     let constants = default_constants(genesis_challenge, genesis_challenge);
 
-    // The latest consensus rules are used, in mempool mode, so that operators and conditions that aren't known yet
-    // fail rather than being treated as no-ops.
-    let flags = get_flags_for_height_and_constants(u32::MAX, &constants) | MEMPOOL_MODE;
+    // The consensus rules that are active today are used, in mempool mode, so that operators and conditions that
+    // aren't known or active yet fail rather than being treated as no-ops.
+    let flags = get_flags_for_height_and_constants(
+        constants.hard_fork2_height.saturating_sub(1),
+        &constants,
+    ) | MEMPOOL_MODE;
     let mut allocator = make_allocator(flags);
 
-    let puzzle = node_from_bytes(&mut allocator, &proof.coin_spend.puzzle_reveal)?;
-    let solution = node_from_bytes(&mut allocator, &proof.coin_spend.solution)?;
+    let puzzle = node_from_bytes(&mut allocator, &coin_spend.puzzle_reveal)?;
+    let solution = node_from_bytes(&mut allocator, &coin_spend.solution)?;
 
-    // The puzzle matches the expected vault, so its custody is the expected custody puzzle.
-    let singleton = SingletonArgs::<NodePtr>::from_clvm(
-        &allocator,
-        Puzzle::parse(&allocator, puzzle)
-            .as_curried()
-            .ok_or(DriverError::UnsupportedVaultCustody)?
-            .args,
-    )?;
+    // The puzzle reveal is checked before it's run. Since it matches the expected vault, its custody is the expected
+    // custody puzzle.
+    let puzzle = Puzzle::parse(&allocator, puzzle);
 
-    if !is_top_level_mips_puzzle(&allocator, singleton.inner_puzzle)? {
-        return Err(DriverError::UnsupportedVaultCustody);
+    if puzzle.curried_puzzle_hash() != vault_puzzle_hash.into() {
+        return Err(DriverError::WrongVaultPuzzleHash);
     }
+
+    let Some(vault) = VaultLayers::parse_puzzle(&allocator, puzzle)? else {
+        return Err(DriverError::UnsupportedVaultCustody);
+    };
 
     // The delegated spend is what the vault's signers signed. It's read from the same place in the solution that the
     // custody puzzle reads it from, and its conditions must be exactly a vault message envelope.
-    let solution =
-        SingletonSolution::<DelegatedPuzzleFeederSolution<NodePtr, NodePtr, NodePtr>>::from_clvm(
-            &allocator, solution,
-        )?;
+    let solution = VaultLayers::parse_solution(&allocator, solution)?;
     let delegated_spend = unwrap_delegated_spend(
         &allocator,
         Spend::new(
@@ -311,10 +373,11 @@ pub fn verify_vault_signed_message(
     let envelope = parse_vault_message_envelope(&allocator, &conditions)?
         .ok_or(DriverError::EmptyVaultMessageEnvelope)?;
 
-    if envelope.vault_child != VaultOutput::new(expected_custody_hash, proof.coin_spend.coin.amount)
-    {
+    if envelope.vault_child != VaultOutput::new(expected_custody_hash, coin_spend.coin.amount) {
         return Err(DriverError::VaultMessageEnvelopeChangesVault);
     }
+
+    debug_assert_eq!(vault.launcher_id, expected_launcher_id);
 
     let sender = allocator.new_atom(&vault_puzzle_hash)?;
 
@@ -332,7 +395,7 @@ pub fn verify_vault_signed_message(
 
     let spend_bundle = SpendBundle::new(
         vec![
-            proof.coin_spend.clone(),
+            coin_spend.clone(),
             CoinSpend::new(
                 vault_message_coin(),
                 // The puzzle `1`, which returns its solution as its conditions.
@@ -347,7 +410,7 @@ pub fn verify_vault_signed_message(
     let (conditions, pairs) = run_spendbundle(
         &mut allocator,
         &spend_bundle,
-        constants.max_block_cost_clvm,
+        VAULT_MESSAGE_PROOF_MAX_COST,
         flags,
         &constants,
         None,
@@ -355,12 +418,34 @@ pub fn verify_vault_signed_message(
 
     if conditions.height_absolute > 0
         || conditions.seconds_absolute > 0
+        || conditions.before_height_absolute.is_some()
+        || conditions.before_seconds_absolute.is_some()
         || conditions.spends.iter().any(|spend| {
             spend.height_relative.is_some_and(|height| height > 0)
                 || spend.seconds_relative.is_some_and(|seconds| seconds > 0)
+                || spend.before_height_relative.is_some()
+                || spend.before_seconds_relative.is_some()
+                || spend.birth_height.is_some()
+                || spend.birth_seconds.is_some()
         })
     {
         return Err(DriverError::VaultMessageTimelocked);
+    }
+
+    // Delegated puzzle wrappers can change the vault's output, so the output itself must also only recreate the vault.
+    let recreates_vault_only = conditions.reserve_fee == 0
+        && conditions.spends.iter().all(|spend| {
+            let is_vault = *spend.coin_id == coin_spend.coin.coin_id();
+            let expected = usize::from(is_vault);
+
+            spend.create_coin.len() == expected
+                && spend.create_coin.iter().all(|coin| {
+                    coin.puzzle_hash == vault_puzzle_hash && coin.amount == coin_spend.coin.amount
+                })
+        });
+
+    if !recreates_vault_only {
+        return Err(DriverError::MixedVaultMessageEnvelope);
     }
 
     if !aggregate_verify(
@@ -373,23 +458,7 @@ pub fn verify_vault_signed_message(
     Ok(envelope.messages)
 }
 
-fn is_top_level_mips_puzzle(allocator: &Allocator, puzzle: NodePtr) -> Result<bool, DriverError> {
-    let Some(index_wrapper) = Puzzle::parse(allocator, puzzle).as_curried() else {
-        return Ok(false);
-    };
-
-    if index_wrapper.mod_hash != IndexWrapperArgs::<(), ()>::mod_hash() {
-        return Ok(false);
-    }
-
-    let args = IndexWrapperArgs::<NodePtr, NodePtr>::from_clvm(allocator, index_wrapper.args)?;
-
-    let Some(feeder) = Puzzle::parse(allocator, args.inner_puzzle).as_curried() else {
-        return Ok(false);
-    };
-
-    Ok(feeder.mod_hash == DelegatedPuzzleFeederArgs::<()>::mod_hash())
-}
+type VaultLayers = SingletonLayer<IndexWrapperLayer<NodePtr, DelegatedPuzzleFeederLayer<Puzzle>>>;
 
 /// Removes each [`AddDelegatedPuzzleWrapper`] layer that restrictions add around the delegated spend, to get the
 /// delegated spend that was originally signed.
@@ -397,11 +466,27 @@ fn unwrap_delegated_spend(
     allocator: &Allocator,
     mut delegated_spend: Spend,
 ) -> Result<Spend, DriverError> {
-    while let Some(curried) = Puzzle::parse(allocator, delegated_spend.puzzle).as_curried()
-        && curried.mod_hash == AddDelegatedPuzzleWrapper::<(), ()>::mod_hash()
-    {
+    for _ in 0..=VAULT_MESSAGE_PROOF_MAX_WRAPPERS {
+        // Only the uncurried program is hashed for each layer, rather than the entire curried puzzle, so that the
+        // work is linear in the number of layers.
+        let Ok(curried) =
+            CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, delegated_spend.puzzle)
+        else {
+            return Ok(delegated_spend);
+        };
+
+        if tree_hash(allocator, curried.program) != AddDelegatedPuzzleWrapper::<(), ()>::mod_hash()
+        {
+            return Ok(delegated_spend);
+        }
+
         let wrapper =
             AddDelegatedPuzzleWrapper::<NodePtr, NodePtr>::from_clvm(allocator, curried.args)?;
+
+        if !is_known_wrapper(allocator, wrapper.wrapper) {
+            return Err(DriverError::UnsupportedDelegatedPuzzleWrapper);
+        }
+
         let solution = AddDelegatedPuzzleWrapperSolution::<NodePtr, NodePtr>::from_clvm(
             allocator,
             delegated_spend.solution,
@@ -409,7 +494,43 @@ fn unwrap_delegated_spend(
         delegated_spend = Spend::new(wrapper.delegated_puzzle, solution.delegated_solution);
     }
 
-    Ok(delegated_spend)
+    Err(DriverError::TooManyDelegatedPuzzleWrappers)
+}
+
+/// Whether the delegated puzzle wrapper is one that MIPS restrictions use.
+///
+/// The delegated puzzle and its wrappers are the only code in a proof that isn't committed to by the custody hash, so
+/// allowing only known wrappers means that an unsigned proof can't make the verifier run arbitrary code. The curried
+/// arguments are parsed with their types, which ensures that they're quoted values rather than code.
+fn is_known_wrapper(allocator: &Allocator, wrapper: NodePtr) -> bool {
+    let hash = tree_hash(allocator, wrapper);
+
+    if [
+        ForceAssertCoinAnnouncementMod::mod_hash(),
+        ForceCoinMessageMod::mod_hash(),
+        ForceSingletonRecreationMod::mod_hash(),
+        PreventMultipleCreateCoinsMod::mod_hash(),
+    ]
+    .contains(&hash)
+    {
+        return true;
+    }
+
+    let Ok(curried) = CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, wrapper) else {
+        return false;
+    };
+
+    let mod_hash = tree_hash(allocator, curried.program);
+
+    if mod_hash == PreventConditionOpcode::mod_hash() {
+        PreventConditionOpcode::from_clvm(allocator, curried.args).is_ok()
+    } else if mod_hash == Timelock::mod_hash() {
+        Timelock::from_clvm(allocator, curried.args).is_ok()
+    } else if mod_hash == Force1of2RestrictedVariable::mod_hash() {
+        Force1of2RestrictedVariable::from_clvm(allocator, curried.args).is_ok()
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]

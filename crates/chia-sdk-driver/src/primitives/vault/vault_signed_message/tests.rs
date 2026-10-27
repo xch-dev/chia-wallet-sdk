@@ -17,7 +17,7 @@ use chia_sdk_types::{
 };
 use chia_secp::{R1PublicKey, R1SecretKey};
 use chia_sha2::Sha256;
-use clvm_traits::clvm_quote;
+use clvm_traits::{clvm_list, clvm_quote};
 use clvm_utils::{TreeHash, tree_hash};
 use clvmr::NodePtr;
 use hex_literal::hex;
@@ -256,6 +256,10 @@ impl RestrictedCustody {
         let pair = BlsPair::new(0);
         let member = ctx.curry(BlsMember::new(pair.pk))?;
         Ok(Self::new(ctx, member, vec![pair.sk], restrictions))
+    }
+
+    fn pair_pk(&self) -> chia_bls::PublicKey {
+        self.secret_keys[0].public_key()
     }
 
     fn custody_hash(&self, ctx: &SpendContext) -> TreeHash {
@@ -1094,8 +1098,26 @@ fn test_reject_timelocked_member() -> Result<()> {
         Err(DriverError::VaultMessageTimelocked)
     ));
 
-    // The same is true for an absolute timelock.
-    let member = ctx.alloc(&clvm_quote!(Conditions::new().assert_height_absolute(100)))?;
+    Ok(())
+}
+
+#[rstest]
+#[case::seconds_relative(Conditions::new().assert_seconds_relative(100))]
+#[case::height_relative(Conditions::new().assert_height_relative(100))]
+#[case::seconds_absolute(Conditions::new().assert_seconds_absolute(100))]
+#[case::height_absolute(Conditions::new().assert_height_absolute(100))]
+#[case::before_seconds_relative(Conditions::new().assert_before_seconds_relative(100))]
+#[case::before_height_relative(Conditions::new().assert_before_height_relative(100))]
+#[case::before_seconds_absolute(Conditions::new().assert_before_seconds_absolute(100))]
+#[case::before_height_absolute(Conditions::new().assert_before_height_absolute(100))]
+#[case::birth_seconds(Conditions::new().assert_my_birth_seconds(100))]
+#[case::birth_height(Conditions::new().assert_my_birth_height(100))]
+fn test_reject_height_or_time_assertion(#[case] conditions: Conditions) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    // A member that can only spend after a timelock, or before a deadline, could otherwise sign messages at any time.
+    let member = ctx.alloc(&clvm_quote!(conditions))?;
     let custody = RestrictedCustody::new(&mut ctx, member, vec![], vec![]);
     let vault = custody.mint(&mut sim, &mut ctx)?;
     let proof = custody.sign_messages(&mut ctx, &vault, &messages())?;
@@ -1103,6 +1125,161 @@ fn test_reject_timelocked_member() -> Result<()> {
     assert!(matches!(
         custody.verify(&ctx, &proof, &vault),
         Err(DriverError::VaultMessageTimelocked)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_reject_wrapper_that_changes_output() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    // The delegated spend is a valid envelope, but a delegated puzzle wrapper adds a coin to the vault's output, which
+    // is `(c (q 51 <puzzle hash> 0) 2)`. The coin has no value, so consensus alone would allow it, but the wrapper isn't
+    // a known MIPS wrapper.
+    let wrapper = ctx.alloc(&clvm_list!(
+        4,
+        clvm_quote!(clvm_list!(51, Bytes32::new([2; 32]), 0)),
+        2
+    ))?;
+    let custody = RestrictedCustody::bls(
+        &mut ctx,
+        vec![(RestrictionKind::DelegatedPuzzleWrapper, wrapper)],
+    )?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages())?;
+
+    assert!(matches!(
+        custody.verify(&ctx, &proof, &vault),
+        Err(DriverError::UnsupportedDelegatedPuzzleWrapper)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_reject_unsigned_proof_that_never_finishes() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = RestrictedCustody::bls(&mut ctx, vec![])?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
+    // Anyone can wrap the envelope in a program that never finishes, which is `(a (q . (a 2 1)) (q . ((a 2 1))))`.
+    // A BLS member's signature is only checked after the spend is run, so unknown wrappers are rejected before then.
+    let program = ctx.alloc(&clvm_list!(2, 2, 1))?;
+    let wrapper = ctx.alloc(&clvm_list!(
+        2,
+        clvm_quote!(program),
+        clvm_quote!(clvm_list!(program))
+    ))?;
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages())?;
+    let puzzle = ctx.curry(AddDelegatedPuzzleWrapper::new(wrapper, envelope.puzzle))?;
+    let solution = ctx.alloc(&AddDelegatedPuzzleWrapperSolution::new(
+        NodePtr::NIL,
+        envelope.solution,
+    ))?;
+
+    let mut spend = MipsSpend::new(Spend::new(puzzle, solution));
+    let member = ctx.curry(BlsMember::new(custody.pair_pk()))?;
+    spend.members.insert(
+        custody.custody_hash(&ctx),
+        InnerPuzzleSpend::new(0, vec![], Spend::new(member, NodePtr::NIL)),
+    );
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
+
+    assert!(matches!(
+        custody.verify(&ctx, &proof, &vault),
+        Err(DriverError::UnsupportedDelegatedPuzzleWrapper)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_reject_too_many_wrappers() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let wrappers = (0..=VAULT_MESSAGE_PROOF_MAX_WRAPPERS)
+        .map(|i| {
+            let opcode = 1000 + u16::try_from(i)?;
+            let wrapper = ctx.curry(PreventConditionOpcode::new(opcode))?;
+            Ok((RestrictionKind::DelegatedPuzzleWrapper, wrapper))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let custody = RestrictedCustody::bls(&mut ctx, wrappers)?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages())?;
+
+    assert!(matches!(
+        custody.verify(&ctx, &proof, &vault),
+        Err(DriverError::TooManyDelegatedPuzzleWrappers)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_reject_large_proof() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let mut proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
+
+    // The size is checked before anything is parsed.
+    proof.coin_spend.solution = Program::from(vec![0x80; VAULT_MESSAGE_PROOF_MAX_SIZE]);
+    assert!(matches!(
+        custody.verify(&proof, &vault),
+        Err(DriverError::VaultMessageProofTooLarge)
+    ));
+
+    // And before it's decoded.
+    assert!(matches!(
+        VaultMessageProof::decode(&proof.encode()?),
+        Err(DriverError::VaultMessageProofTooLarge)
+    ));
+    assert!(matches!(
+        VaultMessageProof::decode_string(&"a".repeat(1_000_000)),
+        Err(DriverError::VaultMessageProofTooLarge)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_message_length_limit() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
+    // The longest message that consensus allows can be signed and verified.
+    let longest = vec![Bytes::new(vec![1; VAULT_MESSAGE_MAX_LENGTH])];
+    let proof = custody.sign_messages(&mut ctx, &vault, &longest, &[0])?;
+    assert_eq!(custody.verify(&proof, &vault)?, longest);
+
+    // A longer one could never be verified, so it can't be signed.
+    let too_long = vec![Bytes::new(vec![1; VAULT_MESSAGE_MAX_LENGTH + 1])];
+    assert!(matches!(
+        vault_message_envelope(&mut ctx, &vault, &too_long),
+        Err(DriverError::VaultMessageTooLong)
+    ));
+
+    let conditions = envelope_conditions(&mut ctx, &vault, &too_long)?;
+    let delegated_spend = ctx.delegated_spend(conditions)?;
+    assert!(matches!(
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            vault.info.launcher_id,
+            delegated_spend
+        ),
+        Err(DriverError::VaultMessageTooLong)
     ));
 
     Ok(())

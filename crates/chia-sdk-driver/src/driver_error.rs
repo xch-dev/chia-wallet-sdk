@@ -263,8 +263,24 @@ pub enum DriverError {
     )]
     VaultMessageEnvelopeChangesVault,
 
-    #[error("the vault message proof asserts a timelock, which can't be checked without the chain")]
+    #[error(
+        "the vault message proof asserts a height or time, which can't be checked without the chain"
+    )]
     VaultMessageTimelocked,
+
+    #[error("a vault message can be at most 1024 bytes")]
+    VaultMessageTooLong,
+
+    #[error("the vault message proof's puzzle reveal and solution are too large")]
+    VaultMessageProofTooLarge,
+
+    #[error("the vault message proof has too many delegated puzzle wrappers")]
+    TooManyDelegatedPuzzleWrappers,
+
+    #[error(
+        "the vault message proof has a delegated puzzle wrapper that isn't a known MIPS wrapper"
+    )]
+    UnsupportedDelegatedPuzzleWrapper,
 
     #[error("the vault message proof's aggregated signature is invalid")]
     InvalidVaultMessageSignature,
