@@ -1,4 +1,5 @@
 mod augmented_condition;
+mod cat_makers;
 mod everything_with_singleton;
 mod mips;
 mod mods;
@@ -8,9 +9,11 @@ mod p2_delegated_conditions;
 mod p2_one_of_many;
 mod p2_parent;
 mod p2_singleton;
+mod partial_offer;
 mod revocation;
 
 pub use augmented_condition::*;
+pub use cat_makers::*;
 pub use everything_with_singleton::*;
 pub use mips::*;
 pub use mods::*;
@@ -20,6 +23,7 @@ pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;
 pub use p2_parent::*;
 pub use p2_singleton::*;
+pub use partial_offer::*;
 pub use revocation::*;
 
 #[cfg(feature = "chip-0035")]
