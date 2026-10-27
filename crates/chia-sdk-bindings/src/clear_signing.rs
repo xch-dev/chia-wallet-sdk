@@ -7,9 +7,8 @@ use chia_sdk_driver::{
     SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
 };
 use chia_sdk_types::Condition;
-use clvmr::serde::node_to_bytes;
 
-use crate::{AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend};
+use crate::{AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, Vault};
 
 type SharedContext = Arc<Mutex<SpendContext>>;
 
@@ -91,9 +90,9 @@ pub fn parse_vault_transaction(
     VaultTransaction::from_sdk(&mut ctx, &clvm.0, transaction)
 }
 
-pub fn vault_message_envelope(clvm: Clvm, messages: Vec<Bytes>) -> Result<Spend> {
+pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) -> Result<Spend> {
     let mut ctx = clvm.0.lock().unwrap();
-    let spend = sdk::vault_message_envelope(&mut ctx, &messages)?;
+    let spend = sdk::vault_message_envelope(&mut ctx, &vault.into(), &messages)?;
 
     Ok(Spend {
         puzzle: Program(clvm.0.clone(), spend.puzzle),
@@ -101,20 +100,25 @@ pub fn vault_message_envelope(clvm: Clvm, messages: Vec<Bytes>) -> Result<Spend>
     })
 }
 
+pub fn vault_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_message_coin())
+}
+
 pub fn verify_vault_signed_message(
     proof: VaultMessageProof,
     expected_launcher_id: Bytes32,
     expected_custody_hash: Bytes32,
+    genesis_challenge: Bytes32,
 ) -> Result<Vec<Bytes>> {
     Ok(sdk::verify_vault_signed_message(
         &proof,
         expected_launcher_id,
         expected_custody_hash,
+        genesis_challenge,
     )?)
 }
 
 pub trait VaultMessageProofExt: Sized {
-    fn from_custody_spend(launcher_id: Bytes32, custody_spend: Spend) -> Result<Self>;
     fn encode(&self) -> Result<Bytes>;
     fn decode(proof: Bytes) -> Result<Self>;
     fn encode_string(&self) -> Result<String>;
@@ -122,15 +126,6 @@ pub trait VaultMessageProofExt: Sized {
 }
 
 impl VaultMessageProofExt for VaultMessageProof {
-    fn from_custody_spend(launcher_id: Bytes32, custody_spend: Spend) -> Result<Self> {
-        let ctx = custody_spend.puzzle.0.lock().unwrap();
-        Ok(Self::new(
-            launcher_id,
-            node_to_bytes(&ctx, custody_spend.puzzle.1)?.into(),
-            node_to_bytes(&ctx, custody_spend.solution.1)?.into(),
-        ))
-    }
-
     fn encode(&self) -> Result<Bytes> {
         Ok(Self::encode(self)?)
     }

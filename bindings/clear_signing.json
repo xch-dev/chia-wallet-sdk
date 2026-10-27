@@ -51,16 +51,22 @@
     "type": "function",
     "args": {
       "clvm": "Clvm",
+      "vault": "Vault",
       "messages": "Vec<Bytes>"
     },
     "return": "Spend"
+  },
+  "vault_message_coin": {
+    "type": "function",
+    "return": "Coin"
   },
   "verify_vault_signed_message": {
     "type": "function",
     "args": {
       "proof": "VaultMessageProof",
       "expected_launcher_id": "Bytes32",
-      "expected_custody_hash": "Bytes32"
+      "expected_custody_hash": "Bytes32",
+      "genesis_challenge": "Bytes32"
     },
     "return": "Vec<Bytes>"
   },
@@ -69,18 +75,10 @@
     "new": true,
     "remote": true,
     "fields": {
-      "launcher_id": "Bytes32",
-      "custody_puzzle_reveal": "SerializedProgram",
-      "custody_solution": "SerializedProgram"
+      "coin_spend": "CoinSpend",
+      "aggregated_signature": "Signature"
     },
     "methods": {
-      "from_custody_spend": {
-        "type": "factory",
-        "args": {
-          "launcher_id": "Bytes32",
-          "custody_spend": "Spend"
-        }
-      },
       "encode": {
         "return": "Bytes"
       },

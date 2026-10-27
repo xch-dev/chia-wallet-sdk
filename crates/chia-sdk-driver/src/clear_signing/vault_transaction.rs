@@ -57,7 +57,8 @@ pub struct VaultTransaction {
     /// The delegated puzzle hash that is being signed for.
     pub delegated_puzzle_hash: Bytes32,
     /// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), these are the
-    /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else.
+    /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else other than
+    /// recreating the vault, which is [`vault_child`](Self::vault_child).
     pub signed_messages: Vec<Bytes>,
 }
 

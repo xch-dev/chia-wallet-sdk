@@ -103,7 +103,7 @@ pub fn parse_vault_delegated_spend(
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
                 //
-                // Messages sent to the zero coin id are an exception, since that coin can never be spent. They're
+                // Messages sent to the vault message coin are an exception, since that coin can never exist. They're
                 // used to sign arbitrary messages off-chain, and are returned separately in their original order.
                 let vault_message = parse_vault_message(allocator, condition)?;
 
@@ -127,9 +127,11 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
-    // A delegated spend that signs messages must do nothing else, so that signing a message can't also
-    // authorize a transaction. Any other condition makes the whole spend invalid.
-    if !signed_messages.is_empty() && signed_messages.len() != condition_count {
+    // A delegated spend that signs messages must do nothing other than recreate the vault, so that signing a message
+    // can't look like it also authorizes a transaction. Any other condition makes the whole spend invalid.
+    if !signed_messages.is_empty()
+        && signed_messages.len() + usize::from(child.is_some()) != condition_count
+    {
         return Err(DriverError::MixedVaultMessageEnvelope);
     }
 

@@ -1165,6 +1165,7 @@ module.exports.toHex = nativeBinding.toHex
 module.exports.treeHashAtom = nativeBinding.treeHashAtom
 module.exports.treeHashPair = nativeBinding.treeHashPair
 module.exports.UriKind = nativeBinding.UriKind
+module.exports.vaultMessageCoin = nativeBinding.vaultMessageCoin
 module.exports.vaultMessageEnvelope = nativeBinding.vaultMessageEnvelope
 module.exports.vaultRecoveryDelegatedPuzzleHash = nativeBinding.vaultRecoveryDelegatedPuzzleHash
 module.exports.VaultVersion = nativeBinding.VaultVersion

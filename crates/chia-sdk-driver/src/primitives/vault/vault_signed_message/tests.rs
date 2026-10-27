@@ -1,10 +1,12 @@
 use anyhow::Result;
-use chia_consensus::validation_error::ErrorCode;
-use chia_protocol::{Bytes, Bytes32};
-use chia_puzzle_types::{Memos, singleton::SingletonArgs};
-use chia_sdk_test::{BlsPair, R1Pair, Simulator, SimulatorError};
+use chia_bls::SecretKey;
+use chia_consensus::validation_error::{ErrorCode, ValidationErr};
+use chia_protocol::{Bytes, Bytes32, CoinSpend, SpendBundle};
+use chia_puzzle_types::Memos;
+use chia_sdk_test::{BlsPair, R1Pair, Simulator, SimulatorError, sign_transaction};
+use chia_sdk_types::MerkleTree;
 use chia_sdk_types::{
-    Conditions, MerkleTree, MessageFlags, MessageSide, Mod,
+    Conditions, MessageFlags, MessageSide, Mod, TESTNET11_CONSTANTS,
     conditions::SendMessage,
     puzzles::{
         BlsMember, MofNArgs, MofNSolution, PasskeyMemberPuzzleAssert,
@@ -13,13 +15,14 @@ use chia_sdk_types::{
 };
 use chia_secp::{R1PublicKey, R1SecretKey};
 use chia_sha2::Sha256;
-use clvm_utils::TreeHash;
+use clvm_utils::{TreeHash, tree_hash};
 use clvmr::NodePtr;
 use rstest::rstest;
 
 use crate::{
     InnerPuzzleSpend, Launcher, MipsSpend, MipsSpendKind, MofN, Reveals, StandardLayer,
-    calculate_vault_puzzle_message, m_of_n_proof, mips_puzzle_hash, parse_vault_transaction,
+    VaultOutput, calculate_vault_puzzle_message, m_of_n_proof, mips_puzzle_hash,
+    parse_vault_transaction,
 };
 
 use super::*;
@@ -50,11 +53,11 @@ impl Key {
 }
 
 /// A vault custody configuration in the same shape that Cloud Wallet uses, which is a 1 of 2 at the top level
-/// between the custody signers and the recovery signers.
+/// between the custody signers and a BLS recovery key.
 struct TestCustody {
     keys: Vec<Key>,
     threshold: usize,
-    recovery_hash: TreeHash,
+    recovery: BlsPair,
 }
 
 impl TestCustody {
@@ -72,17 +75,10 @@ impl TestCustody {
             })
             .collect();
 
-        let recovery_hash = mips_puzzle_hash(
-            0,
-            vec![],
-            BlsMember::new(BlsPair::new(seed).pk).curry_tree_hash(),
-            false,
-        );
-
         Self {
             keys,
             threshold,
-            recovery_hash,
+            recovery: BlsPair::new(seed),
         }
     }
 
@@ -104,16 +100,40 @@ impl TestCustody {
         }
     }
 
+    fn recovery_hash(&self) -> TreeHash {
+        mips_puzzle_hash(
+            0,
+            vec![],
+            BlsMember::new(self.recovery.pk).curry_tree_hash(),
+            false,
+        )
+    }
+
     fn top_level(&self) -> MofN {
-        MofN::new(1, vec![self.signers_hash(), self.recovery_hash])
+        MofN::new(1, vec![self.signers_hash(), self.recovery_hash()])
     }
 
     fn custody_hash(&self) -> TreeHash {
         mips_puzzle_hash(0, vec![], self.top_level().inner_puzzle_hash(), true)
     }
 
-    fn vault_puzzle_hash(&self, launcher_id: Bytes32) -> Bytes32 {
-        SingletonArgs::curry_tree_hash(launcher_id, self.custody_hash()).into()
+    fn mint(&self, sim: &mut Simulator, ctx: &mut SpendContext) -> Result<Vault> {
+        let alice = sim.bls(1);
+        let (mint_vault, vault) =
+            Launcher::new(alice.coin.coin_id(), 1).mint_vault(ctx, self.custody_hash(), ())?;
+        StandardLayer::new(alice.pk).spend(ctx, alice.coin, mint_vault)?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+        Ok(vault)
+    }
+
+    fn top_level_spend(&self, delegated_spend: Spend) -> MipsSpend {
+        let mut spend = MipsSpend::new(delegated_spend);
+        let top_level = self.top_level();
+        spend.members.insert(
+            self.custody_hash(),
+            InnerPuzzleSpend::m_of_n(0, vec![], top_level.required, top_level.items),
+        );
+        spend
     }
 
     /// Creates a [`MipsSpend`] of the custody path, where each of the selected signers signs the delegated puzzle hash
@@ -125,13 +145,7 @@ impl TestCustody {
         signed: Signed,
         selected: &[usize],
     ) -> Result<MipsSpend> {
-        let mut spend = MipsSpend::new(delegated_spend);
-
-        let top_level = self.top_level();
-        spend.members.insert(
-            self.custody_hash(),
-            InnerPuzzleSpend::m_of_n(0, vec![], top_level.required, top_level.items),
-        );
+        let mut spend = self.top_level_spend(delegated_spend);
 
         if self.keys.len() > 1 {
             let signers = self.signers();
@@ -153,43 +167,68 @@ impl TestCustody {
         Ok(spend)
     }
 
+    /// Creates a [`MipsSpend`] of the recovery path, which requires a BLS signature.
+    fn recovery_spend(&self, ctx: &mut SpendContext, delegated_spend: Spend) -> Result<MipsSpend> {
+        let mut spend = self.top_level_spend(delegated_spend);
+        let puzzle = ctx.curry(BlsMember::new(self.recovery.pk))?;
+        spend.members.insert(
+            self.recovery_hash(),
+            InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, NodePtr::NIL)),
+        );
+        Ok(spend)
+    }
+
+    fn signed(ctx: &SpendContext, vault: &Vault, delegated_spend: Spend) -> Signed {
+        Signed {
+            delegated_puzzle_hash: ctx.tree_hash(delegated_spend.puzzle).into(),
+            vault_puzzle_hash: vault.coin.puzzle_hash,
+        }
+    }
+
     fn sign_messages(
         &self,
         ctx: &mut SpendContext,
-        launcher_id: Bytes32,
+        vault: &Vault,
         messages: &[Bytes],
         selected: &[usize],
     ) -> Result<VaultMessageProof> {
-        let envelope = vault_message_envelope(ctx, messages)?;
-        let signed = Signed {
-            delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-            vault_puzzle_hash: self.vault_puzzle_hash(launcher_id),
-        };
+        let envelope = vault_message_envelope(ctx, vault, messages)?;
+        let signed = Self::signed(ctx, vault, envelope);
         let spend = self.mips_spend(ctx, envelope, signed, selected)?;
-        self.proof(ctx, launcher_id, &spend)
+        proof(ctx, vault, &spend, &[])
     }
 
-    fn proof(
-        &self,
-        ctx: &mut SpendContext,
-        launcher_id: Bytes32,
-        spend: &MipsSpend,
-    ) -> Result<VaultMessageProof> {
-        let custody_spend = spend.spend(ctx, self.custody_hash())?;
-        Ok(VaultMessageProof::from_custody_spend(
-            ctx,
-            launcher_id,
-            custody_spend,
-        )?)
+    fn verify(&self, proof: &VaultMessageProof, vault: &Vault) -> Result<Vec<Bytes>, DriverError> {
+        verify_vault_signed_message(
+            proof,
+            vault.info.launcher_id,
+            self.custody_hash().into(),
+            TESTNET11_CONSTANTS.genesis_challenge,
+        )
     }
+}
 
-    fn verify(
-        &self,
-        proof: &VaultMessageProof,
-        launcher_id: Bytes32,
-    ) -> Result<Vec<Bytes>, DriverError> {
-        verify_vault_signed_message(proof, launcher_id, self.custody_hash().into())
-    }
+/// Spends the vault and signs it like any other transaction, then turns the spend into a proof.
+fn proof(
+    ctx: &mut SpendContext,
+    vault: &Vault,
+    spend: &MipsSpend,
+    secret_keys: &[SecretKey],
+) -> Result<VaultMessageProof> {
+    vault.spend(ctx, spend)?;
+    let coin_spends = ctx.take();
+    // The signer runs the spend to find the required signatures, so it's skipped for spends that are meant to be
+    // invalid and don't need any BLS signatures.
+    let signature = if secret_keys.is_empty() {
+        Signature::default()
+    } else {
+        sign_transaction(&coin_spends, secret_keys)?
+    };
+    assert_eq!(coin_spends.len(), 1);
+    Ok(VaultMessageProof::new(
+        coin_spends.into_iter().next().unwrap(),
+        signature,
+    ))
 }
 
 /// What a member signs, which is the delegated puzzle hash and the vault puzzle hash.
@@ -275,10 +314,6 @@ fn base64_url(bytes: &[u8]) -> String {
     output
 }
 
-fn launcher_id() -> Bytes32 {
-    Bytes32::new([7; 32])
-}
-
 fn messages() -> Vec<Bytes> {
     vec![
         Bytes::new(b"Sign in to example.com\nNonce: 4f9a2c\nExpires: 2026-11-01".to_vec()),
@@ -287,22 +322,67 @@ fn messages() -> Vec<Bytes> {
     ]
 }
 
+fn envelope_conditions(
+    ctx: &mut SpendContext,
+    vault: &Vault,
+    messages: &[Bytes],
+) -> Result<Conditions> {
+    let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
+    let mut conditions = Conditions::new();
+    for message in messages {
+        conditions.push(SendMessage::new(
+            VAULT_MESSAGE_MODE,
+            message.clone(),
+            vec![coin_id],
+        ));
+    }
+    Ok(conditions.create_coin(
+        vault.info.custody_hash.into(),
+        vault.coin.amount,
+        Memos::None,
+    ))
+}
+
+fn validation_error(result: &Result<Vec<Bytes>, DriverError>) -> Option<ErrorCode> {
+    match result {
+        Err(DriverError::Validation(ValidationErr::Err(code))) => Some(*code),
+        _ => None,
+    }
+}
+
 #[test]
-fn test_vault_message_mode() {
+fn test_vault_message_constants() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
     let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
         | MessageFlags::COIN.encode(MessageSide::Receiver);
     assert_eq!(mode, VAULT_MESSAGE_MODE);
+
+    let puzzle = ctx.alloc(&1)?;
+    assert_eq!(
+        VAULT_MESSAGE_PUZZLE_HASH,
+        Bytes32::from(tree_hash(&ctx, puzzle))
+    );
+    assert_eq!(VAULT_MESSAGE_COIN_ID, vault_message_coin().coin_id());
+    assert_eq!(vault_message_coin().parent_coin_info, Bytes32::default());
+
+    Ok(())
 }
 
 #[test]
 fn test_vault_message_envelope() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
     let messages = messages();
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages)?;
 
     let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
-    let mut conditions = Conditions::new();
+    let mut conditions =
+        Conditions::new().create_coin(custody.custody_hash().into(), 1, Memos::None);
     for message in &messages {
         conditions.push(SendMessage::new(
             VAULT_MESSAGE_MODE,
@@ -317,10 +397,9 @@ fn test_vault_message_envelope() -> Result<()> {
         ctx.tree_hash(expected.puzzle)
     );
     assert_eq!(envelope.solution, NodePtr::NIL);
-    assert_eq!(parse_vault_message_envelope(&ctx, envelope)?, messages);
 
     assert!(matches!(
-        vault_message_envelope(&mut ctx, &[]),
+        vault_message_envelope(&mut ctx, &vault, &[]),
         Err(DriverError::EmptyVaultMessageEnvelope)
     ));
 
@@ -341,29 +420,81 @@ fn test_verify_vault_signed_message(
     #[case] threshold: usize,
     #[case] selected: &[usize],
 ) -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(kinds, threshold);
-    let proof = custody.sign_messages(&mut ctx, launcher_id(), &messages(), selected)?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages(), selected)?;
 
-    assert_eq!(custody.verify(&proof, launcher_id())?, messages());
+    assert_eq!(custody.verify(&proof, &vault)?, messages());
+
+    Ok(())
+}
+
+#[test]
+fn test_verify_bls_signed_message() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1, Kind::Passkey], 2);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
+    // The recovery path is signed with an aggregated BLS signature, rather than in the solution.
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages())?;
+    let spend = custody.recovery_spend(&mut ctx, envelope)?;
+    let signed = proof(
+        &mut ctx,
+        &vault,
+        &spend,
+        std::slice::from_ref(&custody.recovery.sk),
+    )?;
+    assert_eq!(custody.verify(&signed, &vault)?, messages());
+
+    // Without the signature, it's invalid.
+    let unsigned = VaultMessageProof::new(signed.coin_spend.clone(), Signature::default());
+    assert!(matches!(
+        custody.verify(&unsigned, &vault),
+        Err(DriverError::InvalidVaultMessageSignature)
+    ));
+
+    // AGG_SIG_ME is bound to the network, so it's invalid with a different genesis challenge.
+    assert!(matches!(
+        verify_vault_signed_message(
+            &signed,
+            vault.info.launcher_id,
+            custody.custody_hash().into(),
+            Bytes32::new([1; 32]),
+        ),
+        Err(DriverError::InvalidVaultMessageSignature)
+    ));
 
     Ok(())
 }
 
 #[test]
 fn test_vault_message_round_trip() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
     let messages = messages();
 
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages)?;
 
-    // Clear signing returns the messages in order.
-    let tx = parse_vault_transaction(Reveals::default(), &mut ctx, launcher_id(), envelope)?;
+    // Clear signing returns the messages in order, and the vault is recreated as it was.
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        vault.info.launcher_id,
+        envelope,
+    )?;
     assert_eq!(tx.signed_messages, messages);
-    assert_eq!(tx.vault_child, None);
+    assert_eq!(
+        tx.vault_child,
+        Some(VaultOutput::new(custody.custody_hash().into(), 1))
+    );
     assert!(tx.spends.is_empty());
     assert!(tx.drop_coins.is_empty());
     assert_eq!(tx.reserved_fee, 0);
@@ -372,7 +503,7 @@ fn test_vault_message_round_trip() -> Result<()> {
         ctx.tree_hash(envelope.puzzle).into()
     );
 
-    let proof = custody.sign_messages(&mut ctx, launcher_id(), &messages, &[0, 1])?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages, &[0, 1])?;
 
     let bytes = proof.encode()?;
     assert_eq!(bytes[0], VAULT_MESSAGE_PROOF_VERSION);
@@ -384,17 +515,19 @@ fn test_vault_message_round_trip() -> Result<()> {
     let decoded = VaultMessageProof::decode_string(&string)?;
     assert_eq!(decoded, proof);
 
-    assert_eq!(custody.verify(&decoded, launcher_id())?, messages);
+    assert_eq!(custody.verify(&decoded, &vault)?, messages);
 
     Ok(())
 }
 
 #[test]
 fn test_vault_message_proof_codec_errors() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1], 1);
-    let proof = custody.sign_messages(&mut ctx, launcher_id(), &messages(), &[0])?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
 
     assert!(matches!(
         VaultMessageProof::decode(&[]),
@@ -419,16 +552,14 @@ fn test_vault_message_proof_codec_errors() -> Result<()> {
 
 #[test]
 fn test_reject_below_threshold() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
-    let messages = messages();
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages())?;
+    let signed = TestCustody::signed(&ctx, &vault, envelope);
 
     // The driver refuses to build a spend with too few signers.
     let spend = custody.mips_spend(&mut ctx, envelope, signed, &[0])?;
@@ -476,9 +607,9 @@ fn test_reject_below_threshold() -> Result<()> {
         },
     );
 
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
     assert!(matches!(
-        custody.verify(&proof, launcher_id()),
+        custody.verify(&proof, &vault),
         Err(DriverError::Eval(_))
     ));
 
@@ -489,16 +620,14 @@ fn test_reject_below_threshold() -> Result<()> {
 #[case::r1(Kind::R1)]
 #[case::passkey(Kind::Passkey)]
 fn test_reject_invalid_signature(#[case] kind: Kind) -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, kind, Kind::R1], 2);
-    let messages = messages();
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
+    let envelope = vault_message_envelope(&mut ctx, &vault, &messages())?;
+    let signed = TestCustody::signed(&ctx, &vault, envelope);
 
     let mut spend = custody.mips_spend(&mut ctx, envelope, signed, &[0, 1])?;
 
@@ -516,9 +645,9 @@ fn test_reject_invalid_signature(#[case] kind: Kind) -> Result<()> {
         InnerPuzzleSpend::new(0, vec![], member_spend),
     );
 
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
     assert!(matches!(
-        custody.verify(&proof, launcher_id()),
+        custody.verify(&proof, &vault),
         Err(DriverError::Eval(_))
     ));
 
@@ -526,30 +655,39 @@ fn test_reject_invalid_signature(#[case] kind: Kind) -> Result<()> {
 }
 
 #[test]
-fn test_reject_wrong_launcher_id() -> Result<()> {
+fn test_reject_wrong_vault() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, Kind::Passkey], 1);
-    let other_launcher_id = Bytes32::new([8; 32]);
+    let other = TestCustody::with_seed(&[Kind::R1, Kind::Passkey], 1, 100);
+
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let other_vault = custody.mint(&mut sim, &mut ctx)?;
+
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[1])?;
 
     // The proof is for a different vault than the one expected.
-    let proof = custody.sign_messages(&mut ctx, launcher_id(), &messages(), &[1])?;
     assert!(matches!(
-        custody.verify(&proof, other_launcher_id),
-        Err(DriverError::WrongVaultLauncherId)
+        custody.verify(&proof, &other_vault),
+        Err(DriverError::WrongVaultPuzzleHash)
     ));
 
-    // The proof claims to be for the expected vault, but the signatures are for a vault with a different
-    // launcher id and the same custody configuration.
-    let proof = VaultMessageProof::new(
-        other_launcher_id,
-        proof.custody_puzzle_reveal.clone(),
-        proof.custody_solution.clone(),
-    );
+    // Or for a different custody configuration of the same vault.
     assert!(matches!(
-        custody.verify(&proof, other_launcher_id),
-        Err(DriverError::VaultPuzzleHashMismatch)
+        other.verify(&proof, &vault),
+        Err(DriverError::WrongVaultPuzzleHash)
     ));
+
+    // A proof that claims to be for the expected vault, but reveals a puzzle with a different hash.
+    let other_vault = other.mint(&mut sim, &mut ctx)?;
+    let mut forged = other.sign_messages(&mut ctx, &other_vault, &messages(), &[0])?;
+    forged.coin_spend.coin.puzzle_hash = vault.coin.puzzle_hash;
+    forged.coin_spend.coin.parent_coin_info = vault.coin.parent_coin_info;
+    assert_eq!(
+        validation_error(&custody.verify(&forged, &vault)),
+        Some(ErrorCode::WrongPuzzleHash)
+    );
 
     Ok(())
 }
@@ -563,26 +701,24 @@ fn test_reject_changed_messages(
     #[case] signed_messages: Vec<Vec<u8>>,
     #[case] revealed_messages: Vec<Vec<u8>>,
 ) -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
     let signed_messages: Vec<Bytes> = signed_messages.into_iter().map(Bytes::new).collect();
     let revealed_messages: Vec<Bytes> = revealed_messages.into_iter().map(Bytes::new).collect();
 
-    let signed_envelope = vault_message_envelope(&mut ctx, &signed_messages)?;
-    let revealed_envelope = vault_message_envelope(&mut ctx, &revealed_messages)?;
+    let signed_envelope = vault_message_envelope(&mut ctx, &vault, &signed_messages)?;
+    let revealed_envelope = vault_message_envelope(&mut ctx, &vault, &revealed_messages)?;
 
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(signed_envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
-
+    let signed = TestCustody::signed(&ctx, &vault, signed_envelope);
     let spend = custody.mips_spend(&mut ctx, revealed_envelope, signed, &[0, 1])?;
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
 
     assert!(matches!(
-        custody.verify(&proof, launcher_id()),
+        custody.verify(&proof, &vault),
         Err(DriverError::Eval(_))
     ));
 
@@ -590,121 +726,53 @@ fn test_reject_changed_messages(
 }
 
 #[test]
-fn test_reject_mismatched_custody() -> Result<()> {
+fn test_reject_vault_not_recreated() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let custody = TestCustody::new(&[Kind::R1, Kind::Passkey], 2);
-    let other = TestCustody::with_seed(&[Kind::R1, Kind::Passkey], 2, 100);
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    // A valid proof for a different custody configuration of the same vault.
-    let proof = other.sign_messages(&mut ctx, launcher_id(), &messages(), &[0, 1])?;
-    assert_eq!(other.verify(&proof, launcher_id())?, messages());
-    assert!(matches!(
-        custody.verify(&proof, launcher_id()),
-        Err(DriverError::WrongVaultCustodyHash)
-    ));
+    // Only the messages, without recreating the vault, so the singleton puzzle fails.
+    let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
+    let delegated_spend = ctx.delegated_spend(Conditions::new().with(SendMessage::new(
+        VAULT_MESSAGE_MODE,
+        Bytes::new(b"hello".to_vec()),
+        vec![coin_id],
+    )))?;
+    let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
+    let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
 
-    // The other custody configuration signs for this vault's puzzle hash.
-    let envelope = vault_message_envelope(&mut ctx, &messages())?;
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
-    let spend = other.mips_spend(&mut ctx, envelope, signed, &[0, 1])?;
-    let proof = other.proof(&mut ctx, launcher_id(), &spend)?;
+    vault.spend(&mut ctx, &spend)?;
+    let coin_spend = ctx.take().remove(0);
+    let proof = VaultMessageProof::new(coin_spend, Signature::default());
+
     assert!(matches!(
-        custody.verify(&proof, launcher_id()),
-        Err(DriverError::WrongVaultCustodyHash)
-    ));
-    assert!(matches!(
-        other.verify(&proof, launcher_id()),
-        Err(DriverError::VaultPuzzleHashMismatch)
+        custody.verify(&proof, &vault),
+        Err(DriverError::Eval(_))
     ));
 
     Ok(())
 }
 
 #[test]
-fn test_reject_custody_without_signature() -> Result<()> {
+fn test_reject_without_messages() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let messages = messages();
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    // A custody puzzle that just outputs whatever the solution says, which doesn't require any signature.
-    let custody_puzzle = ctx.alloc(&1)?;
-    let custody_hash: Bytes32 = ctx.tree_hash(custody_puzzle).into();
-    let vault_puzzle_hash: Bytes32 =
-        SingletonArgs::curry_tree_hash(launcher_id(), custody_hash.into()).into();
-
-    let conditions = ctx.run(envelope.puzzle, envelope.solution)?;
-    let conditions = ctx.alloc(&(
-        chia_sdk_types::conditions::AssertMyPuzzleHash::new(vault_puzzle_hash),
-        conditions,
-    ))?;
-
-    let proof = VaultMessageProof::from_custody_spend(
-        &ctx,
-        launcher_id(),
-        Spend::new(custody_puzzle, conditions),
-    )?;
-
-    // It's rejected because it isn't the vault's custody puzzle.
-    assert!(matches!(
-        verify_vault_signed_message(&proof, launcher_id(), Bytes32::new([1; 32])),
-        Err(DriverError::WrongVaultCustodyHash)
-    ));
-
-    // And even if a caller trusted it, it isn't a MIPS puzzle.
-    assert!(matches!(
-        verify_vault_signed_message(&proof, launcher_id(), custody_hash),
-        Err(DriverError::InvalidVaultMessageCustody)
-    ));
-
-    Ok(())
-}
-
-#[rstest]
-#[case::create_coin(Conditions::new().create_coin(Bytes32::new([1; 32]), 1, Memos::None))]
-#[case::reserve_fee(Conditions::new().reserve_fee(1))]
-#[case::assertion(Conditions::new().assert_seconds_absolute(100))]
-#[case::remark(Conditions::new().remark(NodePtr::NIL))]
-fn test_reject_extra_envelope_condition(#[case] extra: Conditions) -> Result<()> {
-    let mut ctx = SpendContext::new();
-
-    let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
-    let messages = messages();
-
-    let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
-    let mut conditions = Conditions::new();
-    for message in &messages {
-        conditions.push(SendMessage::new(
-            VAULT_MESSAGE_MODE,
-            message.clone(),
-            vec![coin_id],
-        ));
-    }
-    let delegated_spend = ctx.delegated_spend(conditions.extend(extra))?;
+    // A normal spend that only recreates the vault doesn't sign any messages.
+    let conditions = envelope_conditions(&mut ctx, &vault, &[])?;
+    let delegated_spend = ctx.delegated_spend(conditions)?;
+    let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
+    let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
 
     assert!(matches!(
-        parse_vault_message_envelope(&ctx, delegated_spend),
-        Err(DriverError::InvalidVaultMessageEnvelope)
-    ));
-    assert!(matches!(
-        parse_vault_transaction(Reveals::default(), &mut ctx, launcher_id(), delegated_spend),
-        Err(DriverError::MixedVaultMessageEnvelope)
-    ));
-
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(delegated_spend.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
-    let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0, 1])?;
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
-
-    assert!(matches!(
-        custody.verify(&proof, launcher_id()),
-        Err(DriverError::InvalidVaultMessageEnvelope)
+        custody.verify(&proof, &vault),
+        Err(DriverError::EmptyVaultMessageEnvelope)
     ));
 
     Ok(())
@@ -712,140 +780,172 @@ fn test_reject_extra_envelope_condition(#[case] extra: Conditions) -> Result<()>
 
 #[test]
 fn test_reject_message_to_real_coin() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    let zero = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
     let real = ctx.alloc(&Bytes32::new([1; 32]))?;
-    let delegated_spend = ctx.delegated_spend(
-        Conditions::new()
-            .with(SendMessage::new(
-                VAULT_MESSAGE_MODE,
-                Bytes::new(b"hello".to_vec()),
-                vec![zero],
-            ))
-            .with(SendMessage::new(
-                VAULT_MESSAGE_MODE,
-                Bytes::new(b"world".to_vec()),
-                vec![real],
-            )),
-    )?;
+    let conditions = envelope_conditions(&mut ctx, &vault, &messages())?.with(SendMessage::new(
+        VAULT_MESSAGE_MODE,
+        Bytes::new(b"world".to_vec()),
+        vec![real],
+    ));
+    let delegated_spend = ctx.delegated_spend(conditions)?;
 
     assert!(matches!(
-        parse_vault_message_envelope(&ctx, delegated_spend),
-        Err(DriverError::InvalidVaultMessageEnvelope)
-    ));
-    assert!(matches!(
-        parse_vault_transaction(Reveals::default(), &mut ctx, launcher_id(), delegated_spend),
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            vault.info.launcher_id,
+            delegated_spend
+        ),
         Err(DriverError::MixedVaultMessageEnvelope)
     ));
 
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(delegated_spend.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
+    let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
     let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
 
-    assert!(matches!(
-        custody.verify(&proof, launcher_id()),
-        Err(DriverError::InvalidVaultMessageEnvelope)
-    ));
+    // The other message is never received.
+    assert_eq!(
+        validation_error(&custody.verify(&proof, &vault)),
+        Some(ErrorCode::MessageNotSentOrReceived)
+    );
 
     Ok(())
 }
 
 #[test]
-fn test_reject_non_canonical_envelope() -> Result<()> {
+fn test_reject_unsatisfied_condition() -> Result<()> {
+    let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
 
-    // The message has an extra data item after the coin id, so it isn't a valid envelope message.
-    let zero = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
-    let delegated_spend = ctx.delegated_spend(Conditions::new().with(SendMessage::new(
-        VAULT_MESSAGE_MODE,
-        Bytes::new(b"hello".to_vec()),
-        vec![zero, NodePtr::NIL],
-    )))?;
-
-    assert!(matches!(
-        parse_vault_message_envelope(&ctx, delegated_spend),
-        Err(DriverError::InvalidVaultMessageEnvelope)
-    ));
-
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(delegated_spend.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(launcher_id()),
-    };
+    // The vault reserves a fee that it doesn't pay, which is checked by consensus.
+    let conditions = envelope_conditions(&mut ctx, &vault, &messages())?.reserve_fee(1);
+    let delegated_spend = ctx.delegated_spend(conditions)?;
+    let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
     let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
-    let proof = custody.proof(&mut ctx, launcher_id(), &spend)?;
+    let proof = proof(&mut ctx, &vault, &spend, &[])?;
+
+    assert_eq!(
+        validation_error(&custody.verify(&proof, &vault)),
+        Some(ErrorCode::ReserveFeeConditionFailed)
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[case::create_coin(Conditions::new().create_coin(Bytes32::new([1; 32]), 0, Memos::None))]
+#[case::reserve_fee(Conditions::new().reserve_fee(1))]
+#[case::assertion(Conditions::new().assert_seconds_absolute(100))]
+#[case::remark(Conditions::new().remark(NodePtr::NIL))]
+#[case::second_child(Conditions::new().create_coin(Bytes32::new([1; 32]), 1, Memos::None))]
+fn test_clear_signing_rejects_extra_condition(#[case] extra: Conditions) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
+    let conditions = envelope_conditions(&mut ctx, &vault, &messages())?.extend(extra);
+    let delegated_spend = ctx.delegated_spend(conditions)?;
 
     assert!(matches!(
-        custody.verify(&proof, launcher_id()),
-        Err(DriverError::InvalidVaultMessageEnvelope)
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            vault.info.launcher_id,
+            delegated_spend
+        ),
+        Err(DriverError::MixedVaultMessageEnvelope)
     ));
 
     Ok(())
 }
 
 #[test]
-fn test_vault_message_envelope_spend_fails() -> Result<()> {
+fn test_vault_message_proof_spend_fails() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
-
-    let alice = sim.bls(1);
-    let (mint_vault, vault) =
-        Launcher::new(alice.coin.coin_id(), 1).mint_vault(&mut ctx, custody.custody_hash(), ())?;
-    StandardLayer::new(alice.pk).spend(&mut ctx, alice.coin, mint_vault)?;
-    sim.spend_coins(ctx.take(), &[alice.sk])?;
-
+    let vault = custody.mint(&mut sim, &mut ctx)?;
     let messages = messages();
-    let envelope = vault_message_envelope(&mut ctx, &messages)?;
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(vault.info.launcher_id),
-    };
-    let spend = custody.mips_spend(&mut ctx, envelope, signed, &[0, 1])?;
 
-    // The proof of the same spend is valid.
-    let proof = custody.proof(&mut ctx, vault.info.launcher_id, &spend)?;
-    assert_eq!(custody.verify(&proof, vault.info.launcher_id)?, messages);
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages, &[0, 1])?;
+    assert_eq!(custody.verify(&proof, &vault)?, messages);
 
-    // But the spend can't be valid on chain. Without recreating the vault, the singleton itself fails.
-    vault.spend(&mut ctx, &spend)?;
+    // The proof is a valid vault spend, but the messages can't be received on chain.
+    let spend_bundle = SpendBundle::new(
+        vec![proof.coin_spend.clone()],
+        proof.aggregated_signature.clone(),
+    );
     assert!(matches!(
-        sim.spend_coins(ctx.take(), &[]),
-        Err(SimulatorError::Signer(_))
+        sim.new_transaction(spend_bundle),
+        Err(SimulatorError::Validation(
+            ErrorCode::MessageNotSentOrReceived
+        ))
     ));
 
-    // And with the vault recreated, so that the singleton is valid, the zero coin id can't receive the messages.
-    let coin_id = ctx.alloc(&VAULT_MESSAGE_COIN_ID)?;
-    let mut conditions =
-        Conditions::new().create_coin(custody.custody_hash().into(), 1, Memos::None);
+    // And the coin that receives them doesn't exist.
+    let puzzle = ctx.alloc(&1)?;
+    let coin_id = ctx.alloc(&vault.coin.puzzle_hash)?;
+    let mut receive = Conditions::new();
     for message in &messages {
-        conditions.push(SendMessage::new(
+        receive.push(chia_sdk_types::conditions::ReceiveMessage::new(
             VAULT_MESSAGE_MODE,
             message.clone(),
             vec![coin_id],
         ));
     }
-    let envelope = ctx.delegated_spend(conditions)?;
-    let signed = Signed {
-        delegated_puzzle_hash: ctx.tree_hash(envelope.puzzle).into(),
-        vault_puzzle_hash: custody.vault_puzzle_hash(vault.info.launcher_id),
-    };
-    let spend = custody.mips_spend(&mut ctx, envelope, signed, &[0, 1])?;
-    vault.spend(&mut ctx, &spend)?;
+    let solution = ctx.alloc(&receive)?;
+    let receiver = CoinSpend::new(
+        vault_message_coin(),
+        ctx.serialize(&puzzle)?,
+        ctx.serialize(&solution)?,
+    );
+    let spend_bundle = SpendBundle::new(
+        vec![proof.coin_spend.clone(), receiver],
+        proof.aggregated_signature.clone(),
+    );
     assert!(matches!(
-        sim.spend_coins(ctx.take(), &[]),
-        Err(SimulatorError::Validation(
-            ErrorCode::MessageNotSentOrReceived
-        ))
+        sim.new_transaction(spend_bundle),
+        Err(SimulatorError::Validation(ErrorCode::UnknownUnspent))
     ));
+
+    Ok(())
+}
+
+#[test]
+fn test_proof_does_not_check_coin_state() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
+
+    // After the vault coin is spent, the proof is still valid, since verification doesn't use the chain.
+    let conditions = envelope_conditions(&mut ctx, &vault, &[])?;
+    let delegated_spend = ctx.delegated_spend(conditions)?;
+    let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
+    let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
+    vault.spend(&mut ctx, &spend)?;
+    sim.spend_coins(ctx.take(), &[])?;
+
+    assert!(
+        sim.coin_state(vault.coin.coin_id())
+            .unwrap()
+            .spent_height
+            .is_some()
+    );
+    assert_eq!(custody.verify(&proof, &vault)?, messages());
 
     Ok(())
 }
@@ -863,13 +963,23 @@ fn test_normal_vault_messages_unchanged() -> Result<()> {
     )))?;
 
     assert!(matches!(
-        parse_vault_transaction(Reveals::default(), &mut ctx, launcher_id(), delegated_spend),
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            Bytes32::default(),
+            delegated_spend
+        ),
         Err(DriverError::MissingSpend)
     ));
 
     // A delegated spend without any messages doesn't sign any messages.
     let delegated_spend = ctx.delegated_spend(Conditions::new().reserve_fee(1))?;
-    let tx = parse_vault_transaction(Reveals::default(), &mut ctx, launcher_id(), delegated_spend)?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        Bytes32::default(),
+        delegated_spend,
+    )?;
     assert!(tx.signed_messages.is_empty());
 
     Ok(())

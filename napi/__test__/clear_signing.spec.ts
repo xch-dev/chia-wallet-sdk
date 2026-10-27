@@ -23,6 +23,7 @@ import {
   R1Pair,
   Reveals,
   sha256,
+  Signature,
   Simulator,
   singletonMemberHash,
   SpendBundle,
@@ -388,9 +389,9 @@ test("signs and verifies vault messages", (t) => {
     Buffer.from("Sign in to example.com\nNonce: 4f9a2c", "utf-8"),
     Buffer.from([0xff, 0x00, 0x80]),
   ];
-  const envelope = vaultMessageEnvelope(clvm, messages);
+  const envelope = vaultMessageEnvelope(clvm, vault, messages);
 
-  // Clear signing shows the messages, and nothing else.
+  // Clear signing shows the messages, and that the vault is recreated as it was.
   const tx = parseVaultTransaction(
     clvm,
     new Reveals(clvm),
@@ -401,7 +402,8 @@ test("signs and verifies vault messages", (t) => {
     tx.signedMessages.map((message) => Buffer.from(message)),
     messages,
   );
-  t.is(tx.vaultChild, null);
+  t.deepEqual(tx.vaultChild?.custodyHash, vault.info.custodyHash);
+  t.is(tx.vaultChild?.amount, vault.coin.amount);
   t.is(tx.spends.length, 0);
 
   // Each member signs the envelope for the vault's puzzle hash, as with any fast forward signature.
@@ -439,10 +441,10 @@ test("signs and verifies vault messages", (t) => {
     true,
   );
 
-  const proof = VaultMessageProof.fromCustodySpend(
-    vault.info.launcherId,
-    mips.spend(vault.info.custodyHash),
-  );
+  // The vault is spent like any other transaction, and the signed spend is the proof.
+  mips.spendVault(vault);
+  const [coinSpend] = clvm.coinSpends();
+  const proof = new VaultMessageProof(coinSpend, Signature.infinity());
 
   const encoded = proof.encodeString();
   t.true(encoded.startsWith("vaultsig1"));
@@ -456,6 +458,7 @@ test("signs and verifies vault messages", (t) => {
         decoded,
         vault.info.launcherId,
         vault.info.custodyHash,
+        GENESIS_CHALLENGE,
       ).map((message) => Buffer.from(message)),
       messages,
     );
@@ -466,6 +469,7 @@ test("signs and verifies vault messages", (t) => {
       proof,
       vault.info.launcherId,
       mOfNHash(config.withTopLevel(true), 1, [r1Hash, passkeyHash]),
+      GENESIS_CHALLENGE,
     ),
   );
   t.throws(() =>
@@ -473,12 +477,12 @@ test("signs and verifies vault messages", (t) => {
       proof,
       new Uint8Array(32),
       vault.info.custodyHash,
+      GENESIS_CHALLENGE,
     ),
   );
 
-  // The same signatures can never be used to spend the vault.
-  mips.spendVault(vault);
-  t.throws(() => sim.spendCoins(clvm.coinSpends(), []));
+  // The proof is a valid vault spend, but it can never be included on chain.
+  t.throws(() => sim.spendCoins([coinSpend], []));
 });
 
 function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {

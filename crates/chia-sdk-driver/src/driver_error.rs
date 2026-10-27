@@ -221,11 +221,8 @@ pub enum DriverError {
     #[error("a vault message envelope must contain at least one message")]
     EmptyVaultMessageEnvelope,
 
-    #[error("the delegated puzzle is not a vault message envelope")]
-    InvalidVaultMessageEnvelope,
-
     #[error(
-        "a delegated spend that signs vault messages can't contain any other conditions or messages"
+        "a delegated spend that signs vault messages can't contain any other conditions or messages, other than recreating the vault"
     )]
     MixedVaultMessageEnvelope,
 
@@ -235,31 +232,12 @@ pub enum DriverError {
     #[error("unsupported vault message proof version {0}")]
     UnsupportedVaultMessageProofVersion(u8),
 
-    #[error("the vault message proof is for a different vault launcher id")]
-    WrongVaultLauncherId,
+    #[error("the vault message proof is for a coin that isn't the expected vault")]
+    WrongVaultPuzzleHash,
 
-    #[error("the vault message proof's custody puzzle doesn't match the vault's custody hash")]
-    WrongVaultCustodyHash,
+    #[error("the vault message proof's aggregated signature is invalid")]
+    InvalidVaultMessageSignature,
 
-    #[error("the vault message proof's custody puzzle is not a top level MIPS puzzle")]
-    InvalidVaultMessageCustody,
-
-    #[error("the custody puzzle asserted a puzzle hash other than the vault's")]
-    VaultPuzzleHashMismatch,
-
-    #[error("the custody puzzle output a condition that isn't allowed in a vault message proof")]
-    UnexpectedVaultMessageCondition,
-
-    #[error(
-        "the custody puzzle output an AGG_SIG condition, which isn't supported in vault message proofs"
-    )]
-    UnsupportedVaultMessageSignature,
-
-    #[error(
-        "the custody puzzle didn't assert the vault's puzzle hash, so nothing was signed for this vault"
-    )]
-    UnsignedVaultMessage,
-
-    #[error("the messages output by the custody puzzle don't match the envelope")]
-    VaultMessageMismatch,
+    #[error("consensus validation failed: {0}")]
+    Validation(#[from] chia_consensus::validation_error::ValidationErr),
 }

@@ -4099,18 +4099,15 @@ export declare class VaultInfo {
 
 export declare class VaultMessageProof {
   clone(): VaultMessageProof
-  static fromCustodySpend(launcherId: Uint8Array, custodySpend: Spend): VaultMessageProof
   encode(): Buffer
   static decode(proof: Uint8Array): VaultMessageProof
   encodeString(): string
   static decodeString(proof: string): VaultMessageProof
-  constructor(launcherId: Uint8Array, custodyPuzzleReveal: Uint8Array, custodySolution: Uint8Array)
-  get launcherId(): Buffer
-  set launcherId(value: Uint8Array)
-  get custodyPuzzleReveal(): Buffer
-  set custodyPuzzleReveal(value: Uint8Array)
-  get custodySolution(): Buffer
-  set custodySolution(value: Uint8Array)
+  constructor(coinSpend: CoinSpend, aggregatedSignature: Signature)
+  get coinSpend(): CoinSpend
+  set coinSpend(value: CoinSpend)
+  get aggregatedSignature(): Signature
+  set aggregatedSignature(value: Signature)
 }
 
 export declare class VaultMint {
@@ -4758,7 +4755,9 @@ export declare const enum UriKind {
   License = 2,
 }
 
-export declare function vaultMessageEnvelope(clvm: Clvm, messages: Array<Uint8Array>): Spend
+export declare function vaultMessageCoin(): Coin
+
+export declare function vaultMessageEnvelope(clvm: Clvm, vault: Vault, messages: Array<Uint8Array>): Spend
 
 export declare function vaultRecoveryDelegatedPuzzleHash(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, version: VaultVersion): Buffer
 
@@ -4767,7 +4766,7 @@ export declare const enum VaultVersion {
   ForceSingletonRecreation = 1,
 }
 
-export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array): Array<Buffer>
+export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, genesisChallenge: Uint8Array): Array<Buffer>
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 

@@ -13,6 +13,7 @@ from chia_wallet_sdk import (
     RestrictionMemo,
     Reveals,
     RunCatTail,
+    Signature,
     VaultMessageProof,
     WrapperMemo,
     calculate_vault_coin_message,
@@ -212,12 +213,15 @@ def test_vault_message_proof():
 
     vault = clvm.mint_vault(bytes([1] * 32), custody_hash, clvm.nil()).vault
 
+    # The launcher spend isn't part of the proof.
+    clvm.coin_spends()
+
     messages = [b"hello", b"\xff\x00"]
-    envelope = vault_message_envelope(clvm, messages)
+    envelope = vault_message_envelope(clvm, vault, messages)
 
     tx = parse_vault_transaction(clvm, Reveals(clvm), vault.info.launcher_id, envelope)
     assert tx.signed_messages == messages
-    assert tx.vault_child is None
+    assert tx.vault_child.custody_hash == custody_hash
 
     message = sha256(
         calculate_vault_puzzle_message(envelope.puzzle.tree_hash(), vault.coin.puzzle_hash)
@@ -226,16 +230,18 @@ def test_vault_message_proof():
     mips = clvm.mips_spend(vault.coin, envelope)
     mips.r1_member(config, r1.pk, r1.sk.sign_prehashed(message), True)
 
-    proof = VaultMessageProof.from_custody_spend(vault.info.launcher_id, mips.spend(custody_hash))
+    # The vault is spent like any other transaction, and the signed spend is the proof.
+    mips.spend_vault(vault)
+    proof = VaultMessageProof(clvm.coin_spends()[0], Signature.infinity())
 
     encoded = proof.encode_string()
     assert encoded.startswith("vaultsig1")
 
     for decoded in [VaultMessageProof.decode_string(encoded), VaultMessageProof.decode(proof.encode())]:
-        assert verify_vault_signed_message(decoded, vault.info.launcher_id, custody_hash) == messages
+        assert verify_vault_signed_message(decoded, vault.info.launcher_id, custody_hash, bytes(32)) == messages
 
     try:
-        verify_vault_signed_message(proof, bytes(32), custody_hash)
+        verify_vault_signed_message(proof, bytes(32), custody_hash, bytes(32))
         assert False, "expected the wrong launcher id to be rejected"
     except Exception:
         pass
