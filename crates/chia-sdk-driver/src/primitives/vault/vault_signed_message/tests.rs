@@ -740,6 +740,18 @@ fn test_reject_vault_not_recreated() -> Result<()> {
         Bytes::new(b"hello".to_vec()),
         vec![coin_id],
     )))?;
+
+    // Otherwise, clear signing would show the vault being melted.
+    assert!(matches!(
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            vault.info.launcher_id,
+            delegated_spend
+        ),
+        Err(DriverError::MixedVaultMessageEnvelope)
+    ));
+
     let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
     let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
 

@@ -128,9 +128,10 @@ pub fn parse_vault_delegated_spend(
     }
 
     // A delegated spend that signs messages must do nothing other than recreate the vault, so that signing a message
-    // can't look like it also authorizes a transaction. Any other condition makes the whole spend invalid.
+    // can't look like it also authorizes a transaction, such as melting the vault. Any other condition, or a missing
+    // vault recreation, makes the whole spend invalid.
     if !signed_messages.is_empty()
-        && signed_messages.len() + usize::from(child.is_some()) != condition_count
+        && (child.is_none() || signed_messages.len() + 1 != condition_count)
     {
         return Err(DriverError::MixedVaultMessageEnvelope);
     }
