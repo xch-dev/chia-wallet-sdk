@@ -56,6 +56,9 @@ pub fn vault_message_coin() -> Coin {
 /// This is a normal vault spend, which recreates the vault with the same custody hash and amount, and sends each
 /// message in order to [`VAULT_MESSAGE_COIN_ID`]. Because that coin can never exist, the spend can never be valid
 /// on chain.
+///
+/// The messages are signed as is, with no added domain separation or nonce. See the replay section of
+/// [`verify_vault_signed_message`] for what they should include.
 pub fn vault_message_envelope(
     ctx: &mut SpendContext,
     vault: &Vault,
@@ -179,6 +182,13 @@ impl VaultMessageProof {
 /// The expected custody hash must come from a trusted source, such as the vault's coin on chain. Without it, anyone
 /// could make up a custody puzzle for any launcher id that doesn't require a signature. Since a vault's custody hash
 /// changes when its signers are changed, this also determines which signers the proof is checked against.
+///
+/// # Replay
+///
+/// A proof doesn't expire, isn't tied to the vault's current coin, and isn't tied to any particular application. It
+/// stays valid for as long as the vault's custody hash is unchanged, and anyone who sees it can present it again.
+/// The messages themselves should prevent replay when that matters, such as by including a domain or application
+/// name, a nonce or challenge chosen by the verifier, and an expiration time, which the caller then checks.
 pub fn verify_vault_signed_message(
     proof: &VaultMessageProof,
     expected_launcher_id: Bytes32,
