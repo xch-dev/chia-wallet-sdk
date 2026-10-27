@@ -11,6 +11,7 @@
 mod action_layer;
 mod action_system;
 mod address;
+mod auction;
 mod bls;
 mod clear_signing;
 mod clvm;
@@ -38,6 +39,7 @@ mod utils;
 pub use action_layer::*;
 pub use action_system::*;
 pub use address::*;
+pub use auction::*;
 pub use bls::*;
 pub use clear_signing::*;
 pub use clvm::*;
@@ -85,7 +87,8 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
+    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, Bulletin,
+    BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
     CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
     Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
@@ -110,6 +113,7 @@ pub use chia_sdk_types::{
     MerkleProof,
     conditions::TradePrice,
     puzzles::{
+        AuctionBid, AuctionBpsPayment, AuctionPayments, AuctionState, AuctionTimings,
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,

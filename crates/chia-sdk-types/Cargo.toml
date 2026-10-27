@@ -19,6 +19,7 @@ chip-0035 = []
 chip-0037 = ["dep:sha3"]
 chip-0052 = []
 action-layer = []
+auction = ["action-layer"]
 
 [dependencies]
 chia-sdk-derive = { workspace = true }

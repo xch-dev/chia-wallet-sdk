@@ -159,6 +159,15 @@
         },
         "return": "Nft"
       },
+      "launch_auction": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "settings": "AuctionSettings",
+          "reserve": "AuctionReserve",
+          "nft": "Nft"
+        },
+        "return": "LaunchedAuction"
+      },
       "mint_datastore": {
         "args": {
           "parent_coin_id": "Bytes32",
