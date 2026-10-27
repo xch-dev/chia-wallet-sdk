@@ -4891,7 +4891,7 @@ export declare const enum VaultVersion {
   ForceSingletonRecreation = 1,
 }
 
-export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, genesisChallenge: Uint8Array): Array<Buffer>
+export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, genesisChallenge: Uint8Array, maxCost?: bigint | undefined | null): Array<Buffer>
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 

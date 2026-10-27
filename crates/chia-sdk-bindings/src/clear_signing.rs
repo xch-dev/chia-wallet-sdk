@@ -109,12 +109,14 @@ pub fn verify_vault_signed_message(
     expected_launcher_id: Bytes32,
     expected_custody_hash: Bytes32,
     genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
 ) -> Result<Vec<Bytes>> {
     Ok(sdk::verify_vault_signed_message(
         &proof,
         expected_launcher_id,
         expected_custody_hash,
         genesis_challenge,
+        max_cost,
     )?)
 }
 

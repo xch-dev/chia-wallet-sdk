@@ -481,6 +481,17 @@ test("signs and verifies vault messages", (t) => {
     ),
   );
 
+  // A lower maximum cost bounds the work done to verify a proof.
+  t.throws(() =>
+    verifyVaultSignedMessage(
+      proof,
+      vault.info.launcherId,
+      vault.info.custodyHash,
+      GENESIS_CHALLENGE,
+      1_000_000n,
+    ),
+  );
+
   // The proof is a valid vault spend, but it can never be included on chain.
   t.throws(() => sim.spendCoins([coinSpend], []));
 });

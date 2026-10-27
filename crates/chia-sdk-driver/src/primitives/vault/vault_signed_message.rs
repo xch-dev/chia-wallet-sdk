@@ -9,11 +9,7 @@ use chia_sdk_types::{
     Condition, Conditions, Mod,
     conditions::{ReceiveMessage, SendMessage},
     default_constants,
-    puzzles::{
-        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, Force1of2RestrictedVariable,
-        ForceAssertCoinAnnouncementMod, ForceCoinMessageMod, ForceSingletonRecreationMod,
-        PreventConditionOpcode, PreventMultipleCreateCoinsMod, Timelock,
-    },
+    puzzles::{AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, ForceCoinMessageMod},
 };
 use chia_sdk_utils::Bech32;
 use chia_streamable_macro::streamable;
@@ -55,21 +51,18 @@ pub const VAULT_MESSAGE_PROOF_PREFIX: &str = "vaultsig";
 /// `SEND_MESSAGE` condition.
 pub const VAULT_MESSAGE_MAX_LENGTH: usize = 1024;
 
-/// The maximum combined size in bytes of the puzzle reveal and solution in a [`VaultMessageProof`], which bounds the
-/// work done before the spend is run, and the data that the vault's puzzle runs on. A 3 of 4 vault with passkey members
-/// is about 6.5 KB.
-pub const VAULT_MESSAGE_PROOF_MAX_SIZE: usize = 65_536;
+/// The default maximum cost of verifying a [`VaultMessageProof`], which is used by [`verify_vault_signed_message`]
+/// unless another limit is given. This includes the cost of each byte of the spend, and a 3 of 4 vault with passkey
+/// members costs about 214 million. In a release build, running a spend up to this cost takes about 300 milliseconds
+/// in the worst case.
+pub const VAULT_MESSAGE_PROOF_DEFAULT_MAX_COST: u64 = 1_000_000_000;
 
-/// The maximum cost of running the spends in a [`VaultMessageProof`], which bounds the work done to verify it. This
-/// includes the cost of each byte of the spend, and a 3 of 4 vault with passkey members costs about 214 million.
-pub const VAULT_MESSAGE_PROOF_MAX_COST: u64 = 1_000_000_000;
+/// The maximum size of an encoded [`VaultMessageProof`] that can be decoded. A proof's spend can't cost more than a
+/// block, and each byte costs 12,000, so a larger proof could never be verified.
+pub const VAULT_MESSAGE_PROOF_MAX_SIZE: usize = 1_000_000;
 
-/// The maximum size of an encoded [`VaultMessageProof`] that can be verified, which allows for the coin, the length
-/// prefixes, the signature, and the version byte in addition to the puzzle reveal and solution.
-const MAX_ENCODED_PROOF_SIZE: usize = VAULT_MESSAGE_PROOF_MAX_SIZE + 1024;
-
-/// The maximum number of delegated puzzle wrappers around the delegated spend in a [`VaultMessageProof`]. Each one
-/// must be one of the wrappers that MIPS restrictions use, such as [`PreventConditionOpcode`].
+/// The maximum number of delegated puzzle wrappers around the delegated spend in a [`VaultMessageProof`], which bounds
+/// the work done to find the signed delegated spend.
 pub const VAULT_MESSAGE_PROOF_MAX_WRAPPERS: usize = 32;
 
 /// The coin that receives the messages in a vault message envelope.
@@ -209,7 +202,7 @@ impl VaultMessageProof {
     ///
     /// Proofs that are too large to verify are rejected before they're deserialized.
     pub fn decode(bytes: &[u8]) -> Result<Self, DriverError> {
-        if bytes.len() > MAX_ENCODED_PROOF_SIZE {
+        if bytes.len() > VAULT_MESSAGE_PROOF_MAX_SIZE {
             return Err(DriverError::VaultMessageProofTooLarge);
         }
 
@@ -233,8 +226,9 @@ impl VaultMessageProof {
     ///
     /// Proofs that are too large to verify are rejected before they're decoded.
     pub fn decode_string(proof: &str) -> Result<Self, DriverError> {
-        // Each character of a bech32m string encodes 5 bits, and the prefix and checksum are much less than 1024.
-        if proof.len() > MAX_ENCODED_PROOF_SIZE * 8 / 5 + 1024 {
+        // Each character of a bech32m string encodes 5 bits, and the prefix and checksum are much less than 1024
+        // characters.
+        if proof.len() > VAULT_MESSAGE_PROOF_MAX_SIZE * 8 / 5 + 1024 {
             return Err(DriverError::VaultMessageProofTooLarge);
         }
 
@@ -255,15 +249,19 @@ impl VaultMessageProof {
 ///
 /// - The vault coin's puzzle hash, and the hash of the puzzle reveal, are the singleton puzzle hash for the expected
 ///   launcher id and custody hash.
-/// - The custody is a top-level MIPS puzzle, and the delegated puzzle in the solution (inside of any known MIPS
-///   delegated puzzle wrappers) is a quoted list of conditions, which only sends messages to [`VAULT_MESSAGE_COIN_ID`] and recreates the
+/// - The custody is a top-level MIPS puzzle, and the delegated puzzle in the solution (inside of any delegated puzzle
+///   wrappers) is a quoted list of conditions, which only sends messages to [`VAULT_MESSAGE_COIN_ID`] and recreates the
 ///   vault with the same custody hash and amount. This is the same check that clear signing does, so a delegated spend
 ///   that would be shown as a transaction can't be used as a message signature.
-/// - The puzzle reveal runs successfully on the solution, with the consensus rules that are active today in mempool
-///   mode, so operators and conditions that aren't known or active yet are rejected. This is where the vault's
+/// - The puzzle reveal runs successfully on the solution, with the consensus rules from before hard fork 2 in mempool
+///   mode, so operators and conditions that aren't known or active yet are rejected. These rules will need to be
+///   updated when hard fork 2 activates, so that members that depend on it can sign messages. This is where the vault's
 ///   secp256r1, passkey and BLS members, m-of-n thresholds, restrictions, and singleton rules are checked.
 /// - The vault's actual output, after any delegated puzzle wrappers, creates no coin other than the recreated vault
-///   and reserves no fee.
+///   and reserves no fee. Any other message that a wrapper sends or receives fails, since it isn't matched.
+/// - There's no [`ForceCoinMessageMod`] delegated puzzle wrapper, since the messages to [`VAULT_MESSAGE_COIN_ID`] would
+///   satisfy it, even though the members it restricts are only meant to spend alongside another coin. Similarly,
+///   custom restrictions that require messages to be sent shouldn't be used by members that can sign messages.
 /// - Any assertions about the coin itself (such as `ASSERT_MY_PUZZLEHASH`, `ASSERT_MY_COIN_ID`, `ASSERT_MY_PARENT_ID`,
 ///   and `ASSERT_MY_AMOUNT`) hold for the coin in the proof.
 /// - Conditions between the spends in the bundle hold. Every message must be received the right number of times, so
@@ -271,7 +269,8 @@ impl VaultMessageProof {
 /// - There are no assertions about height or time at all, such as `ASSERT_SECONDS_RELATIVE`,
 ///   `ASSERT_BEFORE_HEIGHT_ABSOLUTE`, or `ASSERT_MY_BIRTH_HEIGHT`, since they can't be checked without the chain.
 ///   Otherwise, a member that is only allowed to spend after a timelock (such as during recovery), or before a
-///   deadline, could sign messages at any time.
+///   deadline, could sign messages at any time. A member with a [`Timelock`](chia_sdk_types::puzzles::Timelock) restriction fails to run with an envelope
+///   at all, so it fails with a consensus error rather than [`DriverError::VaultMessageTimelocked`].
 /// - The aggregated BLS signature is valid for every `AGG_SIG_*` condition, using the given genesis challenge as
 ///   the additional data for `AGG_SIG_ME` and the other coin-bound variants.
 ///
@@ -283,8 +282,8 @@ impl VaultMessageProof {
 /// - The vault coin isn't checked to exist, or to be unspent. The proof can be for any coin with the vault's puzzle
 ///   hash, including one that was spent long ago or never existed, and its lineage proof only has to match the coin's
 ///   parent coin id in the proof rather than the chain's history. This is why the custody hash must be trusted.
-/// - There's no minimum fee, and the limits are [`VAULT_MESSAGE_PROOF_MAX_SIZE`] and [`VAULT_MESSAGE_PROOF_MAX_COST`]
-///   rather than what's left in a block after other transactions.
+/// - There's no minimum fee, and the cost limit is the given maximum cost rather than what's left in a block after
+///   other transactions.
 /// - The coins created by the vault spend aren't checked to be new, and nothing is checked against other spends in
 ///   the same block or mempool, such as conflicting spends of the vault coin.
 ///
@@ -294,19 +293,21 @@ impl VaultMessageProof {
 ///
 /// # Denial of service
 ///
-/// The proof is untrusted, so the work it can cause is bounded before a signature is checked:
+/// The proof is untrusted, and the work it can cause is bounded by `max_cost`, which defaults to
+/// [`VAULT_MESSAGE_PROOF_DEFAULT_MAX_COST`] and can be at most the maximum cost of a block:
 ///
-/// - Its puzzle reveal and solution are at most [`VAULT_MESSAGE_PROOF_MAX_SIZE`] bytes, which is checked before they're
-///   parsed. Back-references aren't supported, so that the size of each program is the size of its serialization.
-/// - Everything before the spends are run is linear in the size, including at most
-///   [`VAULT_MESSAGE_PROOF_MAX_WRAPPERS`] delegated puzzle wrappers.
-/// - The only code that runs is the vault's puzzle, which is committed to by the custody hash, the known MIPS
-///   delegated puzzle wrappers, and the quoted delegated puzzle. So an unsigned proof can only choose the data that this
-///   code runs on, rather than running arbitrary code.
-/// - Running the spends is limited to [`VAULT_MESSAGE_PROOF_MAX_COST`], which also limits the number of BLS
+/// - The size of the puzzle reveal and solution is checked against the cost of their bytes before they're parsed.
+///   Back-references aren't supported, so that the size of each program is the size of its serialization.
+/// - Everything before the spends are run is linear in the size, including finding the signed delegated spend inside
+///   of at most [`VAULT_MESSAGE_PROOF_MAX_WRAPPERS`] delegated puzzle wrappers.
+/// - Running the spends is limited to the maximum cost, with a limited heap, which also limits the number of BLS
 ///   signatures that are checked.
 ///
-/// Custody with other kinds of delegated puzzle wrappers isn't supported.
+/// The signatures are checked while running the spends, or after them for BLS signatures, so a proof without a valid
+/// signature can still use the entire maximum cost. For example, it can run arbitrary code as a delegated puzzle
+/// wrapper, or as a member that's revealed in an m-of-n solution, since MIPS runs the members before checking that
+/// they're in the custody. Services that verify proofs from anyone should limit how many they verify, or choose a lower
+/// maximum cost.
 ///
 /// # Replay
 ///
@@ -319,10 +320,19 @@ pub fn verify_vault_signed_message(
     expected_launcher_id: Bytes32,
     expected_custody_hash: Bytes32,
     genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
 ) -> Result<Vec<Bytes>, DriverError> {
     let coin_spend = &proof.coin_spend;
+    let constants = default_constants(genesis_challenge, genesis_challenge);
+    let max_cost = max_cost
+        .unwrap_or(VAULT_MESSAGE_PROOF_DEFAULT_MAX_COST)
+        .min(constants.max_block_cost_clvm);
 
-    if coin_spend.puzzle_reveal.len() + coin_spend.solution.len() > VAULT_MESSAGE_PROOF_MAX_SIZE {
+    // Each byte of the spend has a cost, so a spend that's too large for the maximum cost is rejected before it's
+    // parsed.
+    let size = coin_spend.puzzle_reveal.len() + coin_spend.solution.len();
+
+    if (size as u64).saturating_mul(constants.cost_per_byte) > max_cost {
         return Err(DriverError::VaultMessageProofTooLarge);
     }
 
@@ -334,9 +344,7 @@ pub fn verify_vault_signed_message(
         return Err(DriverError::WrongVaultPuzzleHash);
     }
 
-    let constants = default_constants(genesis_challenge, genesis_challenge);
-
-    // The consensus rules that are active today are used, in mempool mode, so that operators and conditions that
+    // The consensus rules from before hard fork 2 are used, in mempool mode, so that operators and conditions that
     // aren't known or active yet fail rather than being treated as no-ops.
     let flags = get_flags_for_height_and_constants(
         constants.hard_fork2_height.saturating_sub(1),
@@ -410,7 +418,7 @@ pub fn verify_vault_signed_message(
     let (conditions, pairs) = run_spendbundle(
         &mut allocator,
         &spend_bundle,
-        VAULT_MESSAGE_PROOF_MAX_COST,
+        max_cost,
         flags,
         &constants,
         None,
@@ -483,7 +491,8 @@ fn unwrap_delegated_spend(
         let wrapper =
             AddDelegatedPuzzleWrapper::<NodePtr, NodePtr>::from_clvm(allocator, curried.args)?;
 
-        if !is_known_wrapper(allocator, wrapper.wrapper) {
+        // The messages in the envelope would satisfy this wrapper, which is meant to require a message to another coin.
+        if tree_hash(allocator, wrapper.wrapper) == ForceCoinMessageMod::mod_hash() {
             return Err(DriverError::UnsupportedDelegatedPuzzleWrapper);
         }
 
@@ -495,42 +504,6 @@ fn unwrap_delegated_spend(
     }
 
     Err(DriverError::TooManyDelegatedPuzzleWrappers)
-}
-
-/// Whether the delegated puzzle wrapper is one that MIPS restrictions use.
-///
-/// The delegated puzzle and its wrappers are the only code in a proof that isn't committed to by the custody hash, so
-/// allowing only known wrappers means that an unsigned proof can't make the verifier run arbitrary code. The curried
-/// arguments are parsed with their types, which ensures that they're quoted values rather than code.
-fn is_known_wrapper(allocator: &Allocator, wrapper: NodePtr) -> bool {
-    let hash = tree_hash(allocator, wrapper);
-
-    if [
-        ForceAssertCoinAnnouncementMod::mod_hash(),
-        ForceCoinMessageMod::mod_hash(),
-        ForceSingletonRecreationMod::mod_hash(),
-        PreventMultipleCreateCoinsMod::mod_hash(),
-    ]
-    .contains(&hash)
-    {
-        return true;
-    }
-
-    let Ok(curried) = CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, wrapper) else {
-        return false;
-    };
-
-    let mod_hash = tree_hash(allocator, curried.program);
-
-    if mod_hash == PreventConditionOpcode::mod_hash() {
-        PreventConditionOpcode::from_clvm(allocator, curried.args).is_ok()
-    } else if mod_hash == Timelock::mod_hash() {
-        Timelock::from_clvm(allocator, curried.args).is_ok()
-    } else if mod_hash == Force1of2RestrictedVariable::mod_hash() {
-        Force1of2RestrictedVariable::from_clvm(allocator, curried.args).is_ok()
-    } else {
-        false
-    }
 }
 
 #[cfg(test)]

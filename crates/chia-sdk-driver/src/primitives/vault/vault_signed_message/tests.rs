@@ -10,7 +10,7 @@ use chia_sdk_types::{
     Conditions, MessageFlags, MessageSide, Mod, TESTNET11_CONSTANTS,
     conditions::SendMessage,
     puzzles::{
-        BlsMember, MofNArgs, MofNSolution, PasskeyMemberPuzzleAssert,
+        BlsMember, ForceCoinMessageMod, MofNArgs, MofNSolution, PasskeyMemberPuzzleAssert,
         PasskeyMemberPuzzleAssertSolution, PreventConditionOpcode, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, Timelock,
     },
@@ -203,6 +203,7 @@ impl TestCustody {
             vault.info.launcher_id,
             self.custody_hash().into(),
             TESTNET11_CONSTANTS.genesis_challenge,
+            None,
         )
     }
 }
@@ -320,6 +321,7 @@ impl RestrictedCustody {
             vault.info.launcher_id,
             self.custody_hash(ctx).into(),
             TESTNET11_CONSTANTS.genesis_challenge,
+            None,
         )
     }
 }
@@ -579,6 +581,7 @@ fn test_verify_bls_signed_message() -> Result<()> {
             vault.info.launcher_id,
             custody.custody_hash().into(),
             Bytes32::new([1; 32]),
+            None,
         ),
         Err(DriverError::InvalidVaultMessageSignature)
     ));
@@ -1136,8 +1139,8 @@ fn test_reject_wrapper_that_changes_output() -> Result<()> {
     let mut ctx = SpendContext::new();
 
     // The delegated spend is a valid envelope, but a delegated puzzle wrapper adds a coin to the vault's output, which
-    // is `(c (q 51 <puzzle hash> 0) 2)`. The coin has no value, so consensus alone would allow it, but the wrapper isn't
-    // a known MIPS wrapper.
+    // is `(c (q 51 <puzzle hash> 0) 2)`. The coin has no value, so consensus alone allows it, but the verifier checks
+    // the vault's actual output.
     let wrapper = ctx.alloc(&clvm_list!(
         4,
         clvm_quote!(clvm_list!(51, Bytes32::new([2; 32]), 0)),
@@ -1152,7 +1155,7 @@ fn test_reject_wrapper_that_changes_output() -> Result<()> {
 
     assert!(matches!(
         custody.verify(&ctx, &proof, &vault),
-        Err(DriverError::UnsupportedDelegatedPuzzleWrapper)
+        Err(DriverError::MixedVaultMessageEnvelope)
     ));
 
     Ok(())
@@ -1167,7 +1170,7 @@ fn test_reject_unsigned_proof_that_never_finishes() -> Result<()> {
     let vault = custody.mint(&mut sim, &mut ctx)?;
 
     // Anyone can wrap the envelope in a program that never finishes, which is `(a (q . (a 2 1)) (q . ((a 2 1))))`.
-    // A BLS member's signature is only checked after the spend is run, so unknown wrappers are rejected before then.
+    // A BLS member's signature is only checked after the spend is run, so it runs until the maximum cost.
     let program = ctx.alloc(&clvm_list!(2, 2, 1))?;
     let wrapper = ctx.alloc(&clvm_list!(
         2,
@@ -1188,6 +1191,37 @@ fn test_reject_unsigned_proof_that_never_finishes() -> Result<()> {
         InnerPuzzleSpend::new(0, vec![], Spend::new(member, NodePtr::NIL)),
     );
     let proof = proof(&mut ctx, &vault, &spend, &[])?;
+
+    let result = verify_vault_signed_message(
+        &proof,
+        vault.info.launcher_id,
+        custody.custody_hash(&ctx).into(),
+        TESTNET11_CONSTANTS.genesis_challenge,
+        Some(100_000_000),
+    );
+    assert!(matches!(
+        result,
+        Err(DriverError::Validation(ValidationErr::Err(
+            ErrorCode::CostExceeded
+        )))
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_reject_force_coin_message_wrapper() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    // This member is only meant to spend alongside another coin, which the messages in the envelope would satisfy.
+    let wrapper = ctx.alloc_mod::<ForceCoinMessageMod>()?;
+    let custody = RestrictedCustody::bls(
+        &mut ctx,
+        vec![(RestrictionKind::DelegatedPuzzleWrapper, wrapper)],
+    )?;
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages())?;
 
     assert!(matches!(
         custody.verify(&ctx, &proof, &vault),
@@ -1230,20 +1264,34 @@ fn test_reject_large_proof() -> Result<()> {
     let vault = custody.mint(&mut sim, &mut ctx)?;
     let mut proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
 
-    // The size is checked before anything is parsed.
-    proof.coin_spend.solution = Program::from(vec![0x80; VAULT_MESSAGE_PROOF_MAX_SIZE]);
+    // The proof can be verified with the default maximum cost, but not a lower one. The size is checked against the
+    // cost of its bytes before anything is parsed.
+    assert_eq!(custody.verify(&proof, &vault)?, messages());
+    assert!(matches!(
+        verify_vault_signed_message(
+            &proof,
+            vault.info.launcher_id,
+            custody.custody_hash().into(),
+            TESTNET11_CONSTANTS.genesis_challenge,
+            Some(1_000_000),
+        ),
+        Err(DriverError::VaultMessageProofTooLarge)
+    ));
+
+    proof.coin_spend.solution = Program::from(vec![0x80; 100_000]);
     assert!(matches!(
         custody.verify(&proof, &vault),
         Err(DriverError::VaultMessageProofTooLarge)
     ));
 
-    // And before it's decoded.
+    // A proof that could never be verified within the cost of a block is rejected before it's decoded.
+    proof.coin_spend.solution = Program::from(vec![0x80; VAULT_MESSAGE_PROOF_MAX_SIZE]);
     assert!(matches!(
         VaultMessageProof::decode(&proof.encode()?),
         Err(DriverError::VaultMessageProofTooLarge)
     ));
     assert!(matches!(
-        VaultMessageProof::decode_string(&"a".repeat(1_000_000)),
+        VaultMessageProof::decode_string(&"a".repeat(2_000_000)),
         Err(DriverError::VaultMessageProofTooLarge)
     ));
 

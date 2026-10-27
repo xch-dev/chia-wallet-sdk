@@ -271,14 +271,14 @@ pub enum DriverError {
     #[error("a vault message can be at most 1024 bytes")]
     VaultMessageTooLong,
 
-    #[error("the vault message proof's puzzle reveal and solution are too large")]
+    #[error("the vault message proof is too large for the maximum cost")]
     VaultMessageProofTooLarge,
 
     #[error("the vault message proof has too many delegated puzzle wrappers")]
     TooManyDelegatedPuzzleWrappers,
 
     #[error(
-        "the vault message proof has a delegated puzzle wrapper that isn't a known MIPS wrapper"
+        "the vault message proof has a delegated puzzle wrapper that can't be used to sign messages"
     )]
     UnsupportedDelegatedPuzzleWrapper,
 

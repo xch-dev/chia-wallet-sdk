@@ -66,7 +66,8 @@
       "proof": "VaultMessageProof",
       "expected_launcher_id": "Bytes32",
       "expected_custody_hash": "Bytes32",
-      "genesis_challenge": "Bytes32"
+      "genesis_challenge": "Bytes32",
+      "max_cost": "Option<u64>"
     },
     "return": "Vec<Bytes>"
   },
