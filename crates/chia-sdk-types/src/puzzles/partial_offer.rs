@@ -1,8 +1,10 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, num::NonZeroU64};
 
 use chia_protocol::Bytes32;
 use chia_puzzle_types::CoinProof;
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{
+    ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError, clvm_tuple,
+};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
@@ -37,20 +39,41 @@ pub const PARTIAL_OFFER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 
 /// Each fill of `requested_amount` releases `requested_amount * price_precision / precision` of
 /// the offered asset, rounded down.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
+///
+/// This is represented in CLVM as the pair `(price_precision . precision)`. Neither can be zero,
+/// since the offer would either release nothing or fail to divide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartialOfferPrice {
-    pub price_precision: u64,
-    #[clvm(rest)]
-    pub precision: u64,
+    pub price_precision: NonZeroU64,
+    pub precision: NonZeroU64,
 }
 
 impl PartialOfferPrice {
-    pub fn new(price_precision: u64, precision: u64) -> Self {
+    pub fn new(price_precision: NonZeroU64, precision: NonZeroU64) -> Self {
         Self {
             price_precision,
             precision,
         }
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for PartialOfferPrice {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        clvm_tuple!(self.price_precision.get(), self.precision.get()).to_clvm(encoder)
+    }
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for PartialOfferPrice {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        let (price_precision, precision) = <(u64, u64)>::from_clvm(decoder, node)?;
+
+        let non_zero = |value| {
+            NonZeroU64::new(value).ok_or_else(|| {
+                FromClvmError::Custom("partial offer price precisions must be non-zero".to_string())
+            })
+        };
+
+        Ok(Self::new(non_zero(price_precision)?, non_zero(precision)?))
     }
 }
 
@@ -94,6 +117,8 @@ impl<CM, I> Mod for PartialOfferArgs<CM, I> {
 
 #[cfg(test)]
 mod tests {
+    use clvmr::Allocator;
+
     use crate::assert_puzzle_hash;
 
     use super::*;
@@ -101,6 +126,23 @@ mod tests {
     #[test]
     fn test_puzzle_hash() -> anyhow::Result<()> {
         assert_puzzle_hash!(PARTIAL_OFFER_PUZZLE => PARTIAL_OFFER_PUZZLE_HASH);
+        Ok(())
+    }
+
+    #[test]
+    fn test_price_clvm() -> anyhow::Result<()> {
+        let mut allocator = Allocator::new();
+
+        let price = PartialOfferPrice::new(NonZeroU64::new(5).unwrap(), NonZeroU64::MAX);
+        let ptr = price.to_clvm(&mut allocator)?;
+        assert_eq!(PartialOfferPrice::from_clvm(&allocator, ptr)?, price);
+        assert_eq!(<(u64, u64)>::from_clvm(&allocator, ptr)?, (5, u64::MAX));
+
+        for (price_precision, precision) in [(0, 1), (1, 0), (0, 0)] {
+            let ptr = clvm_tuple!(price_precision, precision).to_clvm(&mut allocator)?;
+            assert!(PartialOfferPrice::from_clvm(&allocator, ptr).is_err());
+        }
+
         Ok(())
     }
 }

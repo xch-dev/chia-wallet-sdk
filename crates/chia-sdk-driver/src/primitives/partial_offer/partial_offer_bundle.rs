@@ -42,8 +42,6 @@ impl PartialOfferBundle {
         spend_bundle: SpendBundle,
         info: PartialOfferInfo,
     ) -> Result<Self, DriverError> {
-        info.validate()?;
-
         let puzzle_hash = info.puzzle_hash();
         let mut found = None;
 
@@ -117,7 +115,7 @@ impl PartialOfferBundle {
         }
     }
 
-    /// Parses a decoded partial offer. The terms are validated, but the offer coin may already
+    /// Parses a decoded partial offer. The offer coin may already
     /// have been filled or clawed back if it isn't created by the maker's spends, so it should be
     /// looked up on-chain (along with its latest descendant) before filling it.
     pub fn from_spend_bundle(

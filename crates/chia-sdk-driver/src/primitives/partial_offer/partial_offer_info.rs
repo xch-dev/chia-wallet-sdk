@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{LineageProof, Memos, cat::CatArgs};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
@@ -116,7 +118,7 @@ pub struct PartialOfferInfo {
     pub maker_puzzle_hash: Bytes32,
     pub price: PartialOfferPrice,
     /// The minimum amount of the requested asset that each fill must pay.
-    pub min_requested_amount: u64,
+    pub min_requested_amount: NonZeroU64,
     /// The timestamp (in seconds) at which the offer can no longer be filled. Once it expires, the
     /// remaining amount stays locked until the maker claws it back.
     pub expiration: Option<u64>,
@@ -136,7 +138,7 @@ impl PartialOfferInfo {
             requested_asset,
             maker_puzzle_hash,
             price,
-            min_requested_amount: 1,
+            min_requested_amount: NonZeroU64::MIN,
             expiration: None,
             required_fee: None,
         }
@@ -148,21 +150,24 @@ impl PartialOfferInfo {
         offered_asset: PartialOfferAsset,
         requested_asset: PartialOfferAsset,
         maker_puzzle_hash: Bytes32,
-        offered_amount: u64,
-        requested_amount: u64,
+        offered_amount: NonZeroU64,
+        requested_amount: NonZeroU64,
     ) -> Self {
-        let divisor = gcd(offered_amount, requested_amount).max(1);
+        let divisor = gcd(offered_amount.get(), requested_amount.get());
+
+        // Dividing a non-zero amount by its greatest common divisor with another is never zero
+        let reduce = |amount: NonZeroU64| NonZeroU64::new(amount.get() / divisor).unwrap();
 
         Self::new(
             offered_asset,
             requested_asset,
             maker_puzzle_hash,
-            PartialOfferPrice::new(offered_amount / divisor, requested_amount / divisor),
+            PartialOfferPrice::new(reduce(offered_amount), reduce(requested_amount)),
         )
     }
 
     #[must_use]
-    pub fn with_min_requested_amount(mut self, min_requested_amount: u64) -> Self {
+    pub fn with_min_requested_amount(mut self, min_requested_amount: NonZeroU64) -> Self {
         self.min_requested_amount = min_requested_amount;
         self
     }
@@ -177,21 +182,6 @@ impl PartialOfferInfo {
     pub fn with_required_fee(mut self, required_fee: u64) -> Self {
         self.required_fee = Some(required_fee);
         self
-    }
-
-    /// Checks that the terms are well formed. Neither precision can be zero (or the offer would
-    /// either pay nothing or never be fillable), each fill must pay at least one mojo, and the two
-    /// assets can't be the same (or a taker could pay the maker with the offered asset itself).
-    pub fn validate(&self) -> Result<(), DriverError> {
-        if self.price.price_precision == 0 || self.price.precision == 0 {
-            return Err(DriverError::InvalidPartialOfferPrice);
-        }
-
-        if self.min_requested_amount == 0 || self.offered_asset == self.requested_asset {
-            return Err(DriverError::InvalidPartialOffer);
-        }
-
-        Ok(())
     }
 
     /// The conditions that are output every time the offer is filled.
@@ -236,7 +226,7 @@ impl PartialOfferInfo {
                 PartialOfferAsset::Xch,
                 PartialOfferAsset::Xch,
                 Bytes32::default(),
-                PartialOfferPrice::new(0, 0),
+                PartialOfferPrice::new(NonZeroU64::MIN, NonZeroU64::MIN),
             )
         };
 
@@ -252,7 +242,7 @@ impl PartialOfferInfo {
     }
 
     fn min_other_asset_amount_minus_one(&self) -> u64 {
-        self.min_requested_amount.saturating_sub(1)
+        self.min_requested_amount.get() - 1
     }
 
     /// The hash of the partial offer puzzle, which is one of the two leaves of the 1-of-n puzzle.
@@ -306,8 +296,8 @@ impl PartialOfferInfo {
     /// The amount of the offered asset that is released when `requested_amount` is paid, rounded
     /// down as in the puzzle. Returns [`None`] if the amount doesn't fit in a coin.
     pub fn offered_amount(&self, requested_amount: u64) -> Option<u64> {
-        let amount = u128::from(requested_amount) * u128::from(self.price.price_precision)
-            / u128::from(self.price.precision);
+        let amount = u128::from(requested_amount) * u128::from(self.price.price_precision.get())
+            / u128::from(self.price.precision.get());
 
         amount.try_into().ok()
     }
@@ -315,8 +305,8 @@ impl PartialOfferInfo {
     /// The smallest amount of the requested asset that releases at least `offered_amount` of the
     /// offered asset. Returns [`None`] if the amount doesn't fit in a coin.
     pub fn requested_amount(&self, offered_amount: u64) -> Option<u64> {
-        let amount = (u128::from(offered_amount) * u128::from(self.price.precision))
-            .div_ceil(u128::from(self.price.price_precision));
+        let amount = (u128::from(offered_amount) * u128::from(self.price.precision.get()))
+            .div_ceil(u128::from(self.price.price_precision.get()));
 
         amount.try_into().ok()
     }
@@ -356,7 +346,7 @@ impl PartialOfferInfo {
         })
     }
 
-    /// Parses and validates a partial offer hint, returning the terms and the lineage proof.
+    /// Parses a partial offer hint, returning the terms and the lineage proof.
     pub fn parse_hint(
         allocator: &Allocator,
         hint: NodePtr,
@@ -370,15 +360,12 @@ impl PartialOfferInfo {
             requested_asset: hint.requested_asset,
             maker_puzzle_hash: hint.maker_puzzle_hash,
             price: hint.price,
-            min_requested_amount: hint
-                .min_other_asset_amount_minus_one
-                .checked_add(1)
+            min_requested_amount: NonZeroU64::MIN
+                .checked_add(hint.min_other_asset_amount_minus_one)
                 .ok_or(DriverError::InvalidPartialOffer)?,
             expiration,
             required_fee,
         };
-
-        info.validate()?;
 
         Ok((info, hint.lineage_proof))
     }

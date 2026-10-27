@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
@@ -96,7 +98,7 @@ impl PartialOffer {
     /// release nothing, or would release more than the coin has left (in which case the taker would
     /// overpay, since the payout is capped at the coin's amount).
     pub fn offered_amount(&self, requested_amount: u64) -> Result<u64, DriverError> {
-        if requested_amount < self.info.min_requested_amount {
+        if requested_amount < self.info.min_requested_amount.get() {
             return Err(DriverError::InvalidPartialOfferFill);
         }
 
@@ -122,14 +124,14 @@ impl PartialOffer {
 
         // The largest requested amount whose payout doesn't exceed the coin's amount
         let max_requested_amount =
-            ((u128::from(self.coin.amount) + 1) * u128::from(price.precision) - 1)
-                / u128::from(price.price_precision);
+            ((u128::from(self.coin.amount) + 1) * u128::from(price.precision.get()) - 1)
+                / u128::from(price.price_precision.get());
         let max_requested_amount = u64::try_from(max_requested_amount).unwrap_or(u64::MAX);
 
         let requested_amount = self
             .info
             .requested_amount(self.info.offered_amount(max_requested_amount)?)?
-            .max(self.info.min_requested_amount);
+            .max(self.info.min_requested_amount.get());
 
         self.offered_amount(requested_amount).ok()?;
 
@@ -226,8 +228,6 @@ impl PartialOffer {
         requested_amount: u64,
         mut spend_bundle: SpendBundle,
     ) -> Result<PartialOfferFill, DriverError> {
-        self.info.validate()?;
-
         let offered_amount = self.offered_amount(requested_amount)?;
         let spend = self.fill_spend(ctx, requested_amount)?;
 
@@ -411,9 +411,8 @@ impl PartialOffer {
             requested_asset,
             maker_puzzle_hash: args.receiver_puzzle_hash,
             price: args.price,
-            min_requested_amount: args
-                .min_other_asset_amount_minus_one
-                .checked_add(1)
+            min_requested_amount: NonZeroU64::MIN
+                .checked_add(args.min_other_asset_amount_minus_one)
                 .ok_or(DriverError::InvalidPartialOffer)?,
             expiration,
             required_fee,

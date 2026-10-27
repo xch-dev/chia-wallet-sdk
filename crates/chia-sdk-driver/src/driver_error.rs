@@ -170,9 +170,6 @@ pub enum DriverError {
     #[error("invalid partial offer terms")]
     InvalidPartialOffer,
 
-    #[error("partial offer price precisions must be non-zero")]
-    InvalidPartialOfferPrice,
-
     #[error(
         "partial offer fill is below the minimum, pays out nothing, or exceeds the remaining amount"
     )]

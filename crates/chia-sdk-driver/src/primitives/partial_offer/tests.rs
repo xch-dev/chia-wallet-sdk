@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use anyhow::Result;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
@@ -22,6 +24,10 @@ use crate::{
     PartialOfferHint, PartialOfferInfo, Puzzle, Relation, SettlementLayer, SpendContext,
     SpendWithConditions, Spends, StandardLayer,
 };
+
+fn nz(value: u64) -> NonZeroU64 {
+    NonZeroU64::new(value).unwrap()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -263,15 +269,20 @@ fn test_partial_offer(
     let bob = Party::new(&mut sim, ctx, requested, 400, 100)?;
 
     // Alice offers 1000 of her asset for 400 of Bob's, which is 5 for every 2
-    let mut info =
-        PartialOfferInfo::from_amounts(alice.asset, bob.asset, alice.puzzle_hash, 1000, 400);
-    assert_eq!(info.price, PartialOfferPrice::new(5, 2));
+    let mut info = PartialOfferInfo::from_amounts(
+        alice.asset,
+        bob.asset,
+        alice.puzzle_hash,
+        nz(1000),
+        nz(400),
+    );
+    assert_eq!(info.price, PartialOfferPrice::new(nz(5), nz(2)));
 
     let required_fee = if with_terms { 10 } else { 0 };
 
     if with_terms {
         info = info
-            .with_min_requested_amount(50)
+            .with_min_requested_amount(nz(50))
             .with_expiration(sim.next_timestamp() + 1000)
             .with_required_fee(required_fee);
     }
@@ -370,8 +381,14 @@ fn test_partial_offer_claw_back(#[case] offered: Kind) -> Result<()> {
     let alice = Party::new(&mut sim, ctx, offered, 1000, 0)?;
     let bob = Party::new(&mut sim, ctx, Kind::Cat, 400, 0)?;
 
-    let info = PartialOfferInfo::from_amounts(alice.asset, bob.asset, alice.puzzle_hash, 1000, 400)
-        .with_expiration(sim.next_timestamp() + 1000);
+    let info = PartialOfferInfo::from_amounts(
+        alice.asset,
+        bob.asset,
+        alice.puzzle_hash,
+        nz(1000),
+        nz(400),
+    )
+    .with_expiration(sim.next_timestamp() + 1000);
 
     // Alice creates the offer coin on-chain right away
     let bundle = alice.make(ctx, info, 1000)?;
@@ -410,8 +427,14 @@ fn test_partial_offer_expired() -> Result<()> {
     let alice = Party::new(&mut sim, ctx, Kind::Xch, 1000, 0)?;
     let bob = Party::new(&mut sim, ctx, Kind::Cat, 400, 0)?;
 
-    let info = PartialOfferInfo::from_amounts(alice.asset, bob.asset, alice.puzzle_hash, 1000, 400)
-        .with_expiration(sim.next_timestamp() + 1000);
+    let info = PartialOfferInfo::from_amounts(
+        alice.asset,
+        bob.asset,
+        alice.puzzle_hash,
+        nz(1000),
+        nz(400),
+    )
+    .with_expiration(sim.next_timestamp() + 1000);
 
     let bundle = alice.make(ctx, info, 1000)?;
     sim.pass_time(2000);
@@ -431,8 +454,14 @@ fn test_partial_offer_required_fee_must_be_paid() -> Result<()> {
     let alice = Party::new(&mut sim, ctx, Kind::Cat, 1000, 0)?;
     let bob = Party::new(&mut sim, ctx, Kind::Xch, 400, 100)?;
 
-    let info = PartialOfferInfo::from_amounts(alice.asset, bob.asset, alice.puzzle_hash, 1000, 400)
-        .with_required_fee(50);
+    let info = PartialOfferInfo::from_amounts(
+        alice.asset,
+        bob.asset,
+        alice.puzzle_hash,
+        nz(1000),
+        nz(400),
+    )
+    .with_required_fee(50);
 
     let bundle = alice.make(ctx, info, 1000)?;
     let fill = bundle.fill(ctx, 100)?;
@@ -464,10 +493,10 @@ fn test_partial_offer_fill_amounts() {
             hidden_puzzle_hash: None,
         },
         Bytes32::new([2; 32]),
-        1,
-        3,
+        nz(1),
+        nz(3),
     )
-    .with_min_requested_amount(2);
+    .with_min_requested_amount(nz(2));
 
     let offer = PartialOffer::new(
         Coin::new(Bytes32::new([3; 32]), info.puzzle_hash(), 10),
@@ -503,47 +532,12 @@ fn test_partial_offer_fill_amounts() {
 
     // Large prices don't overflow
     let info = PartialOfferInfo {
-        price: PartialOfferPrice::new(u64::MAX, u64::MAX - 1),
+        price: PartialOfferPrice::new(nz(u64::MAX), nz(u64::MAX - 1)),
         ..info
     };
     assert_eq!(info.offered_amount(u64::MAX - 1), Some(u64::MAX));
     assert_eq!(info.offered_amount(u64::MAX), None);
     assert_eq!(info.requested_amount(u64::MAX), Some(u64::MAX - 1));
-}
-
-#[test]
-fn test_partial_offer_invalid_terms() {
-    let xch = PartialOfferAsset::Xch;
-    let cat = PartialOfferAsset::Cat {
-        asset_id: Bytes32::new([1; 32]),
-        hidden_puzzle_hash: None,
-    };
-    let maker = Bytes32::new([2; 32]);
-
-    let info = PartialOfferInfo::new(xch, cat, maker, PartialOfferPrice::new(0, 1));
-    assert!(matches!(
-        info.validate(),
-        Err(DriverError::InvalidPartialOfferPrice)
-    ));
-
-    let info = PartialOfferInfo::new(xch, cat, maker, PartialOfferPrice::new(1, 0));
-    assert!(matches!(
-        info.validate(),
-        Err(DriverError::InvalidPartialOfferPrice)
-    ));
-
-    let info = PartialOfferInfo::new(cat, cat, maker, PartialOfferPrice::new(1, 1));
-    assert!(matches!(
-        info.validate(),
-        Err(DriverError::InvalidPartialOffer)
-    ));
-
-    let info = PartialOfferInfo::new(xch, cat, maker, PartialOfferPrice::new(1, 1))
-        .with_min_requested_amount(0);
-    assert!(matches!(
-        info.validate(),
-        Err(DriverError::InvalidPartialOffer)
-    ));
 }
 
 #[test]
@@ -588,8 +582,8 @@ fn test_partial_offer_unsupported_conditions() -> Result<()> {
             hidden_puzzle_hash: None,
         },
         Bytes32::new([2; 32]),
-        1000,
-        400,
+        nz(1000),
+        nz(400),
     )
     .with_required_fee(10);
 
@@ -637,8 +631,10 @@ fn test_partial_offer_siblings_rejected() -> Result<()> {
         hidden_puzzle_hash: None,
     };
 
-    let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400);
-    let other_info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 500);
+    let info =
+        PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, nz(1000), nz(400));
+    let other_info =
+        PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, nz(1000), nz(500));
 
     // Two coins with the same terms
     let memos = info.creation_memos(ctx)?;
@@ -704,7 +700,8 @@ fn test_partial_offer_unsigned_creation_rejected() -> Result<()> {
         asset_id: Bytes32::new([1; 32]),
         hidden_puzzle_hash: None,
     };
-    let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400);
+    let info =
+        PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, nz(1000), nz(400));
 
     let mut spend_bundle = alice.build(
         ctx,
@@ -752,7 +749,13 @@ fn test_partial_offer_payout_cannot_be_redirected() -> Result<()> {
     let bob = Party::new(&mut sim, ctx, Kind::Cat, 400, 0)?;
     let eve = Bytes32::new([9; 32]);
 
-    let info = PartialOfferInfo::from_amounts(alice.asset, bob.asset, alice.puzzle_hash, 1000, 400);
+    let info = PartialOfferInfo::from_amounts(
+        alice.asset,
+        bob.asset,
+        alice.puzzle_hash,
+        nz(1000),
+        nz(400),
+    );
     let bundle = alice.make(ctx, info, 1000)?;
     sim.new_transaction(bundle.spend_bundle().clone())?;
 
@@ -810,8 +813,9 @@ fn test_encode_partial_offer() -> Result<()> {
         asset_id: Bytes32::new([1; 32]),
         hidden_puzzle_hash: None,
     };
-    let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400)
-        .with_required_fee(10);
+    let info =
+        PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, nz(1000), nz(400))
+            .with_required_fee(10);
 
     let bundle = alice.make(ctx, info, 1000)?;
     let partial_offer = *bundle.partial_offer();
