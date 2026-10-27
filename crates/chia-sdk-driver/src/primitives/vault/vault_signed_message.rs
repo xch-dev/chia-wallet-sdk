@@ -243,7 +243,9 @@ impl VaultMessageProof {
 /// The vault's delegated spend is read from the proof, and must be a [`vault_message_envelope`] that recreates the
 /// vault as it was. Then the proof's vault spend is validated with consensus rules in a spend bundle, alongside a spend
 /// of [`vault_message_coin`] that receives each message from the vault's puzzle hash. This doesn't depend on which
-/// kinds of members the vault has, since the vault's puzzle performs its own signature checks.
+/// kinds of members the vault has, since the vault's puzzle performs its own signature checks. However, members that
+/// are authorized by another spend, such as a singleton member that receives a message from the singleton that controls
+/// it, can't sign messages, since that spend can't be included in the proof.
 ///
 /// # What is verified
 ///
@@ -258,7 +260,8 @@ impl VaultMessageProof {
 ///   updated when hard fork 2 activates, so that members that depend on it can sign messages. This is where the vault's
 ///   secp256r1, passkey and BLS members, m-of-n thresholds, restrictions, and singleton rules are checked.
 /// - The vault's actual output, after any delegated puzzle wrappers, creates no coin other than the recreated vault
-///   and reserves no fee. Any other message that a wrapper sends or receives fails, since it isn't matched.
+///   and reserves no fee. Any other message that a wrapper sends to or receives from another coin fails, since it
+///   isn't matched, although a message from the vault to itself is allowed.
 /// - There's no [`ForceCoinMessageMod`] delegated puzzle wrapper, since the messages to [`VAULT_MESSAGE_COIN_ID`] would
 ///   satisfy it, even though the members it restricts are only meant to spend alongside another coin. Similarly,
 ///   custom restrictions that require messages to be sent shouldn't be used by members that can sign messages.
@@ -269,8 +272,9 @@ impl VaultMessageProof {
 /// - There are no assertions about height or time at all, such as `ASSERT_SECONDS_RELATIVE`,
 ///   `ASSERT_BEFORE_HEIGHT_ABSOLUTE`, or `ASSERT_MY_BIRTH_HEIGHT`, since they can't be checked without the chain.
 ///   Otherwise, a member that is only allowed to spend after a timelock (such as during recovery), or before a
-///   deadline, could sign messages at any time. A member with a [`Timelock`](chia_sdk_types::puzzles::Timelock) restriction fails to run with an envelope
-///   at all, so it fails with a consensus error rather than [`DriverError::VaultMessageTimelocked`].
+///   deadline, could sign messages at any time. This fails with [`DriverError::VaultMessageTimelocked`], except that a
+///   [`Timelock`](chia_sdk_types::puzzles::Timelock) used as a delegated puzzle wrapper fails to run with an envelope at
+///   all, so it fails with a consensus error instead.
 /// - The aggregated BLS signature is valid for every `AGG_SIG_*` condition, using the given genesis challenge as
 ///   the additional data for `AGG_SIG_ME` and the other coin-bound variants.
 ///
