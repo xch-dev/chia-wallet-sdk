@@ -9,6 +9,7 @@ use chia_sdk_types::{
 };
 use clvm_traits::{
     ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError, clvm_list, clvm_quote,
+    match_quote,
 };
 use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
@@ -207,7 +208,7 @@ impl PartialOfferInfo {
         quoted_conditions: NodePtr,
     ) -> Result<(Option<u64>, Option<u64>), DriverError> {
         let (_, conditions) =
-            <(NodePtr, Vec<Condition<NodePtr>>)>::from_clvm(allocator, quoted_conditions)?;
+            <match_quote!(Vec<Condition<NodePtr>>)>::from_clvm(allocator, quoted_conditions)?;
 
         let expiration = conditions
             .iter()
