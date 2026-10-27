@@ -272,9 +272,9 @@ impl VaultMessageProof {
 /// - There are no assertions about height or time at all, such as `ASSERT_SECONDS_RELATIVE`,
 ///   `ASSERT_BEFORE_HEIGHT_ABSOLUTE`, or `ASSERT_MY_BIRTH_HEIGHT`, since they can't be checked without the chain.
 ///   Otherwise, a member that is only allowed to spend after a timelock (such as during recovery), or before a
-///   deadline, could sign messages at any time. This fails with [`DriverError::VaultMessageTimelocked`], except that a
-///   [`Timelock`](chia_sdk_types::puzzles::Timelock) used as a delegated puzzle wrapper fails to run with an envelope at
-///   all, so it fails with a consensus error instead.
+///   deadline, could sign messages at any time. This fails with [`DriverError::VaultMessageTimelocked`], except that
+///   a [`Timelock`](chia_sdk_types::puzzles::Timelock) used as a delegated puzzle wrapper fails to run with an
+///   envelope at all, so it fails with a consensus error instead.
 /// - The aggregated BLS signature is valid for every `AGG_SIG_*` condition, using the given genesis challenge as
 ///   the additional data for `AGG_SIG_ME` and the other coin-bound variants.
 ///
