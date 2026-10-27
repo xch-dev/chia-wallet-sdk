@@ -1028,6 +1028,10 @@ export declare class Clvm {
   oneOfN(): Program
   anyMetadataUpdater(): Program
   stateSchedulerPuzzle(): Program
+  defaultCatMaker(): Program
+  revocableCatMaker(): Program
+  xchCatMaker(): Program
+  partialOffer(): Program
   alloc(value: any): Program
 }
 
@@ -1342,6 +1346,14 @@ export declare class Constants {
   static anyMetadataUpdaterHash(): Buffer
   static stateSchedulerPuzzle(): Buffer
   static stateSchedulerPuzzleHash(): Buffer
+  static defaultCatMaker(): Buffer
+  static defaultCatMakerHash(): Buffer
+  static revocableCatMaker(): Buffer
+  static revocableCatMakerHash(): Buffer
+  static xchCatMaker(): Buffer
+  static xchCatMakerHash(): Buffer
+  static partialOffer(): Buffer
+  static partialOfferHash(): Buffer
 }
 
 export declare class CreateCoin {
@@ -2778,6 +2790,14 @@ export declare class ParsedOptionInfo {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class ParsedPartialOffer {
+  clone(): ParsedPartialOffer
+  get partialOffer(): PartialOffer
+  set partialOffer(value: PartialOffer)
+  get requestedAmount(): bigint
+  set requestedAmount(value: bigint)
+}
+
 export declare class ParsedRestriction {
   clone(): ParsedRestriction
   asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
@@ -2794,6 +2814,105 @@ export declare class ParsedWrapper {
   isPreventMultipleCreateCoins(): boolean
   asTimelock(): bigint | null
   asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
+}
+
+export declare class PartialOffer {
+  clone(): PartialOffer
+  cat(): Cat | null
+  offeredAmount(requestedAmount: bigint): bigint
+  maxRequestedAmount(): bigint | null
+  child(requestedAmount: bigint): PartialOffer | null
+  notarizedPayment(clvm: Clvm, requestedAmount: bigint): NotarizedPayment
+  fillSpend(clvm: Clvm, requestedAmount: bigint): Spend
+  fill(clvm: Clvm, requestedAmount: bigint): PartialOfferFill
+  clawBackSpend(spend: Spend): Spend
+  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, info: PartialOfferInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof | null
+  set lineageProof(value: LineageProof | undefined | null)
+  get info(): PartialOfferInfo
+  set info(value: PartialOfferInfo)
+}
+
+export declare class PartialOfferAsset {
+  clone(): PartialOfferAsset
+  static xch(): PartialOfferAsset
+  static cat(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null): PartialOfferAsset
+  isXch(): boolean
+  assetId(): Buffer | null
+  hiddenPuzzleHash(): Buffer | null
+  puzzleHash(p2PuzzleHash: Uint8Array): Buffer
+}
+
+export declare class PartialOfferBundle {
+  clone(): PartialOfferBundle
+  static fromMakerSpendBundle(clvm: Clvm, spendBundle: SpendBundle, info: PartialOfferInfo): PartialOfferBundle
+  static fromCoin(clvm: Clvm, partialOffer: PartialOffer): PartialOfferBundle
+  static fromSpendBundle(clvm: Clvm, spendBundle: SpendBundle): PartialOfferBundle
+  toSpendBundle(): SpendBundle
+  partialOffer(): PartialOffer
+  spendBundle(): SpendBundle
+  fill(requestedAmount: bigint): PartialOfferFill
+}
+
+export declare class PartialOfferCreationMemos {
+  clone(): PartialOfferCreationMemos
+  get makerPuzzleHash(): Buffer
+  set makerPuzzleHash(value: Uint8Array)
+  get requestedAsset(): PartialOfferAsset
+  set requestedAsset(value: PartialOfferAsset)
+}
+
+export declare class PartialOfferFill {
+  clone(): PartialOfferFill
+  actions(): Array<Action>
+  get offer(): Offer
+  set offer(value: Offer)
+  get requestedAmount(): bigint
+  set requestedAmount(value: bigint)
+  get offeredAmount(): bigint
+  set offeredAmount(value: bigint)
+  get requiredFee(): bigint
+  set requiredFee(value: bigint)
+  get child(): PartialOffer | null
+  set child(value: PartialOffer | undefined | null)
+}
+
+export declare class PartialOfferInfo {
+  clone(): PartialOfferInfo
+  constructor(offeredAsset: PartialOfferAsset, requestedAsset: PartialOfferAsset, makerPuzzleHash: Uint8Array, price: PartialOfferPrice)
+  static fromAmounts(offeredAsset: PartialOfferAsset, requestedAsset: PartialOfferAsset, makerPuzzleHash: Uint8Array, offeredAmount: bigint, requestedAmount: bigint): PartialOfferInfo
+  partialPuzzleHash(): Buffer
+  p2PuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  offeredAmount(requestedAmount: bigint): bigint | null
+  requestedAmount(offeredAmount: bigint): bigint | null
+  creationMemos(clvm: Clvm): Program
+  static parseCreationMemos(memos: Program): PartialOfferCreationMemos | null
+  get offeredAsset(): PartialOfferAsset
+  set offeredAsset(value: PartialOfferAsset)
+  get requestedAsset(): PartialOfferAsset
+  set requestedAsset(value: PartialOfferAsset)
+  get makerPuzzleHash(): Buffer
+  set makerPuzzleHash(value: Uint8Array)
+  get price(): PartialOfferPrice
+  set price(value: PartialOfferPrice)
+  get minRequestedAmount(): bigint
+  set minRequestedAmount(value: bigint)
+  get expiration(): bigint | null
+  set expiration(value: bigint | undefined | null)
+  get requiredFee(): bigint | null
+  set requiredFee(value: bigint | undefined | null)
+}
+
+export declare class PartialOfferPrice {
+  clone(): PartialOfferPrice
+  constructor(pricePrecision: bigint, precision: bigint)
+  get pricePrecision(): bigint
+  set pricePrecision(value: bigint)
+  get precision(): bigint
+  set precision(value: bigint)
 }
 
 export declare class Payment {
@@ -3004,6 +3123,8 @@ export declare class Puzzle {
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   parseBulletin(coin: Coin, solution: Program): ParsedBulletin | null
   parseChildP2Parent(parentCoin: Coin, parentSolution: Program): P2ParentCoinChildParseResult | null
+  parsePartialOffer(coin: Coin, solution: Program, requestedAsset?: PartialOfferAsset | undefined | null): ParsedPartialOffer | null
+  parseChildPartialOffer(parentCoin: Coin, parentSolution: Program, requestedAsset?: PartialOfferAsset | undefined | null): PartialOffer | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Buffer
   set puzzleHash(value: Uint8Array)
@@ -4654,6 +4775,8 @@ export declare function customMemberHash(config: MemberConfig, innerHash: Uint8A
 
 export declare function decodeOffer(offer: string): SpendBundle
 
+export declare function decodePartialOffer(partialOffer: string): SpendBundle
+
 export declare function eip712DomainSeparator(genesisChallenge: Uint8Array): Buffer
 
 export declare function eip712HashToSign(genesisChallenge: Uint8Array, coinId: Uint8Array, delegatedPuzzleHash: Uint8Array): Buffer
@@ -4667,6 +4790,8 @@ export declare function eip712PrefixAndDomainSeparator(genesisChallenge: Uint8Ar
 export declare function eip712TypeHash(): Buffer
 
 export declare function encodeOffer(spendBundle: SpendBundle): string
+
+export declare function encodePartialOffer(spendBundle: SpendBundle): string
 
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Buffer
 
