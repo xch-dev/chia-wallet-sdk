@@ -187,17 +187,7 @@ impl PartialOfferInfo {
 
     /// The conditions that are output every time the offer is filled.
     pub fn persistent_conditions<T>(&self) -> Conditions<T> {
-        let mut conditions = Conditions::default();
-
-        if let Some(expiration) = self.expiration {
-            conditions = conditions.assert_before_seconds_absolute(expiration);
-        }
-
-        if let Some(required_fee) = self.required_fee {
-            conditions = conditions.reserve_fee(required_fee);
-        }
-
-        conditions
+        persistent_conditions(self.expiration, self.required_fee)
     }
 
     /// Parses the expiration and required fee from the quoted persistent conditions of a partial
@@ -220,26 +210,13 @@ impl PartialOfferInfo {
             .find_map(Condition::as_reserve_fee)
             .map(|condition| condition.amount);
 
-        let info = Self {
-            expiration,
-            required_fee,
-            ..Self::new(
-                PartialOfferAsset::Xch,
-                PartialOfferAsset::Xch,
-                Bytes32::default(),
-                PartialOfferPrice::new(NonZeroU64::MIN, NonZeroU64::MIN),
-            )
-        };
-
-        if tree_hash(allocator, quoted_conditions) != info.quoted_conditions_hash() {
+        if tree_hash(allocator, quoted_conditions)
+            != quoted_conditions_hash(expiration, required_fee)
+        {
             return Err(DriverError::UnsupportedPartialOfferConditions);
         }
 
         Ok((expiration, required_fee))
-    }
-
-    fn quoted_conditions_hash(&self) -> TreeHash {
-        clvm_quote!(self.persistent_conditions::<TreeHash>()).tree_hash()
     }
 
     fn min_other_asset_amount_minus_one(&self) -> u64 {
@@ -254,7 +231,7 @@ impl PartialOfferInfo {
                 .requested_asset
                 .puzzle_hash(SETTLEMENT_PAYMENT_HASH.into()),
             receiver_puzzle_hash: self.maker_puzzle_hash,
-            inner_puzzle: self.quoted_conditions_hash(),
+            inner_puzzle: quoted_conditions_hash(self.expiration, self.required_fee),
             min_other_asset_amount_minus_one: self.min_other_asset_amount_minus_one(),
             price: self.price,
         }
@@ -385,6 +362,24 @@ pub struct PartialOfferHint<I> {
     /// The quoted persistent conditions.
     pub inner_puzzle: I,
     pub min_other_asset_amount_minus_one: u64,
+}
+
+fn persistent_conditions<T>(expiration: Option<u64>, required_fee: Option<u64>) -> Conditions<T> {
+    let mut conditions = Conditions::default();
+
+    if let Some(expiration) = expiration {
+        conditions = conditions.assert_before_seconds_absolute(expiration);
+    }
+
+    if let Some(required_fee) = required_fee {
+        conditions = conditions.reserve_fee(required_fee);
+    }
+
+    conditions
+}
+
+fn quoted_conditions_hash(expiration: Option<u64>, required_fee: Option<u64>) -> TreeHash {
+    clvm_quote!(persistent_conditions::<TreeHash>(expiration, required_fee)).tree_hash()
 }
 
 fn gcd(mut a: u64, mut b: u64) -> u64 {
