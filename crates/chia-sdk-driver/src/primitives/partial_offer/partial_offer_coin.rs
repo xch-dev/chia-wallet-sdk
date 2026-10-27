@@ -75,16 +75,18 @@ impl PartialOffer {
     /// The offer coin as a [`Cat`] whose p2 puzzle is the 1-of-n puzzle, if the offered asset is a
     /// CAT.
     pub fn cat(&self) -> Option<Cat> {
-        let asset_id = self.info.offered_asset.asset_id?;
+        let PartialOfferAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash,
+        } = self.info.offered_asset
+        else {
+            return None;
+        };
 
         Some(Cat::new(
             self.coin,
             self.lineage_proof,
-            CatInfo::new(
-                asset_id,
-                self.info.offered_asset.hidden_puzzle_hash,
-                self.info.p2_puzzle_hash(),
-            ),
+            CatInfo::new(asset_id, hidden_puzzle_hash, self.info.p2_puzzle_hash()),
         ))
     }
 
@@ -239,16 +241,17 @@ impl PartialOffer {
         let mut requested_payments = RequestedPayments::new();
         let mut asset_info = AssetInfo::new();
 
-        if let Some(asset_id) = self.info.requested_asset.asset_id {
-            requested_payments
-                .cats
-                .insert(asset_id, vec![notarized_payment]);
-            asset_info.insert_cat(
+        match self.info.requested_asset {
+            PartialOfferAsset::Xch => requested_payments.xch.push(notarized_payment),
+            PartialOfferAsset::Cat {
                 asset_id,
-                CatAssetInfo::new(self.info.requested_asset.hidden_puzzle_hash),
-            )?;
-        } else {
-            requested_payments.xch.push(notarized_payment);
+                hidden_puzzle_hash,
+            } => {
+                requested_payments
+                    .cats
+                    .insert(asset_id, vec![notarized_payment]);
+                asset_info.insert_cat(asset_id, CatAssetInfo::new(hidden_puzzle_hash))?;
+            }
         }
 
         let offer =
@@ -350,16 +353,16 @@ impl PartialOffer {
                 }
 
                 (
-                    PartialOfferAsset::cat(
-                        parsed.cat.info.asset_id,
-                        parsed.cat.info.hidden_puzzle_hash,
-                    ),
+                    PartialOfferAsset::Cat {
+                        asset_id: parsed.cat.info.asset_id,
+                        hidden_puzzle_hash: parsed.cat.info.hidden_puzzle_hash,
+                    },
                     parsed.cat.lineage_proof,
                     parsed.p2_puzzle,
                     parsed.p2_solution,
                 )
             } else {
-                (PartialOfferAsset::xch(), None, puzzle, solution)
+                (PartialOfferAsset::Xch, None, puzzle, solution)
             };
 
         let Some(p2_layer) = P2OneOfManyLayer::parse_puzzle(allocator, p2_puzzle)? else {
@@ -391,7 +394,7 @@ impl PartialOffer {
         }
 
         let requested_asset = if args.other_asset_offer_mod == SETTLEMENT_PAYMENT_HASH.into() {
-            PartialOfferAsset::xch()
+            PartialOfferAsset::Xch
         } else {
             requested_asset
                 .filter(|asset| {

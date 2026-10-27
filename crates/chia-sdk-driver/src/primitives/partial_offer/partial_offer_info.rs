@@ -5,51 +5,45 @@ use chia_sdk_types::{
     Condition, Conditions, MerkleTree, Mod,
     puzzles::{P2OneOfManyArgs, PartialOfferArgs, PartialOfferPrice, RevocationArgs},
 };
-use clvm_traits::{FromClvm, ToClvm, clvm_quote};
+use clvm_traits::{
+    ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError, clvm_list, clvm_quote,
+};
 use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{CatMaker, DriverError, SpendContext};
 
-/// One side of a partial offer, which is either XCH, a CAT, or a revocable CAT.
+/// One side of a partial offer, which is either XCH or a CAT (which is revocable if it has a hidden
+/// puzzle hash).
 ///
-/// This is also the CLVM representation used in the partial offer hint and the memos of the coin
-/// that creates the first partial offer coin, as specified by CHIP-0052.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct PartialOfferAsset {
-    pub asset_id: Option<Bytes32>,
-    pub hidden_puzzle_hash: Option<Bytes32>,
+/// In the partial offer hint and the memos of the coin that creates the first partial offer coin,
+/// this is represented as the list `(asset_id hidden_puzzle_hash)`, with nil for XCH, as specified
+/// by CHIP-0052.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartialOfferAsset {
+    Xch,
+    Cat {
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+    },
 }
 
 impl PartialOfferAsset {
-    pub fn xch() -> Self {
-        Self {
-            asset_id: None,
-            hidden_puzzle_hash: None,
-        }
-    }
-
-    pub fn cat(asset_id: Bytes32, hidden_puzzle_hash: Option<Bytes32>) -> Self {
-        Self {
-            asset_id: Some(asset_id),
-            hidden_puzzle_hash,
-        }
-    }
-
-    pub fn is_xch(&self) -> bool {
-        self.asset_id.is_none()
-    }
-
     /// The CAT maker that the partial offer puzzle uses to compute the full puzzle hash of a coin
     /// of this asset from its inner puzzle hash.
     pub fn cat_maker(&self) -> CatMaker {
-        match (self.asset_id, self.hidden_puzzle_hash) {
-            (None, _) => CatMaker::Xch,
-            (Some(asset_id), None) => CatMaker::Default {
+        match *self {
+            Self::Xch => CatMaker::Xch,
+            Self::Cat {
+                asset_id,
+                hidden_puzzle_hash: None,
+            } => CatMaker::Default {
                 tail_hash_hash: asset_id.tree_hash(),
             },
-            (Some(asset_id), Some(hidden_puzzle_hash)) => CatMaker::Revocable {
+            Self::Cat {
+                asset_id,
+                hidden_puzzle_hash: Some(hidden_puzzle_hash),
+            } => CatMaker::Revocable {
                 tail_hash_hash: asset_id.tree_hash(),
                 hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
             },
@@ -58,11 +52,15 @@ impl PartialOfferAsset {
 
     /// The full puzzle hash of a coin of this asset with the given inner (p2) puzzle hash.
     pub fn puzzle_hash(&self, p2_puzzle_hash: Bytes32) -> Bytes32 {
-        let Some(asset_id) = self.asset_id else {
+        let Self::Cat {
+            asset_id,
+            hidden_puzzle_hash,
+        } = *self
+        else {
             return p2_puzzle_hash;
         };
 
-        let inner_puzzle_hash = match self.hidden_puzzle_hash {
+        let inner_puzzle_hash = match hidden_puzzle_hash {
             Some(hidden_puzzle_hash) => {
                 RevocationArgs::new(hidden_puzzle_hash, p2_puzzle_hash).curry_tree_hash()
             }
@@ -71,13 +69,35 @@ impl PartialOfferAsset {
 
         CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash).into()
     }
+}
 
-    fn validate(&self) -> Result<(), DriverError> {
-        if self.asset_id.is_none() && self.hidden_puzzle_hash.is_some() {
-            return Err(DriverError::InvalidPartialOffer);
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for PartialOfferAsset {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        match *self {
+            Self::Xch => clvm_list!((), ()).to_clvm(encoder),
+            Self::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => clvm_list!(asset_id, hidden_puzzle_hash).to_clvm(encoder),
         }
+    }
+}
 
-        Ok(())
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for PartialOfferAsset {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        let (asset_id, (hidden_puzzle_hash, ())) =
+            <(Option<Bytes32>, (Option<Bytes32>, ()))>::from_clvm(decoder, node)?;
+
+        match (asset_id, hidden_puzzle_hash) {
+            (None, None) => Ok(Self::Xch),
+            (Some(asset_id), hidden_puzzle_hash) => Ok(Self::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            }),
+            (None, Some(_)) => Err(FromClvmError::Custom(
+                "XCH can't have a hidden puzzle hash".to_string(),
+            )),
+        }
     }
 }
 
@@ -163,9 +183,6 @@ impl PartialOfferInfo {
     /// either pay nothing or never be fillable), each fill must pay at least one mojo, and the two
     /// assets can't be the same (or a taker could pay the maker with the offered asset itself).
     pub fn validate(&self) -> Result<(), DriverError> {
-        self.offered_asset.validate()?;
-        self.requested_asset.validate()?;
-
         if self.price.price_precision == 0 || self.price.precision == 0 {
             return Err(DriverError::InvalidPartialOfferPrice);
         }
@@ -216,8 +233,8 @@ impl PartialOfferInfo {
             expiration,
             required_fee,
             ..Self::new(
-                PartialOfferAsset::xch(),
-                PartialOfferAsset::xch(),
+                PartialOfferAsset::Xch,
+                PartialOfferAsset::Xch,
                 Bytes32::default(),
                 PartialOfferPrice::new(0, 0),
             )

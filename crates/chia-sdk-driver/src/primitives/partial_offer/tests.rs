@@ -11,7 +11,9 @@ use chia_sdk_types::{
     Conditions,
     puzzles::{PartialOfferPrice, PartialOfferSolution},
 };
-use clvm_traits::clvm_list;
+use clvm_traits::{FromClvm, ToClvm, clvm_list};
+use clvm_utils::tree_hash;
+use clvmr::Allocator;
 use indexmap::indexmap;
 use rstest::rstest;
 
@@ -55,7 +57,7 @@ impl Party {
                 sk: pair.sk,
                 pk: pair.pk,
                 puzzle_hash: pair.puzzle_hash,
-                asset: PartialOfferAsset::xch(),
+                asset: PartialOfferAsset::Xch,
                 id: Id::Xch,
                 xch: vec![pair.coin],
                 cat: None,
@@ -89,7 +91,10 @@ impl Party {
             sk: pair.sk,
             pk: pair.pk,
             puzzle_hash: pair.puzzle_hash,
-            asset: PartialOfferAsset::cat(cat.info.asset_id, hidden_puzzle_hash),
+            asset: PartialOfferAsset::Cat {
+                asset_id: cat.info.asset_id,
+                hidden_puzzle_hash,
+            },
             id: Id::Existing(cat.info.asset_id),
             xch: outputs.xch,
             cat: Some(cat),
@@ -453,8 +458,11 @@ fn test_partial_offer_required_fee_must_be_paid() -> Result<()> {
 #[test]
 fn test_partial_offer_fill_amounts() {
     let info = PartialOfferInfo::from_amounts(
-        PartialOfferAsset::xch(),
-        PartialOfferAsset::cat(Bytes32::new([1; 32]), None),
+        PartialOfferAsset::Xch,
+        PartialOfferAsset::Cat {
+            asset_id: Bytes32::new([1; 32]),
+            hidden_puzzle_hash: None,
+        },
         Bytes32::new([2; 32]),
         1,
         3,
@@ -505,8 +513,11 @@ fn test_partial_offer_fill_amounts() {
 
 #[test]
 fn test_partial_offer_invalid_terms() {
-    let xch = PartialOfferAsset::xch();
-    let cat = PartialOfferAsset::cat(Bytes32::new([1; 32]), None);
+    let xch = PartialOfferAsset::Xch;
+    let cat = PartialOfferAsset::Cat {
+        asset_id: Bytes32::new([1; 32]),
+        hidden_puzzle_hash: None,
+    };
     let maker = Bytes32::new([2; 32]);
 
     let info = PartialOfferInfo::new(xch, cat, maker, PartialOfferPrice::new(0, 1));
@@ -533,20 +544,37 @@ fn test_partial_offer_invalid_terms() {
         info.validate(),
         Err(DriverError::InvalidPartialOffer)
     ));
+}
 
-    let info = PartialOfferInfo::new(
-        PartialOfferAsset {
-            asset_id: None,
-            hidden_puzzle_hash: Some(maker),
+#[test]
+fn test_partial_offer_asset_clvm() -> Result<()> {
+    let mut allocator = Allocator::new();
+    let asset_id = Bytes32::new([1; 32]);
+    let hidden_puzzle_hash = Bytes32::new([2; 32]);
+
+    for asset in [
+        PartialOfferAsset::Xch,
+        PartialOfferAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: None,
         },
-        cat,
-        maker,
-        PartialOfferPrice::new(1, 1),
-    );
-    assert!(matches!(
-        info.validate(),
-        Err(DriverError::InvalidPartialOffer)
-    ));
+        PartialOfferAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: Some(hidden_puzzle_hash),
+        },
+    ] {
+        let ptr = asset.to_clvm(&mut allocator)?;
+        assert_eq!(PartialOfferAsset::from_clvm(&allocator, ptr)?, asset);
+    }
+
+    let xch = PartialOfferAsset::Xch.to_clvm(&mut allocator)?;
+    let expected = clvm_list!((), ()).to_clvm(&mut allocator)?;
+    assert_eq!(tree_hash(&allocator, xch), tree_hash(&allocator, expected));
+
+    let invalid = clvm_list!((), hidden_puzzle_hash).to_clvm(&mut allocator)?;
+    assert!(PartialOfferAsset::from_clvm(&allocator, invalid).is_err());
+
+    Ok(())
 }
 
 #[test]
@@ -554,8 +582,11 @@ fn test_partial_offer_unsupported_conditions() -> Result<()> {
     let ctx = &mut SpendContext::new();
 
     let info = PartialOfferInfo::from_amounts(
-        PartialOfferAsset::xch(),
-        PartialOfferAsset::cat(Bytes32::new([1; 32]), None),
+        PartialOfferAsset::Xch,
+        PartialOfferAsset::Cat {
+            asset_id: Bytes32::new([1; 32]),
+            hidden_puzzle_hash: None,
+        },
         Bytes32::new([2; 32]),
         1000,
         400,
@@ -601,7 +632,10 @@ fn test_partial_offer_siblings_rejected() -> Result<()> {
     let ctx = &mut SpendContext::new();
 
     let alice = Party::new(&mut sim, ctx, Kind::Xch, 1000, 0)?;
-    let cat = PartialOfferAsset::cat(Bytes32::new([1; 32]), None);
+    let cat = PartialOfferAsset::Cat {
+        asset_id: Bytes32::new([1; 32]),
+        hidden_puzzle_hash: None,
+    };
 
     let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400);
     let other_info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 500);
@@ -666,7 +700,10 @@ fn test_partial_offer_unsigned_creation_rejected() -> Result<()> {
     let ctx = &mut SpendContext::new();
 
     let alice = Party::new(&mut sim, ctx, Kind::Xch, 1000, 0)?;
-    let cat = PartialOfferAsset::cat(Bytes32::new([1; 32]), None);
+    let cat = PartialOfferAsset::Cat {
+        asset_id: Bytes32::new([1; 32]),
+        hidden_puzzle_hash: None,
+    };
     let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400);
 
     let mut spend_bundle = alice.build(
@@ -769,7 +806,10 @@ fn test_encode_partial_offer() -> Result<()> {
     let ctx = &mut SpendContext::new();
 
     let alice = Party::new(&mut sim, ctx, Kind::RevocableCat, 1000, 0)?;
-    let cat = PartialOfferAsset::cat(Bytes32::new([1; 32]), None);
+    let cat = PartialOfferAsset::Cat {
+        asset_id: Bytes32::new([1; 32]),
+        hidden_puzzle_hash: None,
+    };
     let info = PartialOfferInfo::from_amounts(alice.asset, cat, alice.puzzle_hash, 1000, 400)
         .with_required_fee(10);
 
