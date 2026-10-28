@@ -33,7 +33,7 @@ import {
   Simulator,
   Spends,
   standardPuzzleHash,
-} from "..";
+} from "../index.js";
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";

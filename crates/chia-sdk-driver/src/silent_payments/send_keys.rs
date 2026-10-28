@@ -196,8 +196,8 @@ mod tests {
         let mut sim = Simulator::new();
         let alice = sim.bls(1);
         let secret_hex = hex::encode(alice.sk.to_bytes());
-        // The premise: chia-bls prints the key.
-        assert!(format!("{:?}", alice.sk).contains(&secret_hex));
+        // chia-bls 0.52 redacts `SecretKey` in `Debug` itself; before that it
+        // printed the key, so the wrappers below must not rely on it.
 
         let key = SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone());
         assert_eq!(format!("{key:?}"), "SyntheticSecretKey(<redacted>)");

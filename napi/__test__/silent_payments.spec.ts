@@ -25,7 +25,7 @@ import {
   Simulator,
   Spends,
   toHex,
-} from "..";
+} from "../index.js";
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";

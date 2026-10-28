@@ -24,7 +24,7 @@ import {
   Simulator,
   Spends,
   standardPuzzleHash,
-} from "..";
+} from "../index.js";
 
 // Same fixture as silent_payments_e2e.spec.ts — keeps cross-test outputs
 // deterministic across the single-input test and this multi-input test.

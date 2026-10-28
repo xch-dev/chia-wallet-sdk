@@ -1,7 +1,10 @@
 //! Silent-payment bech32m address (HRP `spxch` mainnet / `tspxch` testnet)
 //! and the network discriminant.
 
-use bech32::{Variant, u5};
+use bech32::{
+    Bech32m, ByteIterExt, DecodeError, Fe32, Fe32IterExt, Hrp,
+    primitives::decode::{ChecksumError, UncheckedHrpstring},
+};
 use chia_bls::PublicKey;
 
 use crate::Bech32Error;
@@ -18,6 +21,32 @@ pub const SP_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE: u8 = 31;
 /// bech32's original 90-character limit; CHIP-0057 (following BIP-352) allows
 /// up to 1,023 characters.
 pub const SP_ADDRESS_MAX_LENGTH: usize = 1023;
+
+/// Encode a version character followed by 5-bit groups as bech32m under `hrp`.
+fn encode_fes(hrp: &str, fes: impl Iterator<Item = Fe32>) -> Result<String, Bech32Error> {
+    let hrp = Hrp::parse(hrp)?;
+    Ok(fes.with_checksum::<Bech32m>(&hrp).chars().collect())
+}
+
+/// Convert 5-bit groups to bytes. As bech32 0.9's `convert_bits(_, 5, 8, false)`
+/// did, fail if the leftover padding is five bits or more, or not all zero.
+fn fes_to_bytes_strict(groups: &[u8]) -> Result<Vec<u8>, Bech32Error> {
+    let mut acc: u32 = 0;
+    let mut bits: u32 = 0;
+    let mut bytes = Vec::with_capacity(groups.len() * 5 / 8);
+    for &group in groups {
+        acc = ((acc << 5) | u32::from(group)) & 0x1fff;
+        bits += 5;
+        if bits >= 8 {
+            bits -= 8;
+            bytes.push(u8::try_from((acc >> bits) & 0xff).expect("masked to 8 bits"));
+        }
+    }
+    if bits >= 5 || (acc << (8 - bits)) & 0xff != 0 {
+        return Err(Bech32Error::InvalidFormat);
+    }
+    Ok(bytes)
+}
 
 /// Network discriminator for silent-payment addresses.
 ///
@@ -131,19 +160,11 @@ impl SilentPaymentAddress {
         payload.extend_from_slice(&self.spend_pk.to_bytes());
         debug_assert_eq!(payload.len(), 96);
 
-        let mut data = vec![u5::try_from_u8(SP_ADDRESS_VERSION).expect("SP_ADDRESS_VERSION < 32")];
-        data.extend(
-            bech32::convert_bits(&payload, 8, 5, true)
-                .expect("8->5 with padding never fails")
-                .into_iter()
-                .map(u5::try_from_u8)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(Bech32Error::from)?,
-        );
-        Ok(
-            bech32::encode(self.network.hrp(), data, Variant::Bech32m)
-                .map_err(Bech32Error::from)?,
-        )
+        let version = Fe32::try_from(SP_ADDRESS_VERSION).expect("SP_ADDRESS_VERSION < 32");
+        Ok(encode_fes(
+            self.network.hrp(),
+            std::iter::once(version).chain(payload.into_iter().bytes_to_fes()),
+        )?)
     }
 
     /// Decode a bech32m silent-payment address (CHIP-0057 Address Versioning).
@@ -168,19 +189,26 @@ impl SilentPaymentAddress {
         if s.len() > SP_ADDRESS_MAX_LENGTH {
             return Err(SilentPaymentError::AddressTooLong(s.len()));
         }
-        let (hrp, data, variant) = bech32::decode(s).map_err(Bech32Error::from)?;
-        if variant != Variant::Bech32m {
-            return Err(Bech32Error::InvalidFormat.into());
+        let unchecked = UncheckedHrpstring::new(s)
+            .map_err(DecodeError::Parse)
+            .map_err(Bech32Error::from)?;
+        match unchecked.validate_checksum::<Bech32m>() {
+            Ok(()) => {}
+            Err(ChecksumError::InvalidResidue(error)) if error.matches_bech32_checksum() => {
+                return Err(Bech32Error::InvalidFormat.into());
+            }
+            Err(error) => return Err(Bech32Error::from(DecodeError::Checksum(error)).into()),
         }
-        let network = SilentPaymentNetwork::from_hrp(&hrp)?;
-        let Some((version, rest)) = data.split_first() else {
+        let checked = unchecked.remove_checksum::<Bech32m>();
+        let network = SilentPaymentNetwork::from_hrp(&checked.hrp().to_lowercase())?;
+        let data: Vec<u8> = checked.fe32_iter().map(Fe32::to_u8).collect();
+        let Some((&version, rest)) = data.split_first() else {
             return Err(SilentPaymentError::PayloadLength(0));
         };
-        let version = version.to_u8();
         if version == SP_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE {
             return Err(SilentPaymentError::ReservedAddressVersion);
         }
-        let payload = bech32::convert_bits(rest, 5, 8, false).map_err(Bech32Error::from)?;
+        let payload = fes_to_bytes_strict(rest)?;
         let length_ok = if version == SP_ADDRESS_VERSION {
             payload.len() == 96
         } else {
@@ -248,14 +276,12 @@ mod tests {
     // Helper: build an SP address with an arbitrary version character and
     // payload, bypassing `encode`'s v0/96-byte construction.
     fn encode_with_version(version: u8, payload: &[u8], hrp: &str) -> String {
-        let mut data = vec![u5::try_from_u8(version).expect("version < 32")];
-        data.extend(
-            bech32::convert_bits(payload, 8, 5, true)
-                .expect("8->5 with padding never fails")
-                .into_iter()
-                .map(|b| u5::try_from_u8(b).expect("5-bit value")),
-        );
-        bech32::encode(hrp, data, Variant::Bech32m).expect("bech32m encode")
+        let version = Fe32::try_from(version).expect("version < 32");
+        encode_fes(
+            hrp,
+            std::iter::once(version).chain(payload.iter().copied().bytes_to_fes()),
+        )
+        .expect("bech32m encode")
     }
 
     // ─── Positive: TV1 round-trip ──────────────────────────────────────────
@@ -689,14 +715,19 @@ mod tests {
     /// padding bits.
     #[test]
     fn decode_nonzero_padding_rejected() {
-        let mut groups = bech32::convert_bits(&tv1_payload(), 8, 5, true).unwrap();
+        let mut groups: Vec<u8> = tv1_payload()
+            .into_iter()
+            .bytes_to_fes()
+            .map(Fe32::to_u8)
+            .collect();
         assert_eq!(groups.len(), 154);
         assert_eq!(groups[153] & 0b11, 0, "an encoder writes zero padding");
 
         let encode = |groups: &[u8]| {
-            let mut data = vec![u5::try_from_u8(0).unwrap()];
-            data.extend(groups.iter().map(|g| u5::try_from_u8(*g).unwrap()));
-            bech32::encode("spxch", data, Variant::Bech32m).unwrap()
+            let data = std::iter::once(0)
+                .chain(groups.iter().copied())
+                .map(|g| Fe32::try_from(g).unwrap());
+            encode_fes("spxch", data).unwrap()
         };
         assert!(SilentPaymentAddress::decode(&encode(&groups)).is_ok());
 
