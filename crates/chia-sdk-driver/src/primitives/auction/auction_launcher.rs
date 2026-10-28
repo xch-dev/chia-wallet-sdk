@@ -11,13 +11,14 @@ use clvmr::{Allocator, NodePtr};
 use crate::{
     AUCTION_SINGLETON_AMOUNT, Auction, AuctionInfo, AuctionMemo, AuctionReserve, AuctionSettings,
     DriverError, Launcher, Nft, RoyaltyInfo, SingletonInfo, SpendContext,
+    auction_lock_p2_puzzle_hash,
 };
 
 impl Launcher {
     /// Launches an auction for `nft`, which must already be locked by the auction (its p2 puzzle
-    /// hash must be [`auction_lock_p2_puzzle_hash`](crate::auction_lock_p2_puzzle_hash) of the
-    /// launcher id). The `reserve` must be an empty coin that is also locked by the auction, which
-    /// is typically created in the same spend bundle.
+    /// hash must be [`auction_lock_p2_puzzle_hash`] of the launcher id). The `reserve` must be an
+    /// empty coin that is also locked by the auction, which is typically created in the same spend
+    /// bundle.
     ///
     /// The launcher must have a singleton amount of [`AUCTION_SINGLETON_AMOUNT`].
     pub fn launch_auction(
@@ -48,6 +49,26 @@ impl Launcher {
             return Err(DriverError::InvalidAuctionSingletonAmount(
                 self.singleton_amount(),
             ));
+        }
+
+        // The memo only stores the reserve's parent, so a reserve that isn't an empty coin locked
+        // by the auction couldn't be found by other wallets or spent, and the NFT would be stuck
+        let lock_puzzle_hash = auction_lock_p2_puzzle_hash(info.launcher_id);
+
+        let reserve_puzzle_hash = match reserve {
+            AuctionReserve::Xch(_) => lock_puzzle_hash,
+            AuctionReserve::Cat(cat) => cat.info.puzzle_hash().into(),
+        };
+
+        if reserve.p2_puzzle_hash() != lock_puzzle_hash
+            || reserve.coin().puzzle_hash != reserve_puzzle_hash
+            || reserve.coin().amount != 0
+        {
+            return Err(DriverError::InvalidAuctionReserve);
+        }
+
+        if nft.info.p2_puzzle_hash != lock_puzzle_hash {
+            return Err(DriverError::AuctionNftNotLocked);
         }
 
         let (conditions, coin) = self.spend(ctx, info.inner_puzzle_hash().into(), info.memo())?;

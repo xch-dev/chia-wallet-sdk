@@ -206,13 +206,17 @@ impl Auction {
     /// settlement coin that pays the NFT royalty (if there is one). Returns the child auction.
     ///
     /// For CAT reserves, `other_cat_spends` are spent in the same CAT ring as the reserve, which is
-    /// typically used to fund a bid. They are ignored for XCH reserves.
+    /// typically used to fund a bid. They must be empty for XCH reserves.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
         action_spends: Vec<Spend>,
         mut other_cat_spends: Vec<CatSpend>,
     ) -> Result<Self, DriverError> {
+        if matches!(self.info.reserve, AuctionReserve::Xch(_)) && !other_cat_spends.is_empty() {
+            return Err(DriverError::UnexpectedAuctionCatSpends);
+        }
+
         let AuctionChildState {
             state,
             reserve_conditions,

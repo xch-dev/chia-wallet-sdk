@@ -1,21 +1,15 @@
-use std::{
-    num::NonZeroU64,
-    sync::{Arc, Mutex},
-};
+use std::num::NonZeroU64;
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
     self as sdk, AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings,
-    Cat, Launcher, RoyaltyInfo, SingletonInfo, SpendContext,
+    Cat, Launcher, RoyaltyInfo, SingletonInfo,
 };
-use chia_sdk_types::{
-    Conditions,
-    puzzles::{AuctionBid, AuctionState},
-};
+use chia_sdk_types::puzzles::{AuctionBid, AuctionState};
 use clvm_utils::TreeHash;
 
-use crate::{AsProgram, AsPtr, CatSpend, Clvm, Nft, Program, Proof, Spend};
+use crate::{AsProgram, AsPtr, CatSpend, Clvm, Nft, Program, Proof, Spend, conditions_to_programs};
 
 pub fn auction_lock_p2_puzzle_hash(launcher_id: Bytes32) -> Result<Bytes32> {
     Ok(sdk::auction_lock_p2_puzzle_hash(launcher_id))
@@ -195,7 +189,7 @@ impl Auction {
     pub fn bid_action_spend(&self, clvm: Clvm, bid: AuctionBid, grace: bool) -> Result<Spend> {
         let mut ctx = clvm.0.lock().unwrap();
         let spend = self.to_sdk().bid_action_spend(&mut ctx, bid, grace)?;
-        Ok(Spend::from_sdk(spend, &clvm.0))
+        Ok(spend.as_program(&clvm.0))
     }
 
     /// The coin announcement that the auction coin creates when `bid` is placed, which bidders
@@ -210,7 +204,7 @@ impl Auction {
         let mut ctx = clvm.0.lock().unwrap();
         let nft = nft.as_ptr(&ctx);
         let spend = self.to_sdk().end_action_spend(&mut ctx, &nft)?;
-        Ok(Spend::from_sdk(spend, &clvm.0))
+        Ok(spend.as_program(&clvm.0))
     }
 
     /// The action spend that cancels the auction before the first bid. The locked NFT must be
@@ -220,7 +214,7 @@ impl Auction {
         let mut ctx = clvm.0.lock().unwrap();
         let nft = nft.as_ptr(&ctx);
         let spend = self.to_sdk().cancel_action_spend(&mut ctx, &nft)?;
-        Ok(Spend::from_sdk(spend, &clvm.0))
+        Ok(spend.as_program(&clvm.0))
     }
 
     /// The conditions that a coin with the auction's payout puzzle hash must output to authorize
@@ -379,26 +373,6 @@ impl Clvm {
             parent_conditions: conditions_to_programs(&mut ctx, &self.0, conditions)?,
         })
     }
-}
-
-impl Spend {
-    fn from_sdk(spend: sdk::Spend, clvm: &Arc<Mutex<SpendContext>>) -> Self {
-        Self {
-            puzzle: Program(clvm.clone(), spend.puzzle),
-            solution: Program(clvm.clone(), spend.solution),
-        }
-    }
-}
-
-fn conditions_to_programs(
-    ctx: &mut SpendContext,
-    clvm: &Arc<Mutex<SpendContext>>,
-    conditions: Conditions,
-) -> Result<Vec<Program>> {
-    conditions
-        .into_iter()
-        .map(|condition| Ok(Program(clvm.clone(), ctx.alloc(&condition)?)))
-        .collect()
 }
 
 fn non_zero(value: u64, name: &str) -> Result<NonZeroU64> {

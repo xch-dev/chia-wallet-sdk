@@ -203,6 +203,15 @@ pub enum DriverError {
     #[error("the auction singleton has an amount of {0}, but it must be 1")]
     InvalidAuctionSingletonAmount(u64),
 
+    #[error("the auction reserve must be an empty coin locked by the auction")]
+    InvalidAuctionReserve,
+
+    #[error("the NFT must be locked by the auction before it's launched")]
+    AuctionNftNotLocked,
+
+    #[error("CAT spends can't be included with an auction that has an XCH reserve")]
+    UnexpectedAuctionCatSpends,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 

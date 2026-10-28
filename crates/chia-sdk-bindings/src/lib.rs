@@ -126,4 +126,4 @@ pub use chia_protocol::{
     CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };
 
-pub(crate) use convert::{AsProgram, AsPtr};
+pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};

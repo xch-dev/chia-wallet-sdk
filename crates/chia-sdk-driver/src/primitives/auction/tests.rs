@@ -1885,6 +1885,110 @@ fn test_launch_rejects_singleton_amounts_other_than_1() -> Result<()> {
 }
 
 #[test]
+fn test_launch_rejects_reserves_and_nfts_not_locked_by_the_auction() -> Result<()> {
+    let mut h = Harness::new(Config::default())?;
+    let info = h.auction.info;
+
+    // The same launcher as the harness, so its lock puzzle hash is the one the NFT is locked by
+    let launch = |h: &mut Harness, reserve: AuctionReserve, nft: &Nft| {
+        Launcher::new(h.seller.coin.coin_id(), 1).launch_auction(
+            &mut h.ctx,
+            info.settings,
+            reserve,
+            nft,
+        )
+    };
+
+    let reserve = info.reserve.coin();
+    let nft = h.nft;
+    assert!(launch(&mut h, info.reserve, &nft).is_ok());
+
+    for wrong_reserve in [
+        Coin::new(reserve.parent_coin_info, reserve.puzzle_hash, 1),
+        Coin::new(reserve.parent_coin_info, h.seller.puzzle_hash, 0),
+    ] {
+        let result = launch(&mut h, AuctionReserve::Xch(wrong_reserve), &nft);
+        assert!(
+            matches!(result, Err(DriverError::InvalidAuctionReserve)),
+            "{result:?}"
+        );
+    }
+
+    let mut unlocked_nft = nft;
+    unlocked_nft.info.p2_puzzle_hash = h.seller.puzzle_hash;
+    let result = launch(&mut h, info.reserve, &unlocked_nft);
+    assert!(
+        matches!(result, Err(DriverError::AuctionNftNotLocked)),
+        "{result:?}"
+    );
+
+    Ok(())
+}
+
+#[rstest]
+fn test_launch_rejects_cat_reserves_not_locked_by_the_auction(
+    #[values(ReserveKind::Cat, ReserveKind::RevocableCat)] reserve: ReserveKind,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        reserve,
+        ..Config::default()
+    })?;
+    let info = h.auction.info;
+    let AuctionReserve::Cat(cat) = info.reserve else {
+        return Err(anyhow!("expected a CAT reserve"));
+    };
+
+    let mut wrong_p2 = cat;
+    wrong_p2.info.p2_puzzle_hash = h.seller.puzzle_hash;
+    wrong_p2.coin.puzzle_hash = wrong_p2.info.puzzle_hash().into();
+
+    let mut wrong_coin = cat;
+    wrong_coin.coin.puzzle_hash = h.seller.puzzle_hash;
+
+    let nft = h.nft;
+
+    for wrong_reserve in [wrong_p2, wrong_coin, cat.child(cat.info.p2_puzzle_hash, 1)] {
+        let result = Launcher::new(h.seller.coin.coin_id(), 1).launch_auction(
+            &mut h.ctx,
+            info.settings,
+            AuctionReserve::Cat(wrong_reserve),
+            &nft,
+        );
+        assert!(
+            matches!(result, Err(DriverError::InvalidAuctionReserve)),
+            "{result:?}"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_xch_auction_rejects_cat_spends() -> Result<()> {
+    let mut h = Harness::new(Config::default())?;
+
+    let bid = AuctionBid::new(100, Bytes32::new([5; 32]));
+    let bid_action = h.auction.bid_action_spend(&mut h.ctx, bid, false)?;
+
+    let cat = Cat::new(
+        Coin::new(Bytes32::default(), Bytes32::default(), 1),
+        None,
+        crate::CatInfo::new(Bytes32::default(), None, Bytes32::default()),
+    );
+    let cat_spend = CatSpend::new(cat, Spend::new(NodePtr::NIL, NodePtr::NIL));
+
+    let result = h
+        .auction
+        .spend(&mut h.ctx, vec![bid_action], vec![cat_spend]);
+    assert!(
+        matches!(result, Err(DriverError::UnexpectedAuctionCatSpends)),
+        "{result:?}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_bps_math_does_not_overflow() -> Result<()> {
     assert_eq!(
         calculate_auction_payment(u64::MAX, AUCTION_MAX_BPS),
