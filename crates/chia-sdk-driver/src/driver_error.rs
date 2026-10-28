@@ -133,7 +133,6 @@ pub enum DriverError {
     #[error("unsupported compression version")]
     UnsupportedVersion,
 
-    #[cfg(feature = "offer-compression")]
     #[error("streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
@@ -149,7 +148,6 @@ pub enum DriverError {
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
 
@@ -264,4 +262,54 @@ pub enum DriverError {
 
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
+
+    #[error("a vault message envelope must contain at least one message")]
+    EmptyVaultMessageEnvelope,
+
+    #[error(
+        "a delegated spend that signs vault messages can't contain any other conditions or messages, other than recreating the vault"
+    )]
+    MixedVaultMessageEnvelope,
+
+    #[error("missing vault message proof version")]
+    MissingVaultMessageProofVersion,
+
+    #[error("unsupported vault message proof version {0}")]
+    UnsupportedVaultMessageProofVersion(u8),
+
+    #[error("the vault message proof is for a coin that isn't the expected vault")]
+    WrongVaultPuzzleHash,
+
+    #[error("the vault message proof is for a vault whose custody isn't a top-level MIPS puzzle")]
+    UnsupportedVaultCustody,
+
+    #[error(
+        "a vault message envelope must recreate the vault with the same custody hash and amount"
+    )]
+    VaultMessageEnvelopeChangesVault,
+
+    #[error(
+        "the vault message proof asserts a height or time, which can't be checked without the chain"
+    )]
+    VaultMessageTimelocked,
+
+    #[error("a vault message can be at most 1024 bytes")]
+    VaultMessageTooLong,
+
+    #[error("the vault message proof is too large for the maximum cost")]
+    VaultMessageProofTooLarge,
+
+    #[error("the vault message proof has too many delegated puzzle wrappers")]
+    TooManyDelegatedPuzzleWrappers,
+
+    #[error(
+        "the vault message proof has a delegated puzzle wrapper that can't be used to sign messages"
+    )]
+    UnsupportedDelegatedPuzzleWrapper,
+
+    #[error("the vault message proof's aggregated signature is invalid")]
+    InvalidVaultMessageSignature,
+
+    #[error("consensus validation failed: {0}")]
+    Validation(#[from] chia_consensus::validation_error::ValidationErr),
 }

@@ -164,7 +164,7 @@ impl MofN {
     }
 }
 
-fn m_of_n_proof(
+pub(crate) fn m_of_n_proof(
     ctx: &mut SpendContext,
     leaves: &[(Bytes32, Option<Spend>)],
 ) -> Result<NodePtr, DriverError> {

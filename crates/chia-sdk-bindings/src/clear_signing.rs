@@ -4,11 +4,11 @@ use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
     self as sdk, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin, P2ConditionsOrSingleton,
-    SpendContext, VaultOutput, VaultVersion,
+    SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
-    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, conditions_to_programs,
+    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, Vault, conditions_to_programs,
 };
 
 type SharedContext = Arc<Mutex<SpendContext>>;
@@ -80,6 +80,61 @@ pub fn parse_vault_transaction(
     VaultTransaction::from_sdk(&mut ctx, &clvm.0, transaction)
 }
 
+pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) -> Result<Spend> {
+    let mut ctx = clvm.0.lock().unwrap();
+    let spend = sdk::vault_message_envelope(&mut ctx, &vault.into(), &messages)?;
+
+    Ok(Spend {
+        puzzle: Program(clvm.0.clone(), spend.puzzle),
+        solution: Program(clvm.0.clone(), spend.solution),
+    })
+}
+
+pub fn vault_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_message_coin())
+}
+
+pub fn verify_vault_signed_message(
+    proof: VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>> {
+    Ok(sdk::verify_vault_signed_message(
+        &proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        genesis_challenge,
+        max_cost,
+    )?)
+}
+
+pub trait VaultMessageProofExt: Sized {
+    fn encode(&self) -> Result<Bytes>;
+    fn decode(proof: Bytes) -> Result<Self>;
+    fn encode_string(&self) -> Result<String>;
+    fn decode_string(proof: String) -> Result<Self>;
+}
+
+impl VaultMessageProofExt for VaultMessageProof {
+    fn encode(&self) -> Result<Bytes> {
+        Ok(Self::encode(self)?)
+    }
+
+    fn decode(proof: Bytes) -> Result<Self> {
+        Ok(Self::decode(&proof)?)
+    }
+
+    fn encode_string(&self) -> Result<String> {
+        Ok(Self::encode_string(self)?)
+    }
+
+    fn decode_string(proof: String) -> Result<Self> {
+        Ok(Self::decode_string(&proof)?)
+    }
+}
+
 pub fn calculate_vault_puzzle_message(
     delegated_puzzle_hash: Bytes32,
     vault_puzzle_hash: Bytes32,
@@ -148,6 +203,7 @@ pub struct VaultTransaction {
     pub reserved_fee: u64,
     pub p2_puzzle_hashes: Vec<Bytes32>,
     pub delegated_puzzle_hash: Bytes32,
+    pub signed_messages: Vec<Bytes>,
 }
 
 impl VaultTransaction {
@@ -191,6 +247,7 @@ impl VaultTransaction {
             reserved_fee: value.reserved_fee,
             p2_puzzle_hashes: value.p2_puzzle_hashes,
             delegated_puzzle_hash: value.delegated_puzzle_hash,
+            signed_messages: value.signed_messages,
         })
     }
 }

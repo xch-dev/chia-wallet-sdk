@@ -47,6 +47,59 @@
     },
     "return": "VaultTransaction"
   },
+  "vault_message_envelope": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "vault": "Vault",
+      "messages": "Vec<Bytes>"
+    },
+    "return": "Spend"
+  },
+  "vault_message_coin": {
+    "type": "function",
+    "return": "Coin"
+  },
+  "verify_vault_signed_message": {
+    "type": "function",
+    "args": {
+      "proof": "VaultMessageProof",
+      "expected_launcher_id": "Bytes32",
+      "expected_custody_hash": "Bytes32",
+      "genesis_challenge": "Bytes32",
+      "max_cost": "Option<u64>"
+    },
+    "return": "Vec<Bytes>"
+  },
+  "VaultMessageProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_spend": "CoinSpend",
+      "aggregated_signature": "Signature"
+    },
+    "methods": {
+      "encode": {
+        "return": "Bytes"
+      },
+      "decode": {
+        "type": "factory",
+        "args": {
+          "proof": "Bytes"
+        }
+      },
+      "encode_string": {
+        "return": "String"
+      },
+      "decode_string": {
+        "type": "factory",
+        "args": {
+          "proof": "String"
+        }
+      }
+    }
+  },
   "calculate_vault_puzzle_message": {
     "type": "function",
     "args": {
@@ -141,7 +194,8 @@
       "linked_offer": "Option<LinkedOffer>",
       "reserved_fee": "u64",
       "p2_puzzle_hashes": "Vec<Bytes32>",
-      "delegated_puzzle_hash": "Bytes32"
+      "delegated_puzzle_hash": "Bytes32",
+      "signed_messages": "Vec<Bytes>"
     }
   },
   "VaultOutput": {

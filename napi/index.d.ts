@@ -4396,6 +4396,19 @@ export declare class VaultInfo {
   set custodyHash(value: Uint8Array)
 }
 
+export declare class VaultMessageProof {
+  clone(): VaultMessageProof
+  encode(): Buffer
+  static decode(proof: Uint8Array): VaultMessageProof
+  encodeString(): string
+  static decodeString(proof: string): VaultMessageProof
+  constructor(coinSpend: CoinSpend, aggregatedSignature: Signature)
+  get coinSpend(): CoinSpend
+  set coinSpend(value: CoinSpend)
+  get aggregatedSignature(): Signature
+  set aggregatedSignature(value: Signature)
+}
+
 export declare class VaultMint {
   clone(): VaultMint
   constructor(vault: Vault, parentConditions: Array<Program>)
@@ -4416,7 +4429,7 @@ export declare class VaultOutput {
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array)
+  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>)
   get vaultChild(): VaultOutput | null
   set vaultChild(value: VaultOutput | undefined | null)
   get dropCoins(): Array<DropCoin>
@@ -4441,6 +4454,8 @@ export declare class VaultTransaction {
   set p2PuzzleHashes(value: Array<Uint8Array>)
   get delegatedPuzzleHash(): Buffer
   set delegatedPuzzleHash(value: Uint8Array)
+  get signedMessages(): Array<Buffer>
+  set signedMessages(value: Array<Uint8Array>)
 }
 
 export declare class VdfInfo {
@@ -5047,12 +5062,18 @@ export declare const enum UriKind {
   License = 2,
 }
 
+export declare function vaultMessageCoin(): Coin
+
+export declare function vaultMessageEnvelope(clvm: Clvm, vault: Vault, messages: Array<Uint8Array>): Spend
+
 export declare function vaultRecoveryDelegatedPuzzleHash(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, version: VaultVersion): Buffer
 
 export declare const enum VaultVersion {
   Legacy = 0,
   ForceSingletonRecreation = 1,
 }
+
+export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, genesisChallenge: Uint8Array, maxCost?: bigint | undefined | null): Array<Buffer>
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
 
