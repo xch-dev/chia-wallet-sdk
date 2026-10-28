@@ -22,6 +22,7 @@ chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
 chip-0052 = ["chia-sdk-types/chip-0052"]
 action-layer = ["chia-sdk-types/action-layer", "chip-0035"]
+auction = ["action-layer", "chia-sdk-types/auction"]
 offer-compression = ["dep:flate2", "dep:chia-sdk-utils"]
 
 [dependencies]

@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, num::TryFromIntError};
 
+use chia_protocol::Bytes32;
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::error::EvalErr;
@@ -186,6 +187,30 @@ pub enum DriverError {
 
     #[error("partial offer coin must not be created by a settlement payments coin")]
     UnsignedPartialOfferCreation,
+
+    #[error("the auction's {name} of {bps} bps exceeds 10,000 bps")]
+    AuctionBpsTooHigh { name: &'static str, bps: u64 },
+
+    #[error("puzzle hash {0} receives more than one payment when the auction ends")]
+    DuplicateAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("puzzle hash {0} can't receive an auction payment, since it's reserved by the auction")]
+    ReservedAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("the launched singleton doesn't match the auction memo")]
+    AuctionPuzzleHashMismatch,
+
+    #[error("the auction singleton has an amount of {0}, but it must be 1")]
+    InvalidAuctionSingletonAmount(u64),
+
+    #[error("the auction reserve must be an empty coin locked by the auction")]
+    InvalidAuctionReserve,
+
+    #[error("the NFT must be locked by the auction before it's launched")]
+    AuctionNftNotLocked,
+
+    #[error("CAT spends can't be included with an auction that has an XCH reserve")]
+    UnexpectedAuctionCatSpends,
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
