@@ -33,6 +33,7 @@ mod program;
 mod puzzle;
 mod rpc;
 mod secp;
+mod silent_payments;
 mod simulator;
 mod utils;
 
@@ -60,6 +61,7 @@ pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
+pub use silent_payments::*;
 pub use simulator::*;
 pub use utils::*;
 

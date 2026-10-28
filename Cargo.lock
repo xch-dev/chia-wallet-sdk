@@ -629,6 +629,7 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex",
+ "indexmap",
  "num-bigint",
  "paste",
  "rand 0.10.3",
@@ -738,6 +739,7 @@ dependencies = [
  "rand_chacha 0.10.0",
  "rstest 0.28.0",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
@@ -780,8 +782,10 @@ dependencies = [
  "chia-puzzle-types",
  "chia-sdk-client",
  "chia-sdk-coinset",
+ "chia-sdk-driver",
  "chia-sdk-signer",
  "chia-sdk-types",
+ "chia-sdk-utils",
  "chia-secp",
  "chia-sha2 0.52.1",
  "chia-traits 0.52.1",
@@ -826,6 +830,7 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal 1.1.0",
+ "num-bigint",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
  "rstest 0.28.0",
@@ -835,6 +840,7 @@ dependencies = [
  "serde",
  "sha3 0.12.0",
  "thiserror 2.0.21",
+ "zeroize",
 ]
 
 [[package]]
@@ -842,7 +848,10 @@ name = "chia-sdk-utils"
 version = "0.37.1"
 dependencies = [
  "bech32",
+ "bip39",
+ "chia-bls 0.52.1",
  "chia-protocol",
+ "chia-sdk-types",
  "hex",
  "hex-literal 1.1.0",
  "indexmap",
@@ -931,6 +940,7 @@ name = "chia-wallet-sdk"
 version = "0.37.1"
 dependencies = [
  "anyhow",
+ "bip39",
  "chia-bls 0.52.1",
  "chia-consensus",
  "chia-protocol",
@@ -953,6 +963,7 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex-literal 1.1.0",
+ "indexmap",
 ]
 
 [[package]]

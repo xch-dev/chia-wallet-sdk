@@ -74,6 +74,7 @@ workspace = true
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-driver/chip-0037", "chia-sdk-types/chip-0037"]
+chip-0057 = ["chia-sdk-driver/chip-0057", "chia-sdk-test/chip-0057", "chia-sdk-types/chip-0057", "chia-sdk-utils/chip-0057"]
 chip-0052 = ["chia-sdk-driver/chip-0052", "chia-sdk-types/chip-0052"]
 offer-compression = ["chia-sdk-driver/offer-compression"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls", "chia-sdk-daemon/native-tls"]
@@ -107,7 +108,9 @@ chia-puzzles = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+bip39 = { workspace = true }
 hex-literal = { workspace = true }
+indexmap = { workspace = true }
 
 [workspace.dependencies]
 chia-wallet-sdk = { version = "0.37.1", path = "." }
@@ -194,6 +197,11 @@ rue-compiler = "0.11.0"
 rue-options = "0.11.0"
 rue-lir = "0.11.0"
 colored = "3.1.1"
+zeroize = "1.8.1"
+
+[[example]]
+name = "silent_payment"
+required-features = ["chip-0057"]
 
 # chia-protocol depends on chia-pos2, which compiles C++ that can't target WASM.
 [patch.crates-io]

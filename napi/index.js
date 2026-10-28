@@ -6,8 +6,13 @@ const { readFileSync } = require('fs')
 let nativeBinding = null
 // Which artifact actually loaded. The WASI fallback chain overwrites it with
 // the flavor it resolved; the late native retry below leaves it alone because
-// it only runs while no WASI candidate has been loaded.
+// it only runs while no WASI candidate has been loaded. The take-over check
+// after the load-failure block can also set it.
 let __napiLoadedBindingTarget = 'native'
+// What this loader's own `requireNative()` calls returned. The check after
+// the load-failure block compares it with `nativeBinding` to tell a binding
+// this loader loaded from one that code outside it put in its place.
+let __napiRequiredNativeBinding = null
 const loadErrors = []
 
 const isMusl = () => {
@@ -262,6 +267,22 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-freebsd-arm64')
         const bindingPackageVersion = require('chia-wallet-sdk-freebsd-arm64/package.json').version
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        }
+        return binding
+      } catch (e) {
+        loadErrors.push(e)
+      }
+    } else if (process.arch === 'ppc64') {
+      try {
+        return require('./chia-wallet-sdk.freebsd-ppc64.node')
+      } catch (e) {
+        loadErrors.push(e)
+      }
+      try {
+        const binding = require('chia-wallet-sdk-freebsd-ppc64')
+        const bindingPackageVersion = require('chia-wallet-sdk-freebsd-ppc64/package.json').version
         if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -585,6 +606,7 @@ const forceWasi =
 
 if (!forceWasi) {
   nativeBinding = requireNative()
+  __napiRequiredNativeBinding = nativeBinding
 }
 
 if (!nativeBinding || forceWasi) {
@@ -686,6 +708,7 @@ if (!nativeBinding || forceWasi) {
     !__napiWasiFlavorRequested
   ) {
     nativeBinding = requireNative()
+    __napiRequiredNativeBinding = nativeBinding
   }
   if ((forceWasiError || __napiWasiFlavorRequested) && !wasiBindingLoaded) {
     const error = new Error(
@@ -711,6 +734,40 @@ if (!nativeBinding) {
     throw error
   }
   throw new Error(`Failed to load native binding`)
+}
+
+// A package can patch its own fallback in front of the load-failure check
+// above, e.g. a WebContainer download through `napi-postinstall/fallback`.
+// That fallback swaps `nativeBinding` for a generated WASI loader, which has
+// already stamped its own flavor, while the target above still says 'native'.
+// Take that flavor over, or the CommonJS stamp throws a conflict and the ESM
+// export reports the wrong artifact. Three limits keep the conflict check:
+// - only a binding this loader did not load itself, so a native addon whose
+//   `#[napi(module_exports)]` hook claims the name is still rejected;
+// - only an own data property, read through its descriptor, so no addon
+//   getter runs here, and it must read back the same, as the stamp reads it;
+// - only a flavor in `__napiWasiFlavors`, the ones this loader's own WASI
+//   chain can report ('wasm32-wasi' for a package without a WASI target).
+// This is metadata and never fails a load: a throwing Proxy trap keeps 'native'.
+if (
+  __napiLoadedBindingTarget === 'native' &&
+  nativeBinding !== __napiRequiredNativeBinding
+) {
+  try {
+    const __napiBindingTargetDescriptor = Object.getOwnPropertyDescriptor(
+      nativeBinding,
+      '__napiBindingTarget',
+    )
+    if (
+      __napiBindingTargetDescriptor &&
+      __napiWasiFlavors.indexOf(__napiBindingTargetDescriptor.value) !== -1 &&
+      nativeBinding.__napiBindingTarget === __napiBindingTargetDescriptor.value
+    ) {
+      __napiLoadedBindingTarget = __napiBindingTargetDescriptor.value
+    }
+  } catch {
+    // keep 'native'
+  }
 }
 
 function __napiStampBindingTarget(exportsObject, target) {
@@ -886,6 +943,7 @@ module.exports.DelegatedPuzzleOracle = nativeBinding.DelegatedPuzzleOracle
 module.exports.Delta = nativeBinding.Delta
 module.exports.Deltas = nativeBinding.Deltas
 module.exports.DepositSlot = nativeBinding.DepositSlot
+module.exports.DetectedSpCoin = nativeBinding.DetectedSpCoin
 module.exports.Did = nativeBinding.Did
 module.exports.DidInfo = nativeBinding.DidInfo
 module.exports.DropCoin = nativeBinding.DropCoin
@@ -927,6 +985,7 @@ module.exports.K1Pair = nativeBinding.K1Pair
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
+module.exports.LabelRegistry = nativeBinding.LabelRegistry
 module.exports.LaunchedAuction = nativeBinding.LaunchedAuction
 module.exports.LineageProof = nativeBinding.LineageProof
 module.exports.LinkedOffer = nativeBinding.LinkedOffer
@@ -971,6 +1030,7 @@ module.exports.OptionTypeRevocableCat = nativeBinding.OptionTypeRevocableCat
 module.exports.OptionTypeXch = nativeBinding.OptionTypeXch
 module.exports.OptionUnderlying = nativeBinding.OptionUnderlying
 module.exports.Output = nativeBinding.Output
+module.exports.OutputMeta = nativeBinding.OutputMeta
 module.exports.Outputs = nativeBinding.Outputs
 module.exports.P2ConditionsOrSingleton = nativeBinding.P2ConditionsOrSingleton
 module.exports.P2ConditionsOrSingletonInfo = nativeBinding.P2ConditionsOrSingletonInfo
@@ -1074,10 +1134,23 @@ module.exports.RoundTimeInfo = nativeBinding.RoundTimeInfo
 module.exports.RoyaltyInfo = nativeBinding.RoyaltyInfo
 module.exports.RpcClient = nativeBinding.RpcClient
 module.exports.RunCatTail = nativeBinding.RunCatTail
+module.exports.ScalarField = nativeBinding.ScalarField
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.SendMessage = nativeBinding.SendMessage
 module.exports.SettlementNftSpendResult = nativeBinding.SettlementNftSpendResult
 module.exports.Signature = nativeBinding.Signature
+module.exports.SilentPaymentAddress = nativeBinding.SilentPaymentAddress
+module.exports.SilentPaymentGroupCoin = nativeBinding.SilentPaymentGroupCoin
+module.exports.SilentPaymentGroupOutput = nativeBinding.SilentPaymentGroupOutput
+module.exports.SilentPaymentKeys = nativeBinding.SilentPaymentKeys
+module.exports.SilentPaymentLabel = nativeBinding.SilentPaymentLabel
+module.exports.SilentPaymentOtherPayment = nativeBinding.SilentPaymentOtherPayment
+module.exports.SilentPaymentRegisteredKey = nativeBinding.SilentPaymentRegisteredKey
+module.exports.SilentPaymentRegisteredSecretKey = nativeBinding.SilentPaymentRegisteredSecretKey
+module.exports.SilentPayments = nativeBinding.SilentPayments
+module.exports.SilentPaymentSettlement = nativeBinding.SilentPaymentSettlement
+module.exports.SilentPaymentSettlementRecipient = nativeBinding.SilentPaymentSettlementRecipient
+module.exports.SilentPaymentWrapper = nativeBinding.SilentPaymentWrapper
 module.exports.Simulator = nativeBinding.Simulator
 module.exports.SlotNeigborsInfo = nativeBinding.SlotNeigborsInfo
 module.exports.Softfork = nativeBinding.Softfork
@@ -1096,6 +1169,7 @@ module.exports.TransactionsInfo = nativeBinding.TransactionsInfo
 module.exports.TransferNft = nativeBinding.TransferNft
 module.exports.TransferNftById = nativeBinding.TransferNftById
 module.exports.TransferType = nativeBinding.TransferType
+module.exports.TweakData = nativeBinding.TweakData
 module.exports.UpdateDatastoreMerkleRoot = nativeBinding.UpdateDatastoreMerkleRoot
 module.exports.UpdateNftMetadata = nativeBinding.UpdateNftMetadata
 module.exports.Vault = nativeBinding.Vault
@@ -1181,6 +1255,7 @@ module.exports.Relation = nativeBinding.Relation
 module.exports.RestrictionKind = nativeBinding.RestrictionKind
 module.exports.selectCoins = nativeBinding.selectCoins
 module.exports.sha256 = nativeBinding.sha256
+module.exports.SilentPaymentNetwork = nativeBinding.SilentPaymentNetwork
 module.exports.singletonMemberHash = nativeBinding.singletonMemberHash
 module.exports.singletonStructHash = nativeBinding.singletonStructHash
 module.exports.spendBundleCost = nativeBinding.spendBundleCost

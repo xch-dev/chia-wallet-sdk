@@ -70,6 +70,7 @@ jobs:
           cargo check --all-features
           cargo check -p chia-sdk-driver
           cargo check -p chia-sdk-driver --all-features
+          cargo check -p chia-sdk-driver -F chip-0057
           cargo check -p chia-sdk-client
           cargo check -p chia-sdk-client --all-features
           cargo check -p chia-sdk-coinset
@@ -78,9 +79,12 @@ jobs:
           cargo check -p chia-sdk-signer
           cargo check -p chia-sdk-test
           cargo check -p chia-sdk-test --all-features
+          cargo check -p chia-sdk-test -F chip-0057
           cargo check -p chia-sdk-types
           cargo check -p chia-sdk-types --all-features
+          cargo check -p chia-sdk-types -F chip-0057
           cargo check -p chia-sdk-utils
+          cargo check -p chia-sdk-utils -F chip-0057
           cargo check -p chia-sdk-bindings -F napi
           cargo check -p chia-sdk-bindings -F wasm
           cargo check -p chia-sdk-bindings -F pyo3

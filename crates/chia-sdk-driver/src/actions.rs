@@ -7,6 +7,14 @@ mod mint_option;
 mod run_tail;
 mod send;
 mod settle;
+#[cfg(feature = "chip-0057")]
+mod silent_payment_send;
+#[cfg(feature = "chip-0057")]
+pub use silent_payment_send::*;
+#[cfg(feature = "chip-0057")]
+mod silent_payment_settled;
+#[cfg(feature = "chip-0057")]
+pub use silent_payment_settled::*;
 mod update_did;
 mod update_nft;
 

@@ -20,6 +20,11 @@ workspace = true
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
+chip-0057 = [
+    "chia-sdk-types/chip-0057",
+    "chia-sdk-utils/chip-0057",
+    "chia-sdk-test/chip-0057", # dev-dep: enables chia_sdk_test::silent_payments for tests/silent_payments_e2e.rs under non-all-features test builds
+]
 chip-0052 = ["chia-sdk-types/chip-0052"]
 action-layer = ["chia-sdk-types/action-layer", "chip-0035"]
 auction = ["action-layer", "chia-sdk-types/auction"]
@@ -60,3 +65,4 @@ chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 rstest = { workspace = true }
+serde_json = { workspace = true }
