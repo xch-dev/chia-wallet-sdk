@@ -6,22 +6,12 @@ use chia_sdk_driver::{
     self as sdk, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin, P2ConditionsOrSingleton,
     SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
 };
-use chia_sdk_types::Condition;
 
-use crate::{AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, Vault};
+use crate::{
+    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, Vault, conditions_to_programs,
+};
 
 type SharedContext = Arc<Mutex<SpendContext>>;
-
-fn conditions_to_programs(
-    ctx: &mut SpendContext,
-    clvm: &SharedContext,
-    conditions: &[Condition],
-) -> Result<Vec<Program>> {
-    conditions
-        .iter()
-        .map(|condition| Ok(Program(clvm.clone(), ctx.alloc(condition)?)))
-        .collect()
-}
 
 #[derive(Clone)]
 pub struct Reveals {

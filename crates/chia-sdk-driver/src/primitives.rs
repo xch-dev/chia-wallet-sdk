@@ -34,6 +34,12 @@ mod partial_offer;
 #[cfg(feature = "chip-0052")]
 pub use partial_offer::*;
 
+#[cfg(feature = "auction")]
+mod auction;
+
+#[cfg(feature = "auction")]
+pub use auction::*;
+
 #[cfg(feature = "chip-0035")]
 mod datalayer;
 
