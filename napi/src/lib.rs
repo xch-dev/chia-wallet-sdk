@@ -9,7 +9,7 @@ bindy_macro::bindy_napi!("bindings.json");
 
 #[napi]
 impl Clvm {
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn alloc(&self, env: Env, value: Value<'_>) -> Result<Program> {
         Ok(Program::from_rust(
             alloc(env, &self.0, value)?,
@@ -21,10 +21,79 @@ impl Clvm {
 pub type Value<'a> =
     Either9<f64, BigInt, bool, String, Uint8Array, Array<'a>, Null, Undefined, Value1<'a>>;
 
+/// Limits how deeply nested arrays can be, so that deep or cyclic arrays
+/// result in an error rather than overflowing the stack.
+const MAX_ALLOC_DEPTH: usize = 512;
+
+/// An array that is partially converted, along with the items converted so far.
+struct ArrayFrame<'a> {
+    array: Array<'a>,
+    index: u32,
+    list: Vec<chia_sdk_bindings::Program>,
+}
+
+impl<'a> ArrayFrame<'a> {
+    fn new(array: Array<'a>) -> Self {
+        Self {
+            array,
+            index: 0,
+            list: Vec::new(),
+        }
+    }
+}
+
+/// Converts nested arrays with an explicit stack rather than recursion, so that
+/// the native stack usage doesn't depend on how deeply the arrays are nested.
 fn alloc<'a>(
     env: Env,
     clvm: &chia_sdk_bindings::Clvm,
     value: Value<'a>,
+) -> bindy::Result<chia_sdk_bindings::Program> {
+    let Value::F(array) = value else {
+        return alloc_leaf(env, clvm, value);
+    };
+
+    let mut current = ArrayFrame::new(array);
+    let mut parents: Vec<ArrayFrame<'a>> = Vec::new();
+
+    loop {
+        if current.index < current.array.len() {
+            let index = current.index;
+            current.index += 1;
+
+            let item = current.array.get::<Value<'a>>(index)?.ok_or_else(|| {
+                bindy::Error::Custom(format!("Missing array item at index {index}"))
+            })?;
+
+            match item {
+                Value::F(array) => {
+                    if parents.len() + 1 >= MAX_ALLOC_DEPTH {
+                        return Err(bindy::Error::Custom(format!(
+                            "Array nesting exceeds the maximum depth of {MAX_ALLOC_DEPTH}"
+                        )));
+                    }
+
+                    parents.push(std::mem::replace(&mut current, ArrayFrame::new(array)));
+                }
+                item => current.list.push(alloc_leaf(env, clvm, item)?),
+            }
+        } else {
+            let program = clvm.list(current.list)?;
+
+            let Some(parent) = parents.pop() else {
+                return Ok(program);
+            };
+
+            current = parent;
+            current.list.push(program);
+        }
+    }
+}
+
+fn alloc_leaf(
+    env: Env,
+    clvm: &chia_sdk_bindings::Clvm,
+    value: Value<'_>,
 ) -> bindy::Result<chia_sdk_bindings::Program> {
     match value {
         Value::A(value) => clvm.bound_checked_number(value),
@@ -32,16 +101,7 @@ fn alloc<'a>(
         Value::C(value) => clvm.bool(value),
         Value::D(value) => clvm.string(value),
         Value::E(value) => clvm.atom(value.to_vec().into()),
-        Value::F(value) => {
-            let mut list = Vec::new();
-
-            for index in 0..value.len() {
-                let item = value.get::<Value<'a>>(index)?.unwrap();
-                list.push(alloc(env, clvm, item)?);
-            }
-
-            Ok(clvm.list(list)?)
-        }
+        Value::F(..) => unreachable!("arrays are handled by alloc"),
         Value::G(..) | Value::H(..) => clvm.nil(),
         Value::I(value) => Ok(match extract_clvm_type(value) {
             ClvmType::Program(value) => value.0,

@@ -1,10 +1,10 @@
 use chia_bls::SecretKey;
+use chia_consensus::flags::ConsensusFlags;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
-use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet, indexset};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{
@@ -232,7 +232,7 @@ impl Simulator {
             ValidationSettings {
                 constants: &TESTNET11_CONSTANTS,
                 max_cost: 11_000_000_000 / 2,
-                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+                flags: ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
                 clock,
             },
         )

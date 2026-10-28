@@ -38,7 +38,7 @@ use crate::{
     OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
     RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, SpendSettlementCatsResult, StreamedAssetParsingResult,
-    VaultMint, WrapperMemo,
+    VaultMint, WrapperMemo, conditions_to_programs,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -207,10 +207,7 @@ impl Clvm {
 
             nfts.push(nft.as_program(&self.0));
 
-            for condition in conditions {
-                let condition = condition.to_clvm(&mut ctx)?;
-                parent_conditions.push(Program(self.0.clone(), condition));
-            }
+            parent_conditions.extend(conditions_to_programs(&mut ctx, &self.0, conditions)?);
         }
 
         Ok(MintedNfts {
@@ -246,12 +243,7 @@ impl Clvm {
             HashedPtr::NIL,
         )?;
 
-        let mut parent_conditions = Vec::new();
-
-        for condition in conditions {
-            let condition = condition.to_clvm(&mut ctx)?;
-            parent_conditions.push(Program(self.0.clone(), condition));
-        }
+        let parent_conditions = conditions_to_programs(&mut ctx, &self.0, conditions)?;
 
         Ok(CreatedDid {
             did: did.as_program(&self.0),
@@ -310,12 +302,7 @@ impl Clvm {
         let (conditions, bulletin) =
             Bulletin::create(parent_coin_id, hidden_puzzle_hash, messages)?;
 
-        let mut parent_conditions = Vec::new();
-
-        for condition in conditions {
-            let condition = condition.to_clvm(&mut ctx)?;
-            parent_conditions.push(Program(self.0.clone(), condition));
-        }
+        let parent_conditions = conditions_to_programs(&mut ctx, &self.0, conditions)?;
 
         Ok(CreatedBulletin {
             bulletin,
@@ -898,8 +885,8 @@ impl Clvm {
             new_nft: new_nft.as_program(&self.0),
             security_conditions: security_conditions
                 .into_iter()
-                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
-                .collect(),
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
         })
     }
 
@@ -941,8 +928,8 @@ impl Clvm {
             created_cats,
             security_conditions: security_conditions
                 .into_iter()
-                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
-                .collect(),
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
         })
     }
 

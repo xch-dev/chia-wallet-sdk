@@ -1,7 +1,7 @@
 [package]
 publish = false
 name = "chia-wallet-sdk-wasm"
-version = "0.36.0"
+version = "0.37.1"
 edition = "2024"
 license = "Apache-2.0"
 description = "WASM bindings for the Chia Wallet SDK."
@@ -28,11 +28,12 @@ chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }
 getrandom = { workspace = true, features = ["wasm_js"] }
+getrandom-04 = { workspace = true, features = ["wasm_js"] }
 js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
 [package.metadata.cargo-machete]
-ignored = ["chia-sdk-bindings", "getrandom", "wasm-bindgen-futures", "js-sys"]
+ignored = ["chia-sdk-bindings", "getrandom", "getrandom-04", "wasm-bindgen-futures", "js-sys"]
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false

@@ -40,16 +40,16 @@ jobs:
               pnpm build:macos-x64
               pnpm build:macos-arm64
               pnpm universal
-          - host: blacksmith-8vcpu-windows-2025
+          - host: windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
           # Linux builds use napi's glibc 2.17 cross toolchain. Each target is built on the other
           # architecture, since cc-rs ignores the cross C compiler when the host and target match
           # and would compile C dependencies against the runner's newer glibc headers instead.
-          - host: blacksmith-8vcpu-ubuntu-2404-arm
+          - host: ubuntu-24.04-arm
             target: x86_64-unknown-linux-gnu
             build: pnpm build:linux-x64 --use-napi-cross
-          - host: blacksmith-4vcpu-ubuntu-2404
+          - host: ubuntu-24.04
             target: aarch64-unknown-linux-gnu
             build: |
               # napi's cross gcc doesn't define __ARM_ARCH, which ring's assembly requires
@@ -58,7 +58,7 @@ jobs:
     name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup MSVC
         if: ${{ runner.os == 'Windows' }}
@@ -66,12 +66,12 @@ jobs:
         with:
           arch: x64
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -126,14 +126,14 @@ jobs:
     # Test every Node version in one job, since macOS minutes are the most expensive
     runs-on: blacksmith-6vcpu-macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -155,21 +155,14 @@ jobs:
       - name: Test bindings on node@24 (arm64)
         run: pnpm test
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
       - name: Test bindings on node@22 (arm64)
         run: pnpm test
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 20
-
-      - name: Test bindings on node@20 (arm64)
-        run: pnpm test
-
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           architecture: x64
@@ -191,19 +184,18 @@ jobs:
           - host: windows-2022
             target: x86_64-pc-windows-msvc
         node:
-          - "20"
           - "22"
           - "24"
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -237,19 +229,18 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "20"
           - "22"
           - "24"
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -290,19 +281,18 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - "20"
           - "22"
           - "24"
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    runs-on: ubuntu-24.04-arm
     steps:
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -348,14 +338,14 @@ jobs:
       run:
         working-directory: ./napi
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm

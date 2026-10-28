@@ -1,23 +1,31 @@
 import test from "ava";
 
 import {
+  calculateVaultPuzzleMessage,
   Clvm,
   CreateCoin,
   fromHex,
   InnerPuzzleMemo,
   K1Pair,
+  MemberConfig,
   MemberMemo,
   MemoKind,
   MipsMemo,
   MipsMemoContext,
   MofNMemo,
   PublicKey,
+  r1MemberHash,
+  R1Pair,
   RestrictionMemo,
   RunCatTail,
   setPanicHook,
+  sha256,
   Signature,
   standardPuzzleHash,
   toHex,
+  vaultMessageEnvelope,
+  VaultMessageProof,
+  verifyVaultSignedMessage,
 } from "../pkg/chia_wallet_sdk_wasm.js";
 
 setPanicHook();
@@ -147,3 +155,58 @@ test("mips memo round trip and parse", (t) => {
   t.is(restriction?.asTimelock(), 3600n);
 
   t.is(clvm.alloc(["CHIP-0042", clvm.nil()]).parseMipsMemo(), undefined);});
+
+test("vault message proofs can be created and verified without chain access", (t) => {
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const config = new MemberConfig().withTopLevel(true);
+  const custodyHash = r1MemberHash(config, r1.pk, true);
+
+  const { vault } = clvm.mintVault(
+    new Uint8Array(32).fill(1),
+    custodyHash,
+    clvm.nil(),
+  );
+
+  // The launcher spend isn't part of the proof.
+  clvm.coinSpends();
+
+  const messages = [new TextEncoder().encode("hello"), new Uint8Array([0xff])];
+  const envelope = vaultMessageEnvelope(clvm, vault, messages);
+
+  const message = sha256(
+    calculateVaultPuzzleMessage(
+      envelope.puzzle.treeHash(),
+      vault.coin.puzzleHash,
+    ),
+  );
+
+  const mips = clvm.mipsSpend(vault.coin, envelope);
+  mips.r1Member(config, r1.pk, r1.sk.signPrehashed(message), true);
+
+  // The vault is spent like any other transaction, and the signed spend is the proof.
+  mips.spendVault(vault);
+  const [coinSpend] = clvm.coinSpends();
+  const proof = VaultMessageProof.decodeString(
+    new VaultMessageProof(coinSpend, Signature.infinity()).encodeString(),
+  );
+
+  t.deepEqual(
+    verifyVaultSignedMessage(
+      proof,
+      vault.info.launcherId,
+      custodyHash,
+      new Uint8Array(32),
+    ),
+    messages,
+  );
+  t.throws(() =>
+    verifyVaultSignedMessage(
+      proof,
+      new Uint8Array(32),
+      custodyHash,
+      new Uint8Array(32),
+    ),
+  );
+});

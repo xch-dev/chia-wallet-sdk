@@ -93,6 +93,9 @@ pub enum Error {
     #[error("Value is smaller than MIN_SAFE_INTEGER")]
     TooSmall,
 
+    #[error("Value {value} is out of range for {ty}")]
+    OutOfRange { value: f64, ty: &'static str },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -179,6 +182,46 @@ impl_self!(u32);
 impl_self!(i32);
 impl_self!(f64);
 impl_self!(String);
+
+/// JavaScript numbers are passed in as `f64` so that they can be range checked,
+/// rather than silently wrapping when converted to a smaller integer type.
+macro_rules! impl_checked_number {
+    ( $( $ty:ty ),* ) => { $(
+        impl<T, L> IntoRust<$ty, T, L> for f64 {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            fn into_rust(self, _context: &T) -> Result<$ty> {
+                if self.is_nan() {
+                    return Err(Error::NaN);
+                }
+
+                if self.is_infinite() {
+                    return Err(Error::Infinite);
+                }
+
+                if self.fract() != 0.0 {
+                    return Err(Error::Fractional);
+                }
+
+                if self < f64::from(<$ty>::MIN) || self > f64::from(<$ty>::MAX) {
+                    return Err(Error::OutOfRange {
+                        value: self,
+                        ty: stringify!($ty),
+                    });
+                }
+
+                Ok(self as $ty)
+            }
+        }
+
+        impl<T, L> FromRust<$ty, T, L> for f64 {
+            fn from_rust(value: $ty, _context: &T) -> Result<Self> {
+                Ok(f64::from(value))
+            }
+        }
+    )* };
+}
+
+impl_checked_number!(u8, i8, u16, i16, u32, i32);
 
 impl<R, B, C, L> IntoRust<Vec<R>, C, L> for Vec<B>
 where

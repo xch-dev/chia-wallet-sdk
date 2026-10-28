@@ -1,0 +1,445 @@
+{
+  "Reveals": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "from_coin_spends": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "coin_spends": "Vec<CoinSpend>"
+        }
+      },
+      "reveal_coin_spend": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        }
+      },
+      "reveal_clawback": {
+        "args": {
+          "clawback": "ClawbackV2"
+        }
+      },
+      "reveal_p2_conditions_or_singleton": {
+        "args": {
+          "p2": "P2ConditionsOrSingleton"
+        }
+      },
+      "reveal_vault_nonce": {
+        "args": {
+          "nonce": "usize"
+        }
+      }
+    }
+  },
+  "parse_vault_transaction": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "reveals": "Reveals",
+      "launcher_id": "Bytes32",
+      "delegated_spend": "Spend"
+    },
+    "return": "VaultTransaction"
+  },
+  "vault_message_envelope": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "vault": "Vault",
+      "messages": "Vec<Bytes>"
+    },
+    "return": "Spend"
+  },
+  "vault_message_coin": {
+    "type": "function",
+    "return": "Coin"
+  },
+  "verify_vault_signed_message": {
+    "type": "function",
+    "args": {
+      "proof": "VaultMessageProof",
+      "expected_launcher_id": "Bytes32",
+      "expected_custody_hash": "Bytes32",
+      "genesis_challenge": "Bytes32",
+      "max_cost": "Option<u64>"
+    },
+    "return": "Vec<Bytes>"
+  },
+  "VaultMessageProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_spend": "CoinSpend",
+      "aggregated_signature": "Signature"
+    },
+    "methods": {
+      "encode": {
+        "return": "Bytes"
+      },
+      "decode": {
+        "type": "factory",
+        "args": {
+          "proof": "Bytes"
+        }
+      },
+      "encode_string": {
+        "return": "String"
+      },
+      "decode_string": {
+        "type": "factory",
+        "args": {
+          "proof": "String"
+        }
+      }
+    }
+  },
+  "calculate_vault_puzzle_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "vault_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "calculate_vault_coin_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "vault_coin_id": "Bytes32",
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "VaultVersion": {
+    "type": "enum",
+    "values": ["Legacy", "ForceSingletonRecreation"]
+  },
+  "vault_recovery_delegated_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "version": "VaultVersion"
+    },
+    "return": "Bytes32"
+  },
+  "calculate_vault_start_recovery_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "vault_coin_id": "Bytes32",
+      "genesis_challenge": "Bytes32",
+      "version": "VaultVersion"
+    },
+    "return": "Bytes"
+  },
+  "P2ConditionsOrSingletonVersion": {
+    "type": "enum",
+    "values": ["Legacy", "FixedPuzzleMember"]
+  },
+  "P2ConditionsOrSingleton": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "nonce": "usize",
+      "fixed_conditions_hash": "Bytes32"
+    },
+    "methods": {
+      "from_quoted_conditions_hash": {
+        "type": "factory",
+        "args": {
+          "launcher_id": "Bytes32",
+          "nonce": "usize",
+          "quoted_conditions_hash": "Bytes32",
+          "version": "P2ConditionsOrSingletonVersion"
+        }
+      },
+      "calculate_fixed_conditions_hash": {
+        "type": "static",
+        "args": {
+          "quoted_conditions_hash": "Bytes32",
+          "version": "P2ConditionsOrSingletonVersion"
+        },
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "VaultTransaction": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "vault_child": "Option<VaultOutput>",
+      "drop_coins": "Vec<DropCoin>",
+      "spends": "Vec<VerifiedSpend>",
+      "issuances": "Vec<Issuance>",
+      "asserted_payments": "Vec<AssertedNotarizedPayment>",
+      "received_payments": "Vec<AssertedPayment>",
+      "external_payments": "Vec<AssertedPayment>",
+      "asset_flows": "Vec<AssetFlow>",
+      "linked_offer": "Option<LinkedOffer>",
+      "reserved_fee": "u64",
+      "p2_puzzle_hashes": "Vec<Bytes32>",
+      "delegated_puzzle_hash": "Bytes32",
+      "signed_messages": "Vec<Bytes>"
+    }
+  },
+  "VaultOutput": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "custody_hash": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "DropCoin": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "VerifiedSpend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset": "ParsedAsset",
+      "clawback": "Option<ClawbackInfo>",
+      "custody": "CustodyInfo",
+      "children": "Vec<ParsedChild>",
+      "revoked": "bool"
+    }
+  },
+  "ParsedAsset": {
+    "type": "class",
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      },
+      "as_xch": {
+        "return": "Option<Coin>"
+      },
+      "as_cat": {
+        "return": "Option<Cat>"
+      },
+      "as_nft": {
+        "return": "Option<Nft>"
+      },
+      "as_bulletin": {
+        "return": "Option<Bulletin>"
+      }
+    }
+  },
+  "ClawbackInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "clawback": "ClawbackV2",
+      "path": "ClawbackPath"
+    }
+  },
+  "ClawbackPath": {
+    "type": "enum",
+    "values": ["Sender", "Receiver", "PushThrough"]
+  },
+  "CustodyInfo": {
+    "type": "class",
+    "methods": {
+      "as_p2_singleton": {
+        "return": "Option<P2SingletonInfo>"
+      },
+      "as_delegated_conditions": {
+        "return": "Option<Vec<Program>>"
+      },
+      "as_p2_conditions_or_singleton": {
+        "return": "Option<P2ConditionsOrSingletonInfo>"
+      }
+    }
+  },
+  "P2SingletonInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "nonce": "usize",
+      "conditions": "Vec<Program>",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "P2ConditionsOrSingletonInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "nonce": "usize",
+      "conditions": "Vec<Program>",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "ParsedChild": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset": "ParsedAsset",
+      "memos": "ParsedMemos",
+      "transfer_type": "TransferType"
+    }
+  },
+  "ParsedMemos": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "p2_puzzle_hash": "Bytes32",
+      "clawback": "Option<ClawbackV2>",
+      "human_readable_memos": "Vec<String>",
+      "fixed_conditions": "Option<Vec<Program>>"
+    }
+  },
+  "TransferType": {
+    "type": "class",
+    "methods": {
+      "is_sent": {
+        "return": "bool"
+      },
+      "is_burned": {
+        "return": "bool"
+      },
+      "is_offered": {
+        "return": "bool"
+      },
+      "as_offer_pre_split": {
+        "return": "Option<OfferPreSplitInfo>"
+      }
+    }
+  },
+  "OfferPreSplitInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "nonce": "usize",
+      "fixed_conditions": "Vec<Program>",
+      "settlement_amount": "u64"
+    }
+  },
+  "Issuance": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32",
+      "asset_id": "Bytes32",
+      "extra_delta": "i64",
+      "kind": "IssuanceKind"
+    }
+  },
+  "IssuanceKind": {
+    "type": "class",
+    "methods": {
+      "as_everything_with_singleton": {
+        "return": "Option<EverythingWithSingletonIssuance>"
+      },
+      "is_unknown": {
+        "return": "bool"
+      }
+    }
+  },
+  "EverythingWithSingletonIssuance": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "singleton_struct_hash": "Bytes32",
+      "nonce": "Bytes"
+    }
+  },
+  "ClearSigningAsset": {
+    "type": "class",
+    "methods": {
+      "is_xch": {
+        "return": "bool"
+      },
+      "as_cat": {
+        "return": "Option<ClearSigningCat>"
+      },
+      "as_nft": {
+        "return": "Option<ClearSigningNft>"
+      }
+    }
+  },
+  "ClearSigningCat": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset_id": "Bytes32",
+      "hidden_puzzle_hash": "Option<Bytes32>"
+    }
+  },
+  "ClearSigningNft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16"
+    }
+  },
+  "AssertedNotarizedPayment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset": "ClearSigningAsset",
+      "notarized_payment": "NotarizedPayment"
+    }
+  },
+  "AssertedPayment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset": "ClearSigningAsset",
+      "nonce": "Bytes32",
+      "payment": "Payment",
+      "royalty_basis_points": "Option<u16>"
+    }
+  },
+  "AssetFlow": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset": "ClearSigningAsset",
+      "input_amount": "u128",
+      "output_amount": "u128",
+      "issued_amount": "u128",
+      "melted_amount": "u128",
+      "received_amount": "u128",
+      "paid_amount": "u128",
+      "unaccounted_amount": "u128"
+    }
+  },
+  "LinkedOffer": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "reserved_fee": "u64",
+      "received_payments": "Vec<AssertedPayment>",
+      "external_payments": "Vec<AssertedPayment>"
+    }
+  }
+}

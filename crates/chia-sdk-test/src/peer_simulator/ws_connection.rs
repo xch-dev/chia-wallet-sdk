@@ -11,7 +11,6 @@ use chia_protocol::{
     RespondToCoinUpdates, RespondToPhUpdates, SendTransaction, SpendBundle, TransactionAck,
 };
 use chia_traits::Streamable;
-use clvmr::NodePtr;
 use futures_channel::mpsc::{self, UnboundedSender};
 use futures_util::{SinkExt, StreamExt};
 use indexmap::{IndexMap, IndexSet};
@@ -278,7 +277,7 @@ async fn send_transaction(
             return Ok(TransactionAck::new(
                 transaction_id,
                 3,
-                Some(format!("{:?}", ValidationErr(NodePtr::NIL, error_code))),
+                Some(format!("{:?}", ValidationErr::Err(error_code))),
             )
             .to_bytes()?
             .into());

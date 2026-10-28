@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, num::TryFromIntError};
 
+use chia_protocol::Bytes32;
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::error::EvalErr;
@@ -76,6 +77,18 @@ pub enum DriverError {
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
 
+    #[error("m of n requires between 1 and {items} members, but {required} were required")]
+    InvalidMofNRequired { required: usize, items: usize },
+
+    #[error("m of n contains duplicate members")]
+    DuplicateMofNMembers,
+
+    #[error("mips memo is nested too deeply")]
+    MipsMemoTooDeep,
+
+    #[error("mips memo is too large")]
+    MipsMemoTooLarge,
+
     #[error("cannot emit conditions from spend")]
     CannotEmitConditions,
 
@@ -93,6 +106,9 @@ pub enum DriverError {
 
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
+
+    #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
+    DuplicateSettlementPayment,
 
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
@@ -117,7 +133,6 @@ pub enum DriverError {
     #[error("unsupported compression version")]
     UnsupportedVersion,
 
-    #[cfg(feature = "offer-compression")]
     #[error("streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
@@ -133,9 +148,11 @@ pub enum DriverError {
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
+
+    #[error("requested payment is for an unsupported asset")]
+    UnsupportedRequestedAsset,
 
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,
@@ -145,6 +162,53 @@ pub enum DriverError {
 
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
+
+    #[error("offer uses the old settlement payments puzzle")]
+    OldSettlementPayment,
+
+    #[error("invalid partial offer terms")]
+    InvalidPartialOffer,
+
+    #[error(
+        "partial offer fill is below the minimum, pays out nothing, or exceeds the remaining amount"
+    )]
+    InvalidPartialOfferFill,
+
+    #[error("partial offer has unsupported persistent conditions")]
+    UnsupportedPartialOfferConditions,
+
+    #[error("partial offer coin is not created by the maker's spends")]
+    PartialOfferNotCreated,
+
+    #[error("partial offer coins with the same maker and requested asset can't share a parent")]
+    PartialOfferSiblings,
+
+    #[error("partial offer coin must not be created by a settlement payments coin")]
+    UnsignedPartialOfferCreation,
+
+    #[error("the auction's {name} of {bps} bps exceeds 10,000 bps")]
+    AuctionBpsTooHigh { name: &'static str, bps: u64 },
+
+    #[error("puzzle hash {0} receives more than one payment when the auction ends")]
+    DuplicateAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("puzzle hash {0} can't receive an auction payment, since it's reserved by the auction")]
+    ReservedAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("the launched singleton doesn't match the auction memo")]
+    AuctionPuzzleHashMismatch,
+
+    #[error("the auction singleton has an amount of {0}, but it must be 1")]
+    InvalidAuctionSingletonAmount(u64),
+
+    #[error("the auction reserve must be an empty coin locked by the auction")]
+    InvalidAuctionReserve,
+
+    #[error("the NFT must be locked by the auction before it's launched")]
+    AuctionNftNotLocked,
+
+    #[error("CAT spends can't be included with an auction that has an XCH reserve")]
+    UnexpectedAuctionCatSpends,
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
@@ -364,4 +428,57 @@ pub enum DriverError {
     #[cfg(feature = "chip-0057")]
     #[error("the settled silent payment entries of a party disagree on the nonce or the payer")]
     SilentPaymentSettlementMismatch,
+
+    #[error("stream payment time is before the last payment time, or the stream has already ended")]
+    InvalidStreamPaymentTime,
+
+    #[error("a vault message envelope must contain at least one message")]
+    EmptyVaultMessageEnvelope,
+
+    #[error(
+        "a delegated spend that signs vault messages can't contain any other conditions or messages, other than recreating the vault"
+    )]
+    MixedVaultMessageEnvelope,
+
+    #[error("missing vault message proof version")]
+    MissingVaultMessageProofVersion,
+
+    #[error("unsupported vault message proof version {0}")]
+    UnsupportedVaultMessageProofVersion(u8),
+
+    #[error("the vault message proof is for a coin that isn't the expected vault")]
+    WrongVaultPuzzleHash,
+
+    #[error("the vault message proof is for a vault whose custody isn't a top-level MIPS puzzle")]
+    UnsupportedVaultCustody,
+
+    #[error(
+        "a vault message envelope must recreate the vault with the same custody hash and amount"
+    )]
+    VaultMessageEnvelopeChangesVault,
+
+    #[error(
+        "the vault message proof asserts a height or time, which can't be checked without the chain"
+    )]
+    VaultMessageTimelocked,
+
+    #[error("a vault message can be at most 1024 bytes")]
+    VaultMessageTooLong,
+
+    #[error("the vault message proof is too large for the maximum cost")]
+    VaultMessageProofTooLarge,
+
+    #[error("the vault message proof has too many delegated puzzle wrappers")]
+    TooManyDelegatedPuzzleWrappers,
+
+    #[error(
+        "the vault message proof has a delegated puzzle wrapper that can't be used to sign messages"
+    )]
+    UnsupportedDelegatedPuzzleWrapper,
+
+    #[error("the vault message proof's aggregated signature is invalid")]
+    InvalidVaultMessageSignature,
+
+    #[error("consensus validation failed: {0}")]
+    Validation(#[from] chia_consensus::validation_error::ValidationErr),
 }

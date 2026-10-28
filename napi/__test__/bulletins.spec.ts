@@ -1,5 +1,5 @@
 import test from "ava";
-import { BulletinMessage, bulletinPuzzleHash, Clvm, Simulator } from "..";
+import { BulletinMessage, bulletinPuzzleHash, Clvm, Simulator } from "../index.js";
 
 test("issues and spends a cat", (t) => {
   const sim = new Simulator();

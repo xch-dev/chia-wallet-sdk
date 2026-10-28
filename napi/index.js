@@ -89,8 +89,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-android-arm64')
         const bindingPackageVersion = require('chia-wallet-sdk-android-arm64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -105,8 +105,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-android-arm-eabi')
         const bindingPackageVersion = require('chia-wallet-sdk-android-arm-eabi/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -126,8 +126,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-win32-x64-gnu')
           const bindingPackageVersion = require('chia-wallet-sdk-win32-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -142,8 +142,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-win32-x64-msvc')
           const bindingPackageVersion = require('chia-wallet-sdk-win32-x64-msvc/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -159,8 +159,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-win32-ia32-msvc')
         const bindingPackageVersion = require('chia-wallet-sdk-win32-ia32-msvc/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -175,8 +175,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-win32-arm64-msvc')
         const bindingPackageVersion = require('chia-wallet-sdk-win32-arm64-msvc/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -194,8 +194,8 @@ function requireNative() {
     try {
       const binding = require('chia-wallet-sdk-darwin-universal')
       const bindingPackageVersion = require('chia-wallet-sdk-darwin-universal/package.json').version
-      if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-        throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+      if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+        throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
       return binding
     } catch (e) {
@@ -210,8 +210,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-darwin-x64')
         const bindingPackageVersion = require('chia-wallet-sdk-darwin-x64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -226,8 +226,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-darwin-arm64')
         const bindingPackageVersion = require('chia-wallet-sdk-darwin-arm64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -246,8 +246,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-freebsd-x64')
         const bindingPackageVersion = require('chia-wallet-sdk-freebsd-x64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -262,8 +262,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-freebsd-arm64')
         const bindingPackageVersion = require('chia-wallet-sdk-freebsd-arm64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -283,8 +283,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-x64-musl')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-x64-musl/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -299,8 +299,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-x64-gnu')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -317,8 +317,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-arm64-musl')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-arm64-musl/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -333,8 +333,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-arm64-gnu')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-arm64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -351,8 +351,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-arm-musleabihf')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-arm-musleabihf/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -367,8 +367,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-arm-gnueabihf')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-arm-gnueabihf/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -385,8 +385,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-loong64-musl')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-loong64-musl/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -401,8 +401,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-loong64-gnu')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-loong64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -419,8 +419,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-riscv64-musl')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-riscv64-musl/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -435,8 +435,8 @@ function requireNative() {
         try {
           const binding = require('chia-wallet-sdk-linux-riscv64-gnu')
           const bindingPackageVersion = require('chia-wallet-sdk-linux-riscv64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -452,8 +452,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-linux-ppc64-gnu')
         const bindingPackageVersion = require('chia-wallet-sdk-linux-ppc64-gnu/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -468,8 +468,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-linux-s390x-gnu')
         const bindingPackageVersion = require('chia-wallet-sdk-linux-s390x-gnu/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -488,8 +488,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-openharmony-arm64')
         const bindingPackageVersion = require('chia-wallet-sdk-openharmony-arm64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -504,8 +504,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-openharmony-x64')
         const bindingPackageVersion = require('chia-wallet-sdk-openharmony-x64/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -520,8 +520,8 @@ function requireNative() {
       try {
         const binding = require('chia-wallet-sdk-openharmony-arm')
         const bindingPackageVersion = require('chia-wallet-sdk-openharmony-arm/package.json').version
-        if (bindingPackageVersion !== '0.36.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.37.1' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -661,8 +661,8 @@ if (!nativeBinding || forceWasi) {
       if (!candidateFailed) {
         if (process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           const bindingPackageVersion = require('chia-wallet-sdk-wasm32-wasi/package.json').version
-          if (bindingPackageVersion !== '0.36.0') {
-            throw new Error(`WASI binding package version mismatch, expected 0.36.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.37.1') {
+            throw new Error(`WASI binding package version mismatch, expected 0.37.1 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
         }
         wasiBinding = require('chia-wallet-sdk-wasm32-wasi')
@@ -789,6 +789,8 @@ module.exports.AggSigParentPuzzle = nativeBinding.AggSigParentPuzzle
 module.exports.AggSigPuzzle = nativeBinding.AggSigPuzzle
 module.exports.AggSigPuzzleAmount = nativeBinding.AggSigPuzzleAmount
 module.exports.AggSigUnsafe = nativeBinding.AggSigUnsafe
+module.exports.Arbitrage = nativeBinding.Arbitrage
+module.exports.ArbitrageSide = nativeBinding.ArbitrageSide
 module.exports.AssertBeforeHeightAbsolute = nativeBinding.AssertBeforeHeightAbsolute
 module.exports.AssertBeforeHeightRelative = nativeBinding.AssertBeforeHeightRelative
 module.exports.AssertBeforeSecondsAbsolute = nativeBinding.AssertBeforeSecondsAbsolute
@@ -796,6 +798,8 @@ module.exports.AssertBeforeSecondsRelative = nativeBinding.AssertBeforeSecondsRe
 module.exports.AssertCoinAnnouncement = nativeBinding.AssertCoinAnnouncement
 module.exports.AssertConcurrentPuzzle = nativeBinding.AssertConcurrentPuzzle
 module.exports.AssertConcurrentSpend = nativeBinding.AssertConcurrentSpend
+module.exports.AssertedNotarizedPayment = nativeBinding.AssertedNotarizedPayment
+module.exports.AssertedPayment = nativeBinding.AssertedPayment
 module.exports.AssertEphemeral = nativeBinding.AssertEphemeral
 module.exports.AssertHeightAbsolute = nativeBinding.AssertHeightAbsolute
 module.exports.AssertHeightRelative = nativeBinding.AssertHeightRelative
@@ -808,7 +812,20 @@ module.exports.AssertMyPuzzleHash = nativeBinding.AssertMyPuzzleHash
 module.exports.AssertPuzzleAnnouncement = nativeBinding.AssertPuzzleAnnouncement
 module.exports.AssertSecondsAbsolute = nativeBinding.AssertSecondsAbsolute
 module.exports.AssertSecondsRelative = nativeBinding.AssertSecondsRelative
+module.exports.AssetFlow = nativeBinding.AssetFlow
 module.exports.AssetInfo = nativeBinding.AssetInfo
+module.exports.Auction = nativeBinding.Auction
+module.exports.AuctionBid = nativeBinding.AuctionBid
+module.exports.AuctionBidVerifier = nativeBinding.AuctionBidVerifier
+module.exports.AuctionBpsPayment = nativeBinding.AuctionBpsPayment
+module.exports.AuctionChildState = nativeBinding.AuctionChildState
+module.exports.AuctionInfo = nativeBinding.AuctionInfo
+module.exports.AuctionLaunch = nativeBinding.AuctionLaunch
+module.exports.AuctionPayments = nativeBinding.AuctionPayments
+module.exports.AuctionReserve = nativeBinding.AuctionReserve
+module.exports.AuctionSettings = nativeBinding.AuctionSettings
+module.exports.AuctionState = nativeBinding.AuctionState
+module.exports.AuctionTimings = nativeBinding.AuctionTimings
 module.exports.BlockchainState = nativeBinding.BlockchainState
 module.exports.BlockchainStateResponse = nativeBinding.BlockchainStateResponse
 module.exports.BlockRecord = nativeBinding.BlockRecord
@@ -831,12 +848,17 @@ module.exports.CatalogRegistryLaunchResult = nativeBinding.CatalogRegistryLaunch
 module.exports.CatalogRegistryState = nativeBinding.CatalogRegistryState
 module.exports.CatalogSlot = nativeBinding.CatalogSlot
 module.exports.CatalogSlotValue = nativeBinding.CatalogSlotValue
+module.exports.CatAssetInfo = nativeBinding.CatAssetInfo
 module.exports.CatInfo = nativeBinding.CatInfo
 module.exports.CatSpend = nativeBinding.CatSpend
 module.exports.Certificate = nativeBinding.Certificate
 module.exports.ChallengeChainSubSlot = nativeBinding.ChallengeChainSubSlot
 module.exports.Clawback = nativeBinding.Clawback
+module.exports.ClawbackInfo = nativeBinding.ClawbackInfo
 module.exports.ClawbackV2 = nativeBinding.ClawbackV2
+module.exports.ClearSigningAsset = nativeBinding.ClearSigningAsset
+module.exports.ClearSigningCat = nativeBinding.ClearSigningCat
+module.exports.ClearSigningNft = nativeBinding.ClearSigningNft
 module.exports.Clvm = nativeBinding.Clvm
 module.exports.Coin = nativeBinding.Coin
 module.exports.CoinRecord = nativeBinding.CoinRecord
@@ -856,6 +878,7 @@ module.exports.CreatedDid = nativeBinding.CreatedDid
 module.exports.CreatePuzzleAnnouncement = nativeBinding.CreatePuzzleAnnouncement
 module.exports.CuratedDatastoreFields = nativeBinding.CuratedDatastoreFields
 module.exports.CurriedProgram = nativeBinding.CurriedProgram
+module.exports.CustodyInfo = nativeBinding.CustodyInfo
 module.exports.Datastore = nativeBinding.Datastore
 module.exports.DatastoreMetadata = nativeBinding.DatastoreMetadata
 module.exports.DelegatedPuzzle = nativeBinding.DelegatedPuzzle
@@ -863,12 +886,13 @@ module.exports.DelegatedPuzzleOracle = nativeBinding.DelegatedPuzzleOracle
 module.exports.Delta = nativeBinding.Delta
 module.exports.Deltas = nativeBinding.Deltas
 module.exports.DepositSlot = nativeBinding.DepositSlot
-module.exports.DetectedSpCoin = nativeBinding.DetectedSpCoin
 module.exports.Did = nativeBinding.Did
 module.exports.DidInfo = nativeBinding.DidInfo
+module.exports.DropCoin = nativeBinding.DropCoin
 module.exports.EndOfSubSlotBundle = nativeBinding.EndOfSubSlotBundle
 module.exports.EntrySlot = nativeBinding.EntrySlot
 module.exports.Event = nativeBinding.Event
+module.exports.EverythingWithSingletonIssuance = nativeBinding.EverythingWithSingletonIssuance
 module.exports.FinishedSpends = nativeBinding.FinishedSpends
 module.exports.Foliage = nativeBinding.Foliage
 module.exports.FoliageBlockData = nativeBinding.FoliageBlockData
@@ -897,12 +921,15 @@ module.exports.Id = nativeBinding.Id
 module.exports.InfusedChallengeChainSubSlot = nativeBinding.InfusedChallengeChainSubSlot
 module.exports.InnerPuzzleMemo = nativeBinding.InnerPuzzleMemo
 module.exports.IntermediaryCoinProof = nativeBinding.IntermediaryCoinProof
+module.exports.Issuance = nativeBinding.Issuance
+module.exports.IssuanceKind = nativeBinding.IssuanceKind
 module.exports.K1Pair = nativeBinding.K1Pair
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
-module.exports.LabelRegistry = nativeBinding.LabelRegistry
+module.exports.LaunchedAuction = nativeBinding.LaunchedAuction
 module.exports.LineageProof = nativeBinding.LineageProof
+module.exports.LinkedOffer = nativeBinding.LinkedOffer
 module.exports.MedievalVault = nativeBinding.MedievalVault
 module.exports.MedievalVaultHint = nativeBinding.MedievalVaultHint
 module.exports.MedievalVaultInfo = nativeBinding.MedievalVaultInfo
@@ -923,6 +950,7 @@ module.exports.Mnemonic = nativeBinding.Mnemonic
 module.exports.MofNMemo = nativeBinding.MofNMemo
 module.exports.NewPeakWallet = nativeBinding.NewPeakWallet
 module.exports.Nft = nativeBinding.Nft
+module.exports.NftAssetInfo = nativeBinding.NftAssetInfo
 module.exports.NftInfo = nativeBinding.NftInfo
 module.exports.NftLauncherProof = nativeBinding.NftLauncherProof
 module.exports.NftMetadata = nativeBinding.NftMetadata
@@ -930,7 +958,9 @@ module.exports.NftMint = nativeBinding.NftMint
 module.exports.NotarizedPayment = nativeBinding.NotarizedPayment
 module.exports.Offer = nativeBinding.Offer
 module.exports.OfferAmounts = nativeBinding.OfferAmounts
+module.exports.OfferPreSplitInfo = nativeBinding.OfferPreSplitInfo
 module.exports.OfferSecurityCoinDetails = nativeBinding.OfferSecurityCoinDetails
+module.exports.OptionAssetInfo = nativeBinding.OptionAssetInfo
 module.exports.OptionContract = nativeBinding.OptionContract
 module.exports.OptionInfo = nativeBinding.OptionInfo
 module.exports.OptionMetadata = nativeBinding.OptionMetadata
@@ -941,25 +971,38 @@ module.exports.OptionTypeRevocableCat = nativeBinding.OptionTypeRevocableCat
 module.exports.OptionTypeXch = nativeBinding.OptionTypeXch
 module.exports.OptionUnderlying = nativeBinding.OptionUnderlying
 module.exports.Output = nativeBinding.Output
-module.exports.OutputMeta = nativeBinding.OutputMeta
 module.exports.Outputs = nativeBinding.Outputs
+module.exports.P2ConditionsOrSingleton = nativeBinding.P2ConditionsOrSingleton
+module.exports.P2ConditionsOrSingletonInfo = nativeBinding.P2ConditionsOrSingletonInfo
 module.exports.P2NextRewardDistributorEpochCoinInfo = nativeBinding.P2NextRewardDistributorEpochCoinInfo
 module.exports.P2ParentCoin = nativeBinding.P2ParentCoin
 module.exports.P2ParentCoinChildParseResult = nativeBinding.P2ParentCoinChildParseResult
+module.exports.P2SingletonInfo = nativeBinding.P2SingletonInfo
 module.exports.Pair = nativeBinding.Pair
+module.exports.ParsedAsset = nativeBinding.ParsedAsset
 module.exports.ParsedBulletin = nativeBinding.ParsedBulletin
 module.exports.ParsedCat = nativeBinding.ParsedCat
 module.exports.ParsedCatInfo = nativeBinding.ParsedCatInfo
+module.exports.ParsedChild = nativeBinding.ParsedChild
 module.exports.ParsedDid = nativeBinding.ParsedDid
 module.exports.ParsedDidInfo = nativeBinding.ParsedDidInfo
 module.exports.ParsedDidSpend = nativeBinding.ParsedDidSpend
 module.exports.ParsedMember = nativeBinding.ParsedMember
+module.exports.ParsedMemos = nativeBinding.ParsedMemos
 module.exports.ParsedNft = nativeBinding.ParsedNft
 module.exports.ParsedNftInfo = nativeBinding.ParsedNftInfo
 module.exports.ParsedOption = nativeBinding.ParsedOption
 module.exports.ParsedOptionInfo = nativeBinding.ParsedOptionInfo
+module.exports.ParsedPartialOffer = nativeBinding.ParsedPartialOffer
 module.exports.ParsedRestriction = nativeBinding.ParsedRestriction
 module.exports.ParsedWrapper = nativeBinding.ParsedWrapper
+module.exports.PartialOffer = nativeBinding.PartialOffer
+module.exports.PartialOfferAsset = nativeBinding.PartialOfferAsset
+module.exports.PartialOfferBundle = nativeBinding.PartialOfferBundle
+module.exports.PartialOfferCreationMemos = nativeBinding.PartialOfferCreationMemos
+module.exports.PartialOfferFill = nativeBinding.PartialOfferFill
+module.exports.PartialOfferInfo = nativeBinding.PartialOfferInfo
+module.exports.PartialOfferPrice = nativeBinding.PartialOfferPrice
 module.exports.Payment = nativeBinding.Payment
 module.exports.Peer = nativeBinding.Peer
 module.exports.PeerOptions = nativeBinding.PeerOptions
@@ -985,6 +1028,7 @@ module.exports.RespondCoinState = nativeBinding.RespondCoinState
 module.exports.RespondPuzzleState = nativeBinding.RespondPuzzleState
 module.exports.Restriction = nativeBinding.Restriction
 module.exports.RestrictionMemo = nativeBinding.RestrictionMemo
+module.exports.Reveals = nativeBinding.Reveals
 module.exports.RewardChainBlock = nativeBinding.RewardChainBlock
 module.exports.RewardChainSubSlot = nativeBinding.RewardChainSubSlot
 module.exports.RewardDistributor = nativeBinding.RewardDistributor
@@ -1030,23 +1074,10 @@ module.exports.RoundTimeInfo = nativeBinding.RoundTimeInfo
 module.exports.RoyaltyInfo = nativeBinding.RoyaltyInfo
 module.exports.RpcClient = nativeBinding.RpcClient
 module.exports.RunCatTail = nativeBinding.RunCatTail
-module.exports.ScalarField = nativeBinding.ScalarField
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.SendMessage = nativeBinding.SendMessage
 module.exports.SettlementNftSpendResult = nativeBinding.SettlementNftSpendResult
 module.exports.Signature = nativeBinding.Signature
-module.exports.SilentPaymentAddress = nativeBinding.SilentPaymentAddress
-module.exports.SilentPaymentGroupCoin = nativeBinding.SilentPaymentGroupCoin
-module.exports.SilentPaymentGroupOutput = nativeBinding.SilentPaymentGroupOutput
-module.exports.SilentPaymentKeys = nativeBinding.SilentPaymentKeys
-module.exports.SilentPaymentLabel = nativeBinding.SilentPaymentLabel
-module.exports.SilentPaymentOtherPayment = nativeBinding.SilentPaymentOtherPayment
-module.exports.SilentPaymentRegisteredKey = nativeBinding.SilentPaymentRegisteredKey
-module.exports.SilentPaymentRegisteredSecretKey = nativeBinding.SilentPaymentRegisteredSecretKey
-module.exports.SilentPayments = nativeBinding.SilentPayments
-module.exports.SilentPaymentSettlement = nativeBinding.SilentPaymentSettlement
-module.exports.SilentPaymentSettlementRecipient = nativeBinding.SilentPaymentSettlementRecipient
-module.exports.SilentPaymentWrapper = nativeBinding.SilentPaymentWrapper
 module.exports.Simulator = nativeBinding.Simulator
 module.exports.SlotNeigborsInfo = nativeBinding.SlotNeigborsInfo
 module.exports.Softfork = nativeBinding.Softfork
@@ -1064,16 +1095,20 @@ module.exports.TradePrice = nativeBinding.TradePrice
 module.exports.TransactionsInfo = nativeBinding.TransactionsInfo
 module.exports.TransferNft = nativeBinding.TransferNft
 module.exports.TransferNftById = nativeBinding.TransferNftById
-module.exports.TweakData = nativeBinding.TweakData
+module.exports.TransferType = nativeBinding.TransferType
 module.exports.UpdateDatastoreMerkleRoot = nativeBinding.UpdateDatastoreMerkleRoot
 module.exports.UpdateNftMetadata = nativeBinding.UpdateNftMetadata
 module.exports.Vault = nativeBinding.Vault
 module.exports.VaultInfo = nativeBinding.VaultInfo
+module.exports.VaultMessageProof = nativeBinding.VaultMessageProof
 module.exports.VaultMint = nativeBinding.VaultMint
+module.exports.VaultOutput = nativeBinding.VaultOutput
+module.exports.VaultTransaction = nativeBinding.VaultTransaction
 module.exports.VdfInfo = nativeBinding.VdfInfo
 module.exports.VDFInfo = nativeBinding.VDFInfo
 module.exports.VdfProof = nativeBinding.VdfProof
 module.exports.VDFProof = nativeBinding.VDFProof
+module.exports.VerifiedSpend = nativeBinding.VerifiedSpend
 module.exports.WrapperMemo = nativeBinding.WrapperMemo
 module.exports.XchandlesActionLog = nativeBinding.XchandlesActionLog
 module.exports.XchandlesConstants = nativeBinding.XchandlesConstants
@@ -1102,16 +1137,23 @@ module.exports.XchandlesRegistryState = nativeBinding.XchandlesRegistryState
 module.exports.XchandlesTripleConditionsResult = nativeBinding.XchandlesTripleConditionsResult
 module.exports.XchandlesUpdateSlot = nativeBinding.XchandlesUpdateSlot
 module.exports.XchandlesUpdateSlotValue = nativeBinding.XchandlesUpdateSlotValue
+module.exports.auctionLockP2PuzzleHash = nativeBinding.auctionLockP2PuzzleHash
 module.exports.blsMemberHash = nativeBinding.blsMemberHash
 module.exports.bulletinPuzzleHash = nativeBinding.bulletinPuzzleHash
 module.exports.bytesEqual = nativeBinding.bytesEqual
+module.exports.calculateAuctionPayment = nativeBinding.calculateAuctionPayment
 module.exports.calculateRoyaltyPayments = nativeBinding.calculateRoyaltyPayments
 module.exports.calculateTradePriceAmounts = nativeBinding.calculateTradePriceAmounts
 module.exports.calculateTradePrices = nativeBinding.calculateTradePrices
+module.exports.calculateVaultCoinMessage = nativeBinding.calculateVaultCoinMessage
+module.exports.calculateVaultPuzzleMessage = nativeBinding.calculateVaultPuzzleMessage
+module.exports.calculateVaultStartRecoveryMessage = nativeBinding.calculateVaultStartRecoveryMessage
 module.exports.catPuzzleHash = nativeBinding.catPuzzleHash
+module.exports.ClawbackPath = nativeBinding.ClawbackPath
 module.exports.curryTreeHash = nativeBinding.curryTreeHash
 module.exports.customMemberHash = nativeBinding.customMemberHash
 module.exports.decodeOffer = nativeBinding.decodeOffer
+module.exports.decodePartialOffer = nativeBinding.decodePartialOffer
 module.exports.eip712DomainSeparator = nativeBinding.eip712DomainSeparator
 module.exports.eip712HashToSign = nativeBinding.eip712HashToSign
 module.exports.eip712MemberHash = nativeBinding.eip712MemberHash
@@ -1119,6 +1161,7 @@ module.exports.eip712MemberInnerPuzzleHash = nativeBinding.eip712MemberInnerPuzz
 module.exports.eip712PrefixAndDomainSeparator = nativeBinding.eip712PrefixAndDomainSeparator
 module.exports.eip712TypeHash = nativeBinding.eip712TypeHash
 module.exports.encodeOffer = nativeBinding.encodeOffer
+module.exports.encodePartialOffer = nativeBinding.encodePartialOffer
 module.exports.fixedMemberHash = nativeBinding.fixedMemberHash
 module.exports.force1Of2Restriction = nativeBinding.force1Of2Restriction
 module.exports.forceSingletonRecreationRestriction = nativeBinding.forceSingletonRecreationRestriction
@@ -1126,6 +1169,8 @@ module.exports.fromHex = nativeBinding.fromHex
 module.exports.generateBytes = nativeBinding.generateBytes
 module.exports.k1MemberHash = nativeBinding.k1MemberHash
 module.exports.mOfNHash = nativeBinding.mOfNHash
+module.exports.P2ConditionsOrSingletonVersion = nativeBinding.P2ConditionsOrSingletonVersion
+module.exports.parseVaultTransaction = nativeBinding.parseVaultTransaction
 module.exports.passkeyMemberHash = nativeBinding.passkeyMemberHash
 module.exports.predictBlankHandleNftCoinId = nativeBinding.predictBlankHandleNftCoinId
 module.exports.preventConditionOpcodeRestriction = nativeBinding.preventConditionOpcodeRestriction
@@ -1136,7 +1181,6 @@ module.exports.Relation = nativeBinding.Relation
 module.exports.RestrictionKind = nativeBinding.RestrictionKind
 module.exports.selectCoins = nativeBinding.selectCoins
 module.exports.sha256 = nativeBinding.sha256
-module.exports.SilentPaymentNetwork = nativeBinding.SilentPaymentNetwork
 module.exports.singletonMemberHash = nativeBinding.singletonMemberHash
 module.exports.singletonStructHash = nativeBinding.singletonStructHash
 module.exports.spendBundleCost = nativeBinding.spendBundleCost
@@ -1146,6 +1190,11 @@ module.exports.toHex = nativeBinding.toHex
 module.exports.treeHashAtom = nativeBinding.treeHashAtom
 module.exports.treeHashPair = nativeBinding.treeHashPair
 module.exports.UriKind = nativeBinding.UriKind
+module.exports.vaultMessageCoin = nativeBinding.vaultMessageCoin
+module.exports.vaultMessageEnvelope = nativeBinding.vaultMessageEnvelope
+module.exports.vaultRecoveryDelegatedPuzzleHash = nativeBinding.vaultRecoveryDelegatedPuzzleHash
+module.exports.VaultVersion = nativeBinding.VaultVersion
+module.exports.verifyVaultSignedMessage = nativeBinding.verifyVaultSignedMessage
 module.exports.wrappedDelegatedPuzzleHash = nativeBinding.wrappedDelegatedPuzzleHash
 module.exports.xchandlesExpireOwnerMessage = nativeBinding.xchandlesExpireOwnerMessage
 module.exports.xchandlesGetPrice = nativeBinding.xchandlesGetPrice

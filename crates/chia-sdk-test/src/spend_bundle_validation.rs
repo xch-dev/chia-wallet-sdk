@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use chia_consensus::{
     consensus_constants::ConsensusConstants,
+    flags::ConsensusFlags,
     owned_conditions::{OwnedSpendBundleConditions, OwnedSpendConditions},
     validation_error::ErrorCode,
 };
@@ -44,7 +45,7 @@ pub(crate) struct ValidatedConditions {
 pub(crate) struct ValidationSettings<'a> {
     pub constants: &'a ConsensusConstants,
     pub max_cost: u64,
-    pub flags: u32,
+    pub flags: ConsensusFlags,
     pub clock: ValidationClock,
 }
 

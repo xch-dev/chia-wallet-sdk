@@ -33,20 +33,20 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: blacksmith-8vcpu-ubuntu-2404
+          - runner: ubuntu-24.04
             target: x86_64
-          - runner: blacksmith-8vcpu-ubuntu-2404-arm
+          - runner: ubuntu-24.04-arm
             target: aarch64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
       # The build runs in a container, so cache the registry (including extracted sources, whose
       # mtimes cargo checks) and target dir ourselves rather than with rust-cache
       - name: Restore cargo cache
         id: cargo-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: |
             .cargo-registry
@@ -79,7 +79,7 @@ jobs:
             fi
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: |
             .cargo-registry
@@ -96,20 +96,20 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: blacksmith-8vcpu-ubuntu-2404
+          - runner: ubuntu-24.04
             target: x86_64
-          - runner: blacksmith-8vcpu-ubuntu-2404-arm
+          - runner: ubuntu-24.04-arm
             target: aarch64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
       # The build runs in a container, so cache the registry (including extracted sources, whose
       # mtimes cargo checks) and target dir ourselves rather than with rust-cache
       - name: Restore cargo cache
         id: cargo-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: |
             .cargo-registry
@@ -128,7 +128,7 @@ jobs:
           docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: |
             .cargo-registry
@@ -145,11 +145,11 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: blacksmith-8vcpu-windows-2025
+          - runner: windows-2025
             target: x64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
           architecture: ${{ matrix.platform.target }}
@@ -177,8 +177,8 @@ jobs:
   macos:
     runs-on: blacksmith-6vcpu-macos-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
       - uses: Swatinem/rust-cache@v2
@@ -203,10 +203,10 @@ jobs:
           path: pyo3/dist
 
   sdist:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
 
@@ -232,13 +232,13 @@ jobs:
           path: pyo3/dist
 
   test:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: ./pyo3
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.x
 
@@ -256,9 +256,9 @@ jobs:
           pytest
 
   stubs:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

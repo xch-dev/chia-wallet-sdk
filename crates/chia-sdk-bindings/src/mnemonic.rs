@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use bindy::Result;
 use chia_protocol::Bytes;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng, rngs::SysRng};
 use rand_chacha::ChaCha20Rng;
 
 #[derive(Clone)]
@@ -18,7 +18,8 @@ impl Mnemonic {
     }
 
     pub fn generate(use_24: bool) -> Result<Self> {
-        let mut rng = ChaCha20Rng::from_os_rng();
+        let mut rng =
+            ChaCha20Rng::try_from_rng(&mut SysRng).expect("failed to seed rng from the OS");
 
         let mnemonic = if use_24 {
             let entropy: [u8; 32] = rng.random();

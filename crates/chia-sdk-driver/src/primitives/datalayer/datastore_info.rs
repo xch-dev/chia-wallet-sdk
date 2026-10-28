@@ -2,9 +2,10 @@ use crate::{
     DelegationLayer, DriverError, Layer, NftStateLayer, OracleLayer, SingletonLayer, SpendContext,
 };
 use chia_protocol::{Bytes, Bytes32};
-use chia_puzzle_types::nft::NftStateLayerArgs;
+use chia_puzzle_types::{nft::NftStateLayerArgs, singleton::SingletonArgs};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
 use chia_sdk_types::{
-    MerkleTree,
+    MerkleTree, Mod,
     puzzles::{
         DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH, DelegationLayerArgs,
         WriterLayerArgs,
@@ -251,28 +252,37 @@ impl<M> DatastoreInfo<M> {
         M: ToClvm<Allocator>,
     {
         let metadata_ptr = ctx.alloc(&self.metadata)?;
+        let metadata_hash = ctx.tree_hash(metadata_ptr);
+        let delegation_layer_puzzle_hash = self.delegation_layer_puzzle_hash(ctx)?;
 
-        if !self.delegated_puzzles.is_empty() {
-            return Ok(NftStateLayerArgs::curry_tree_hash(
-                ctx.tree_hash(metadata_ptr),
-                CurriedProgram {
-                    program: DELEGATION_LAYER_PUZZLE_HASH,
-                    args: DelegationLayerArgs {
-                        mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
-                        launcher_id: self.launcher_id,
-                        owner_puzzle_hash: self.owner_puzzle_hash,
-                        merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?.root(),
-                    },
-                }
-                .tree_hash(),
-            ));
+        Ok(NftStateLayerArgs {
+            mod_hash: NFT_STATE_LAYER_HASH.into(),
+            metadata: metadata_hash,
+            metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+            inner_puzzle: delegation_layer_puzzle_hash,
         }
+        .curry_tree_hash())
+    }
 
-        let inner_ph_hash: TreeHash = self.owner_puzzle_hash.into();
-        Ok(NftStateLayerArgs::curry_tree_hash(
-            ctx.tree_hash(metadata_ptr),
-            inner_ph_hash,
+    /// Calculates the full puzzle hash of the singleton.
+    pub fn puzzle_hash(&self, ctx: &mut SpendContext) -> Result<TreeHash, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        Ok(SingletonArgs::curry_tree_hash(
+            self.launcher_id,
+            self.inner_puzzle_hash(ctx)?,
         ))
+    }
+
+    /// Checks whether this info produces the given full puzzle hash.
+    /// This is used to verify information that is parsed from untrusted hints.
+    pub(crate) fn matches_puzzle_hash(&self, puzzle_hash: Bytes32) -> Result<bool, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        let mut ctx = SpendContext::new();
+        Ok(self.puzzle_hash(&mut ctx)? == puzzle_hash.into())
     }
 
     pub fn delegation_layer_puzzle_hash(

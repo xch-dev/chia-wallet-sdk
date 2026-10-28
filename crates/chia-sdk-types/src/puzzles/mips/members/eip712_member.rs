@@ -99,7 +99,7 @@ mod tests {
     use clvm_traits::clvm_list;
     use clvm_utils::CurriedProgram;
     use clvmr::{Allocator, serde::node_from_bytes, serde::node_to_bytes};
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use rstest::rstest;
 

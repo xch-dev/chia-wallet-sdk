@@ -1,9 +1,8 @@
 use chia_consensus::{
-    conditions::ELIGIBLE_FOR_DEDUP, flags::COMPUTE_FINGERPRINT, validation_error::ErrorCode,
+    conditions::ELIGIBLE_FOR_DEDUP, flags::ConsensusFlags, validation_error::ErrorCode,
 };
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_sdk_types::default_constants;
-use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
@@ -62,7 +61,8 @@ impl FullNodeSimulator {
             ValidationSettings {
                 constants: &constants,
                 max_cost: 11_000_000_000 / 2,
-                flags: ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
+                flags: ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD
+                    | ConsensusFlags::COMPUTE_FINGERPRINT,
                 clock,
             },
         )

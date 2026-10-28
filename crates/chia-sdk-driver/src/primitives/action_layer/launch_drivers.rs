@@ -2646,7 +2646,8 @@ mod tests {
             0,
             buy_time,
             1,
-        )? as u64;
+        )?
+        .try_into()?;
 
         let value = XchandlesPrecommitValue::for_normal_registration(
             payment_cat.info.asset_id.tree_hash(),

@@ -1,17 +1,21 @@
 use chia_consensus::opcodes::SEND_MESSAGE;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message};
+use crate::{
+    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message,
+    parse_vault_message_envelope,
+};
 
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub messages: Vec<VaultMessage>,
+    pub signed_messages: Vec<Bytes>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -50,6 +54,17 @@ pub fn parse_vault_delegated_spend(
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
     let conditions = parse_delegated_spend(allocator, delegated_spend)?;
+
+    // A delegated spend that signs messages can't do anything other than recreate the vault, so that signing a message
+    // can't look like it also authorizes a transaction. The messages are returned separately, in their original order.
+    if let Some(envelope) = parse_vault_message_envelope(allocator, &conditions)? {
+        return Ok(VaultSpendSummary {
+            child: Some(envelope.vault_child),
+            drop_coins: Vec::new(),
+            messages: Vec::new(),
+            signed_messages: envelope.messages,
+        });
+    }
 
     let mut child = None;
     let mut drop_coins = Vec::new();
@@ -96,8 +111,7 @@ pub fn parse_vault_delegated_spend(
                 // that the corresponding coin spend is revealed and matches the delegated puzzle hash in the message.
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
-                let vault_message = parse_vault_message(allocator, condition)?;
-                messages.push(vault_message);
+                messages.push(parse_vault_message(allocator, condition)?);
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -117,5 +131,6 @@ pub fn parse_vault_delegated_spend(
         child,
         drop_coins,
         messages,
+        signed_messages: Vec::new(),
     })
 }
