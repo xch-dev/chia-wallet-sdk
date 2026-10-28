@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use chia_protocol::{NodeType, ProtocolMessageTypes};
 use thiserror::Error;
 use tokio::sync::oneshot::error::RecvError;
@@ -32,10 +34,6 @@ pub enum ClientError {
     #[error("Missing pkcs8 private key")]
     MissingPkcs8Key,
 
-    #[cfg(feature = "rustls")]
-    #[error("Missing CA cert")]
-    MissingCa,
-
     #[error("Unexpected message received with type {0:?}")]
     UnexpectedMessage(ProtocolMessageTypes),
 
@@ -59,4 +57,19 @@ pub enum ClientError {
 
     #[error("The peer is banned")]
     BannedPeer,
+
+    #[error("The connection to the peer has been closed")]
+    ConnectionClosed,
+
+    #[error("Request timed out after {0:?}")]
+    RequestTimeout(Duration),
+
+    #[error("Handshake timed out after {0:?}")]
+    HandshakeTimeout(Duration),
+
+    #[error("Message with type {0:?} is {1} bytes, which exceeds the rate limit")]
+    MessageTooLarge(ProtocolMessageTypes, usize),
+
+    #[error("The notification channel is full")]
+    NotificationOverflow,
 }
