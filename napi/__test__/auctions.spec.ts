@@ -127,13 +127,21 @@ test("auction can be parsed from its launcher", (t) => {
   t.is(launch.settings().bidVerifier.minimumBid(), 100n);
   t.is(launch.settings().bidVerifier.bidIncrement(), 100n);
 
-  // The NFT's royalty info isn't in the memo, so it's fetched from the NFT
+  // The NFT's royalty info isn't in the memo, so it's fetched from the NFT. The reserve is XCH, so
+  // there's no lineage proof to fetch from its parent.
+  t.is(launch.reserveAssetId(), null);
+  t.deepEqual(
+    launch.reserveParentCoinInfo(),
+    auction.info.reserve.coin().parentCoinInfo,
+  );
+
   const parsed = launch.intoAuction(
     new RoyaltyInfo(
       nft.info.launcherId,
       nft.info.royaltyPuzzleHash,
       nft.info.royaltyBasisPoints,
     ),
+    null,
   );
   t.deepEqual(parsed.coin.coinId(), auction.coin.coinId());
   t.deepEqual(parsed.info.innerPuzzleHash(), auction.info.innerPuzzleHash());

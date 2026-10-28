@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::LineageProof;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     MerkleTree, Mod,
@@ -71,9 +72,15 @@ impl AuctionInfo {
         }
     }
 
-    /// Reconstructs a newly launched auction from its launcher memo, and the royalty info of the
-    /// NFT at the memo's NFT coin id.
-    pub fn from_memo(launcher_id: Bytes32, memo: AuctionMemo, nft_royalty: RoyaltyInfo) -> Self {
+    /// Reconstructs a newly launched auction from its launcher memo, the royalty info of the NFT at
+    /// the memo's NFT coin id, and the lineage proof of the reserve. The lineage proof is only used
+    /// for CAT reserves, and comes from the spend of the reserve's parent.
+    pub fn from_memo(
+        launcher_id: Bytes32,
+        memo: AuctionMemo,
+        nft_royalty: RoyaltyInfo,
+        reserve_lineage_proof: Option<LineageProof>,
+    ) -> Self {
         let lock_puzzle_hash = auction_lock_p2_puzzle_hash(launcher_id);
 
         let reserve = match memo.reserve {
@@ -82,13 +89,12 @@ impl AuctionInfo {
             }
             AuctionReserveMemo::Cat {
                 parent_coin_info,
-                lineage_proof,
                 asset_id,
                 hidden_puzzle_hash,
             } => {
                 let info = CatInfo::new(asset_id, hidden_puzzle_hash, lock_puzzle_hash);
                 let coin = Coin::new(parent_coin_info, info.puzzle_hash().into(), 0);
-                AuctionReserve::Cat(Cat::new(coin, lineage_proof, info))
+                AuctionReserve::Cat(Cat::new(coin, reserve_lineage_proof, info))
             }
         };
 
@@ -110,7 +116,6 @@ impl AuctionInfo {
             },
             AuctionReserve::Cat(cat) => AuctionReserveMemo::Cat {
                 parent_coin_info: cat.coin.parent_coin_info,
-                lineage_proof: cat.lineage_proof,
                 asset_id: cat.info.asset_id,
                 hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
             },

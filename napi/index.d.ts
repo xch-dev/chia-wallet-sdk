@@ -419,9 +419,11 @@ export declare class AuctionLaunch {
   launcherCoin(): Coin
   settings(): AuctionSettings
   nftCoinId(): Buffer
+  reserveParentCoinInfo(): Buffer
+  reserveAssetId(): Buffer | null
   singletonPuzzleHash(): Buffer
   singletonAmount(): bigint
-  intoAuction(nftRoyalty: RoyaltyInfo): Auction
+  intoAuction(nftRoyalty: RoyaltyInfo, reserveLineageProof?: LineageProof | undefined | null): Auction
 }
 
 export declare class AuctionPayments {

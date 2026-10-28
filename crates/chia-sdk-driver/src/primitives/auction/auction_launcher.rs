@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    EveProof, Proof,
+    EveProof, LineageProof, Proof,
     singleton::{LauncherSolution, SingletonArgs},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
@@ -86,7 +86,9 @@ impl Launcher {
 ///
 /// The NFT's royalty info is curried into the auction, but isn't stored in the memo. So wallets
 /// must fetch the NFT at [`nft_coin_id`](AuctionLaunch::nft_coin_id) from the blockchain, and pass
-/// its royalty info to [`into_auction`](AuctionLaunch::into_auction).
+/// its royalty info to [`into_auction`](AuctionLaunch::into_auction). For CAT reserves, they must
+/// also parse the spend of the reserve's parent (at
+/// [`reserve_parent_coin_info`](AuctionLaunch::reserve_parent_coin_info)) to get its lineage proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuctionLaunch {
     pub launcher_coin: Coin,
@@ -122,16 +124,26 @@ impl AuctionLaunch {
         self.memo.nft_coin_id
     }
 
+    pub fn reserve_parent_coin_info(&self) -> Bytes32 {
+        self.memo.reserve.parent_coin_info()
+    }
+
     /// Reconstructs the auction, given the royalty info of the NFT at
-    /// [`nft_coin_id`](AuctionLaunch::nft_coin_id). Returns an error if the auction is invalid, or
-    /// doesn't match the launched singleton, which includes a royalty that doesn't match the
-    /// auction.
+    /// [`nft_coin_id`](AuctionLaunch::nft_coin_id), and the lineage proof of the reserve if it's a
+    /// CAT. Returns an error if the auction is invalid, or doesn't match the launched singleton,
+    /// which includes a royalty that doesn't match the auction.
     ///
     /// Some things can't be checked offline, so before bidding, wallets must also check that the
-    /// locked NFT is unspent and locked by the auction, and that the reserve is a valid coin.
-    pub fn into_auction(self, nft_royalty: RoyaltyInfo) -> Result<Auction, DriverError> {
+    /// locked NFT is unspent and locked by the auction. A wrong lineage proof can't put any funds
+    /// at risk, but the reserve can't be spent with it.
+    pub fn into_auction(
+        self,
+        nft_royalty: RoyaltyInfo,
+        reserve_lineage_proof: Option<LineageProof>,
+    ) -> Result<Auction, DriverError> {
         let launcher_id = self.launcher_coin.coin_id();
-        let info = AuctionInfo::from_memo(launcher_id, self.memo, nft_royalty);
+        let info =
+            AuctionInfo::from_memo(launcher_id, self.memo, nft_royalty, reserve_lineage_proof);
 
         info.validate()?;
 

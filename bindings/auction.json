@@ -305,6 +305,12 @@
       "nft_coin_id": {
         "return": "Bytes32"
       },
+      "reserve_parent_coin_info": {
+        "return": "Bytes32"
+      },
+      "reserve_asset_id": {
+        "return": "Option<Bytes32>"
+      },
       "singleton_puzzle_hash": {
         "return": "Bytes32"
       },
@@ -313,7 +319,8 @@
       },
       "into_auction": {
         "args": {
-          "nft_royalty": "RoyaltyInfo"
+          "nft_royalty": "RoyaltyInfo",
+          "reserve_lineage_proof": "Option<LineageProof>"
         },
         "return": "Auction"
       }

@@ -2,6 +2,7 @@ use std::num::NonZeroU64;
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
     self as sdk, AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings,
     Cat, Launcher, RoyaltyInfo, SingletonInfo,
@@ -313,10 +314,16 @@ pub trait AuctionLaunchExt: Sized {
     fn launcher_coin(&self) -> Result<Coin>;
     fn settings(&self) -> Result<AuctionSettings>;
     fn nft_coin_id(&self) -> Result<Bytes32>;
+    fn reserve_parent_coin_info(&self) -> Result<Bytes32>;
+    fn reserve_asset_id(&self) -> Result<Option<Bytes32>>;
     fn singleton_puzzle_hash(&self) -> Result<Bytes32>;
     fn singleton_amount(&self) -> Result<u64>;
     #[allow(clippy::wrong_self_convention)]
-    fn into_auction(&self, nft_royalty: RoyaltyInfo) -> Result<Auction>;
+    fn into_auction(
+        &self,
+        nft_royalty: RoyaltyInfo,
+        reserve_lineage_proof: Option<LineageProof>,
+    ) -> Result<Auction>;
 }
 
 impl AuctionLaunchExt for AuctionLaunch {
@@ -337,6 +344,14 @@ impl AuctionLaunchExt for AuctionLaunch {
         Ok(Self::nft_coin_id(self))
     }
 
+    fn reserve_parent_coin_info(&self) -> Result<Bytes32> {
+        Ok(Self::reserve_parent_coin_info(self))
+    }
+
+    fn reserve_asset_id(&self) -> Result<Option<Bytes32>> {
+        Ok(self.memo.reserve.asset_id())
+    }
+
     fn singleton_puzzle_hash(&self) -> Result<Bytes32> {
         Ok(self.singleton_puzzle_hash)
     }
@@ -345,8 +360,12 @@ impl AuctionLaunchExt for AuctionLaunch {
         Ok(self.singleton_amount)
     }
 
-    fn into_auction(&self, nft_royalty: RoyaltyInfo) -> Result<Auction> {
-        Ok(Self::into_auction(*self, nft_royalty)?.into())
+    fn into_auction(
+        &self,
+        nft_royalty: RoyaltyInfo,
+        reserve_lineage_proof: Option<LineageProof>,
+    ) -> Result<Auction> {
+        Ok(Self::into_auction(*self, nft_royalty, reserve_lineage_proof)?.into())
     }
 }
 

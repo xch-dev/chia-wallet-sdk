@@ -7,7 +7,7 @@ use chia_consensus::{
 };
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
-    EveProof, Memos, Proof,
+    EveProof, LineageProof, Memos, Proof,
     singleton::{LauncherSolution, SingletonSolution},
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
@@ -31,7 +31,7 @@ use rstest::rstest;
 use crate::{
     AUCTION_MAX_BPS, ActionLayer, ActionLayerSolution, Auction, AuctionBidVerifier, AuctionInfo,
     AuctionLaunch, AuctionMemo, AuctionReserve, AuctionSettings, Cat, CatSpend, DriverError,
-    Finalizer, HashedPtr, IntermediateLauncher, Launcher, Layer, Nft, NftMint, RoyaltyInfo,
+    Finalizer, HashedPtr, IntermediateLauncher, Launcher, Layer, Nft, NftMint, Puzzle, RoyaltyInfo,
     SingletonInfo, SingletonLayer, Spend, SpendContext, SpendWithConditions, StandardLayer,
     auction_lock_p2_puzzle_hash, calculate_auction_payment, spend_auction_lock,
 };
@@ -269,7 +269,11 @@ impl Harness {
         let launch = AuctionLaunch::parse(&ctx, launcher_spend.coin, launcher_solution)
             .ok_or(anyhow!("launcher isn't for an auction"))?;
         assert_eq!(launch.nft_coin_id(), locked_nft.coin.coin_id());
-        assert_eq!(launch.into_auction(nft_royalty(&locked_nft))?, auction);
+        let reserve_lineage_proof = reserve_lineage_proof(&sim, &mut ctx, &launch)?;
+        assert_eq!(
+            launch.into_auction(nft_royalty(&locked_nft), reserve_lineage_proof)?,
+            auction
+        );
 
         Ok(Self {
             sim,
@@ -701,6 +705,34 @@ fn assert_mempool_valid(coin_spends: &[CoinSpend]) -> Result<()> {
     Ok(())
 }
 
+/// The lineage proof of a CAT reserve, which a wallet gets by parsing the spend of its parent.
+fn reserve_lineage_proof(
+    sim: &Simulator,
+    ctx: &mut SpendContext,
+    launch: &AuctionLaunch,
+) -> Result<Option<LineageProof>> {
+    if launch.memo.reserve.asset_id().is_none() {
+        return Ok(None);
+    }
+
+    let parent_spend = sim
+        .coin_spend(launch.reserve_parent_coin_info())
+        .ok_or(anyhow!("missing reserve parent spend"))?;
+    let puzzle = parent_spend.puzzle_reveal.to_clvm(ctx)?;
+    let puzzle = Puzzle::parse(ctx, puzzle);
+    let solution = parent_spend.solution.to_clvm(ctx)?;
+
+    let lock_puzzle_hash = auction_lock_p2_puzzle_hash(launch.launcher_coin.coin_id());
+
+    let reserve = Cat::parse_children(ctx, parent_spend.coin, puzzle, solution)?
+        .ok_or(anyhow!("reserve parent isn't a CAT"))?
+        .into_iter()
+        .find(|cat| cat.info.p2_puzzle_hash == lock_puzzle_hash && cat.coin.amount == 0)
+        .ok_or(anyhow!("missing reserve"))?;
+
+    Ok(reserve.lineage_proof)
+}
+
 /// The royalty info a wallet would fetch from the NFT on the blockchain.
 fn nft_royalty(nft: &Nft) -> RoyaltyInfo {
     RoyaltyInfo::new(
@@ -753,7 +785,8 @@ fn launcher_spend(h: &Harness, launcher_id: Bytes32) -> Result<CoinSpend> {
         .ok_or(anyhow!("missing launcher spend"))
 }
 
-/// Parses the auction launcher with a modified launcher solution, and the given royalty.
+/// Parses the auction launcher with a modified launcher solution, and the given royalty. Only XCH
+/// reserves are supported, since no lineage proof is passed in.
 fn parse_modified(
     h: &mut Harness,
     royalty: RoyaltyInfo,
@@ -766,7 +799,7 @@ fn parse_modified(
     let solution = h.ctx.alloc(&solution)?;
     AuctionLaunch::parse(&h.ctx, spend.coin, solution)
         .expect("expected an auction launch")
-        .into_auction(royalty)
+        .into_auction(royalty, None)
 }
 
 #[test]
@@ -1703,6 +1736,33 @@ fn test_parse_rejects_invalid_auctions() -> Result<()> {
         result,
         Err(DriverError::DuplicateAuctionPaymentPuzzleHash(_))
     ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_cat_reserve_needs_its_lineage_proof(
+    #[values(ReserveKind::Cat, ReserveKind::RevocableCat)] reserve: ReserveKind,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        reserve,
+        ..Config::default()
+    })?;
+    let parsed = h.auction;
+
+    // Without the lineage proof from the reserve's parent, the auction still parses, but the
+    // reserve can't be spent, so the bid is rejected without moving any funds
+    let spend = launcher_spend(&h, h.auction.info.launcher_id)?;
+    let solution = spend.solution.to_clvm(&mut h.ctx)?;
+    let launch = AuctionLaunch::parse(&h.ctx, spend.coin, solution)
+        .ok_or(anyhow!("launcher isn't for an auction"))?;
+    h.auction = launch.into_auction(nft_royalty(&h.nft), None)?;
+    assert!(h.bid(100).is_err());
+    h.assert_unspent(h.auction.info.reserve.coin());
+
+    h.auction = parsed;
+    let winner = h.bid(100)?;
+    assert_eq!(h.auction.info.state.winning_bid, winner.bid);
 
     Ok(())
 }
