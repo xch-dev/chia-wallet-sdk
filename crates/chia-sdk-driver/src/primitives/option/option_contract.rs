@@ -46,7 +46,8 @@ impl OptionContract {
             .filter_map(Condition::into_create_coin)
             .find(|cond| cond.amount % 2 == 1)
         else {
-            return Err(DriverError::MissingChild);
+            // The option was exercised or melted, so there is no child.
+            return Ok(None);
         };
 
         let puzzle_hash = SingletonArgs::curry_tree_hash(
@@ -245,7 +246,7 @@ mod tests {
 
     use crate::{
         Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionLauncherInfo,
-        OptionType, SettlementLayer, SingletonInfo, StandardLayer,
+        OptionType, OptionUnderlying, SettlementLayer, SingletonInfo, StandardLayer,
     };
 
     use super::*;
@@ -341,9 +342,10 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     strike_parent_coin.coin_id(),
+                    None,
                     strike_amount,
                     Conditions::new().create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
@@ -367,9 +369,10 @@ mod tests {
                     RevocationArgs::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into())
                         .curry_tree_hash()
                         .into();
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     strike_parent_coin.coin_id(),
+                    None,
                     strike_amount,
                     Conditions::new().create_coin(revocation_settlement_hash, strike_amount, hint),
                 )?;
@@ -458,9 +461,10 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(p2_option)?;
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     underlying_parent_coin.coin_id(),
+                    None,
                     underlying_amount,
                     Conditions::new().create_coin(p2_option, underlying_amount, hint),
                 )?;
@@ -472,9 +476,10 @@ mod tests {
                 let revocation_p2_option = RevocationArgs::new(Bytes32::default(), p2_option)
                     .curry_tree_hash()
                     .into();
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     underlying_parent_coin.coin_id(),
+                    None,
                     underlying_amount,
                     Conditions::new().create_coin(revocation_p2_option, underlying_amount, hint),
                 )?;
@@ -764,6 +769,122 @@ mod tests {
         )?;
 
         assert!(sim.spend_coins(ctx.take(), &[alice.sk]).is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_exercised_option_child() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            OptionLauncherInfo::new(
+                alice.puzzle_hash,
+                alice.puzzle_hash,
+                10,
+                1,
+                OptionType::Xch { amount: 1 },
+            ),
+            1,
+        )?;
+        let p2_option = launcher.p2_puzzle_hash();
+
+        alice_p2.spend(
+            ctx,
+            parent_coin,
+            Conditions::new().create_coin(p2_option, 1, Memos::None),
+        )?;
+        let underlying_coin = Coin::new(parent_coin.coin_id(), p2_option, 1);
+        let launcher = launcher.with_underlying(underlying_coin.coin_id());
+
+        let (mint_option, option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
+
+        option.exercise(ctx, &alice_p2, Conditions::new())?;
+
+        let coin_spend = ctx.take().remove(0);
+        let puzzle = ctx.alloc(&coin_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&coin_spend.solution)?;
+
+        assert_eq!(
+            OptionContract::parse_child(ctx, option.coin, puzzle, solution)?,
+            None
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_option_is_backed_by() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            Bytes32::new([1; 32]),
+            OptionLauncherInfo::new(
+                Bytes32::new([2; 32]),
+                Bytes32::new([3; 32]),
+                10,
+                1000,
+                OptionType::Xch { amount: 500 },
+            ),
+            1,
+        )?;
+        let underlying = launcher.underlying();
+        let p2_option = launcher.p2_puzzle_hash();
+
+        let underlying_coin = Coin::new(Bytes32::new([4; 32]), p2_option, 1000);
+        let (_, option) = launcher
+            .with_underlying(underlying_coin.coin_id())
+            .mint(ctx)?;
+
+        assert!(
+            option
+                .info
+                .is_backed_by(&underlying, underlying_coin, p2_option)
+        );
+
+        // The underlying coin must be the one curried into the option.
+        let other_coin = Coin::new(Bytes32::new([5; 32]), p2_option, 1000);
+        assert!(!option.info.is_backed_by(&underlying, other_coin, p2_option));
+
+        // The underlying coin must be locked by the option's puzzle.
+        assert!(
+            !option
+                .info
+                .is_backed_by(&underlying, underlying_coin, Bytes32::default())
+        );
+
+        // The terms of the underlying must match what the option commits to.
+        let other_terms = OptionUnderlying {
+            seconds: 20,
+            ..underlying
+        };
+        assert!(!option.info.is_backed_by(
+            &other_terms,
+            underlying_coin,
+            other_terms.tree_hash().into()
+        ));
+
+        let other_amount = OptionUnderlying {
+            amount: 2000,
+            ..underlying
+        };
+        assert!(
+            !option
+                .info
+                .is_backed_by(&other_amount, underlying_coin, p2_option)
+        );
 
         Ok(())
     }

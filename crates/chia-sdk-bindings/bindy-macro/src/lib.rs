@@ -25,6 +25,8 @@ struct Bindy {
     #[serde(default)]
     wasm_stubs: IndexMap<String, String>,
     #[serde(default)]
+    wasm_custom_typescript: String,
+    #[serde(default)]
     pyo3: IndexMap<String, String>,
     #[serde(default)]
     pyo3_stubs: IndexMap<String, String>,
@@ -246,7 +248,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 };
 
                 let mut method_tokens = quote! {
-                    #[napi]
+                    #[napi(catch_unwind)]
                     pub fn clone(&self) -> Self {
                         Clone::clone(self)
                     }
@@ -302,11 +304,13 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     .unwrap();
 
                     let napi_attr = match method.kind {
-                        MethodKind::Constructor => quote!(#[napi(constructor)]),
-                        MethodKind::Static => quote!(#[napi]),
-                        MethodKind::Factory | MethodKind::AsyncFactory => quote!(#[napi(factory)]),
+                        MethodKind::Constructor => quote!(#[napi(constructor, catch_unwind)]),
+                        MethodKind::Static => quote!(#[napi(catch_unwind)]),
+                        MethodKind::Factory | MethodKind::AsyncFactory => {
+                            quote!(#[napi(factory, catch_unwind)])
+                        }
                         MethodKind::Normal | MethodKind::Async | MethodKind::ToString => {
-                            quote!(#[napi])
+                            quote!(#[napi(catch_unwind)])
                         }
                     };
 
@@ -380,12 +384,12 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                             .unwrap();
 
                     field_tokens.extend(quote! {
-                        #[napi(getter)]
+                        #[napi(getter, catch_unwind)]
                         pub fn #get_ident(&self, env: Env) -> napi::Result<#get_ty> {
                             Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#ident.clone(), &bindy::NapiReturnContext(env))?)
                         }
 
-                        #[napi(setter)]
+                        #[napi(setter, catch_unwind)]
                         pub fn #set_ident(&mut self, env: Env, value: #set_ty) -> napi::Result<()> {
                             self.0.#ident = bindy::IntoRust::<_, _, bindy::Napi>::into_rust(value, &bindy::NapiParamContext)?;
                             Ok(())
@@ -408,7 +412,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         .collect::<Vec<_>>();
 
                     method_tokens.extend(quote! {
-                        #[napi(constructor)]
+                        #[napi(constructor, catch_unwind)]
                         pub fn new(
                             env: Env,
                             #( #arg_idents: #arg_types ),*
@@ -499,7 +503,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 .unwrap();
 
                 output.extend(quote! {
-                    #[napi_derive::napi]
+                    #[napi_derive::napi(catch_unwind)]
                     pub fn #bound_ident(
                         env: Env,
                         #( #arg_idents: #arg_types ),*
@@ -617,12 +621,15 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
             param_mappings.insert(format!("Vec<{name}>"), format!("&{name}ArrayType"));
             param_mappings.insert(name.clone(), format!("&{name}"));
 
-            stubs.insert(
-                format!("Option<Vec<{name}>>"),
-                format!("{name}[] | undefined"),
-            );
-            stubs.insert(format!("Option<{name}>"), format!("{name} | undefined"));
-            stubs.insert(format!("Vec<{name}>"), format!("{name}[]"));
+            stubs
+                .entry(format!("Option<Vec<{name}>>"))
+                .or_insert_with(|| format!("{name}[] | undefined"));
+            stubs
+                .entry(format!("Option<{name}>"))
+                .or_insert_with(|| format!("{name} | undefined"));
+            stubs
+                .entry(format!("Vec<{name}>"))
+                .or_insert_with(|| format!("{name}[]"));
         }
     }
 
@@ -1094,7 +1101,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     .join(" | ");
     let clvm_type = format!("export type ClvmType = {clvm_type_values};");
 
-    let typescript = format!("\n{clvm_type}\n\n{functions}\n{classes}");
+    let custom_typescript = &bindy.wasm_custom_typescript;
+    let typescript = format!("\n{clvm_type}\n\n{functions}\n{classes}\n{custom_typescript}");
 
     output.extend(quote! {
         #[wasm_bindgen]
@@ -1216,9 +1224,10 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     };
 
                     if !matches!(method.kind, MethodKind::ToString) {
+                        let signature = pyo3_signature(&method.args);
                         pyo3_attr = quote! {
                             #pyo3_attr
-                            #[pyo3(signature = (#(#arg_idents),*))]
+                            #[pyo3(signature = (#signature))]
                         };
                     }
 
@@ -1323,9 +1332,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
                         .collect::<Vec<_>>();
 
+                    let signature = pyo3_signature(fields);
+
                     method_tokens.extend(quote! {
                         #[new]
-                        #[pyo3(signature = (#(#arg_idents),*))]
+                        #[pyo3(signature = (#signature))]
                         pub fn new(
                             #( #arg_idents: #arg_types ),*
                         ) -> pyo3::PyResult<Self> {
@@ -1337,7 +1348,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 }
 
                 output.extend(quote! {
-                    #[pyo3::pyclass]
+                    #[pyo3::pyclass(from_py_object)]
                     #[derive(Clone)]
                     pub struct #bound_ident(#rust_struct_ident);
 
@@ -1370,7 +1381,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     .collect::<Vec<_>>();
 
                 output.extend(quote! {
-                    #[pyo3::pyclass(eq, eq_int)]
+                    #[pyo3::pyclass(eq, eq_int, from_py_object)]
                     #[derive(Clone, PartialEq, Eq)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
@@ -1409,9 +1420,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 )
                 .unwrap();
 
+                let signature = pyo3_signature(args);
+
                 output.extend(quote! {
                     #[pyo3::pyfunction]
-                    #[pyo3(signature = (#(#arg_idents),*))]
+                    #[pyo3(signature = (#signature))]
                     pub fn #bound_ident(
                         #( #arg_idents: #arg_types ),*
                     ) -> pyo3::PyResult<#ret> {
@@ -1682,6 +1695,26 @@ fn apply_mappings_with_flavor(
     }
 }
 
+/// Trailing optional arguments default to `None`, matching the generated stubs.
+fn pyo3_signature(args: &IndexMap<String, String>) -> proc_macro2::TokenStream {
+    let optional_start = args
+        .values()
+        .rposition(|ty| !ty.starts_with("Option<"))
+        .map_or(0, |index| index + 1);
+
+    let args = args.keys().enumerate().map(|(index, name)| {
+        let ident = Ident::new(name, Span::mixed_site());
+
+        if index >= optional_start {
+            quote!(#ident = None)
+        } else {
+            quote!(#ident)
+        }
+    });
+
+    quote!( #( #args ),* )
+}
+
 fn function_args(
     args: &IndexMap<String, String>,
     stubs: &IndexMap<String, String>,
@@ -1695,9 +1728,15 @@ fn function_args(
         let has_default = is_optional && !has_non_optional;
         let ty = apply_mappings_with_flavor(ty, stubs, mapping_flavor);
 
+        let name = if matches!(mapping_flavor, MappingFlavor::Python) {
+            name.clone()
+        } else {
+            name.to_case(Case::Camel)
+        };
+
         results.push(format!(
             "{}{}: {}{}",
-            name.to_case(Case::Camel),
+            name,
             if has_default && matches!(mapping_flavor, MappingFlavor::JavaScript) {
                 "?"
             } else {

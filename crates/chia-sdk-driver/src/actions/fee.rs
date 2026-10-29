@@ -1,8 +1,11 @@
-use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
+use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 
+/// Created by [`Action::fee`](crate::Action::fee).
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
     pub amount: u64,
+    /// Whether the fee is asserted with a `RESERVE_FEE` condition. Otherwise, the amount is still
+    /// left over as a fee, but isn't asserted.
     pub reserved: bool,
 }
 
@@ -17,7 +20,7 @@ impl FeeAction {
 
 impl SpendAction for FeeAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
     }
 
     fn spend(
@@ -26,10 +29,18 @@ impl SpendAction for FeeAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        spends.outputs.fee += self.amount;
+        spends.outputs.fee = spends
+            .outputs
+            .fee
+            .checked_add(self.amount)
+            .ok_or(DriverError::AmountOverflow)?;
 
         if self.reserved {
-            spends.outputs.reserved_fee += self.amount;
+            spends.outputs.reserved_fee = spends
+                .outputs
+                .reserved_fee
+                .checked_add(self.amount)
+                .ok_or(DriverError::AmountOverflow)?;
         }
 
         Ok(())

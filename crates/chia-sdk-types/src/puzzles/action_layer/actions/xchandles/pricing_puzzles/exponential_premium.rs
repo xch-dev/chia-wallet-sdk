@@ -6,25 +6,25 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE: [u8; 333] = hex!(
+pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE: [u8; 296] = hex!(
+    // Rue
     "
-    ff02ffff01ff04ffff10ffff05ffff02ff05ff81ff8080ffff02ff06ffff04ff
-    02ffff04ffff02ff04ffff04ff02ffff04ff5fffff04ff81bfffff04ffff0101
-    ffff04ffff05ffff14ffff12ffff0183010000ffff3dffff11ff82017fff8202
-    ff80ff0b8080ff0b8080ffff04ffff05ffff14ff17ffff17ffff0101ffff05ff
-    ff14ffff11ff82017fff8202ff80ff0b8080808080ff8080808080808080ffff
-    04ff2fff808080808080ffff06ffff02ff05ff81ff808080ffff04ffff01ffff
-    02ffff03ff0bffff01ff02ff04ffff04ff02ffff04ff05ffff04ff1bffff04ff
-    ff17ff17ffff010180ffff04ff2fffff04ffff02ffff03ffff18ff2fff1780ff
-    ff01ff05ffff14ffff12ff5fff1380ff058080ffff015f80ff0180ff80808080
-    80808080ffff015f80ff0180ff02ffff03ffff15ff05ff0b80ffff01ff11ff05
-    ff0b80ff8080ff0180ff018080
+    ff02ffff01ff02ffff01ff04ffff10ff04ffff02ff0dffff04ffff02ff09ffff
+    04ff09ffff04ffff04ff82017fffff13ff2fffff17ffff0101ffff10ffff13ff
+    ff11ff8202ffff8205ff80ff178080808080ffff04ff81bfffff04ffff0101ff
+    ff13ffff12ffff3dffff11ff8202ffff8205ff80ff1780ffff018301000080ff
+    17808080808080ff5f808080ff0680ffff04ffff02ff05ff81ff80ff018080ff
+    ff04ffff04ffff01ff02ffff03ff09ffff01ff02ff02ffff04ff02ffff04ffff
+    04ff19ffff03ffff18ff1fff1780ffff13ffff12ff0dff1180ff0b80ff0d8080
+    ffff04ff0bffff04ffff17ff17ffff010180ff1f8080808080ffff010d80ff01
+    80ffff01ff02ffff03ffff15ff02ff0380ffff01ff11ff02ff0380ffff018080
+    ff018080ff018080
     "
 );
 
 pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    b54c0f4b73e63e78470366bd4006ca629d94f36c8ea58abacf8cc1cbb7724907
+    eec82d74678809577247f69adc8efdc5e8a342c4bb595e1dae00dc7f7aad1d10
     "
 ));
 

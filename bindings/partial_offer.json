@@ -1,0 +1,249 @@
+{
+  "encode_partial_offer": {
+    "type": "function",
+    "args": {
+      "spend_bundle": "SpendBundle"
+    },
+    "return": "String"
+  },
+  "decode_partial_offer": {
+    "type": "function",
+    "args": {
+      "partial_offer": "String"
+    },
+    "return": "SpendBundle"
+  },
+  "PartialOfferAsset": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory"
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Option<Bytes32>"
+        }
+      },
+      "is_xch": {
+        "return": "bool"
+      },
+      "asset_id": {
+        "return": "Option<Bytes32>"
+      },
+      "hidden_puzzle_hash": {
+        "return": "Option<Bytes32>"
+      },
+      "puzzle_hash": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "Bytes32"
+      }
+    }
+  },
+  "PartialOfferPrice": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "price_precision": "u64",
+      "precision": "u64"
+    }
+  },
+  "PartialOfferInfo": {
+    "type": "class",
+    "fields": {
+      "offered_asset": "PartialOfferAsset",
+      "requested_asset": "PartialOfferAsset",
+      "maker_puzzle_hash": "Bytes32",
+      "price": "PartialOfferPrice",
+      "min_requested_amount": "u64",
+      "expiration": "Option<u64>",
+      "required_fee": "Option<u64>"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "offered_asset": "PartialOfferAsset",
+          "requested_asset": "PartialOfferAsset",
+          "maker_puzzle_hash": "Bytes32",
+          "price": "PartialOfferPrice"
+        }
+      },
+      "from_amounts": {
+        "type": "factory",
+        "args": {
+          "offered_asset": "PartialOfferAsset",
+          "requested_asset": "PartialOfferAsset",
+          "maker_puzzle_hash": "Bytes32",
+          "offered_amount": "u64",
+          "requested_amount": "u64"
+        }
+      },
+      "partial_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "offered_amount": {
+        "args": {
+          "requested_amount": "u64"
+        },
+        "return": "Option<u64>"
+      },
+      "requested_amount": {
+        "args": {
+          "offered_amount": "u64"
+        },
+        "return": "Option<u64>"
+      },
+      "creation_memos": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Program"
+      },
+      "parse_creation_memos": {
+        "type": "static",
+        "args": {
+          "memos": "Program"
+        },
+        "return": "Option<PartialOfferCreationMemos>"
+      }
+    }
+  },
+  "PartialOfferCreationMemos": {
+    "type": "class",
+    "fields": {
+      "maker_puzzle_hash": "Bytes32",
+      "requested_asset": "PartialOfferAsset"
+    }
+  },
+  "PartialOffer": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "lineage_proof": "Option<LineageProof>",
+      "info": "PartialOfferInfo"
+    },
+    "methods": {
+      "cat": {
+        "return": "Option<Cat>"
+      },
+      "offered_amount": {
+        "args": {
+          "requested_amount": "u64"
+        },
+        "return": "u64"
+      },
+      "max_requested_amount": {
+        "return": "Option<u64>"
+      },
+      "child": {
+        "args": {
+          "requested_amount": "u64"
+        },
+        "return": "Option<PartialOffer>"
+      },
+      "notarized_payment": {
+        "args": {
+          "clvm": "Clvm",
+          "requested_amount": "u64"
+        },
+        "return": "NotarizedPayment"
+      },
+      "fill_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "requested_amount": "u64"
+        },
+        "return": "Spend"
+      },
+      "fill": {
+        "args": {
+          "clvm": "Clvm",
+          "requested_amount": "u64"
+        },
+        "return": "PartialOfferFill"
+      },
+      "claw_back_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      }
+    }
+  },
+  "ParsedPartialOffer": {
+    "type": "class",
+    "fields": {
+      "partial_offer": "PartialOffer",
+      "requested_amount": "u64"
+    }
+  },
+  "PartialOfferFill": {
+    "type": "class",
+    "fields": {
+      "offer": "Offer",
+      "requested_amount": "u64",
+      "offered_amount": "u64",
+      "required_fee": "u64",
+      "child": "Option<PartialOffer>"
+    },
+    "methods": {
+      "actions": {
+        "return": "Vec<Action>"
+      }
+    }
+  },
+  "PartialOfferBundle": {
+    "type": "class",
+    "methods": {
+      "from_maker_spend_bundle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "spend_bundle": "SpendBundle",
+          "info": "PartialOfferInfo"
+        }
+      },
+      "from_coin": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "partial_offer": "PartialOffer"
+        }
+      },
+      "from_spend_bundle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "spend_bundle": "SpendBundle"
+        }
+      },
+      "to_spend_bundle": {
+        "return": "SpendBundle"
+      },
+      "partial_offer": {
+        "return": "PartialOffer"
+      },
+      "spend_bundle": {
+        "return": "SpendBundle"
+      },
+      "fill": {
+        "args": {
+          "requested_amount": "u64"
+        },
+        "return": "PartialOfferFill"
+      }
+    }
+  }
+}

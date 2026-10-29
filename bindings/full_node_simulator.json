@@ -1,0 +1,261 @@
+{
+  "FullNodeSimulator": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "with_seed": {
+        "type": "factory",
+        "args": {
+          "seed": "u64"
+        }
+      },
+      "with_secret_key": {
+        "type": "factory",
+        "args": {
+          "secret_key": "SecretKey"
+        }
+      },
+      "height": {
+        "return": "u32"
+      },
+      "header_hash": {
+        "return": "Bytes32"
+      },
+      "header_hash_of": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Option<Bytes32>"
+      },
+      "insert_coin": {
+        "args": {
+          "coin": "Coin"
+        }
+      },
+      "new_coin": {
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Coin"
+      },
+      "get_farming_ph": {
+        "return": "Bytes32"
+      },
+      "get_master_secret_key": {
+        "return": "SecretKey"
+      },
+      "get_prefarm_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "set_farming_ph": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        }
+      },
+      "get_blockchain_state": {
+        "return": "BlockchainStateResponse"
+      },
+      "get_network_info": {
+        "return": "GetNetworkInfoResponse"
+      },
+      "get_aggsig_additional_data": {
+        "return": "Bytes32"
+      },
+      "get_block_record": {
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "GetBlockRecordResponse"
+      },
+      "get_block_record_by_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "GetBlockRecordResponse"
+      },
+      "get_block_records": {
+        "args": {
+          "start": "u32",
+          "end": "u32"
+        },
+        "return": "GetBlockRecordsResponse"
+      },
+      "get_additions_and_removals": {
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "AdditionsAndRemovalsResponse"
+      },
+      "get_block_spends": {
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "GetBlockSpendsResponse"
+      },
+      "get_coin_record_by_name": {
+        "args": {
+          "name": "Bytes32"
+        },
+        "return": "GetCoinRecordResponse"
+      },
+      "get_coin_records_by_names": {
+        "args": {
+          "names": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_hint": {
+        "args": {
+          "hint": "Bytes32",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_hints": {
+        "args": {
+          "hints": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_parent_ids": {
+        "args": {
+          "parent_ids": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_puzzle_hash": {
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_puzzle_hashes": {
+        "args": {
+          "puzzle_hashes": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_puzzle_and_solution": {
+        "args": {
+          "coin_id": "Bytes32",
+          "height": "Option<u32>"
+        },
+        "return": "GetPuzzleAndSolutionResponse"
+      },
+      "push_tx": {
+        "args": {
+          "spend_bundle": "SpendBundle"
+        },
+        "return": "PushTxResponse"
+      },
+      "get_mempool_item_by_tx_id": {
+        "args": {
+          "tx_id": "Bytes32"
+        },
+        "return": "GetMempoolItemResponse"
+      },
+      "get_mempool_items_by_coin_name": {
+        "args": {
+          "coin_name": "Bytes32"
+        },
+        "return": "GetMempoolItemsResponse"
+      },
+      "farm_block": {
+        "args": {
+          "blocks": "u32"
+        },
+        "return": "Vec<BlockRecord>"
+      },
+      "revert_blocks": {
+        "args": {
+          "blocks": "u32"
+        },
+        "return": "Vec<Bytes32>"
+      },
+      "reorg_blocks": {
+        "args": {
+          "num_of_blocks_to_rev": "u32",
+          "num_of_new_blocks": "u32"
+        },
+        "return": "Vec<BlockRecord>"
+      },
+      "drain_events": {
+        "return": "Vec<FullNodeSimulatorEvent>"
+      },
+      "dump_state": {
+        "return": "String"
+      },
+      "restore_state": {
+        "args": {
+          "state": "String"
+        }
+      },
+      "start_server": {
+        "type": "async",
+        "no_wasm": true,
+        "return": "FullNodeSimulatorServer"
+      }
+    }
+  },
+  "FullNodeSimulatorEvent": {
+    "type": "class",
+    "methods": {
+      "block": {
+        "return": "Option<FullNodeSimulatorBlockEvent>"
+      },
+      "reorg": {
+        "return": "Option<FullNodeSimulatorReorgEvent>"
+      }
+    }
+  },
+  "FullNodeSimulatorBlockEvent": {
+    "type": "class",
+    "fields": {
+      "height": "u32",
+      "header_hash": "Bytes32",
+      "previous_header_hash": "Bytes32",
+      "additions": "Vec<CoinRecord>",
+      "removals": "Vec<CoinRecord>"
+    }
+  },
+  "FullNodeSimulatorReorgEvent": {
+    "type": "class",
+    "fields": {
+      "fork_height": "u32",
+      "old_peak_hash": "Bytes32",
+      "new_peak_hash": "Bytes32",
+      "reverted_header_hashes": "Vec<Bytes32>",
+      "new_header_hashes": "Vec<Bytes32>"
+    }
+  },
+  "FullNodeSimulatorServer": {
+    "type": "class",
+    "no_wasm": true,
+    "fields": {
+      "url": "String"
+    },
+    "methods": {
+      "close": {}
+    }
+  }
+}

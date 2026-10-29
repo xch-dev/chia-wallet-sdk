@@ -1,23 +1,44 @@
 import test from "ava";
 import {
   Action,
+  AssetInfo,
   BlsPair,
+  calculateTradePriceAmounts,
+  calculateTradePrices,
+  Cat,
   catPuzzleHash,
   Clvm,
   Coin,
+  CoinSpend,
   Constants,
+  decodeOffer,
+  decodePartialOffer,
   Delta,
   Deltas,
+  encodeOffer,
+  encodePartialOffer,
   Id,
   Nft,
   NftMetadata,
+  NotarizedPayment,
+  Offer,
+  OptionType,
+  PartialOfferAsset,
+  PartialOfferBundle,
+  PartialOfferInfo,
   Outputs,
+  Payment,
+  Relation,
+  RequestedPayments,
   selectCoins,
+  Signature,
   Simulator,
   Spend,
+  SpendBundle,
   Spends,
   standardPuzzleHash,
-} from "..";
+  TransferNftById,
+} from "../index.js";
 
 class Wallet {
   pair: BlsPair;
@@ -62,7 +83,7 @@ class Wallet {
     } else if (existing) {
       return this.fetchCatCoins(sim, existing).reduce(
         (acc, coin) => acc + coin.amount,
-        0n
+        0n,
       );
     } else {
       return 0n;
@@ -73,7 +94,7 @@ class Wallet {
     sim: Simulator,
     spends: Spends,
     actions: Action[],
-    reservedNfts: Map<string, Nft>
+    reservedNfts: Map<string, Nft>,
   ) {
     const deltas = Deltas.fromActions(actions);
 
@@ -123,7 +144,7 @@ class Wallet {
     sim: Simulator,
     clvm: Clvm,
     actions: Action[],
-    extras?: { nfts?: Nft[] }
+    extras?: { nfts?: Nft[] },
   ): Outputs {
     // Create a Spends object and insert coins we want to spend
     const spends = new Spends(clvm, this.puzzleHash);
@@ -146,12 +167,71 @@ class Wallet {
         spend.coin().coinId(),
         clvm.standardSpend(
           this.pair.pk,
-          clvm.delegatedSpend(spend.conditions())
-        )
+          clvm.delegatedSpend(spend.conditions()),
+        ),
       );
     }
 
     // Finalize everything
+    const outputs = finished.spend();
+    sim.spendCoins(clvm.coinSpends(), [this.pair.sk]);
+
+    return outputs;
+  }
+
+  // Builds the coin spends for the coins already added to the spends, without submitting them
+  build(
+    clvm: Clvm,
+    spends: Spends,
+    actions: Action[],
+    relation?: Relation,
+  ): { outputs: Outputs; coinSpends: CoinSpend[] } {
+    const deltas = spends.apply(actions);
+    const finished = spends.prepare(deltas, relation);
+
+    for (const spend of finished.pendingSpends()) {
+      finished.insert(
+        spend.coin().coinId(),
+        clvm.standardSpend(
+          this.pair.pk,
+          clvm.delegatedSpend(spend.conditions()),
+        ),
+      );
+    }
+
+    const outputs = finished.spend();
+    return { outputs, coinSpends: clvm.coinSpends() };
+  }
+
+  // Finds the unspent CATs hinted to this wallet, by parsing their parent spends
+  hintedCats(sim: Simulator): Cat[] {
+    return sim
+      .unspentCoins(this.puzzleHash, true)
+      .filter((coin) => !coin.puzzleHash.equals(this.puzzleHash))
+      .map((coin) => this.fetchCat(sim, coin));
+  }
+
+  // Spends the coins that have already been added to the spends, without any coin selection
+  finish(
+    sim: Simulator,
+    clvm: Clvm,
+    spends: Spends,
+    actions: Action[],
+    relation?: Relation,
+  ): Outputs {
+    const deltas = spends.apply(actions);
+    const finished = spends.prepare(deltas, relation);
+
+    for (const spend of finished.pendingSpends()) {
+      finished.insert(
+        spend.coin().coinId(),
+        clvm.standardSpend(
+          this.pair.pk,
+          clvm.delegatedSpend(spend.conditions()),
+        ),
+      );
+    }
+
     const outputs = finished.spend();
     sim.spendCoins(clvm.coinSpends(), [this.pair.sk]);
 
@@ -236,7 +316,7 @@ test("mint and update nft metadata", (t) => {
     [],
     null,
     [],
-    null
+    null,
   );
 
   const mint = Action.mintNft(
@@ -246,12 +326,12 @@ test("mint and update nft metadata", (t) => {
     alice.puzzleHash,
     0,
     1n,
-    null
+    null,
   );
 
   const metadataUpdate = new Spend(
     clvm.nftMetadataUpdaterDefault(),
-    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")]),
   );
 
   const update = Action.updateNft(Id.new(0n), [metadataUpdate]);
@@ -285,7 +365,7 @@ test("update existing nft metadata", (t) => {
     [],
     null,
     [],
-    null
+    null,
   );
 
   const mint = Action.mintNft(
@@ -295,7 +375,7 @@ test("update existing nft metadata", (t) => {
     alice.puzzleHash,
     0,
     1n,
-    null
+    null,
   );
 
   const mintOutputs = alice.spend(sim, clvm, [mint]);
@@ -305,10 +385,12 @@ test("update existing nft metadata", (t) => {
   // Update the metadata using the existing NFT
   const metadataUpdate = new Spend(
     clvm.nftMetadataUpdaterDefault(),
-    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")]),
   );
 
-  const update = Action.updateNft(Id.existing(mintedNft.info.launcherId), [metadataUpdate]);
+  const update = Action.updateNft(Id.existing(mintedNft.info.launcherId), [
+    metadataUpdate,
+  ]);
 
   const outputs = alice.spend(sim, clvm, [update], { nfts: [mintedNft] });
 
@@ -322,4 +404,760 @@ test("update existing nft metadata", (t) => {
   t.deepEqual(outputs.nfts(), [Id.existing(mintedNft.info.launcherId)]);
   t.truthy(metadataSource);
   t.true(metadataSource?.includes("https://example.com/2") ?? false);
+});
+
+test("mint an nft from an nft and assign it", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(19n);
+  alice.addXch(sim, 2n);
+
+  const outputs = alice.spend(sim, clvm, [
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      null,
+    ),
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      Id.new(0n),
+    ),
+    Action.updateNft(Id.new(1n), [], new TransferNftById(Id.new(0n), [])),
+  ]);
+
+  const parent = outputs.nft(Id.new(0n));
+  const child = outputs.nft(Id.new(1n));
+
+  t.is(parent.info.currentOwner, null);
+  t.deepEqual(child.info.currentOwner, parent.info.launcherId);
+  t.is(sim.coinState(parent.coin.coinId())?.spentHeight, null);
+  t.is(sim.coinState(child.coin.coinId())?.spentHeight, null);
+});
+
+test("create, update, send, and melt a did", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(4n);
+  const bob = new Wallet(5n);
+
+  alice.addXch(sim, 1n);
+
+  const created = alice.spend(sim, clvm, [Action.createEmptyDid()]);
+  t.deepEqual(created.dids(), [Id.new(0n)]);
+
+  const did = created.did(Id.new(0n));
+  const id = Id.existing(did.info.launcherId);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addDid(did);
+
+  const sent = alice.finish(sim, clvm, spends, [
+    Action.updateDid(id, clvm.string("updated"), null, 1n),
+    Action.send(id, bob.puzzleHash, 1n, clvm.alloc([bob.puzzleHash])),
+  ]);
+
+  const updated = sent.did(id);
+  t.deepEqual(updated.info.p2PuzzleHash, bob.puzzleHash);
+  t.is(updated.info.numVerificationsRequired, 1n);
+  t.is(updated.info.metadata.toString(), "updated");
+  t.is(sim.coinState(updated.coin.coinId())?.spentHeight, null);
+
+  // The melted value is returned as change, so an XCH coin must be selected as well
+  t.true(Deltas.fromActions([Action.meltSingleton(id, 1n)]).isNeeded(Id.xch()));
+
+  const bobCoin = sim.newCoin(bob.puzzleHash, 0n);
+  const meltSpends = new Spends(clvm, bob.puzzleHash);
+  meltSpends.addDid(updated);
+  meltSpends.addXch(bobCoin);
+
+  const melted = bob.finish(sim, clvm, meltSpends, [
+    Action.meltSingleton(id, 1n),
+  ]);
+
+  t.deepEqual(melted.dids(), []);
+  t.is(bob.balance(sim, Id.xch()), 1n);
+});
+
+test("singleton amount mismatch is rejected", (t) => {
+  const clvm = new Clvm();
+  const alice = new Wallet(6n);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addXch(new Coin(new Uint8Array(32), alice.puzzleHash, 10n));
+
+  t.throws(
+    () =>
+      spends.apply([
+        Action.createEmptyDid(),
+        Action.send(Id.new(0n), alice.puzzleHash, 3n),
+      ]),
+    { message: /amount does not match/ },
+  );
+});
+
+test("insufficient funds are rejected", (t) => {
+  const clvm = new Clvm();
+  const alice = new Wallet(7n);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addXch(new Coin(new Uint8Array(32), alice.puzzleHash, 10n));
+
+  const deltas = spends.apply([
+    Action.send(Id.xch(), alice.puzzleHash, 5n),
+    Action.fee(6n),
+  ]);
+
+  t.throws(() => spends.prepare(deltas), { message: /insufficient/ });
+});
+
+test("mint and send an option", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(8n);
+  const bob = new Wallet(9n);
+
+  alice.addXch(sim, 10n);
+
+  const minted = alice.spend(sim, clvm, [
+    Action.mintOption(
+      alice.puzzleHash,
+      100n,
+      Id.xch(),
+      5n,
+      OptionType.xch(3n),
+      1n,
+    ),
+  ]);
+
+  t.deepEqual(minted.options(), [Id.new(0n)]);
+
+  const option = minted.option(Id.new(0n));
+  const id = Id.existing(option.info.launcherId);
+  const underlying = minted
+    .xch()
+    .find((coin) => coin.coinId().equals(option.info.underlyingCoinId));
+
+  t.truthy(underlying);
+  t.is(underlying?.amount, 5n);
+  t.is(alice.balance(sim, Id.xch()), 4n);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addOption(option);
+
+  const sent = alice.finish(sim, clvm, spends, [
+    Action.send(id, bob.puzzleHash, 1n, clvm.alloc([bob.puzzleHash])),
+  ]);
+
+  const bobOption = sent.option(id);
+  t.deepEqual(bobOption.info.p2PuzzleHash, bob.puzzleHash);
+  t.is(sim.coinState(bobOption.coin.coinId())?.spentHeight, null);
+});
+
+test("fee accessors and separate change puzzle hash", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(10n);
+  const bob = new Wallet(11n);
+
+  alice.addXch(sim, 10n);
+
+  const spends = Spends.withSeparateChangePuzzleHash(
+    clvm,
+    alice.puzzleHash,
+    bob.puzzleHash,
+  );
+
+  for (const coin of alice.fetchXch(sim)) {
+    spends.addXch(coin);
+  }
+
+  const outputs = alice.finish(sim, clvm, spends, [
+    Action.burn(Id.xch(), 2n),
+    Action.fee(3n),
+  ]);
+
+  t.is(outputs.fee(), 3n);
+  t.is(outputs.reservedFee(), 3n);
+  t.is(alice.balance(sim, Id.xch()), 0n);
+  t.is(bob.balance(sim, Id.xch()), 5n);
+});
+
+test("assert concurrent relation links every spend", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(12n);
+  const bob = new Wallet(13n);
+
+  for (let i = 0; i < 3; i++) {
+    alice.addXch(sim, 5n);
+  }
+
+  const coins = alice.fetchXch(sim);
+
+  const countConcurrent = (relation?: Relation) => {
+    const spends = new Spends(clvm, alice.puzzleHash);
+
+    for (const coin of coins) {
+      spends.addXch(coin);
+    }
+
+    const deltas = spends.apply([Action.send(Id.xch(), bob.puzzleHash, 12n)]);
+    const finished = spends.prepare(deltas, relation);
+
+    return finished
+      .pendingSpends()
+      .map(
+        (spend) =>
+          spend
+            .conditions()
+            .filter((condition) => condition.parseAssertConcurrentSpend())
+            .length,
+      );
+  };
+
+  t.deepEqual(countConcurrent(), [0, 0, 0]);
+  t.deepEqual(countConcurrent(Relation.Unrelated), [0, 0, 0]);
+  t.deepEqual(countConcurrent(Relation.AssertConcurrent), [1, 1, 1]);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+
+  for (const coin of coins) {
+    spends.addXch(coin);
+  }
+
+  alice.finish(
+    sim,
+    clvm,
+    spends,
+    [Action.send(Id.xch(), bob.puzzleHash, 12n)],
+    Relation.AssertConcurrent,
+  );
+
+  t.is(bob.balance(sim, Id.xch()), 12n);
+  t.is(alice.balance(sim, Id.xch()), 3n);
+});
+
+const settlementPuzzleHash = Constants.settlementPaymentHash();
+
+test("offer cat for xch", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(14n);
+  const bob = new Wallet(15n);
+
+  alice.addXch(sim, 100n);
+  bob.addXch(sim, 51n);
+
+  const issued = alice.spend(sim, clvm, [Action.singleIssueCat(null, 100n)]);
+  const cat = issued.cat(issued.cats()[0])[0];
+  const assetId = cat.info.assetId;
+  const id = Id.existing(assetId);
+
+  // Alice offers 100 CAT for 50 XCH
+  const requestedPayments = new RequestedPayments(clvm);
+  requestedPayments.addXch(
+    new NotarizedPayment(Offer.nonce([cat.coin.coinId()]), [
+      new Payment(
+        alice.puzzleHash,
+        50n,
+        clvm.list([clvm.atom(alice.puzzleHash)]),
+      ),
+    ]),
+  );
+  const assetInfo = new AssetInfo(clvm);
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addCat(cat);
+  for (const assertion of requestedPayments.assertions(assetInfo)) {
+    makerSpends.addRequiredCondition(assertion);
+  }
+
+  const maker = alice.build(
+    clvm,
+    makerSpends,
+    [Action.send(id, settlementPuzzleHash, 100n)],
+    Relation.AssertConcurrent,
+  );
+
+  const madeOffer = Offer.fromInputSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    requestedPayments,
+    assetInfo,
+  );
+
+  // The offer survives being encoded and decoded
+  const offer = Offer.fromSpendBundle(
+    clvm,
+    decodeOffer(encodeOffer(madeOffer.toSpendBundle())),
+  );
+  t.is(offer.offeredAmounts().cat(assetId), 100n);
+  t.is(offer.offeredCats(assetId).length, 1);
+  t.is(offer.requestedPayments().amounts().xch(), 50n);
+
+  // Bob takes the offer and pays a fee
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    [...offer.requestedPayments().actions(), Action.fee(1n)],
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 50n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+  t.is(bob.balance(sim, id), 100n);
+});
+
+test("partial offer cat for xch", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(18n);
+  const bob = new Wallet(19n);
+
+  alice.addXch(sim, 100n);
+  bob.addXch(sim, 21n);
+
+  const issued = alice.spend(sim, clvm, [Action.singleIssueCat(null, 100n)]);
+  const cat = issued.cat(issued.cats()[0])[0];
+  const assetId = cat.info.assetId;
+  const id = Id.existing(assetId);
+
+  // Alice offers 100 CAT for 50 XCH, which can be partially filled
+  const info = PartialOfferInfo.fromAmounts(
+    PartialOfferAsset.cat(assetId),
+    PartialOfferAsset.xch(),
+    alice.puzzleHash,
+    100n,
+    50n,
+  );
+  info.minRequestedAmount = 10n;
+  info.requiredFee = 1n;
+
+  t.is(info.price.pricePrecision, 2n);
+  t.is(info.price.precision, 1n);
+  t.is(info.offeredAmount(20n), 40n);
+  t.is(info.requestedAmount(40n), 20n);
+
+  const memos = info.creationMemos(clvm);
+  const parsedMemos = PartialOfferInfo.parseCreationMemos(memos);
+  t.deepEqual(parsedMemos?.makerPuzzleHash, alice.puzzleHash);
+  t.true(parsedMemos?.requestedAsset.isXch());
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addCat(cat);
+
+  const maker = alice.build(clvm, makerSpends, [
+    Action.send(id, info.p2PuzzleHash(), 100n, memos),
+  ]);
+
+  const madeBundle = PartialOfferBundle.fromMakerSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    info,
+  );
+
+  // The partial offer survives being encoded and decoded
+  const encoded = encodePartialOffer(madeBundle.toSpendBundle());
+  t.true(encoded.startsWith("partial1"));
+
+  const bundle = PartialOfferBundle.fromSpendBundle(
+    clvm,
+    decodePartialOffer(encoded),
+  );
+  const partialOffer = bundle.partialOffer();
+  t.is(partialOffer.coin.amount, 100n);
+  t.deepEqual(partialOffer.coin.puzzleHash, info.puzzleHash());
+  t.deepEqual(partialOffer.info.offeredAsset.assetId(), assetId);
+  t.is(partialOffer.info.minRequestedAmount, 10n);
+  t.is(partialOffer.info.requiredFee, 1n);
+  t.is(partialOffer.info.expiration, null);
+  t.is(partialOffer.maxRequestedAmount(), 50n);
+  t.throws(() => partialOffer.offeredAmount(5n));
+
+  // Bob pays 20 XCH (and the required fee) for 40 CAT
+  const fill = bundle.fill(20n);
+  t.is(fill.requestedAmount, 20n);
+  t.is(fill.offeredAmount, 40n);
+  t.is(fill.requiredFee, 1n);
+  t.is(fill.child?.coin.amount, 60n);
+
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(fill.offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    fill.actions(),
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = fill.offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 20n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+  t.is(bob.balance(sim, id), 40n);
+
+  // The fill can be parsed from the chain to find the remaining offer coin
+  const parentSpend = sim.coinSpend(partialOffer.coin.coinId());
+  if (!parentSpend) throw new Error("Partial offer spend not found");
+
+  const puzzle = clvm.deserialize(parentSpend.puzzleReveal).puzzle();
+  const solution = clvm.deserialize(parentSpend.solution);
+
+  const parsed = puzzle.parsePartialOffer(parentSpend.coin, solution, null);
+  t.is(parsed?.requestedAmount, 20n);
+
+  const child = puzzle.parseChildPartialOffer(parentSpend.coin, solution, null);
+  if (!child) throw new Error("Remaining partial offer coin not found");
+  t.deepEqual(child.coin.coinId(), fill.child?.coin.coinId());
+  t.is(child.maxRequestedAmount(), 30n);
+
+  // Alice claws back the rest
+  const clawBackSpend = child.clawBackSpend(
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend([clvm.createCoin(alice.puzzleHash, 60n)]),
+    ),
+  );
+  clvm.spendCoin(child.coin, clawBackSpend);
+  sim.spendCoins(clvm.coinSpends(), [alice.pair.sk]);
+
+  t.is(alice.balance(sim, id), 60n);
+});
+
+test("offer nft for xch with royalty", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(16n);
+  const bob = new Wallet(17n);
+  const carol = new Wallet(18n);
+
+  alice.addXch(sim, 1n);
+  bob.addXch(sim, 1030n);
+
+  const minted = alice.spend(sim, clvm, [
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      carol.puzzleHash,
+      300,
+      1n,
+    ),
+  ]);
+  const nft = minted.nft(minted.nfts()[0]);
+  const nftId = Id.existing(nft.info.launcherId);
+
+  // Alice offers the NFT for 1000 XCH, revealing the trade price so the royalty is enforced
+  const requestedPayments = new RequestedPayments(clvm);
+  requestedPayments.addXch(
+    new NotarizedPayment(Offer.nonce([nft.coin.coinId()]), [
+      new Payment(alice.puzzleHash, 1000n, null),
+    ]),
+  );
+  const assetInfo = new AssetInfo(clvm);
+  const tradePrices = calculateTradePrices(
+    calculateTradePriceAmounts(requestedPayments.amounts(), 1),
+    assetInfo,
+  );
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addNft(nft);
+  for (const assertion of requestedPayments.assertions(assetInfo)) {
+    makerSpends.addRequiredCondition(assertion);
+  }
+
+  const maker = alice.build(
+    clvm,
+    makerSpends,
+    [
+      Action.updateNft(nftId, [], new TransferNftById(null, tradePrices)),
+      Action.send(nftId, settlementPuzzleHash, 1n),
+    ],
+    Relation.AssertConcurrent,
+  );
+
+  const offer = Offer.fromInputSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    requestedPayments,
+    assetInfo,
+  );
+
+  const royalties = offer.requestedRoyalties();
+  t.is(royalties.length, 1);
+  t.is(royalties[0].basisPoints, 300);
+  t.is(offer.requestedRoyaltyAmounts().xch(), 30n);
+
+  // Bob takes the offer and pays the royalty
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    [
+      ...offer.requestedPayments().actions(),
+      Action.settleRoyalty(
+        clvm,
+        Id.xch(),
+        royalties[0].launcherId,
+        royalties[0].puzzleHash,
+        30n,
+      ),
+    ],
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  const bobNft = taker.outputs.nft(nftId);
+  t.true(Buffer.from(bobNft.info.p2PuzzleHash).equals(bob.puzzleHash));
+  t.is(alice.balance(sim, Id.xch()), 1000n);
+  t.is(carol.balance(sim, Id.xch()), 30n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+});
+
+test("coin announcement relations link spends", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(19n);
+  const bob = new Wallet(20n);
+
+  for (let i = 0; i < 6; i++) {
+    alice.addXch(sim, 5n);
+  }
+
+  const count = (spends: Spends, relation: Relation) => {
+    const deltas = spends.apply([Action.send(Id.xch(), bob.puzzleHash, 3n)]);
+
+    return spends
+      .prepare(deltas, relation)
+      .pendingSpends()
+      .map((spend) => {
+        const conditions = spend.conditions();
+        return [
+          conditions.filter((c) => c.parseCreateCoinAnnouncement()).length,
+          conditions.filter((c) => c.parseAssertCoinAnnouncement()).length,
+        ];
+      });
+  };
+
+  const coins = alice.fetchXch(sim);
+  const ringCoins = coins.slice(0, 3);
+  const hubCoins = coins.slice(3);
+
+  const addAll = (selected: Coin[]) => {
+    const spends = new Spends(clvm, alice.puzzleHash);
+    for (const coin of selected) {
+      spends.addXch(coin);
+    }
+    return spends;
+  };
+
+  t.deepEqual(count(addAll(ringCoins), Relation.CoinAnnouncementRing), [
+    [1, 1],
+    [1, 1],
+    [1, 1],
+  ]);
+  t.deepEqual(count(addAll(hubCoins), Relation.CoinAnnouncementHub), [
+    [1, 0],
+    [0, 1],
+    [0, 1],
+  ]);
+  t.deepEqual(count(addAll([coins[0]]), Relation.CoinAnnouncementRing), [
+    [0, 0],
+  ]);
+
+  alice.finish(
+    sim,
+    clvm,
+    addAll(ringCoins),
+    [Action.send(Id.xch(), bob.puzzleHash, 6n)],
+    Relation.CoinAnnouncementRing,
+  );
+  alice.finish(
+    sim,
+    clvm,
+    addAll(hubCoins),
+    [Action.send(Id.xch(), bob.puzzleHash, 6n)],
+    Relation.CoinAnnouncementHub,
+  );
+
+  t.is(bob.balance(sim, Id.xch()), 12n);
+  t.is(alice.balance(sim, Id.xch()), 18n);
+});
+
+const issueRevocableCat = (
+  sim: Simulator,
+  clvm: Clvm,
+  issuer: Wallet,
+  holder: Wallet,
+  amount: bigint,
+) => {
+  const tail = clvm
+    .everythingWithSignature()
+    .curry([clvm.atom(issuer.pair.pk.toBytes())]);
+  const tailSpend = new Spend(tail, clvm.nil());
+
+  issuer.addXch(sim, amount);
+  issuer.spend(sim, clvm, [
+    Action.issueCat(tailSpend, issuer.puzzleHash, amount),
+    Action.send(
+      Id.new(0n),
+      holder.puzzleHash,
+      amount,
+      clvm.list([clvm.atom(holder.puzzleHash)]),
+    ),
+  ]);
+
+  const cats = holder.hintedCats(sim);
+  if (cats.length !== 1) throw new Error("Expected a single revocable CAT");
+
+  return { tailSpend, cat: cats[0], id: Id.existing(cats[0].info.assetId) };
+};
+
+test("revoke a cat and send it", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const issuer = new Wallet(21n);
+  const bob = new Wallet(22n);
+  const carol = new Wallet(23n);
+
+  const { cat, id } = issueRevocableCat(sim, clvm, issuer, bob, 10n);
+  t.true(Buffer.from(cat.info.hiddenPuzzleHash!).equals(issuer.puzzleHash));
+
+  const spends = new Spends(clvm, issuer.puzzleHash);
+  spends.addCatForRevocation(cat);
+
+  const actions = [
+    Action.send(
+      id,
+      carol.puzzleHash,
+      10n,
+      clvm.list([clvm.atom(carol.puzzleHash)]),
+    ),
+  ];
+
+  const pending = spends.prepare(spends.apply(actions)).pendingSpends();
+  t.is(pending.length, 1);
+  t.true(pending[0].isRevocation());
+  t.true(pending[0].p2PuzzleHash().equals(issuer.puzzleHash));
+  t.truthy(pending[0].asCat());
+
+  const retry = new Spends(clvm, issuer.puzzleHash);
+  retry.addCatForRevocation(cat);
+  issuer.finish(sim, clvm, retry, actions);
+
+  // Carol's coin is still revocable by the issuer
+  const carolCats = carol.hintedCats(sim);
+  t.is(carolCats.length, 1);
+  t.is(carolCats[0].coin.amount, 10n);
+  t.true(
+    Buffer.from(carolCats[0].info.hiddenPuzzleHash!).equals(issuer.puzzleHash),
+  );
+  t.is(bob.hintedCats(sim).length, 0);
+});
+
+test("revoke a cat and melt it", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const issuer = new Wallet(24n);
+  const bob = new Wallet(25n);
+
+  const { tailSpend, cat, id } = issueRevocableCat(sim, clvm, issuer, bob, 10n);
+
+  issuer.addXch(sim, 0n);
+
+  const spends = new Spends(clvm, issuer.puzzleHash);
+  spends.addCatForRevocation(cat);
+  for (const coin of issuer.fetchXch(sim)) {
+    spends.addXch(coin);
+  }
+
+  issuer.finish(
+    sim,
+    clvm,
+    spends,
+    [Action.runTail(id, tailSpend, new Delta(0n, 10n))],
+    Relation.AssertConcurrent,
+  );
+
+  t.is(issuer.balance(sim, Id.xch()), 10n);
+  t.is(bob.hintedCats(sim).length, 0);
+  t.is(issuer.hintedCats(sim).length, 0);
+});
+
+test("revoke a cat without actions returns it as revocable change", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const issuer = new Wallet(26n);
+  const bob = new Wallet(27n);
+
+  const { cat } = issueRevocableCat(sim, clvm, issuer, bob, 10n);
+
+  const spends = new Spends(clvm, issuer.puzzleHash);
+  spends.addCatForRevocation(cat);
+  issuer.finish(sim, clvm, spends, []);
+
+  const issuerCats = issuer.hintedCats(sim);
+  t.is(issuerCats.length, 1);
+  t.is(issuerCats[0].coin.amount, 10n);
+  t.true(
+    Buffer.from(issuerCats[0].info.p2PuzzleHash).equals(issuer.puzzleHash),
+  );
+  t.true(
+    Buffer.from(issuerCats[0].info.hiddenPuzzleHash!).equals(issuer.puzzleHash),
+  );
+  t.is(bob.hintedCats(sim).length, 0);
+
+  // A CAT without a revocation layer can't be revoked
+  issuer.addXch(sim, 1n);
+  const normal = issuer.spend(sim, clvm, [Action.singleIssueCat(null, 1n)]);
+  const spends2 = new Spends(clvm, issuer.puzzleHash);
+  t.throws(() => spends2.addCatForRevocation(normal.cat(normal.cats()[0])[0]));
 });

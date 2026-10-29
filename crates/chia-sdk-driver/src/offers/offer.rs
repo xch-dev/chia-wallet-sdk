@@ -6,7 +6,8 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
+use hex_literal::hex;
 use indexmap::IndexSet;
 
 use crate::{
@@ -14,6 +15,11 @@ use crate::{
     OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     calculate_royalty_amounts, calculate_trade_price_amounts,
 };
+
+/// The tree hash of the retired `settlement_payments_old.clsp` puzzle. Offers that use it are
+/// insecure, so they are rejected when parsed.
+pub const OLD_SETTLEMENT_PAYMENT_HASH: [u8; 32] =
+    hex!("bae24162efbd568f89bc7a340798a6118df0189eb9e3f8697bcea27af99f8f79");
 
 #[derive(Debug, Clone)]
 pub struct Offer {
@@ -77,6 +83,35 @@ impl Offer {
             .collect())
     }
 
+    /// The amount that the offer's spends don't assign to any coin, which goes to the farmer as a
+    /// fee. Unlike [`OfferCoins::fee`], this doesn't rely on `RESERVE_FEE` conditions.
+    ///
+    /// This is negative if the spends create more than they spend, in which case the offer can only
+    /// be taken by a spend bundle that makes up the difference.
+    pub fn fee(&self) -> Result<i128, DriverError> {
+        let mut allocator = Allocator::new();
+        let mut removals = 0;
+        let mut additions = 0;
+
+        for coin_spend in &self.spend_bundle.coin_spends {
+            removals += i128::from(coin_spend.coin.amount);
+
+            let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+            let solution = coin_spend.solution.to_clvm(&mut allocator)?;
+
+            let output = run_puzzle(&mut allocator, puzzle, solution)?;
+            let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
+
+            for condition in conditions {
+                if let Some(create_coin) = condition.into_create_coin() {
+                    additions += i128::from(create_coin.amount);
+                }
+            }
+        }
+
+        Ok(removals - additions)
+    }
+
     pub fn spend_bundle(&self) -> &SpendBundle {
         &self.spend_bundle
     }
@@ -95,21 +130,28 @@ impl Offer {
 
     /// Returns the royalty info for requested NFTs, since those are the royalties
     /// that need to be paid by the offered side.
-    pub fn offered_royalties(&self) -> Vec<RoyaltyInfo> {
-        self.requested_payments
-            .nfts
-            .keys()
-            .filter_map(|&launcher_id| {
-                self.asset_info.nft(launcher_id).map(|nft| {
-                    RoyaltyInfo::new(
-                        launcher_id,
-                        nft.royalty_puzzle_hash,
-                        nft.royalty_basis_points,
-                    )
-                })
-            })
-            .filter(|royalty| royalty.basis_points > 0)
-            .collect()
+    ///
+    /// Returns [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since its
+    /// royalty would otherwise be skipped.
+    pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>, DriverError> {
+        let mut royalties = Vec::new();
+
+        for &launcher_id in self.requested_payments.nfts.keys() {
+            let nft = self
+                .asset_info
+                .nft(launcher_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
+            if nft.royalty_basis_points > 0 {
+                royalties.push(RoyaltyInfo::new(
+                    launcher_id,
+                    nft.royalty_puzzle_hash,
+                    nft.royalty_basis_points,
+                ));
+            }
+        }
+
+        Ok(royalties)
     }
 
     /// Returns the royalty info for offered NFTs, since those are the royalties
@@ -129,14 +171,18 @@ impl Offer {
             .collect()
     }
 
-    pub fn offered_royalty_amounts(&self) -> OfferAmounts {
+    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
+    /// [`u64`], in which case the royalties can't be paid.
+    pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let offered_amounts = self.offered_coins.amounts();
-        let royalties = self.offered_royalties();
+        let royalties = self.offered_royalties()?;
         let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
     }
 
-    pub fn requested_royalty_amounts(&self) -> OfferAmounts {
+    /// Fails with [`DriverError::AmountOverflow`] if the trade price of each NFT doesn't fit in a
+    /// [`u64`], in which case the royalties can't be paid.
+    pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts, DriverError> {
         let requested_amounts = self.requested_payments.amounts();
         let royalties = self.requested_royalties();
         let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
@@ -210,11 +256,18 @@ impl Offer {
         arbitrage
     }
 
+    /// The nonce that requested payments are notarized with, which is the tree hash of the sorted
+    /// ids of the coins being offered (ie, the coins spent by the maker which aren't created in the
+    /// offer). Since each coin can only be spent once, no two offers that can both be taken share a
+    /// nonce, so a taker can't combine offers and pay for both with the same payment.
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
         coin_ids.sort();
         coin_ids.tree_hash().into()
     }
 
+    /// Creates an offer from the maker's own spends. Unlike [`Offer::from_spend_bundle`], the puzzle
+    /// reveals aren't checked against the coins' puzzle hashes, since the spends are trusted and may
+    /// still contain placeholders that are replaced when they're signed.
     pub fn from_input_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: SpendBundle,
@@ -231,9 +284,7 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = deserialize_coin_spend(allocator, coin_spend)?;
 
             offered_coins.parse(
                 allocator,
@@ -253,6 +304,11 @@ impl Offer {
         ))
     }
 
+    /// Parses an untrusted offer spend bundle. The spends of coins with a parent coin id of zero are
+    /// the requested payments, and the rest are the maker's spends.
+    ///
+    /// Returns [`DriverError::WrongPuzzleHash`] if the puzzle reveal of a spend doesn't match the
+    /// coin's puzzle hash.
     pub fn from_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: &SpendBundle,
@@ -276,11 +332,10 @@ impl Offer {
             .collect();
 
         for coin_spend in &spend_bundle.coin_spends {
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle = Puzzle::parse(allocator, puzzle);
-            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let (puzzle, solution) = parse_coin_spend(allocator, coin_spend)?;
 
             if coin_spend.coin.parent_coin_info == Bytes32::default() {
+                check_not_old_settlement_payment(allocator, puzzle)?;
                 requested_payments.parse(allocator, &mut asset_info, puzzle, solution)?;
             } else {
                 input_spend_bundle.coin_spends.push(coin_spend.clone());
@@ -304,13 +359,17 @@ impl Offer {
         ))
     }
 
-    pub fn to_spend_bundle(mut self, ctx: &mut SpendContext) -> Result<SpendBundle, DriverError> {
+    /// The offer spend bundle, with a spend for each kind of requested payment. These come before
+    /// the maker's spends, as in the reference wallet, so that an offer it made encodes the same
+    /// after being parsed.
+    pub fn to_spend_bundle(self, ctx: &mut SpendContext) -> Result<SpendBundle, DriverError> {
         let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+        let mut coin_spends = Vec::new();
 
         if !self.requested_payments.xch.is_empty() {
             let solution = SettlementPaymentsSolution::new(self.requested_payments.xch);
 
-            self.spend_bundle.coin_spends.push(CoinSpend::new(
+            coin_spends.push(CoinSpend::new(
                 Coin::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into(), 0),
                 ctx.serialize(&settlement)?,
                 ctx.serialize(&solution)?,
@@ -318,18 +377,21 @@ impl Offer {
         }
 
         for (asset_id, notarized_payments) in self.requested_payments.cats {
+            let info = self
+                .asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
+
             let cat_info = CatInfo::new(
                 asset_id,
-                self.asset_info
-                    .cat(asset_id)
-                    .and_then(|info| info.hidden_puzzle_hash),
+                info.hidden_puzzle_hash,
                 SETTLEMENT_PAYMENT_HASH.into(),
             );
 
             let puzzle = cat_info.construct_puzzle(ctx, settlement)?;
             let solution = SettlementPaymentsSolution::new(notarized_payments);
 
-            self.spend_bundle.coin_spends.push(CoinSpend::new(
+            coin_spends.push(CoinSpend::new(
                 Coin::new(Bytes32::default(), cat_info.puzzle_hash().into(), 0),
                 ctx.serialize(&puzzle)?,
                 ctx.serialize(&solution)?,
@@ -355,7 +417,7 @@ impl Offer {
             let puzzle = nft_info.into_layers(settlement).construct_puzzle(ctx)?;
             let solution = SettlementPaymentsSolution::new(notarized_payments);
 
-            self.spend_bundle.coin_spends.push(CoinSpend::new(
+            coin_spends.push(CoinSpend::new(
                 Coin::new(Bytes32::default(), nft_info.puzzle_hash().into(), 0),
                 ctx.serialize(&puzzle)?,
                 ctx.serialize(&solution)?,
@@ -378,14 +440,19 @@ impl Offer {
             let puzzle = option_info.into_layers(settlement).construct_puzzle(ctx)?;
             let solution = SettlementPaymentsSolution::new(notarized_payments);
 
-            self.spend_bundle.coin_spends.push(CoinSpend::new(
+            coin_spends.push(CoinSpend::new(
                 Coin::new(Bytes32::default(), option_info.puzzle_hash().into(), 0),
                 ctx.serialize(&puzzle)?,
                 ctx.serialize(&solution)?,
             ));
         }
 
-        Ok(self.spend_bundle)
+        coin_spends.extend(self.spend_bundle.coin_spends);
+
+        Ok(SpendBundle::new(
+            coin_spends,
+            self.spend_bundle.aggregated_signature,
+        ))
     }
 
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
@@ -394,7 +461,7 @@ impl Offer {
             .extend(other.spend_bundle.coin_spends);
         self.spend_bundle.aggregated_signature += &other.spend_bundle.aggregated_signature;
         self.offered_coins.extend(other.offered_coins)?;
-        self.requested_payments.extend(other.requested_payments)?;
+        self.requested_payments.extend(other.requested_payments);
         self.asset_info.extend(other.asset_info)?;
 
         Ok(())
@@ -408,10 +475,62 @@ impl Offer {
     }
 }
 
+/// Deserializes the puzzle and solution of an untrusted coin spend, and checks that the puzzle
+/// reveal matches the coin's puzzle hash.
+fn parse_coin_spend(
+    allocator: &mut Allocator,
+    coin_spend: &CoinSpend,
+) -> Result<(Puzzle, NodePtr), DriverError> {
+    let (puzzle, solution) = deserialize_coin_spend(allocator, coin_spend)?;
+
+    if puzzle.curried_puzzle_hash() != coin_spend.coin.puzzle_hash.into() {
+        return Err(DriverError::WrongPuzzleHash);
+    }
+
+    Ok((puzzle, solution))
+}
+
+/// Deserializes the puzzle and solution of a trusted coin spend.
+fn deserialize_coin_spend(
+    allocator: &mut Allocator,
+    coin_spend: &CoinSpend,
+) -> Result<(Puzzle, NodePtr), DriverError> {
+    let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+    let puzzle = Puzzle::parse(allocator, puzzle);
+    let solution = coin_spend.solution.to_clvm(allocator)?;
+
+    Ok((puzzle, solution))
+}
+
+/// Requested payments are made by settlement coins. Anything other than the settlement payments puzzle
+/// is rejected when the requested payments are parsed, but offers made with the old settlement
+/// payments puzzle get their own error so that wallets can explain why they can't be taken.
+fn check_not_old_settlement_payment(
+    allocator: &Allocator,
+    puzzle: Puzzle,
+) -> Result<(), DriverError> {
+    let p2_puzzle_hash = if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)? {
+        cat.p2_puzzle_hash
+    } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)? {
+        nft.p2_puzzle_hash
+    } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)? {
+        option.p2_puzzle_hash
+    } else {
+        puzzle.curried_puzzle_hash().into()
+    };
+
+    if p2_puzzle_hash == OLD_SETTLEMENT_PAYMENT_HASH.into() {
+        return Err(DriverError::OldSettlementPayment);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::slice;
 
+    use chia_bls::Signature;
     use chia_puzzle_types::{
         Memos,
         offer::{NotarizedPayment, Payment},
@@ -422,6 +541,179 @@ mod tests {
     use crate::{Action, Id, NftAssetInfo, Relation, SpendContext, Spends};
 
     use super::*;
+
+    #[cfg(feature = "offer-compression")]
+    mod parsing {
+        use chia_protocol::Program;
+        use clvm_utils::tree_hash_from_bytes;
+
+        use crate::{decode_offer, encode_offer};
+
+        use super::*;
+
+        const XCH_FOR_CAT: &str = include_str!("./test_data/xch_for_cat.offer");
+        const CAT_FOR_XCH: &str = include_str!("./test_data/cat_for_xch.offer");
+        const NFT_FOR_XCH: &str = include_str!("./test_data/nft_for_xch.offer");
+        const REVOCABLE_CAT_FOR_XCH: &str = include_str!("./test_data/revocable_cat_for_xch.offer");
+
+        const SBX: Bytes32 = Bytes32::new(hex!(
+            "a628c1c2c6fcb74d53746157e438e108eab5c0bb3e5c80ff9b1910b3e4832913"
+        ));
+        const REVOCABLE_CAT: Bytes32 = Bytes32::new(hex!(
+            "1a14caeec10ef11b071af9962d8ada0e00b61fa2d42ac4bdc646e70ef34e827e"
+        ));
+        const NFT: Bytes32 = Bytes32::new(hex!(
+            "10abc84fc9fdc5bd917d84b26efb412daa6139a3cb119c192871aba2fa92b714"
+        ));
+
+        fn parse(offer: &str) -> anyhow::Result<Offer> {
+            let mut allocator = Allocator::new();
+            Ok(Offer::from_spend_bundle(
+                &mut allocator,
+                &decode_offer(offer.trim())?,
+            )?)
+        }
+
+        fn replace(bytes: &[u8], from: &[u8; 32], to: &[u8; 32]) -> Vec<u8> {
+            let mut result = bytes.to_vec();
+            let mut index = 0;
+
+            while index + 32 <= result.len() {
+                if result[index..index + 32] == from[..] {
+                    result[index..index + 32].copy_from_slice(to);
+                    index += 32;
+                } else {
+                    index += 1;
+                }
+            }
+
+            result
+        }
+
+        /// The offer as it would be with the old settlement payments puzzle, optionally without its
+        /// requested payments.
+        fn with_old_settlement(offer: &str, requested: bool) -> anyhow::Result<SpendBundle> {
+            let spend_bundle = decode_offer(offer.trim())?;
+
+            let coin_spends = spend_bundle
+                .coin_spends
+                .into_iter()
+                .filter(|cs| requested || cs.coin.parent_coin_info != Bytes32::default())
+                .map(|cs| {
+                    let puzzle_reveal = replace(
+                        cs.puzzle_reveal.as_ref(),
+                        &SETTLEMENT_PAYMENT_HASH,
+                        &OLD_SETTLEMENT_PAYMENT_HASH,
+                    );
+
+                    // The coin's puzzle hash has to match the new puzzle reveal
+                    let coin = Coin::new(
+                        cs.coin.parent_coin_info,
+                        tree_hash_from_bytes(&puzzle_reveal)?.into(),
+                        cs.coin.amount,
+                    );
+
+                    Ok(CoinSpend::new(
+                        coin,
+                        Program::from(puzzle_reveal),
+                        Program::from(replace(
+                            cs.solution.as_ref(),
+                            &SETTLEMENT_PAYMENT_HASH,
+                            &OLD_SETTLEMENT_PAYMENT_HASH,
+                        )),
+                    ))
+                })
+                .collect::<anyhow::Result<_>>()?;
+
+            Ok(SpendBundle::new(
+                coin_spends,
+                spend_bundle.aggregated_signature,
+            ))
+        }
+
+        #[test]
+        fn test_round_trip() -> anyhow::Result<()> {
+            for offer in [XCH_FOR_CAT, CAT_FOR_XCH, NFT_FOR_XCH, REVOCABLE_CAT_FOR_XCH] {
+                let mut ctx = SpendContext::new();
+                let spend_bundle = decode_offer(offer.trim())?;
+                let offer = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+                assert_eq!(offer.to_spend_bundle(&mut ctx)?, spend_bundle);
+            }
+
+            // The revocable CAT offer was compressed with an older dictionary
+            for offer in [XCH_FOR_CAT, CAT_FOR_XCH, NFT_FOR_XCH] {
+                let mut ctx = SpendContext::new();
+                let spend_bundle = decode_offer(offer.trim())?;
+                let offer_spend_bundle =
+                    Offer::from_spend_bundle(&mut ctx, &spend_bundle)?.to_spend_bundle(&mut ctx)?;
+                assert_eq!(encode_offer(&offer_spend_bundle)?, offer.trim());
+            }
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_input_spend_bundle() -> anyhow::Result<()> {
+            let offer = parse(XCH_FOR_CAT)?;
+
+            assert_eq!(offer.spend_bundle().coin_spends.len(), 1);
+            assert_eq!(
+                offer.spend_bundle().coin_spends[0].coin.coin_id(),
+                Bytes32::new(hex!(
+                    "cbe9b5df17ebc0647a30cb91e2e3bb3f63342c34ada849526baa80212e023503"
+                ))
+            );
+            assert_eq!(
+                offer.cancellable_coin_spends()?,
+                offer.spend_bundle().coin_spends
+            );
+            assert_eq!(offer.fee()?, 0);
+
+            let requested = &offer.requested_payments().cats[&SBX];
+            assert_eq!(requested.len(), 1);
+            assert_eq!(requested[0].payments[0].amount, 35_500_000);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_arbitrage() -> anyhow::Result<()> {
+            let arbitrage = parse(XCH_FOR_CAT)?.arbitrage();
+            assert_eq!(arbitrage.requested.xch, 1_000_000_000_000);
+            assert_eq!(arbitrage.offered.cats[&SBX], 35_500_000);
+
+            let arbitrage = parse(CAT_FOR_XCH)?.arbitrage();
+            assert_eq!(arbitrage.offered.xch, 2_000_000_000_000);
+            assert_eq!(arbitrage.requested.cats[&SBX], 69_400_000);
+
+            let arbitrage = parse(NFT_FOR_XCH)?.arbitrage();
+            assert_eq!(arbitrage.offered.xch, 9_000_000_000_000);
+            assert_eq!(arbitrage.requested.nfts, vec![NFT]);
+
+            let arbitrage = parse(REVOCABLE_CAT_FOR_XCH)?.arbitrage();
+            assert_eq!(arbitrage.offered.xch, 2);
+            assert_eq!(arbitrage.requested.cats[&REVOCABLE_CAT], 5000);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_old_settlement_payment() -> anyhow::Result<()> {
+            for offer in [XCH_FOR_CAT, CAT_FOR_XCH, NFT_FOR_XCH, REVOCABLE_CAT_FOR_XCH] {
+                for requested in [true, false] {
+                    let mut allocator = Allocator::new();
+                    let spend_bundle = with_old_settlement(offer, requested)?;
+
+                    assert!(matches!(
+                        Offer::from_spend_bundle(&mut allocator, &spend_bundle),
+                        Err(DriverError::OldSettlementPayment)
+                    ));
+                }
+            }
+
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_offer_nft_for_nft() -> anyhow::Result<()> {
@@ -541,6 +833,45 @@ mod tests {
 
         assert_eq!(final_bob_nft.info.p2_puzzle_hash, bob.puzzle_hash);
         assert_eq!(final_alice_nft.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_puzzle_reveal_must_match_puzzle_hash() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let puzzle = ctx.alloc(&1)?;
+        let puzzle = ctx.serialize(&puzzle)?;
+        let solution = ctx.serialize(&NodePtr::NIL)?;
+
+        // Both the requested payments (with a parent coin id of zero) and the maker's spends are checked
+        for parent_coin_id in [Bytes32::default(), Bytes32::new([1; 32])] {
+            let coin = Coin::new(parent_coin_id, Bytes32::new([2; 32]), 1);
+            let spend_bundle = SpendBundle::new(
+                vec![CoinSpend::new(coin, puzzle.clone(), solution.clone())],
+                Signature::default(),
+            );
+
+            assert!(matches!(
+                Offer::from_spend_bundle(&mut ctx, &spend_bundle),
+                Err(DriverError::WrongPuzzleHash)
+            ));
+        }
+
+        // The maker's own spends are trusted, and may contain placeholders until they're signed
+        let coin = Coin::new(Bytes32::new([1; 32]), Bytes32::new([2; 32]), 1);
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle, solution)],
+            Signature::default(),
+        );
+
+        Offer::from_input_spend_bundle(
+            &mut ctx,
+            spend_bundle,
+            RequestedPayments::new(),
+            AssetInfo::new(),
+        )?;
 
         Ok(())
     }

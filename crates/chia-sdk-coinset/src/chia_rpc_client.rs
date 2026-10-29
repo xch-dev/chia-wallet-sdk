@@ -575,7 +575,11 @@ mod tests {
                     "pool_contract_puzzle_hash": "0x3ac292ed271257be352c526f975a1b376752c4ed6e453ea39ed449bd7b6e3c24",
                     "pool_public_key": null,
                     "proof": "0xd61223e241ef0257ccc668099b52c211d17d3368d9bc424103dc35494c6fe155826c2a57a6af5417f5624e509f03572f2803bd04f66ae3d6bc6ff195c145cb18f5d2f67e8e89212a15509c8fc0f5dc4c866009327fe73112eaef9a2b0b5d069d3528f489714f3f3db0f7ad07e80ea0b81ac14913637bd12afa466bea3e8de02797c92e08e5dd148e9867849c92caebaaea7d60164e2f2a7d30bb11285100991e083bdb3c2de28c2b6bef21499287efb9f635eba2fb9722fd66c309c110ac46a5afd21081f3a8ada06a9b14d5c1369c3077ce6020f24473356d5070cbae959bc935f72d7516819209d595ccdf6dbe382f36b25c70faa8fa03c7a5fa56f4c51de0",
-                    "size": 32
+                    "size": 32,
+                    "version": 0,
+                    "plot_index": 0,
+                    "meta_group": 0,
+                    "strength": 0
                 },
                 "reward_chain_ip_vdf": {
                     "challenge": "0xc11606b3b528b6e45a196ba79e4625a2956ff62c056e22c16c0f0dead1a454b9",
@@ -608,6 +612,8 @@ mod tests {
                 },
                 "transactions_generator": "0x80",
                 "transactions_generator_ref_list": [],
+                "transactions_generator_buffer": null,
+                "version": 0,
                 "transactions_info": {
                 "aggregated_signature": "0xa6ffd8e8b1df9d35e11d2dbd29b81827f543963d817c5026619a44a31a8558823a0c18b0b533bca2b68dfcb5000d759200b5e3648420dc108ddd2a455f8a966d2f593d728b7858915e2c5600f8d030354b37a556bb2e3bef9ec7a6af9d15494f",
                 "cost": 162600245,
@@ -785,5 +791,30 @@ mod tests {
             hex!("ff04ff02ff8080")
         );
         assert_eq!(coin_solution.solution.to_bytes().unwrap(), hex!("ff0180"));
+    }
+
+    #[test]
+    fn test_push_tx_error_response() {
+        let response = serde_json::from_str::<PushTxResponse>(
+            r#"{
+            "error": "bytes object is expected to start with 0x",
+            "structuredError": {
+                "code": "UNKNOWN",
+                "data": {},
+                "message": "bytes object is expected to start with 0x"
+            },
+            "success": false,
+            "traceback": "Traceback...",
+            "tx_id": "0xc95a054274eecf7a98ed0ce8dc09ae5dd466283dbab3a963ee5c7760f46dcfcc"
+        }"#,
+        )
+        .unwrap();
+
+        assert!(!response.success);
+        assert_eq!(
+            response.error,
+            Some("bytes object is expected to start with 0x".to_string())
+        );
+        assert!(response.status.is_none());
     }
 }

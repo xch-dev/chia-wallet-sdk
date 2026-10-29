@@ -1,6 +1,6 @@
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use rand::{RngCore, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::SysRng};
 use rand_chacha::ChaCha20Rng;
 use sha2::{Digest, Sha256};
 
@@ -41,7 +41,7 @@ pub fn curry_tree_hash(program: Bytes32, args: Vec<Bytes32>) -> Result<Bytes32> 
 }
 
 pub fn generate_bytes(bytes: u32) -> Result<Bytes> {
-    let mut rng = ChaCha20Rng::from_os_rng();
+    let mut rng = ChaCha20Rng::try_from_rng(&mut SysRng).expect("failed to seed rng from the OS");
     let mut buffer = vec![0; bytes as usize];
     rng.fill_bytes(&mut buffer);
     Ok(Bytes::new(buffer))

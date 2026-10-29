@@ -28,23 +28,18 @@ impl RequestedPayments {
     }
 
     pub fn amounts(&self) -> OfferAmounts {
+        fn total(nps: &[NotarizedPayment]) -> u128 {
+            nps.iter()
+                .flat_map(|np| np.payments.iter().map(|p| u128::from(p.amount)))
+                .sum()
+        }
+
         OfferAmounts {
-            xch: self
-                .xch
-                .iter()
-                .flat_map(|np| np.payments.iter().map(|p| p.amount))
-                .sum(),
+            xch: total(&self.xch),
             cats: self
                 .cats
                 .iter()
-                .map(|(&launcher_id, nps)| {
-                    (
-                        launcher_id,
-                        nps.iter()
-                            .flat_map(|np| np.payments.iter().map(|p| p.amount))
-                            .sum(),
-                    )
-                })
+                .map(|(&asset_id, nps)| (asset_id, total(nps)))
                 .collect(),
         }
     }
@@ -64,8 +59,9 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let default = CatAssetInfo::default();
-            let info = asset_info.cat(asset_id).unwrap_or(&default);
+            let info = asset_info
+                .cat(asset_id)
+                .ok_or(DriverError::MissingAssetInfo)?;
 
             let puzzle_hash = CatInfo::new(
                 asset_id,
@@ -170,7 +166,7 @@ impl RequestedPayments {
         actions
     }
 
-    pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
+    pub fn extend(&mut self, other: Self) {
         for payment in other.xch {
             self.xch.push(payment);
         }
@@ -189,8 +185,6 @@ impl RequestedPayments {
                 .or_default()
                 .extend(payments);
         }
-
-        Ok(())
     }
 
     pub fn parse(
@@ -205,7 +199,9 @@ impl RequestedPayments {
 
         if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
             self.xch.extend(notarized_payments);
-        } else if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)? {
+        } else if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)?
+            && cat.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.cats
                 .entry(cat.asset_id)
                 .or_default()
@@ -213,7 +209,9 @@ impl RequestedPayments {
 
             let info = CatAssetInfo::new(cat.hidden_puzzle_hash);
             asset_info.insert_cat(cat.asset_id, info)?;
-        } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)? {
+        } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)?
+            && nft.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.nfts
                 .entry(nft.launcher_id)
                 .or_default()
@@ -226,7 +224,9 @@ impl RequestedPayments {
                 nft.royalty_basis_points,
             );
             asset_info.insert_nft(nft.launcher_id, info)?;
-        } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)? {
+        } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)?
+            && option.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+        {
             self.options
                 .entry(option.launcher_id)
                 .or_default()
@@ -237,6 +237,51 @@ impl RequestedPayments {
                 option.underlying_delegated_puzzle_hash,
             );
             asset_info.insert_option(option.launcher_id, info)?;
+        } else {
+            return Err(DriverError::UnsupportedRequestedAsset);
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_sdk_types::puzzles::SettlementPayment;
+
+    use super::*;
+
+    #[test]
+    fn test_unsupported_requested_assets_are_rejected() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![]))?;
+        let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+        let unknown = ctx.alloc(&1)?;
+        let asset_id = Bytes32::new([1; 32]);
+
+        // A CAT sent to the settlement puzzle is supported
+        let cat = CatInfo::new(asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
+            .construct_puzzle(&mut ctx, settlement)?;
+
+        // A CAT with any other inner puzzle isn't a requested payment
+        let unknown_cat = CatInfo::new(asset_id, None, ctx.tree_hash(unknown).into())
+            .construct_puzzle(&mut ctx, unknown)?;
+
+        let mut requested_payments = RequestedPayments::new();
+        let mut asset_info = AssetInfo::new();
+
+        let puzzle = Puzzle::parse(&ctx, cat);
+        requested_payments.parse(&ctx, &mut asset_info, puzzle, solution)?;
+        assert!(requested_payments.cats.contains_key(&asset_id));
+
+        for puzzle in [unknown, unknown_cat] {
+            let puzzle = Puzzle::parse(&ctx, puzzle);
+
+            assert!(matches!(
+                requested_payments.parse(&ctx, &mut asset_info, puzzle, solution),
+                Err(DriverError::UnsupportedRequestedAsset)
+            ));
         }
 
         Ok(())

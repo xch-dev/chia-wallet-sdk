@@ -72,7 +72,7 @@ impl<V> Slot<V> {
         let puzzle_reveal = ctx.serialize(&puzzle_reveal)?;
 
         let solution = ctx.serialize(&SlotSolution {
-            lineage_proof: self.proof,
+            lineage_proof: self.proof.into(),
             spender_inner_puzzle_hash,
         })?;
 

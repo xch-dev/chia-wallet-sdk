@@ -286,7 +286,7 @@
       "updater_solution": "Program"
     }
   },
-  "UpdateDataStoreMerkleRoot": {
+  "UpdateDatastoreMerkleRoot": {
     "type": "class",
     "new": true,
     "fields": {

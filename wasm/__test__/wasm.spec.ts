@@ -1,16 +1,32 @@
 import test from "ava";
 
 import {
+  calculateVaultPuzzleMessage,
   Clvm,
   CreateCoin,
   fromHex,
+  InnerPuzzleMemo,
+  K1Pair,
+  MemberConfig,
+  MemberMemo,
+  MemoKind,
+  MipsMemo,
+  MipsMemoContext,
+  MofNMemo,
   PublicKey,
+  r1MemberHash,
+  R1Pair,
+  RestrictionMemo,
   RunCatTail,
   setPanicHook,
+  sha256,
   Signature,
   standardPuzzleHash,
   toHex,
-} from "../pkg";
+  vaultMessageEnvelope,
+  VaultMessageProof,
+  verifyVaultSignedMessage,
+} from "../pkg/chia_wallet_sdk_wasm.js";
 
 setPanicHook();
 
@@ -93,5 +109,104 @@ test("alloc", (t) => {
   t.is(
     toHex(program.serialize()),
     "ff80ffb0c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff8d48656c6c6f2c20776f726c6421ff2aff64ff01ff83010203ffa00000000000000000000000000000000000000000000000000000000000000000ff80ff80ffff33ff80ff818fff80ff808080"
+  );
+});
+
+test("mips memo round trip and parse", (t) => {
+  const clvm = new Clvm();
+  const keys = K1Pair.manyFromSeed(1n, 2).map((pair) => pair.pk);
+
+  const memo = new MipsMemo(
+    new InnerPuzzleMemo(
+      0,
+      [],
+      MemoKind.mOfN(
+        new MofNMemo(
+          1,
+          keys.map(
+            (key, i) =>
+              new InnerPuzzleMemo(
+                0,
+                i === 1 ? [RestrictionMemo.timelock(clvm, 3600n, true)] : [],
+                MemoKind.member(MemberMemo.k1(clvm, key, true, true)),
+              ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  const bytes = clvm.alloc([clvm.mipsMemo(memo)]).serialize();
+  const parsed = clvm.deserialize(bytes).first().parseMipsMemo();
+
+  t.not(parsed, undefined);
+  t.is(toHex(parsed!.innerPuzzleHash()), toHex(memo.innerPuzzleHash()));
+  t.is(toHex(clvm.alloc([clvm.mipsMemo(parsed!)]).serialize()), toHex(bytes));
+
+  const ctx = new MipsMemoContext();
+  const [first, second] = parsed!.innerPuzzle.kind.asMOfN()!.items;
+
+  const member = first.kind.asMember()!.parse(ctx);
+  t.is(toHex(member!.asK1()!.toBytes()), toHex(keys[0].toBytes()));
+  t.is(member!.asR1(), undefined);
+  t.true(member!.fastForward());
+
+  const restriction = second.restrictions[0].parse(ctx);
+  t.is(restriction?.asTimelock(), 3600n);
+
+  t.is(clvm.alloc(["CHIP-0042", clvm.nil()]).parseMipsMemo(), undefined);});
+
+test("vault message proofs can be created and verified without chain access", (t) => {
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const config = new MemberConfig().withTopLevel(true);
+  const custodyHash = r1MemberHash(config, r1.pk, true);
+
+  const { vault } = clvm.mintVault(
+    new Uint8Array(32).fill(1),
+    custodyHash,
+    clvm.nil(),
+  );
+
+  // The launcher spend isn't part of the proof.
+  clvm.coinSpends();
+
+  const messages = [new TextEncoder().encode("hello"), new Uint8Array([0xff])];
+  const envelope = vaultMessageEnvelope(clvm, vault, messages);
+
+  const message = sha256(
+    calculateVaultPuzzleMessage(
+      envelope.puzzle.treeHash(),
+      vault.coin.puzzleHash,
+    ),
+  );
+
+  const mips = clvm.mipsSpend(vault.coin, envelope);
+  mips.r1Member(config, r1.pk, r1.sk.signPrehashed(message), true);
+
+  // The vault is spent like any other transaction, and the signed spend is the proof.
+  mips.spendVault(vault);
+  const [coinSpend] = clvm.coinSpends();
+  const proof = VaultMessageProof.decodeString(
+    new VaultMessageProof(coinSpend, Signature.infinity()).encodeString(),
+  );
+
+  t.deepEqual(
+    verifyVaultSignedMessage(
+      proof,
+      vault.info.launcherId,
+      custodyHash,
+      new Uint8Array(32),
+    ),
+    messages,
+  );
+  t.throws(() =>
+    verifyVaultSignedMessage(
+      proof,
+      new Uint8Array(32),
+      custodyHash,
+      new Uint8Array(32),
+    ),
   );
 });

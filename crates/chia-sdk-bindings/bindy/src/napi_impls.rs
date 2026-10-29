@@ -174,33 +174,31 @@ impl_array_buffer!(Uint8Array, Buffer);
 
 impl<T> IntoRust<num_bigint::BigInt, T, Napi> for BigInt {
     fn into_rust(self, _context: &T) -> Result<num_bigint::BigInt> {
-        if self.words.is_empty() {
-            return Ok(num_bigint::BigInt::ZERO);
+        // napi BigInt words are little-endian (least significant word first)
+        let mut bytes = Vec::with_capacity(self.words.len() * 8);
+
+        for word in &self.words {
+            bytes.extend_from_slice(&word.to_le_bytes());
         }
 
-        // Convert u64 words into a big-endian byte array
-        let bytes = words_to_bytes(&self.words);
+        let sign = if self.sign_bit {
+            num_bigint::Sign::Minus
+        } else {
+            num_bigint::Sign::Plus
+        };
 
-        // Create the BigInt from the bytes
-        let bigint = num_bigint::BigInt::from_bytes_be(
-            if self.sign_bit {
-                num_bigint::Sign::Minus
-            } else {
-                num_bigint::Sign::Plus
-            },
-            &bytes,
-        );
-
-        Ok(bigint)
+        Ok(num_bigint::BigInt::from_bytes_le(sign, &bytes))
     }
 }
 
 impl<T> FromRust<num_bigint::BigInt, T, Napi> for BigInt {
     fn from_rust(value: num_bigint::BigInt, _context: &T) -> Result<Self> {
-        let (sign, bytes) = value.to_bytes_be();
+        // `to_u64_digits` returns little-endian words, which matches napi
+        let (sign, mut words) = value.to_u64_digits();
 
-        // Convert the byte array into u64 words
-        let words = bytes_to_words(&bytes);
+        if words.is_empty() {
+            words.push(0);
+        }
 
         Ok(BigInt {
             sign_bit: sign == num_bigint::Sign::Minus,
@@ -218,6 +216,19 @@ impl<T> IntoRust<u64, T, Napi> for BigInt {
 
 impl<T> FromRust<u64, T, Napi> for BigInt {
     fn from_rust(value: u64, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
+impl<T> IntoRust<i64, T, Napi> for BigInt {
+    fn into_rust(self, context: &T) -> Result<i64> {
+        let bigint: num_bigint::BigInt = self.into_rust(context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<i64, T, Napi> for BigInt {
+    fn from_rust(value: i64, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
 }
@@ -246,31 +257,4 @@ impl<T> FromRust<u128, T, Napi> for BigInt {
     fn from_rust(value: u128, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
-}
-
-fn words_to_bytes(words: &[u64]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(words.len() * 8);
-    for word in words {
-        bytes.extend_from_slice(&word.to_be_bytes());
-    }
-
-    while let Some(0) = bytes.first() {
-        bytes.remove(0);
-    }
-
-    bytes
-}
-
-fn bytes_to_words(bytes: &[u8]) -> Vec<u64> {
-    let mut padded_bytes = vec![0u8; (8 - bytes.len() % 8) % 8];
-    padded_bytes.extend_from_slice(bytes);
-
-    let mut words = Vec::with_capacity(padded_bytes.len() / 8);
-
-    for chunk in padded_bytes.chunks(8) {
-        let word = u64::from_be_bytes(chunk.try_into().unwrap());
-        words.push(word);
-    }
-
-    words
 }

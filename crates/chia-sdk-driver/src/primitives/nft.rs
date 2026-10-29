@@ -481,6 +481,21 @@ mod tests {
             uri: "another.com".to_string(),
         }
         .spend(ctx)?;
+
+        let mismatched_updater = ctx.alloc(&())?;
+        let error = run_metadata_updater(
+            ctx,
+            &nft.info.metadata,
+            nft.info.metadata_updater_puzzle_hash,
+            mismatched_updater,
+            metadata_update.solution,
+        )
+        .expect_err("metadata updater puzzle hash should not match");
+        assert!(matches!(
+            error,
+            DriverError::MetadataUpdaterPuzzleHashMismatch
+        ));
+
         let parent_nft = nft;
         let nft = nft.transfer_with_metadata(
             ctx,
@@ -583,6 +598,33 @@ mod tests {
             .expect("could not parse nft");
 
         assert_eq!(nft, expected_nft);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_nft_info_launcher_id_mismatch() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let info = NftInfo::new(
+            Bytes32::new([1; 32]),
+            HashedPtr::NIL,
+            Bytes32::default(),
+            None,
+            Bytes32::default(),
+            300,
+            Bytes32::default(),
+        );
+        let mut layers = info.into_layers(HashedPtr::NIL);
+        layers.inner_puzzle.inner_puzzle.transfer_layer.launcher_id = Bytes32::new([2; 32]);
+
+        let puzzle = layers.construct_puzzle(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        assert!(matches!(
+            NftInfo::parse(ctx, puzzle),
+            Err(DriverError::InvalidSingletonStruct)
+        ));
 
         Ok(())
     }

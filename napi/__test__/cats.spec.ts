@@ -25,13 +25,13 @@ test("issues and spends a cat", (t) => {
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
-    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1n)])
+    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1n)]),
   );
 
   const eve = new Cat(
     new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1n),
     null,
-    catInfo
+    catInfo,
   );
 
   clvm.spendCats([
@@ -42,8 +42,8 @@ test("issues and spends a cat", (t) => {
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
           clvm.runCatTail(tail, clvm.nil()),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -57,8 +57,8 @@ test("issues and spends a cat", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -81,13 +81,13 @@ test("issues and melts a cat", (t) => {
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
-    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1000n)])
+    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1000n)]),
   );
 
   const eve = new Cat(
     new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1000n),
     null,
-    catInfo
+    catInfo,
   );
 
   const cats = clvm.spendCats([
@@ -100,8 +100,8 @@ test("issues and melts a cat", (t) => {
           clvm.createCoin(alice.puzzleHash, 300n),
           clvm.createCoin(alice.puzzleHash, 500n),
           clvm.createCoin(alice.puzzleHash, 200n),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -116,9 +116,9 @@ test("issues and melts a cat", (t) => {
 
       return new CatSpend(
         cat,
-        clvm.standardSpend(alice.pk, clvm.delegatedSpend(conditions))
+        clvm.standardSpend(alice.pk, clvm.delegatedSpend(conditions)),
       );
-    })
+    }),
   );
 
   sim.spendCoins(clvm.coinSpends(), [alice.sk]);
@@ -141,13 +141,13 @@ test("issues and spends a revocable cat", (t) => {
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
-    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1n)])
+    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1n)]),
   );
 
   const eve = new Cat(
     new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1n),
     null,
-    catInfo
+    catInfo,
   );
 
   // Spend the CAT
@@ -159,8 +159,8 @@ test("issues and spends a revocable cat", (t) => {
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
           clvm.runCatTail(tail, clvm.nil()),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -174,8 +174,8 @@ test("issues and spends a revocable cat", (t) => {
         bob.pk,
         clvm.delegatedSpend([
           clvm.createCoin(bob.puzzleHash, 1n, clvm.alloc([bob.puzzleHash])),
-        ])
-      )
+        ]),
+      ),
     ),
   ]);
 
@@ -208,10 +208,10 @@ test("parses a cat puzzle", (t) => {
   t.is(parsed.info.hiddenPuzzleHash, null);
   t.is(
     parsed.info.p2PuzzleHash.toString("hex"),
-    Constants.settlementPaymentHash().toString("hex")
+    Constants.settlementPaymentHash().toString("hex"),
   );
   t.is(
     parsed.p2Puzzle?.program.treeHash().toString("hex"),
-    Constants.settlementPaymentHash().toString("hex")
+    Constants.settlementPaymentHash().toString("hex"),
   );
 });

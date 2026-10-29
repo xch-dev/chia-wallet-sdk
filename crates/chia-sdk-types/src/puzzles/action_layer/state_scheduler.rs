@@ -8,23 +8,23 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const STATE_SCHEDULER_PUZZLE: [u8; 285] = hex!(
+pub const STATE_SCHEDULER_PUZZLE: [u8; 243] = hex!(
+    // Rue
     "
-    ff02ffff01ff04ffff04ff04ffff04ffff0112ffff04ff17ffff04ffff0bff2e
-    ffff0bff0affff0bff0aff36ff0580ffff0bff0affff0bff3effff0bff0affff
-    0bff0aff36ff0b80ffff0bff0affff0bff3effff0bff0affff0bff0aff36ff5f
-    80ffff0bff0aff36ff26808080ff26808080ff26808080ff8080808080ffff02
-    ff2fff7f8080ffff04ffff01ff42ff02ffffa04bf5122f344554c53bde2ebb8c
-    d2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a7312
-    4ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619
-    291eaea194581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471
-    ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ff018080
+    ff02ffff01ff04ffff04ffff0142ffff04ffff0112ffff04ff17ffff04ffff0b
+    ffff0102ffff0bffff0182010280ffff0bffff0102ffff0bffff0102ffff0bff
+    ff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ffff04ff0bff
+    ff04ff5fff8080808080ffff0bffff010180808080ff8080808080ffff02ff2f
+    ff7f8080ffff04ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff01
+    82010480ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ff
+    ff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ff
+    ff01ff0bffff018201018080ff0180ff018080
     "
 );
 
 pub const STATE_SCHEDULER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    13fe7833751a6fe582caa09d48978d8d1b016d224cb0c10e538184ab22df9c13
+    8811d56e9efd2c9f449ea10cb00e00417b372f46d9d3a00ddf632f292de7e2c3
     "
 ));
 
@@ -33,18 +33,17 @@ pub const STATE_SCHEDULER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 pub struct StateSchedulerLayerArgs<M, I> {
     pub singleton_mod_hash: Bytes32,
     pub receiver_singleton_struct_hash: Bytes32,
-    pub message: M,
+    pub prefix_and_message: M,
     pub inner_puzzle: I,
 }
 
 impl<M, I> StateSchedulerLayerArgs<M, I>
 where
-    M: ToTreeHash,
     I: ToTreeHash,
 {
     pub fn curry_tree_hash(
         receiver_singleton_struct_hash: Bytes32,
-        message: &M,
+        prefix_and_message_hash: TreeHash,
         inner_puzzle: &I,
     ) -> TreeHash {
         CurriedProgram::<TreeHash, _> {
@@ -52,7 +51,7 @@ where
             args: StateSchedulerLayerArgs {
                 singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
                 receiver_singleton_struct_hash,
-                message: message.tree_hash(),
+                prefix_and_message: prefix_and_message_hash,
                 inner_puzzle: inner_puzzle.tree_hash(),
             },
         }

@@ -1,14 +1,17 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
-use chia_protocol::{Bytes32, SpendBundle};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
 };
-use chia_sdk_driver::SpendContext;
+use chia_sdk_driver::{self as sdk, Cat, SpendContext};
+use chia_sdk_types::conditions::TradePrice;
+use clvmr::Allocator;
+use num_bigint::BigInt;
 
-use crate::{AsProgram, Program};
+use crate::{Action, AsProgram, AsPtr, CatAssetInfo, Clvm, OptionAssetInfo, Program, RoyaltyInfo};
 
 pub fn encode_offer(spend_bundle: SpendBundle) -> Result<String> {
     Ok(chia_sdk_driver::encode_offer(&spend_bundle)?)
@@ -81,4 +84,520 @@ impl From<Payment> for SdkPayment {
                 .map_or(Memos::None, |m| Memos::Some(m.1)),
         )
     }
+}
+
+#[derive(Clone)]
+pub struct RequestedPayments {
+    pub(crate) inner: Arc<Mutex<sdk::RequestedPayments>>,
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
+}
+
+impl RequestedPayments {
+    pub fn new(clvm: Clvm) -> Result<Self> {
+        Ok(Self::from_sdk(sdk::RequestedPayments::new(), &clvm.0))
+    }
+
+    pub(crate) fn from_sdk(
+        requested_payments: sdk::RequestedPayments,
+        clvm: &Arc<Mutex<SpendContext>>,
+    ) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(requested_payments)),
+            clvm: clvm.clone(),
+        }
+    }
+
+    pub(crate) fn to_sdk(&self) -> sdk::RequestedPayments {
+        self.inner.lock().unwrap().clone()
+    }
+
+    pub fn add_xch(&self, notarized_payment: NotarizedPayment) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .xch
+            .push(notarized_payment.into());
+        Ok(())
+    }
+
+    pub fn add_cat(&self, asset_id: Bytes32, notarized_payment: NotarizedPayment) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .cats
+            .entry(asset_id)
+            .or_default()
+            .push(notarized_payment.into());
+        Ok(())
+    }
+
+    pub fn add_nft(&self, launcher_id: Bytes32, notarized_payment: NotarizedPayment) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .nfts
+            .entry(launcher_id)
+            .or_default()
+            .push(notarized_payment.into());
+        Ok(())
+    }
+
+    pub fn add_option(
+        &self,
+        launcher_id: Bytes32,
+        notarized_payment: NotarizedPayment,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .options
+            .entry(launcher_id)
+            .or_default()
+            .push(notarized_payment.into());
+        Ok(())
+    }
+
+    pub fn xch(&self) -> Result<Vec<NotarizedPayment>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .xch
+            .iter()
+            .map(|np| np.as_program(&self.clvm))
+            .collect())
+    }
+
+    pub fn cat_asset_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().cats.keys().copied().collect())
+    }
+
+    pub fn cats(&self, asset_id: Bytes32) -> Result<Vec<NotarizedPayment>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .cats
+            .get(&asset_id)
+            .into_iter()
+            .flatten()
+            .map(|np| np.as_program(&self.clvm))
+            .collect())
+    }
+
+    pub fn nft_launcher_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().nfts.keys().copied().collect())
+    }
+
+    pub fn nfts(&self, launcher_id: Bytes32) -> Result<Vec<NotarizedPayment>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .nfts
+            .get(&launcher_id)
+            .into_iter()
+            .flatten()
+            .map(|np| np.as_program(&self.clvm))
+            .collect())
+    }
+
+    pub fn option_launcher_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().options.keys().copied().collect())
+    }
+
+    pub fn options(&self, launcher_id: Bytes32) -> Result<Vec<NotarizedPayment>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .options
+            .get(&launcher_id)
+            .into_iter()
+            .flatten()
+            .map(|np| np.as_program(&self.clvm))
+            .collect())
+    }
+
+    pub fn amounts(&self) -> Result<OfferAmounts> {
+        Ok(OfferAmounts::from_sdk(self.inner.lock().unwrap().amounts()))
+    }
+
+    /// The settle actions that pay every requested payment, for the taker of an offer.
+    pub fn actions(&self) -> Result<Vec<Action>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .actions()
+            .into_iter()
+            .map(Action::from)
+            .collect())
+    }
+
+    /// The conditions that assert every requested payment was made, for the maker of an offer.
+    /// These should be added as required conditions of the maker's spends.
+    pub fn assertions(&self, asset_info: AssetInfo) -> Result<Vec<Program>> {
+        let requested_payments = self.to_sdk();
+        let asset_info = asset_info.to_sdk();
+        let mut ctx = self.clvm.lock().unwrap();
+
+        let mut conditions = Vec::new();
+
+        for assertion in requested_payments.assertions(&mut ctx, &asset_info)? {
+            conditions.push(Program(self.clvm.clone(), ctx.alloc(&assertion)?));
+        }
+
+        Ok(conditions)
+    }
+}
+
+#[derive(Clone)]
+pub struct AssetInfo {
+    pub(crate) inner: Arc<Mutex<sdk::AssetInfo>>,
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
+}
+
+impl AssetInfo {
+    pub fn new(clvm: Clvm) -> Result<Self> {
+        Ok(Self::from_sdk(sdk::AssetInfo::new(), &clvm.0))
+    }
+
+    pub(crate) fn from_sdk(asset_info: sdk::AssetInfo, clvm: &Arc<Mutex<SpendContext>>) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(asset_info)),
+            clvm: clvm.clone(),
+        }
+    }
+
+    pub(crate) fn to_sdk(&self) -> sdk::AssetInfo {
+        self.inner.lock().unwrap().clone()
+    }
+
+    pub fn insert_cat(&self, asset_id: Bytes32, info: CatAssetInfo) -> Result<()> {
+        self.inner.lock().unwrap().insert_cat(asset_id, info)?;
+        Ok(())
+    }
+
+    pub fn insert_nft(&self, launcher_id: Bytes32, info: NftAssetInfo) -> Result<()> {
+        let info = info.as_ptr(&self.clvm.lock().unwrap());
+        self.inner.lock().unwrap().insert_nft(launcher_id, info)?;
+        Ok(())
+    }
+
+    pub fn insert_option(&self, launcher_id: Bytes32, info: OptionAssetInfo) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .insert_option(launcher_id, info)?;
+        Ok(())
+    }
+
+    pub fn cat_asset_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().cats().copied().collect())
+    }
+
+    pub fn nft_launcher_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().nfts().copied().collect())
+    }
+
+    pub fn option_launcher_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.lock().unwrap().options().copied().collect())
+    }
+
+    pub fn cat(&self, asset_id: Bytes32) -> Result<Option<CatAssetInfo>> {
+        Ok(self.inner.lock().unwrap().cat(asset_id).copied())
+    }
+
+    pub fn nft(&self, launcher_id: Bytes32) -> Result<Option<NftAssetInfo>> {
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .nft(launcher_id)
+            .map(|info| info.as_program(&self.clvm)))
+    }
+
+    pub fn option(&self, launcher_id: Bytes32) -> Result<Option<OptionAssetInfo>> {
+        Ok(self.inner.lock().unwrap().option(launcher_id).copied())
+    }
+}
+
+#[derive(Clone)]
+pub struct NftAssetInfo {
+    pub metadata: Program,
+    pub metadata_updater_puzzle_hash: Bytes32,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_basis_points: u16,
+}
+
+impl AsProgram for sdk::NftAssetInfo {
+    type AsProgram = NftAssetInfo;
+
+    fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
+        NftAssetInfo {
+            metadata: self.metadata.as_program(clvm),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_basis_points: self.royalty_basis_points,
+        }
+    }
+}
+
+impl AsPtr for NftAssetInfo {
+    type AsPtr = sdk::NftAssetInfo;
+
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        sdk::NftAssetInfo::new(
+            self.metadata.as_ptr(allocator),
+            self.metadata_updater_puzzle_hash,
+            self.royalty_puzzle_hash,
+            self.royalty_basis_points,
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct OfferAmounts(pub(crate) Arc<Mutex<sdk::OfferAmounts>>);
+
+impl OfferAmounts {
+    pub fn new() -> Result<Self> {
+        Ok(Self::from_sdk(sdk::OfferAmounts::new()))
+    }
+
+    pub(crate) fn from_sdk(amounts: sdk::OfferAmounts) -> Self {
+        Self(Arc::new(Mutex::new(amounts)))
+    }
+
+    pub(crate) fn to_sdk(&self) -> sdk::OfferAmounts {
+        self.0.lock().unwrap().clone()
+    }
+
+    pub fn xch(&self) -> Result<u128> {
+        Ok(self.0.lock().unwrap().xch)
+    }
+
+    pub fn set_xch(&self, amount: u128) -> Result<()> {
+        self.0.lock().unwrap().xch = amount;
+        Ok(())
+    }
+
+    pub fn asset_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.0.lock().unwrap().cats.keys().copied().collect())
+    }
+
+    pub fn cat(&self, asset_id: Bytes32) -> Result<u128> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .cats
+            .get(&asset_id)
+            .copied()
+            .unwrap_or(0))
+    }
+
+    pub fn set_cat(&self, asset_id: Bytes32, amount: u128) -> Result<()> {
+        self.0.lock().unwrap().cats.insert(asset_id, amount);
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct Offer {
+    pub(crate) inner: sdk::Offer,
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
+}
+
+impl Offer {
+    /// Creates an offer from the maker's spend bundle, which must send the offered assets to the
+    /// settlement puzzle and assert the requested payments.
+    pub fn from_input_spend_bundle(
+        clvm: Clvm,
+        spend_bundle: SpendBundle,
+        requested_payments: RequestedPayments,
+        asset_info: AssetInfo,
+    ) -> Result<Self> {
+        let mut ctx = clvm.0.lock().unwrap();
+
+        let inner = sdk::Offer::from_input_spend_bundle(
+            &mut ctx,
+            spend_bundle,
+            requested_payments.to_sdk(),
+            asset_info.to_sdk(),
+        )?;
+
+        Ok(Self {
+            inner,
+            clvm: clvm.0.clone(),
+        })
+    }
+
+    /// Parses an offer spend bundle, such as one decoded with `decodeOffer`.
+    pub fn from_spend_bundle(clvm: Clvm, spend_bundle: SpendBundle) -> Result<Self> {
+        let mut ctx = clvm.0.lock().unwrap();
+
+        let inner = sdk::Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+
+        Ok(Self {
+            inner,
+            clvm: clvm.0.clone(),
+        })
+    }
+
+    /// The offer spend bundle, including the requested payments, which can be encoded with `encodeOffer`.
+    pub fn to_spend_bundle(&self) -> Result<SpendBundle> {
+        let mut ctx = self.clvm.lock().unwrap();
+        Ok(self.inner.clone().to_spend_bundle(&mut ctx)?)
+    }
+
+    /// The maker's spend bundle, without the requested payments. Its hash identifies the offer.
+    pub fn spend_bundle(&self) -> Result<SpendBundle> {
+        Ok(self.inner.spend_bundle().clone())
+    }
+
+    /// The spends of the coins that the offer spends, but doesn't create. Spending any of these
+    /// coins elsewhere cancels the offer.
+    pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>> {
+        Ok(self.inner.cancellable_coin_spends()?)
+    }
+
+    /// The amount that the maker's spends don't assign to any coin, which goes to the farmer.
+    pub fn fee(&self) -> Result<BigInt> {
+        Ok(BigInt::from(self.inner.fee()?))
+    }
+
+    /// What the taker has to give to take the offer (`offered`), and what it receives in return
+    /// (`requested`), after netting out anything the offer both offers and requests.
+    pub fn arbitrage(&self) -> Result<Arbitrage> {
+        let arbitrage = self.inner.arbitrage();
+
+        Ok(Arbitrage {
+            offered: ArbitrageSide::from_sdk(arbitrage.offered),
+            requested: ArbitrageSide::from_sdk(arbitrage.requested),
+        })
+    }
+
+    /// Combines the maker's spends with the taker's spend bundle into the final transaction.
+    pub fn take(&self, spend_bundle: SpendBundle) -> Result<SpendBundle> {
+        Ok(self.inner.clone().take(spend_bundle))
+    }
+
+    pub fn nonce(coin_ids: Vec<Bytes32>) -> Result<Bytes32> {
+        Ok(sdk::Offer::nonce(coin_ids))
+    }
+
+    pub fn requested_payments(&self) -> Result<RequestedPayments> {
+        Ok(RequestedPayments::from_sdk(
+            self.inner.requested_payments().clone(),
+            &self.clvm,
+        ))
+    }
+
+    pub fn asset_info(&self) -> Result<AssetInfo> {
+        Ok(AssetInfo::from_sdk(
+            self.inner.asset_info().clone(),
+            &self.clvm,
+        ))
+    }
+
+    pub fn offered_amounts(&self) -> Result<OfferAmounts> {
+        Ok(OfferAmounts::from_sdk(self.inner.offered_coins().amounts()))
+    }
+
+    pub fn offered_xch(&self) -> Result<Vec<Coin>> {
+        Ok(self.inner.offered_coins().xch.clone())
+    }
+
+    pub fn offered_cats(&self, asset_id: Bytes32) -> Result<Vec<Cat>> {
+        Ok(self
+            .inner
+            .offered_coins()
+            .cats
+            .get(&asset_id)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    pub fn offered_nft_launcher_ids(&self) -> Result<Vec<Bytes32>> {
+        Ok(self.inner.offered_coins().nfts.keys().copied().collect())
+    }
+
+    /// The royalties of the requested NFTs, which are paid by the maker.
+    pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>> {
+        Ok(self.inner.offered_royalties()?)
+    }
+
+    /// The royalties of the offered NFTs, which are paid by the taker.
+    pub fn requested_royalties(&self) -> Result<Vec<RoyaltyInfo>> {
+        Ok(self.inner.requested_royalties())
+    }
+
+    pub fn offered_royalty_amounts(&self) -> Result<OfferAmounts> {
+        Ok(OfferAmounts::from_sdk(
+            self.inner.offered_royalty_amounts()?,
+        ))
+    }
+
+    pub fn requested_royalty_amounts(&self) -> Result<OfferAmounts> {
+        Ok(OfferAmounts::from_sdk(
+            self.inner.requested_royalty_amounts()?,
+        ))
+    }
+}
+
+#[derive(Clone)]
+pub struct Arbitrage {
+    pub offered: ArbitrageSide,
+    pub requested: ArbitrageSide,
+}
+
+#[derive(Clone)]
+pub struct ArbitrageSide {
+    pub amounts: OfferAmounts,
+    pub nfts: Vec<Bytes32>,
+    pub options: Vec<Bytes32>,
+}
+
+impl ArbitrageSide {
+    fn from_sdk(side: sdk::ArbitrageSide) -> Self {
+        Self {
+            amounts: OfferAmounts::from_sdk(side.amounts()),
+            nfts: side.nfts,
+            options: side.options,
+        }
+    }
+}
+
+pub fn calculate_trade_price_amounts(
+    amounts: OfferAmounts,
+    royalty_nft_count: u32,
+) -> Result<OfferAmounts> {
+    Ok(OfferAmounts::from_sdk(sdk::calculate_trade_price_amounts(
+        &amounts.to_sdk(),
+        royalty_nft_count as usize,
+    )))
+}
+
+pub fn calculate_trade_prices(
+    trade_price_amounts: OfferAmounts,
+    asset_info: AssetInfo,
+) -> Result<Vec<TradePrice>> {
+    Ok(sdk::calculate_trade_prices(
+        &trade_price_amounts.to_sdk(),
+        &asset_info.to_sdk(),
+    )?)
+}
+
+pub fn calculate_royalty_payments(
+    clvm: Clvm,
+    trade_prices: OfferAmounts,
+    royalties: Vec<RoyaltyInfo>,
+) -> Result<RequestedPayments> {
+    let payments = {
+        let mut ctx = clvm.0.lock().unwrap();
+        sdk::calculate_royalty_payments(&mut ctx, &trade_prices.to_sdk(), &royalties)?
+    };
+
+    Ok(RequestedPayments::from_sdk(payments, &clvm.0))
 }

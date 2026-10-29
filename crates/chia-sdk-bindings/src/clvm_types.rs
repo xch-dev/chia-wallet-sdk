@@ -130,3 +130,9 @@ pub struct SettlementNftSpendResult {
     pub new_nft: Nft,
     pub security_conditions: Vec<Program>,
 }
+
+#[derive(Clone)]
+pub struct SpendSettlementCatsResult {
+    pub created_cats: Vec<chia_sdk_driver::Cat>,
+    pub security_conditions: Vec<Program>,
+}

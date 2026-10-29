@@ -22,7 +22,7 @@ test("test clawback v2 (sender spend)", (t) => {
     bobPuzzleHash,
     5n,
     1n,
-    false
+    false,
   );
 
   clvm.spendStandardCoin(
@@ -32,9 +32,9 @@ test("test clawback v2 (sender spend)", (t) => {
       clvm.createCoin(
         clawback.puzzleHash(),
         1n,
-        clvm.alloc([clawback.memo(clvm)])
+        clvm.alloc([clawback.memo(clvm)]),
       ),
-    ])
+    ]),
   );
 
   const clawbackCoin = new Coin(alice.coin.coinId(), clawback.puzzleHash(), 1n);
@@ -44,8 +44,8 @@ test("test clawback v2 (sender spend)", (t) => {
   const clawbackSpend = clawback.senderSpend(
     clvm.standardSpend(
       alice.pk,
-      clvm.delegatedSpend([clvm.createCoin(alice.puzzleHash, 1n)])
-    )
+      clvm.delegatedSpend([clvm.createCoin(alice.puzzleHash, 1n)]),
+    ),
   );
   clvm.spendCoin(clawbackCoin, clawbackSpend);
 
@@ -67,7 +67,7 @@ test("test clawback v2 (receiver spend)", (t) => {
     bobPuzzleHash,
     5n,
     1n,
-    false
+    false,
   );
 
   clvm.spendStandardCoin(
@@ -77,9 +77,9 @@ test("test clawback v2 (receiver spend)", (t) => {
       clvm.createCoin(
         clawback.puzzleHash(),
         1n,
-        clvm.alloc([clawback.memo(clvm)])
+        clvm.alloc([clawback.memo(clvm)]),
       ),
-    ])
+    ]),
   );
 
   const clawbackCoin = new Coin(alice.coin.coinId(), clawback.puzzleHash(), 1n);
@@ -90,8 +90,8 @@ test("test clawback v2 (receiver spend)", (t) => {
   const clawbackSpend = clawback.receiverSpend(
     clvm.standardSpend(
       bob.pk,
-      clvm.delegatedSpend([clvm.createCoin(bobPuzzleHash, 1n)])
-    )
+      clvm.delegatedSpend([clvm.createCoin(bobPuzzleHash, 1n)]),
+    ),
   );
   clvm.spendCoin(clawbackCoin, clawbackSpend);
 
@@ -113,7 +113,7 @@ test("test clawback v2 (push through)", (t) => {
     bobPuzzleHash,
     5n,
     1n,
-    false
+    false,
   );
 
   clvm.spendStandardCoin(
@@ -123,9 +123,9 @@ test("test clawback v2 (push through)", (t) => {
       clvm.createCoin(
         clawback.puzzleHash(),
         1n,
-        clvm.alloc([clawback.memo(clvm)])
+        clvm.alloc([clawback.memo(clvm)]),
       ),
-    ])
+    ]),
   );
 
   const clawbackCoin = new Coin(alice.coin.coinId(), clawback.puzzleHash(), 1n);

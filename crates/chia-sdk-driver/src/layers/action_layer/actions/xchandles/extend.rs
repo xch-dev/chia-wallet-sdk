@@ -4,17 +4,21 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     Conditions, Mod, announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, XchandlesExtendActionArgs, XchandlesExtendActionSolution,
-        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
+        DefaultCatMakerArgs, PuzzleAndSolution, XchandlesExtendActionArgs,
+        XchandlesExtendActionSolution, XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue,
+        XchandlesPricingSolution, XchandlesSlotNonce,
     },
 };
-use clvm_traits::{FromClvm, clvm_tuple};
+use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
+
+use super::{XchandlesExtendActionLog, run_pricing_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExtendAction {
@@ -45,7 +49,11 @@ impl XchandlesExtendAction {
         XchandlesExtendActionArgs {
             offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
             payout_puzzle_hash,
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -53,59 +61,47 @@ impl XchandlesExtendAction {
         ctx.curry(Self::new_args(self.launcher_id, self.payout_puzzle_hash))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesExtendActionSolution<
-            NodePtr,
-            (u64, (u64, (String, NodePtr))),
-            NodePtr,
-            NodePtr,
-        >>(solution)?;
+    ) -> Result<XchandlesExtendActionLog, DriverError> {
+        let solution =
+            ctx.extract::<XchandlesExtendActionSolution<NodePtr, NodePtr, NodePtr, ()>>(solution)?;
 
-        // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = solution.pricing_solution.1.0;
-
-        Ok(XchandlesSlotValue::new(
-            solution.pricing_solution.1.1.0.tree_hash().into(),
+        let pricing_solution =
+            ctx.extract::<XchandlesPricingSolution>(solution.pricing_puzzle_and_solution.solution)?;
+        let spent_slot = XchandlesHandleSlotValue::new(
+            solution.counter,
+            pricing_solution.handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            current_expiration,
+            pricing_solution.current_expiration,
             solution.rest.owner_launcher_id,
-            solution.rest.resolved_data,
-        ))
-    }
+            solution.rest.resolved_launcher_id,
+        );
 
-    pub fn created_slot_value(
-        ctx: &mut SpendContext,
-        solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        let solution = ctx
-            .extract::<XchandlesExtendActionSolution<NodePtr, NodePtr, NodePtr, NodePtr>>(
-                solution,
-            )?;
+        let (total_price, registered_time) = run_pricing_output(
+            ctx,
+            solution.pricing_puzzle_and_solution.puzzle,
+            solution.pricing_puzzle_and_solution.solution,
+        )?;
 
-        let pricing_output = ctx.run(solution.pricing_puzzle_reveal, solution.pricing_solution)?;
-        let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
-
-        let (_, (_, (handle, _))) =
-            ctx.extract::<(NodePtr, (NodePtr, (String, NodePtr)))>(solution.pricing_solution)?;
-
-        // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = ctx
-            .extract::<(NodePtr, (u64, NodePtr))>(solution.pricing_solution)?
-            .1
-            .0;
-
-        Ok(XchandlesSlotValue::new(
-            handle.tree_hash().into(),
+        let created_slot = XchandlesHandleSlotValue::new(
+            solution.counter + 1,
+            spent_slot.handle_hash,
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            current_expiration + registration_time_delta,
+            pricing_solution.current_expiration + registered_time,
             solution.rest.owner_launcher_id,
-            solution.rest.resolved_data,
-        ))
+            solution.rest.resolved_launcher_id,
+        );
+
+        Ok(XchandlesExtendActionLog {
+            spent_slot,
+            created_slot,
+            total_price,
+            registered_time,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -113,8 +109,8 @@ impl XchandlesExtendAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        handle: String,
-        slot: Slot<XchandlesSlotValue>,
+        handle: &str,
+        slot: Slot<XchandlesHandleSlotValue>,
         payment_asset_id: Bytes32,
         base_handle_price: u64,
         registration_period: u64,
@@ -132,29 +128,31 @@ impl XchandlesExtendAction {
             registration_period,
         })?;
 
-        let slot = registry.actual_slot(slot);
+        let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&XchandlesExtendActionSolution {
-            pricing_puzzle_reveal,
-            pricing_solution: XchandlesPricingSolution {
-                buy_time,
-                current_expiration: slot.info.value.expiration,
-                handle: handle.clone(),
-                num_periods,
-            },
-            cat_maker_puzzle_reveal,
-            cat_maker_solution: (),
+            counter: slot.info.value.counter,
+            pricing_puzzle_and_solution: PuzzleAndSolution::new(
+                pricing_puzzle_reveal,
+                XchandlesPricingSolution {
+                    buy_time,
+                    current_expiration: slot.info.value.expiration,
+                    handle: handle.to_string(),
+                    num_periods,
+                },
+            ),
             neighbors: slot.info.value.neighbors,
             rest: slot.info.value.rest_data(),
+            cat_maker_and_solution: PuzzleAndSolution::new(cat_maker_puzzle_reveal, ()),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         let renew_amount =
-            XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, num_periods);
+            XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, handle, num_periods);
 
         let notarized_payment = NotarizedPayment {
-            nonce: clvm_tuple!(handle.clone(), slot.info.value.expiration)
+            nonce: clvm_tuple!(handle.to_string(), slot.info.value.expiration)
                 .tree_hash()
                 .into(),
             payments: vec![Payment::new(
@@ -167,12 +165,11 @@ impl XchandlesExtendAction {
         // spend slot
         slot.spend(ctx, spender_inner_puzzle_hash)?;
 
-        let mut extend_ann = clvm_tuple!(renew_amount, handle).tree_hash().to_vec();
-        extend_ann.insert(0, b'e');
-
         Ok((
-            Conditions::new()
-                .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, extend_ann)),
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                registry.coin.puzzle_hash,
+                XchandlesRegistryCreatedAnnouncementPrefix::extend(renew_amount, handle),
+            )),
             notarized_payment,
         ))
     }

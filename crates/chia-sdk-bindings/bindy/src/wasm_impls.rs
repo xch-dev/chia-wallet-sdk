@@ -3,7 +3,7 @@ use std::str::FromStr;
 use chia_protocol::{Bytes, Bytes32, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use js_sys::Uint8Array;
-use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
+use js_sys::wasm_bindgen::JsCast;
 use num_bigint::BigInt;
 
 use crate::{Error, FromRust, IntoRust, Result};
@@ -139,6 +139,19 @@ impl<T> FromRust<u64, T, Wasm> for js_sys::BigInt {
     }
 }
 
+impl<T> IntoRust<i64, T, Wasm> for js_sys::BigInt {
+    fn into_rust(self, context: &T) -> Result<i64> {
+        let bigint: BigInt = self.into_rust(context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<i64, T, Wasm> for js_sys::BigInt {
+    fn from_rust(value: i64, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
 impl<T> IntoRust<u128, T, Wasm> for js_sys::BigInt {
     fn into_rust(self, context: &T) -> Result<u128> {
         let bigint: BigInt = self.into_rust(context)?;
@@ -152,13 +165,34 @@ impl<T> FromRust<u128, T, Wasm> for js_sys::BigInt {
     }
 }
 
+impl<T> IntoRust<usize, T, Wasm> for js_sys::BigInt {
+    fn into_rust(self, context: &T) -> Result<usize> {
+        let bigint: BigInt = self.into_rust(context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<usize, T, Wasm> for js_sys::BigInt {
+    fn from_rust(value: usize, _context: &T) -> Result<Self> {
+        Ok((value as u64).into())
+    }
+}
+
+fn array_to_bytes(array: &js_sys::Array) -> Result<Vec<Vec<u8>>> {
+    array
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            item.dyn_into::<Uint8Array>()
+                .map(|item| item.to_vec())
+                .map_err(|_| Error::Custom(format!("Array item {index} is not a Uint8Array")))
+        })
+        .collect()
+}
+
 impl<T> IntoRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
     fn into_rust(self, context: &T) -> Result<Vec<Bytes32>> {
-        let bytes_array: Vec<Vec<u8>> = self
-            .values()
-            .into_iter()
-            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
-            .collect();
+        let bytes_array = array_to_bytes(&self)?;
 
         let mut bytes32_array = Vec::with_capacity(bytes_array.len());
 
@@ -172,11 +206,7 @@ impl<T> IntoRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
 
 impl<T> IntoRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
     fn into_rust(self, context: &T) -> Result<Vec<Bytes>> {
-        let bytes_array: Vec<Vec<u8>> = self
-            .values()
-            .into_iter()
-            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
-            .collect();
+        let bytes_array = array_to_bytes(&self)?;
 
         let mut res_bytes_array: Vec<Bytes> = Vec::with_capacity(bytes_array.len());
 
@@ -190,11 +220,7 @@ impl<T> IntoRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
 
 impl<T> IntoRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
     fn into_rust(self, context: &T) -> Result<Vec<TreeHash>> {
-        let bytes_array: Vec<Vec<u8>> = self
-            .values()
-            .into_iter()
-            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
-            .collect();
+        let bytes_array = array_to_bytes(&self)?;
 
         let mut bytes32_array = Vec::with_capacity(bytes_array.len());
 

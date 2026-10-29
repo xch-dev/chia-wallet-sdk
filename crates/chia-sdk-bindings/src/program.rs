@@ -7,6 +7,7 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
 };
 use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
+use chia_sdk_types::puzzles::HandleNftMetadata;
 use chia_sdk_types::run_puzzle_with_cost;
 use chialisp::classic::clvm_tools::stages::run;
 use chialisp::classic::clvm_tools::stages::stage_0::TRunProgram;
@@ -22,7 +23,7 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, CurriedProgram, NotarizedPayment, Output, Pair, Payment, Puzzle,
+    AsProgram, CurriedProgram, MipsMemo, NotarizedPayment, Output, Pair, Payment, Puzzle,
     RewardDistributorLauncherSolutionInfo,
 };
 
@@ -35,7 +36,7 @@ impl Program {
 
         let invoke = run(&mut ctx);
         let input = ctx.new_pair(self.1, NodePtr::NIL)?;
-        let run_program = run_program_for_search_paths("program.clsp", &[], false);
+        let run_program = run_program_for_search_paths("program.clsp", &[], false, 0);
         let output = run_program.run_program(&mut ctx, invoke, input, None)?;
 
         Ok(Output {
@@ -289,6 +290,22 @@ impl Program {
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
         let ctx = self.0.lock().unwrap();
         let value = NftMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
+    }
+
+    pub fn parse_mips_memo(&self) -> Result<Option<MipsMemo>> {
+        let memo = {
+            let ctx = self.0.lock().unwrap();
+            chia_sdk_driver::MipsMemo::from_clvm_bounded(&ctx, self.1).ok()
+        };
+
+        memo.map(|memo| MipsMemo::from_sdk(&self.0, memo))
+            .transpose()
+    }
+
+    pub fn parse_handle_nft_metadata(&self) -> Result<Option<HandleNftMetadata>> {
+        let ctx = self.0.lock().unwrap();
+        let value = HandleNftMetadata::from_clvm(&**ctx, self.1);
         Ok(value.ok())
     }
 

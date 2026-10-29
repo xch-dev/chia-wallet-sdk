@@ -1,21 +1,26 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_bls::{PublicKey, Signature};
+use chia_bls::{PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
 use chia_puzzle_types::{
     LineageProof,
     offer::{self, SettlementPaymentsSolution},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset, VaultTransaction, create_security_coin,
-    launch_reward_distributor, spend_security_coin, spend_settlement_nft,
+    StandardLayer, StreamedAsset, create_security_coin as driver_create_security_coin,
+    create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
+    spend_security_coin, spend_settlement_cats, spend_settlement_nft,
 };
-use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
+use chia_sdk_types::{
+    Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    puzzles::{P2NextRewardDistributorEpochSolution, StateSchedulerLayerArgs},
+};
 use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::TreeHash;
@@ -28,12 +33,12 @@ use num_bigint::BigInt;
 
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
-    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
-    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
-    RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
-    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, VaultSpendReveal,
-    WrapperMemo,
+    HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo,
+    MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
+    RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    SettlementNftSpendResult, Spend, SpendSettlementCatsResult, StreamedAssetParsingResult,
+    VaultMint, WrapperMemo, conditions_to_programs,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -158,6 +163,32 @@ impl Clvm {
         )?)
     }
 
+    pub fn spend_p2_next_reward_distributor_epoch(
+        &self,
+        cat: Cat,
+        info: P2NextRewardDistributorEpochCoinInfo,
+        next_epoch_start: u64,
+        reward_distributor_inner_puzzle_hash: Bytes32,
+    ) -> Result<CatSpend> {
+        let mut ctx = self.0.lock().unwrap();
+        let puzzle = ctx.curry(info.args())?;
+        let solution = ctx.alloc(&P2NextRewardDistributorEpochSolution {
+            next_epoch_start,
+            my_id: cat.coin.coin_id(),
+            my_amount: cat.coin.amount,
+            reward_distributor_inner_puzzle_hash,
+        })?;
+
+        Ok(CatSpend {
+            cat,
+            spend: Spend {
+                puzzle: Program(self.0.clone(), puzzle),
+                solution: Program(self.0.clone(), solution),
+            },
+            hidden: false,
+        })
+    }
+
     pub fn mint_nfts(
         &self,
         parent_coin_id: Bytes32,
@@ -176,10 +207,7 @@ impl Clvm {
 
             nfts.push(nft.as_program(&self.0));
 
-            for condition in conditions {
-                let condition = condition.to_clvm(&mut ctx)?;
-                parent_conditions.push(Program(self.0.clone(), condition));
-            }
+            parent_conditions.extend(conditions_to_programs(&mut ctx, &self.0, conditions)?);
         }
 
         Ok(MintedNfts {
@@ -215,12 +243,7 @@ impl Clvm {
             HashedPtr::NIL,
         )?;
 
-        let mut parent_conditions = Vec::new();
-
-        for condition in conditions {
-            let condition = condition.to_clvm(&mut ctx)?;
-            parent_conditions.push(Program(self.0.clone(), condition));
-        }
+        let parent_conditions = conditions_to_programs(&mut ctx, &self.0, conditions)?;
 
         Ok(CreatedDid {
             did: did.as_program(&self.0),
@@ -279,12 +302,7 @@ impl Clvm {
         let (conditions, bulletin) =
             Bulletin::create(parent_coin_id, hidden_puzzle_hash, messages)?;
 
-        let mut parent_conditions = Vec::new();
-
-        for condition in conditions {
-            let condition = condition.to_clvm(&mut ctx)?;
-            parent_conditions.push(Program(self.0.clone(), condition));
-        }
+        let parent_conditions = conditions_to_programs(&mut ctx, &self.0, conditions)?;
 
         Ok(CreatedBulletin {
             bulletin,
@@ -438,6 +456,12 @@ impl Clvm {
     pub fn nft_metadata(&self, nft_metadata: NftMetadata) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.alloc(&nft_metadata)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn handle_nft_metadata(&self, handle_nft_metadata: HandleNftMetadata) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&handle_nft_metadata)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
@@ -610,7 +634,7 @@ impl Clvm {
 
     pub fn medieval_vault_send_message_delegated_puzzle(
         &self,
-        message: Bytes,
+        prefix_and_message: Bytes,
         receiver_launcher_id: Bytes32,
         my_coin: Coin,
         my_info: MedievalVaultInfo,
@@ -622,7 +646,7 @@ impl Clvm {
             self.0.clone(),
             SdkMedievalVault::delegated_puzzle_for_flexible_send_message(
                 &mut ctx,
-                message,
+                prefix_and_message,
                 receiver_launcher_id,
                 my_coin,
                 &my_info,
@@ -639,8 +663,13 @@ impl Clvm {
     ) -> Result<Option<RewardDistributor>> {
         let mut ctx = self.0.lock().unwrap();
 
-        let result =
-            SdkRewardDistributor::from_spend(&mut ctx, &spend, reserve_lineage_proof, constants)?;
+        let result = SdkRewardDistributor::from_spend(
+            &mut ctx,
+            &spend,
+            reserve_lineage_proof,
+            constants,
+            Signature::default(),
+        )?;
 
         Ok(result.map(|reward_distributor| RewardDistributor {
             clvm: self.0.clone(),
@@ -737,6 +766,21 @@ impl Clvm {
         })
     }
 
+    pub fn reward_distributor_from_mempool_item(
+        &self,
+        mempool_item: SpendBundle,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<RewardDistributor>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result = SdkRewardDistributor::from_mempool_item(&mut ctx, mempool_item, constants)?;
+
+        Ok(result.map(|reward_distributor| RewardDistributor {
+            clvm: self.0.clone(),
+            distributor: Arc::new(Mutex::new(reward_distributor)),
+        }))
+    }
+
     pub fn create_offer_security_coin(
         &self,
         offer: SpendBundle,
@@ -746,7 +790,45 @@ impl Clvm {
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
 
         let (security_coin_sk, security_coin) =
-            create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+            driver_create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+
+        Ok(OfferSecurityCoinDetails {
+            security_coin,
+            security_coin_sk,
+        })
+    }
+
+    /// Spends an XCH settlement coin into a standard security coin locked by `public_key`.
+    pub fn create_security_coin_with_pk(
+        &self,
+        xch_settlement_coin: Coin,
+        public_key: PublicKey,
+    ) -> Result<Coin> {
+        let mut ctx = self.0.lock().unwrap();
+        Ok(driver_create_security_coin_with_pk(
+            &mut ctx,
+            xch_settlement_coin,
+            public_key,
+        )?)
+    }
+
+    /// Like [`Self::create_offer_security_coin`], but locks the security coin with a caller-provided key.
+    ///
+    /// Persist `security_coin_sk` between prepare and submit so Browser Delegation custody coin ids stay stable.
+    pub fn create_offer_security_coin_with_key(
+        &self,
+        offer: SpendBundle,
+        security_coin_sk: SecretKey,
+    ) -> Result<OfferSecurityCoinDetails> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        let security_coin = driver_create_security_coin_with_pk(
+            &mut ctx,
+            offer.offered_coins().xch[0],
+            security_coin_sk.public_key(),
+        )?;
 
         Ok(OfferSecurityCoinDetails {
             security_coin,
@@ -803,8 +885,8 @@ impl Clvm {
             new_nft: new_nft.as_program(&self.0),
             security_conditions: security_conditions
                 .into_iter()
-                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
-                .collect(),
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
         })
     }
 
@@ -819,6 +901,53 @@ impl Clvm {
             .get(&asset_id)
             .cloned()
             .unwrap_or_default())
+    }
+
+    /// Spend settlement CATs from an offer into the given destination puzzle hashes.
+    ///
+    /// Payment memos are ignored; destinations receive standard puzzle-hash hints.
+    /// Returns the created CAT children and security-coin conditions (puzzle
+    /// announcement asserts) that must be included when spending the offer
+    /// security coin.
+    pub fn spend_settlement_cats(
+        &self,
+        offer: SpendBundle,
+        asset_id: Bytes32,
+        nonce: Bytes32,
+        payments: Vec<Payment>,
+    ) -> Result<SpendSettlementCatsResult> {
+        let mut ctx = self.0.lock().unwrap();
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+        let payment_refs: Vec<(Bytes32, u64)> = payments
+            .into_iter()
+            .map(|payment| (payment.puzzle_hash, payment.amount))
+            .collect();
+        let (created_cats, security_conditions) =
+            spend_settlement_cats(&mut ctx, &offer, asset_id, nonce, &payment_refs)?;
+        Ok(SpendSettlementCatsResult {
+            created_cats,
+            security_conditions: security_conditions
+                .into_iter()
+                .map(|c| Ok(Program(self.0.clone(), ctx.alloc(&c)?)))
+                .collect::<Result<_>>()?,
+        })
+    }
+
+    /// Curry the reusable state-scheduler layer over an inner (typically quoted) puzzle.
+    pub fn state_scheduler_layer(
+        &self,
+        receiver_singleton_struct_hash: Bytes32,
+        prefix_and_message: Bytes,
+        inner_puzzle: Program,
+    ) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let delegated = ctx.curry(StateSchedulerLayerArgs::<Bytes, NodePtr> {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            receiver_singleton_struct_hash,
+            prefix_and_message,
+            inner_puzzle: inner_puzzle.1,
+        })?;
+        Ok(Program(self.0.clone(), delegated))
     }
 
     pub fn offer_settlement_nft(
@@ -836,17 +965,5 @@ impl Clvm {
             .get(&nft_launcher_id)
             .copied()
             .map(|n| n.as_program(&self.0)))
-    }
-
-    pub fn parse_vault_transaction(
-        &self,
-        vault: VaultSpendReveal,
-        coin_spends: Vec<CoinSpend>,
-    ) -> Result<VaultTransaction> {
-        let mut ctx = self.0.lock().unwrap();
-
-        let vault = vault.into();
-
-        Ok(VaultTransaction::parse(&mut ctx, &vault, coin_spends)?)
     }
 }

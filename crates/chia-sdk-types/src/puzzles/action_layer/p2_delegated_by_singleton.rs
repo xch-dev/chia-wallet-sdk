@@ -9,26 +9,26 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const P2_DELEGATED_BY_SINGLETON_PUZZLE: [u8; 382] = hex!(
+pub const P2_DELEGATED_BY_SINGLETON_PUZZLE: [u8; 327] = hex!(
+    // Rue
     "
-    ff02ffff01ff04ffff04ff08ffff04ffff0117ffff04ffff02ff0effff04ff02
-    ffff04ff5fff80808080ffff04ffff0bff2affff0bff0cffff0bff0cff32ff05
-    80ffff0bff0cffff0bff3affff0bff0cffff0bff0cff32ff0b80ffff0bff0cff
-    ff0bff3affff0bff0cffff0bff0cff32ff2f80ffff0bff0cff32ff22808080ff
-    22808080ff22808080ff8080808080ffff02ff5fff81bf8080ffff04ffff01ff
-    ff4302ffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7
-    cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a1
-    6d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b2
-    3759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a
-    6e7298a91ce119a63400ade7c5ff02ffff03ffff07ff0580ffff01ff0bffff01
-    02ffff02ff0effff04ff02ffff04ff09ff80808080ffff02ff0effff04ff02ff
-    ff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080
+    ff02ffff01ff04ffff04ffff0143ffff04ffff0117ffff04ffff02ff04ffff04
+    ff04ff5f8080ffff04ffff0bffff0102ffff0bffff0182010280ffff0bffff01
+    02ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff
+    06ffff04ff06ffff04ff0bffff04ff2fff8080808080ffff0bffff0101808080
+    80ff8080808080ffff02ff5fff7f8080ffff04ffff04ffff01ff02ffff03ffff
+    07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff058080ffff02ff02
+    ffff04ff02ff07808080ffff01ff0bffff0101ff038080ff0180ffff01ff02ff
+    ff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff
+    0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff
+    04ff02ff078080ffff0bffff010180808080ffff01ff0bffff018201018080ff
+    018080ff018080
     "
 );
 
 pub const P2_DELEGATED_BY_SINGLETON_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    25fbd0d4586ff8266eb8b0fc4768b7714394d87f87824b0124fc10806ba87bb5
+    3f2358e5141470a084ab2f68126f6f07269f01a690994f364e67c9624bb6e05e
     "
 ));
 
@@ -79,6 +79,7 @@ impl P2DelegatedBySingletonLayerArgs {
 pub struct P2DelegatedBySingletonLayerSolution<P, S> {
     pub singleton_inner_puzzle_hash: Bytes32,
     pub delegated_puzzle: P,
+    #[clvm(rest)]
     pub delegated_solution: S,
 }
 

@@ -122,12 +122,29 @@ impl P2ParentCoin {
     }
 
     // also returns memo
+    /// Parses the first child of the parent coin spend that is a [`P2ParentCoin`].
+    ///
+    /// If the parent can create more than one, use [`P2ParentCoin::parse_children`] instead.
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
     ) -> Result<Option<(Self, Memos)>, DriverError> {
+        Ok(
+            Self::parse_children(allocator, parent_coin, parent_puzzle, parent_solution)?
+                .into_iter()
+                .next(),
+        )
+    }
+
+    /// Parses all children of the parent coin spend that are [`P2ParentCoin`]s, along with their memos.
+    pub fn parse_children(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+    ) -> Result<Vec<(Self, Memos)>, DriverError> {
         let (parent_inner_puzzle_hash, asset_id) =
             if parent_puzzle.mod_hash() == CAT_PUZZLE_HASH.into() {
                 let Some(parent_puzzle) = parent_puzzle.as_curried() else {
@@ -152,25 +169,26 @@ impl P2ParentCoin {
 
         let parent_output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
         let parent_conditions = Conditions::<NodePtr>::from_clvm(allocator, parent_output)?;
-        let Some(create_coin) = parent_conditions.iter().find_map(|c| {
-            c.as_create_coin()
-                .filter(|&create_coin| create_coin.puzzle_hash == expected_puzzle_hash)
-        }) else {
-            return Ok(None);
-        };
 
-        Ok(Some((
-            Self {
-                coin: Coin::new(
-                    parent_coin.coin_id(),
-                    expected_puzzle_hash,
-                    create_coin.amount,
-                ),
-                asset_id,
-                proof,
-            },
-            create_coin.memos,
-        )))
+        Ok(parent_conditions
+            .iter()
+            .filter_map(|c| c.as_create_coin())
+            .filter(|create_coin| create_coin.puzzle_hash == expected_puzzle_hash)
+            .map(|create_coin| {
+                (
+                    Self {
+                        coin: Coin::new(
+                            parent_coin.coin_id(),
+                            expected_puzzle_hash,
+                            create_coin.amount,
+                        ),
+                        asset_id,
+                        proof,
+                    },
+                    create_coin.memos,
+                )
+            })
+            .collect())
     }
 }
 
@@ -218,9 +236,10 @@ mod tests {
         ];
 
         let (expected_coin, expected_asset_id, expected_lp) = if cat_mode {
-            let (issue_cat, cats) = Cat::issue_with_coin(
+            let (issue_cat, cats) = Cat::single_issuance(
                 &mut ctx,
                 parent_bls.coin.coin_id(),
+                None,
                 parent_bls.coin.amount,
                 Conditions::new().create_coin(
                     parent_bls.puzzle_hash,
@@ -340,6 +359,41 @@ mod tests {
             "p2-parent-coin-{}.costs",
             if cat_mode { "cat" } else { "xch" }
         )));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_multiple_p2_parent_children() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let p2_parent_puzzle_hash: Bytes32 = P2ParentCoin::puzzle_hash(None).into();
+        let conditions = Conditions::new()
+            .create_coin(p2_parent_puzzle_hash, 1, Memos::None)
+            .create_coin(Bytes32::default(), 2, Memos::None)
+            .create_coin(p2_parent_puzzle_hash, 3, Memos::None);
+
+        // The identity puzzle outputs its solution as conditions.
+        let puzzle = ctx.alloc(&1)?;
+        let parent_coin = Coin::new(Bytes32::default(), ctx.tree_hash(puzzle).into(), 6);
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = ctx.alloc(&conditions)?;
+
+        let children = P2ParentCoin::parse_children(ctx, parent_coin, puzzle, solution)?;
+        let amounts: Vec<u64> = children
+            .iter()
+            .map(|(child, _)| child.coin.amount)
+            .collect();
+        assert_eq!(amounts, vec![1, 3]);
+
+        for (child, _) in &children {
+            assert_eq!(child.coin.parent_coin_info, parent_coin.coin_id());
+            assert_eq!(child.coin.puzzle_hash, p2_parent_puzzle_hash);
+        }
+
+        let (first, _) = P2ParentCoin::parse_child(ctx, parent_coin, puzzle, solution)?
+            .expect("expected a child");
+        assert_eq!(first, children[0].0);
 
         Ok(())
     }

@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use chia_protocol::Coin;
 use indexmap::IndexSet;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
 
@@ -24,11 +24,18 @@ pub enum CoinSelectionError {
 
 /// Uses the knapsack algorithm to select coins.
 pub fn select_coins(
-    mut spendable_coins: Vec<Coin>,
+    spendable_coins: Vec<Coin>,
     amount: u64,
 ) -> Result<Vec<Coin>, CoinSelectionError> {
     let amount = u128::from(amount);
     let max_coins = 500;
+
+    // Duplicate coins can only be spent once, so they must not count towards the total.
+    let mut spendable_coins: Vec<Coin> = spendable_coins
+        .into_iter()
+        .collect::<IndexSet<_>>()
+        .into_iter()
+        .collect();
 
     // You cannot spend no coins.
     if spendable_coins.is_empty() {
@@ -69,7 +76,7 @@ pub fn select_coins(
     }
 
     // Check for an exact match.
-    if smaller_sum == amount && smaller_coins.len() < max_coins && amount != 0 {
+    if smaller_sum == amount && smaller_coins.len() <= max_coins && amount != 0 {
         return Ok(smaller_coins.into_iter().collect());
     }
 
@@ -164,12 +171,15 @@ pub fn knapsack_coin_algorithm(
                     continue;
                 }
 
-                if selected_coins.len() > max_coins {
+                if selected_coins.len() >= max_coins {
                     break;
                 }
 
+                if !selected_coins.insert(*coin) {
+                    continue;
+                }
+
                 selected_sum += u128::from(coin.amount);
-                selected_coins.insert(*coin);
 
                 if selected_sum == amount {
                     return Some(selected_coins);
@@ -240,5 +250,61 @@ mod tests {
         // Even if the amount is zero, this should fail.
         let selected = select_coins(Vec::new(), 0);
         assert_eq!(selected, Err(CoinSelectionError::NoSpendableCoins));
+    }
+
+    fn unique_coin(index: u32, amount: u64) -> Coin {
+        let mut parent = [0; 32];
+        parent[..4].copy_from_slice(&index.to_be_bytes());
+        Coin::new(Bytes32::from(parent), Bytes32::from([0; 32]), amount)
+    }
+
+    #[test]
+    fn test_duplicate_coins() {
+        let a = unique_coin(0, 100);
+        let b = unique_coin(1, 1);
+
+        // The duplicate coin must not count towards the selected amount.
+        let selected = select_coins(vec![a, a, b], 150);
+        assert_eq!(selected, Err(CoinSelectionError::InsufficientBalance(101)));
+
+        let selected = select_coins(vec![a, a, b], 101).unwrap();
+        assert_eq!(selected, vec![a, b]);
+    }
+
+    #[test]
+    fn test_duplicate_coins_knapsack() {
+        let a = unique_coin(0, 100);
+        let b = unique_coin(1, 60);
+
+        // Knapsack must not count a duplicate coin twice.
+        let selected = knapsack_coin_algorithm(
+            &mut ChaCha8Rng::seed_from_u64(0),
+            &[a, a, b],
+            150,
+            u128::MAX,
+            500,
+        )
+        .unwrap();
+        let sum: u64 = selected.iter().map(|coin| coin.amount).sum();
+        assert!(sum >= 150);
+    }
+
+    #[test]
+    fn test_max_coins() {
+        let coins: Vec<Coin> = (0..600).map(|i| unique_coin(i, 1)).collect();
+
+        let selected = select_coins(coins.clone(), 500).unwrap();
+        assert_eq!(selected.len(), 500);
+
+        let selected = select_coins(coins, 501);
+        assert_eq!(selected, Err(CoinSelectionError::ExceededMaxCoins));
+    }
+
+    #[test]
+    fn test_max_coins_exact_match() {
+        // All smaller coins sum exactly to the amount, using exactly the max.
+        let coins: Vec<Coin> = (0..500).map(|i| unique_coin(i, 1)).collect();
+        let selected = select_coins(coins, 500).unwrap();
+        assert_eq!(selected.len(), 500);
     }
 }

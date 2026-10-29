@@ -4,7 +4,10 @@ use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
 use chia_sdk_driver as sdk;
 use chia_sdk_types::{
     Mod,
-    puzzles::{Force1of2RestrictedVariable, PreventConditionOpcode, Timelock},
+    puzzles::{
+        FORCE_SINGLETON_RECREATION_HASH, Force1of2RestrictedVariable, PreventConditionOpcode,
+        Timelock,
+    },
 };
 use clvm_utils::TreeHash;
 
@@ -80,6 +83,13 @@ pub fn prevent_multiple_create_coins_restriction() -> Result<Restriction> {
     Ok(Restriction {
         kind: RestrictionKind::DelegatedPuzzleWrapper,
         puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
+    })
+}
+
+pub fn force_singleton_recreation_restriction() -> Result<Restriction> {
+    Ok(Restriction {
+        kind: RestrictionKind::DelegatedPuzzleWrapper,
+        puzzle_hash: FORCE_SINGLETON_RECREATION_HASH.into(),
     })
 }
 

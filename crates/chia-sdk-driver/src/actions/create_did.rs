@@ -1,15 +1,18 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Asset, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    Delta, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
     SpendKind, Spends,
 };
 
+/// Created by [`Action::create_did`](crate::Action::create_did). The DID can be referred to as
+/// [`Id::New`](crate::Id::New) with the index of this action.
 #[derive(Debug, Clone, Copy)]
 pub struct CreateDidAction {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
+    /// The amount of the DID coin, which must be odd.
     pub amount: u64,
 }
 
@@ -37,8 +40,8 @@ impl Default for CreateDidAction {
 
 impl SpendAction for CreateDidAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(Id::New(index)).input += self.amount;
-        deltas.update(Id::Xch).output += self.amount;
+        *deltas.update(Id::New(index)) += Delta::new(self.amount, 0);
+        *deltas.update(Id::Xch) += Delta::new(0, self.amount);
         deltas.set_needed(Id::Xch);
     }
 
@@ -53,7 +56,7 @@ impl SpendAction for CreateDidAction {
 
         let (parent_conditions, eve_did) = launcher.create_eve_did(
             ctx,
-            source.asset.p2_puzzle_hash(),
+            source.p2_puzzle_hash(),
             self.recovery_list_hash,
             self.num_verifications_required,
             self.metadata,

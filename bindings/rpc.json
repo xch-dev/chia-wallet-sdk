@@ -45,6 +45,9 @@
         },
         "return": "RpcClient"
       },
+      "base_url": {
+        "return": "String"
+      },
       "get_blockchain_state": {
         "type": "async",
         "return": "BlockchainStateResponse"
@@ -358,7 +361,7 @@
     "new": true,
     "remote": true,
     "fields": {
-      "status": "String",
+      "status": "Option<String>",
       "error": "Option<String>",
       "success": "bool"
     }
@@ -433,7 +436,9 @@
       "foliage_transaction_block": "Option<FoliageTransactionBlock>",
       "transactions_info": "Option<TransactionsInfo>",
       "transactions_generator": "Option<SerializedProgram>",
-      "transactions_generator_ref_list": "Vec<u32>"
+      "transactions_generator_ref_list": "Vec<u32>",
+      "transactions_generator_buffer": "Option<Bytes>",
+      "version": "u8"
     }
   },
   "EndOfSubSlotBundle": {
@@ -631,7 +636,11 @@
       "pool_public_key": "Option<PublicKey>",
       "pool_contract_puzzle_hash": "Option<Bytes32>",
       "plot_public_key": "PublicKey",
-      "version_and_size": "u8",
+      "version": "u8",
+      "plot_index": "u16",
+      "meta_group": "u8",
+      "strength": "u8",
+      "size": "u8",
       "proof": "Bytes"
     }
   },

@@ -159,10 +159,11 @@ impl Clvm {
                 value.0.updater_puzzle_reveal.clone(),
                 value.0.updater_solution.clone(),
             )?,
-            ClvmType::UpdateDataStoreMerkleRoot { value } => self
+            ClvmType::UpdateDatastoreMerkleRoot { value } => self
                 .0
-                .update_data_store_merkle_root(value.0.new_merkle_root, value.0.memos.clone())?,
+                .update_datastore_merkle_root(value.0.new_merkle_root, value.0.memos.clone())?,
             ClvmType::NftMetadata { value } => self.0.nft_metadata(value.0.clone())?,
+            ClvmType::HandleNftMetadata { value } => self.0.handle_nft_metadata(value.0.clone())?,
             ClvmType::MipsMemo { value } => self.0.mips_memo(value.0.clone())?,
             ClvmType::InnerPuzzleMemo { value } => self.0.inner_puzzle_memo(value.0.clone())?,
             ClvmType::RestrictionMemo { value } => self.0.restriction_memo(value.0.clone())?,

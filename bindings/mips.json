@@ -119,6 +119,15 @@
     },
     "return": "TreeHash"
   },
+  "eip712_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  },
   "custom_member_hash": {
     "type": "function",
     "args": {
@@ -171,6 +180,10 @@
     "type": "function",
     "return": "Restriction"
   },
+  "force_singleton_recreation_restriction": {
+    "type": "function",
+    "return": "Restriction"
+  },
   "prevent_vault_side_effects_restriction": {
     "type": "function",
     "return": "Vec<Restriction>"
@@ -202,6 +215,15 @@
           "public_key": "K1PublicKey",
           "signature": "K1Signature",
           "fast_forward": "bool"
+        }
+      },
+      "eip712_member": {
+        "args": {
+          "config": "MemberConfig",
+          "genesis_challenge": "Bytes32",
+          "public_key": "K1PublicKey",
+          "signed_hash": "Bytes32",
+          "signature": "K1Signature"
         }
       },
       "r1_member": {
@@ -270,6 +292,7 @@
           "condition_opcode": "u16"
         }
       },
+      "force_singleton_recreation": {},
       "prevent_multiple_create_coins": {},
       "prevent_vault_side_effects": {}
     }
@@ -328,15 +351,11 @@
       "memo": "Program"
     },
     "methods": {
-      "force_1_of_2_restricted_variable": {
-        "type": "factory",
+      "parse": {
         "args": {
-          "clvm": "Clvm",
-          "left_side_subtree_hash": "Bytes32",
-          "nonce": "u32",
-          "member_validator_list_hash": "Bytes32",
-          "delegated_puzzle_validator_list_hash": "Bytes32"
-        }
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedRestriction>"
       },
       "enforce_delegated_puzzle_wrappers": {
         "type": "factory",
@@ -363,6 +382,21 @@
       "memo": "Program"
     },
     "methods": {
+      "parse": {
+        "args": {
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedWrapper>"
+      },
+      "force_1_of_2_restricted_variable": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "left_side_subtree_hash": "Bytes32",
+          "nonce": "u32",
+          "restrictions": "Vec<RestrictionMemo>"
+        }
+      },
       "prevent_vault_side_effects": {
         "type": "static",
         "args": {
@@ -384,6 +418,12 @@
         }
       },
       "prevent_multiple_create_coins": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "force_singleton_recreation": {
         "type": "factory",
         "args": {
           "clvm": "Clvm"
@@ -413,8 +453,7 @@
     "fields": {
       "left_side_subtree_hash": "Bytes32",
       "nonce": "u32",
-      "member_validator_list_hash": "Bytes32",
-      "delegated_puzzle_validator_list_hash": "Bytes32"
+      "restrictions": "Vec<RestrictionMemo>"
     }
   },
   "MemoKind": {
@@ -451,6 +490,12 @@
       "memo": "Program"
     },
     "methods": {
+      "parse": {
+        "args": {
+          "ctx": "MipsMemoContext"
+        },
+        "return": "Option<ParsedMember>"
+      },
       "k1": {
         "type": "factory",
         "args": {
@@ -560,6 +605,81 @@
         "args": {
           "mode": "u8"
         }
+      }
+    }
+  },
+  "ParsedMember": {
+    "type": "class",
+    "methods": {
+      "as_k1": {
+        "return": "Option<K1PublicKey>"
+      },
+      "as_r1": {
+        "return": "Option<R1PublicKey>"
+      },
+      "as_bls": {
+        "return": "Option<PublicKey>"
+      },
+      "as_bls_taproot": {
+        "return": "Option<PublicKey>"
+      },
+      "as_passkey": {
+        "return": "Option<R1PublicKey>"
+      },
+      "as_singleton": {
+        "return": "Option<Bytes32>"
+      },
+      "singleton_mode": {
+        "return": "Option<u8>"
+      },
+      "as_fixed_puzzle": {
+        "return": "Option<Bytes32>"
+      },
+      "as_custom": {
+        "return": "Option<Program>"
+      },
+      "fast_forward": {
+        "return": "bool"
+      }
+    }
+  },
+  "ParsedRestriction": {
+    "type": "class",
+    "methods": {
+      "as_force_1_of_2_restricted_variable": {
+        "return": "Option<Force1of2RestrictedVariableMemo>"
+      },
+      "as_enforce_delegated_puzzle_wrappers": {
+        "return": "Option<Vec<WrapperMemo>>"
+      },
+      "as_timelock": {
+        "return": "Option<u64>"
+      }
+    }
+  },
+  "ParsedWrapper": {
+    "type": "class",
+    "methods": {
+      "is_force_coin_announcement": {
+        "return": "bool"
+      },
+      "is_force_coin_message": {
+        "return": "bool"
+      },
+      "is_force_singleton_recreation": {
+        "return": "bool"
+      },
+      "as_prevent_condition_opcode": {
+        "return": "Option<u16>"
+      },
+      "is_prevent_multiple_create_coins": {
+        "return": "bool"
+      },
+      "as_timelock": {
+        "return": "Option<u64>"
+      },
+      "as_force_1_of_2_restricted_variable": {
+        "return": "Option<Force1of2RestrictedVariableMemo>"
       }
     }
   }

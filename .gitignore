@@ -21,3 +21,4 @@ cpp/tests/build/
 # Local dev scripts
 pack-local.sh
 .remember/
+sb.debug

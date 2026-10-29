@@ -48,7 +48,7 @@ impl<T> IntoRust<(), T, Uniffi> for () {
     }
 }
 
-// --- BigInt, u64, u128 → String ---
+// --- BigInt, u64, u128, i64 → String ---
 // UniFFI has no native BigInt. We use String; C# parses with BigInteger.Parse().
 
 impl<T> FromRust<BigInt, T, Uniffi> for String {
@@ -73,6 +73,19 @@ impl<T> IntoRust<u64, T, Uniffi> for String {
     fn into_rust(self, _context: &T) -> Result<u64> {
         self.parse()
             .map_err(|_| Error::Custom(format!("cannot parse '{self}' as u64")))
+    }
+}
+
+impl<T> FromRust<i64, T, Uniffi> for String {
+    fn from_rust(value: i64, _context: &T) -> Result<Self> {
+        Ok(value.to_string())
+    }
+}
+
+impl<T> IntoRust<i64, T, Uniffi> for String {
+    fn into_rust(self, _context: &T) -> Result<i64> {
+        self.parse()
+            .map_err(|_| Error::Custom(format!("cannot parse '{self}' as i64")))
     }
 }
 

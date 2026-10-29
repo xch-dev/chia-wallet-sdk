@@ -1,0 +1,11 @@
+{
+  "MerkleProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "path": "u32",
+      "proof": "Vec<Bytes32>"
+    }
+  }
+}
