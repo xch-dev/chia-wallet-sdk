@@ -35,12 +35,12 @@ The `release-cs` profile inherits from `release` but sets `strip = "none"`, whic
 
 ## Step 2: Install `uniffi-bindgen-cs`
 
-This tool generates the C# source file from the compiled library. Install it once; the version **must match** the `uniffi` crate version used here (`0.29`).
+This tool generates the C# source file from the compiled library. Install it once; the version **must match** the `uniffi` crate version used here (`0.31`).
 
 ```bash
 cargo install uniffi-bindgen-cs \
   --git https://github.com/NordSecurity/uniffi-bindgen-cs \
-  --tag v0.10.0+v0.29.4
+  --tag v0.11.1+v0.31.0
 ```
 
 ---
@@ -245,7 +245,7 @@ The same `bindings/*.json` schemas also drive the Go (`go/`), Node.js (`napi/`),
 | BigInt as string | `u64`/`u128`/`BigInt` map to `string`; parse with `BigInteger.Parse()`. A typed UniFFI custom type could improve this in a future version. |
 | `Clvm.Alloc()` is typed | Unlike Python, which accepts `None`/`int`/`bool`/`str`/`bytes`/`list` dynamically, the C# `Alloc` takes a `ClvmType` enum. Use `Clvm.Nil()`, `Clvm.Int()`, `Clvm.Atom()` etc. for primitive values. |
 | Field setters are immutable | `SetField(value)` returns a new object with the field changed; the original is unchanged. Use the return value. |
-| Version pinning | `uniffi-bindgen-cs` must match the `uniffi` crate version (`0.29`). Check the tag when upgrading. |
+| Version pinning | `uniffi-bindgen-cs` must match the `uniffi` crate version (`0.31`). Check the tag when upgrading. |
 | No static methods on objects | UniFFI 0.29 does not support non-`self` associated functions in `impl` blocks. These are exposed as free functions prefixed with the class name (e.g. `constants_puzzle_name()`). |
 
 ---

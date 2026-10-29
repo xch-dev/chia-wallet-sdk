@@ -3,11 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# uniffi-bindgen-go v0.5.0 targets uniffi 0.29.5; the workspace is pinned to 0.29.4.
-# No 0.29.4 tag exists for this tool — the patch-version mismatch is benign in practice.
-# When uniffi-bindgen-cs releases a 0.29.5 tag, bump the workspace to =0.29.5 and align both.
+# uniffi-bindgen-go v0.7.1 targets uniffi 0.31.0, which is exactly the version
+# the workspace is pinned to (uniffi = "=0.31.0").
 # See https://github.com/NordSecurity/uniffi-bindgen-go/releases for available tags.
-UNIFFI_BINDGEN_GO_TAG="v0.5.0+v0.29.5"
+UNIFFI_BINDGEN_GO_TAG="v0.7.1+v0.31.0"
 
 usage() {
   echo "Usage: $0 [-v VERSION] [-t TARGET]"
@@ -60,7 +59,8 @@ uniffi-bindgen-go \
 
 # uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
 # OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
-# and OptionTypeNft struct types. Rename the constructors to resolve the conflict.
+# and OptionTypeNft struct types (likewise DelegatedPuzzle.oracle() vs the
+# DelegatedPuzzleOracle type). Rename the constructors to resolve the conflict.
 echo "Patching naming collisions..."
 GENERATED="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.go"
 sed -i.bak \
@@ -68,6 +68,7 @@ sed -i.bak \
   -e 's/^func OptionTypeNft(/func NewOptionTypeFromNft(/' \
   -e 's/^func OptionTypeRevocableCat(/func NewOptionTypeFromRevocableCat(/' \
   -e 's/^func OptionTypeXch(/func NewOptionTypeFromXch(/' \
+  -e 's/^func DelegatedPuzzleOracle(/func NewDelegatedPuzzleFromOracle(/' \
   "$GENERATED"
 rm -f "$GENERATED.bak"
 

@@ -74,6 +74,11 @@ struct Method {
     stub_only: bool,
     #[serde(default)]
     no_wasm: bool,
+    /// Foreign name for this constructor/factory in the uniffi bindings only, for when the
+    /// default name collides with generated code (e.g. a `new(u64)` constructor clashes with
+    /// the C# handle constructor `Foo(ulong)`).
+    #[serde(default)]
+    uniffi_name: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -123,6 +128,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     ret: Some("SerializedProgram".to_string()),
                     stub_only: false,
                     no_wasm: false,
+                    uniffi_name: None,
                 },
             );
 
@@ -134,6 +140,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     ret: Some("TreeHash".to_string()),
                     stub_only: false,
                     no_wasm: false,
+                    uniffi_name: None,
                 },
             );
         }
@@ -149,6 +156,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     ret: Some("Program".to_string()),
                     stub_only: false,
                     no_wasm: false,
+                    uniffi_name: None,
                 },
             );
         }
@@ -1896,10 +1904,16 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                     };
                     let ret = parse_str::<Type>(&ret_str).unwrap();
 
+                    let constructor_attr = if let Some(name) = &method.uniffi_name {
+                        quote!(#[uniffi::constructor(name = #name)])
+                    } else {
+                        quote!(#[uniffi::constructor])
+                    };
+
                     match method.kind {
                         MethodKind::Constructor | MethodKind::Factory => {
                             method_tokens.extend(quote! {
-                                #[uniffi::constructor]
+                                #constructor_attr
                                 pub fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
@@ -1916,7 +1930,7 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                         }
                         MethodKind::AsyncFactory if include_async => {
                             method_tokens.extend(quote! {
-                                #[uniffi::constructor]
+                                #constructor_attr
                                 pub async fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
@@ -1936,7 +1950,7 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                         // that drive the future to completion on the shared Tokio runtime.
                         MethodKind::AsyncFactory => {
                             method_tokens.extend(quote! {
-                                #[uniffi::constructor]
+                                #constructor_attr
                                 pub fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {

@@ -61,10 +61,10 @@ Output by platform:
 ```bash
 cargo install uniffi-bindgen-go \
   --git https://github.com/NordSecurity/uniffi-bindgen-go \
-  --tag v0.5.0+v0.29.5
+  --tag v0.7.1+v0.31.0
 ```
 
-> **Note:** the workspace is pinned to `uniffi = "=0.29.4"`. The 0.29.4→0.29.5 patch-version mismatch between this tool and the compiled library is benign. When `uniffi-bindgen-cs` releases a `+v0.29.5` tag, both tools and the workspace pin can be aligned in one step.
+> **Note:** the tool version must match the workspace pin (`uniffi = "=0.31.0"`).
 
 ### 3 — Generate the Go source
 
@@ -303,7 +303,7 @@ The same `bindings/*.json` schemas also drive the C# (`dotnet/`), Node.js (`napi
 | `Clvm.Alloc()` is typed | Unlike Python, which accepts dynamic types, `Alloc` takes a `ClvmType` enum. Use `NewClvm()` helper methods — `Nil()`, `Int()`, `Atom()`, etc. — for primitive values. |
 | Field setters return new objects | `SetField(value)` returns a new object with the field changed; the original is unchanged. Use the return value. |
 | CGo required | Pure-Go builds are not supported. A C compiler must be available in the build environment. |
-| Version note | `uniffi-bindgen-go` `v0.5.0+v0.29.5` is used with a `uniffi = "=0.29.4"` workspace. The patch-version mismatch is benign. Align both when `uniffi-bindgen-cs` releases a `+v0.29.5` tag. |
+| Version note | `uniffi-bindgen-go` `v0.7.1+v0.31.0` matches the `uniffi = "=0.31.0"` workspace pin. Bump both together. |
 
 ---
 

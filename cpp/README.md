@@ -63,17 +63,16 @@ standard `--release` profile strips.
 ### 2 — Install `uniffi-bindgen-cpp`
 
 This tool generates the C++ source from the compiled library. Install it once; the
-version **must match** the `uniffi` crate version used here (`0.29.4`).
+version **must match** the `uniffi` crate version used here (`0.31.0`).
 
 ```bash
 cargo install uniffi-bindgen-cpp \
   --git https://github.com/NordSecurity/uniffi-bindgen-cpp \
-  --tag v0.8.1+v0.29.4
+  --tag v0.10.0+v0.31.0
 ```
 
-> **Version note:** the workspace pins `uniffi = "=0.29.4"`, and `uniffi-bindgen-cpp`
-> `v0.8.1+v0.29.4` targets exactly that version — no patch-version mismatch (unlike the
-> Go backend, which tolerates a benign 0.29.4→0.29.5 skew).
+> **Version note:** the workspace pins `uniffi = "=0.31.0"`, and `uniffi-bindgen-cpp`
+> `v0.10.0+v0.31.0` targets exactly that version. Bump both together.
 
 ### 3 — Generate the C++ source
 

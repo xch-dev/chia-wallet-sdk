@@ -43,7 +43,7 @@ jobs:
         run: cargo build --profile release-cpp -p chia-wallet-sdk-cpp --target x86_64-unknown-linux-gnu
 
       - name: Install uniffi-bindgen-cpp
-        run: cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag v0.8.1+v0.29.4
+        run: cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag v0.10.0+v0.31.0
 
       - name: Generate C++ bindings
         run: |
@@ -55,17 +55,20 @@ jobs:
 
       - name: Patch generated bindings
         run: |
-          # 1. Clvm methods `bool`/`int` are emitted with reserved C++ keyword names.
+          # 1. Clvm `bool`/`int` and registry `register` methods are emitted with reserved
+          #    C++ keyword names.
           # 2. VdfInfo/VdfProof forward declarations are emitted with all-caps acronyms.
           sed -i \
             -e 's/std::shared_ptr<Program> bool(/std::shared_ptr<Program> bool_(/' \
             -e 's/std::shared_ptr<Program> int(/std::shared_ptr<Program> int_(/' \
+            -e 's/> register(/> register_(/' \
             -e 's/struct VDFInfo;/struct VdfInfo;/' \
             -e 's/struct VDFProof;/struct VdfProof;/' \
             cpp/chia_wallet_sdk/chia_wallet_sdk.hpp
           sed -i \
             -e 's/Clvm::bool(/Clvm::bool_(/' \
             -e 's/Clvm::int(/Clvm::int_(/' \
+            -e 's/Registry::register(/Registry::register_(/' \
             cpp/chia_wallet_sdk/chia_wallet_sdk.cpp
 
       - name: Upload C++ bindings artifact

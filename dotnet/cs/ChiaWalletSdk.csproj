@@ -202,10 +202,13 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="public string? ToString()"
                   NewValue="public new string? ToString()" />
-    <!-- Fix CS1586/CS0178: jagged array allocation for sequence<bytes> has dimensions reversed -->
+    <!--
+      Fix CS0149: the async plumbing's InvokeCallbackOnce(Action invoke) means System.Action,
+      but the SDK's own Action class (action_system) shadows it inside the namespace.
+    -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
-                  OldValue="new byte[][(length)]"
-                  NewValue="new byte[length][]" />
+                  OldValue="InvokeCallbackOnce(Action invoke)"
+                  NewValue="InvokeCallbackOnce(System.Action invoke)" />
   </Target>
 
 </Project>

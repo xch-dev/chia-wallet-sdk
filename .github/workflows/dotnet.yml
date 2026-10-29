@@ -35,7 +35,7 @@ jobs:
         run: cargo build --profile release-cs -p chia-wallet-sdk-cs --target x86_64-unknown-linux-gnu
 
       - name: Install uniffi-bindgen-cs
-        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.10.0+v0.29.4
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.11.1+v0.31.0
 
       - name: Generate C# bindings
         run: |
@@ -138,7 +138,7 @@ jobs:
         run: cargo build --profile release-cs -p chia-wallet-sdk-cs
 
       - name: Install uniffi-bindgen-cs
-        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.10.0+v0.29.4
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.11.1+v0.31.0
 
       - name: Generate C# bindings
         run: |

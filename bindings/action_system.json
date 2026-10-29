@@ -334,7 +334,8 @@
         "type": "factory",
         "args": {
           "index": "usize"
-        }
+        },
+        "uniffi_name": "new_index"
       },
       "is_xch": {
         "return": "bool"

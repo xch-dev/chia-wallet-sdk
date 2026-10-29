@@ -3,10 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# uniffi-bindgen-cpp v0.8.1 targets uniffi 0.29.4, which is exactly the version
-# the workspace is pinned to (uniffi = "=0.29.4"). No patch-version mismatch here.
+# uniffi-bindgen-cpp v0.10.0 targets uniffi 0.31.0, which is exactly the version
+# the workspace is pinned to (uniffi = "=0.31.0").
 # See https://github.com/NordSecurity/uniffi-bindgen-cpp/tags for available tags.
-UNIFFI_BINDGEN_CPP_TAG="v0.8.1+v0.29.4"
+UNIFFI_BINDGEN_CPP_TAG="v0.10.0+v0.31.0"
 
 usage() {
   echo "Usage: $0 [-t TARGET]"
@@ -56,8 +56,9 @@ uniffi-bindgen-cpp \
   --out-dir "$SCRIPT_DIR/chia_wallet_sdk"
 
 # Patch two known uniffi-bindgen-cpp code-generation defects so the output compiles:
-#   1. Clvm methods `bool`/`int` are emitted with their (reserved) C++ keyword names;
-#      rename them to `bool_`/`int_`.
+#   1. Clvm methods `bool`/`int` and the CatalogRegistry/XchandlesRegistry `register`
+#      methods are emitted with their (reserved) C++ keyword names; rename them to
+#      `bool_`/`int_`/`register_`.
 #   2. The forward declarations for VdfInfo/VdfProof are emitted with all-caps acronyms
 #      (`VDFInfo`/`VDFProof`) while every other reference uses `VdfInfo`/`VdfProof`.
 echo "Patching generated bindings..."
@@ -66,12 +67,14 @@ CPP="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.cpp"
 sed -i.bak \
   -e 's/std::shared_ptr<Program> bool(/std::shared_ptr<Program> bool_(/' \
   -e 's/std::shared_ptr<Program> int(/std::shared_ptr<Program> int_(/' \
+  -e 's/> register(/> register_(/' \
   -e 's/struct VDFInfo;/struct VdfInfo;/' \
   -e 's/struct VDFProof;/struct VdfProof;/' \
   "$HPP"
 sed -i.bak \
   -e 's/Clvm::bool(/Clvm::bool_(/' \
   -e 's/Clvm::int(/Clvm::int_(/' \
+  -e 's/Registry::register(/Registry::register_(/' \
   "$CPP"
 rm -f "$HPP.bak" "$CPP.bak"
 

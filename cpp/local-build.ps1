@@ -5,10 +5,10 @@ param(
 
 $ScriptDir = $PSScriptRoot
 
-# uniffi-bindgen-cpp v0.8.1 targets uniffi 0.29.4, which is exactly the version
-# the workspace is pinned to (uniffi = "=0.29.4"). No patch-version mismatch here.
+# uniffi-bindgen-cpp v0.10.0 targets uniffi 0.31.0, which is exactly the version
+# the workspace is pinned to (uniffi = "=0.31.0").
 # See https://github.com/NordSecurity/uniffi-bindgen-cpp/tags for available tags.
-$UniffiBindgenCppTag = "v0.8.1+v0.29.4"
+$UniffiBindgenCppTag = "v0.10.0+v0.31.0"
 
 switch -Wildcard ($Target) {
     "*-apple-*"   { $LibExt = "dylib" }
@@ -45,8 +45,9 @@ uniffi-bindgen-cpp --library $LibPath --out-dir $OutDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Patch two known uniffi-bindgen-cpp code-generation defects so the output compiles:
-#   1. Clvm methods `bool`/`int` are emitted with their (reserved) C++ keyword names;
-#      rename them to `bool_`/`int_`.
+#   1. Clvm methods `bool`/`int` and the CatalogRegistry/XchandlesRegistry `register`
+#      methods are emitted with their (reserved) C++ keyword names; rename them to
+#      `bool_`/`int_`/`register_`.
 #   2. The forward declarations for VdfInfo/VdfProof are emitted with all-caps acronyms
 #      (`VDFInfo`/`VDFProof`) while every other reference uses `VdfInfo`/`VdfProof`.
 Write-Host "Patching generated bindings..."
@@ -56,13 +57,15 @@ $hppText = [System.IO.File]::ReadAllText($Hpp)
 $hppText = $hppText `
     -replace 'std::shared_ptr<Program> bool\(', 'std::shared_ptr<Program> bool_(' `
     -replace 'std::shared_ptr<Program> int\(',  'std::shared_ptr<Program> int_(' `
+    -replace '> register\(', '> register_(' `
     -replace 'struct VDFInfo;',  'struct VdfInfo;' `
     -replace 'struct VDFProof;', 'struct VdfProof;'
 [System.IO.File]::WriteAllText($Hpp, $hppText)
 $cppText = [System.IO.File]::ReadAllText($Cpp)
 $cppText = $cppText `
     -replace 'Clvm::bool\(', 'Clvm::bool_(' `
-    -replace 'Clvm::int\(',  'Clvm::int_('
+    -replace 'Clvm::int\(',  'Clvm::int_(' `
+    -replace 'Registry::register\(', 'Registry::register_('
 [System.IO.File]::WriteAllText($Cpp, $cppText)
 
 Write-Host "Staging native library..."

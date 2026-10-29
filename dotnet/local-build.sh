@@ -58,7 +58,7 @@ LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
 LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cs/$LIB_NAME"
 
-UNIFFI_BINDGEN_CS_TAG="v0.10.0+v0.29.4"
+UNIFFI_BINDGEN_CS_TAG="v0.11.1+v0.31.0"
 
 echo "Building native library for $TARGET..."
 cd ..

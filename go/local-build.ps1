@@ -6,11 +6,10 @@ param(
 
 $ScriptDir = $PSScriptRoot
 
-# uniffi-bindgen-go v0.5.0 targets uniffi 0.29.5; the workspace is pinned to 0.29.4.
-# No 0.29.4 tag exists for this tool — the patch-version mismatch is benign in practice.
-# When uniffi-bindgen-cs releases a 0.29.5 tag, bump the workspace to =0.29.5 and align both.
+# uniffi-bindgen-go v0.7.1 targets uniffi 0.31.0, which is exactly the version
+# the workspace is pinned to (uniffi = "=0.31.0").
 # See https://github.com/NordSecurity/uniffi-bindgen-go/releases for available tags.
-$UniffiBindgenGoTag = "v0.5.0+v0.29.5"
+$UniffiBindgenGoTag = "v0.7.1+v0.31.0"
 
 switch -Wildcard ($Target) {
     "*-apple-*"   { $LibExt = "dylib" }
@@ -50,7 +49,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
 # OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
-# and OptionTypeNft struct types. Rename the constructors to resolve the conflict.
+# and OptionTypeNft struct types (likewise DelegatedPuzzle.oracle() vs the
+# DelegatedPuzzleOracle type). Rename the constructors to resolve the conflict.
 Write-Host "Patching naming collisions..."
 $Generated = Join-Path $ScriptDir "chia_wallet_sdk" "chia_wallet_sdk.go"
 $content = [System.IO.File]::ReadAllText($Generated)
@@ -58,7 +58,8 @@ $content = $content `
     -replace '(?m)^func OptionTypeCat\(',          'func NewOptionTypeFromCat(' `
     -replace '(?m)^func OptionTypeNft\(',          'func NewOptionTypeFromNft(' `
     -replace '(?m)^func OptionTypeRevocableCat\(', 'func NewOptionTypeFromRevocableCat(' `
-    -replace '(?m)^func OptionTypeXch\(',          'func NewOptionTypeFromXch('
+    -replace '(?m)^func OptionTypeXch\(',          'func NewOptionTypeFromXch(' `
+    -replace '(?m)^func DelegatedPuzzleOracle\(',  'func NewDelegatedPuzzleFromOracle('
 [System.IO.File]::WriteAllText($Generated, $content)
 
 Write-Host "Staging native library..."
