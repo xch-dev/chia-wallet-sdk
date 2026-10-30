@@ -63,7 +63,7 @@ pub enum Error {
 
     #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("Client error: {0}")]
-    Client(chia_sdk_client::ClientError),
+    Client(#[source] chia_sdk_client::ClientError),
 
     /// Connection or request exceeded its configured timeout. The string includes
     /// the duration when known. Binding consumers can pattern-match on this variant
@@ -145,7 +145,7 @@ pub enum Error {
     Custom(String),
 
     #[error("Reqwest error: {0}")]
-    Reqwest(reqwest::Error),
+    Reqwest(#[source] reqwest::Error),
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),

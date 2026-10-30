@@ -5,9 +5,11 @@ use bindy::Result;
 
 /// Converts a binding-facing `Option<u32>` milliseconds value into a `Duration`.
 /// Used to bridge the bindings (which expose `u32` ms for FFI portability) to the
-/// SDK layer (which takes `Duration`).
+/// SDK layer (which takes `Duration`). `0` is treated like `None` (no timeout) rather
+/// than as an already-expired deadline.
 pub(crate) fn ms_to_duration(ms: Option<u32>) -> Option<Duration> {
-    ms.map(|ms| Duration::from_millis(u64::from(ms)))
+    ms.filter(|&ms| ms != 0)
+        .map(|ms| Duration::from_millis(u64::from(ms)))
 }
 
 // Tokio runtime for the C++ sync backend's `block_on`
@@ -31,4 +33,19 @@ where
     F: std::future::Future<Output = Result<T>>,
 {
     TOKIO_RUNTIME.block_on(future)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ms_to_duration_treats_zero_as_no_timeout() {
+        assert_eq!(ms_to_duration(None), None);
+        assert_eq!(ms_to_duration(Some(0)), None);
+        assert_eq!(
+            ms_to_duration(Some(1500)),
+            Some(Duration::from_millis(1500))
+        );
+    }
 }

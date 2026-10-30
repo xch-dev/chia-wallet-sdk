@@ -5,7 +5,9 @@ version = "0.33.0"
 edition = "2024"
 
 [lib]
-name = "chia_wallet_sdk"
+# Unique per uniffi crate so workspace builds don't collide on the output filename;
+# the build scripts/CI stage the library as `chia_wallet_sdk` for consumers.
+name = "chia_wallet_sdk_cpp"
 crate-type = ["cdylib"]
 doc = false
 test = false

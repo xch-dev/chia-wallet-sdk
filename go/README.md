@@ -52,9 +52,13 @@ Output by platform:
 
 | Platform | File |
 | -------- | ---- |
-| macOS | `target/<target>/release-go/libchia_wallet_sdk.dylib` |
-| Linux | `target/<target>/release-go/libchia_wallet_sdk.so` |
-| Windows | `target/<target>/release-go/chia_wallet_sdk.dll` |
+| macOS | `target/<target>/release-go/libchia_wallet_sdk_go.dylib` |
+| Linux | `target/<target>/release-go/libchia_wallet_sdk_go.so` |
+| Windows | `target/<target>/release-go/chia_wallet_sdk_go.dll` |
+
+Cargo names the library `chia_wallet_sdk_go` so it doesn't collide with the other
+binding crates in the workspace. Consumers load it as `chia_wallet_sdk`, so rename it
+(dropping the `_go` suffix) when you stage it; `local-build.sh` / `local-build.ps1` do this for you.
 
 ### 2 — Install `uniffi-bindgen-go`
 
@@ -70,7 +74,7 @@ cargo install uniffi-bindgen-go \
 
 ```bash
 uniffi-bindgen-go \
-  --library target/aarch64-apple-darwin/release-go/libchia_wallet_sdk.dylib \
+  --library target/aarch64-apple-darwin/release-go/libchia_wallet_sdk_go.dylib \
   --out-dir go/
 ```
 

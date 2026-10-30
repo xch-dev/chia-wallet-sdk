@@ -52,7 +52,8 @@ impl Connector {
     }
 }
 
-/// Opt-in configuration for a [`Peer`]. Timeout values are in milliseconds.
+/// Opt-in configuration for a [`Peer`]. Timeout values are in milliseconds; `0` is
+/// treated the same as `None`.
 ///
 /// `connect_timeout_ms` is a single budget covering the websocket TLS connect plus the
 /// chia handshake exchange; `None` leaves it unbounded. `request_timeout_ms` bounds each

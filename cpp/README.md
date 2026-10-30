@@ -52,9 +52,13 @@ Output by platform:
 
 | Platform | File |
 | -------- | ---- |
-| macOS | `target/<target>/release-cpp/libchia_wallet_sdk.dylib` |
-| Linux | `target/<target>/release-cpp/libchia_wallet_sdk.so` |
-| Windows | `target/<target>/release-cpp/chia_wallet_sdk.dll` |
+| macOS | `target/<target>/release-cpp/libchia_wallet_sdk_cpp.dylib` |
+| Linux | `target/<target>/release-cpp/libchia_wallet_sdk_cpp.so` |
+| Windows | `target/<target>/release-cpp/chia_wallet_sdk_cpp.dll` |
+
+Cargo names the library `chia_wallet_sdk_cpp` so it doesn't collide with the other
+binding crates in the workspace. Consumers load it as `chia_wallet_sdk`, so rename it
+(dropping the `_cpp` suffix) when you stage it; `local-build.sh` / `local-build.ps1` do this for you.
 
 The `release-cpp` profile inherits from `release` but sets `strip = "none"`, which is
 required so that `uniffi-bindgen-cpp` can read the `UNIFFI_META_*` symbols that the
@@ -78,7 +82,7 @@ cargo install uniffi-bindgen-cpp \
 
 ```bash
 uniffi-bindgen-cpp \
-  --library target/aarch64-apple-darwin/release-cpp/libchia_wallet_sdk.dylib \
+  --library target/aarch64-apple-darwin/release-cpp/libchia_wallet_sdk_cpp.dylib \
   --out-dir cpp/chia_wallet_sdk
 ```
 

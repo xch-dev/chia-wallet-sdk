@@ -55,13 +55,15 @@ esac
 
 # Windows DLLs have no "lib" prefix; all other platforms do.
 LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
+# Cargo builds chia_wallet_sdk_cs; it is staged as chia_wallet_sdk for consumers.
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
-LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cs/$LIB_NAME"
+BUILT_NAME="${LIB_PREFIX}chia_wallet_sdk_cs.$LIB_EXT"
+LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cs/$BUILT_NAME"
 
 UNIFFI_BINDGEN_CS_TAG="v0.11.1+v0.31.0"
 
 echo "Building native library for $TARGET..."
-cd ..
+cd "$SCRIPT_DIR/.."
 cargo build --profile release-cs -p chia-wallet-sdk-cs --target "$TARGET"
 cd "$SCRIPT_DIR"
 
@@ -81,7 +83,7 @@ uniffi-bindgen-cs \
 
 echo "Staging native library..."
 mkdir -p "$SCRIPT_DIR/cs/runtimes/$DOTNET_RID/native"
-cp "$LIB_PATH" "$SCRIPT_DIR/cs/runtimes/$DOTNET_RID/native/"
+cp "$LIB_PATH" "$SCRIPT_DIR/cs/runtimes/$DOTNET_RID/native/$LIB_NAME"
 
 echo "Packing NuGet (version: $VERSION)..."
 dotnet pack "$SCRIPT_DIR/cs/ChiaWalletSdk.csproj" \

@@ -25,9 +25,13 @@ Output location by platform (substitute your target triple for `<target>`):
 
 | Platform | File |
 |----------|------|
-| macOS | `target/<target>/release-cs/libchia_wallet_sdk.dylib` |
-| Linux | `target/<target>/release-cs/libchia_wallet_sdk.so` |
-| Windows | `target/<target>/release-cs/chia_wallet_sdk.dll` |
+| macOS | `target/<target>/release-cs/libchia_wallet_sdk_cs.dylib` |
+| Linux | `target/<target>/release-cs/libchia_wallet_sdk_cs.so` |
+| Windows | `target/<target>/release-cs/chia_wallet_sdk_cs.dll` |
+
+Cargo names the library `chia_wallet_sdk_cs` so it doesn't collide with the other
+binding crates in the workspace. Consumers load it as `chia_wallet_sdk`, so rename it
+(dropping the `_cs` suffix) when you stage it; `local-build.sh` / `local-build.ps1` do this for you.
 
 The `release-cs` profile inherits from `release` but sets `strip = "none"`, which is required so that `uniffi-bindgen-cs` can read the `UNIFFI_META_*` symbols that the standard `--release` profile strips.
 
@@ -53,21 +57,21 @@ uniffi-bindgen-cs \
   --library \
   --out-dir dotnet/cs \
   --config dotnet/uniffi.toml \
-  target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib
+  target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk_cs.dylib
 
 # Linux
 uniffi-bindgen-cs \
   --library \
   --out-dir dotnet/cs \
   --config dotnet/uniffi.toml \
-  target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
+  target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk_cs.so
 
 # Windows
 uniffi-bindgen-cs \
   --library \
   --out-dir dotnet/cs \
   --config dotnet/uniffi.toml \
-  target/x86_64-pc-windows-msvc/release-cs/chia_wallet_sdk.dll
+  target/x86_64-pc-windows-msvc/release-cs/chia_wallet_sdk_cs.dll
 ```
 
 This produces `dotnet/cs/chia_wallet_sdk.cs` — a single self-contained C# file that includes all types, P/Invoke declarations, and marshalling logic.
@@ -263,7 +267,7 @@ uniffi-bindgen-cs \
   --library \
   --out-dir dotnet/cs \
   --config dotnet/uniffi.toml \
-  target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib
+  target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk_cs.dylib
 
 # 3. Replace the .cs file in your project
 ```

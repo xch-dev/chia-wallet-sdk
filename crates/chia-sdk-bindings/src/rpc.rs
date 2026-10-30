@@ -50,7 +50,8 @@ impl ChiaRpcClient for RpcClientImpl {
     }
 }
 
-/// Opt-in timeout configuration for an [`RpcClient`]. All values are in milliseconds.
+/// Opt-in timeout configuration for an [`RpcClient`]. All values are in milliseconds;
+/// `0` is treated the same as `None`.
 ///
 /// `request_timeout_ms` is the whole-request budget for one HTTP call (connect + send +
 /// receive); `None` leaves requests unbounded. `connect_timeout_ms` bounds just the

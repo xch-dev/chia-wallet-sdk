@@ -43,7 +43,7 @@ jobs:
             --library \
             --out-dir dotnet/cs \
             --config dotnet/uniffi.toml \
-            target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
+            target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk_cs.so
           test -f dotnet/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
 
       - name: Upload C# bindings artifact
@@ -106,11 +106,21 @@ jobs:
       - name: Build native library
         run: ${{ matrix.settings.use_cross && 'cross' || 'cargo' }} build --profile release-cs -p chia-wallet-sdk-cs --target ${{ matrix.settings.target }}
 
+      # Cargo builds chia_wallet_sdk_cs; ship it as chia_wallet_sdk (lib-name).
+      - name: Stage native library
+        shell: bash
+        env:
+          TARGET: ${{ matrix.settings.target }}
+          LIB_NAME: ${{ matrix.settings.lib-name }}
+        run: |
+          mkdir -p native-out
+          cp "target/$TARGET/release-cs/${LIB_NAME/chia_wallet_sdk/chia_wallet_sdk_cs}" "native-out/$LIB_NAME"
+
       - name: Upload native artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.settings.artifact-name }}
-          path: target/${{ matrix.settings.target }}/release-cs/${{ matrix.settings.lib-name }}
+          path: native-out/${{ matrix.settings.lib-name }}
           if-no-files-found: error
 
   test:
@@ -146,7 +156,7 @@ jobs:
             --library \
             --out-dir dotnet/cs \
             --config dotnet/uniffi.toml \
-            target/release-cs/libchia_wallet_sdk.so
+            target/release-cs/libchia_wallet_sdk_cs.so
           test -f dotnet/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
 
       - name: Setup .NET

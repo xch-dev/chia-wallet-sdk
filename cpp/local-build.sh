@@ -34,11 +34,13 @@ case "$TARGET" in
 esac
 
 LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
+# Cargo builds chia_wallet_sdk_cpp; it is staged as chia_wallet_sdk for consumers.
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
-LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cpp/$LIB_NAME"
+BUILT_NAME="${LIB_PREFIX}chia_wallet_sdk_cpp.$LIB_EXT"
+LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cpp/$BUILT_NAME"
 
 echo "Building native library for $TARGET..."
-cd ..
+cd "$SCRIPT_DIR/.."
 cargo build --profile release-cpp -p chia-wallet-sdk-cpp --target "$TARGET"
 cd "$SCRIPT_DIR"
 
@@ -55,31 +57,11 @@ uniffi-bindgen-cpp \
   --library "$LIB_PATH" \
   --out-dir "$SCRIPT_DIR/chia_wallet_sdk"
 
-# Patch two known uniffi-bindgen-cpp code-generation defects so the output compiles:
-#   1. Clvm methods `bool`/`int` and the CatalogRegistry/XchandlesRegistry `register`
-#      methods are emitted with their (reserved) C++ keyword names; rename them to
-#      `bool_`/`int_`/`register_`.
-#   2. The forward declarations for VdfInfo/VdfProof are emitted with all-caps acronyms
-#      (`VDFInfo`/`VDFProof`) while every other reference uses `VdfInfo`/`VdfProof`.
 echo "Patching generated bindings..."
-HPP="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.hpp"
-CPP="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.cpp"
-sed -i.bak \
-  -e 's/std::shared_ptr<Program> bool(/std::shared_ptr<Program> bool_(/' \
-  -e 's/std::shared_ptr<Program> int(/std::shared_ptr<Program> int_(/' \
-  -e 's/> register(/> register_(/' \
-  -e 's/struct VDFInfo;/struct VdfInfo;/' \
-  -e 's/struct VDFProof;/struct VdfProof;/' \
-  "$HPP"
-sed -i.bak \
-  -e 's/Clvm::bool(/Clvm::bool_(/' \
-  -e 's/Clvm::int(/Clvm::int_(/' \
-  -e 's/Registry::register(/Registry::register_(/' \
-  "$CPP"
-rm -f "$HPP.bak" "$CPP.bak"
+"$SCRIPT_DIR/patch-bindings.sh" "$SCRIPT_DIR/chia_wallet_sdk"
 
 echo "Staging native library..."
-cp "$LIB_PATH" "$SCRIPT_DIR/chia_wallet_sdk/"
+cp "$LIB_PATH" "$SCRIPT_DIR/chia_wallet_sdk/$LIB_NAME"
 
 echo ""
 echo "C++ bindings generated in: $SCRIPT_DIR/chia_wallet_sdk/"

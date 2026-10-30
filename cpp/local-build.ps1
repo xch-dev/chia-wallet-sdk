@@ -19,7 +19,8 @@ switch -Wildcard ($Target) {
 
 $LibPrefix = if ($LibExt -eq "dll") { "" } else { "lib" }
 $LibName   = "${LibPrefix}chia_wallet_sdk.$LibExt"
-$LibPath   = Join-Path $ScriptDir ".." "target" $Target "release-cpp" $LibName
+$BuiltName = "${LibPrefix}chia_wallet_sdk_cpp.$LibExt"
+$LibPath   = Join-Path $ScriptDir ".." "target" $Target "release-cpp" $BuiltName
 
 Write-Host "Building native library for $Target..."
 Push-Location (Join-Path $ScriptDir "..")
@@ -44,6 +45,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 uniffi-bindgen-cpp --library $LibPath --out-dir $OutDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Mirrors patch-bindings.sh (used by local-build.sh and CI); keep the rules in sync.
 # Patch two known uniffi-bindgen-cpp code-generation defects so the output compiles:
 #   1. Clvm methods `bool`/`int` and the CatalogRegistry/XchandlesRegistry `register`
 #      methods are emitted with their (reserved) C++ keyword names; rename them to
@@ -69,7 +71,7 @@ $cppText = $cppText `
 [System.IO.File]::WriteAllText($Cpp, $cppText)
 
 Write-Host "Staging native library..."
-Copy-Item $LibPath $OutDir
+Copy-Item $LibPath (Join-Path $OutDir $LibName)
 
 Write-Host ""
 Write-Host "C++ bindings generated in: $OutDir"

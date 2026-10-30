@@ -3,9 +3,7 @@
 # Each binding is built via its local-build.sh, then only its async test suite is run.
 set -euo pipefail
 
-cd ..
-
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="aarch64-apple-darwin"
 PASS=0
 FAIL=0

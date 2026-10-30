@@ -48,19 +48,12 @@ jobs:
       - name: Generate Go bindings
         run: |
           uniffi-bindgen-go \
-            --library target/x86_64-unknown-linux-gnu/release-go/libchia_wallet_sdk.so \
+            --library target/x86_64-unknown-linux-gnu/release-go/libchia_wallet_sdk_go.so \
             --out-dir go
           test -f go/chia_wallet_sdk/chia_wallet_sdk.go || { echo "ERROR: chia_wallet_sdk.go was not generated"; exit 1; }
 
       - name: Patch naming collisions
-        run: |
-          sed -i \
-            -e 's/^func OptionTypeCat(/func NewOptionTypeFromCat(/' \
-            -e 's/^func OptionTypeNft(/func NewOptionTypeFromNft(/' \
-            -e 's/^func OptionTypeRevocableCat(/func NewOptionTypeFromRevocableCat(/' \
-            -e 's/^func OptionTypeXch(/func NewOptionTypeFromXch(/' \
-            -e 's/^func DelegatedPuzzleOracle(/func NewDelegatedPuzzleFromOracle(/' \
-            go/chia_wallet_sdk/chia_wallet_sdk.go
+        run: go/patch-bindings.sh go/chia_wallet_sdk/chia_wallet_sdk.go
 
       - name: Upload Go bindings artifact
         uses: actions/upload-artifact@v7
@@ -115,11 +108,21 @@ jobs:
       - name: Build native library
         run: cargo build --profile release-go -p chia-wallet-sdk-go --target ${{ matrix.settings.target }}
 
+      # Cargo builds chia_wallet_sdk_go; ship it as chia_wallet_sdk (lib-name).
+      - name: Stage native library
+        shell: bash
+        env:
+          TARGET: ${{ matrix.settings.target }}
+          LIB_NAME: ${{ matrix.settings.lib-name }}
+        run: |
+          mkdir -p native-out
+          cp "target/$TARGET/release-go/${LIB_NAME/chia_wallet_sdk/chia_wallet_sdk_go}" "native-out/$LIB_NAME"
+
       - name: Upload native artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.settings.artifact-name }}
-          path: target/${{ matrix.settings.target }}/release-go/${{ matrix.settings.lib-name }}
+          path: native-out/${{ matrix.settings.lib-name }}
           if-no-files-found: error
 
   test:

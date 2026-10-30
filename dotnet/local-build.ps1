@@ -48,7 +48,8 @@ switch -Wildcard ($Target) {
 # Windows DLLs have no "lib" prefix; all other platforms do.
 $LibPrefix = if ($LibExt -eq "dll") { "" } else { "lib" }
 $LibName = "${LibPrefix}chia_wallet_sdk.$LibExt"
-$LibPath = Join-Path $ScriptDir ".." "target" $Target "release-cs" $LibName
+$BuiltName = "${LibPrefix}chia_wallet_sdk_cs.$LibExt"
+$LibPath = Join-Path $ScriptDir ".." "target" $Target "release-cs" $BuiltName
 
 # Force Ninja generator on Windows to avoid MSBuild's VCTargetsPath detection,
 # which fails with MSB4136/System.MarvinHash on some VS BuildTools installs.
@@ -76,7 +77,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "Staging native library..."
 $NativeDir = Join-Path $ScriptDir "cs" "runtimes" $DotnetRid "native"
 New-Item -ItemType Directory -Force -Path $NativeDir | Out-Null
-Copy-Item $LibPath $NativeDir
+Copy-Item $LibPath (Join-Path $NativeDir $LibName)
 
 Write-Host "Packing NuGet (version: $Version)..."
 dotnet pack "$ScriptDir\cs\ChiaWalletSdk.csproj" `

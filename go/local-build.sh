@@ -37,11 +37,13 @@ case "$TARGET" in
 esac
 
 LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
+# Cargo builds chia_wallet_sdk_go; it is staged as chia_wallet_sdk for consumers.
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
-LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-go/$LIB_NAME"
+BUILT_NAME="${LIB_PREFIX}chia_wallet_sdk_go.$LIB_EXT"
+LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-go/$BUILT_NAME"
 
 echo "Building native library for $TARGET..."
-cd ..
+cd "$SCRIPT_DIR/.."
 cargo build --profile release-go -p chia-wallet-sdk-go --target "$TARGET"
 cd "$SCRIPT_DIR"
 
@@ -57,24 +59,12 @@ uniffi-bindgen-go \
   --library "$LIB_PATH" \
   --out-dir "$SCRIPT_DIR"
 
-# uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
-# OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
-# and OptionTypeNft struct types (likewise DelegatedPuzzle.oracle() vs the
-# DelegatedPuzzleOracle type). Rename the constructors to resolve the conflict.
 echo "Patching naming collisions..."
-GENERATED="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.go"
-sed -i.bak \
-  -e 's/^func OptionTypeCat(/func NewOptionTypeFromCat(/' \
-  -e 's/^func OptionTypeNft(/func NewOptionTypeFromNft(/' \
-  -e 's/^func OptionTypeRevocableCat(/func NewOptionTypeFromRevocableCat(/' \
-  -e 's/^func OptionTypeXch(/func NewOptionTypeFromXch(/' \
-  -e 's/^func DelegatedPuzzleOracle(/func NewDelegatedPuzzleFromOracle(/' \
-  "$GENERATED"
-rm -f "$GENERATED.bak"
+"$SCRIPT_DIR/patch-bindings.sh" "$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.go"
 
 echo "Staging native library..."
 mkdir -p "$SCRIPT_DIR/chia_wallet_sdk"
-cp "$LIB_PATH" "$SCRIPT_DIR/chia_wallet_sdk/"
+cp "$LIB_PATH" "$SCRIPT_DIR/chia_wallet_sdk/$LIB_NAME"
 
 echo ""
 echo "Go bindings generated in: $SCRIPT_DIR/chia_wallet_sdk/"

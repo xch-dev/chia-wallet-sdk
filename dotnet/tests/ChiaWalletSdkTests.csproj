@@ -21,37 +21,38 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Copy the native library to the test output directory for local runs -->
-    <None Include="../../target/release/libchia_wallet_sdk.dylib"
-          Condition="Exists('../../target/release/libchia_wallet_sdk.dylib')">
+    <!-- Copy the native library to the test output directory for local runs. Cargo builds it
+         as chia_wallet_sdk_cs; Link renames it to the chia_wallet_sdk name the bindings load. -->
+    <None Include="../../target/release/libchia_wallet_sdk_cs.dylib" Link="libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/release/libchia_wallet_sdk_cs.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/release-cs/libchia_wallet_sdk.dylib"
-          Condition="Exists('../../target/release-cs/libchia_wallet_sdk.dylib')">
+    <None Include="../../target/release-cs/libchia_wallet_sdk_cs.dylib" Link="libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/release-cs/libchia_wallet_sdk_cs.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib"
-          Condition="Exists('../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib')">
+    <None Include="../../target/aarch64-apple-darwin/release/libchia_wallet_sdk_cs.dylib" Link="libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/aarch64-apple-darwin/release/libchia_wallet_sdk_cs.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib"
-          Condition="Exists('../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib')">
+    <None Include="../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk_cs.dylib" Link="libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk_cs.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/release/libchia_wallet_sdk.so"
-          Condition="Exists('../../target/release/libchia_wallet_sdk.so')">
+    <None Include="../../target/release/libchia_wallet_sdk_cs.so" Link="libchia_wallet_sdk.so"
+          Condition="Exists('../../target/release/libchia_wallet_sdk_cs.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/release-cs/libchia_wallet_sdk.so"
-          Condition="Exists('../../target/release-cs/libchia_wallet_sdk.so')">
+    <None Include="../../target/release-cs/libchia_wallet_sdk_cs.so" Link="libchia_wallet_sdk.so"
+          Condition="Exists('../../target/release-cs/libchia_wallet_sdk_cs.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/release/chia_wallet_sdk.dll"
-          Condition="Exists('../../target/release/chia_wallet_sdk.dll')">
+    <None Include="../../target/release/chia_wallet_sdk_cs.dll" Link="chia_wallet_sdk.dll"
+          Condition="Exists('../../target/release/chia_wallet_sdk_cs.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../target/release-cs/chia_wallet_sdk.dll"
-          Condition="Exists('../../target/release-cs/chia_wallet_sdk.dll')">
+    <None Include="../../target/release-cs/chia_wallet_sdk_cs.dll" Link="chia_wallet_sdk.dll"
+          Condition="Exists('../../target/release-cs/chia_wallet_sdk_cs.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

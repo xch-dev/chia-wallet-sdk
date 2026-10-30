@@ -20,7 +20,8 @@ switch -Wildcard ($Target) {
 
 $LibPrefix = if ($LibExt -eq "dll") { "" } else { "lib" }
 $LibName   = "${LibPrefix}chia_wallet_sdk.$LibExt"
-$LibPath   = Join-Path $ScriptDir ".." "target" $Target "release-go" $LibName
+$BuiltName = "${LibPrefix}chia_wallet_sdk_go.$LibExt"
+$LibPath   = Join-Path $ScriptDir ".." "target" $Target "release-go" $BuiltName
 
 if ($IsWindows -and -not $env:CMAKE_GENERATOR) {
     $env:CMAKE_GENERATOR = "Ninja"
@@ -47,6 +48,7 @@ Write-Host "Generating Go bindings..."
 uniffi-bindgen-go --library $LibPath --out-dir $ScriptDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Mirrors patch-bindings.sh (used by local-build.sh and CI); keep the rules in sync.
 # uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
 # OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
 # and OptionTypeNft struct types (likewise DelegatedPuzzle.oracle() vs the
@@ -65,7 +67,7 @@ $content = $content `
 Write-Host "Staging native library..."
 $OutDir = Join-Path $ScriptDir "chia_wallet_sdk"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-Copy-Item $LibPath $OutDir
+Copy-Item $LibPath (Join-Path $OutDir $LibName)
 
 Write-Host ""
 Write-Host "Go bindings generated in: $OutDir"
