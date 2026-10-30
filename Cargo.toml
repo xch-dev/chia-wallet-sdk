@@ -22,7 +22,10 @@ members = [
     "wasm",
     "pyo3",
     "pyo3/stub-generator",
-    "patches/chia-pos2"
+    "dotnet",
+    "go",
+    "cpp",
+    "patches/chia-pos2",
 ]
 
 [workspace.package]
@@ -181,6 +184,7 @@ getrandom-04 = { package = "getrandom", version = "0.4.3" }
 sha2 = "0.11.0"
 sha3 = "0.12.0"
 pyo3 = "0.29.3"
+uniffi = { version = "=0.31.0", features = ["tokio"] }
 js-sys = "0.3.77"
 parking_lot = "0.12.5"
 chialisp = "0.6.0"
@@ -202,3 +206,20 @@ chia-pos2 = { path = "./patches/chia-pos2" }
 [profile.release]
 lto = true
 strip = "symbols"
+
+# Used by the uniffi-bindgen-cs generate step — strip = "none" is required
+# because uniffi reads UNIFFI_META_* symbols from the static symbol table,
+# which strip = "symbols" removes. See mozilla/uniffi-rs#2520.
+[profile.release-cs]
+inherits = "release"
+strip = "none"
+
+# Same requirement applies to the uniffi-bindgen-go generate step.
+[profile.release-go]
+inherits = "release"
+strip = "none"
+
+# Same requirement applies to the uniffi-bindgen-cpp generate step.
+[profile.release-cpp]
+inherits = "release"
+strip = "none"

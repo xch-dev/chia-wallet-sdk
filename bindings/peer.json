@@ -36,7 +36,9 @@
     "type": "class",
     "no_wasm": true,
     "fields": {
-      "rate_limit_factor": "f64"
+      "rate_limit_factor": "f64",
+      "connect_timeout_ms": "Option<u32>",
+      "request_timeout_ms": "Option<u32>"
     },
     "methods": {
       "new": {

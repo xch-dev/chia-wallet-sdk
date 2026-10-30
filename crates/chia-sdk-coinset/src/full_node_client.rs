@@ -1,7 +1,7 @@
 use reqwest::{Client, Identity};
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::ChiaRpcClient;
+use crate::{ChiaRpcClient, ClientOptions};
 
 #[derive(Debug)]
 pub struct FullNodeClient {
@@ -19,6 +19,16 @@ impl FullNodeClient {
         cert_bytes: &[u8],
         key_bytes: &[u8],
     ) -> reqwest::Result<Self> {
+        Self::with_options(base_url, cert_bytes, key_bytes, ClientOptions::default())
+    }
+
+    /// Creates a client with opt-in [`ClientOptions`] (e.g. request timeouts).
+    pub fn with_options(
+        base_url: String,
+        cert_bytes: &[u8],
+        key_bytes: &[u8],
+        options: ClientOptions,
+    ) -> reqwest::Result<Self> {
         #[cfg(feature = "native-tls")]
         let identity = Identity::from_pkcs8_pem(cert_bytes, key_bytes)?;
 
@@ -27,9 +37,12 @@ impl FullNodeClient {
 
         Ok(Self {
             base_url,
-            client: Client::builder()
-                .danger_accept_invalid_certs(true)
-                .identity(identity)
+            client: options
+                .apply(
+                    Client::builder()
+                        .danger_accept_invalid_certs(true)
+                        .identity(identity),
+                )
                 .build()?,
         })
     }
