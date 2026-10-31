@@ -43,6 +43,22 @@ pub enum DriverError {
     )]
     InvalidSplitter,
 
+    #[error(
+        "invalid fusion: each side must have at least one NFT, and an NFT can only be listed once"
+    )]
+    InvalidFusion,
+
+    #[error("the NFTs don't match the side of the fusion that they're being swapped for")]
+    FusionNftMismatch,
+
+    #[error(
+        "the NFT can't be used in a fusion: it must have an amount of 1 and the default metadata updater"
+    )]
+    UnsupportedFusionNft,
+
+    #[error("the offer can't be taken by this fusion")]
+    FusionOfferMismatch,
+
     #[error("missing child")]
     MissingChild,
 

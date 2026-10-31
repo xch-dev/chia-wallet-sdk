@@ -1,0 +1,103 @@
+{
+  "fusion_hint": {
+    "type": "function",
+    "return": "Bytes32"
+  },
+  "FusionDirection": {
+    "type": "enum",
+    "values": ["Fuse", "Defuse"]
+  },
+  "FusionUnlock": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nft": "Nft",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "FusionSwap": {
+    "type": "class",
+    "fields": {
+      "fusion": "Fusion",
+      "locked": "Vec<Nft>",
+      "unlocked": "Vec<Nft>"
+    }
+  },
+  "LaunchedFusion": {
+    "type": "class",
+    "fields": {
+      "fusion": "Fusion",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "ParsedFusionChild": {
+    "type": "class",
+    "fields": {
+      "fusion": "Fusion",
+      "direction": "FusionDirection"
+    }
+  },
+  "Fusion": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "launcher_id": "Bytes32",
+      "side_a": "Vec<Bytes32>",
+      "side_b": "Vec<Bytes32>"
+    },
+    "methods": {
+      "parse_launcher": {
+        "type": "static",
+        "args": {
+          "launcher_coin": "Coin",
+          "launcher_solution": "Program"
+        },
+        "return": "Option<Fusion>"
+      },
+      "parse_child": {
+        "type": "static",
+        "args": {
+          "parent_coin": "Coin",
+          "parent_puzzle": "Program",
+          "parent_solution": "Program"
+        },
+        "return": "Option<ParsedFusionChild>"
+      },
+      "p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "lock_nft_conditions": {
+        "args": {
+          "clvm": "Clvm",
+          "nft": "Nft"
+        },
+        "return": "Vec<Program>"
+      },
+      "swap": {
+        "args": {
+          "clvm": "Clvm",
+          "direction": "FusionDirection",
+          "offered": "Vec<Nft>",
+          "unlocks": "Vec<FusionUnlock>",
+          "offer_nonce": "Bytes32"
+        },
+        "return": "FusionSwap"
+      },
+      "take_offer": {
+        "args": {
+          "offer": "Offer",
+          "unlocks": "Vec<Nft>"
+        },
+        "return": "FusionSwap"
+      }
+    }
+  }
+}
