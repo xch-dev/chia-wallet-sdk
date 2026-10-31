@@ -4225,13 +4225,12 @@ export declare class SpendSettlementCatsResult {
 export declare class Splitter {
   clone(): Splitter
   constructor(shares: Array<SplitterShare>)
+  shares(): Array<SplitterShare>
   totalShares(): bigint
   puzzleHash(): Buffer
   payouts(amount: bigint): Array<SplitterPayout>
   static announcementId(coinId: Uint8Array): Buffer
   innerSpend(clvm: Clvm, amount: bigint): Spend
-  get shares(): Array<SplitterShare>
-  set shares(value: Array<SplitterShare>)
 }
 
 export declare class SplitterPayout {

@@ -1,37 +1,37 @@
 use std::collections::HashSet;
 
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::Bytes32;
 use chia_sdk_types::{
     Mod, announcement_id,
     puzzles::{SPLITTER_PUZZLE_HASH, SplitterArgs, SplitterShare, SplitterSolution},
 };
 use clvm_traits::FromClvm;
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{Cat, CatSpend, DriverError, Puzzle, Spend, SpendContext};
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
-/// The amount a recipient receives when a [`Splitter`] coin is spent.
+/// The amount a recipient receives when a [`SplitterLayer`] coin is spent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SplitterPayout {
     pub puzzle_hash: Bytes32,
     pub amount: u64,
 }
 
-/// A payout scheme for the CHIP-0008 splitter puzzle, which anyone can spend to divide a coin
-/// between its recipients. The scheme is curried in, so it can't change once funds are sent to
-/// [`Splitter::puzzle_hash`], and the order of the recipients is part of the puzzle hash.
+/// The splitter [`Layer`] is the CHIP-0008 puzzle, which anyone can spend to divide a coin between
+/// the recipients of a payout scheme. The scheme is curried in, so it can't change once funds are
+/// sent to the puzzle, and the order of the recipients is part of the puzzle hash.
 ///
 /// The puzzle reissues the full amount of the coin, so any fee must come from another coin. That
-/// spend can be tied to this one by asserting [`Splitter::announcement_id`].
+/// spend can be tied to this one by asserting [`SplitterLayer::announcement_id`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
-pub struct Splitter {
+pub struct SplitterLayer {
     shares: Vec<SplitterShare>,
     total_shares: u64,
 }
 
-impl Splitter {
+impl SplitterLayer {
     /// Validates the payout scheme, since the puzzle itself can't reject one until it's spent.
     ///
     /// There must be at least one recipient, every share must be nonzero, and the shares must sum
@@ -41,6 +41,10 @@ impl Splitter {
     /// The number of recipients isn't limited here since the cost also depends on the amounts and
     /// asset being split, but no more than around 2,300 can fit in a mempool transaction.
     pub fn new(shares: Vec<SplitterShare>) -> Result<Self, DriverError> {
+        if shares.is_empty() {
+            return Err(DriverError::InvalidSplitter);
+        }
+
         let mut puzzle_hashes = HashSet::with_capacity(shares.len());
         let mut total_shares = 0u64;
 
@@ -52,10 +56,6 @@ impl Splitter {
             total_shares = total_shares
                 .checked_add(share.share)
                 .ok_or(DriverError::InvalidSplitter)?;
-        }
-
-        if shares.is_empty() {
-            return Err(DriverError::InvalidSplitter);
         }
 
         Ok(Self {
@@ -70,10 +70,6 @@ impl Splitter {
 
     pub fn total_shares(&self) -> u64 {
         self.total_shares
-    }
-
-    pub fn puzzle_hash(&self) -> TreeHash {
-        SplitterArgs::new(self.shares.clone()).curry_tree_hash()
     }
 
     /// Calculates what each recipient receives from a coin of the given amount. Amounts are
@@ -108,31 +104,16 @@ impl Splitter {
         announcement_id(coin_id, [])
     }
 
-    pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(SplitterArgs::new(self.shares.clone()))
-    }
-
-    /// Creates the spend of the splitter puzzle for a coin of the given amount. This can be used
-    /// as the inner spend of a wrapped coin, such as when grouping several CAT spends together.
+    /// Creates the spend of this puzzle for a coin of the given amount.
     pub fn inner_spend(&self, ctx: &mut SpendContext, amount: u64) -> Result<Spend, DriverError> {
-        let puzzle = self.construct_puzzle(ctx)?;
-        let solution = ctx.alloc(&SplitterSolution::new(amount, self.total_shares))?;
-        Ok(Spend::new(puzzle, solution))
+        self.construct_spend(ctx, SplitterSolution::new(amount, self.total_shares))
     }
+}
 
-    pub fn spend(&self, ctx: &mut SpendContext, coin: Coin) -> Result<(), DriverError> {
-        let spend = self.inner_spend(ctx, coin.amount)?;
-        ctx.spend(coin, spend)
-    }
+impl Layer for SplitterLayer {
+    type Solution = SplitterSolution;
 
-    pub fn spend_cat(&self, ctx: &mut SpendContext, cat: Cat) -> Result<Vec<Cat>, DriverError> {
-        let spend = self.inner_spend(ctx, cat.coin.amount)?;
-        Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])
-    }
-
-    /// Parses the payout scheme from a splitter puzzle, returning [`None`] if it's a different
-    /// puzzle. An error is returned if the scheme doesn't pass the checks in [`Splitter::new`].
-    pub fn parse(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
@@ -142,21 +123,54 @@ impl Splitter {
         }
 
         let args = SplitterArgs::from_clvm(allocator, puzzle.args)?;
+        let layer = Self::new(args.payout_scheme)?;
 
-        Ok(Some(Self::new(args.payout_scheme)?))
+        // Non-canonical integers and trailing values would otherwise be lost when reserialized.
+        if layer.tree_hash() != puzzle.curried_puzzle_hash {
+            return Err(DriverError::InvalidSplitter);
+        }
+
+        Ok(Some(layer))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        Ok(SplitterSolution::from_clvm(allocator, solution)?)
+    }
+
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        ctx.curry(SplitterArgs::new(self.shares.clone()))
+    }
+
+    fn construct_solution(
+        &self,
+        ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        ctx.alloc(&solution)
+    }
+}
+
+impl ToTreeHash for SplitterLayer {
+    fn tree_hash(&self) -> TreeHash {
+        SplitterArgs::new(self.shares.clone()).curry_tree_hash()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use chia_consensus::validation_error::ErrorCode;
+    use chia_protocol::{Bytes, Coin};
     use chia_sdk_test::{Simulator, SimulatorError};
-    use chia_sdk_types::{Condition, Conditions};
-    use clvm_traits::ToClvm;
+    use chia_sdk_types::{Condition, Conditions, puzzles::P2OneOfManyArgs};
+    use clvm_traits::{ToClvm, clvm_curried_args};
+    use clvm_utils::CurriedProgram;
     use hex_literal::hex;
     use rstest::rstest;
 
-    use crate::StandardLayer;
+    use crate::{Cat, CatSpend, StandardLayer};
 
     use super::*;
 
@@ -164,8 +178,8 @@ mod tests {
     const BEEF: Bytes32 = Bytes32::new([0xbe; 32]);
     const CAFE: Bytes32 = Bytes32::new([0xca; 32]);
 
-    fn splitter(shares: &[(Bytes32, u64)]) -> anyhow::Result<Splitter> {
-        Ok(Splitter::new(
+    fn splitter(shares: &[(Bytes32, u64)]) -> anyhow::Result<SplitterLayer> {
+        Ok(SplitterLayer::new(
             shares
                 .iter()
                 .map(|&(puzzle_hash, share)| SplitterShare::new(puzzle_hash, share))
@@ -173,7 +187,7 @@ mod tests {
         )?)
     }
 
-    fn amounts(splitter: &Splitter, amount: u64) -> Vec<u64> {
+    fn amounts(splitter: &SplitterLayer, amount: u64) -> Vec<u64> {
         splitter
             .payouts(amount)
             .iter()
@@ -264,7 +278,7 @@ mod tests {
         let ctx = &mut SpendContext::new();
 
         let splitter = splitter(&[(F00D, 80), (BEEF, 20)])?;
-        let puzzle_hash = splitter.puzzle_hash().into();
+        let puzzle_hash = splitter.tree_hash().into();
 
         let alice = sim.bls(1003);
         let alice_p2 = StandardLayer::new(alice.pk);
@@ -276,7 +290,8 @@ mod tests {
         )?;
 
         let coin = Coin::new(alice.coin.coin_id(), puzzle_hash, 1003);
-        splitter.spend(ctx, coin)?;
+        let spend = splitter.inner_spend(ctx, coin.amount)?;
+        ctx.spend(coin, spend)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -296,7 +311,7 @@ mod tests {
         let ctx = &mut SpendContext::new();
 
         let splitter = splitter(&[(F00D, 1), (BEEF, 1)])?;
-        let puzzle_hash = splitter.puzzle_hash().into();
+        let puzzle_hash = splitter.tree_hash().into();
 
         let alice = sim.bls(101);
         let alice_p2 = StandardLayer::new(alice.pk);
@@ -309,9 +324,10 @@ mod tests {
             Conditions::new()
                 .create_coin(puzzle_hash, 100, memos)
                 .reserve_fee(1)
-                .assert_coin_announcement(Splitter::announcement_id(coin.coin_id())),
+                .assert_coin_announcement(SplitterLayer::announcement_id(coin.coin_id())),
         )?;
-        splitter.spend(ctx, coin)?;
+        let spend = splitter.inner_spend(ctx, coin.amount)?;
+        ctx.spend(coin, spend)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -326,7 +342,7 @@ mod tests {
         let ctx = &mut SpendContext::new();
 
         let splitter = splitter(&[(F00D, 5000), (BEEF, 5000)])?;
-        let puzzle_hash = splitter.puzzle_hash().into();
+        let puzzle_hash = splitter.tree_hash().into();
 
         let alice = sim.bls(10_001);
         let alice_p2 = StandardLayer::new(alice.pk);
@@ -341,7 +357,8 @@ mod tests {
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        let children = splitter.spend_cat(ctx, cats[0])?;
+        let spend = splitter.inner_spend(ctx, cats[0].coin.amount)?;
+        let children = Cat::spend_all(ctx, &[CatSpend::new(cats[0], spend)])?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -369,7 +386,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let splitter = Splitter::new(
+        let splitter = SplitterLayer::new(
             (0..recipients)
                 .map(|index| {
                     let mut puzzle_hash = [0xff; 32];
@@ -378,7 +395,7 @@ mod tests {
                 })
                 .collect(),
         )?;
-        let puzzle_hash = splitter.puzzle_hash().into();
+        let puzzle_hash = splitter.tree_hash().into();
         let amount = recipients * amount_each;
 
         if cat {
@@ -396,10 +413,12 @@ mod tests {
             alice_p2.spend(ctx, alice.coin, issue_cat)?;
             sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-            splitter.spend_cat(ctx, cats[0])?;
+            let spend = splitter.inner_spend(ctx, cats[0].coin.amount)?;
+            Cat::spend_all(ctx, &[CatSpend::new(cats[0], spend)])?;
         } else {
             let coin = sim.new_coin(puzzle_hash, amount);
-            splitter.spend(ctx, coin)?;
+            let spend = splitter.inner_spend(ctx, coin.amount)?;
+            ctx.spend(coin, spend)?;
         }
 
         Ok(sim.spend_coins(ctx.take(), &[]).map(|_| ()))
@@ -434,12 +453,101 @@ mod tests {
 
         let splitter = splitter(&[(F00D, 80), (BEEF, 20)])?;
         let puzzle = splitter.construct_puzzle(ctx)?;
-        let parsed = Puzzle::parse(ctx, puzzle);
-        assert_eq!(Splitter::parse(ctx, parsed)?, Some(splitter));
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        assert_eq!(SplitterLayer::parse_puzzle(ctx, puzzle)?, Some(splitter));
 
-        let other = 1u64.to_clvm(&mut **ctx)?;
-        let other = Puzzle::parse(ctx, other);
-        assert_eq!(Splitter::parse(ctx, other)?, None);
+        let solution = ctx.alloc(&SplitterSolution::new(100, 100))?;
+        assert_eq!(
+            SplitterLayer::parse_solution(ctx, solution)?,
+            SplitterSolution::new(100, 100)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_other_puzzles() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let raw = ctx.alloc(&1)?;
+        let raw = Puzzle::parse(ctx, raw);
+        assert_eq!(SplitterLayer::parse_puzzle(ctx, raw)?, None);
+
+        let curried = ctx.curry(P2OneOfManyArgs::new(F00D))?;
+        let curried = Puzzle::parse(ctx, curried);
+        assert_eq!(SplitterLayer::parse_puzzle(ctx, curried)?, None);
+
+        Ok(())
+    }
+
+    fn parse_curried<T>(
+        payout_scheme: T,
+    ) -> anyhow::Result<Result<Option<SplitterLayer>, DriverError>>
+    where
+        T: ToClvm<Allocator>,
+    {
+        let ctx = &mut SpendContext::new();
+
+        let program = ctx.alloc_mod::<SplitterArgs>()?;
+        let args = clvm_curried_args!(payout_scheme);
+        let puzzle = ctx.alloc(&CurriedProgram { program, args })?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        Ok(SplitterLayer::parse_puzzle(ctx, puzzle))
+    }
+
+    #[test]
+    fn test_parse_invalid_scheme() -> anyhow::Result<()> {
+        assert!(matches!(
+            parse_curried(Vec::<SplitterShare>::new())?,
+            Err(DriverError::InvalidSplitter)
+        ));
+        assert!(matches!(
+            parse_curried(vec![SplitterShare::new(F00D, 0)])?,
+            Err(DriverError::InvalidSplitter)
+        ));
+        assert!(matches!(
+            parse_curried(vec![
+                SplitterShare::new(F00D, 1),
+                SplitterShare::new(F00D, 1),
+            ])?,
+            Err(DriverError::InvalidSplitter)
+        ));
+        assert!(matches!(
+            parse_curried(vec![
+                SplitterShare::new(F00D, u64::MAX),
+                SplitterShare::new(BEEF, 1),
+            ])?,
+            Err(DriverError::InvalidSplitter)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_malformed_scheme() -> anyhow::Result<()> {
+        assert!(matches!(
+            parse_curried(vec![(F00D, ((1, 2), ()))])?,
+            Err(DriverError::FromClvm(_))
+        ));
+
+        // The puzzle ignores trailing values, but they're part of the puzzle hash.
+        assert!(matches!(
+            parse_curried(vec![(F00D, (80, (0, ())))])?,
+            Err(DriverError::InvalidSplitter)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_non_canonical_share() -> anyhow::Result<()> {
+        let share = Bytes::new(vec![0x00, 0x50]);
+
+        assert!(matches!(
+            parse_curried(vec![(F00D, (share, ()))])?,
+            Err(DriverError::InvalidSplitter)
+        ));
 
         Ok(())
     }

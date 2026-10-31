@@ -58,6 +58,12 @@ mod action_layer;
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
 
+#[cfg(feature = "chip-0008")]
+mod splitter_layer;
+
+#[cfg(feature = "chip-0008")]
+pub use splitter_layer::*;
+
 #[cfg(feature = "action-layer")]
 mod p2_parent;
 

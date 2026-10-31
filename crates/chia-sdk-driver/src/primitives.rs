@@ -34,12 +34,6 @@ mod partial_offer;
 #[cfg(feature = "chip-0052")]
 pub use partial_offer::*;
 
-#[cfg(feature = "chip-0008")]
-mod splitter;
-
-#[cfg(feature = "chip-0008")]
-pub use splitter::*;
-
 #[cfg(feature = "auction")]
 mod auction;
 

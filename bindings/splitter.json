@@ -19,15 +19,15 @@
   },
   "Splitter": {
     "type": "class",
-    "fields": {
-      "shares": "Vec<SplitterShare>"
-    },
     "methods": {
       "new": {
         "type": "constructor",
         "args": {
           "shares": "Vec<SplitterShare>"
         }
+      },
+      "shares": {
+        "return": "Vec<SplitterShare>"
       },
       "total_shares": {
         "return": "u64"

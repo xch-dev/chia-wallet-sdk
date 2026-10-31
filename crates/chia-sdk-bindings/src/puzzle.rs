@@ -31,8 +31,8 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::{Memos, cat::CatArgs, standard::StandardArgs};
 use chia_sdk_driver::{
-    Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract,
-    OptionInfo, P2ParentCoin, RawPuzzle, SpendContext, StreamingPuzzleInfo,
+    Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, Layer, OptionContract as SdkOptionContract,
+    OptionInfo, P2ParentCoin, RawPuzzle, SpendContext, SplitterLayer, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -321,7 +321,7 @@ impl Puzzle {
         let ctx = self.program.0.lock().unwrap();
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        Ok(chia_sdk_driver::Splitter::parse(&ctx, puzzle)?.map(Into::into))
+        Ok(SplitterLayer::parse_puzzle(&ctx, puzzle)?.map(crate::Splitter))
     }
 
     pub fn parse_child_p2_parent(
