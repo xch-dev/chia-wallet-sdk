@@ -38,6 +38,11 @@ pub enum DriverError {
     #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
     InvalidStateSchedule,
 
+    #[error(
+        "invalid splitter: must have at least one recipient, unique puzzle hashes, nonzero shares, and a total that fits in a u64"
+    )]
+    InvalidSplitter,
+
     #[error("missing child")]
     MissingChild,
 

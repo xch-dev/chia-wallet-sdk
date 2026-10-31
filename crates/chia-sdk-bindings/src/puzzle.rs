@@ -317,6 +317,13 @@ impl Puzzle {
         }))
     }
 
+    pub fn parse_splitter(&self) -> Result<Option<crate::Splitter>> {
+        let ctx = self.program.0.lock().unwrap();
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        Ok(chia_sdk_driver::Splitter::parse(&ctx, puzzle)?.map(Into::into))
+    }
+
     pub fn parse_child_p2_parent(
         &self,
         parent_coin: Coin,

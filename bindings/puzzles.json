@@ -101,6 +101,9 @@
         },
         "return": "Option<P2ParentCoinChildParseResult>"
       },
+      "parse_splitter": {
+        "return": "Option<Splitter>"
+      },
       "parse_partial_offer": {
         "args": {
           "coin": "Coin",

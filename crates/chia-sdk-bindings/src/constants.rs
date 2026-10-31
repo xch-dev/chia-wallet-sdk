@@ -143,6 +143,7 @@ puzzle_constants! {
     revocable_cat_maker => REVOCABLE_CAT_MAKER_PUZZLE,
     xch_cat_maker => XCH_CAT_MAKER_PUZZLE,
     partial_offer => PARTIAL_OFFER_PUZZLE,
+    splitter => SPLITTER_PUZZLE,
     auction_bid_action => AUCTION_BID_ACTION_PUZZLE,
     auction_end_action => AUCTION_END_ACTION_PUZZLE,
     auction_cancel_action => AUCTION_CANCEL_ACTION_PUZZLE,

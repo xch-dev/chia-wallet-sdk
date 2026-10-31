@@ -1184,6 +1184,7 @@ export declare class Clvm {
   revocableCatMaker(): Program
   xchCatMaker(): Program
   partialOffer(): Program
+  splitter(): Program
   auctionBidAction(): Program
   auctionEndAction(): Program
   auctionCancelAction(): Program
@@ -1512,6 +1513,8 @@ export declare class Constants {
   static xchCatMakerHash(): Buffer
   static partialOffer(): Buffer
   static partialOfferHash(): Buffer
+  static splitter(): Buffer
+  static splitterHash(): Buffer
   static auctionBidAction(): Buffer
   static auctionBidActionHash(): Buffer
   static auctionEndAction(): Buffer
@@ -3301,6 +3304,7 @@ export declare class Puzzle {
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   parseBulletin(coin: Coin, solution: Program): ParsedBulletin | null
   parseChildP2Parent(parentCoin: Coin, parentSolution: Program): P2ParentCoinChildParseResult | null
+  parseSplitter(): Splitter | null
   parsePartialOffer(coin: Coin, solution: Program, requestedAsset?: PartialOfferAsset | undefined | null): ParsedPartialOffer | null
   parseChildPartialOffer(parentCoin: Coin, parentSolution: Program, requestedAsset?: PartialOfferAsset | undefined | null): PartialOffer | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
@@ -4216,6 +4220,36 @@ export declare class SpendSettlementCatsResult {
   set createdCats(value: Array<Cat>)
   get securityConditions(): Array<Program>
   set securityConditions(value: Array<Program>)
+}
+
+export declare class Splitter {
+  clone(): Splitter
+  constructor(shares: Array<SplitterShare>)
+  totalShares(): bigint
+  puzzleHash(): Buffer
+  payouts(amount: bigint): Array<SplitterPayout>
+  static announcementId(coinId: Uint8Array): Buffer
+  innerSpend(clvm: Clvm, amount: bigint): Spend
+  get shares(): Array<SplitterShare>
+  set shares(value: Array<SplitterShare>)
+}
+
+export declare class SplitterPayout {
+  clone(): SplitterPayout
+  constructor(puzzleHash: Uint8Array, amount: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class SplitterShare {
+  clone(): SplitterShare
+  constructor(puzzleHash: Uint8Array, share: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get share(): bigint
+  set share(value: bigint)
 }
 
 export declare class StreamedAsset {
