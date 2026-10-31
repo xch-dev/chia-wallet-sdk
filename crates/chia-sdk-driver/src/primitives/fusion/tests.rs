@@ -1,13 +1,16 @@
 use anyhow::Result;
 use chia_bls::Signature;
 use chia_consensus::validation_error::ErrorCode;
-use chia_protocol::{CoinSpend, Program, SpendBundle};
+use chia_protocol::{Bytes, CoinSpend, Program, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     nft::{NftMetadata, NftOwnershipLayerSolution, NftStateLayerSolution},
 };
 use chia_sdk_test::{BlsPairWithCoin, Simulator, SimulatorError, sign_transaction};
-use chia_sdk_types::{Condition, announcement_id};
+use chia_sdk_types::{
+    Condition, announcement_id, conditions::AssertPuzzleAnnouncement, payment_assertion,
+    tree_hash_notarized_payment,
+};
 use clvm_traits::clvm_list;
 use hex_literal::hex;
 use rstest::rstest;
@@ -159,6 +162,25 @@ fn make_offer(
     )?)
 }
 
+/// The assertion that makes a spend depend on the NFT being paid to the recipient, which is what
+/// protects a spend into the settlement puzzle when there's no offer.
+fn assert_payment(
+    ctx: &mut SpendContext,
+    nft: &Nft,
+    nonce: Bytes32,
+    recipient: Bytes32,
+) -> Result<AssertPuzzleAnnouncement> {
+    let payment = settlement_payment(ctx, nonce, recipient)?;
+    let settlement = NftInfo {
+        p2_puzzle_hash: SETTLEMENT_PAYMENT_HASH.into(),
+        ..nft.info
+    };
+    Ok(payment_assertion(
+        settlement.puzzle_hash().into(),
+        tree_hash_notarized_payment(ctx, &payment),
+    ))
+}
+
 fn assert_swap(sim: &Simulator, fusion: &FusionSwap, recipient: Bytes32, p2: Bytes32) {
     assert!(sim.coin_state(fusion.fusion.coin.coin_id()).is_some());
 
@@ -295,18 +317,21 @@ fn test_order_of_nfts_does_not_matter() -> Result<()> {
     Ok(())
 }
 
-/// Unlike what CHIP-0021 says, an offer file isn't needed, only NFTs in the settlement puzzle.
+/// Unlike what CHIP-0021 says, an offer file isn't needed, only NFTs in the settlement puzzle. The
+/// spend into settlement still has to assert what it gets back, as [`test_direct_swap_needs_assertion`]
+/// shows.
 #[test]
 fn test_swap_without_offer_file() -> Result<()> {
     let mut fx = fixture(1, 1, 0)?;
     let ctx = &mut fx.ctx;
 
     let nonce = Bytes32::new([42; 32]);
+    let assertion = assert_payment(ctx, &fx.side_a[0], nonce, fx.user.puzzle_hash)?;
     let settled = fx.side_b[0].lock_settlement(
         ctx,
         &StandardLayer::new(fx.user.pk),
         Vec::new(),
-        Conditions::new(),
+        Conditions::new().with(assertion),
     )?;
 
     let swap = fx.fusion.swap(
@@ -325,6 +350,54 @@ fn test_swap_without_offer_file() -> Result<()> {
         fx.user.puzzle_hash,
         fx.fusion.info.p2_puzzle_hash(),
     );
+
+    Ok(())
+}
+
+/// Without an assertion, anyone can copy the signed spend into the settlement puzzle and pay the NFT
+/// to themselves. With one, the spend is only valid if the user gets the NFT they asked for.
+#[rstest]
+#[case::unprotected(false)]
+#[case::asserted(true)]
+fn test_direct_swap_needs_assertion(#[case] asserted: bool) -> Result<()> {
+    let mut fx = fixture(1, 1, 0)?;
+    let ctx = &mut fx.ctx;
+
+    let nonce = Bytes32::new([42; 32]);
+    let conditions = if asserted {
+        let assertion = assert_payment(ctx, &fx.side_a[0], nonce, fx.user.puzzle_hash)?;
+        Conditions::new().with(assertion)
+    } else {
+        Conditions::new()
+    };
+
+    let settled = fx.side_b[0].lock_settlement(
+        ctx,
+        &StandardLayer::new(fx.user.pk),
+        Vec::new(),
+        conditions,
+    )?;
+
+    // The attacker reuses the user's signed spend, and pays the NFT to themselves
+    let payment = settlement_payment(ctx, nonce, ATTACKER)?;
+    let stolen = settled.unlock_settlement(ctx, vec![payment])?;
+
+    let result = fx
+        .sim
+        .spend_coins(ctx.take(), std::slice::from_ref(&fx.user.sk));
+
+    if asserted {
+        assert!(matches!(
+            result,
+            Err(SimulatorError::Validation(
+                ErrorCode::AssertPuzzleAnnouncementFailed
+            ))
+        ));
+    } else {
+        result?;
+        assert_eq!(stolen.info.p2_puzzle_hash, ATTACKER);
+        assert!(fx.sim.coin_state(stolen.coin.coin_id()).is_some());
+    }
 
     Ok(())
 }
@@ -375,18 +448,20 @@ fn test_swap_nft_with_assigned_owner() -> Result<()> {
     ));
 
     // But it can be swapped directly
+    let nonce = Bytes32::new([42; 32]);
+    let assertion = assert_payment(ctx, &locked, nonce, user.puzzle_hash)?;
     let settled = side_b[0].lock_settlement(
         ctx,
         &StandardLayer::new(user.pk),
         Vec::new(),
-        Conditions::new(),
+        Conditions::new().with(assertion),
     )?;
     let swap = fusion.swap(
         ctx,
         FusionDirection::Fuse,
         &[settled],
         &[FusionUnlock::new(locked, user.puzzle_hash)],
-        Bytes32::new([42; 32]),
+        nonce,
     )?;
     assert_eq!(
         swap.unlocked[0].info.current_owner,
@@ -807,6 +882,142 @@ fn test_puzzle_rejects_tampered_solution(
     Ok(())
 }
 
+/// The solution isn't signed, so anyone can make these changes to a spend without affecting what it
+/// does, and the child must still be found.
+#[rstest]
+#[case::unlock_a_two(Bytes::from(vec![2]), false)]
+#[case::unlock_a_zero_byte(Bytes::from(vec![0]), false)]
+#[case::unlock_a_long(Bytes::from(vec![1, 2, 3, 4]), false)]
+#[case::nil_lock_coin_id(Bytes::from(vec![1]), true)]
+fn test_parse_child_of_altered_solution(
+    #[case] unlock_a: Bytes,
+    #[case] nil_lock_coin_id: bool,
+) -> Result<()> {
+    let mut fx = fixture(1, 1, 0)?;
+    let ctx = &mut fx.ctx;
+
+    let offer = make_offer(ctx, &fx.user, &fx.side_b, &fx.side_a, fx.user.puzzle_hash)?;
+    let swap = fx.fusion.take_offer(ctx, &offer, &fx.side_a)?;
+    let mut coin_spends = ctx.take();
+
+    let coin_spend = coin_spends
+        .iter_mut()
+        .find(|cs| cs.coin == fx.fusion.coin)
+        .expect("fusion spend");
+    let solution = ctx.alloc(&coin_spend.solution)?;
+    let parsed = SingletonLayer::<FusionLayer>::parse_solution(ctx, solution)?;
+    let inner = parsed.inner_solution;
+
+    let lock = inner.nfts_to_lock[0];
+    let nfts_to_lock = if nil_lock_coin_id {
+        ctx.alloc(&vec![clvm_list!(
+            (),
+            lock.metadata_hash,
+            lock.current_owner,
+            lock.transfer_program_hash
+        )])?
+    } else {
+        ctx.alloc(&inner.nfts_to_lock)?
+    };
+
+    let inner_solution = ctx.alloc(&clvm_list!(
+        inner.my_id,
+        inner.my_inner_puzzle_hash,
+        inner.my_amount,
+        nfts_to_lock,
+        inner.nfts_to_unlock.clone(),
+        unlock_a,
+        inner.offer_nonce
+    ))?;
+    coin_spend.solution = ctx.serialize(&clvm_list!(
+        parsed.lineage_proof,
+        parsed.amount,
+        inner_solution,
+        "trailing data"
+    ))?;
+
+    take(&mut fx.sim, offer, coin_spends)?;
+    assert_swap(
+        &fx.sim,
+        &swap,
+        fx.user.puzzle_hash,
+        fx.fusion.info.p2_puzzle_hash(),
+    );
+
+    let spend = fx.sim.coin_spend(fx.fusion.coin.coin_id()).expect("spend");
+    let puzzle = ctx.alloc(&spend.puzzle_reveal)?;
+    let puzzle = Puzzle::parse(ctx, puzzle);
+    let solution = ctx.alloc(&spend.solution)?;
+    assert_eq!(
+        Fusion::parse_child(ctx, spend.coin, puzzle, solution)?,
+        Some((swap.fusion.clone(), FusionDirection::Fuse))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_child_rejects_truncated_solution() -> Result<()> {
+    let mut fx = fixture(1, 1, 0)?;
+    let ctx = &mut fx.ctx;
+
+    let puzzle = SingletonLayer::new(fx.fusion.info.launcher_id, fx.fusion.info.clone())
+        .construct_puzzle(ctx)?;
+    let puzzle = Puzzle::parse(ctx, puzzle);
+    let solution = ctx.alloc(&clvm_list!(1, 1, clvm_list!(1, 2, 3)))?;
+
+    assert!(matches!(
+        Fusion::parse_child(ctx, fx.fusion.coin, puzzle, solution),
+        Err(DriverError::InvalidFusion)
+    ));
+
+    Ok(())
+}
+
+/// A launcher can create a singleton with any amount, but it needs to be odd to ever be spent.
+#[test]
+fn test_even_singleton_amount() -> Result<()> {
+    let mut sim = Simulator::new();
+    let ctx = &mut SpendContext::new();
+
+    let house = sim.bls(0);
+    let user = sim.bls(0);
+    let side_a = mint_nfts(&mut sim, ctx, &house, 1, 0)?;
+    let side_b = mint_nfts(&mut sim, ctx, &user, 1, 0)?;
+    let nft_a = side_a[0].info.launcher_id;
+    let nft_b = side_b[0].info.launcher_id;
+
+    // The driver won't launch one
+    let coin = sim.new_coin(house.puzzle_hash, 2);
+    let launcher = Launcher::for_fusion(ctx, coin.coin_id())?.with_singleton_amount(2);
+    assert!(matches!(
+        launcher.launch_fusion(ctx, vec![nft_a], vec![nft_b]),
+        Err(DriverError::InvalidFusionSingletonAmount(2))
+    ));
+
+    // But an attacker can launch one with the real puzzle, which must not be parsed as a fusion
+    let launcher = Launcher::for_fusion(ctx, coin.coin_id())?.with_singleton_amount(2);
+    let launcher_coin = launcher.coin();
+    let info = FusionLayer::new(launcher_coin.coin_id(), vec![nft_a], vec![nft_b])?;
+    let memo = FusionMemo {
+        launcher_id: launcher_coin.coin_id(),
+        side_a: vec![nft_a],
+        side_b: vec![nft_b],
+    };
+    let (conditions, _) = launcher.spend(ctx, info.inner_puzzle_hash().into(), memo)?;
+    StandardLayer::new(house.pk).spend(ctx, coin, conditions)?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&house.sk))?;
+
+    let launcher_spend = sim.coin_spend(launcher_coin.coin_id()).expect("launcher");
+    let solution = ctx.alloc(&launcher_spend.solution)?;
+    assert_eq!(
+        Fusion::parse_launcher(ctx, launcher_spend.coin, solution),
+        None
+    );
+
+    Ok(())
+}
+
 /// With the same number of NFTs on each side, the direction isn't caught by the list lengths.
 #[test]
 fn test_puzzle_rejects_wrong_direction() -> Result<()> {
@@ -996,18 +1207,20 @@ fn test_ephemeral_singleton_spend_fails() -> Result<()> {
     let locked = fusion.lock_nft(ctx, side_a[0], &p2, Conditions::new())?;
     let house_spends = ctx.take();
 
+    let nonce = Bytes32::default();
+    let assertion = assert_payment(ctx, &locked, nonce, user.puzzle_hash)?;
     let settled = side_b[0].lock_settlement(
         ctx,
         &StandardLayer::new(user.pk),
         Vec::new(),
-        Conditions::new(),
+        Conditions::new().with(assertion),
     )?;
     fusion.swap(
         ctx,
         FusionDirection::Fuse,
         &[settled],
         &[FusionUnlock::new(locked, user.puzzle_hash)],
-        Bytes32::default(),
+        nonce,
     )?;
 
     let coin_spends = [house_spends, ctx.take()].concat();

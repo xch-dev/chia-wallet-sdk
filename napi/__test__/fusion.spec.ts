@@ -85,6 +85,37 @@ function setup(sim: Simulator, clvm: Clvm) {
   return { house, user, fusion, nftA, nftB, locked };
 }
 
+/// The assertions that make a spend depend on the NFT being paid to the recipient.
+function paymentAssertions(
+  clvm: Clvm,
+  nft: Nft,
+  nonce: Uint8Array,
+  recipient: Uint8Array,
+) {
+  const launcherId = nft.info.launcherId;
+
+  const requestedPayments = new RequestedPayments(clvm);
+  requestedPayments.addNft(
+    launcherId,
+    new NotarizedPayment(nonce, [
+      new Payment(recipient, 1n, clvm.list([clvm.atom(recipient)])),
+    ]),
+  );
+
+  const assetInfo = new AssetInfo(clvm);
+  assetInfo.insertNft(
+    launcherId,
+    new NftAssetInfo(
+      nft.info.metadata,
+      nft.info.metadataUpdaterPuzzleHash,
+      nft.info.royaltyPuzzleHash,
+      nft.info.royaltyBasisPoints,
+    ),
+  );
+
+  return requestedPayments.assertions(assetInfo);
+}
+
 /// Sends the NFT to the settlement puzzle, with the conditions that assert the requested payments.
 function lockSettlement(
   clvm: Clvm,
@@ -130,7 +161,12 @@ test("fuses and defuses without an offer file", (t) => {
 
   // Fuse side B into side A
   const nonce = new Uint8Array(32).fill(1);
-  const settledB = lockSettlement(clvm, user, nftB);
+  const settledB = lockSettlement(
+    clvm,
+    user,
+    nftB,
+    paymentAssertions(clvm, locked, nonce, user.puzzleHash),
+  );
   const fused = fusion.swap(
     clvm,
     FusionDirection.Fuse,
@@ -156,7 +192,12 @@ test("fuses and defuses without an offer file", (t) => {
   t.deepEqual(child?.fusion.coin.coinId(), fused.fusion.coin.coinId());
 
   // Defuse side A to get side B back
-  const settledA = lockSettlement(clvm, user, fused.unlocked[0]);
+  const settledA = lockSettlement(
+    clvm,
+    user,
+    fused.unlocked[0],
+    paymentAssertions(clvm, fused.locked[0], nonce, user.puzzleHash),
+  );
   const defused = fused.fusion.swap(
     clvm,
     FusionDirection.Defuse,

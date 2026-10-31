@@ -48,6 +48,9 @@ pub enum DriverError {
     )]
     InvalidFusion,
 
+    #[error("the fusion singleton has an amount of {0}, but it must be odd")]
+    InvalidFusionSingletonAmount(u64),
+
     #[error("the NFTs don't match the side of the fusion that they're being swapped for")]
     FusionNftMismatch,
 

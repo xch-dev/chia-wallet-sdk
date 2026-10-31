@@ -116,6 +116,9 @@ impl Fusion {
 
     /// Spends the fusion to swap the two sides. The offered NFTs must be in the settlement puzzle,
     /// and the NFTs being unlocked must be locked by the fusion. The spends are added to `clvm`.
+    ///
+    /// The spend that moves an offered NFT into the settlement puzzle must assert the payment that
+    /// it expects in return, as offers do. Otherwise, anyone who sees that spend can take the NFT.
     pub fn swap(
         &self,
         clvm: Clvm,
