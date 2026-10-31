@@ -652,6 +652,7 @@ dependencies = [
 name = "chia-sdk-client"
 version = "0.37.1"
 dependencies = [
+ "anyhow",
  "aws-lc-rs",
  "chia-protocol",
  "chia-sdk-types",
@@ -685,6 +686,7 @@ dependencies = [
 name = "chia-sdk-daemon"
 version = "0.37.1"
 dependencies = [
+ "anyhow",
  "chia-sdk-client",
  "chia-sdk-coinset",
  "futures-util",
