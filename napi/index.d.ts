@@ -5080,6 +5080,8 @@ export declare function decodeOffer(offer: string): SpendBundle
 
 export declare function decodePartialOffer(partialOffer: string): SpendBundle
 
+export declare function defaultP2SingletonDelay(): bigint
+
 export declare function eip712DomainSeparator(genesisChallenge: Uint8Array): Buffer
 
 export declare function eip712HashToSign(genesisChallenge: Uint8Array, coinId: Uint8Array, delegatedPuzzleHash: Uint8Array): Buffer
@@ -5119,7 +5121,11 @@ export declare function parseVaultTransaction(clvm: Clvm, reveals: Reveals, laun
 
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
 
+export declare function poolProtocolVersion(): number
+
 export declare function poolRewardParentId(genesisChallenge: Uint8Array, height: number): Buffer
+
+export declare function poolRewardPrefix(genesisChallenge: Uint8Array): Buffer
 
 export declare const enum PoolSingletonState {
   SelfPooling = 0,

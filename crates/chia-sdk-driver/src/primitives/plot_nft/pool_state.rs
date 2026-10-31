@@ -101,6 +101,16 @@ impl PoolState {
         }
     }
 
+    /// The state that this one moves to when leaving a pool, which only changes what it's doing.
+    #[must_use]
+    pub fn leaving(&self) -> Self {
+        Self {
+            version: POOL_PROTOCOL_VERSION,
+            state: PoolSingletonState::LeavingPool,
+            ..self.clone()
+        }
+    }
+
     /// Whether the plot NFT uses the waiting room puzzle in this state, rather than the pool member
     /// puzzle.
     pub fn is_waiting_room(&self) -> bool {
@@ -113,6 +123,13 @@ impl PoolState {
         if self.version > POOL_PROTOCOL_VERSION {
             return Err(DriverError::InvalidPoolState(
                 "the pool protocol version is not supported",
+            ));
+        }
+
+        // The owner has to sign with this key, and consensus rejects signatures from it
+        if self.owner_public_key.is_inf() {
+            return Err(DriverError::InvalidPoolState(
+                "the owner public key can't be the infinity point",
             ));
         }
 
@@ -151,7 +168,9 @@ impl PoolState {
     pub fn from_key_value_list(allocator: &Allocator, list: NodePtr) -> Option<Self> {
         let value = key_value_pairs(allocator, list)
             .into_iter()
-            .find_map(|(key, value)| (key == POOL_STATE_KEY).then_some(value))?;
+            .find_map(|(key, value)| {
+                (allocator.atom(key).as_ref() == POOL_STATE_KEY).then_some(value)
+            })?;
 
         let SExp::Atom = allocator.sexp(value) else {
             return None;
@@ -167,7 +186,7 @@ impl PoolState {
 }
 
 /// The entries of a key value list. Anything that isn't a pair with an atom as the key is skipped.
-pub(crate) fn key_value_pairs(allocator: &Allocator, mut list: NodePtr) -> Vec<(Vec<u8>, NodePtr)> {
+pub(crate) fn key_value_pairs(allocator: &Allocator, mut list: NodePtr) -> Vec<(NodePtr, NodePtr)> {
     let mut pairs = Vec::new();
 
     while let SExp::Pair(first, rest) = allocator.sexp(list) {
@@ -176,7 +195,7 @@ pub(crate) fn key_value_pairs(allocator: &Allocator, mut list: NodePtr) -> Vec<(
         if let SExp::Pair(key, value) = allocator.sexp(first)
             && let SExp::Atom = allocator.sexp(key)
         {
-            pairs.push((allocator.atom(key).as_ref().to_vec(), value));
+            pairs.push((key, value));
         }
     }
 

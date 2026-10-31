@@ -1,9 +1,13 @@
-use chia_bls::Signature;
+use chia_bls::{PublicKey, Signature};
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes, Coin, Program, SpendBundle};
-use chia_puzzles::SINGLETON_LAUNCHER;
+use chia_puzzle_types::singleton::SingletonSolution;
+use chia_puzzles::{SINGLETON_LAUNCHER, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_test::{BlsPair, Simulator, SimulatorError};
-use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS, puzzles::pool_reward_parent_id};
+use chia_sdk_types::{
+    MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    puzzles::{P2SingletonOrDelayedArgs, pool_reward_parent_id},
+};
 use chia_traits::Streamable;
 use clvm_traits::{ToClvm, clvm_list, clvm_tuple};
 use clvmr::serde::node_from_bytes;
@@ -538,7 +542,8 @@ fn test_odd_reward_fails_on_chain() -> anyhow::Result<()> {
     )?;
     t.ctx.insert(coin_spend);
 
-    assert!(t.push().is_err());
+    // The singleton raises when it finds a second odd coin
+    assert!(matches!(t.push(), Err(SimulatorError::Signer(_))));
 
     Ok(())
 }
@@ -620,6 +625,10 @@ fn test_invalid_launches() {
             version: POOL_PROTOCOL_VERSION + 1,
             ..self_pooling.clone()
         },
+        PoolState {
+            owner_public_key: PublicKey::default(),
+            ..self_pooling.clone()
+        },
     ] {
         let result =
             Launcher::new(parent, 1).mint_plot_nft(&mut ctx, state, DELAY, DELAYED, genesis);
@@ -673,13 +682,15 @@ fn test_delayed_claim() -> anyhow::Result<()> {
 
 /// Absorbing is permissionless, so anyone can get these solutions on-chain.
 #[rstest]
-#[case(false, false)]
-#[case(false, true)]
-#[case(true, false)]
-#[case(true, true)]
+#[case(false, 0)]
+#[case(false, 4)]
+#[case(false, 19)]
+#[case(true, 0)]
+#[case(true, 4)]
+#[case(true, 19)]
 fn test_sync_through_unusual_absorb_solutions(
     #[case] waiting_room: bool,
-    #[case] noncanonical_height: bool,
+    #[case] extra_height_bytes: usize,
 ) -> anyhow::Result<()> {
     let mut t = Test::new();
 
@@ -692,11 +703,13 @@ fn test_sync_through_unusual_absorb_solutions(
     let reward = t.reward(&plot_nft, REWARD);
     let height = t.next_reward_height - 1;
 
-    let height: Vec<u8> = if noncanonical_height {
-        vec![0, 0, 0, 0, 0, height.to_be_bytes()[3]]
-    } else {
-        vec![height.to_be_bytes()[3]]
-    };
+    // The puzzles only use the low 128 bits, so it can be padded or have higher bits set
+    let reward_height = height;
+    let mut height = vec![0; extra_height_bytes];
+    if extra_height_bytes > 16 {
+        height[0] = 1;
+    }
+    height.push(reward_height.to_be_bytes()[3]);
     let height = Bytes::from(height);
     let garbage = Bytes::from(vec![1, 2, 3]);
 
@@ -744,6 +757,28 @@ fn test_sync_through_unusual_absorb_solutions(
     let solution = node_from_bytes(&mut t.ctx, &solution)?;
     let child = plot_nft.parse_child(&t.ctx, solution)?.unwrap();
 
+    // Reading the solution through the layers also has to work
+    let (_, (_, (inner_solution, _))) =
+        <(NodePtr, (NodePtr, (NodePtr, NodePtr)))>::from_clvm(&t.ctx, solution)?;
+    if waiting_room {
+        assert_eq!(
+            PoolWaitingRoomLayer::parse_solution(&t.ctx, inner_solution)?,
+            PoolWaitingRoomSolution::Absorb(PoolWaitingRoomAbsorbSolution {
+                spend_type: (),
+                pool_reward_amount: REWARD,
+                pool_reward_height: reward_height,
+            })
+        );
+    } else {
+        assert_eq!(
+            PoolMemberLayer::parse_solution(&t.ctx, inner_solution)?,
+            PoolMemberSolution::Absorb(PoolMemberAbsorbSolution {
+                pool_reward_amount: REWARD,
+                pool_reward_height: reward_height,
+            })
+        );
+    }
+
     assert_eq!(child.info, plot_nft.info);
     assert!(t.sim.coin_state(child.coin.coin_id()).is_some());
 
@@ -789,15 +824,90 @@ fn test_travel_not_matching_revealed_state() -> anyhow::Result<()> {
     let solution = node_from_bytes(&mut t.ctx, &solution)?;
     assert_eq!(plot_nft.parse_child(&t.ctx, solution)?, None);
 
-    // The same as the first case, but for the pool member puzzle
+    // Leaving a pool can only go to one puzzle, so what was revealed doesn't matter
     let state = t.pool_state(POOL_A, 5);
     let plot_nft = t.launch(state)?;
+    let expected = plot_nft.leave_pool(&mut t.ctx)?;
+    t.ctx.take();
+
     let revealed = t.pool_state(POOL_B, 5);
-    let extra_data = t.ctx.alloc(&[revealed.key_value()?])?;
-    plot_nft.spend_member(&mut t.ctx, PoolMemberSolution::Escape { extra_data })?;
-    let solution = t.ctx.take()[0].solution.clone();
+    let mut unknown_state = revealed.to_bytes()?;
+    unknown_state[1] = 4;
+
+    let wrong_state = t.ctx.alloc(&[revealed.key_value()?])?;
+    let no_state = t.ctx.alloc(&())?;
+    let invalid_state = t
+        .ctx
+        .alloc(&[(Bytes::from(b"p".to_vec()), Bytes::from(unknown_state))])?;
+
+    for extra_data in [wrong_state, no_state, invalid_state] {
+        plot_nft.spend_member(&mut t.ctx, PoolMemberSolution::Escape { extra_data })?;
+        let solution = t.ctx.take()[0].solution.clone();
+        let solution = node_from_bytes(&mut t.ctx, &solution)?;
+        assert_eq!(
+            plot_nft.parse_child(&t.ctx, solution)?,
+            Some(expected.clone())
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_travel_to_destination_that_is_not_a_puzzle_hash() -> anyhow::Result<()> {
+    let mut t = Test::new();
+
+    let state = t.self_pooling_state();
+    let plot_nft = t.launch(state)?;
+
+    // The singleton only hashes the destination, so this is valid on-chain
+    let extra_data = t.ctx.alloc(&[plot_nft.info.pool_state.key_value()?])?;
+    let inner_solution = t
+        .ctx
+        .alloc(&clvm_list!(1, extra_data, Bytes::from(vec![1; 31])))?;
+    let puzzle = SingletonV1Layer::new(
+        plot_nft.info.launcher_id,
+        plot_nft.info.waiting_room_layer(),
+    )
+    .construct_puzzle(&mut t.ctx)?;
+    let solution = t.ctx.alloc(&SingletonSolution {
+        lineage_proof: plot_nft.proof,
+        amount: plot_nft.coin.amount,
+        inner_solution,
+    })?;
+    t.ctx
+        .spend(plot_nft.coin, crate::Spend::new(puzzle, solution))?;
+    t.push()?;
+
+    let solution = t.sim.solution(plot_nft.coin.coin_id()).unwrap();
     let solution = node_from_bytes(&mut t.ctx, &solution)?;
     assert_eq!(plot_nft.parse_child(&t.ctx, solution)?, None);
+
+    Ok(())
+}
+
+#[test]
+fn test_failed_claim_adds_no_spends() -> anyhow::Result<()> {
+    let mut t = Test::new();
+
+    let state = t.pool_state(POOL_A, 5);
+    let plot_nft = t.launch(state)?;
+
+    let good = t.reward(&plot_nft, REWARD);
+    let bad = t.reward(&plot_nft, REWARD + 1);
+    let height_zero = Coin::new(
+        pool_reward_parent_id(plot_nft.info.pool_reward_prefix, 0),
+        plot_nft.info.p2_puzzle_hash().into(),
+        REWARD,
+    );
+
+    for rewards in [[good, bad], [good, height_zero]] {
+        assert!(matches!(
+            plot_nft.claim_rewards(&mut t.ctx, &rewards),
+            Err(DriverError::InvalidPoolReward(_))
+        ));
+        assert_eq!(t.ctx.iter().count(), 0);
+    }
 
     Ok(())
 }
@@ -858,6 +968,15 @@ fn test_parse_launcher_mismatches() -> anyhow::Result<()> {
     let solution = ctx.alloc(&clvm_list!(puzzle_hash, 1, kv))?;
     assert!(PlotNft::parse_launcher(&ctx, launcher_coin, solution, genesis)?.is_none());
 
+    // The singleton could never be spent with an even amount
+    let launcher_kv = ctx.alloc(&clvm_list!(
+        state.clone(),
+        (t.clone(), DELAY),
+        (h.clone(), DELAYED)
+    ))?;
+    let solution = ctx.alloc(&clvm_list!(puzzle_hash, 2, launcher_kv))?;
+    assert!(PlotNft::parse_launcher(&ctx, launcher_coin, solution, genesis)?.is_none());
+
     // Anything missing from the key value list, such as for another type of singleton
     for kv in [
         ctx.alloc(&())?,
@@ -881,6 +1000,40 @@ fn test_parse_launcher_mismatches() -> anyhow::Result<()> {
         PlotNft::parse_launcher(&ctx, launcher_coin, solution, genesis)?,
         Some(plot_nft)
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_p2_layer() -> anyhow::Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let layer = P2SingletonOrDelayedLayer::new(Bytes32::new([1; 32]), DELAY, DELAYED);
+
+    let solution = P2SingletonOrDelayedSolution::Delayed(P2SingletonDelayedSolution {
+        amount: 1234,
+        my_id: (),
+    });
+    let ptr = layer.construct_solution(&mut ctx, solution)?;
+    assert_eq!(
+        P2SingletonOrDelayedLayer::parse_solution(&ctx, ptr)?,
+        solution
+    );
+
+    let ptr = layer.construct_puzzle(&mut ctx)?;
+    let puzzle = Puzzle::parse(&ctx, ptr);
+    assert_eq!(
+        P2SingletonOrDelayedLayer::parse_puzzle(&ctx, puzzle)?,
+        Some(layer)
+    );
+
+    // Coins that pay to a v1.1 singleton aren't plot NFT rewards
+    let ptr = ctx.curry(P2SingletonOrDelayedArgs {
+        singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+        ..P2SingletonOrDelayedArgs::new(layer.launcher_id, DELAY, DELAYED)
+    })?;
+    let puzzle = Puzzle::parse(&ctx, ptr);
+    assert_eq!(P2SingletonOrDelayedLayer::parse_puzzle(&ctx, puzzle)?, None);
 
     Ok(())
 }
@@ -1036,6 +1189,18 @@ fn test_mainnet_lineage() -> anyhow::Result<()> {
         rewards[0].coin.puzzle_hash,
         plot_nft.info.p2_puzzle_hash().into()
     );
+
+    // Launching with the same values must give the exact bytes that the reference wallet did
+    let relaunch = Launcher::from_coin(lineage[0].coin, Conditions::new());
+    let (_, launched) = relaunch.mint_plot_nft(
+        &mut ctx,
+        plot_nft.info.pool_state.clone(),
+        plot_nft.info.seconds_delay,
+        plot_nft.info.delayed_puzzle_hash,
+        genesis_challenge,
+    )?;
+    assert_eq!(launched, plot_nft);
+    assert_eq!(ctx.take()[0].solution, lineage[0].solution);
     assert_eq!(lineage[0].puzzle.as_ref(), SINGLETON_LAUNCHER);
 
     let mut states = Vec::new();

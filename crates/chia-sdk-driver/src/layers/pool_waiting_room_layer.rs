@@ -8,7 +8,7 @@ use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, SpendContext, is_nil};
+use crate::{DriverError, Layer, Puzzle, SpendContext, is_nil, parse_pool_reward_height};
 
 /// The pool waiting room [`Layer`] is the inner puzzle of a plot NFT that is self pooling or leaving
 /// a pool. Self pooling is the same puzzle with a [`relative_lock_height`](Self::relative_lock_height)
@@ -40,24 +40,24 @@ pub enum PoolWaitingRoomSolution {
 }
 
 impl PoolWaitingRoomLayer {
-    /// Returns the extra data and destination puzzle hash if the inner solution moves to a new
-    /// puzzle, or [`None`] if it claims a reward. This is what the puzzle branches on, so unlike
-    /// parsing the solution it works for any absorb that's valid on-chain, and anyone can choose
-    /// how to solve those.
+    /// Returns the extra data and destination if the inner solution moves to a new puzzle, or
+    /// [`None`] if it claims a reward. This is what the puzzle branches on, and it works for any
+    /// spend that's valid on-chain. The destination is left unparsed since the singleton accepts
+    /// any atom, even though only a 32 byte one is a puzzle hash.
     pub fn parse_travel(
         allocator: &Allocator,
         inner_solution: NodePtr,
-    ) -> Result<Option<(NodePtr, Bytes32)>, DriverError> {
+    ) -> Result<Option<(NodePtr, NodePtr)>, DriverError> {
         let (spend_type, rest) = <(NodePtr, NodePtr)>::from_clvm(allocator, inner_solution)?;
 
         if is_nil(allocator, spend_type) {
             return Ok(None);
         }
 
-        let (extra_data, (destination_puzzle_hash, _)) =
-            <(NodePtr, (Bytes32, NodePtr))>::from_clvm(allocator, rest)?;
+        let (extra_data, (destination, _)) =
+            <(NodePtr, (NodePtr, NodePtr))>::from_clvm(allocator, rest)?;
 
-        Ok(Some((extra_data, destination_puzzle_hash)))
+        Ok(Some((extra_data, destination)))
     }
 
     fn args(&self) -> PoolWaitingRoomArgs {
@@ -98,23 +98,21 @@ impl Layer for PoolWaitingRoomLayer {
         allocator: &Allocator,
         solution: NodePtr,
     ) -> Result<Self::Solution, DriverError> {
-        if let Some((extra_data, destination_puzzle_hash)) =
-            Self::parse_travel(allocator, solution)?
-        {
+        if let Some((extra_data, destination)) = Self::parse_travel(allocator, solution)? {
             return Ok(PoolWaitingRoomSolution::Travel {
                 extra_data,
-                destination_puzzle_hash,
+                destination_puzzle_hash: Bytes32::from_clvm(allocator, destination)?,
             });
         }
 
         let (_, (pool_reward_amount, (pool_reward_height, _))) =
-            <(NodePtr, (u64, (u32, NodePtr)))>::from_clvm(allocator, solution)?;
+            <(NodePtr, (u64, (NodePtr, NodePtr)))>::from_clvm(allocator, solution)?;
 
         Ok(PoolWaitingRoomSolution::Absorb(
             PoolWaitingRoomAbsorbSolution {
                 spend_type: (),
                 pool_reward_amount,
-                pool_reward_height,
+                pool_reward_height: parse_pool_reward_height(allocator, pool_reward_height)?,
             },
         ))
     }

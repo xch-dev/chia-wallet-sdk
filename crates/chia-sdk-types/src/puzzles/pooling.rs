@@ -79,8 +79,8 @@ impl Mod for PoolMemberArgs {
     }
 }
 
-/// Claims a pool reward. The puzzle treats a nil height as [`PoolMemberEscapeSolution`], so a
-/// reward from height 0 can't be claimed with this puzzle.
+/// Claims a pool reward. The puzzle treats a nil height as [`PoolMemberEscapeSolution`], and a height
+/// of 0 is encoded as nil here, so this type can't be used to claim a reward from height 0.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PoolMemberAbsorbSolution {

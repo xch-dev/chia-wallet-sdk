@@ -15,6 +15,21 @@ pub fn pool_reward_parent_id(genesis_challenge: Bytes32, height: u32) -> Result<
     ))
 }
 
+/// The value to use for [`PlotNftInfo::pool_reward_prefix`] on a network.
+pub fn pool_reward_prefix(genesis_challenge: Bytes32) -> Result<Bytes32> {
+    Ok(puzzles::pool_reward_prefix(genesis_challenge))
+}
+
+/// The version of the pool protocol that new pool states are created with.
+pub fn pool_protocol_version() -> Result<u8> {
+    Ok(sdk::POOL_PROTOCOL_VERSION)
+}
+
+/// The delay used by the reference wallet before farmed coins can be swept.
+pub fn default_p2_singleton_delay() -> Result<u64> {
+    Ok(sdk::DEFAULT_P2_SINGLETON_DELAY)
+}
+
 pub trait PoolStateExt: Sized {
     fn self_pooling(target_puzzle_hash: Bytes32, owner_public_key: PublicKey) -> Result<Self>;
     fn farming_to_pool(
