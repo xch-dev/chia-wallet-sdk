@@ -43,7 +43,8 @@ pub struct PoolState {
     /// The puzzle hash that rewards are paid to. Not to be confused with the p2 puzzle hash, which
     /// is the address that plots farm to.
     pub target_puzzle_hash: Bytes32,
-    /// The key that controls the plot NFT, which can't be changed. This is not a synthetic key.
+    /// The key that controls the plot NFT. This is not a synthetic key. The SDK keeps it the same
+    /// when changing state, but the puzzle lets the owner move out of the waiting room to a new one.
     pub owner_public_key: PublicKey,
     /// The URL of the pool. The reference wallet uses both [`None`] and an empty string when self
     /// pooling, so which one was used needs to be preserved.

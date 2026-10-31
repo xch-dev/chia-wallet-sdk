@@ -248,6 +248,46 @@ fn test_launch_into_pool_then_switch_pools() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[rstest]
+#[case(127, 127)]
+#[case(128, 128)]
+#[case(255, 255)]
+#[case(1000, 32_768)]
+#[case(1000, u64::MAX)]
+fn test_values_with_high_bits_set(
+    #[case] relative_lock_height: u32,
+    #[case] seconds_delay: u64,
+) -> anyhow::Result<()> {
+    let mut t = Test::new();
+
+    // These need a leading zero when they're encoded as CLVM integers
+    let parent = t.sim.bls(1);
+    let state = t.pool_state(POOL_A, relative_lock_height);
+    let (conditions, plot_nft) = Launcher::new(parent.coin.coin_id(), 1).mint_plot_nft(
+        &mut t.ctx,
+        state,
+        seconds_delay,
+        DELAYED,
+        t.genesis_challenge,
+    )?;
+    StandardLayer::new(parent.pk).spend(&mut t.ctx, parent.coin, conditions)?;
+    t.sim.spend_coins(t.ctx.take(), &[parent.sk])?;
+
+    let reward = t.reward(&plot_nft, REWARD);
+    let (_, claimed) = plot_nft.claim_rewards(&mut t.ctx, &[reward])?;
+    t.confirm(&plot_nft, &claimed)?;
+
+    let waiting = claimed.leave_pool(&mut t.ctx)?;
+    t.confirm(&claimed, &waiting)?;
+
+    t.pass_blocks(relative_lock_height);
+
+    let next = waiting.self_pool(&mut t.ctx, SELF_TARGET)?;
+    t.confirm(&waiting, &next)?;
+
+    Ok(())
+}
+
 #[test]
 fn test_change_self_pooling_target() -> anyhow::Result<()> {
     let mut t = Test::new();
@@ -901,7 +941,7 @@ fn test_failed_claim_adds_no_spends() -> anyhow::Result<()> {
         REWARD,
     );
 
-    for rewards in [[good, bad], [good, height_zero]] {
+    for rewards in [[good, bad], [good, height_zero], [good, good]] {
         assert!(matches!(
             plot_nft.claim_rewards(&mut t.ctx, &rewards),
             Err(DriverError::InvalidPoolReward(_))

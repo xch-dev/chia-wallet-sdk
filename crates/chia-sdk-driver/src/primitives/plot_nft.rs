@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::{EveProof, Proof, singleton::SingletonSolution};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
@@ -282,6 +284,14 @@ impl PlotNft {
 
         let is_waiting_room = self.info.pool_state.is_waiting_room();
 
+        let unique_rewards: HashSet<Bytes32> = rewards.iter().map(Coin::coin_id).collect();
+
+        if unique_rewards.len() != rewards.len() {
+            return Err(DriverError::InvalidPoolReward(
+                "the same reward can't be claimed twice",
+            ));
+        }
+
         // Nothing can be added to the context until every reward is known to be valid
         let heights = rewards
             .iter()
@@ -434,8 +444,8 @@ impl PlotNftInfo {
 
 impl Launcher {
     /// Launches a plot NFT in the given state, which must be either self pooling or farming to a
-    /// pool. The owner can't be changed afterward, and neither can the seconds delay or delayed
-    /// puzzle hash, since they determine the p2 puzzle hash which plots are created for.
+    /// pool. The seconds delay and delayed puzzle hash can't be changed afterward, since they
+    /// determine the p2 puzzle hash which plots are created for.
     ///
     /// The reference wallet uses a launcher amount of 1 and a delay of
     /// [`DEFAULT_P2_SINGLETON_DELAY`].
