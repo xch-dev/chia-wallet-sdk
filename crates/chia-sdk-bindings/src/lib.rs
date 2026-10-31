@@ -32,6 +32,7 @@ mod partial_offer;
 mod program;
 mod puzzle;
 mod rpc;
+mod runtime;
 mod secp;
 mod simulator;
 mod splitter;
@@ -65,10 +66,15 @@ pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+// Exposed for the bindy_uniffi_sync! macro (C++ backend), which turns async binding
+// methods into blocking calls. Other backends use the native async path.
+#[cfg(feature = "uniffi")]
+pub use runtime::block_on;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
@@ -125,7 +131,7 @@ pub use chia_sdk_types::{
     },
 };
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
     CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };

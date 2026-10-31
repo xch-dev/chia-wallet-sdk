@@ -1,13 +1,16 @@
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::ChiaRpcClient;
+use crate::{ChiaRpcClient, ClientOptions};
 
 #[derive(Debug, Clone)]
 pub struct CoinsetClient {
     base_url: String,
     client: Client,
 }
+
+const TESTNET11_URL: &str = "https://testnet11.api.coinset.org";
+const MAINNET_URL: &str = "https://api.coinset.org";
 
 impl CoinsetClient {
     pub fn new(base_url: String) -> Self {
@@ -17,12 +20,20 @@ impl CoinsetClient {
         }
     }
 
+    /// Creates a client with opt-in [`ClientOptions`] (e.g. request timeouts).
+    pub fn with_options(base_url: String, options: ClientOptions) -> reqwest::Result<Self> {
+        Ok(Self {
+            base_url,
+            client: options.apply(Client::builder()).build()?,
+        })
+    }
+
     pub fn testnet11() -> Self {
-        Self::new("https://testnet11.api.coinset.org".to_string())
+        Self::new(TESTNET11_URL.to_string())
     }
 
     pub fn mainnet() -> Self {
-        Self::new("https://api.coinset.org".to_string())
+        Self::new(MAINNET_URL.to_string())
     }
 }
 

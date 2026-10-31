@@ -36,12 +36,22 @@ type Response<T, E> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    /// Total wall-clock budget for establishing a connection. In [`connect_peer`](crate::connect_peer)
+    /// this bounds the combined websocket TLS connect plus the chia handshake exchange;
+    /// in [`Peer::connect_full_uri`] (used directly without the handshake wrapper) it bounds
+    /// just the websocket connect. `None` (the default) leaves it unbounded.
+    pub connect_timeout: Option<Duration>,
+    /// Timeout for each request/response round-trip. `None` (the default) leaves
+    /// requests unbounded.
+    pub request_timeout: Option<Duration>,
 }
 
 impl Default for PeerOptions {
     fn default() -> Self {
         Self {
             rate_limit_factor: 0.6,
+            connect_timeout: None,
+            request_timeout: None,
         }
     }
 }
@@ -56,6 +66,7 @@ struct PeerInner {
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
     outbound_rate_limiter: Mutex<RateLimiter>,
+    request_timeout: Option<Duration>,
 }
 
 impl Peer {
@@ -77,9 +88,16 @@ impl Peer {
         connector: Connector,
         options: PeerOptions,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        let (ws, _) =
-            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector))
-                .await?;
+        let connect =
+            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector));
+
+        let (ws, _) = match options.connect_timeout {
+            Some(duration) => tokio::time::timeout(duration, connect)
+                .await
+                .map_err(|_| ClientError::Timeout(duration))??,
+            None => connect.await?,
+        };
+
         Self::from_websocket(ws, options)
     }
 
@@ -128,6 +146,7 @@ impl Peer {
                 options.rate_limit_factor,
                 V2_RATE_LIMITS.clone(),
             )),
+            request_timeout: options.request_timeout,
         }));
 
         Ok((peer, receiver))
@@ -303,16 +322,42 @@ impl Peer {
     where
         T: Streamable + ChiaProtocolMessage,
     {
-        let (sender, receiver) = oneshot::channel();
+        let data = body.to_bytes()?;
 
-        self.send_raw(Message {
-            msg_type: T::msg_type(),
-            id: Some(self.0.requests.insert(sender).await),
-            data: body.to_bytes()?.into(),
-        })
-        .await?;
+        // The id is recorded outside the request future so it can be cleaned up on timeout.
+        let mut request_id = None;
 
-        Ok(receiver.await?)
+        let request = async {
+            let (sender, receiver) = oneshot::channel();
+
+            let id = self.0.requests.insert(sender).await;
+            request_id = Some(id);
+
+            self.send_raw(Message {
+                msg_type: T::msg_type(),
+                id: Some(id),
+                data: data.into(),
+            })
+            .await?;
+
+            Ok(receiver.await?)
+        };
+
+        let Some(duration) = self.0.request_timeout else {
+            return request.await;
+        };
+
+        // The timeout covers the whole round-trip: waiting for a free request id, outbound
+        // rate limiting, and the response. On timeout the id is released eagerly; ids are
+        // allocated round-robin, so a late response to it won't reach a newer request.
+        if let Ok(result) = tokio::time::timeout(duration, request).await {
+            result
+        } else {
+            if let Some(id) = request_id {
+                self.0.requests.remove(id).await;
+            }
+            Err(ClientError::Timeout(duration))
+        }
     }
 
     async fn send_raw(&self, message: Message) -> Result<(), ClientError> {
@@ -376,12 +421,14 @@ async fn handle_inbound_messages(
                     continue;
                 };
 
+                // An untracked id is normally a late response to a request that already
+                // timed out. Drop it rather than tearing down the connection.
                 let Some(request) = requests.remove(id).await else {
                     warn!(
                         "Received {:?} message with untracked id {id}",
                         message.msg_type
                     );
-                    return Err(ClientError::UnexpectedMessage(message.msg_type));
+                    continue;
                 };
 
                 request.send(message);
@@ -389,4 +436,117 @@ async fn handle_inbound_messages(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{accept_async, connect_async};
+
+    /// A request that times out must be removed from the `RequestMap`. Otherwise its id
+    /// stays allocated (purged only lazily on the next `insert`) and can be reused by a
+    /// later request before the peer's delayed response arrives — which would route that
+    /// stale response to the unrelated newer request.
+    #[tokio::test]
+    async fn request_timeout_frees_request_id() {
+        // Server that completes the websocket handshake but never sends a response.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let _ws = accept_async(stream).await.unwrap();
+            // Hold the connection open without ever responding.
+            std::future::pending::<()>().await;
+        });
+
+        let (ws, _) = connect_async(format!("ws://{addr}")).await.unwrap();
+        let options = PeerOptions {
+            request_timeout: Some(Duration::from_millis(100)),
+            ..Default::default()
+        };
+        let (peer, _receiver) = Peer::from_websocket(ws, options).unwrap();
+
+        // Issue a request the server will never answer; it must time out.
+        let result = peer.request_children(Bytes32::default()).await;
+        assert!(
+            matches!(result, Err(ClientError::Timeout(_))),
+            "expected timeout, got {result:?}"
+        );
+
+        // The timed-out request must have been removed from the map, so the id is free
+        // again rather than lingering until the next `insert`.
+        assert_eq!(peer.0.requests.len().await, 0);
+
+        server.abort();
+    }
+
+    /// A response that arrives after its request timed out must neither be delivered to a
+    /// newer request nor tear down the connection.
+    #[tokio::test]
+    async fn late_response_is_dropped_without_affecting_other_requests() {
+        use chia_protocol::{Coin, CoinState};
+        use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+        fn respond(request: &Message) -> WsMessage {
+            let coin_id = RequestChildren::from_bytes(&request.data)
+                .unwrap()
+                .coin_name;
+            let coin_state = CoinState::new(Coin::new(coin_id, Bytes32::default(), 1), None, None);
+            let response = Message {
+                msg_type: RespondChildren::msg_type(),
+                id: request.id,
+                data: RespondChildren::new(vec![coin_state])
+                    .to_bytes()
+                    .unwrap()
+                    .into(),
+            };
+            WsMessage::Binary(response.to_bytes().unwrap().into())
+        }
+
+        // Server that holds back its response to the first request until the second request
+        // arrives, then sends the late response followed by the response to the second.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = accept_async(stream).await.unwrap();
+            let mut held = None;
+            while let Some(Ok(WsMessage::Binary(binary))) = ws.next().await {
+                let request = Message::from_bytes(&binary).unwrap();
+                if held.is_none() && request.id == Some(0) {
+                    held = Some(request);
+                    continue;
+                }
+                if let Some(late) = held.take() {
+                    ws.send(respond(&late)).await.unwrap();
+                }
+                ws.send(respond(&request)).await.unwrap();
+            }
+        });
+
+        let (ws, _) = connect_async(format!("ws://{addr}")).await.unwrap();
+        let options = PeerOptions {
+            request_timeout: Some(Duration::from_millis(200)),
+            ..Default::default()
+        };
+        let (peer, _receiver) = Peer::from_websocket(ws, options).unwrap();
+
+        let parent_of = |response: RespondChildren| response.coin_states[0].coin.parent_coin_info;
+
+        let first = peer.request_children(Bytes32::new([1; 32])).await;
+        assert!(
+            matches!(first, Err(ClientError::Timeout(_))),
+            "got {first:?}"
+        );
+
+        let second = peer.request_children(Bytes32::new([2; 32])).await.unwrap();
+        assert_eq!(parent_of(second), Bytes32::new([2; 32]));
+
+        let third = peer.request_children(Bytes32::new([3; 32])).await.unwrap();
+        assert_eq!(parent_of(third), Bytes32::new([3; 32]));
+
+        server.abort();
+    }
 }

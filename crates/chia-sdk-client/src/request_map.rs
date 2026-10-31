@@ -15,16 +15,26 @@ impl Request {
     }
 }
 
+#[derive(Debug, Default)]
+struct Items {
+    requests: HashMap<u16, Request>,
+    /// Where the search for the next free id starts. Ids are handed out round-robin rather
+    /// than lowest-free, so an id freed by a timed-out request isn't immediately reused:
+    /// a late response to that request then finds no entry instead of being delivered to
+    /// an unrelated newer request.
+    next_id: u16,
+}
+
 #[derive(Debug)]
 pub(crate) struct RequestMap {
-    items: Mutex<HashMap<u16, Request>>,
+    items: Mutex<Items>,
     semaphore: Arc<Semaphore>,
 }
 
 impl RequestMap {
     pub(crate) fn new() -> Self {
         Self {
-            items: Mutex::new(HashMap::new()),
+            items: Mutex::new(Items::default()),
             semaphore: Arc::new(Semaphore::new(u16::MAX as usize)),
         }
     }
@@ -39,23 +49,31 @@ impl RequestMap {
 
         let mut items = self.items.lock().await;
 
-        items.retain(|_, v| !v.sender.is_closed());
+        items.requests.retain(|_, v| !v.sender.is_closed());
 
+        let start = items.next_id;
         let index = (0..=u16::MAX)
-            .find(|i| !items.contains_key(i))
+            .map(|offset| start.wrapping_add(offset))
+            .find(|i| !items.requests.contains_key(i))
             .expect("exceeded expected number of requests");
 
-        items.insert(
+        items.requests.insert(
             index,
             Request {
                 sender,
                 _permit: permit,
             },
         );
+        items.next_id = index.wrapping_add(1);
         index
     }
 
     pub(crate) async fn remove(&self, id: u16) -> Option<Request> {
-        self.items.lock().await.remove(&id)
+        self.items.lock().await.requests.remove(&id)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn len(&self) -> usize {
+        self.items.lock().await.requests.len()
     }
 }

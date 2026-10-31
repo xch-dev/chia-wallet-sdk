@@ -104,6 +104,7 @@ impl PeerSimulator {
             ws,
             PeerOptions {
                 rate_limit_factor: 0.6,
+                ..Default::default()
             },
         )?)
     }

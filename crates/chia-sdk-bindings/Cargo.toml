@@ -30,6 +30,14 @@ pyo3 = [
     "bindy/pyo3",
     "chia-sdk-test/full-node-simulator-http",
 ]
+uniffi = [
+    "dep:chia-sdk-client",
+    "dep:chia-ssl",
+    "dep:tokio",
+    "bindy/uniffi",
+    "tokio/rt-multi-thread",
+    "chia-sdk-test/full-node-simulator-http",
+]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
