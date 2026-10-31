@@ -1006,6 +1006,7 @@ export declare class Clvm {
   spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
   spendStreamedAsset(streamedAsset: StreamedAsset, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  mintPlotNft(parentCoinId: Uint8Array, poolState: PoolState, secondsDelay: bigint, delayedPuzzleHash: Uint8Array, genesisChallenge: Uint8Array): PlotNftMint
   createBulletin(parentCoinId: Uint8Array, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>): CreatedBulletin
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
@@ -3138,6 +3139,78 @@ export declare class PendingSpend {
   asOption(): OptionContract | null
 }
 
+export declare class PlotNft {
+  clone(): PlotNft
+  static parseLauncher(launcherCoin: Coin, solution: Program, genesisChallenge: Uint8Array): PlotNft | null
+  parseChild(solution: Program): PlotNft | null
+  leavePool(clvm: Clvm): PlotNft
+  joinPool(clvm: Clvm, targetPuzzleHash: Uint8Array, poolUrl: string, relativeLockHeight: number): PlotNft
+  selfPool(clvm: Clvm, targetPuzzleHash: Uint8Array): PlotNft
+  claimRewards(clvm: Clvm, rewards: Array<Coin>): PlotNftClaim
+  constructor(coin: Coin, proof: Proof, info: PlotNftInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): Proof
+  set proof(value: Proof)
+  get info(): PlotNftInfo
+  set info(value: PlotNftInfo)
+}
+
+export declare class PlotNftClaim {
+  clone(): PlotNftClaim
+  get plotNft(): PlotNft
+  set plotNft(value: PlotNft)
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+}
+
+export declare class PlotNftInfo {
+  clone(): PlotNftInfo
+  p2PuzzleHash(): Buffer
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  claimDelayed(clvm: Clvm, coin: Coin): Coin
+  constructor(launcherId: Uint8Array, poolState: PoolState, secondsDelay: bigint, delayedPuzzleHash: Uint8Array, poolRewardPrefix: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get poolState(): PoolState
+  set poolState(value: PoolState)
+  get secondsDelay(): bigint
+  set secondsDelay(value: bigint)
+  get delayedPuzzleHash(): Buffer
+  set delayedPuzzleHash(value: Uint8Array)
+  get poolRewardPrefix(): Buffer
+  set poolRewardPrefix(value: Uint8Array)
+}
+
+export declare class PlotNftMint {
+  clone(): PlotNftMint
+  get plotNft(): PlotNft
+  set plotNft(value: PlotNft)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+
+export declare class PoolState {
+  clone(): PoolState
+  static selfPooling(targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey): PoolState
+  static farmingToPool(targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey, poolUrl: string, relativeLockHeight: number): PoolState
+  isWaitingRoom(): boolean
+  constructor(version: number, state: PoolSingletonState, targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey, poolUrl: string | undefined | null, relativeLockHeight: number)
+  get version(): number
+  set version(value: number)
+  get state(): PoolSingletonState
+  set state(value: PoolSingletonState)
+  get targetPuzzleHash(): Buffer
+  set targetPuzzleHash(value: Uint8Array)
+  get ownerPublicKey(): PublicKey
+  set ownerPublicKey(value: PublicKey)
+  get poolUrl(): string | null
+  set poolUrl(value: string | undefined | null)
+  get relativeLockHeight(): number
+  set relativeLockHeight(value: number)
+}
+
 export declare class PoolTarget {
   clone(): PoolTarget
   constructor(puzzleHash: Uint8Array, maxHeight: number)
@@ -5045,6 +5118,14 @@ export declare const enum P2ConditionsOrSingletonVersion {
 export declare function parseVaultTransaction(clvm: Clvm, reveals: Reveals, launcherId: Uint8Array, delegatedSpend: Spend): VaultTransaction
 
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare function poolRewardParentId(genesisChallenge: Uint8Array, height: number): Buffer
+
+export declare const enum PoolSingletonState {
+  SelfPooling = 0,
+  LeavingPool = 1,
+  FarmingToPool = 2,
+}
 
 export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Buffer
 

@@ -220,6 +220,16 @@
         },
         "return": "VaultMint"
       },
+      "mint_plot_nft": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "pool_state": "PoolState",
+          "seconds_delay": "u64",
+          "delayed_puzzle_hash": "Bytes32",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "PlotNftMint"
+      },
       "create_bulletin": {
         "args": {
           "parent_coin_id": "Bytes32",
