@@ -5,16 +5,17 @@ use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof,
     nft::NftRoyaltyTransferPuzzleArgs,
     offer::{NotarizedPayment, Payment},
-    singleton::SingletonSolution,
+    singleton::{SingletonArgs, SingletonSolution},
 };
 use chia_puzzles::{
     NFT_METADATA_UPDATER_DEFAULT_HASH, SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH,
 };
 use chia_sdk_types::{
-    Conditions,
+    Conditions, Mod,
     conditions::TransferNft,
     puzzles::{
-        FUSION_HINT, FusionNftToLock, FusionNftToUnlock, FusionSingletonSolution, P2FusionSolution,
+        FUSION_HINT, FusionNftToLock, FusionNftToUnlock, FusionSingletonArgs,
+        FusionSingletonSolution, P2FusionSolution,
     },
 };
 use clvm_traits::{FromClvm, ToClvm};
@@ -114,6 +115,10 @@ impl Launcher {
     ///
     /// The launcher id and sides are stored in the launcher's key value list, as they are on
     /// mainnet, so that the fusion can be recovered with [`Fusion::parse_launcher`].
+    ///
+    /// Both sides are swapped in a single spend, which costs roughly 120 million for each NFT. Beyond
+    /// about 40 NFTs in total, a swap exceeds the mempool's cost limit, and could only be confirmed
+    /// by a farmer including it directly.
     pub fn launch_fusion(
         self,
         ctx: &mut SpendContext,
@@ -168,9 +173,12 @@ struct FusionMemo {
 }
 
 impl Fusion {
-    /// Recovers a fusion from the spend of its launcher coin. Returns [`None`] if the coin isn't a
-    /// launcher, if the sides it lists aren't those of the singleton it created, or if the singleton
-    /// has an even amount, since it could never be spent and anything locked by it would be stuck.
+    /// Recovers a fusion from the spend of its launcher coin.
+    ///
+    /// Returns [`None`] if no fusion was launched, which means that the coin isn't a launcher, or
+    /// that the sides it lists aren't those of the singleton it created. If a fusion was launched
+    /// but it's invalid, this returns an error instead. That's the case if it has an even amount,
+    /// since it could never be spent, or if its sides aren't allowed by [`FusionLayer::new`].
     ///
     /// The reference implementation has since moved this data to a fourth item in the solution, so
     /// that's checked if the key value list is empty.
@@ -178,46 +186,58 @@ impl Fusion {
         allocator: &Allocator,
         launcher_coin: Coin,
         launcher_solution: NodePtr,
-    ) -> Option<Self> {
+    ) -> Result<Option<Self>, DriverError> {
         if launcher_coin.puzzle_hash != SINGLETON_LAUNCHER_HASH.into() {
-            return None;
+            return Ok(None);
         }
 
         let launcher_id = launcher_coin.coin_id();
 
-        let (puzzle_hash, (amount, (key_value_list, extra_data))) =
-            <(Bytes32, (u64, (NodePtr, NodePtr)))>::from_clvm(allocator, launcher_solution).ok()?;
+        let Ok((puzzle_hash, (amount, (key_value_list, extra_data)))) =
+            <(Bytes32, (u64, (NodePtr, NodePtr)))>::from_clvm(allocator, launcher_solution)
+        else {
+            return Ok(None);
+        };
 
-        if amount.is_multiple_of(2) {
-            return None;
-        }
-
-        let memo = FusionMemo::from_clvm(allocator, key_value_list)
+        let Ok(memo) = FusionMemo::from_clvm(allocator, key_value_list)
             .or_else(|_| <(FusionMemo, ())>::from_clvm(allocator, extra_data).map(|memo| memo.0))
-            .ok()?;
+        else {
+            return Ok(None);
+        };
 
         if memo.launcher_id != launcher_id {
-            return None;
+            return Ok(None);
         }
 
-        let info = FusionLayer::new(launcher_id, memo.side_a, memo.side_b).ok()?;
+        let inner_puzzle_hash =
+            FusionSingletonArgs::new(launcher_id, memo.side_a.clone(), memo.side_b.clone())
+                .curry_tree_hash();
 
-        if puzzle_hash != info.puzzle_hash().into() {
-            return None;
+        if puzzle_hash != SingletonArgs::curry_tree_hash(launcher_id, inner_puzzle_hash).into() {
+            return Ok(None);
         }
 
-        Some(Self::new(
+        if amount.is_multiple_of(2) {
+            return Err(DriverError::InvalidFusionSingletonAmount(amount));
+        }
+
+        let info = FusionLayer::new(launcher_id, memo.side_a, memo.side_b)?;
+
+        Ok(Some(Self::new(
             Coin::new(launcher_id, puzzle_hash, amount),
             Proof::Eve(EveProof {
                 parent_parent_coin_info: launcher_coin.parent_coin_info,
                 parent_amount: launcher_coin.amount,
             }),
             info,
-        ))
+        )))
     }
 
     /// Parses the child of a [`Fusion`] from the parent coin spend, along with the direction of the
-    /// swap, which tells you which side is locked now. Returns [`None`] if the parent isn't a fusion.
+    /// swap, which tells you which side is locked now.
+    ///
+    /// Returns [`None`] if the parent isn't a fusion. If it has the fusion puzzle but it's invalid,
+    /// this returns an error instead.
     ///
     /// The solution must come from a confirmed spend. It isn't signed, so anyone can change the parts
     /// that the puzzle ignores or treats loosely. Only the direction is read, and in the same way as
@@ -259,8 +279,11 @@ impl Fusion {
 
     /// The conditions that an NFT on either side must output to be locked by the fusion. They send
     /// it to the fusion's p2 puzzle, and remove its assigned owner, since requested NFTs can't have
-    /// one in an offer. An NFT that isn't on either side, or that can't be swapped, is rejected
-    /// since it would be stuck forever.
+    /// one in an offer. An NFT that isn't on either side, or that can't be swapped, is rejected.
+    ///
+    /// Locking is a one-way commitment, since a locked NFT can only come back through a swap. This
+    /// doesn't check which side is locked, so locking an NFT on the side that's already unlocked
+    /// means that neither side can be swapped.
     pub fn lock_nft_conditions(
         &self,
         ctx: &mut SpendContext,
@@ -347,6 +370,11 @@ impl Fusion {
 
             if unlock.nft.info.p2_puzzle_hash != p2_puzzle_hash {
                 return Err(DriverError::FusionNftMismatch);
+            }
+
+            // The NFT would stay locked, or be left for anyone to take
+            if unlock.p2_puzzle_hash == p2_puzzle_hash || unlock.p2_puzzle_hash == settlement {
+                return Err(DriverError::InvalidFusionTarget);
             }
         }
 
@@ -464,6 +492,25 @@ impl Fusion {
             return Err(DriverError::FusionOfferMismatch);
         }
 
+        // Anything else in the settlement puzzle would be left for anyone to take
+        let offered_coins = offer.offered_coins();
+
+        if !offered_coins.xch.is_empty()
+            || !offered_coins.cats.is_empty()
+            || !offered_coins.options.is_empty()
+        {
+            return Err(DriverError::FusionOfferMismatch);
+        }
+
+        // It would be locked with its owner, and later offers for it couldn't be taken
+        if offered_coins
+            .nfts
+            .values()
+            .any(|nft| nft.info.current_owner.is_some())
+        {
+            return Err(DriverError::FusionOfferMismatch);
+        }
+
         let mut nonce = None;
         let mut fusion_unlocks = Vec::with_capacity(unlocks.len());
 
@@ -545,11 +592,15 @@ fn parse_unlock_a(allocator: &Allocator, solution: NodePtr) -> Result<bool, Driv
 
 fn nth(allocator: &Allocator, mut list: NodePtr, index: usize) -> Result<NodePtr, DriverError> {
     for _ in 0..index {
-        let (_, rest) = allocator.next(list).ok_or(DriverError::InvalidFusion)?;
+        let (_, rest) = allocator
+            .next(list)
+            .ok_or(DriverError::InvalidFusionSolution)?;
         list = rest;
     }
 
-    let (first, _) = allocator.next(list).ok_or(DriverError::InvalidFusion)?;
+    let (first, _) = allocator
+        .next(list)
+        .ok_or(DriverError::InvalidFusionSolution)?;
     Ok(first)
 }
 

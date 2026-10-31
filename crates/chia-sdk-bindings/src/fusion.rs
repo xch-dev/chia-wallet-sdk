@@ -66,10 +66,11 @@ impl Fusion {
         ))
     }
 
-    /// Recovers a fusion from the spend of its launcher coin, if it launched one.
+    /// Recovers a fusion from the spend of its launcher coin. Returns `null` if it didn't launch one,
+    /// and throws if it launched one that's invalid.
     pub fn parse_launcher(launcher_coin: Coin, launcher_solution: Program) -> Result<Option<Self>> {
         let ctx = launcher_solution.0.lock().unwrap();
-        Ok(sdk::Fusion::parse_launcher(&ctx, launcher_coin, launcher_solution.1).map(Into::into))
+        Ok(sdk::Fusion::parse_launcher(&ctx, launcher_coin, launcher_solution.1)?.map(Into::into))
     }
 
     /// Parses the child of a fusion from its parent's spend, along with the direction of the swap,
@@ -143,8 +144,8 @@ impl Fusion {
     }
 
     /// Takes an offer of the NFTs on one side, which requests the NFTs on the other side. `unlocks`
-    /// are the locked NFTs. The spends are added to the offer's `clvm`, and should be passed to
-    /// `Offer.take` once they've been taken from it.
+    /// are the locked NFTs, which must have been created with the same `clvm` as the offer. The
+    /// spends are added to that `clvm`, and should be passed to `Offer.take`.
     pub fn take_offer(&self, offer: Offer, unlocks: Vec<Nft>) -> Result<FusionSwap> {
         let mut ctx = offer.clvm.lock().unwrap();
 
