@@ -1,0 +1,162 @@
+{
+  "pool_reward_parent_id": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32",
+      "height": "u32"
+    },
+    "return": "Bytes32"
+  },
+  "pool_reward_prefix": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "pool_protocol_version": {
+    "type": "function",
+    "return": "u8"
+  },
+  "default_p2_singleton_delay": {
+    "type": "function",
+    "return": "u64"
+  },
+  "PoolSingletonState": {
+    "type": "enum",
+    "values": ["SelfPooling", "LeavingPool", "FarmingToPool"]
+  },
+  "PoolState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "version": "u8",
+      "state": "PoolSingletonState",
+      "target_puzzle_hash": "Bytes32",
+      "owner_public_key": "PublicKey",
+      "pool_url": "Option<String>",
+      "relative_lock_height": "u32"
+    },
+    "methods": {
+      "self_pooling": {
+        "type": "factory",
+        "args": {
+          "target_puzzle_hash": "Bytes32",
+          "owner_public_key": "PublicKey"
+        }
+      },
+      "farming_to_pool": {
+        "type": "factory",
+        "args": {
+          "target_puzzle_hash": "Bytes32",
+          "owner_public_key": "PublicKey",
+          "pool_url": "String",
+          "relative_lock_height": "u32"
+        }
+      },
+      "is_waiting_room": {
+        "return": "bool"
+      }
+    }
+  },
+  "PlotNftInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "pool_state": "PoolState",
+      "seconds_delay": "u64",
+      "delayed_puzzle_hash": "Bytes32",
+      "pool_reward_prefix": "Bytes32"
+    },
+    "methods": {
+      "p2_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "claim_delayed": {
+        "args": {
+          "clvm": "Clvm",
+          "coin": "Coin"
+        },
+        "return": "Coin"
+      }
+    }
+  },
+  "PlotNft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "info": "PlotNftInfo"
+    },
+    "methods": {
+      "parse_launcher": {
+        "type": "static",
+        "args": {
+          "launcher_coin": "Coin",
+          "solution": "Program",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "Option<PlotNft>"
+      },
+      "parse_child": {
+        "args": {
+          "solution": "Program"
+        },
+        "return": "Option<PlotNft>"
+      },
+      "leave_pool": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "PlotNft"
+      },
+      "join_pool": {
+        "args": {
+          "clvm": "Clvm",
+          "target_puzzle_hash": "Bytes32",
+          "pool_url": "String",
+          "relative_lock_height": "u32"
+        },
+        "return": "PlotNft"
+      },
+      "self_pool": {
+        "args": {
+          "clvm": "Clvm",
+          "target_puzzle_hash": "Bytes32"
+        },
+        "return": "PlotNft"
+      },
+      "claim_rewards": {
+        "args": {
+          "clvm": "Clvm",
+          "rewards": "Vec<Coin>"
+        },
+        "return": "PlotNftClaim"
+      }
+    }
+  },
+  "PlotNftMint": {
+    "type": "class",
+    "fields": {
+      "plot_nft": "PlotNft",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "PlotNftClaim": {
+    "type": "class",
+    "fields": {
+      "plot_nft": "PlotNft",
+      "conditions": "Vec<Program>"
+    }
+  }
+}

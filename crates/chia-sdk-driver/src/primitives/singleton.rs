@@ -50,11 +50,7 @@ where
         N: SingletonInfo,
     {
         Singleton::new(
-            Coin::new(
-                self.coin.coin_id(),
-                SingletonArgs::curry_tree_hash(info.launcher_id(), info.inner_puzzle_hash()).into(),
-                amount,
-            ),
+            Coin::new(self.coin.coin_id(), info.puzzle_hash().into(), amount),
             Proof::Lineage(self.child_lineage_proof()),
             info,
         )

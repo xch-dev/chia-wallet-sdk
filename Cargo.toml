@@ -73,6 +73,7 @@ workspace = true
 
 [features]
 chip-0008 = ["chia-sdk-driver/chip-0008", "chia-sdk-types/chip-0008"]
+pooling = ["chia-sdk-driver/pooling", "chia-sdk-types/pooling"]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-driver/chip-0037", "chia-sdk-types/chip-0037"]
 chip-0052 = ["chia-sdk-driver/chip-0052", "chia-sdk-types/chip-0052"]

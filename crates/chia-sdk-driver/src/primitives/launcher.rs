@@ -117,6 +117,20 @@ impl Launcher {
             SingletonArgs::curry_tree_hash(self.coin.coin_id(), singleton_inner_puzzle_hash.into())
                 .into();
 
+        self.spend_to_puzzle_hash(ctx, singleton_puzzle_hash, key_value_list)
+    }
+
+    /// Spends the launcher coin to create the eve singleton with an outer puzzle hash that has
+    /// already been calculated. This is needed for singletons that don't use the v1.1 top layer.
+    pub fn spend_to_puzzle_hash<T>(
+        self,
+        ctx: &mut SpendContext,
+        singleton_puzzle_hash: Bytes32,
+        key_value_list: T,
+    ) -> Result<(Conditions, Coin), DriverError>
+    where
+        T: ToClvm<Allocator>,
+    {
         let solution_ptr = ctx.alloc(&LauncherSolution {
             singleton_puzzle_hash,
             amount: self.singleton_amount,
