@@ -894,6 +894,148 @@ export declare class ChallengeChainSubSlot {
   set newDifficulty(value: bigint | undefined | null)
 }
 
+export declare class Chip0007Attribute {
+  clone(): Chip0007Attribute
+  constructor(traitType: Chip0007Value, value: Chip0007Value, minValue?: bigint | undefined | null, maxValue?: bigint | undefined | null)
+  get traitType(): Chip0007Value
+  set traitType(value: Chip0007Value)
+  get value(): Chip0007Value
+  set value(value: Chip0007Value)
+  get minValue(): bigint | null
+  set minValue(value: bigint | undefined | null)
+  get maxValue(): bigint | null
+  set maxValue(value: bigint | undefined | null)
+}
+
+export declare class Chip0007Collection {
+  clone(): Chip0007Collection
+  constructor(id: string, name: string, attributes: Array<Chip0007CollectionAttribute>)
+  get id(): string
+  set id(value: string)
+  get name(): string
+  set name(value: string)
+  get attributes(): Array<Chip0007CollectionAttribute>
+  set attributes(value: Array<Chip0007CollectionAttribute>)
+}
+
+export declare class Chip0007CollectionAttribute {
+  clone(): Chip0007CollectionAttribute
+  constructor(kind: Chip0007Value, value: Chip0007Value)
+  get kind(): Chip0007Value
+  set kind(value: Chip0007Value)
+  get value(): Chip0007Value
+  set value(value: Chip0007Value)
+}
+
+export declare class Chip0007Metadata {
+  clone(): Chip0007Metadata
+  static parse(json: string): Chip0007Metadata
+  static fromBytes(bytes: Uint8Array): Chip0007Metadata
+  static parseLenient(json: string): Chip0007ParseResult
+  static fromBytesLenient(bytes: Uint8Array): Chip0007ParseResult
+  validate(): Array<string>
+  isSensitive(): boolean
+  toJson(): string
+  schemaOrg(): Chip0015Object | null
+  constructor(format: string, name: string, description: string, mintingTool: string | undefined | null, sensitiveContent: Chip0007SensitiveContent | undefined | null, seriesNumber: bigint | undefined | null, seriesTotal: bigint | undefined | null, attributes: Array<Chip0007Attribute>, collection?: Chip0007Collection | undefined | null, data?: string | undefined | null)
+  get format(): string
+  set format(value: string)
+  get name(): string
+  set name(value: string)
+  get description(): string
+  set description(value: string)
+  get mintingTool(): string | null
+  set mintingTool(value: string | undefined | null)
+  get sensitiveContent(): Chip0007SensitiveContent | null
+  set sensitiveContent(value: Chip0007SensitiveContent | undefined | null)
+  get seriesNumber(): bigint | null
+  set seriesNumber(value: bigint | undefined | null)
+  get seriesTotal(): bigint | null
+  set seriesTotal(value: bigint | undefined | null)
+  get attributes(): Array<Chip0007Attribute>
+  set attributes(value: Array<Chip0007Attribute>)
+  get collection(): Chip0007Collection | null
+  set collection(value: Chip0007Collection | undefined | null)
+  get data(): string | null
+  set data(value: string | undefined | null)
+}
+
+export declare class Chip0007ParseResult {
+  clone(): Chip0007ParseResult
+  get metadata(): Chip0007Metadata
+  set metadata(value: Chip0007Metadata)
+  get issues(): Array<string>
+  set issues(value: Array<string>)
+}
+
+export declare class Chip0007SensitiveContent {
+  clone(): Chip0007SensitiveContent
+  static fromFlag(flag: boolean): Chip0007SensitiveContent
+  static fromItems(items: Array<string>): Chip0007SensitiveContent
+  asFlag(): boolean | null
+  asItems(): Array<string> | null
+  isSensitive(): boolean
+}
+
+export declare class Chip0007Value {
+  clone(): Chip0007Value
+  static fromString(value: string): Chip0007Value
+  static fromInteger(value: bigint): Chip0007Value
+  asString(): string | null
+  asInteger(): bigint | null
+}
+
+export declare class Chip0015Identifier {
+  clone(): Chip0015Identifier
+  get types(): Array<string>
+  set types(value: Array<string>)
+  get propertyId(): string | null
+  set propertyId(value: string | undefined | null)
+  get value(): Chip0015IdentifierValue | null
+  set value(value: Chip0015IdentifierValue | undefined | null)
+}
+
+export declare class Chip0015IdentifierValue {
+  clone(): Chip0015IdentifierValue
+  asString(): string | null
+  asInteger(): bigint | null
+  asBoolean(): boolean | null
+}
+
+export declare class Chip0015Object {
+  clone(): Chip0015Object
+  isCompliant(): boolean
+  resolvedUrl(): string | null
+  get context(): string | null
+  set context(value: string | undefined | null)
+  get types(): Array<string>
+  set types(value: Array<string>)
+  get encodingFormat(): string | null
+  set encodingFormat(value: string | undefined | null)
+  get name(): string | null
+  set name(value: string | undefined | null)
+  get url(): string | null
+  set url(value: string | undefined | null)
+  get sha256(): string | null
+  set sha256(value: string | undefined | null)
+  get thumbnail(): Array<Chip0015Object>
+  set thumbnail(value: Array<Chip0015Object>)
+  get identifier(): Array<Chip0015Identifier>
+  set identifier(value: Array<Chip0015Identifier>)
+  get creator(): Array<Chip0015Object>
+  set creator(value: Array<Chip0015Object>)
+  get contributor(): Array<Chip0015Object>
+  set contributor(value: Array<Chip0015Object>)
+  get encodesCreativeWork(): Array<Chip0015Object>
+  set encodesCreativeWork(value: Array<Chip0015Object>)
+  get hasPart(): Array<Chip0015Object>
+  set hasPart(value: Array<Chip0015Object>)
+  get associatedMedia(): Array<Chip0015Object>
+  set associatedMedia(value: Array<Chip0015Object>)
+  get isPartOf(): Array<Chip0015Object>
+  set isPartOf(value: Array<Chip0015Object>)
+}
+
 export declare class Clawback {
   clone(): Clawback
   senderSpend(spend: Spend): Spend
