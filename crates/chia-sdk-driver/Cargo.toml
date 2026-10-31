@@ -18,6 +18,7 @@ all-features = true
 workspace = true
 
 [features]
+chip-0008 = ["chia-sdk-types/chip-0008"]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
 chip-0052 = ["chia-sdk-types/chip-0052"]

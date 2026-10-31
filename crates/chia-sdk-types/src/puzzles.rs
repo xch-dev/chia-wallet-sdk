@@ -24,6 +24,12 @@ pub use p2_parent::*;
 pub use p2_singleton::*;
 pub use revocation::*;
 
+#[cfg(feature = "chip-0008")]
+mod splitter;
+
+#[cfg(feature = "chip-0008")]
+pub use splitter::*;
+
 #[cfg(feature = "chip-0052")]
 mod partial_offer;
 

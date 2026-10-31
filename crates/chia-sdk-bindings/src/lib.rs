@@ -34,6 +34,7 @@ mod puzzle;
 mod rpc;
 mod secp;
 mod simulator;
+mod splitter;
 mod utils;
 
 pub use action_layer::*;
@@ -61,6 +62,7 @@ pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
 pub use simulator::*;
+pub use splitter::*;
 pub use utils::*;
 
 #[cfg(any(feature = "napi", feature = "pyo3"))]
@@ -101,12 +103,12 @@ pub use chia_sdk_driver::{
     RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
     RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
-    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion, XchandlesConstants,
-    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
-    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
-    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
-    XchandlesRegistryState,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SplitterPayout, StreamedAsset,
+    StreamingPuzzleInfo, UriKind, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
+    XchandlesConstants, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog,
+    XchandlesExpireActionLog, XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog,
+    XchandlesOracleActionLog, XchandlesPrecommitValueLog, XchandlesRefundActionLog,
+    XchandlesRegisterActionLog, XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -118,7 +120,8 @@ pub use chia_sdk_types::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,
-        XchandlesHandleSlotValue, XchandlesPricingSolution, XchandlesUpdateSlotValue,
+        SplitterShare, XchandlesHandleSlotValue, XchandlesPricingSolution,
+        XchandlesUpdateSlotValue,
     },
 };
 

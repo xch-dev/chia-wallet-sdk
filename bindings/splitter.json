@@ -1,0 +1,60 @@
+{
+  "SplitterShare": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "share": "u64"
+    }
+  },
+  "SplitterPayout": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "Splitter": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "shares": "Vec<SplitterShare>"
+        }
+      },
+      "shares": {
+        "return": "Vec<SplitterShare>"
+      },
+      "total_shares": {
+        "return": "u64"
+      },
+      "puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "payouts": {
+        "args": {
+          "amount": "u64"
+        },
+        "return": "Vec<SplitterPayout>"
+      },
+      "announcement_id": {
+        "type": "static",
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Bytes32"
+      },
+      "inner_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "amount": "u64"
+        },
+        "return": "Spend"
+      }
+    }
+  }
+}
