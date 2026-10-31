@@ -74,6 +74,12 @@ pub use p2_singleton::*;
 pub use revocation::*;
 pub use secure_the_mint::*;
 
+#[cfg(feature = "pooling")]
+mod pooling;
+
+#[cfg(feature = "pooling")]
+pub use pooling::*;
+
 #[cfg(feature = "chip-0008")]
 mod splitter;
 

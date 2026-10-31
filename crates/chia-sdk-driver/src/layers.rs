@@ -58,6 +58,24 @@ mod action_layer;
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
 
+#[cfg(feature = "pooling")]
+mod p2_singleton_or_delayed_layer;
+#[cfg(feature = "pooling")]
+mod pool_member_layer;
+#[cfg(feature = "pooling")]
+mod pool_waiting_room_layer;
+#[cfg(feature = "pooling")]
+mod singleton_v1_layer;
+
+#[cfg(feature = "pooling")]
+pub use p2_singleton_or_delayed_layer::*;
+#[cfg(feature = "pooling")]
+pub use pool_member_layer::*;
+#[cfg(feature = "pooling")]
+pub use pool_waiting_room_layer::*;
+#[cfg(feature = "pooling")]
+pub use singleton_v1_layer::*;
+
 #[cfg(feature = "chip-0008")]
 mod splitter_layer;
 
