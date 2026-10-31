@@ -9,7 +9,10 @@ import {
   PoolSingletonState,
   PoolState,
   Simulator,
+  defaultP2SingletonDelay,
+  poolProtocolVersion,
   poolRewardParentId,
+  poolRewardPrefix,
   standardPuzzleHash,
   toHex,
 } from "../index.js";
@@ -170,6 +173,20 @@ test("rejects invalid plot NFT operations", (t) => {
   );
 
   t.is(Constants.poolMemberInnerpuzzleHash().length, 32);
+});
+
+test("plot NFT constants", (t) => {
+  t.is(poolProtocolVersion(), 1);
+  t.is(defaultP2SingletonDelay(), DELAY);
+
+  // The parent of a reward is the prefix with the height in the low bytes
+  const prefix = poolRewardPrefix(GENESIS_CHALLENGE);
+  t.is(toHex(prefix.slice(0, 16)), toHex(GENESIS_CHALLENGE.subarray(0, 16)));
+  t.is(toHex(prefix.slice(16)), "00".repeat(16));
+  t.is(
+    toHex(poolRewardParentId(GENESIS_CHALLENGE, 0)),
+    toHex(prefix),
+  );
 });
 
 test("delayed claim", (t) => {

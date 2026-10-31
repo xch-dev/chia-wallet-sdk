@@ -61,6 +61,11 @@ impl PlotNft {
         let (singleton_puzzle_hash, (amount, (key_value_list, _))) =
             <(Bytes32, (u64, (NodePtr, NodePtr)))>::from_clvm(allocator, solution)?;
 
+        // The singleton can't be spent with an even amount
+        if amount.is_multiple_of(2) {
+            return Ok(None);
+        }
+
         let Some(pool_state) = PoolState::from_key_value_list(allocator, key_value_list) else {
             return Ok(None);
         };
@@ -69,9 +74,11 @@ impl PlotNft {
         let mut delayed_puzzle_hash = None;
 
         for (key, value) in key_value_pairs(allocator, key_value_list) {
-            if key == SECONDS_DELAY_KEY {
+            let key = allocator.atom(key);
+
+            if key.as_ref() == SECONDS_DELAY_KEY {
                 seconds_delay = u64::from_clvm(allocator, value).ok();
-            } else if key == DELAYED_PUZZLE_HASH_KEY {
+            } else if key.as_ref() == DELAYED_PUZZLE_HASH_KEY {
                 delayed_puzzle_hash = Bytes32::from_clvm(allocator, value).ok();
             }
         }
@@ -106,9 +113,12 @@ impl PlotNft {
         )))
     }
 
-    /// Parses the child of this plot NFT from the solution it was spent with. Returns [`None`] if
-    /// the owner moved it to a puzzle which doesn't match the state that they revealed, since
-    /// the puzzle doesn't require them to be the same.
+    /// Parses the child of this plot NFT from the solution it was spent with.
+    ///
+    /// Returns [`None`] if the owner moved out of the waiting room to a puzzle which doesn't match
+    /// the state they revealed, since the waiting room lets them go anywhere and then nothing is
+    /// known about the child. Leaving a pool can only go to one puzzle, so if the state revealed
+    /// doesn't match it, the child is still parsed as a [`PoolSingletonState::LeavingPool`] state.
     pub fn parse_child(
         &self,
         allocator: &Allocator,
@@ -118,21 +128,30 @@ impl PlotNft {
         let (_, (_, (inner_solution, _))) =
             <(NodePtr, (NodePtr, (NodePtr, NodePtr)))>::from_clvm(allocator, solution)?;
 
-        let (extra_data, inner_puzzle_hash) = if self.info.pool_state.is_waiting_room() {
-            let Some((extra_data, destination)) =
-                PoolWaitingRoomLayer::parse_travel(allocator, inner_solution)?
-            else {
-                return Ok(Some(self.child_with(self.info.clone(), self.coin.amount)));
-            };
-            (extra_data, destination)
-        } else {
+        let unchanged = || self.child_with(self.info.clone(), self.coin.amount);
+
+        if !self.info.pool_state.is_waiting_room() {
             let Some(extra_data) = PoolMemberLayer::parse_escape(allocator, inner_solution)? else {
-                return Ok(Some(self.child_with(self.info.clone(), self.coin.amount)));
+                return Ok(Some(unchanged()));
             };
-            (
-                extra_data,
-                self.info.waiting_room_layer().tree_hash().into(),
-            )
+
+            let waiting_room = self.info.waiting_room_layer().tree_hash();
+
+            let pool_state = PoolState::from_key_value_list(allocator, extra_data)
+                .filter(|state| {
+                    self.info.with_pool_state(state.clone()).inner_puzzle_hash() == waiting_room
+                })
+                .unwrap_or_else(|| self.info.pool_state.leaving());
+
+            let info = self.info.with_pool_state(pool_state);
+
+            return Ok(Some(self.child_with(info, self.coin.amount)));
+        }
+
+        let Some((extra_data, destination)) =
+            PoolWaitingRoomLayer::parse_travel(allocator, inner_solution)?
+        else {
+            return Ok(Some(unchanged()));
         };
 
         let Some(pool_state) = PoolState::from_key_value_list(allocator, extra_data) else {
@@ -141,7 +160,8 @@ impl PlotNft {
 
         let info = self.info.with_pool_state(pool_state);
 
-        if info.inner_puzzle_hash() != inner_puzzle_hash.into() {
+        if Bytes32::from_clvm(allocator, destination).ok() != Some(info.inner_puzzle_hash().into())
+        {
             return Ok(None);
         }
 
@@ -157,11 +177,7 @@ impl PlotNft {
             ));
         }
 
-        let pool_state = PoolState {
-            version: POOL_PROTOCOL_VERSION,
-            state: PoolSingletonState::LeavingPool,
-            ..self.info.pool_state.clone()
-        };
+        let pool_state = self.info.pool_state.leaving();
 
         let extra_data = ctx.alloc(&[pool_state.key_value()?])?;
 
@@ -264,34 +280,20 @@ impl PlotNft {
             return Err(DriverError::InvalidPoolReward("no rewards to claim"));
         };
 
-        let p2_puzzle_hash = self.info.p2_puzzle_hash().into();
+        let is_waiting_room = self.info.pool_state.is_waiting_room();
+
+        // Nothing can be added to the context until every reward is known to be valid
+        let heights = rewards
+            .iter()
+            .map(|reward| self.reward_height(reward, is_waiting_room))
+            .collect::<Result<Vec<_>, _>>()?;
+
         let mut plot_nft = self.clone();
 
-        for &reward in rewards {
-            if reward.puzzle_hash != p2_puzzle_hash {
-                return Err(DriverError::InvalidPoolReward(
-                    "the coin is not locked to the plot NFT's p2 puzzle hash",
-                ));
-            }
-
-            let Some(pool_reward_height) =
-                pool_reward_height(self.info.pool_reward_prefix, reward.parent_coin_info)
-            else {
-                return Err(DriverError::InvalidPoolReward(
-                    "the coin is not a pool reward, so it can only be claimed after the delay",
-                ));
-            };
-
-            // Only the singleton itself can have an odd amount
-            if !reward.amount.is_multiple_of(2) {
-                return Err(DriverError::InvalidPoolReward(
-                    "a pool reward with an odd amount can't be claimed by the singleton",
-                ));
-            }
-
+        for (&reward, pool_reward_height) in rewards.iter().zip(heights) {
             let pool_reward_amount = reward.amount;
 
-            if plot_nft.info.pool_state.is_waiting_room() {
+            if is_waiting_room {
                 plot_nft.spend_waiting_room(
                     ctx,
                     PoolWaitingRoomSolution::Absorb(PoolWaitingRoomAbsorbSolution {
@@ -328,6 +330,37 @@ impl PlotNft {
             Conditions::new().assert_coin_announcement(announcement_id(first.coin_id(), b"$")),
             plot_nft,
         ))
+    }
+
+    fn reward_height(&self, reward: &Coin, is_waiting_room: bool) -> Result<u32, DriverError> {
+        if reward.puzzle_hash != self.info.p2_puzzle_hash().into() {
+            return Err(DriverError::InvalidPoolReward(
+                "the coin is not locked to the plot NFT's p2 puzzle hash",
+            ));
+        }
+
+        let Some(height) =
+            pool_reward_height(self.info.pool_reward_prefix, reward.parent_coin_info)
+        else {
+            return Err(DriverError::InvalidPoolReward(
+                "the coin is not a pool reward, so it can only be claimed after the delay",
+            ));
+        };
+
+        // Only the singleton itself can have an odd amount
+        if !reward.amount.is_multiple_of(2) {
+            return Err(DriverError::InvalidPoolReward(
+                "a pool reward with an odd amount can't be claimed by the singleton",
+            ));
+        }
+
+        if height == 0 && !is_waiting_room {
+            return Err(DriverError::InvalidPoolReward(
+                "a reward height of 0 would be encoded as nil, which means leaving the pool",
+            ));
+        }
+
+        Ok(height)
     }
 
     fn spend_member(

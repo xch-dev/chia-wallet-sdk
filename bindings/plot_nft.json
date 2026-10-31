@@ -7,6 +7,21 @@
     },
     "return": "Bytes32"
   },
+  "pool_reward_prefix": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "pool_protocol_version": {
+    "type": "function",
+    "return": "u8"
+  },
+  "default_p2_singleton_delay": {
+    "type": "function",
+    "return": "u64"
+  },
   "PoolSingletonState": {
     "type": "enum",
     "values": ["SelfPooling", "LeavingPool", "FarmingToPool"]

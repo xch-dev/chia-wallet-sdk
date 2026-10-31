@@ -53,6 +53,29 @@ pub(crate) fn is_nil(allocator: &Allocator, value: NodePtr) -> bool {
     matches!(allocator.sexp(value), SExp::Atom) && allocator.atom_len(value) == 0
 }
 
+/// Reads a reward height the way the puzzles do, which is by masking it to its low 128 bits. Any
+/// atom with the right low bits is valid, and anyone can choose how to solve an absorb. A real
+/// reward's height fits in 32 bits, otherwise its parent coin id wouldn't be a coinbase parent.
+pub(crate) fn parse_pool_reward_height(
+    allocator: &Allocator,
+    height: NodePtr,
+) -> Result<u32, DriverError> {
+    let SExp::Atom = allocator.sexp(height) else {
+        return Err(DriverError::InvalidPoolReward(
+            "the reward height is not an atom",
+        ));
+    };
+
+    let atom = allocator.atom(height);
+    let atom = atom.as_ref();
+
+    let mut bytes = [0; 4];
+    let length = atom.len().min(4);
+    bytes[4 - length..].copy_from_slice(&atom[atom.len() - length..]);
+
+    Ok(u32::from_be_bytes(bytes))
+}
+
 impl Layer for PoolMemberLayer {
     type Solution = PoolMemberSolution;
 
@@ -85,11 +108,11 @@ impl Layer for PoolMemberLayer {
         }
 
         let (pool_reward_amount, (pool_reward_height, _)) =
-            <(u64, (u32, NodePtr))>::from_clvm(allocator, solution)?;
+            <(u64, (NodePtr, NodePtr))>::from_clvm(allocator, solution)?;
 
         Ok(PoolMemberSolution::Absorb(PoolMemberAbsorbSolution {
             pool_reward_amount,
-            pool_reward_height,
+            pool_reward_height: parse_pool_reward_height(allocator, pool_reward_height)?,
         }))
     }
 
@@ -106,7 +129,7 @@ impl Layer for PoolMemberLayer {
             PoolMemberSolution::Absorb(solution) => {
                 if solution.pool_reward_height == 0 {
                     return Err(DriverError::InvalidPoolReward(
-                        "the pool member puzzle can't claim a reward from height 0",
+                        "a reward height of 0 would be encoded as nil, which means leaving the pool",
                     ));
                 }
                 ctx.alloc(&solution)
