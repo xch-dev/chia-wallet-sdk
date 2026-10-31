@@ -37,6 +37,9 @@ impl Splitter {
     /// There must be at least one recipient, every share must be nonzero, and the shares must sum
     /// to at most [`u64::MAX`]. Puzzle hashes must also be unique, because two recipients being
     /// paid the same amount would create the same coin twice, making the spend invalid.
+    ///
+    /// The number of recipients isn't limited here since the cost also depends on the amounts and
+    /// asset being split, but no more than around 2,300 can fit in a mempool transaction.
     pub fn new(shares: Vec<SplitterShare>) -> Result<Self, DriverError> {
         let mut puzzle_hashes = HashSet::with_capacity(shares.len());
         let mut total_shares = 0u64;
@@ -146,7 +149,8 @@ impl Splitter {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::Simulator;
+    use chia_consensus::validation_error::ErrorCode;
+    use chia_sdk_test::{Simulator, SimulatorError};
     use chia_sdk_types::{Condition, Conditions};
     use clvm_traits::ToClvm;
     use hex_literal::hex;
@@ -350,6 +354,76 @@ mod tests {
         for child in children {
             assert!(sim.coin_state(child.coin.coin_id()).is_some());
         }
+
+        Ok(())
+    }
+
+    /// Spends a splitter with the given number of recipients in a transaction of its own, which is
+    /// validated against the mempool's cost limit of half a block.
+    fn spend_recipients(
+        recipients: u64,
+        share: u64,
+        amount_each: u64,
+        cat: bool,
+    ) -> anyhow::Result<Result<(), SimulatorError>> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let splitter = Splitter::new(
+            (0..recipients)
+                .map(|index| {
+                    let mut puzzle_hash = [0xff; 32];
+                    puzzle_hash[..8].copy_from_slice(&index.to_be_bytes());
+                    SplitterShare::new(puzzle_hash.into(), share)
+                })
+                .collect(),
+        )?;
+        let puzzle_hash = splitter.puzzle_hash().into();
+        let amount = recipients * amount_each;
+
+        if cat {
+            let alice = sim.bls(amount);
+            let alice_p2 = StandardLayer::new(alice.pk);
+
+            let memos = ctx.hint(puzzle_hash)?;
+            let (issue_cat, cats) = Cat::single_issuance(
+                ctx,
+                alice.coin.coin_id(),
+                None,
+                amount,
+                Conditions::new().create_coin(puzzle_hash, amount, memos),
+            )?;
+            alice_p2.spend(ctx, alice.coin, issue_cat)?;
+            sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+            splitter.spend_cat(ctx, cats[0])?;
+        } else {
+            let coin = sim.new_coin(puzzle_hash, amount);
+            splitter.spend(ctx, coin)?;
+        }
+
+        Ok(sim.spend_coins(ctx.take(), &[]).map(|_| ()))
+    }
+
+    // The limit depends on the size of the shares and amounts, as well as the asset being split.
+    // These recipient counts leave no room for anything else, such as a spend that pays a fee.
+    #[rstest]
+    #[case::xch_small_values(2428, 1, 1000, false)]
+    #[case::xch_large_values(2389, 1_000_000, 1_000_000_000_000, false)]
+    #[case::cat_small_values(2369, 1, 1000, true)]
+    #[case::cat_large_values(2332, 1_000_000, 1_000_000_000_000, true)]
+    fn test_max_recipients_in_mempool_transaction(
+        #[case] max_recipients: u64,
+        #[case] share: u64,
+        #[case] amount_each: u64,
+        #[case] cat: bool,
+    ) -> anyhow::Result<()> {
+        spend_recipients(max_recipients, share, amount_each, cat)??;
+
+        assert!(matches!(
+            spend_recipients(max_recipients + 1, share, amount_each, cat)?,
+            Err(SimulatorError::Validation(ErrorCode::CostExceeded))
+        ));
 
         Ok(())
     }
