@@ -18,6 +18,7 @@ all-features = true
 workspace = true
 
 [features]
+chip-0007 = ["dep:serde_json"]
 chip-0008 = ["chia-sdk-types/chip-0008"]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
@@ -46,6 +47,7 @@ hex = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
+serde_json = { workspace = true, optional = true }
 indexmap = { workspace = true }
 chia_streamable_macro = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

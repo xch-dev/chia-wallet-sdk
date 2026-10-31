@@ -28,6 +28,12 @@ pub use singleton::*;
 pub use streamed_asset::*;
 pub use vault::*;
 
+#[cfg(feature = "chip-0007")]
+mod offchain_metadata;
+
+#[cfg(feature = "chip-0007")]
+pub use offchain_metadata::*;
+
 #[cfg(feature = "chip-0052")]
 mod partial_offer;
 

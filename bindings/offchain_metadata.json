@@ -1,0 +1,198 @@
+{
+  "Chip0007Metadata": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "format": "String",
+      "name": "String",
+      "description": "String",
+      "minting_tool": "Option<String>",
+      "sensitive_content": "Option<Chip0007SensitiveContent>",
+      "series_number": "Option<u64>",
+      "series_total": "Option<u64>",
+      "attributes": "Vec<Chip0007Attribute>",
+      "collection": "Option<Chip0007Collection>",
+      "data": "Option<String>"
+    },
+    "methods": {
+      "parse": {
+        "type": "factory",
+        "args": {
+          "json": "String"
+        }
+      },
+      "from_bytes": {
+        "type": "factory",
+        "args": {
+          "bytes": "Bytes"
+        }
+      },
+      "parse_lenient": {
+        "type": "static",
+        "args": {
+          "json": "String"
+        },
+        "return": "Chip0007ParseResult"
+      },
+      "from_bytes_lenient": {
+        "type": "static",
+        "args": {
+          "bytes": "Bytes"
+        },
+        "return": "Chip0007ParseResult"
+      },
+      "validate": {
+        "return": "Vec<String>"
+      },
+      "is_sensitive": {
+        "return": "bool"
+      },
+      "to_json": {
+        "return": "String"
+      },
+      "schema_org": {
+        "return": "Option<Chip0015Object>"
+      }
+    }
+  },
+  "Chip0007ParseResult": {
+    "type": "class",
+    "fields": {
+      "metadata": "Chip0007Metadata",
+      "issues": "Vec<String>"
+    }
+  },
+  "Chip0007Value": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "from_string": {
+        "type": "factory",
+        "args": {
+          "value": "String"
+        }
+      },
+      "from_integer": {
+        "type": "factory",
+        "args": {
+          "value": "BigInt"
+        }
+      },
+      "as_string": {
+        "return": "Option<String>"
+      },
+      "as_integer": {
+        "return": "Option<BigInt>"
+      }
+    }
+  },
+  "Chip0007SensitiveContent": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "from_flag": {
+        "type": "factory",
+        "args": {
+          "flag": "bool"
+        }
+      },
+      "from_items": {
+        "type": "factory",
+        "args": {
+          "items": "Vec<String>"
+        }
+      },
+      "as_flag": {
+        "return": "Option<bool>"
+      },
+      "as_items": {
+        "return": "Option<Vec<String>>"
+      },
+      "is_sensitive": {
+        "return": "bool"
+      }
+    }
+  },
+  "Chip0007Attribute": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "trait_type": "Chip0007Value",
+      "value": "Chip0007Value",
+      "min_value": "Option<BigInt>",
+      "max_value": "Option<BigInt>"
+    }
+  },
+  "Chip0007CollectionAttribute": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "kind": "Chip0007Value",
+      "value": "Chip0007Value"
+    }
+  },
+  "Chip0007Collection": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "id": "String",
+      "name": "String",
+      "attributes": "Vec<Chip0007CollectionAttribute>"
+    }
+  },
+  "Chip0015IdentifierValue": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "as_string": {
+        "return": "Option<String>"
+      },
+      "as_integer": {
+        "return": "Option<BigInt>"
+      },
+      "as_boolean": {
+        "return": "Option<bool>"
+      }
+    }
+  },
+  "Chip0015Identifier": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "types": "Vec<String>",
+      "property_id": "Option<String>",
+      "value": "Option<Chip0015IdentifierValue>"
+    }
+  },
+  "Chip0015Object": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "context": "Option<String>",
+      "types": "Vec<String>",
+      "encoding_format": "Option<String>",
+      "name": "Option<String>",
+      "url": "Option<String>",
+      "sha256": "Option<String>",
+      "thumbnail": "Vec<Chip0015Object>",
+      "identifier": "Vec<Chip0015Identifier>",
+      "creator": "Vec<Chip0015Object>",
+      "contributor": "Vec<Chip0015Object>",
+      "encodes_creative_work": "Vec<Chip0015Object>",
+      "has_part": "Vec<Chip0015Object>",
+      "associated_media": "Vec<Chip0015Object>",
+      "is_part_of": "Vec<Chip0015Object>"
+    },
+    "methods": {
+      "is_compliant": {
+        "return": "bool"
+      },
+      "resolved_url": {
+        "return": "Option<String>"
+      }
+    }
+  }
+}

@@ -33,7 +33,7 @@ pyo3 = [
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0008", "chip-0035", "chip-0037", "chip-0052", "auction"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0007", "chip-0008", "chip-0035", "chip-0037", "chip-0052", "auction"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true, features = ["serde"] }
 chia-sdk-types = { workspace = true, features = ["chip-0008", "chip-0035", "chip-0037", "chip-0052", "auction"] }
@@ -61,3 +61,4 @@ chialisp = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
