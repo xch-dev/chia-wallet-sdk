@@ -5,8 +5,8 @@
     "test": "wasm-pack build --target nodejs && ava"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
-    "ava": "^8.1.0"
+    "@types/node": "^26.6.6",
+    "ava": "^8.2.0"
   },
   "ava": {
     "timeout": "3m",
