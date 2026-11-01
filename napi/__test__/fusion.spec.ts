@@ -276,15 +276,17 @@ test("rejects invalid fusions and swaps", (t) => {
     clvm.launchFusion(fusion.launcherId, [launcherId], [launcherId]),
   );
 
-  // Side B is requested, but it isn't locked
-  t.throws(() =>
-    fusion.swap(
-      clvm,
-      FusionDirection.Defuse,
-      [locked],
-      [new FusionUnlock(nftB, user.puzzleHash)],
-      new Uint8Array(32),
-    ),
+  // The offered NFT must be in the settlement puzzle, and the other side must be locked
+  t.throws(
+    () =>
+      fusion.swap(
+        clvm,
+        FusionDirection.Defuse,
+        [locked],
+        [new FusionUnlock(nftB, user.puzzleHash)],
+        new Uint8Array(32),
+      ),
+    { message: /don't match the side/ },
   );
 
   // An unrelated NFT would be stuck if it was locked

@@ -176,12 +176,15 @@ impl Fusion {
     /// Recovers a fusion from the spend of its launcher coin.
     ///
     /// Returns [`None`] if no fusion was launched, which means that the coin isn't a launcher, or
-    /// that the sides it lists aren't those of the singleton it created. If a fusion was launched
-    /// but it's invalid, this returns an error instead. That's the case if it has an even amount,
-    /// since it could never be spent, or if its sides aren't allowed by [`FusionLayer::new`].
+    /// that the sides it lists aren't those of the singleton it created. A list of sides that can't
+    /// be parsed as launcher ids is treated the same way. If a fusion was launched but it's invalid,
+    /// this returns an error instead. That's the case if it has an even amount, since it could never
+    /// be spent, or if its sides aren't allowed by [`FusionLayer::new`].
+    ///
+    /// The launcher id in the memo isn't checked, since the puzzle hash already proves the sides.
     ///
     /// The reference implementation has since moved this data to a fourth item in the solution, so
-    /// that's checked if the key value list is empty.
+    /// that's checked if the key value list isn't a memo.
     pub fn parse_launcher(
         allocator: &Allocator,
         launcher_coin: Coin,
@@ -204,10 +207,6 @@ impl Fusion {
         else {
             return Ok(None);
         };
-
-        if memo.launcher_id != launcher_id {
-            return Ok(None);
-        }
 
         let inner_puzzle_hash =
             FusionSingletonArgs::new(launcher_id, memo.side_a.clone(), memo.side_b.clone())

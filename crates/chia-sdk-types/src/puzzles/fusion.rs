@@ -231,6 +231,9 @@ impl FusionNftToUnlock {
     }
 }
 
+/// The solution of the fusion singleton. It isn't signed, and the puzzle ignores or loosely reads
+/// parts of it, so a valid spend on-chain may not parse as this type. To get the direction of a
+/// confirmed spend, use `Fusion::parse_child` in `chia-sdk-driver`.
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct FusionSingletonSolution {

@@ -80,3 +80,40 @@ impl ToTreeHash for P2FusionLayer {
         P2FusionArgs::new(self.launcher_id).curry_tree_hash()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_round_trip() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let layer = P2FusionLayer::new(Bytes32::new([1; 32]));
+        let puzzle = layer.construct_puzzle(ctx)?;
+        assert_eq!(ctx.tree_hash(puzzle), layer.tree_hash());
+
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        assert_eq!(P2FusionLayer::parse_puzzle(ctx, puzzle)?, Some(layer));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_rejects_nonstandard_singleton() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let puzzle = ctx.curry(P2FusionArgs {
+            singleton_mod_hash: Bytes32::default(),
+            ..P2FusionArgs::new(Bytes32::new([1; 32]))
+        })?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        assert!(matches!(
+            P2FusionLayer::parse_puzzle(ctx, puzzle),
+            Err(DriverError::InvalidSingletonStruct)
+        ));
+
+        Ok(())
+    }
+}
