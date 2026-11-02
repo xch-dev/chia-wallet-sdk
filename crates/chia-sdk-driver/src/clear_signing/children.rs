@@ -5,8 +5,8 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
 
 use crate::{
-    BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
-    RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
+    BURN_PUZZLE_HASH, Cat, ClawbackInfo, ClawbackPath, DriverError, Facts, Nft, ParsedAsset,
+    ParsedMemos, RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
 #[derive(Debug, Clone)]
@@ -39,8 +39,10 @@ pub fn parse_children(
     asset: &ParsedAsset,
     spend: RevealedCoinSpend,
     conditions: &[Condition],
-    is_claw_back: bool,
+    clawback: Option<ClawbackInfo>,
 ) -> Result<Vec<ParsedChild>, DriverError> {
+    let is_claw_back = clawback.is_some_and(|info| info.path == ClawbackPath::Sender);
+
     // Now, we should be able to assume that the conditions will be output if the transaction is valid.
     let mut children = Vec::new();
 
@@ -69,7 +71,9 @@ pub fn parse_children(
             Condition::AssertBeforeSecondsAbsolute(condition) if !is_claw_back => {
                 facts.update_actual_expiration_time(condition.seconds);
             }
-            Condition::AssertSecondsAbsolute(condition) => {
+            // A clawback spend can be replaced with another path that doesn't output its conditions,
+            // so it can't be used to prove that the transaction is only valid after a given time.
+            Condition::AssertSecondsAbsolute(condition) if clawback.is_none() => {
                 facts.update_actual_earliest_time(condition.seconds);
             }
             Condition::ReserveFee(condition) => {

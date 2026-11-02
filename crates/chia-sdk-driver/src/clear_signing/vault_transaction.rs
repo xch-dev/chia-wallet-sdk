@@ -247,7 +247,7 @@ pub fn parse_vault_transaction(
             &parsed_spend.asset,
             spend,
             &conditions,
-            false,
+            parsed_spend.clawback,
         )?;
 
         verified_spends.push(VerifiedSpend {
@@ -434,7 +434,7 @@ fn verify_spend(
         &parsed_spend.asset,
         spend,
         conditions,
-        parsed_spend.required_expiration_time.is_some(),
+        parsed_spend.clawback,
     )?;
 
     // Issuances are either:
