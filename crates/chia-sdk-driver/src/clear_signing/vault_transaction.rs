@@ -190,6 +190,20 @@ pub fn parse_vault_transaction(
                 continue;
             };
 
+            // Without a vault message, the receiver path could be replaced with the sender path.
+            if let Some(ClawbackInfo {
+                clawback,
+                path: ClawbackPath::Receiver,
+            }) = parsed_spend.clawback
+                && !parsed_spend
+                    .custody
+                    .as_ref()
+                    .is_some_and(CustodyInfo::receives_message)
+                && !is_expired(&facts, &clawback)
+            {
+                continue;
+            }
+
             let spend = *reveals
                 .coin_spend(coin_id)
                 .ok_or(DriverError::MissingSpend)?;
@@ -225,9 +239,7 @@ pub fn parse_vault_transaction(
                         path: ClawbackPath::PushThrough,
                     }) if spend.coin.amount == clawback.amount
                         && facts.is_spend_asserted(coin_id)
-                        && facts
-                            .actual_earliest_time()
-                            .is_some_and(|earliest| earliest >= clawback.seconds) =>
+                        && is_expired(&facts, &clawback) =>
                     {
                         Some((coin_id, clawback))
                     }
@@ -350,6 +362,13 @@ pub fn parse_vault_transaction(
         delegated_puzzle_hash,
         signed_messages: vault_spend.signed_messages,
     })
+}
+
+/// Whether the transaction can only be valid once the clawback has expired, which rules out its sender path.
+fn is_expired(facts: &Facts, clawback: &ClawbackV2) -> bool {
+    facts
+        .actual_earliest_time()
+        .is_some_and(|earliest| earliest >= clawback.seconds)
 }
 
 fn verify_spend(

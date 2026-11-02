@@ -1777,12 +1777,7 @@ fn test_clear_signing_push_through_replaceable_expiry() -> Result<()> {
     assert!(
         tx.spends
             .iter()
-            .any(|spend| spend.asset.coin() == decoy_coin)
-    );
-    assert!(
-        tx.spends
-            .iter()
-            .all(|spend| spend.asset.coin() != clawback_coin)
+            .all(|spend| ![clawback_coin, decoy_coin].contains(&spend.asset.coin()))
     );
 
     Ok(())
@@ -2132,12 +2127,7 @@ fn test_clear_signing_replaceable_spend_chain_asserts_expiry() -> Result<()> {
     assert!(
         tx.spends
             .iter()
-            .any(|spend| spend.asset.coin() == decoy_coin)
-    );
-    assert!(
-        tx.spends
-            .iter()
-            .all(|spend| ![clawback_coin, expiry_coin].contains(&spend.asset.coin()))
+            .all(|spend| ![clawback_coin, decoy_coin, expiry_coin].contains(&spend.asset.coin()))
     );
 
     Ok(())
@@ -2271,6 +2261,76 @@ fn test_clear_signing_replaceable_spend_asserts_expiration() -> Result<()> {
     );
 
     assert!(matches!(tx, Err(DriverError::UnguaranteedClawBack)));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::expiry_asserted(Some(1000))]
+#[case::before_expiry_asserted(Some(999))]
+#[case::expiry_unasserted(None)]
+fn test_clear_signing_receiver_path_without_message(
+    #[case] earliest_time: Option<u64>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let (clawback, receiver_puzzle) = decoy_clawback(
+        &mut ctx,
+        Conditions::new().create_coin(bob.p2_puzzle_hash, 1, Memos::None),
+        1000,
+    )?;
+
+    let actions = [Action::send(
+        Id::Xch,
+        clawback.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    sim.set_next_timestamp(2000)?;
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let clawback_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        clawback.tree_hash().into(),
+        1,
+    );
+
+    let mut vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    if let Some(earliest_time) = earliest_time {
+        vault_conditions = vault_conditions.assert_seconds_absolute(earliest_time);
+    }
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.receiver_spend(&mut ctx, Spend::new(receiver_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let shown = tx
+        .spends
+        .iter()
+        .any(|spend| spend.asset.coin() == clawback_coin);
+
+    // Unless the vault asserts that the clawback has expired, the receiver path could be replaced with the sender path.
+    assert_eq!(shown, earliest_time == Some(clawback.seconds));
 
     Ok(())
 }
