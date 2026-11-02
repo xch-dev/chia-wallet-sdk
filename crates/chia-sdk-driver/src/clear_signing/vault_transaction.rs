@@ -170,8 +170,8 @@ pub fn parse_vault_transaction(
     // path or the push-through path), unless it's clawed back by the sender. The sender path asserts that the
     // clawback hasn't expired, so if the vault asserts that it has, the clawback is going to the receiver.
     //
-    // Clawback spends can't contribute to the earliest time, since they can be replaced with another path. But the
-    // spends that are verified after a push-through can, which is why this repeats until nothing else qualifies.
+    // The children of a push-through can assert other spends, including other push-throughs, which is why this
+    // repeats until nothing else qualifies.
     loop {
         while let Some(coin_id) = stack.pop() {
             if !facts.is_spend_asserted(coin_id) {
@@ -445,15 +445,14 @@ fn verify_spend(
         facts.update_required_expiration_time(time);
     }
 
-    let children = parse_children(
-        reveals,
+    record_facts(
         facts,
-        allocator,
-        &parsed_spend.asset,
-        spend,
         conditions,
         parsed_spend.clawback,
-    )?;
+        custody.receives_message(),
+    );
+
+    let children = parse_children(reveals, allocator, &parsed_spend.asset, spend, conditions)?;
 
     // Issuances are either:
     // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
@@ -469,6 +468,57 @@ fn verify_spend(
         children,
         revoked: parsed_spend.revoked,
     }))
+}
+
+/// Records what a verified spend's conditions guarantee about the transaction.
+///
+/// A vault message can only be received by a spend that outputs exactly these conditions, so a spend that's bound to
+/// a message can be trusted. A clawback spend without one can be replaced with another path of the clawback after
+/// signing, in which case its conditions are never output.
+fn record_facts(
+    facts: &mut Facts,
+    conditions: &[Condition],
+    clawback: Option<ClawbackInfo>,
+    is_message_bound: bool,
+) {
+    let path = clawback.map(|info| info.path);
+
+    // The sender path is the exception, since it's already required to expire before the other paths are spendable.
+    if !is_message_bound
+        && matches!(
+            path,
+            Some(ClawbackPath::Receiver | ClawbackPath::PushThrough)
+        )
+    {
+        return;
+    }
+
+    for condition in conditions {
+        match condition {
+            Condition::AssertPuzzleAnnouncement(condition) => {
+                facts.assert_puzzle_announcement(condition.announcement_id);
+            }
+            Condition::AssertConcurrentSpend(condition) => {
+                facts.assert_spend(condition.coin_id);
+            }
+            // We shouldn't allow a claw back spend to say when the transaction will expire.
+            // Otherwise, it could pretend that it's impossible for the clawback to expire
+            // before the transaction expires, which would be a security vulnerability.
+            Condition::AssertBeforeSecondsAbsolute(condition)
+                if path != Some(ClawbackPath::Sender) =>
+            {
+                facts.update_actual_expiration_time(condition.seconds);
+            }
+            // This rules out the sender path of a clawback, so it must be authorized by the vault.
+            Condition::AssertSecondsAbsolute(condition) if is_message_bound => {
+                facts.update_actual_earliest_time(condition.seconds);
+            }
+            Condition::ReserveFee(condition) => {
+                facts.add_reserved_fees(condition.amount);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
