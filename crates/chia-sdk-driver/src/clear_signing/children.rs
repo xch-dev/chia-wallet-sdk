@@ -69,6 +69,9 @@ pub fn parse_children(
             Condition::AssertBeforeSecondsAbsolute(condition) if !is_claw_back => {
                 facts.update_actual_expiration_time(condition.seconds);
             }
+            Condition::AssertSecondsAbsolute(condition) => {
+                facts.update_actual_earliest_time(condition.seconds);
+            }
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
             }

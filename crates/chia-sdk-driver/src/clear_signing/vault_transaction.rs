@@ -9,12 +9,13 @@ use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClearSigningAsset, CustodyInfo,
-    DriverError, DropCoin, Facts, Issuance, IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo,
-    P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, TransferType, VaultMessage, VaultOutput, build_linked_offer,
-    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
-    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend, split_asserted_payments,
+    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClawbackPath, ClawbackV2,
+    ClearSigningAsset, CustodyInfo, DriverError, DropCoin, Facts, Issuance, IssuanceKind,
+    LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, TransferType, VaultMessage,
+    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -194,6 +195,68 @@ pub fn parse_vault_transaction(
         }
 
         verified_spends.push(verified_spend);
+    }
+
+    // Once a clawback has expired, anyone can push it through to the receiver without a signature, so the vault
+    // only asserts that the clawback coin is spent. The coin can then only be spent by its receiver (the receiver
+    // path or the push-through path), unless it's clawed back by the sender. The sender path asserts that the
+    // clawback hasn't expired, so if the vault asserts that it has, the clawback is going to the receiver.
+    //
+    // The facts used here must all come from the vault's spends, so every push-through is checked before any of
+    // their conditions are parsed. The push-through path's own ASSERT_SECONDS_ABSOLUTE can't be trusted, since the
+    // spend could be replaced with another path.
+    // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
+    let push_throughs: Vec<(Bytes32, ClawbackV2)> = reveals
+        .coin_spends()
+        .filter_map(|spend| {
+            let coin_id = spend.coin.coin_id();
+            match parsed_spends.get(&coin_id)?.clawback {
+                Some(ClawbackInfo {
+                    clawback,
+                    path: ClawbackPath::PushThrough,
+                }) if facts.is_spend_asserted(coin_id)
+                    && facts
+                        .actual_earliest_time()
+                        .is_some_and(|earliest| earliest >= clawback.seconds) =>
+                {
+                    Some((coin_id, clawback))
+                }
+                _ => None,
+            }
+        })
+        .collect();
+
+    for (coin_id, clawback) in push_throughs {
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            continue;
+        };
+
+        let spend = *reveals
+            .coin_spend(coin_id)
+            .ok_or(DriverError::MissingSpend)?;
+
+        // The conditions are determined by the clawback rather than by the revealed solution, since the clawback's
+        // puzzle hash commits to them.
+        let push_through_path = ctx.alloc(&clawback.push_through_path())?;
+        let conditions = parse_delegated_spend(ctx, Spend::new(push_through_path, NodePtr::NIL))?;
+
+        let children = parse_children(
+            &mut reveals,
+            &mut facts,
+            ctx,
+            &parsed_spend.asset,
+            spend,
+            &conditions,
+            false,
+        )?;
+
+        verified_spends.push(VerifiedSpend {
+            asset: parsed_spend.asset,
+            clawback: parsed_spend.clawback,
+            custody: CustodyInfo::DelegatedConditions(conditions),
+            children,
+            revoked: parsed_spend.revoked,
+        });
     }
 
     // If the transaction expires after the required expiration time of the spend,

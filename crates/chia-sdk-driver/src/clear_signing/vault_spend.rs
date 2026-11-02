@@ -81,6 +81,9 @@ pub fn parse_vault_delegated_spend(
             Condition::AssertBeforeSecondsAbsolute(condition) => {
                 facts.update_actual_expiration_time(condition.seconds);
             }
+            Condition::AssertSecondsAbsolute(condition) => {
+                facts.update_actual_earliest_time(condition.seconds);
+            }
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
             }

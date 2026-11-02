@@ -1555,6 +1555,93 @@ fn test_clear_signing_unrevealed_clawback() -> Result<()> {
 }
 
 #[rstest]
+#[case::expiry_asserted(true)]
+#[case::expiry_unasserted(false)]
+fn test_clear_signing_push_through(#[case] asserts_expiry: bool) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    sim.set_next_timestamp(2000)?;
+
+    // The vault only pays the fee, and asserts the push-through spend that nobody needs to sign.
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let mut vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    if asserts_expiry {
+        vault_conditions = vault_conditions.assert_seconds_absolute(clawback.seconds);
+    }
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.reserved_fee, 1);
+
+    // Unless the vault asserts that the clawback has expired, the clawback coin could be clawed back to the sender
+    // instead, so the push-through can't be shown.
+    if !asserts_expiry {
+        assert_eq!(tx.spends.len(), 1);
+        assert!(tx.spends[0].clawback.is_none());
+        return Ok(());
+    }
+
+    assert_eq!(tx.spends.len(), 2);
+
+    let spend = &tx.spends[1];
+    check_asset(&spend.asset, None, None, 1);
+    assert_eq!(spend.asset.coin(), clawback_coin);
+    assert_eq!(
+        spend.clawback,
+        Some(ClawbackInfo::new(clawback, ClawbackPath::PushThrough))
+    );
+    assert!(matches!(spend.custody, CustodyInfo::DelegatedConditions(_)));
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    check_asset(&child.asset, None, None, 1);
+    assert_eq!(child.memos.clawback, None);
+    assert_eq!(child.memos.p2_puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(child.transfer_type, TransferType::Sent);
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    Ok(())
+}
+
+#[rstest]
 #[case(Bytes32::default(), TransferType::Sent)]
 #[case(BURN_PUZZLE_HASH, TransferType::Burned)]
 #[case(SETTLEMENT_PAYMENT_HASH.into(), TransferType::Offered)]
