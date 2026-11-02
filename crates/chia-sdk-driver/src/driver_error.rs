@@ -236,6 +236,11 @@ pub enum DriverError {
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
 
+    #[error(
+        "the transaction is not guaranteed to only be valid after its received clawbacks expire"
+    )]
+    UnguaranteedClawbackExpiry,
+
     #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
 

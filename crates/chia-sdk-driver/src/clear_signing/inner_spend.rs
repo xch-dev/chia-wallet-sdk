@@ -45,6 +45,14 @@ pub enum CustodyInfo {
 }
 
 impl CustodyInfo {
+    pub fn conditions(&self) -> &[Condition] {
+        match self {
+            Self::P2Singleton(P2SingletonInfo { conditions, .. })
+            | Self::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo { conditions, .. })
+            | Self::DelegatedConditions(conditions) => conditions,
+        }
+    }
+
     pub fn receives_message(&self) -> bool {
         matches!(
             self,
