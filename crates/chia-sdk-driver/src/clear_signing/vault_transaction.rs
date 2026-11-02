@@ -30,7 +30,8 @@ pub struct VaultTransaction {
     pub vault_child: Option<VaultOutput>,
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
-    /// The spends (and their children) which were authorized by the vault.
+    /// The spends (and their children) which were authorized by the vault. This includes clawback push-throughs that
+    /// the vault asserts, which don't need its authorization, and whose coins aren't necessarily owned by the vault.
     pub spends: Vec<VerifiedSpend>,
     /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
     /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
@@ -164,99 +165,116 @@ pub fn parse_vault_transaction(
         })
         .collect();
 
-    while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) {
-            continue;
-        }
-
-        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-            continue;
-        };
-
-        let spend = *reveals
-            .coin_spend(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
-
-        let Some(verified_spend) = verify_spend(
-            &mut reveals,
-            &mut facts,
-            ctx,
-            spend,
-            parsed_spend,
-            &[],
-            &mut issuances,
-        )?
-        else {
-            continue;
-        };
-
-        for child in &verified_spend.children {
-            stack.insert(child.asset.coin().coin_id());
-        }
-
-        verified_spends.push(verified_spend);
-    }
-
     // Once a clawback has expired, anyone can push it through to the receiver without a signature, so the vault
     // only asserts that the clawback coin is spent. The coin can then only be spent by its receiver (the receiver
     // path or the push-through path), unless it's clawed back by the sender. The sender path asserts that the
     // clawback hasn't expired, so if the vault asserts that it has, the clawback is going to the receiver.
     //
-    // The facts used here must all come from the vault's spends, so every push-through is checked before any of
-    // their conditions are parsed. The push-through path's own ASSERT_SECONDS_ABSOLUTE can't be trusted, since the
-    // spend could be replaced with another path.
-    // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
-    let push_throughs: Vec<(Bytes32, ClawbackV2)> = reveals
-        .coin_spends()
-        .filter_map(|spend| {
-            let coin_id = spend.coin.coin_id();
-            match parsed_spends.get(&coin_id)?.clawback {
-                Some(ClawbackInfo {
-                    clawback,
-                    path: ClawbackPath::PushThrough,
-                }) if facts.is_spend_asserted(coin_id)
-                    && facts
-                        .actual_earliest_time()
-                        .is_some_and(|earliest| earliest >= clawback.seconds) =>
-                {
-                    Some((coin_id, clawback))
-                }
-                _ => None,
+    // Clawback spends can't contribute to the earliest time, since they can be replaced with another path. But the
+    // spends that are verified after a push-through can, which is why this repeats until nothing else qualifies.
+    loop {
+        while let Some(coin_id) = stack.pop() {
+            if !facts.is_spend_asserted(coin_id) {
+                continue;
             }
-        })
-        .collect();
 
-    for (coin_id, clawback) in push_throughs {
-        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-            continue;
-        };
+            // Spends without custody stay parsed, since they may be verifiable push-throughs.
+            if parsed_spends
+                .get(&coin_id)
+                .is_none_or(|spend| spend.custody.is_none())
+            {
+                continue;
+            }
 
-        let spend = *reveals
-            .coin_spend(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
+            let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+                continue;
+            };
 
-        // The conditions are determined by the clawback rather than by the revealed solution, since the clawback's
-        // puzzle hash commits to them.
-        let push_through_path = ctx.alloc(&clawback.push_through_path())?;
-        let conditions = parse_delegated_spend(ctx, Spend::new(push_through_path, NodePtr::NIL))?;
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
 
-        let children = parse_children(
-            &mut reveals,
-            &mut facts,
-            ctx,
-            &parsed_spend.asset,
-            spend,
-            &conditions,
-            parsed_spend.clawback,
-        )?;
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
 
-        verified_spends.push(VerifiedSpend {
-            asset: parsed_spend.asset,
-            clawback: parsed_spend.clawback,
-            custody: CustodyInfo::DelegatedConditions(conditions),
-            children,
-            revoked: parsed_spend.revoked,
-        });
+            for child in &verified_spend.children {
+                stack.insert(child.asset.coin().coin_id());
+            }
+
+            verified_spends.push(verified_spend);
+        }
+
+        // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
+        let push_throughs: Vec<(Bytes32, ClawbackV2)> = reveals
+            .coin_spends()
+            .filter_map(|spend| {
+                let coin_id = spend.coin.coin_id();
+                match parsed_spends.get(&coin_id)?.clawback {
+                    Some(ClawbackInfo {
+                        clawback,
+                        path: ClawbackPath::PushThrough,
+                    }) if spend.coin.amount == clawback.amount
+                        && facts.is_spend_asserted(coin_id)
+                        && facts
+                            .actual_earliest_time()
+                            .is_some_and(|earliest| earliest >= clawback.seconds) =>
+                    {
+                        Some((coin_id, clawback))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        if push_throughs.is_empty() {
+            break;
+        }
+
+        for (coin_id, clawback) in push_throughs {
+            let mut parsed_spend = parsed_spends
+                .remove(&coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            // The conditions are determined by the clawback rather than by the revealed solution, since the
+            // clawback's puzzle hash commits to them.
+            let push_through_path = ctx.alloc(&clawback.push_through_path())?;
+            let conditions =
+                parse_delegated_spend(ctx, Spend::new(push_through_path, NodePtr::NIL))?;
+            parsed_spend.custody = Some(CustodyInfo::DelegatedConditions(conditions));
+
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
+
+            for child in &verified_spend.children {
+                stack.insert(child.asset.coin().coin_id());
+            }
+
+            verified_spends.push(verified_spend);
+        }
     }
 
     // If the transaction expires after the required expiration time of the spend,

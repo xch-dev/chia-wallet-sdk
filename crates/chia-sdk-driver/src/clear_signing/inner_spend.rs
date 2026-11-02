@@ -116,6 +116,14 @@ pub fn parse_inner_spend(
                     return Err(DriverError::InvalidMerkleProof);
                 };
 
+                let solution_puzzle = Puzzle::parse(allocator, solution.puzzle);
+
+                // The merkle proof doesn't commit to the revealed puzzle, so it must be checked against the leaf.
+                // Otherwise, the revealed puzzle could differ from what's actually spent.
+                if Bytes32::from(solution_puzzle.curried_puzzle_hash()) != spent_leaf {
+                    return Err(DriverError::InvalidMerkleProof);
+                }
+
                 let path = if spent_leaf == clawback.sender_path_hash() {
                     ClawbackPath::Sender
                 } else if spent_leaf == clawback.receiver_path_hash() {
@@ -131,8 +139,6 @@ pub fn parse_inner_spend(
                     }),
                     custody: None,
                 };
-
-                let solution_puzzle = Puzzle::parse(allocator, solution.puzzle);
 
                 if path != ClawbackPath::PushThrough
                     && let Some(augmented_condition_puzzle) =
