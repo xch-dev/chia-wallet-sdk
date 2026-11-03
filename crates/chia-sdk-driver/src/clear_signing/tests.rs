@@ -2614,6 +2614,146 @@ fn test_clear_signing_sender_path_facts_with_later_expiration(
     Ok(())
 }
 
+#[rstest]
+#[test]
+fn test_clear_signing_asserted_after_visited(
+    #[values(false, true)] asserted_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let asserted_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let asserted_puzzle_hash: Bytes32 = ctx.tree_hash(asserted_puzzle).into();
+
+    let actions = [Action::send(Id::Xch, asserted_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let asserted_coin = Coin::new(parent, asserted_puzzle_hash, 1);
+
+    // Only this coin asserts that the other one is spent, and only the vault asserts that this one is spent.
+    let asserting_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_concurrent_spend(asserted_coin.coin_id())
+    ))?;
+    let asserting_puzzle_hash: Bytes32 = ctx.tree_hash(asserting_puzzle).into();
+    let asserting_coin = Coin::new(parent, asserting_puzzle_hash, 1);
+
+    let asserting_action = Action::send(Id::Xch, asserting_puzzle_hash, 1, Memos::None);
+
+    // The last child created is the first one visited by the traversal.
+    let actions = if asserted_first {
+        [asserting_action, actions[0].clone()]
+    } else {
+        [actions[0].clone(), asserting_action]
+    };
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(asserting_coin.coin_id());
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    ctx.spend(asserting_coin, Spend::new(asserting_puzzle, NodePtr::NIL))?;
+    ctx.spend(asserted_coin, Spend::new(asserted_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin().coin_id() == asserted_coin.coin_id())
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[test]
+fn test_clear_signing_asserted_after_visited_claw_back_unguaranteed(
+    #[values(false, true)] clawback_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    let clawback_action = Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None);
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(
+        &sim,
+        &mut spends,
+        &Deltas::from_actions(std::slice::from_ref(&clawback_action)),
+    )?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+
+    // The claw back is asserted, but nothing guarantees that the transaction expires before the clawback does.
+    let asserting_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_concurrent_spend(clawback_coin.coin_id())
+    ))?;
+    let asserting_puzzle_hash: Bytes32 = ctx.tree_hash(asserting_puzzle).into();
+    let asserting_coin = Coin::new(parent, asserting_puzzle_hash, 1);
+
+    let asserting_action = Action::send(Id::Xch, asserting_puzzle_hash, 1, Memos::None);
+
+    // The last child created is the first one visited by the traversal.
+    let actions = if clawback_first {
+        [asserting_action, clawback_action]
+    } else {
+        [clawback_action, asserting_action]
+    };
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(asserting_coin.coin_id());
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    ctx.spend(asserting_coin, Spend::new(asserting_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    // This doesn't depend on whether the clawback coin is visited before it's asserted.
+    assert!(matches!(tx, Err(DriverError::UnguaranteedClawBack)));
+
+    Ok(())
+}
+
 #[test]
 fn test_clear_signing_push_through_message_bound_expiry() -> Result<()> {
     let mut sim = Simulator::new();
