@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use chia_bls::{PublicKey, SecretKey};
-use chia_protocol::{Bytes32, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
 use chia_puzzle_types::{
     Memos,
-    offer::{NotarizedPayment, Payment},
+    offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{BlsPair, BlsPairWithCoin, Simulator, sign_transaction};
@@ -14,11 +16,11 @@ use indexmap::{IndexMap, indexmap};
 use rstest::rstest;
 
 use crate::{
-    Action, AssetInfo, Cat, CatAssetInfo, Delta, Deltas, DriverError, HashedPtr, Id, NftAssetInfo,
-    Offer, OfferAmounts, OptionType, Outputs, Puzzle, Relation, RequestedPayments, RoyaltyInfo,
-    Spend, SpendContext, SpendKind, SpendableAsset, Spends, TransferNftById,
-    calculate_royalty_amounts, calculate_royalty_payments, calculate_trade_price_amounts,
-    calculate_trade_prices, coin_amount,
+    Action, AssetInfo, Cat, CatAssetInfo, Delta, Deltas, DriverError, HashedPtr, Id, Layer,
+    NftAssetInfo, Offer, OfferAmounts, OptionType, Outputs, Puzzle, Relation, RequestedPayments,
+    RoyaltyInfo, SettlementLayer, Spend, SpendContext, SpendKind, SpendableAsset, Spends,
+    StandardLayer, TransferNftById, calculate_royalty_amounts, calculate_royalty_payments,
+    calculate_trade_price_amounts, calculate_trade_prices, coin_amount,
 };
 
 fn keys(puzzle_hash: Bytes32, pk: PublicKey) -> IndexMap<Bytes32, PublicKey> {
@@ -2526,4 +2528,452 @@ fn test_duplicate_settlement_payments_are_rejected() {
         result,
         Err(DriverError::DuplicateSettlementPayment)
     ));
+}
+
+/// The coin that creates the output with the given puzzle hash and amount.
+fn output_parent(
+    coin_spends: &[CoinSpend],
+    outputs: &[Coin],
+    puzzle_hash: Bytes32,
+    amount: u64,
+) -> Bytes32 {
+    let coin = outputs
+        .iter()
+        .find(|coin| coin.puzzle_hash == puzzle_hash && coin.amount == amount)
+        .expect("missing output");
+    assert!(
+        coin_spends
+            .iter()
+            .any(|cs| cs.coin.coin_id() == coin.parent_coin_info)
+    );
+    coin.parent_coin_info
+}
+
+#[test]
+fn test_take_with_fee_returns_own_change_from_own_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1000);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 1);
+
+    // The offered coin is added first, as when taking an offer, and is sent to the taker.
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+            Action::fee(10),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    // The payment is made by the settlement coin, but the change is what's left of the taker's own
+    // coin, so it's created by that coin rather than by the settlement coin.
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 1),
+        settlement.coin_id()
+    );
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 990),
+        alice.coin.coin_id()
+    );
+    assert_eq!(outputs.xch.len(), 2);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 991);
+
+    Ok(())
+}
+
+#[test]
+fn test_take_with_fee_splits_change_between_settlement_and_own_coins() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1000);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 1);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::fee(10)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    // Each kind of spend returns what it has left over, so the offered amount is still paid (and
+    // asserted) by the settlement coin, and the rest of the change comes from the taker's coin.
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 1),
+        settlement.coin_id()
+    );
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 990),
+        alice.coin.coin_id()
+    );
+    assert_eq!(outputs.xch.len(), 2);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 991);
+
+    Ok(())
+}
+
+#[test]
+fn test_settlement_change_covers_fee_before_own_coins() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(0);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 50);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::fee(10)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    // The taker's coin has nothing left over, so the change is created by the settlement coin as before.
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 40),
+        settlement.coin_id()
+    );
+    assert_eq!(outputs.xch.len(), 1);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 40);
+
+    Ok(())
+}
+
+#[test]
+fn test_take_cat_with_fee_returns_own_change_from_own_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1001);
+    let hint = ctx.hint(alice.puzzle_hash)?;
+
+    // Issue a CAT, and offer 1 of it from a settlement coin
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::single_issue_cat(None, 1001),
+            Action::send(Id::New(0), alice.puzzle_hash, 1000, hint),
+            Action::send(Id::New(0), SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    sim.spend_coins(coin_spends, std::slice::from_ref(&alice.sk))?;
+
+    let cats = &outputs.cats[&Id::New(0)];
+    let own = cats
+        .iter()
+        .find(|cat| cat.info.p2_puzzle_hash == alice.puzzle_hash)
+        .copied()
+        .expect("missing own cat");
+    let settlement = cats
+        .iter()
+        .find(|cat| cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+        .copied()
+        .expect("missing settlement cat");
+    let id = Id::Existing(own.info.asset_id);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(own);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[Action::send(id, alice.puzzle_hash, 600, hint)],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    let cats = &outputs.cats[&id];
+    let parent = |amount: u64| {
+        cats.iter()
+            .find(|cat| cat.info.p2_puzzle_hash == alice.puzzle_hash && cat.coin.amount == amount)
+            .expect("missing output")
+            .coin
+            .parent_coin_info
+    };
+
+    // The settlement coin has nothing left after the send, so the change comes from the own coin.
+    assert_eq!(parent(600), settlement.coin.coin_id());
+    assert_eq!(parent(401), own.coin.coin_id());
+    assert_eq!(cats.len(), 2);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(cat_balance(&sim, &own, alice.puzzle_hash), 1001);
+
+    Ok(())
+}
+
+/// Settlement coins that can't emit conditions themselves, with a payment to assert, a reserved
+/// fee, and a required and an optional condition.
+fn settlement_only_spends(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    puzzle_hash: Bytes32,
+) -> Result<(Spends, Deltas)> {
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 10);
+
+    let mut spends = Spends::new(puzzle_hash);
+    spends.add(settlement);
+    spends.conditions.required = spends
+        .conditions
+        .required
+        .clone()
+        .assert_concurrent_spend(settlement.coin_id());
+    spends.conditions.optional = spends.conditions.optional.clone().assert_height_relative(0);
+
+    let deltas = spends.apply(ctx, &[Action::fee(1)])?;
+
+    Ok((spends, deltas))
+}
+
+#[test]
+fn test_unplaced_conditions_match_intermediate_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = BlsPair::new(0);
+    let (spends, deltas) = settlement_only_spends(&mut sim, &mut ctx, alice.puzzle_hash)?;
+
+    // By default, an intermediate coin is created to emit the conditions.
+    let finished = spends.clone().prepare(&mut ctx, &deltas, Relation::None)?;
+    assert!(finished.unplaced_conditions.is_empty());
+
+    let intermediate: Vec<Conditions> = finished
+        .unspent()
+        .into_iter()
+        .filter_map(|(asset, kind)| match kind {
+            SpendKind::Conditions(spend) => {
+                assert_eq!(asset.p2_puzzle_hash(), alice.puzzle_hash);
+                Some(spend.finish())
+            }
+            SpendKind::Settlement(_) => None,
+        })
+        .collect();
+    assert_eq!(intermediate.len(), 1);
+
+    // With the option set, the same conditions are returned instead, and there's no intermediate coin.
+    let mut spends = spends;
+    spends.conditions.return_unplaced_conditions = true;
+    let finished = spends.prepare(&mut ctx, &deltas, Relation::None)?;
+
+    assert!(
+        finished
+            .unspent()
+            .iter()
+            .all(|(_, kind)| kind.is_settlement())
+    );
+    assert_eq!(finished.unspent().len(), 1);
+
+    let unplaced: Vec<Condition> = finished.unplaced_conditions.clone().into_iter().collect();
+    let expected: Vec<Condition> = intermediate[0].clone().into_iter().collect();
+    assert_eq!(unplaced, expected);
+
+    // Nothing is dropped: the change assertion, the required and optional conditions, and the fee.
+    assert_eq!(
+        unplaced
+            .iter()
+            .filter(|c| matches!(c, Condition::AssertPuzzleAnnouncement(_)))
+            .count(),
+        1
+    );
+    assert!(
+        unplaced
+            .iter()
+            .any(|c| matches!(c, Condition::AssertConcurrentSpend(_)))
+    );
+    assert!(
+        unplaced
+            .iter()
+            .any(|c| matches!(c, Condition::AssertHeightRelative(_)))
+    );
+    assert!(unplaced.contains(&Condition::reserve_fee(1)));
+    assert_eq!(unplaced.len(), 4);
+
+    Ok(())
+}
+
+#[test]
+fn test_unplaced_conditions_emitted_by_external_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(5);
+    let (mut spends, deltas) = settlement_only_spends(&mut sim, &mut ctx, alice.puzzle_hash)?;
+    spends.conditions.return_unplaced_conditions = true;
+
+    // The conditions can't be dropped by spending with keys, since there's nowhere to put them.
+    assert!(matches!(
+        spends.clone().finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &keys(alice.puzzle_hash, alice.pk),
+        ),
+        Err(DriverError::CannotEmitConditions)
+    ));
+
+    let finished = spends.prepare(&mut ctx, &deltas, Relation::None)?;
+    let external_conditions = finished.unplaced_conditions.clone().create_coin(
+        alice.puzzle_hash,
+        alice.coin.amount,
+        Memos::None,
+    );
+
+    let mut coin_spends = HashMap::new();
+    for (asset, kind) in finished.unspent() {
+        let SpendKind::Settlement(spend) = kind else {
+            panic!("unexpected conditions spend");
+        };
+        coin_spends.insert(
+            asset.coin().coin_id(),
+            SettlementLayer
+                .construct_spend(&mut ctx, SettlementPaymentsSolution::new(spend.finish()))?,
+        );
+    }
+    finished.spend(&mut ctx, coin_spends)?;
+
+    // A spend outside of the action system emits the conditions instead.
+    StandardLayer::new(alice.pk).spend(&mut ctx, alice.coin, external_conditions)?;
+    let coin_spends = ctx.take();
+    assert_eq!(coin_spends.len(), 2);
+
+    // The settlement spend can't be removed, since the external spend asserts its payment.
+    let partial: Vec<CoinSpend> = coin_spends
+        .iter()
+        .filter(|cs| cs.coin.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into())
+        .cloned()
+        .collect();
+    assert!(
+        sim.clone()
+            .spend_coins(partial, std::slice::from_ref(&alice.sk))
+            .is_err()
+    );
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 14);
+
+    Ok(())
+}
+
+#[test]
+fn test_unplaced_conditions_unused_with_conditions_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(5);
+    let (mut spends, deltas) = settlement_only_spends(&mut sim, &mut ctx, alice.puzzle_hash)?;
+    spends.add(alice.coin);
+    spends.conditions.return_unplaced_conditions = true;
+
+    // There's a spend that can emit the conditions, so nothing is returned.
+    let finished = spends.clone().prepare(&mut ctx, &deltas, Relation::None)?;
+    assert!(finished.unplaced_conditions.is_empty());
+
+    spends.finish_with_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+    sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 14);
+
+    Ok(())
+}
+
+#[test]
+fn test_settlement_change_merged_when_it_would_duplicate_a_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1000);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 2);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+            Action::fee(10),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    // The settlement coin has 1 left over, but it already pays 1 to the change puzzle hash, so its
+    // part of the change is included in the change of the taker's coin rather than a second coin.
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 1),
+        settlement.coin_id()
+    );
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 991),
+        alice.coin.coin_id()
+    );
+    assert_eq!(outputs.xch.len(), 2);
+    assert_eq!(coin_spends.len(), 2);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 992);
+
+    Ok(())
+}
+
+#[test]
+fn test_prepare_clears_stale_unplaced_conditions() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(5);
+    let (mut spends, deltas) = settlement_only_spends(&mut sim, &mut ctx, alice.puzzle_hash)?;
+    spends.add(alice.coin);
+    spends.conditions.return_unplaced_conditions = true;
+    spends.unplaced_conditions = Conditions::new().reserve_fee(1);
+
+    // The conditions are placed on the taker's coin, so nothing is left from before.
+    let finished = spends.prepare(&mut ctx, &deltas, Relation::None)?;
+    assert!(finished.unplaced_conditions.is_empty());
+
+    Ok(())
 }
