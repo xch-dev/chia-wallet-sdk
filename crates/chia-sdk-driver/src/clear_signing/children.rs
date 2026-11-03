@@ -51,8 +51,8 @@ pub struct SecureTheBagInfo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedBagPayment {
     pub payment: BagPayment,
-    /// This is never [`TransferType::SecureTheBag`] or [`TransferType::OfferPreSplit`], since bags aren't nested and
-    /// their payments don't carry fixed conditions.
+    /// This is either [`TransferType::Burned`] or [`TransferType::Sent`]. Bags aren't nested, their payments don't
+    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled.
     pub transfer_type: TransferType,
 }
 
@@ -200,31 +200,29 @@ fn calculate_transfer_type(
     bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
-    // The root hash commits to every payment and to the total amount, so a coin with the root hash and that amount
-    // is guaranteed to pay out to the payments once it's unrolled. If the amount is less, the root can't be spent.
-    // If it's more, the rest is lost to fees, which isn't something we want to show as a bag.
+    // The root hash commits to every payment and to the total amount, so anyone can unroll a coin with the root hash
+    // and that amount to the payments. As with any revocable CAT, the issuer can still revoke the root or its nodes
+    // before then. If the amount is less, the root can't be spent. If it's more, the rest is lost to fees, which isn't
+    // something we want to show as a bag.
     if memos.clawback.is_none()
         && let Some(bag_asset) = bag_asset
         && let Some(bag) = reveals.bag(memos.p2_puzzle_hash, bag_asset)
         && bag.total_amount() == input_amount
     {
+        // An offer in this transaction can't settle a payment that's only created once the bag is unrolled, so a
+        // payment to the settlement puzzle is anyone can spend, rather than offered.
         let payments = bag
             .payments()
             .iter()
-            .map(|payment| {
-                let memos = ParsedMemos {
-                    p2_puzzle_hash: payment.puzzle_hash,
-                    clawback: payment.clawback,
-                    human_readable_memos: Vec::new(),
-                    fixed_conditions: None,
-                };
-
-                Ok(ParsedBagPayment {
-                    payment: *payment,
-                    transfer_type: calculate_transfer_type(reveals, &memos, None, payment.amount)?,
-                })
+            .map(|payment| ParsedBagPayment {
+                payment: *payment,
+                transfer_type: if payment.puzzle_hash == BURN_PUZZLE_HASH {
+                    TransferType::Burned
+                } else {
+                    TransferType::Sent
+                },
             })
-            .collect::<Result<_, DriverError>>()?;
+            .collect();
 
         return Ok(TransferType::SecureTheBag(SecureTheBagInfo {
             format: bag.format(),

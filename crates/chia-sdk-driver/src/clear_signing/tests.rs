@@ -4150,7 +4150,8 @@ fn test_clear_signing_secure_the_bag(
             BagPayment::from_clawback(our_clawback),
             BagPayment::from_clawback(their_clawback),
             BagPayment::new(alice.p2_puzzle_hash, 250),
-            BagPayment::new(BURN_PUZZLE_HASH, 100),
+            BagPayment::new(BURN_PUZZLE_HASH, 50),
+            BagPayment::new(SETTLEMENT_PAYMENT_HASH.into(), 50),
         ],
     )?;
     assert!(bag.depth() > 1);
@@ -4231,7 +4232,7 @@ fn test_clear_signing_secure_the_bag(
     let coins = bag.unroll(&mut ctx, root)?;
     sim.spend_coins(ctx.take(), &[])?;
 
-    assert_eq!(coins.len(), 6);
+    assert_eq!(coins.len(), 7);
     for coin in coins {
         assert!(sim.coin_state(coin.coin().coin_id()).is_some());
     }
