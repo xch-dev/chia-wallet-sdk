@@ -1,0 +1,11 @@
+# .NET build output
+bin/
+obj/
+
+# NuGet packages (restored by dotnet restore)
+*.user
+*.suo
+.vs/
+
+# Test results
+TestResults/

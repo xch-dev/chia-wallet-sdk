@@ -1,0 +1,4 @@
+[bindings.csharp]
+namespace = "ChiaWalletSdk"
+# The crate builds libchia_wallet_sdk_cs; it is shipped as chia_wallet_sdk.
+cdylib_name = "chia_wallet_sdk"

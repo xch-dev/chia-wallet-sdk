@@ -1,10 +1,12 @@
 mod chia_rpc_client;
+mod client_options;
 mod coinset_client;
 mod mock_client;
 mod models;
 mod types;
 
 pub use chia_rpc_client::*;
+pub use client_options::*;
 pub use coinset_client::*;
 pub use mock_client::*;
 pub use models::*;

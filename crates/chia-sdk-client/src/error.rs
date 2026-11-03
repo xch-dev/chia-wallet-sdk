@@ -59,4 +59,7 @@ pub enum ClientError {
 
     #[error("The peer is banned")]
     BannedPeer,
+
+    #[error("Operation timed out after {0:?}")]
+    Timeout(std::time::Duration),
 }
