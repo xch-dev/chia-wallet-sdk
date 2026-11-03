@@ -47,15 +47,22 @@ where
         ctx: &mut SpendContext,
         output: &Output,
     ) -> Result<usize, DriverError> {
-        if let Some(index) = self
-            .items
-            .iter()
-            .position(|item| item.kind.is_allowed(output, &item.asset.constraints()))
-        {
+        if let Some(index) = self.allowed_source(output, |_| true) {
             return Ok(index);
         }
 
         self.intermediate_source(ctx)
+    }
+
+    /// The first spend of the given kind that can create the output.
+    fn allowed_source(
+        &self,
+        output: &Output,
+        predicate: impl Fn(&SpendKind) -> bool,
+    ) -> Option<usize> {
+        self.items.iter().position(|item| {
+            predicate(&item.kind) && item.kind.is_allowed(output, &item.asset.constraints())
+        })
     }
 
     /// Finds a settlement spend that can make every payment in the notarized payment, or creates an
@@ -321,7 +328,9 @@ where
     /// change is created by a conditions spend. For example, when taking an offer with a fee, the
     /// offered amount is still paid (and asserted) by the settlement coins, and the change of the
     /// taker's own coins is created by one of them, rather than by a settlement coin. So unless
-    /// both have something left over, there's a single change coin.
+    /// both have something left over, there's a single change coin. If no settlement coin can
+    /// create its part of the change (because it would duplicate one of its outputs), it's
+    /// included in the change of the conditions spend instead.
     ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
     /// cover the delta outputs, since the transaction would be invalid. Returns
@@ -338,7 +347,20 @@ where
         let change = coin_amount(change)?;
 
         let settlement_change = if self.items.iter().any(|item| item.kind.is_conditions()) {
-            coin_amount(self.settlement_surplus().min(u128::from(change)))?
+            let amount = coin_amount(self.settlement_surplus().min(u128::from(change)))?;
+
+            if amount > 0
+                && self
+                    .allowed_source(
+                        &Output::new(change_puzzle_hash, amount),
+                        SpendKind::is_settlement,
+                    )
+                    .is_some()
+            {
+                amount
+            } else {
+                0
+            }
         } else {
             change
         };
@@ -400,10 +422,8 @@ where
         output: &Output,
         settlement: bool,
     ) -> Result<usize, DriverError> {
-        if let Some(index) = self.items.iter().position(|item| {
-            item.kind.is_settlement() == settlement
-                && item.kind.is_allowed(output, &item.asset.constraints())
-        }) {
+        if let Some(index) = self.allowed_source(output, |kind| kind.is_settlement() == settlement)
+        {
             return Ok(index);
         }
 

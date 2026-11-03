@@ -2916,3 +2916,64 @@ fn test_unplaced_conditions_unused_with_conditions_spend() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_settlement_change_merged_when_it_would_duplicate_a_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(1000);
+    let settlement = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 2);
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    spends.add(settlement);
+    spends.add(alice.coin);
+
+    let (outputs, coin_spends) = build(
+        &mut ctx,
+        spends,
+        &[
+            Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+            Action::fee(10),
+        ],
+        Relation::None,
+        &keys(alice.puzzle_hash, alice.pk),
+    )?;
+
+    // The settlement coin has 1 left over, but it already pays 1 to the change puzzle hash, so its
+    // part of the change is included in the change of the taker's coin rather than a second coin.
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 1),
+        settlement.coin_id()
+    );
+    assert_eq!(
+        output_parent(&coin_spends, &outputs.xch, alice.puzzle_hash, 991),
+        alice.coin.coin_id()
+    );
+    assert_eq!(outputs.xch.len(), 2);
+    assert_eq!(coin_spends.len(), 2);
+
+    sim.spend_coins(coin_spends, &[alice.sk])?;
+
+    assert_eq!(balance(&sim, alice.puzzle_hash), 992);
+
+    Ok(())
+}
+
+#[test]
+fn test_prepare_clears_stale_unplaced_conditions() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = sim.bls(5);
+    let (mut spends, deltas) = settlement_only_spends(&mut sim, &mut ctx, alice.puzzle_hash)?;
+    spends.add(alice.coin);
+    spends.conditions.return_unplaced_conditions = true;
+    spends.unplaced_conditions = Conditions::new().reserve_fee(1);
+
+    // The conditions are placed on the taker's coin, so nothing is left from before.
+    let finished = spends.prepare(&mut ctx, &deltas, Relation::None)?;
+    assert!(finished.unplaced_conditions.is_empty());
+
+    Ok(())
+}

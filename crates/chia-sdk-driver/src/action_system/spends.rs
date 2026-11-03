@@ -331,6 +331,8 @@ impl Spends<Unfinished> {
     /// [`ConditionConfig::return_unplaced_conditions`] is set, they're returned in
     /// [`Spends::unplaced_conditions`] instead.
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
+        self.unplaced_conditions = Conditions::new();
+
         let mut conditions = self.conditions.required.clone().extend(
             if self.conditions.disable_settlement_assertions {
                 vec![]
