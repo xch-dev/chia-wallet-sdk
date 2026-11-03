@@ -30,6 +30,11 @@
           "p2": "P2ConditionsOrSingleton"
         }
       },
+      "reveal_bag": {
+        "args": {
+          "bag": "SecureTheBag"
+        }
+      },
       "reveal_vault_nonce": {
         "args": {
           "nonce": "usize"
@@ -326,7 +331,26 @@
       },
       "as_offer_pre_split": {
         "return": "Option<OfferPreSplitInfo>"
+      },
+      "as_secure_the_bag": {
+        "return": "Option<SecureTheBagInfo>"
       }
+    }
+  },
+  "SecureTheBagInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "format": "BagFormat",
+      "payments": "Vec<ParsedBagPayment>"
+    }
+  },
+  "ParsedBagPayment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "payment": "BagPayment",
+      "transfer_type": "TransferType"
     }
   },
   "OfferPreSplitInfo": {

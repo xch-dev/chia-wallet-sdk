@@ -2956,6 +2956,15 @@ export declare class ParsedAsset {
   asBulletin(): Bulletin | null
 }
 
+export declare class ParsedBagPayment {
+  clone(): ParsedBagPayment
+  constructor(payment: BagPayment, transferType: TransferType)
+  get payment(): BagPayment
+  set payment(value: BagPayment)
+  get transferType(): TransferType
+  set transferType(value: TransferType)
+}
+
 export declare class ParsedBulletin {
   clone(): ParsedBulletin
   constructor(bulletin: Bulletin, p2Puzzle: Puzzle, p2Solution: Program)
@@ -3610,6 +3619,7 @@ export declare class Reveals {
   revealCoinSpend(coinSpend: CoinSpend): void
   revealClawback(clawback: ClawbackV2): void
   revealP2ConditionsOrSingleton(p2: P2ConditionsOrSingleton): void
+  revealBag(bag: SecureTheBag): void
   revealVaultNonce(nonce: bigint): void
 }
 
@@ -4283,6 +4293,15 @@ export declare class SecureTheBag {
   unroll(clvm: Clvm, start: BagCoin): Array<BagCoin>
 }
 
+export declare class SecureTheBagInfo {
+  clone(): SecureTheBagInfo
+  constructor(format: BagFormat, payments: Array<ParsedBagPayment>)
+  get format(): BagFormat
+  set format(value: BagFormat)
+  get payments(): Array<ParsedBagPayment>
+  set payments(value: Array<ParsedBagPayment>)
+}
+
 export declare class SendMessage {
   clone(): SendMessage
   constructor(mode: number, message: Uint8Array, data: Array<Program>)
@@ -4577,6 +4596,7 @@ export declare class TransferType {
   isBurned(): boolean
   isOffered(): boolean
   asOfferPreSplit(): OfferPreSplitInfo | null
+  asSecureTheBag(): SecureTheBagInfo | null
 }
 
 export declare class UpdateDatastoreMerkleRoot {
