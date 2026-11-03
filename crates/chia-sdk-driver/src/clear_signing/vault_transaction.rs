@@ -160,6 +160,13 @@ pub fn parse_vault_transaction(
     let mut verified_spends = Vec::new();
     let mut issuances: Vec<Issuance> = Vec::new();
 
+    // Indices of verified sender path spends whose conditions haven't been recorded, since the expiration time
+    // didn't rule out the other paths yet when they were verified.
+    let mut untrusted_senders = Vec::new();
+
+    // Children of verified spends that are yet to be visited.
+    let mut stack: IndexSet<Bytes32> = IndexSet::new();
+
     for (coin_id, messages) in messages_by_coin {
         let spend = *reveals
             .coin_spend(coin_id)
@@ -191,18 +198,19 @@ pub fn parse_vault_transaction(
             return Err(DriverError::InvalidLinkedCustody);
         };
 
-        verified_spends.push(verified_spend);
+        push_verified_spend(
+            &facts,
+            &mut verified_spends,
+            &mut untrusted_senders,
+            &mut stack,
+            verified_spend,
+        );
     }
 
-    let mut stack: IndexSet<Bytes32> = verified_spends
-        .iter()
-        .flat_map(|spend| {
-            spend
-                .children
-                .iter()
-                .map(|child| child.asset.coin().coin_id())
-        })
-        .collect();
+    // Coins that were visited before anything asserted their spend, and the number of verified spends when they
+    // were last revisited.
+    let mut unasserted: IndexSet<Bytes32> = IndexSet::new();
+    let mut revisited_count = verified_spends.len();
 
     // Once a clawback has expired, anyone can push it through to the receiver without a signature, so the vault
     // only asserts that the clawback coin is spent. The coin can then only be spent by its receiver (the receiver
@@ -214,6 +222,7 @@ pub fn parse_vault_transaction(
     loop {
         while let Some(coin_id) = stack.pop() {
             if !facts.is_spend_asserted(coin_id) {
+                unasserted.insert(coin_id);
                 continue;
             }
 
@@ -260,11 +269,40 @@ pub fn parse_vault_transaction(
                 continue;
             };
 
-            for child in &verified_spend.children {
-                stack.insert(child.asset.coin().coin_id());
-            }
+            push_verified_spend(
+                &facts,
+                &mut verified_spends,
+                &mut untrusted_senders,
+                &mut stack,
+                verified_spend,
+            );
+        }
 
-            verified_spends.push(verified_spend);
+        // Spends verified later in the traversal can lower the expiration time, which can make a sender path spend
+        // trusted after the fact, so its conditions are recorded then.
+        let (trusted_senders, still_untrusted): (Vec<usize>, Vec<usize>) = untrusted_senders
+            .into_iter()
+            .partition(|&index| !is_untrusted_sender(&facts, &verified_spends[index]));
+        untrusted_senders = still_untrusted;
+
+        for &index in &trusted_senders {
+            let spend = &verified_spends[index];
+            record_facts(
+                &mut facts,
+                spend.custody.conditions(),
+                spend.clawback,
+                spend.custody.receives_message(),
+            );
+        }
+
+        // A spend can be asserted after the traversal has already visited its coin, so the coins that weren't
+        // asserted are revisited whenever something new is verified or trusted.
+        if (verified_spends.len() > revisited_count || !trusted_senders.is_empty())
+            && !unasserted.is_empty()
+        {
+            revisited_count = verified_spends.len();
+            stack.extend(unasserted.drain(..));
+            continue;
         }
 
         // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
@@ -320,11 +358,13 @@ pub fn parse_vault_transaction(
                 continue;
             };
 
-            for child in &verified_spend.children {
-                stack.insert(child.asset.coin().coin_id());
-            }
-
-            verified_spends.push(verified_spend);
+            push_verified_spend(
+                &facts,
+                &mut verified_spends,
+                &mut untrusted_senders,
+                &mut stack,
+                verified_spend,
+            );
         }
     }
 
@@ -408,6 +448,45 @@ fn is_expired(facts: &Facts, clawback: &ClawbackV2) -> bool {
     facts
         .actual_earliest_time()
         .is_some_and(|earliest| earliest >= clawback.seconds)
+}
+
+/// Adds a verified spend, queues its children to be visited, and keeps track of it if it's a sender path spend whose
+/// conditions couldn't be recorded yet.
+fn push_verified_spend(
+    facts: &Facts,
+    verified_spends: &mut Vec<VerifiedSpend>,
+    untrusted_senders: &mut Vec<usize>,
+    stack: &mut IndexSet<Bytes32>,
+    verified_spend: VerifiedSpend,
+) {
+    for child in &verified_spend.children {
+        stack.insert(child.asset.coin().coin_id());
+    }
+
+    if is_untrusted_sender(facts, &verified_spend) {
+        untrusted_senders.push(verified_spends.len());
+    }
+
+    verified_spends.push(verified_spend);
+}
+
+/// Whether the transaction expires before the clawback, which rules out the paths a sender path spend could be
+/// replaced with.
+fn is_sender_trusted(facts: &Facts, clawback: &ClawbackV2) -> bool {
+    facts
+        .actual_expiration_time()
+        .is_some_and(|expiration| expiration <= clawback.seconds)
+}
+
+/// Whether a verified spend takes the sender path, but its conditions couldn't be recorded yet.
+fn is_untrusted_sender(facts: &Facts, spend: &VerifiedSpend) -> bool {
+    matches!(
+        spend.clawback,
+        Some(ClawbackInfo {
+            clawback,
+            path: ClawbackPath::Sender,
+        }) if !is_sender_trusted(facts, &clawback)
+    )
 }
 
 fn verify_spend(
@@ -534,9 +613,7 @@ fn record_facts(
     is_message_bound: bool,
 ) {
     let is_trusted = clawback.is_none_or(|info| match info.path {
-        ClawbackPath::Sender => facts
-            .actual_expiration_time()
-            .is_some_and(|expiration| expiration <= info.clawback.seconds),
+        ClawbackPath::Sender => is_sender_trusted(facts, &info.clawback),
         ClawbackPath::Receiver => is_message_bound && is_expired(facts, &info.clawback),
         ClawbackPath::PushThrough => false,
     });
