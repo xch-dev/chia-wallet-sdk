@@ -15,7 +15,7 @@ use crate::{DriverError, Spend, SpendContext};
 use super::BagChild;
 
 /// The message of the coin announcement that each node makes, so that a fee spend can assert it.
-pub(super) const FEE_ANNOUNCEMENT: &[u8] = b"$";
+const FEE_ANNOUNCEMENT: &[u8] = b"$";
 
 /// The default leaf width for a number of payments.
 pub(super) fn default_leaf_width(payment_count: usize) -> usize {
