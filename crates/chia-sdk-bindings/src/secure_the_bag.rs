@@ -1,13 +1,16 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
     self as sdk, BagAsset, BagChild, BagCoin, BagFormat, BagNode, BagPayment, Cat, CatInfo,
-    ClawbackV2,
+    ClawbackV2, SpendContext,
 };
 
-use crate::{Clvm, Program, Spend};
+use chia_bls::PublicKey;
+use clvmr::Allocator;
+
+use crate::{AsProgram, AsPtr, Clvm, Nft, Program, Spend};
 
 /// The bag is shared, since it can hold millions of payments and bindings clone their values.
 #[derive(Clone)]
@@ -254,5 +257,82 @@ impl BagCoinExt for BagCoin {
             Self::Xch(_) => None,
             Self::Cat(cat) => Some(*cat),
         })
+    }
+}
+
+#[derive(Clone)]
+pub struct SecuredMint {
+    pub metadata: Program,
+    pub metadata_updater_puzzle_hash: Bytes32,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_basis_points: u16,
+    pub p2_puzzle_hash: Bytes32,
+    pub melt_public_key: Option<PublicKey>,
+}
+
+impl SecuredMint {
+    fn as_sdk(&self, allocator: &Allocator) -> sdk::SecuredMint {
+        sdk::SecuredMint {
+            metadata: self.metadata.as_ptr(allocator),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_basis_points: self.royalty_basis_points,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+            melt_public_key: self.melt_public_key,
+        }
+    }
+
+    fn with_sdk<T>(&self, f: impl FnOnce(sdk::SecuredMint) -> T) -> T {
+        let ctx = self.metadata.0.lock().unwrap();
+        f(self.as_sdk(&ctx))
+    }
+
+    pub fn pre_launcher_puzzle_hash(&self) -> Result<Bytes32> {
+        Ok(self.with_sdk(|mint| mint.pre_launcher_puzzle_hash()))
+    }
+
+    pub fn eve_p2_puzzle_hash(&self) -> Result<Bytes32> {
+        Ok(self.with_sdk(|mint| mint.eve_p2_puzzle_hash()))
+    }
+
+    pub fn bag_payment(&self) -> Result<BagPayment> {
+        Ok(self.with_sdk(|mint| mint.bag_payment()))
+    }
+
+    pub fn output(&self, pre_launcher: Coin) -> Result<SecuredMintOutput> {
+        let output = self.with_sdk(|mint| mint.output(pre_launcher));
+        Ok(SecuredMintOutput::from_sdk(&output, &self.metadata.0))
+    }
+
+    pub fn mint(&self, clvm: Clvm, pre_launcher: Coin) -> Result<SecuredMintOutput> {
+        let mut ctx = clvm.0.lock().unwrap();
+        let mint = self.as_sdk(&ctx);
+        let output = mint.mint(&mut ctx, pre_launcher)?;
+        Ok(SecuredMintOutput::from_sdk(&output, &clvm.0))
+    }
+
+    pub fn melt(&self, clvm: Clvm, pre_launcher: Coin) -> Result<()> {
+        let mut ctx = clvm.0.lock().unwrap();
+        let mint = self.as_sdk(&ctx);
+        Ok(mint.melt(&mut ctx, pre_launcher)?)
+    }
+}
+
+#[derive(Clone)]
+pub struct SecuredMintOutput {
+    pub pre_launcher: Coin,
+    pub launcher: Coin,
+    pub eve_nft: Nft,
+    pub nft: Nft,
+}
+
+impl SecuredMintOutput {
+    fn from_sdk(output: &sdk::SecuredMintOutput, clvm: &Arc<Mutex<SpendContext>>) -> Self {
+        Self {
+            pre_launcher: output.pre_launcher,
+            launcher: output.launcher,
+            eve_nft: output.eve_nft.as_program(clvm),
+            nft: output.nft.as_program(clvm),
+        }
     }
 }

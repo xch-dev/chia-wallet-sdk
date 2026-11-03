@@ -4226,6 +4226,41 @@ export declare class SecretKey {
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): SecretKey
 }
 
+export declare class SecuredMint {
+  clone(): SecuredMint
+  preLauncherPuzzleHash(): Buffer
+  eveP2PuzzleHash(): Buffer
+  bagPayment(): BagPayment
+  output(preLauncher: Coin): SecuredMintOutput
+  mint(clvm: Clvm, preLauncher: Coin): SecuredMintOutput
+  melt(clvm: Clvm, preLauncher: Coin): void
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, p2PuzzleHash: Uint8Array, meltPublicKey?: PublicKey | undefined | null)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get meltPublicKey(): PublicKey | null
+  set meltPublicKey(value: PublicKey | undefined | null)
+}
+
+export declare class SecuredMintOutput {
+  clone(): SecuredMintOutput
+  get preLauncher(): Coin
+  set preLauncher(value: Coin)
+  get launcher(): Coin
+  set launcher(value: Coin)
+  get eveNft(): Nft
+  set eveNft(value: Nft)
+  get nft(): Nft
+  set nft(value: Nft)
+}
+
 export declare class SecureTheBag {
   clone(): SecureTheBag
   constructor(format: BagFormat, asset: BagAsset, payments: Array<BagPayment>)

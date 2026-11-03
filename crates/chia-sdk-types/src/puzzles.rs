@@ -10,6 +10,7 @@ mod p2_one_of_many;
 mod p2_parent;
 mod p2_singleton;
 mod revocation;
+mod secure_the_mint;
 
 pub use augmented_condition::*;
 pub use cat_makers::*;
@@ -23,6 +24,7 @@ pub use p2_one_of_many::*;
 pub use p2_parent::*;
 pub use p2_singleton::*;
 pub use revocation::*;
+pub use secure_the_mint::*;
 
 #[cfg(feature = "chip-0008")]
 mod splitter;

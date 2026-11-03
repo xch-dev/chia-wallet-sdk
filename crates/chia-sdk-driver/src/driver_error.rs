@@ -371,4 +371,7 @@ pub enum DriverError {
 
     #[error("a payment has the same puzzle hash as node {0} of the bag")]
     BagNodeCollision(Bytes32),
+
+    #[error("the coin isn't the pre-launcher of this secured mint")]
+    NotPreLauncher,
 }

@@ -245,5 +245,56 @@
         "return": "Vec<BagCoin>"
       }
     }
+  },
+  "SecuredMint": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16",
+      "p2_puzzle_hash": "Bytes32",
+      "melt_public_key": "Option<PublicKey>"
+    },
+    "methods": {
+      "pre_launcher_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "eve_p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "bag_payment": {
+        "return": "BagPayment"
+      },
+      "output": {
+        "args": {
+          "pre_launcher": "Coin"
+        },
+        "return": "SecuredMintOutput"
+      },
+      "mint": {
+        "args": {
+          "clvm": "Clvm",
+          "pre_launcher": "Coin"
+        },
+        "return": "SecuredMintOutput"
+      },
+      "melt": {
+        "args": {
+          "clvm": "Clvm",
+          "pre_launcher": "Coin"
+        }
+      }
+    }
+  },
+  "SecuredMintOutput": {
+    "type": "class",
+    "fields": {
+      "pre_launcher": "Coin",
+      "launcher": "Coin",
+      "eve_nft": "Nft",
+      "nft": "Nft"
+    }
   }
 }
