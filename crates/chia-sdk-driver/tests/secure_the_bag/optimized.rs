@@ -46,8 +46,12 @@ mod experimental {
 
     use super::*;
 
-    fn optimized(max_width: usize) -> BagFormat {
-        BagFormat::Optimized { max_width }
+    fn optimized(leaf_width: usize, upper_fan_out: usize, balanced: bool) -> BagFormat {
+        BagFormat::Optimized {
+            leaf_width,
+            upper_fan_out,
+            balanced,
+        }
     }
 
     fn lines(d: usize) -> Vec<BagPayment> {
@@ -70,31 +74,28 @@ mod experimental {
 
     #[test]
     fn optimized_root_creates_small_bags_directly() -> Result<()> {
-        let bag = SecureTheBag::build(optimized(100), BagAsset::Xch, lines(1))?;
+        let bag = SecureTheBag::build(BagFormat::optimized(), BagAsset::Xch, lines(1))?;
         assert_eq!(bag.depth(), 1);
         assert_eq!(fan_outs(&bag), [1]);
 
-        let bag = SecureTheBag::build(optimized(100), BagAsset::Xch, lines(100))?;
+        let bag = SecureTheBag::build(BagFormat::optimized(), BagAsset::Xch, lines(100))?;
         assert_eq!(bag.depth(), 1);
         assert_eq!(fan_outs(&bag), [100]);
 
         Ok(())
     }
 
-    /// 101 payments need two levels, so the fan-out drops to 11 and the root creates 10 leaves.
+    /// Payment `k` goes to leaf `k mod n`, so each leaf has one of the largest payments.
     #[test]
-    fn optimized_balances_levels() -> Result<()> {
+    fn optimized_spreads_payments() -> Result<()> {
         let payments = lines(101);
-        let bag = SecureTheBag::build(optimized(100), BagAsset::Xch, payments.clone())?;
+        let bag = SecureTheBag::build(BagFormat::optimized(), BagAsset::Xch, payments.clone())?;
 
         assert_eq!(bag.depth(), 2);
-        let fan_outs = fan_outs(&bag);
-        assert_eq!(fan_outs[..10], [11, 10, 10, 10, 10, 10, 10, 10, 10, 10]);
-        assert_eq!(fan_outs[10..], [10]);
+        assert_eq!(fan_outs(&bag), [51, 50, 2]);
 
-        // Leaf k has payment k, so each leaf has one of the 10 largest payments
-        for (index, leaf) in bag.nodes().values().take(10).enumerate() {
-            let expected: Vec<_> = payments.iter().skip(index).step_by(10).collect();
+        for (index, leaf) in bag.nodes().values().take(2).enumerate() {
+            let expected: Vec<_> = payments.iter().skip(index).step_by(2).collect();
             let found: Vec<_> = leaf
                 .children
                 .iter()
@@ -106,32 +107,58 @@ mod experimental {
         Ok(())
     }
 
+    /// Balanced levels shrink the nodes above the leaves, without adding a level.
+    #[test]
+    fn optimized_balances_upper_levels() -> Result<()> {
+        let payments = lines(1000);
+
+        let full = SecureTheBag::build(optimized(10, 100, false), BagAsset::Xch, payments.clone())?;
+        assert_eq!(full.depth(), 2);
+        assert_eq!(fan_outs(&full)[100..], [100]);
+
+        let balanced = SecureTheBag::build(optimized(10, 100, true), BagAsset::Xch, payments)?;
+        assert_eq!(balanced.depth(), 2);
+        assert_eq!(fan_outs(&balanced)[100..], [100]);
+
+        let deeper = SecureTheBag::build(optimized(10, 50, true), BagAsset::Xch, lines(1000))?;
+        assert_eq!(deeper.depth(), 3);
+        assert_eq!(fan_outs(&deeper)[100..], [10; 11]);
+
+        Ok(())
+    }
+
     #[test]
     fn optimized_rejects_invalid_width() {
         assert!(matches!(
-            SecureTheBag::build(optimized(0), BagAsset::Xch, lines(1)),
+            SecureTheBag::build(optimized(0, 100, true), BagAsset::Xch, lines(1)),
             Err(DriverError::InvalidBagWidth { width: 0, .. })
         ));
         assert!(matches!(
-            SecureTheBag::build(optimized(1), BagAsset::Xch, lines(2)),
+            SecureTheBag::build(optimized(2, 1, true), BagAsset::Xch, lines(3)),
             Err(DriverError::InvalidBagWidth { width: 1, .. })
         ));
-        assert!(SecureTheBag::build(optimized(1), BagAsset::Xch, lines(1)).is_ok());
+        assert!(SecureTheBag::build(optimized(2, 1, true), BagAsset::Xch, lines(2)).is_ok());
     }
 
     #[rstest]
     fn optimized_boundary_sizes(
         #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset: AssetKind,
         #[values(Clawbacks::None, Clawbacks::Mixed)] clawbacks: Clawbacks,
-        #[values(3, 100)] max_width: usize,
+        #[values((3, 3, false), (3, 3, true), (3, 2, true), (100, 100, true))] config: (
+            usize,
+            usize,
+            bool,
+        ),
     ) -> Result<()> {
-        for size in boundary_sizes(max_width)
+        let (leaf_width, upper_fan_out, balanced) = config;
+        let format = optimized(leaf_width, upper_fan_out, balanced);
+
+        for size in boundary_sizes(leaf_width)
             .into_iter()
-            .filter(|&size| max_width < 100 || size <= max_width + 1)
+            .filter(|&size| leaf_width < 100 || size <= leaf_width + 1)
         {
             let payments = generate(size, Distribution::Uniform, clawbacks, SEED);
-            run(optimized(max_width), asset, &payments, SEED)
-                .with_context(|| format!("{size} payments"))?;
+            run(format, asset, &payments, SEED).with_context(|| format!("{size} payments"))?;
         }
 
         Ok(())
@@ -152,7 +179,7 @@ mod experimental {
     ) -> Result<()> {
         for size in [1, 2, 10, 101] {
             let payments = generate(size, distribution, clawbacks, SEED);
-            run(optimized(3), asset, &payments, SEED)
+            run(optimized(3, 3, true), asset, &payments, SEED)
                 .with_context(|| format!("{size} payments"))?;
             run(BagFormat::optimized(), asset, &payments, SEED)
                 .with_context(|| format!("{size} payments"))?;
@@ -161,13 +188,19 @@ mod experimental {
         Ok(())
     }
 
-    /// Prints a table that compares widths of the optimized format against the other formats, with
+    /// Prints a table that compares the leading optimized shapes against the other formats, with
     /// `--ignored --nocapture`.
     #[test]
     #[ignore = "slow, run in release mode"]
     fn optimized_width_report() -> Result<()> {
-        let mut formats = vec![BagFormat::legacy(), BagFormat::chip0053()];
-        formats.extend([20, 40, 100, 300].map(optimized));
+        let formats = [
+            BagFormat::legacy(),
+            BagFormat::chip0053(),
+            optimized(100, 100, false),
+            optimized(100, 100, true),
+            optimized(100, 10, false),
+            optimized(200, 200, true),
+        ];
 
         let mut rows = Vec::new();
 
@@ -181,10 +214,10 @@ mod experimental {
             rows.push(Metrics::header());
 
             for asset in [AssetKind::Xch, AssetKind::RevocableCat] {
-                for size in [101, 1001, 10_001, 100_000] {
+                for size in [1, 101, 1001, 10_001, 100_000] {
                     let payments = generate(size, distribution, clawbacks, SEED);
 
-                    for &format in &formats {
+                    for format in formats {
                         rows.push(run(format, asset, &payments, SEED)?.row());
                     }
                 }
@@ -195,4 +228,50 @@ mod experimental {
 
         Ok(())
     }
+}
+
+/// Prints the cost of a node with 100 `CREATE_COIN`s, with and without a hint, with `--ignored --nocapture`.
+#[test]
+#[ignore = "only prints a measurement"]
+fn hint_cost() -> Result<()> {
+    use chia_protocol::{Bytes32, Coin, CoinSpend};
+    use chia_puzzle_types::Memos;
+    use chia_sdk_driver::{SpendContext, spend_bundle_cost};
+    use chia_sdk_types::{Condition, conditions::CreateCoin};
+    use clvm_traits::clvm_quote;
+    use clvmr::NodePtr;
+
+    for hinted in [false, true] {
+        let mut ctx = SpendContext::new();
+        let mut conditions = Vec::new();
+
+        for i in 0..100u8 {
+            let puzzle_hash = Bytes32::new([i; 32]);
+            let memos = if hinted {
+                Memos::Some(ctx.alloc(&[puzzle_hash])?)
+            } else {
+                Memos::None
+            };
+            conditions.push(Condition::<NodePtr>::CreateCoin(CreateCoin::new(
+                puzzle_hash,
+                1_000_000_000,
+                memos,
+            )));
+        }
+
+        let puzzle = ctx.alloc(&clvm_quote!(conditions))?;
+        let coin = Coin::new(
+            Bytes32::default(),
+            ctx.tree_hash(puzzle).into(),
+            100_000_000_000,
+        );
+        let coin_spend =
+            CoinSpend::new(coin, ctx.serialize(&puzzle)?, ctx.serialize(&NodePtr::NIL)?);
+        println!(
+            "hinted: {hinted}, cost of 100 children: {}",
+            spend_bundle_cost(&[coin_spend])?
+        );
+    }
+
+    Ok(())
 }

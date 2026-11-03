@@ -64,15 +64,18 @@ pub enum BagFormat {
     /// An experimental format, only used to compare against [`BagFormat::Chip0053`] before the CHIP is finalized. It
     /// will be folded into [`BagFormat::Chip0053`] or removed, so its roots aren't stable.
     ///
-    /// Payments are sorted and spread across each level like [`BagFormat::Chip0053`], and nodes are the same. The
-    /// depth is the smallest that fits `max_width` children per node, and every level uses the smallest fan-out that
-    /// fits in that depth, so nodes are as cheap to spend as they can be without adding a level. The root creates the
-    /// payments directly if there are no more than `max_width` of them.
+    /// Payments are sorted and spread across each level like [`BagFormat::Chip0053`], and nodes are the same, but
+    /// there are no `i` values. There are `ceil(d / leaf_width)` leaves, and each level above has
+    /// `ceil(previous / upper_fan_out)` nodes, or with `balanced`, the fewest levels that fit `upper_fan_out` with the
+    /// smallest fan-out that fits. The root creates the payments directly if there are no more than `leaf_width`.
     #[cfg(feature = "experimental-bag-formats")]
     Optimized {
-        /// The most children of a node. This is only a parameter for comparing widths, and the final format will fix
-        /// it, so the root only depends on the payments.
-        max_width: usize,
+        /// The most payments in a leaf.
+        leaf_width: usize,
+        /// The most children of a node above the leaves.
+        upper_fan_out: usize,
+        /// Whether the levels above the leaves use the smallest fan-out that fits in the fewest levels.
+        balanced: bool,
     },
 }
 
@@ -98,7 +101,9 @@ impl BagFormat {
     #[cfg(feature = "experimental-bag-formats")]
     pub const fn optimized() -> Self {
         Self::Optimized {
-            max_width: optimized::DEFAULT_MAX_WIDTH,
+            leaf_width: optimized::DEFAULT_WIDTH,
+            upper_fan_out: optimized::DEFAULT_WIDTH,
+            balanced: true,
         }
     }
 
@@ -118,7 +123,11 @@ impl BagFormat {
                 fan_outs.iter().fold(leaf_width, usize::max)
             }
             #[cfg(feature = "experimental-bag-formats")]
-            Self::Optimized { max_width } => *max_width,
+            Self::Optimized {
+                leaf_width,
+                upper_fan_out,
+                ..
+            } => (*leaf_width).max(*upper_fan_out),
         }
     }
 
@@ -165,17 +174,34 @@ impl BagFormat {
                 })
             }
             #[cfg(feature = "experimental-bag-formats")]
-            Self::Optimized { max_width } => {
-                // A width of one never reduces the level, unless there's only one payment to begin with
-                if *max_width == 0 || (*max_width == 1 && payment_count > 1) {
+            Self::Optimized {
+                leaf_width,
+                upper_fan_out,
+                balanced,
+            } => {
+                // A fan-out of one never reduces the level above the leaves
+                let invalid = if *leaf_width == 0 {
+                    Some(*leaf_width)
+                } else if *upper_fan_out < 2 && payment_count > *leaf_width {
+                    Some(*upper_fan_out)
+                } else {
+                    None
+                };
+
+                if let Some(width) = invalid {
                     return Err(DriverError::InvalidBagWidth {
-                        width: *max_width,
+                        width,
                         payments: payment_count,
                     });
                 }
 
                 Ok(Grouping::Modulo {
-                    counts: optimized::level_counts(payment_count, *max_width),
+                    counts: optimized::level_counts(
+                        payment_count,
+                        *leaf_width,
+                        *upper_fan_out,
+                        *balanced,
+                    ),
                 })
             }
         }
