@@ -12,25 +12,33 @@ use super::{BagChild, legacy};
 pub enum BagFormat {
     /// The format of bags that Cloud Wallet has already created on chain.
     ///
-    /// Payments are sorted by the puzzle hash of the coin they create, then split into consecutive chunks of
-    /// `leaf_width`, and the resulting nodes are chunked the same way level by level until one remains.
+    /// Payments are sorted by the puzzle hash of the coin they create (unless `sorted` is false), then split into
+    /// consecutive chunks of `leaf_width`, and the resulting nodes are chunked the same way level by level until one
+    /// remains.
     /// Each node is `(q . conditions)`, starting with a `"$"` coin announcement for fee spends to assert.
     /// A single payment without a clawback isn't bagged at all, so the root is the payment's puzzle hash.
     Legacy {
         /// Overrides the default leaf width, which is 100, 250, 500 or 1000 depending on the number of payments.
         leaf_width: Option<usize>,
+        /// Whether payments are sorted. Airdrops are sorted, but NFT bulk mints keep the payments in the order of
+        /// the mints, so the root depends on the order of the input.
+        sorted: bool,
     },
 }
 
 impl BagFormat {
+    /// The legacy format with the default leaf width, with payments sorted.
     pub const fn legacy() -> Self {
-        Self::Legacy { leaf_width: None }
+        Self::Legacy {
+            leaf_width: None,
+            sorted: true,
+        }
     }
 
     /// The maximum number of children of a node in a bag with this many payments.
     pub fn width(&self, payment_count: usize) -> usize {
         match self {
-            Self::Legacy { leaf_width } => {
+            Self::Legacy { leaf_width, .. } => {
                 leaf_width.unwrap_or_else(|| legacy::default_leaf_width(payment_count))
             }
         }
@@ -52,7 +60,11 @@ impl BagFormat {
 
     pub(super) fn sort(&self, payments: &mut [BagChild]) {
         match self {
-            Self::Legacy { .. } => legacy::sort(payments),
+            Self::Legacy { sorted, .. } => {
+                if *sorted {
+                    legacy::sort(payments);
+                }
+            }
         }
     }
 

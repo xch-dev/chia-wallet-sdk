@@ -100,7 +100,7 @@ pub fn generate(
             };
 
             if clawbacks == Clawbacks::Mixed && index % 2 == 0 {
-                BagPayment::clawback(ClawbackV2::new(
+                BagPayment::from_clawback(ClawbackV2::new(
                     Bytes32::new(rng.random()),
                     puzzle_hash,
                     rng.random_range(1..=u64::from(u32::MAX)),
@@ -156,7 +156,7 @@ impl Metrics {
 
 /// Whether the root of the format depends only on the set of payments, and not their order.
 pub fn is_canonical(format: BagFormat) -> bool {
-    matches!(format, BagFormat::Legacy { .. })
+    matches!(format, BagFormat::Legacy { sorted: true, .. })
 }
 
 /// Checks every invariant, including a full unroll in the simulator, and returns the metrics.

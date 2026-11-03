@@ -19,6 +19,7 @@ struct Fixture {
     name: String,
     asset: Asset,
     leaf_width: Option<usize>,
+    sorted: bool,
     expected: Expected,
     payments: Vec<Payment>,
 }
@@ -106,7 +107,7 @@ impl Payment {
         let amount = self.amount.parse()?;
 
         Ok(match &self.clawback {
-            Some(clawback) => BagPayment::clawback(ClawbackV2::new(
+            Some(clawback) => BagPayment::from_clawback(ClawbackV2::new(
                 bytes32(&clawback.sender_puzzle_hash)?,
                 puzzle_hash,
                 clawback.seconds.parse()?,
@@ -203,6 +204,7 @@ fn legacy_golden_vectors() -> Result<()> {
         let name = &fixture.name;
         let format = BagFormat::Legacy {
             leaf_width: fixture.leaf_width,
+            sorted: fixture.sorted,
         };
         let payments = fixture
             .payments

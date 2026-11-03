@@ -23,7 +23,7 @@ impl BagPayment {
         }
     }
 
-    pub fn clawback(clawback: ClawbackV2) -> Self {
+    pub fn from_clawback(clawback: ClawbackV2) -> Self {
         Self {
             puzzle_hash: clawback.receiver_puzzle_hash,
             amount: clawback.amount,

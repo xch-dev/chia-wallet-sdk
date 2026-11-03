@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use chia_sdk_driver::BagFormat;
+use chia_sdk_driver::{BagAsset, BagFormat, SecureTheBag};
 use rstest::rstest;
 
 use crate::harness::{AssetKind, Clawbacks, Distribution, Metrics, boundary_sizes, generate, run};
@@ -12,7 +12,10 @@ fn legacy_boundary_sizes(
     #[values(Clawbacks::None, Clawbacks::Mixed)] clawbacks: Clawbacks,
     #[values(None, Some(3))] leaf_width: Option<usize>,
 ) -> Result<()> {
-    let format = BagFormat::Legacy { leaf_width };
+    let format = BagFormat::Legacy {
+        leaf_width,
+        sorted: true,
+    };
 
     // The default leaf width for up to 1000 payments
     let width = leaf_width.unwrap_or(100);
@@ -24,6 +27,42 @@ fn legacy_boundary_sizes(
     {
         let payments = generate(size, Distribution::Uniform, clawbacks, SEED);
         run(format, asset, &payments, SEED).with_context(|| format!("{size} payments"))?;
+    }
+
+    Ok(())
+}
+
+/// NFT bulk mints bag a one mojo pre-launcher coin per mint, in the order of the mints.
+#[rstest]
+fn legacy_unsorted_mints(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset: AssetKind,
+    #[values(None, Some(3))] leaf_width: Option<usize>,
+) -> Result<()> {
+    let format = BagFormat::Legacy {
+        leaf_width,
+        sorted: false,
+    };
+    let width = leaf_width.unwrap_or(100);
+
+    for size in boundary_sizes(width)
+        .into_iter()
+        .filter(|&size| leaf_width.is_some() || size <= width + 1)
+    {
+        let mut payments = generate(size, Distribution::Equal, Clawbacks::None, SEED);
+        for payment in &mut payments {
+            payment.amount = 1;
+        }
+
+        run(format, asset, &payments, SEED).with_context(|| format!("{size} payments"))?;
+
+        let bag = SecureTheBag::build(format, BagAsset::Xch, payments.clone())?;
+        assert_eq!(bag.payments(), payments);
+
+        if size > 1 {
+            payments.reverse();
+            let reversed = SecureTheBag::build(format, BagAsset::Xch, payments)?;
+            assert_ne!(reversed.root_hash(), bag.root_hash());
+        }
     }
 
     Ok(())
@@ -59,6 +98,7 @@ fn legacy_distributions(
         let payments = generate(size, distribution, clawbacks, SEED);
         let format = BagFormat::Legacy {
             leaf_width: Some(3),
+            sorted: true,
         };
         run(format, asset, &payments, SEED).with_context(|| format!("{size} payments"))?;
         run(BagFormat::legacy(), asset, &payments, SEED)

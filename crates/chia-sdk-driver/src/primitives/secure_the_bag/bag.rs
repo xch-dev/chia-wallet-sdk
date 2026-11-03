@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use chia_protocol::Bytes32;
+use indexmap::IndexMap;
 
-use crate::{Cat, CatSpend, DriverError, SpendContext};
+use crate::{Cat, CatSpend, DriverError, Spend, SpendContext};
 
 use super::{BagAsset, BagCoin, BagFormat, BagPayment};
 
@@ -67,7 +68,7 @@ pub struct SecureTheBag {
     total_amount: u64,
     depth: usize,
     payments: Vec<BagPayment>,
-    nodes: HashMap<Bytes32, BagNode>,
+    nodes: IndexMap<Bytes32, BagNode>,
     parents: HashMap<Bytes32, Bytes32>,
 }
 
@@ -123,7 +124,7 @@ impl SecureTheBag {
             .copied()
             .collect();
 
-        let mut nodes = HashMap::new();
+        let mut nodes = IndexMap::new();
         let mut parents = HashMap::new();
         let mut depth = 0;
 
@@ -203,8 +204,9 @@ impl SecureTheBag {
         &self.payments
     }
 
-    /// Every node in the bag, keyed by its p2 puzzle hash.
-    pub fn nodes(&self) -> &HashMap<Bytes32, BagNode> {
+    /// Every node in the bag, keyed by its p2 puzzle hash, in the order they were built.
+    /// Each level comes before the level above it, so the root is last.
+    pub fn nodes(&self) -> &IndexMap<Bytes32, BagNode> {
         &self.nodes
     }
 
@@ -264,6 +266,20 @@ impl SecureTheBag {
         Some(coins)
     }
 
+    /// The p2 spend of a node, which is the same for every asset. It still needs to be wrapped in the asset's outer
+    /// puzzle, which [`SecureTheBag::spend_node`] does for a given coin.
+    pub fn node_spend(
+        &self,
+        ctx: &mut SpendContext,
+        puzzle_hash: Bytes32,
+    ) -> Result<Spend, DriverError> {
+        let node = self
+            .node(puzzle_hash)
+            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
+
+        self.format.node_spend(ctx, &node.children)
+    }
+
     /// Spends a node coin, and returns each of the coins it creates.
     pub fn spend_node(
         &self,
@@ -275,12 +291,8 @@ impl SecureTheBag {
         }
 
         let puzzle_hash = coin.p2_puzzle_hash();
-
-        let node = self
-            .node(puzzle_hash)
-            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
-
-        let spend = self.format.node_spend(ctx, &node.children)?;
+        let spend = self.node_spend(ctx, puzzle_hash)?;
+        let node = &self.nodes[&puzzle_hash];
 
         match coin {
             BagCoin::Xch(coin) => ctx.spend(coin, spend)?,
@@ -357,7 +369,7 @@ mod tests {
     }
 
     fn clawback(receiver: u8, amount: u64) -> BagPayment {
-        BagPayment::clawback(ClawbackV2::new(
+        BagPayment::from_clawback(ClawbackV2::new(
             Bytes32::new([255; 32]),
             Bytes32::new([receiver; 32]),
             100,
@@ -368,7 +380,10 @@ mod tests {
 
     fn build(width: Option<usize>, payments: Vec<BagPayment>) -> Result<SecureTheBag, DriverError> {
         SecureTheBag::build(
-            BagFormat::Legacy { leaf_width: width },
+            BagFormat::Legacy {
+                leaf_width: width,
+                sorted: true,
+            },
             BagAsset::Xch,
             payments,
         )
@@ -502,6 +517,22 @@ mod tests {
 
         assert_eq!(bag.path(Bytes32::new([10; 32])), None);
 
+        // Nodes are built level by level, so the root comes last
+        assert_eq!(
+            bag.nodes().last().map(|(hash, _)| *hash),
+            Some(bag.root_hash())
+        );
+
+        let mut ctx = SpendContext::new();
+        for &puzzle_hash in bag.nodes().keys() {
+            let spend = bag.node_spend(&mut ctx, puzzle_hash)?;
+            assert_eq!(Bytes32::from(ctx.tree_hash(spend.puzzle)), puzzle_hash);
+        }
+        assert!(matches!(
+            bag.node_spend(&mut ctx, Bytes32::new([9; 32])),
+            Err(DriverError::UnknownBagNode(_))
+        ));
+
         Ok(())
     }
 
@@ -563,6 +594,7 @@ mod tests {
         let bag = SecureTheBag::build(
             BagFormat::Legacy {
                 leaf_width: Some(2),
+                sorted: true,
             },
             asset,
             input,
