@@ -1161,3 +1161,50 @@ test("revoke a cat without actions returns it as revocable change", (t) => {
   const spends2 = new Spends(clvm, issuer.puzzleHash);
   t.throws(() => spends2.addCatForRevocation(normal.cat(normal.cats()[0])[0]));
 });
+
+test("unplaced conditions are returned instead of an intermediate coin", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(12n);
+  alice.addXch(sim, 5n);
+  const aliceCoin = alice.fetchXch(sim)[0];
+
+  // Only a settlement coin is spent, so nothing in the spends can emit conditions
+  const settlement = sim.newCoin(settlementPuzzleHash, 10n);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addXch(settlement);
+  spends.returnUnplacedConditions();
+
+  const deltas = spends.apply([Action.fee(1n)]);
+  const finished = spends.prepare(deltas);
+
+  t.is(finished.pendingSpends().length, 0);
+
+  // The change assertion and the reserved fee are returned for another spend to emit
+  const unplaced = finished.unplacedConditions();
+  t.is(unplaced.length, 2);
+  t.truthy(unplaced.some((condition) => condition.parseAssertPuzzleAnnouncement()));
+  t.is(
+    unplaced.find((condition) => condition.parseReserveFee())?.parseReserveFee()?.amount,
+    1n,
+  );
+
+  finished.spend();
+
+  clvm.spendCoin(
+    aliceCoin,
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend([
+        ...unplaced,
+        clvm.createCoin(alice.puzzleHash, aliceCoin.amount, null),
+      ]),
+    ),
+  );
+
+  sim.spendCoins(clvm.coinSpends(), [alice.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 14n);
+});

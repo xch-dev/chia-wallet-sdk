@@ -189,6 +189,9 @@ impl TestVault {
         let deltas = spends.apply(ctx, actions)?;
         let spends = spends.prepare(ctx, &deltas, Relation::None)?;
 
+        // Conditions that no coin spend could emit are emitted by the vault itself.
+        vault_conditions = vault_conditions.extend(spends.unplaced_conditions.clone());
+
         let mut coin_spends = HashMap::new();
 
         for (asset, kind) in spends.unspent() {

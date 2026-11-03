@@ -30,7 +30,7 @@ use crate::{
     DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, Layer, LinkedOffer, Nft,
     OfferPreSplitInfo, P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset,
     Puzzle, Reveals, SingleCatSpend, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferNftById, TransferType, VaultOutput, iter_final_children,
+    TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction, iter_final_children,
     parse_vault_transaction,
 };
 
@@ -3650,6 +3650,179 @@ fn test_clear_signing_wrong_launcher_id() -> Result<()> {
     let child = &spend.children[0];
     assert_eq!(child.asset.coin().amount, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    Ok(())
+}
+
+/// A coin offered by a one-sided offer, which is spent as a settlement coin by the taker.
+#[derive(Debug, Clone, Copy)]
+enum OfferedCoin {
+    Xch(Coin),
+    Cat(Cat),
+}
+
+struct OneSidedOffer {
+    offered: OfferedCoin,
+    id: Id,
+    asset: ClearSigningAsset,
+    maker_bundle: SpendBundle,
+}
+
+/// Makes an offer of the amount of the asset from a new vault, which requests nothing in return.
+fn make_one_sided_offer(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    asset_kind: AssetKind,
+    amount: u64,
+) -> Result<OneSidedOffer> {
+    let alice = TestVault::mint(sim, ctx, 1000)?;
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(sim, ctx, &alice, asset_kind, 1000)?;
+
+    let result = alice.partial_spend(
+        sim,
+        ctx,
+        &[Action::send(
+            id,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            amount,
+            Memos::None,
+        )],
+    )?;
+
+    let (offered, asset) = if let Some(asset_id) = asset_id {
+        let cat = result.outputs.cats[0]
+            .iter()
+            .find(|cat| cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+            .copied()
+            .unwrap();
+
+        (
+            OfferedCoin::Cat(cat),
+            ClearSigningAsset::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            },
+        )
+    } else {
+        let coin = result
+            .outputs
+            .xch
+            .iter()
+            .find(|coin| coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+            .copied()
+            .unwrap();
+
+        (OfferedCoin::Xch(coin), ClearSigningAsset::Xch)
+    };
+
+    Ok(OneSidedOffer {
+        offered,
+        id,
+        asset,
+        maker_bundle: result.spend_bundle,
+    })
+}
+
+/// Takes the offer with the vault, selecting enough of its XCH for the fee, and makes sure that the
+/// combined transaction is valid.
+fn take_one_sided_offer(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    bob: &TestVault,
+    offer: OneSidedOffer,
+    actions: &[Action],
+    fee: u64,
+    return_unplaced_conditions: bool,
+) -> Result<VaultTransaction> {
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+
+    match offer.offered {
+        OfferedCoin::Xch(coin) => spends.add(coin),
+        OfferedCoin::Cat(cat) => spends.add(cat),
+    }
+
+    spends.conditions.return_unplaced_conditions = return_unplaced_conditions;
+    bob.select_coins(sim, &mut spends, &Deltas::from_actions(&[Action::fee(fee)]))?;
+
+    let result = bob.partial_custom_spend(sim, ctx, actions, spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(reveals, ctx, bob.info.launcher_id, result.delegated_spend)?;
+
+    sim.new_transaction(SpendBundle::new(
+        [
+            offer.maker_bundle.coin_spends,
+            result.spend_bundle.coin_spends,
+        ]
+        .concat(),
+        offer.maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
+    ))?;
+
+    Ok(tx)
+}
+
+fn received_payment_amount(tx: &VaultTransaction, asset: ClearSigningAsset) -> u128 {
+    tx.received_payments
+        .iter()
+        .filter(|payment| payment.asset == asset)
+        .map(|payment| u128::from(payment.payment.amount))
+        .sum()
+}
+
+#[rstest]
+fn test_clear_signing_vault_take_one_sided_offer(
+    #[values(AssetKind::Xch, AssetKind::Cat)] asset_kind: AssetKind,
+    #[values(0, 10)] fee: u64,
+    #[values(false, true)] send_offered: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let offer = make_one_sided_offer(&mut sim, &mut ctx, asset_kind, 1)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let asset = offer.asset;
+
+    // The taker either sends the offered amount to itself, or receives it as change
+    let mut actions = Vec::new();
+
+    if send_offered {
+        let memos = if matches!(asset_kind, AssetKind::Xch) {
+            Memos::None
+        } else {
+            ctx.hint(bob.p2_puzzle_hash)?
+        };
+        actions.push(Action::send(offer.id, bob.p2_puzzle_hash, 1, memos));
+    }
+
+    if fee > 0 {
+        actions.push(Action::fee(fee));
+    }
+
+    let tx = take_one_sided_offer(&mut sim, &mut ctx, &bob, offer, &actions, fee, true)?;
+
+    // Without a fee, the vault doesn't spend any coins, and asserts the payment itself.
+    assert_eq!(tx.spends.len(), usize::from(fee > 0));
+    assert_eq!(tx.reserved_fee, fee);
+
+    // Nothing is unaccounted for, and the received amount is exactly what's asserted.
+    for flow in &tx.asset_flows {
+        assert_eq!(flow.unaccounted_amount, 0);
+    }
+
+    let flow = asset_flow(&tx.asset_flows, asset).unwrap();
+    assert_eq!(flow.received_amount, 1);
+    assert_eq!(received_payment_amount(&tx, asset), 1);
+    assert_eq!(tx.received_payments.len(), 1);
+
+    if fee > 0 {
+        let xch = xch_asset_flow(&tx.asset_flows);
+        assert_eq!(xch.input_amount, 1000);
+        assert_eq!(xch.output_amount, 1000 - u128::from(fee));
+    }
 
     Ok(())
 }

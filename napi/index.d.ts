@@ -1781,6 +1781,7 @@ export declare class EverythingWithSingletonIssuance {
 export declare class FinishedSpends {
   clone(): FinishedSpends
   pendingSpends(): Array<PendingSpend>
+  unplacedConditions(): Array<Program>
   insert(coinId: Uint8Array, spend: Spend): void
   spend(): Outputs
 }
@@ -4206,6 +4207,7 @@ export declare class Spends {
   addOptionalCondition(condition: Program): void
   addRequiredCondition(condition: Program): void
   disableSettlementAssertions(): void
+  returnUnplacedConditions(): void
   selectedXchAmount(): bigint
   selectedAssetIds(): Array<Buffer>
   selectedCatAmount(assetId: Uint8Array): bigint

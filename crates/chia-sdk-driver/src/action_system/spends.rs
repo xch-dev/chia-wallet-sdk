@@ -39,6 +39,11 @@ pub struct Spends<S = Unfinished> {
     /// Conditions that aren't tied to a specific coin, which are attached to a single spend by
     /// [`Spends::prepare`].
     pub conditions: ConditionConfig,
+    /// The transaction-wide conditions that [`Spends::prepare`] couldn't attach to any spend, when
+    /// [`ConditionConfig::return_unplaced_conditions`] is set. The caller must emit them from a
+    /// spend of its own, such as a vault's delegated spend. This is empty until the spends are
+    /// prepared.
+    pub unplaced_conditions: Conditions,
     _state: S,
 }
 
@@ -53,6 +58,15 @@ pub struct ConditionConfig {
     /// Skips the assertions of payments made by settlement coins. This is only safe if something
     /// else ties the settlement spends to the transaction, since otherwise they could be removed.
     pub disable_settlement_assertions: bool,
+    /// If there is no spend that can emit the transaction-wide conditions, returns them in
+    /// [`Spends::unplaced_conditions`] rather than creating an intermediate coin to emit them.
+    ///
+    /// This is for callers that make another spend in the same transaction which isn't part of the
+    /// [`Spends`] (such as the delegated spend of a vault), and can emit the conditions from it. For
+    /// example, when a vault takes an offer without spending any of its own coins, it can assert the
+    /// payments made by the settlement coins itself, rather than spending an intermediate coin. The
+    /// returned conditions include the optional conditions, since there is a spend to emit them.
+    pub return_unplaced_conditions: bool,
 }
 
 /// The coins created by a transaction.
@@ -102,6 +116,7 @@ impl Spends<Unfinished> {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
+            unplaced_conditions: Conditions::new(),
             _state: Unfinished,
         }
     }
@@ -174,21 +189,22 @@ impl Spends<Unfinished> {
         ctx: &mut SpendContext,
         deltas: &Deltas,
     ) -> Result<(), DriverError> {
-        if let Some(change) = self.xch.create_change(
+        let change = self.xch.create_change(
             ctx,
             deltas.get(&Id::Xch).unwrap_or(&Delta::default()),
             self.change_puzzle_hash,
-        )? {
-            self.outputs.xch.push(change);
-        }
+        )?;
+        self.outputs.xch.extend(change);
 
         for (&id, cat) in &mut self.cats {
-            if let Some(change) = cat.create_change(
+            let change = cat.create_change(
                 ctx,
                 deltas.get(&id).unwrap_or(&Delta::default()),
                 self.change_puzzle_hash,
-            )? {
-                self.outputs.cats.entry(id).or_default().push(change);
+            )?;
+
+            if !change.is_empty() {
+                self.outputs.cats.entry(id).or_default().extend(change);
             }
         }
 
@@ -311,7 +327,9 @@ impl Spends<Unfinished> {
     ///
     /// If there is no such spend (for example, when only settlement coins are being spent) and
     /// there are conditions that must be included, an ephemeral coin is created with the
-    /// intermediate puzzle hash so that it can be spent to emit them.
+    /// intermediate puzzle hash so that it can be spent to emit them. If
+    /// [`ConditionConfig::return_unplaced_conditions`] is set, they're returned in
+    /// [`Spends::unplaced_conditions`] instead.
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
         let mut conditions = self.conditions.required.clone().extend(
             if self.conditions.disable_settlement_assertions {
@@ -331,6 +349,11 @@ impl Spends<Unfinished> {
 
         if let Some((_, spend)) = self.iter_conditions_spends().next() {
             spend.add_conditions(conditions);
+            return Ok(());
+        }
+
+        if self.conditions.return_unplaced_conditions {
+            self.unplaced_conditions = conditions;
             return Ok(());
         }
 
@@ -571,13 +594,16 @@ impl Spends<Unfinished> {
             change_puzzle_hash: self.change_puzzle_hash,
             outputs: self.outputs,
             conditions: self.conditions,
+            unplaced_conditions: self.unplaced_conditions,
             _state: Finished,
         })
     }
 
     /// Prepares the spends, and spends every coin with the standard puzzle (using the synthetic key
     /// for its p2 puzzle hash), or with the settlement payments puzzle for settlement coins.
-    /// Returns [`DriverError::MissingKey`] if a key is missing.
+    /// Returns [`DriverError::MissingKey`] if a key is missing, or
+    /// [`DriverError::CannotEmitConditions`] if there are [unplaced conditions](Spends::unplaced_conditions),
+    /// since there's no other spend to emit them from.
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
@@ -586,6 +612,11 @@ impl Spends<Unfinished> {
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
         let spends = self.prepare(ctx, deltas, relation)?;
+
+        if !spends.unplaced_conditions.is_empty() {
+            return Err(DriverError::CannotEmitConditions);
+        }
+
         let mut coin_spends = HashMap::new();
 
         for (asset, kind) in spends.unspent() {
