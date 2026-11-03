@@ -168,6 +168,14 @@
         },
         "return": "LaunchedAuction"
       },
+      "launch_fusion": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "side_a": "Vec<Bytes32>",
+          "side_b": "Vec<Bytes32>"
+        },
+        "return": "LaunchedFusion"
+      },
       "mint_datastore": {
         "args": {
           "parent_coin_id": "Bytes32",

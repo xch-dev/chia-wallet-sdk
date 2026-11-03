@@ -144,6 +144,8 @@ puzzle_constants! {
     xch_cat_maker => XCH_CAT_MAKER_PUZZLE,
     partial_offer => PARTIAL_OFFER_PUZZLE,
     splitter => SPLITTER_PUZZLE,
+    fusion_singleton => FUSION_SINGLETON_PUZZLE,
+    p2_fusion => P2_FUSION_PUZZLE,
     auction_bid_action => AUCTION_BID_ACTION_PUZZLE,
     auction_end_action => AUCTION_END_ACTION_PUZZLE,
     auction_cancel_action => AUCTION_CANCEL_ACTION_PUZZLE,

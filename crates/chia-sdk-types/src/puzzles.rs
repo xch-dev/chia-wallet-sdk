@@ -30,6 +30,12 @@ mod splitter;
 #[cfg(feature = "chip-0008")]
 pub use splitter::*;
 
+#[cfg(feature = "chip-0021")]
+mod fusion;
+
+#[cfg(feature = "chip-0021")]
+pub use fusion::*;
+
 #[cfg(feature = "chip-0052")]
 mod partial_offer;
 
