@@ -23,6 +23,9 @@ pub enum TransferType {
     Offered,
     OfferPreSplit(OfferPreSplitInfo),
     /// The coin is the root of a revealed bag, so its value is paid out to the bag's payments once it's unrolled.
+    ///
+    /// Since the payments are delayed until someone unrolls the bag, the root is treated as a single output that
+    /// leaves the vault, even if some of the payments go back to it.
     SecureTheBag(SecureTheBagInfo),
 }
 
