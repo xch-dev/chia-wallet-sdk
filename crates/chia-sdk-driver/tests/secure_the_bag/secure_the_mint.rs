@@ -21,7 +21,7 @@ struct Fixtures {
 #[derive(Deserialize)]
 struct MintFixture {
     name: String,
-    metadata: Metadata,
+    metadata: MetadataFixture,
     royalty_puzzle_hash: String,
     royalty_basis_points: u16,
     p2_puzzle_hash: String,
@@ -30,7 +30,7 @@ struct MintFixture {
 }
 
 #[derive(Deserialize)]
-struct Metadata {
+struct MetadataFixture {
     edition_number: u64,
     edition_total: u64,
     data_uris: Vec<String>,

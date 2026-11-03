@@ -374,4 +374,10 @@ pub enum DriverError {
 
     #[error("the coin isn't the pre-launcher of this secured mint")]
     NotPreLauncher,
+
+    #[error("a pre-launcher must have an amount of 1, but it has {0}")]
+    InvalidPreLauncherAmount(u64),
+
+    #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
+    NoMeltPublicKey,
 }

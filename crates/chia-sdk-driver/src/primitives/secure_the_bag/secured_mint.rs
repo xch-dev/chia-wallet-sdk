@@ -3,7 +3,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{EveProof, Memos, Proof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{
-    Conditions, Mod,
+    Mod,
     conditions::CreateCoin,
     puzzles::{SecureTheMintLauncherArgs, SecureTheMintLauncherSolution},
 };
@@ -11,7 +11,8 @@ use clvm_traits::{clvm_list, clvm_quote};
 use clvm_utils::ToTreeHash;
 
 use crate::{
-    BagPayment, DriverError, HashedPtr, Launcher, Nft, NftInfo, SingletonInfo, Spend, SpendContext,
+    BagPayment, DriverError, HashedPtr, Launcher, Nft, NftInfo, NftMint, SingletonInfo, Spend,
+    SpendContext,
 };
 
 /// An NFT that is minted by spending a one mojo pre-launcher coin, from the secure the mint puzzle.
@@ -65,12 +66,16 @@ impl SecuredMint {
     }
 
     pub fn pre_launcher_args(&self) -> SecureTheMintLauncherArgs {
+        self.pre_launcher_args_with(self.eve_p2_puzzle_hash())
+    }
+
+    fn pre_launcher_args_with(&self, eve_p2_puzzle_hash: Bytes32) -> SecureTheMintLauncherArgs {
         SecureTheMintLauncherArgs::new(
             self.metadata.tree_hash().into(),
             self.metadata_updater_puzzle_hash,
             self.royalty_puzzle_hash,
             self.royalty_basis_points,
-            self.eve_p2_puzzle_hash(),
+            eve_p2_puzzle_hash,
             self.melt_public_key,
         )
     }
@@ -85,6 +90,8 @@ impl SecuredMint {
     }
 
     /// The p2 puzzle hash of the eve NFT, which sends the NFT to [`SecuredMint::p2_puzzle_hash`] with a hint.
+    ///
+    /// This is the same p2 puzzle that [`Launcher::mint_nft`] creates when there's no transfer condition.
     pub fn eve_p2_puzzle_hash(&self) -> Bytes32 {
         let create_coin = CreateCoin::new(
             self.p2_puzzle_hash,
@@ -94,13 +101,23 @@ impl SecuredMint {
         clvm_quote!(vec![create_coin]).tree_hash().into()
     }
 
-    pub fn eve_p2_spend(&self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
-        let hint = ctx.hint(self.p2_puzzle_hash)?;
-        ctx.delegated_spend(Conditions::new().create_coin(self.p2_puzzle_hash, 1, hint))
+    fn nft_mint(&self) -> NftMint {
+        NftMint {
+            metadata: self.metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_basis_points: self.royalty_basis_points,
+            transfer_condition: None,
+        }
     }
 
     /// The coins that minting from the given pre-launcher coin creates, without spending anything.
     pub fn output(&self, pre_launcher: Coin) -> SecuredMintOutput {
+        self.output_with(pre_launcher, self.eve_p2_puzzle_hash())
+    }
+
+    fn output_with(&self, pre_launcher: Coin, eve_p2_puzzle_hash: Bytes32) -> SecuredMintOutput {
         let launcher = Coin::new(pre_launcher.coin_id(), SINGLETON_LAUNCHER_HASH.into(), 1);
 
         let eve_info = NftInfo::new(
@@ -110,7 +127,7 @@ impl SecuredMint {
             None,
             self.royalty_puzzle_hash,
             self.royalty_basis_points,
-            self.eve_p2_puzzle_hash(),
+            eve_p2_puzzle_hash,
         );
 
         let eve_nft = Nft::new(
@@ -133,56 +150,55 @@ impl SecuredMint {
     }
 
     /// Spends the pre-launcher coin, the launcher and the eve NFT, which sends the NFT to its owner.
+    ///
+    /// The pre-launcher must have an amount of 1, since the launcher it creates always does.
     pub fn mint(
         &self,
         ctx: &mut SpendContext,
         pre_launcher: Coin,
     ) -> Result<SecuredMintOutput, DriverError> {
-        self.spend_pre_launcher(ctx, pre_launcher, true)?;
+        // Any more than this would be lost to the transaction fee
+        if pre_launcher.amount != 1 {
+            return Err(DriverError::InvalidPreLauncherAmount(pre_launcher.amount));
+        }
+
+        let eve_p2_puzzle_hash = self.eve_p2_puzzle_hash();
+        self.spend_pre_launcher(ctx, pre_launcher, eve_p2_puzzle_hash, true)?;
 
         // The pre-launcher creates the launcher and asserts its announcement, so the launcher's parent conditions
         // aren't needed
-        let (_, eve_nft) = Launcher::new(pre_launcher.coin_id(), 1).mint_eve_nft(
-            ctx,
-            self.eve_p2_puzzle_hash(),
-            self.metadata,
-            self.metadata_updater_puzzle_hash,
-            self.royalty_puzzle_hash,
-            self.royalty_basis_points,
-        )?;
+        let (_, nft) = Launcher::new(pre_launcher.coin_id(), 1).mint_nft(ctx, &self.nft_mint())?;
 
-        let eve_p2_spend = self.eve_p2_spend(ctx)?;
-        let nft = eve_nft.spend(ctx, eve_p2_spend)?;
+        let output = self.output_with(pre_launcher, eve_p2_puzzle_hash);
+        debug_assert_eq!(nft, output.nft);
 
-        Ok(SecuredMintOutput {
-            pre_launcher,
-            launcher: Coin::new(pre_launcher.coin_id(), SINGLETON_LAUNCHER_HASH.into(), 1),
-            eve_nft,
-            nft,
-        })
+        Ok(output)
     }
 
     /// Spends the pre-launcher coin without minting. This requires a signature from the melt public key on the message
     /// `0x01`, with the `AGG_SIG_ME` additional data.
     pub fn melt(&self, ctx: &mut SpendContext, pre_launcher: Coin) -> Result<(), DriverError> {
         if self.melt_public_key.is_none() {
-            return Err(DriverError::MissingKey);
+            return Err(DriverError::NoMeltPublicKey);
         }
 
-        self.spend_pre_launcher(ctx, pre_launcher, false)
+        self.spend_pre_launcher(ctx, pre_launcher, self.eve_p2_puzzle_hash(), false)
     }
 
     fn spend_pre_launcher(
         &self,
         ctx: &mut SpendContext,
         pre_launcher: Coin,
+        eve_p2_puzzle_hash: Bytes32,
         mint: bool,
     ) -> Result<(), DriverError> {
-        if pre_launcher.puzzle_hash != self.pre_launcher_puzzle_hash() {
+        let args = self.pre_launcher_args_with(eve_p2_puzzle_hash);
+
+        if pre_launcher.puzzle_hash != Bytes32::from(args.curry_tree_hash()) {
             return Err(DriverError::NotPreLauncher);
         }
 
-        let puzzle = ctx.curry(self.pre_launcher_args())?;
+        let puzzle = ctx.curry(args)?;
         let solution = ctx.alloc(&SecureTheMintLauncherSolution::new(
             mint,
             pre_launcher.coin_id(),
@@ -198,6 +214,7 @@ mod tests {
     use chia_puzzle_types::nft::NftMetadata;
     use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
     use chia_sdk_test::{BlsPair, Simulator};
+    use chia_sdk_types::Conditions;
 
     use crate::{BagAsset, BagCoin, BagFormat, SecureTheBag, StandardLayer};
 
@@ -321,7 +338,7 @@ mod tests {
         let pre_launcher = Coin::new(Bytes32::default(), mint.pre_launcher_puzzle_hash(), 1);
         assert!(matches!(
             mint.melt(&mut ctx, pre_launcher),
-            Err(DriverError::MissingKey)
+            Err(DriverError::NoMeltPublicKey)
         ));
 
         let mint = mint.with_melt_public_key(melter.pk);
@@ -350,6 +367,14 @@ mod tests {
             mint.mint(&mut ctx, coin),
             Err(DriverError::NotPreLauncher)
         ));
+
+        // The extra mojos would go to the fee
+        let coin = Coin::new(Bytes32::default(), mint.pre_launcher_puzzle_hash(), 2);
+        assert!(matches!(
+            mint.mint(&mut ctx, coin),
+            Err(DriverError::InvalidPreLauncherAmount(2))
+        ));
+        assert!(ctx.take().is_empty());
 
         Ok(())
     }
