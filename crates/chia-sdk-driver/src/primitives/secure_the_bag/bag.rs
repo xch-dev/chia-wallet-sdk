@@ -336,3 +336,284 @@ impl SecureTheBag {
         Ok(payments)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_protocol::Coin;
+    use chia_puzzle_types::cat::GenesisByCoinIdTailArgs;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
+    use clvm_utils::ToTreeHash;
+
+    use crate::{ClawbackV2, StandardLayer};
+
+    use super::*;
+
+    fn payments(count: u8) -> Vec<BagPayment> {
+        (0..count)
+            .map(|i| BagPayment::new(Bytes32::new([i; 32]), u64::from(i) + 1))
+            .collect()
+    }
+
+    fn clawback(receiver: u8, amount: u64) -> BagPayment {
+        BagPayment::clawback(ClawbackV2::new(
+            Bytes32::new([255; 32]),
+            Bytes32::new([receiver; 32]),
+            100,
+            amount,
+            true,
+        ))
+    }
+
+    fn build(width: Option<usize>, payments: Vec<BagPayment>) -> Result<SecureTheBag, DriverError> {
+        SecureTheBag::build(
+            BagFormat::Legacy { leaf_width: width },
+            BagAsset::Xch,
+            payments,
+        )
+    }
+
+    #[test]
+    fn test_rejects_invalid_payments() {
+        assert!(matches!(build(None, vec![]), Err(DriverError::EmptyBag)));
+
+        let mut duplicate = payments(3);
+        duplicate.push(BagPayment::new(Bytes32::new([1; 32]), 5));
+        assert!(matches!(
+            build(None, duplicate),
+            Err(DriverError::DuplicateBagPayment(puzzle_hash)) if puzzle_hash == Bytes32::new([1; 32])
+        ));
+
+        assert!(matches!(
+            build(None, vec![clawback(1, 5), clawback(1, 5)]),
+            Err(DriverError::DuplicateBagPayment(_))
+        ));
+
+        let overflow = vec![
+            BagPayment::new(Bytes32::new([1; 32]), u64::MAX),
+            BagPayment::new(Bytes32::new([2; 32]), 1),
+        ];
+        assert!(matches!(
+            build(None, overflow),
+            Err(DriverError::AmountOverflow)
+        ));
+
+        let mut wrong_receiver = clawback(1, 5);
+        wrong_receiver.puzzle_hash = Bytes32::new([2; 32]);
+        assert!(matches!(
+            build(None, vec![wrong_receiver]),
+            Err(DriverError::BagClawbackMismatch)
+        ));
+
+        let mut wrong_amount = clawback(1, 5);
+        wrong_amount.amount = 6;
+        assert!(matches!(
+            build(None, vec![wrong_amount]),
+            Err(DriverError::BagClawbackMismatch)
+        ));
+    }
+
+    #[test]
+    fn test_rejects_invalid_width() {
+        assert!(matches!(
+            build(Some(0), payments(1)),
+            Err(DriverError::InvalidBagWidth { width: 0, .. })
+        ));
+        assert!(matches!(
+            build(Some(1), payments(2)),
+            Err(DriverError::InvalidBagWidth { width: 1, .. })
+        ));
+        assert!(build(Some(1), vec![clawback(1, 5)]).is_ok());
+    }
+
+    #[test]
+    fn test_total_can_be_max() -> Result<()> {
+        let bag = build(
+            None,
+            vec![
+                BagPayment::new(Bytes32::new([1; 32]), u64::MAX - 1),
+                BagPayment::new(Bytes32::new([2; 32]), 1),
+            ],
+        )?;
+        assert_eq!(bag.total_amount(), u64::MAX);
+        Ok(())
+    }
+
+    #[test]
+    fn test_receiver_with_and_without_clawback() -> Result<()> {
+        let bag = build(
+            None,
+            vec![BagPayment::new(Bytes32::new([1; 32]), 5), clawback(1, 5)],
+        )?;
+        assert_eq!(bag.payments().len(), 2);
+        assert_eq!(bag.total_amount(), 10);
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_payment() -> Result<()> {
+        let bag = build(None, payments(1))?;
+        assert_eq!(bag.root_hash(), Bytes32::new([0; 32]));
+        assert_eq!(bag.depth(), 0);
+        assert!(bag.nodes().is_empty());
+        assert_eq!(bag.path(bag.root_hash()), Some(vec![]));
+
+        let payment = clawback(1, 5);
+        let bag = build(None, vec![payment])?;
+        assert_eq!(bag.depth(), 1);
+        assert_eq!(bag.nodes().len(), 1);
+        assert_eq!(
+            bag.path(payment.coin_puzzle_hash()),
+            Some(vec![bag.root_hash()])
+        );
+        assert_eq!(
+            payment.coin_puzzle_hash(),
+            Bytes32::from(payment.clawback.unwrap().tree_hash())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sorted_into_levels() -> Result<()> {
+        let mut input = payments(10);
+        input.reverse();
+
+        let bag = build(Some(3), input)?;
+        assert_eq!(bag.payments(), payments(10));
+        assert_eq!(bag.depth(), 3);
+        assert_eq!(bag.nodes().len(), 4 + 2 + 1);
+
+        let root = bag.node(bag.root_hash()).unwrap();
+        assert_eq!(root.amount, 55);
+        assert_eq!(root.children.len(), 2);
+
+        let path = bag.path(Bytes32::new([9; 32])).unwrap();
+        assert_eq!(path.len(), 3);
+        assert_eq!(path[0], bag.root_hash());
+        assert_eq!(
+            bag.node(path[2]).unwrap().children,
+            vec![BagChild::Payment {
+                puzzle_hash: Bytes32::new([9; 32]),
+                payment: BagPayment::new(Bytes32::new([9; 32]), 10),
+            }]
+        );
+
+        assert_eq!(bag.path(Bytes32::new([10; 32])), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_spend_path_xch() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let bag = build(Some(3), payments(10))?;
+        let alice = sim.bls(bag.total_amount());
+
+        let hint = ctx.hint(bag.root_hash())?;
+        StandardLayer::new(alice.pk).spend(
+            &mut ctx,
+            alice.coin,
+            Conditions::new().create_coin(bag.root_hash(), bag.total_amount(), hint),
+        )?;
+        let root = BagCoin::Xch(Coin::new(
+            alice.coin.coin_id(),
+            bag.root_hash(),
+            bag.total_amount(),
+        ));
+
+        let target = Bytes32::new([4; 32]);
+        let coins = bag.coin_path(root, target).unwrap();
+        assert_eq!(coins.len(), 4);
+
+        let payment = bag.spend_path(&mut ctx, root, target)?;
+        assert_eq!(payment, coins[3]);
+        assert_eq!(payment.coin().amount, 5);
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let coin_id = payment.coin().coin_id();
+        assert!(sim.coin_state(coin_id).is_some());
+        assert_eq!(sim.hinted_coins(target), vec![coin_id]);
+
+        // Its siblings are created too, but payments in other leaves aren't
+        assert_eq!(sim.hinted_coins(Bytes32::new([3; 32])).len(), 1);
+        assert!(sim.hinted_coins(Bytes32::new([0; 32])).is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unroll_revocable_cat() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1000);
+        let asset = BagAsset::RevocableCat {
+            asset_id: GenesisByCoinIdTailArgs::curry_tree_hash(alice.coin.coin_id()).into(),
+            hidden_puzzle_hash: alice.puzzle_hash,
+        };
+
+        let mut input = payments(5);
+        input.push(clawback(9, 985));
+
+        let bag = SecureTheBag::build(
+            BagFormat::Legacy {
+                leaf_width: Some(2),
+            },
+            asset,
+            input,
+        )?;
+
+        let hint = ctx.hint(bag.root_hash())?;
+        let (issue, cats) = Cat::single_issuance(
+            &mut ctx,
+            alice.coin.coin_id(),
+            Some(alice.puzzle_hash),
+            1000,
+            Conditions::new().create_coin(bag.root_hash(), 1000, hint),
+        )?;
+        StandardLayer::new(alice.pk).spend(&mut ctx, alice.coin, issue)?;
+
+        let root = BagCoin::Cat(cats[0]);
+        assert_eq!(root.coin().puzzle_hash, bag.root_puzzle_hash());
+
+        // The coin must match the asset and be a node
+        assert!(matches!(
+            bag.spend_node(&mut ctx, BagCoin::Xch(root.coin())),
+            Err(DriverError::IncompatibleAssetInfo)
+        ));
+        let payment_coin = root.child(Bytes32::new([0; 32]), 1);
+        assert!(matches!(
+            bag.spend_node(&mut ctx, payment_coin),
+            Err(DriverError::UnknownBagNode(_))
+        ));
+
+        let coins = bag.unroll(&mut ctx, root)?;
+        assert_eq!(coins.len(), 6);
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        for payment in bag.payments() {
+            let coin = coins
+                .iter()
+                .find(|coin| coin.p2_puzzle_hash() == payment.coin_puzzle_hash())
+                .unwrap();
+            assert_eq!(
+                coin.coin().puzzle_hash,
+                asset.puzzle_hash(payment.coin_puzzle_hash())
+            );
+            assert_eq!(coin.coin().amount, payment.amount);
+            assert!(sim.coin_state(coin.coin().coin_id()).is_some());
+            assert!(
+                sim.hinted_coins(payment.puzzle_hash)
+                    .contains(&coin.coin().coin_id())
+            );
+        }
+
+        Ok(())
+    }
+}

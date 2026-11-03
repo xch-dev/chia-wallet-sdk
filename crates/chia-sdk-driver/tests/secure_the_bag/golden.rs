@@ -178,20 +178,21 @@ fn edges(bag: &SecureTheBag) -> Result<Vec<Edge>> {
 }
 
 fn edges_digest(edges: &[Edge]) -> String {
-    let lines: String = edges
-        .iter()
-        .map(|edge| {
-            format!(
-                "{} {} {} {} {}\n",
-                edge.parent,
-                edge.child,
-                edge.amount,
-                edge.parent_puzzle_reveal,
-                edge.parent_inner_solution
-            )
-        })
-        .collect();
-    sha256(lines.as_bytes())
+    let mut hasher = Sha256::new();
+
+    for edge in edges {
+        let line = format!(
+            "{} {} {} {} {}\n",
+            edge.parent,
+            edge.child,
+            edge.amount,
+            edge.parent_puzzle_reveal,
+            edge.parent_inner_solution
+        );
+        hasher.update(line.as_bytes());
+    }
+
+    hex::encode(hasher.finalize())
 }
 
 #[test]
