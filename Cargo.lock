@@ -554,10 +554,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-pos2"
-version = "0.6.1"
-
-[[package]]
 name = "chia-protocol"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
