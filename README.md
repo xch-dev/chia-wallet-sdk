@@ -56,6 +56,7 @@ The Rust crate re-exports a set of smaller crates, which can also be used indivi
 | `chip-0052`             | Partial offers ([CHIP-0052](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0052.md))          |
 | `action-layer`          | Action layer puzzles and drivers                                                                          |
 | `auction`               | English auctions for NFTs, built on the action layer                                                      |
+| `pooling`               | Plot NFTs ([pooling puzzles](https://chialisp.com/pooling))                                               |
 | `offer-compression`     | Compression and decompression of offer files                                                              |
 | `peer-simulator`        | Simulated full node peer for networking tests                                                             |
 | `native-tls` / `rustls` | TLS backend for network connections                                                                       |

@@ -43,6 +43,15 @@ pub enum DriverError {
     )]
     InvalidSplitter,
 
+    #[error("invalid pool state: {0}")]
+    InvalidPoolState(&'static str),
+
+    #[error("invalid plot NFT transition: {0}")]
+    InvalidPlotNftTransition(&'static str),
+
+    #[error("invalid pool reward: {0}")]
+    InvalidPoolReward(&'static str),
+
     #[error("missing child")]
     MissingChild,
 
