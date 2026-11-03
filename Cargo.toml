@@ -22,7 +22,6 @@ members = [
     "wasm",
     "pyo3",
     "pyo3/stub-generator",
-    "patches/chia-pos2"
 ]
 
 [workspace.package]
@@ -196,10 +195,6 @@ rue-compiler = "0.11.0"
 rue-options = "0.11.0"
 rue-lir = "0.11.0"
 colored = "3.1.1"
-
-# chia-protocol depends on chia-pos2, which compiles C++ that can't target WASM.
-[patch.crates-io]
-chia-pos2 = { path = "./patches/chia-pos2" }
 
 [profile.release]
 lto = true
