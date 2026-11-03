@@ -347,4 +347,37 @@ pub enum DriverError {
 
     #[error("consensus validation failed: {0}")]
     Validation(#[from] chia_consensus::validation_error::ValidationErr),
+
+    #[error("a bag must contain at least one payment")]
+    EmptyBag,
+
+    #[error("the bag already has a payment that creates a coin with puzzle hash {0}")]
+    DuplicateBagPayment(Bytes32),
+
+    #[error("a bag payment's clawback must have the same receiver and amount as the payment")]
+    BagClawbackMismatch,
+
+    #[error("invalid bag width {width} for {payments} payments")]
+    InvalidBagWidth { width: usize, payments: usize },
+
+    #[error("puzzle hash {0} is not part of this bag")]
+    UnknownBagNode(Bytes32),
+
+    #[error("the coin isn't on the path to {0} in this bag")]
+    NotBagAncestor(Bytes32),
+
+    #[error("the coin's amount doesn't match the bag")]
+    BagAmountMismatch,
+
+    #[error("a payment has the same puzzle hash as node {0} of the bag")]
+    BagNodeCollision(Bytes32),
+
+    #[error("the coin isn't the pre-launcher of this secured mint")]
+    NotPreLauncher,
+
+    #[error("a pre-launcher must have an amount of 1, but it has {0}")]
+    InvalidPreLauncherAmount(u64),
+
+    #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
+    NoMeltPublicKey,
 }

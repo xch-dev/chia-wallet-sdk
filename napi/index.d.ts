@@ -481,6 +481,71 @@ export declare class AuctionTimings {
   set gracePeriod(value: bigint)
 }
 
+export declare class BagAsset {
+  clone(): BagAsset
+  static xch(): BagAsset
+  static cat(assetId: Uint8Array): BagAsset
+  static revocableCat(assetId: Uint8Array, hiddenPuzzleHash: Uint8Array): BagAsset
+  assetId(): Buffer | null
+  hiddenPuzzleHash(): Buffer | null
+  puzzleHash(p2PuzzleHash: Uint8Array): Buffer
+  catInfo(p2PuzzleHash: Uint8Array): CatInfo | null
+}
+
+export declare class BagChild {
+  clone(): BagChild
+  puzzleHash(): Buffer
+  amount(): bigint
+  isNode(): boolean
+  payment(): BagPayment | null
+}
+
+export declare class BagCoin {
+  clone(): BagCoin
+  static xch(coin: Coin): BagCoin
+  static cat(cat: Cat): BagCoin
+  coin(): Coin
+  p2PuzzleHash(): Buffer
+  child(p2PuzzleHash: Uint8Array, amount: bigint): BagCoin
+  toCat(): Cat | null
+}
+
+export declare class BagFormat {
+  clone(): BagFormat
+  static legacy(leafWidth: bigint | undefined | null, sorted: boolean): BagFormat
+  width(paymentCount: bigint): bigint
+  toLegacy(): BagFormatLegacy | null
+}
+
+export declare class BagFormatLegacy {
+  clone(): BagFormatLegacy
+  get leafWidth(): bigint | null
+  set leafWidth(value: bigint | undefined | null)
+  get sorted(): boolean
+  set sorted(value: boolean)
+}
+
+export declare class BagNode {
+  clone(): BagNode
+  get amount(): bigint
+  set amount(value: bigint)
+  get children(): Array<BagChild>
+  set children(value: Array<BagChild>)
+}
+
+export declare class BagPayment {
+  clone(): BagPayment
+  static fromClawback(clawback: ClawbackV2): BagPayment
+  coinPuzzleHash(): Buffer
+  constructor(puzzleHash: Uint8Array, amount: bigint, clawback?: ClawbackV2 | undefined | null)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get clawback(): ClawbackV2 | null
+  set clawback(value: ClawbackV2 | undefined | null)
+}
+
 export declare class BlockchainState {
   clone(): BlockchainState
   constructor(averageBlockTime: bigint, blockMaxCost: bigint, difficulty: bigint, genesisChallengeInitialized: boolean, mempoolCost: bigint, mempoolFees: bigint, mempoolMaxTotalCost: bigint, mempoolMinFees: MempoolMinFees, mempoolSize: number, nodeId: Uint8Array, peak: BlockRecord, space: bigint, subSlotIters: bigint, sync: SyncState)
@@ -4159,6 +4224,63 @@ export declare class SecretKey {
   deriveHardenedPath(path: Array<number>): SecretKey
   deriveSynthetic(): SecretKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): SecretKey
+}
+
+export declare class SecuredMint {
+  clone(): SecuredMint
+  preLauncherPuzzleHash(): Buffer
+  eveP2PuzzleHash(): Buffer
+  bagPayment(): BagPayment
+  output(preLauncher: Coin): SecuredMintOutput
+  mint(clvm: Clvm, preLauncher: Coin): SecuredMintOutput
+  melt(clvm: Clvm, preLauncher: Coin): void
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, p2PuzzleHash: Uint8Array, meltPublicKey?: PublicKey | undefined | null)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get meltPublicKey(): PublicKey | null
+  set meltPublicKey(value: PublicKey | undefined | null)
+}
+
+export declare class SecuredMintOutput {
+  clone(): SecuredMintOutput
+  get preLauncher(): Coin
+  set preLauncher(value: Coin)
+  get launcher(): Coin
+  set launcher(value: Coin)
+  get eveNft(): Nft
+  set eveNft(value: Nft)
+  get nft(): Nft
+  set nft(value: Nft)
+}
+
+export declare class SecureTheBag {
+  clone(): SecureTheBag
+  constructor(format: BagFormat, asset: BagAsset, payments: Array<BagPayment>)
+  format(): BagFormat
+  asset(): BagAsset
+  rootHash(): Buffer
+  rootPuzzleHash(): Buffer
+  totalAmount(): bigint
+  depth(): bigint
+  payments(): Array<BagPayment>
+  nodePuzzleHashes(): Array<Buffer>
+  node(puzzleHash: Uint8Array): BagNode | null
+  parent(puzzleHash: Uint8Array): Buffer | null
+  path(puzzleHash: Uint8Array): Array<Buffer> | null
+  amount(puzzleHash: Uint8Array): bigint | null
+  coinPath(start: BagCoin, puzzleHash: Uint8Array): Array<BagCoin>
+  nodeSpend(clvm: Clvm, puzzleHash: Uint8Array): Spend
+  spendNode(clvm: Clvm, coin: BagCoin): Array<BagCoin>
+  spendPath(clvm: Clvm, start: BagCoin, puzzleHash: Uint8Array): BagCoin
+  unroll(clvm: Clvm, start: BagCoin): Array<BagCoin>
 }
 
 export declare class SendMessage {
