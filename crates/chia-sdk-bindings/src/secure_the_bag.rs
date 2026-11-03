@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    self as sdk, BagAsset, BagChild, BagCoin, BagFormat, BagNode, BagPayment, Cat, CatInfo,
-    ClawbackV2, SpendContext,
+    self as sdk, BagAsset, BagChild, BagCoin, BagFanOuts, BagFormat, BagNode, BagPayment, Cat,
+    CatInfo, ClawbackV2, SpendContext,
 };
 
 use chia_bls::PublicKey;
@@ -123,10 +123,24 @@ pub struct BagFormatLegacy {
     pub sorted: bool,
 }
 
+#[derive(Clone)]
+pub struct BagFormatChip0053 {
+    pub leaf_width: Option<usize>,
+    pub fan_outs: Option<Vec<usize>>,
+    pub sorted: bool,
+}
+
 pub trait BagFormatExt: Sized {
     fn legacy(leaf_width: Option<usize>, sorted: bool) -> Result<Self>;
+    fn chip0053(
+        leaf_width: Option<usize>,
+        fan_outs: Option<Vec<usize>>,
+        sorted: bool,
+    ) -> Result<Self>;
     fn width(&self, payment_count: usize) -> Result<usize>;
+    fn fan_outs(&self, payment_count: usize) -> Result<Option<Vec<usize>>>;
     fn to_legacy(&self) -> Result<Option<BagFormatLegacy>>;
+    fn to_chip0053(&self) -> Result<Option<BagFormatChip0053>>;
 }
 
 impl BagFormatExt for BagFormat {
@@ -134,13 +148,48 @@ impl BagFormatExt for BagFormat {
         Ok(Self::Legacy { leaf_width, sorted })
     }
 
+    fn chip0053(
+        leaf_width: Option<usize>,
+        fan_outs: Option<Vec<usize>>,
+        sorted: bool,
+    ) -> Result<Self> {
+        Ok(Self::Chip0053 {
+            leaf_width,
+            fan_outs: fan_outs
+                .map(|fan_outs| BagFanOuts::new(&fan_outs))
+                .transpose()?,
+            sorted,
+        })
+    }
+
     fn width(&self, payment_count: usize) -> Result<usize> {
         Ok(self.width(payment_count))
+    }
+
+    fn fan_outs(&self, payment_count: usize) -> Result<Option<Vec<usize>>> {
+        Ok(self
+            .fan_outs(payment_count)
+            .map(|fan_outs| fan_outs.iter().collect()))
     }
 
     fn to_legacy(&self) -> Result<Option<BagFormatLegacy>> {
         match *self {
             Self::Legacy { leaf_width, sorted } => Ok(Some(BagFormatLegacy { leaf_width, sorted })),
+            _ => Ok(None),
+        }
+    }
+
+    fn to_chip0053(&self) -> Result<Option<BagFormatChip0053>> {
+        match *self {
+            Self::Chip0053 {
+                leaf_width,
+                fan_outs,
+                sorted,
+            } => Ok(Some(BagFormatChip0053 {
+                leaf_width,
+                fan_outs: fan_outs.map(|fan_outs| fan_outs.iter().collect()),
+                sorted,
+            })),
             _ => Ok(None),
         }
     }

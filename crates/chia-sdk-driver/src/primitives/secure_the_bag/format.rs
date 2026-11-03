@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 
 use crate::{DriverError, Spend, SpendContext};
 
-use super::{BagChild, legacy};
+use super::{BagChild, BagFanOuts, chip0053, legacy};
 
 /// Selects how a bag's payments are ordered and grouped into nodes, and what conditions each node outputs.
 ///
@@ -24,6 +24,40 @@ pub enum BagFormat {
         /// the mints, so the root depends on the order of the input.
         sorted: bool,
     },
+    /// The format in [CHIP-0053](https://github.com/Chia-Network/chips/pull/183), with a reading for each detail that
+    /// the CHIP leaves open.
+    ///
+    /// In the CHIP's terms, `d` is the number of payments, `c` is `leaf_width`, `i1`, `i2` and so on are `fan_outs`,
+    /// and there are `n = ceil(d / c)` leaves.
+    ///
+    /// - Payment `k`, counting from 0, goes to leaf `k mod n`. Leaf `k` goes to node `k mod (i1 * ... * ij)` of the
+    ///   level above it, and so on up to the `i1` nodes that the root creates. The levels under the root therefore
+    ///   have `i1`, `i1 * i2`, ... and `n` nodes, and each `i` value is how many children each node of the level above
+    ///   has (the last one is a maximum). This reproduces Examples 2 and 3, which the CHIP's definition of `i` as the
+    ///   most coins at a level doesn't. With three levels, the leaves are grouped by the number of nodes above them,
+    ///   rather than by `i2` as the CHIP's text says.
+    /// - Each node creates its children in the order of the level, so payments are created in the order of the input.
+    /// - Sorted payments are ordered by amount, largest first, and then by the puzzle hash of the coin each payment
+    ///   creates. Unsorted payments keep the order of the input, like the lines of the CHIP's CSV file.
+    /// - Nodes are the same as in [`BagFormat::Legacy`]: `(q . conditions)`, starting with a `"$"` coin announcement,
+    ///   with each child hinted to its puzzle hash, or for a clawback payment, to the receiver with the clawback memo.
+    ///   Only the order and grouping differ.
+    /// - The root is always a node above the `i1` level, even for a single payment.
+    /// - Duplicate payments are rejected, like in every format.
+    /// - The CHIP's optional URL memo is on the coin that funds the root, so it isn't part of the bag.
+    ///
+    /// The `i` values default to [`BagFanOuts::recommended`]. Since `c` and the `i` values change the root, a bag that
+    /// uses other values can only be rebuilt if they're published along with the payments.
+    ///
+    /// Building fails if a node would have no children, or more children than `c` or its `i` value.
+    Chip0053 {
+        /// Overrides `c`, the most payments in a leaf, which is 100 by default.
+        leaf_width: Option<usize>,
+        /// Overrides the `i` values, which are [`BagFanOuts::recommended`] by default.
+        fan_outs: Option<BagFanOuts>,
+        /// Whether payments are sorted by amount. Otherwise, the root depends on the order of the input.
+        sorted: bool,
+    },
 }
 
 impl BagFormat {
@@ -35,12 +69,42 @@ impl BagFormat {
         }
     }
 
+    /// The CHIP-0053 format with the default `c` and `i` values, with payments sorted.
+    pub const fn chip0053() -> Self {
+        Self::Chip0053 {
+            leaf_width: None,
+            fan_outs: None,
+            sorted: true,
+        }
+    }
+
     /// The maximum number of children of a node in a bag with this many payments.
     pub fn width(&self, payment_count: usize) -> usize {
         match self {
             Self::Legacy { leaf_width, .. } => {
                 leaf_width.unwrap_or_else(|| legacy::default_leaf_width(payment_count))
             }
+            Self::Chip0053 {
+                leaf_width,
+                fan_outs,
+                ..
+            } => {
+                let (leaf_width, fan_outs) =
+                    chip0053::levels(*leaf_width, *fan_outs, payment_count);
+                fan_outs.iter().fold(leaf_width, usize::max)
+            }
+        }
+    }
+
+    /// The `i` values of a CHIP-0053 bag with this many payments, or [`None`] for other formats.
+    pub fn fan_outs(&self, payment_count: usize) -> Option<BagFanOuts> {
+        match self {
+            Self::Legacy { .. } => None,
+            Self::Chip0053 {
+                leaf_width,
+                fan_outs,
+                ..
+            } => Some(chip0053::levels(*leaf_width, *fan_outs, payment_count).1),
         }
     }
 
@@ -60,6 +124,18 @@ impl BagFormat {
 
                 Ok(Grouping::Chunks { width })
             }
+            Self::Chip0053 {
+                leaf_width,
+                fan_outs,
+                ..
+            } => {
+                let (leaf_width, fan_outs) =
+                    chip0053::levels(*leaf_width, *fan_outs, payment_count);
+
+                Ok(Grouping::Modulo {
+                    counts: chip0053::level_counts(payment_count, leaf_width, fan_outs)?,
+                })
+            }
         }
     }
 
@@ -70,12 +146,17 @@ impl BagFormat {
                     legacy::sort(payments);
                 }
             }
+            Self::Chip0053 { sorted, .. } => {
+                if *sorted {
+                    chip0053::sort(payments);
+                }
+            }
         }
     }
 
     pub(super) fn node_puzzle_hash(&self, children: &[BagChild]) -> Bytes32 {
         match self {
-            Self::Legacy { .. } => legacy::node_puzzle_hash(children),
+            Self::Legacy { .. } | Self::Chip0053 { .. } => legacy::node_puzzle_hash(children),
         }
     }
 
@@ -85,7 +166,7 @@ impl BagFormat {
         children: &[BagChild],
     ) -> Result<Spend, DriverError> {
         match self {
-            Self::Legacy { .. } => legacy::node_spend(ctx, children),
+            Self::Legacy { .. } | Self::Chip0053 { .. } => legacy::node_spend(ctx, children),
         }
     }
 }
@@ -95,6 +176,9 @@ impl BagFormat {
 pub(super) enum Grouping {
     /// Consecutive chunks of the width, until a single coin remains.
     Chunks { width: usize },
+    /// Coin `k` of a level goes to node `k mod count` of the level above, with the count for each level from the
+    /// leaves up to the root.
+    Modulo { counts: Vec<usize> },
 }
 
 impl Grouping {
@@ -103,9 +187,12 @@ impl Grouping {
     /// The payments are at depth 0, after they're sorted. Each group is the children of one node, in the order they're
     /// created, and the nodes of the level above are in the order of the groups. Returns [`None`] once the level is
     /// the root.
-    pub(super) fn group(&self, _depth: usize, level: &[BagChild]) -> Option<Vec<Vec<usize>>> {
+    pub(super) fn group(&self, depth: usize, level: &[BagChild]) -> Option<Vec<Vec<usize>>> {
         match self {
             Self::Chunks { width } => legacy::group(level, *width),
+            Self::Modulo { counts } => counts
+                .get(depth)
+                .map(|&count| chip0053::group(level.len(), count)),
         }
     }
 }

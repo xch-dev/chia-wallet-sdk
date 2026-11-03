@@ -514,7 +514,20 @@ export declare class BagFormat {
   clone(): BagFormat
   static legacy(leafWidth: bigint | undefined | null, sorted: boolean): BagFormat
   width(paymentCount: bigint): bigint
+  static chip0053(leafWidth: bigint | undefined | null, fanOuts: Array<bigint> | undefined | null, sorted: boolean): BagFormat
+  fanOuts(paymentCount: bigint): Array<bigint> | null
   toLegacy(): BagFormatLegacy | null
+  toChip0053(): BagFormatChip0053 | null
+}
+
+export declare class BagFormatChip0053 {
+  clone(): BagFormatChip0053
+  get leafWidth(): bigint | null
+  set leafWidth(value: bigint | undefined | null)
+  get fanOuts(): Array<bigint> | null
+  set fanOuts(value: Array<bigint> | undefined | null)
+  get sorted(): boolean
+  set sorted(value: boolean)
 }
 
 export declare class BagFormatLegacy {
