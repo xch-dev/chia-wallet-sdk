@@ -1,10 +1,14 @@
-use std::{cmp::min, collections::HashSet};
+use std::{
+    cmp::{max, min},
+    collections::HashSet,
+};
 
 use chia_protocol::Bytes32;
 
 #[derive(Debug, Default, Clone)]
 pub struct Facts {
     actual_expiration_time: Option<u64>,
+    actual_earliest_time: Option<u64>,
     required_expiration_time: Option<u64>,
     reserved_fees: u128,
     asserted_puzzle_announcements: HashSet<Bytes32>,
@@ -20,6 +24,17 @@ impl Facts {
             self.actual_expiration_time = Some(min(old_time, expiration_time));
         } else {
             self.actual_expiration_time = Some(expiration_time);
+        }
+    }
+
+    /// Updates the time the transaction can be valid from to the maximum of the current earliest time and
+    /// the given time. This is used to ensure that the transaction will not be valid before the given
+    /// time (i.e., before a clawback expires).
+    pub fn update_actual_earliest_time(&mut self, earliest_time: u64) {
+        if let Some(old_time) = self.actual_earliest_time {
+            self.actual_earliest_time = Some(max(old_time, earliest_time));
+        } else {
+            self.actual_earliest_time = Some(earliest_time);
         }
     }
 
@@ -51,6 +66,10 @@ impl Facts {
 
     pub fn actual_expiration_time(&self) -> Option<u64> {
         self.actual_expiration_time
+    }
+
+    pub fn actual_earliest_time(&self) -> Option<u64> {
+        self.actual_earliest_time
     }
 
     pub fn required_expiration_time(&self) -> Option<u64> {

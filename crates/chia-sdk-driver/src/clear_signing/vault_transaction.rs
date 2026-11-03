@@ -9,12 +9,13 @@ use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClearSigningAsset, CustodyInfo,
-    DriverError, DropCoin, Facts, Issuance, IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo,
-    P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, TransferType, VaultMessage, VaultOutput, build_linked_offer,
-    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
-    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend, split_asserted_payments,
+    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClawbackPath, ClawbackV2,
+    ClearSigningAsset, CustodyInfo, DriverError, DropCoin, Facts, Issuance, IssuanceKind,
+    LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, TransferType, VaultMessage,
+    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -29,7 +30,8 @@ pub struct VaultTransaction {
     pub vault_child: Option<VaultOutput>,
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
-    /// The spends (and their children) which were authorized by the vault.
+    /// The spends (and their children) which were authorized by the vault. This includes clawback push-throughs that
+    /// the vault asserts, which don't need its authorization, and whose coins aren't necessarily owned by the vault.
     pub spends: Vec<VerifiedSpend>,
     /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
     /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
@@ -126,6 +128,35 @@ pub fn parse_vault_transaction(
             .push(message);
     }
 
+    // The time bounds decide which clawback spends can be trusted, so they're recorded up front from the spends
+    // that the vault authorizes and that can't be replaced. Any mismatched message fails the transaction below.
+    for coin_id in messages_by_coin.keys() {
+        let Some(ParsedSpend {
+            clawback: None,
+            custody: Some(custody),
+            ..
+        }) = parsed_spends.get(coin_id)
+        else {
+            continue;
+        };
+
+        if !custody.receives_message() {
+            continue;
+        }
+
+        for condition in custody.conditions() {
+            match condition {
+                Condition::AssertSecondsAbsolute(condition) => {
+                    facts.update_actual_earliest_time(condition.seconds);
+                }
+                Condition::AssertBeforeSecondsAbsolute(condition) => {
+                    facts.update_actual_expiration_time(condition.seconds);
+                }
+                _ => {}
+            }
+        }
+    }
+
     let mut verified_spends = Vec::new();
     let mut issuances: Vec<Issuance> = Vec::new();
 
@@ -136,6 +167,16 @@ pub fn parse_vault_transaction(
         let parsed_spend = parsed_spends
             .remove(&coin_id)
             .ok_or(DriverError::MissingSpend)?;
+
+        // The sender path could consume the message instead, unless the clawback has expired.
+        if let Some(ClawbackInfo {
+            clawback,
+            path: ClawbackPath::Receiver,
+        }) = parsed_spend.clawback
+            && !is_expired(&facts, &clawback)
+        {
+            return Err(DriverError::UnguaranteedClawbackExpiry);
+        }
 
         let Some(verified_spend) = verify_spend(
             &mut reveals,
@@ -163,37 +204,128 @@ pub fn parse_vault_transaction(
         })
         .collect();
 
-    while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) {
-            continue;
+    // Once a clawback has expired, anyone can push it through to the receiver without a signature, so the vault
+    // only asserts that the clawback coin is spent. The coin can then only be spent by its receiver (the receiver
+    // path or the push-through path), unless it's clawed back by the sender. The sender path asserts that the
+    // clawback hasn't expired, so if the vault asserts that it has, the clawback is going to the receiver.
+    //
+    // The children of a push-through can assert other spends, including other push-throughs, which is why this
+    // repeats until nothing else qualifies.
+    loop {
+        while let Some(coin_id) = stack.pop() {
+            if !facts.is_spend_asserted(coin_id) {
+                continue;
+            }
+
+            // Spends without custody stay parsed, since they may be verifiable push-throughs.
+            if parsed_spends
+                .get(&coin_id)
+                .is_none_or(|spend| spend.custody.is_none())
+            {
+                continue;
+            }
+
+            let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+                continue;
+            };
+
+            // Without a vault message, the receiver path could be replaced with the sender path.
+            if let Some(ClawbackInfo {
+                clawback,
+                path: ClawbackPath::Receiver,
+            }) = parsed_spend.clawback
+                && !parsed_spend
+                    .custody
+                    .as_ref()
+                    .is_some_and(CustodyInfo::receives_message)
+                && !is_expired(&facts, &clawback)
+            {
+                continue;
+            }
+
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
+
+            for child in &verified_spend.children {
+                stack.insert(child.asset.coin().coin_id());
+            }
+
+            verified_spends.push(verified_spend);
         }
 
-        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-            continue;
-        };
+        // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
+        let push_throughs: Vec<(Bytes32, ClawbackV2)> = reveals
+            .coin_spends()
+            .filter_map(|spend| {
+                let coin_id = spend.coin.coin_id();
+                match parsed_spends.get(&coin_id)?.clawback {
+                    Some(ClawbackInfo {
+                        clawback,
+                        path: ClawbackPath::PushThrough,
+                    }) if spend.coin.amount == clawback.amount
+                        && facts.is_spend_asserted(coin_id)
+                        && is_expired(&facts, &clawback) =>
+                    {
+                        Some((coin_id, clawback))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
 
-        let spend = *reveals
-            .coin_spend(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
-
-        let Some(verified_spend) = verify_spend(
-            &mut reveals,
-            &mut facts,
-            ctx,
-            spend,
-            parsed_spend,
-            &[],
-            &mut issuances,
-        )?
-        else {
-            continue;
-        };
-
-        for child in &verified_spend.children {
-            stack.insert(child.asset.coin().coin_id());
+        if push_throughs.is_empty() {
+            break;
         }
 
-        verified_spends.push(verified_spend);
+        for (coin_id, clawback) in push_throughs {
+            let mut parsed_spend = parsed_spends
+                .remove(&coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            // The conditions are determined by the clawback rather than by the revealed solution, since the
+            // clawback's puzzle hash commits to them.
+            let push_through_path = ctx.alloc(&clawback.push_through_path())?;
+            let conditions =
+                parse_delegated_spend(ctx, Spend::new(push_through_path, NodePtr::NIL))?;
+            parsed_spend.custody = Some(CustodyInfo::DelegatedConditions(conditions));
+
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
+
+            for child in &verified_spend.children {
+                stack.insert(child.asset.coin().coin_id());
+            }
+
+            verified_spends.push(verified_spend);
+        }
     }
 
     // If the transaction expires after the required expiration time of the spend,
@@ -271,6 +403,13 @@ pub fn parse_vault_transaction(
     })
 }
 
+/// Whether the transaction can only be valid once the clawback has expired, which rules out its sender path.
+fn is_expired(facts: &Facts, clawback: &ClawbackV2) -> bool {
+    facts
+        .actual_earliest_time()
+        .is_some_and(|earliest| earliest >= clawback.seconds)
+}
+
 fn verify_spend(
     reveals: &mut Reveals,
     facts: &mut Facts,
@@ -284,13 +423,7 @@ fn verify_spend(
         return Ok(None);
     };
 
-    let conditions: &[Condition] = match &custody {
-        CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
-        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
-            conditions, ..
-        })
-        | CustodyInfo::DelegatedConditions(conditions) => conditions,
-    };
+    let conditions = custody.conditions();
 
     // The coin id is committed to by the conditions, and therefore the message. Since the coin id
     // depends on the fixed conditions, they can't be made to receive the same message.
@@ -364,15 +497,14 @@ fn verify_spend(
         facts.update_required_expiration_time(time);
     }
 
-    let children = parse_children(
-        reveals,
+    record_facts(
         facts,
-        allocator,
-        &parsed_spend.asset,
-        spend,
         conditions,
-        parsed_spend.required_expiration_time.is_some(),
-    )?;
+        parsed_spend.clawback,
+        custody.receives_message(),
+    );
+
+    let children = parse_children(reveals, allocator, &parsed_spend.asset, spend, conditions)?;
 
     // Issuances are either:
     // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
@@ -388,6 +520,48 @@ fn verify_spend(
         children,
         revoked: parsed_spend.revoked,
     }))
+}
+
+/// Records what a verified spend's conditions guarantee about the transaction.
+///
+/// A vault message is received by a coin rather than a puzzle, so another path of a clawback can consume the message
+/// without outputting the conditions it commits to. A clawback spend can therefore only be trusted once the time
+/// bounds rule out the paths it could be replaced with. The time bounds can't come from clawback spends themselves.
+fn record_facts(
+    facts: &mut Facts,
+    conditions: &[Condition],
+    clawback: Option<ClawbackInfo>,
+    is_message_bound: bool,
+) {
+    let is_trusted = clawback.is_none_or(|info| match info.path {
+        ClawbackPath::Sender => facts
+            .actual_expiration_time()
+            .is_some_and(|expiration| expiration <= info.clawback.seconds),
+        ClawbackPath::Receiver => is_message_bound && is_expired(facts, &info.clawback),
+        ClawbackPath::PushThrough => false,
+    });
+
+    if !is_trusted {
+        return;
+    }
+
+    for condition in conditions {
+        match condition {
+            Condition::AssertPuzzleAnnouncement(condition) => {
+                facts.assert_puzzle_announcement(condition.announcement_id);
+            }
+            Condition::AssertConcurrentSpend(condition) => {
+                facts.assert_spend(condition.coin_id);
+            }
+            Condition::AssertBeforeSecondsAbsolute(condition) if clawback.is_none() => {
+                facts.update_actual_expiration_time(condition.seconds);
+            }
+            Condition::ReserveFee(condition) => {
+                facts.add_reserved_fees(condition.amount);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
