@@ -5,8 +5,8 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
 
 use crate::{
-    BURN_PUZZLE_HASH, Cat, DriverError, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
-    RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
+    BURN_PUZZLE_HASH, BagAsset, BagFormat, BagPayment, Cat, DriverError, Nft, ParsedAsset,
+    ParsedMemos, RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,11 @@ pub enum TransferType {
     Burned,
     Offered,
     OfferPreSplit(OfferPreSplitInfo),
+    /// The coin is the root of a revealed bag, so its value is paid out to the bag's payments once it's unrolled.
+    ///
+    /// Since the payments are delayed until someone unrolls the bag, the root is treated as a single output that
+    /// leaves the vault, even if some of the payments go back to it.
+    SecureTheBag(SecureTheBagInfo),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +35,25 @@ pub struct OfferPreSplitInfo {
     pub nonce: usize,
     pub fixed_conditions: Vec<Condition>,
     pub settlement_amount: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecureTheBagInfo {
+    pub format: BagFormat,
+    /// The payments in the order of the bag, which add up to the amount of the root coin.
+    pub payments: Vec<ParsedBagPayment>,
+}
+
+/// A payment that a bag pays out once it's unrolled.
+///
+/// The payment's puzzle hash is the recipient (the receiver for clawback payments), the same as
+/// [`ParsedMemos::p2_puzzle_hash`] for a child coin.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedBagPayment {
+    pub payment: BagPayment,
+    /// This is either [`TransferType::Burned`] or [`TransferType::Sent`]. Bags aren't nested, their payments don't
+    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled.
+    pub transfer_type: TransferType,
 }
 
 pub fn parse_children(
@@ -60,7 +84,12 @@ pub fn parse_children(
                 // However, ephemeral bulletin children are hydrated later based on the spend.
                 ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                     let memos = parse_memos(reveals, ctx, *condition, false);
-                    let transfer_type = calculate_transfer_type(reveals, &memos, condition.amount)?;
+                    let transfer_type = calculate_transfer_type(
+                        reveals,
+                        &memos,
+                        Some(BagAsset::Xch),
+                        condition.amount,
+                    )?;
 
                     children.push(ParsedChild {
                         asset: ParsedAsset::Xch(Coin::new(
@@ -84,7 +113,7 @@ pub fn parse_children(
 
                         let memos = parse_memos(reveals, ctx, *condition, true);
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                            calculate_transfer_type(reveals, &memos, None, condition.amount)?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Nft(nft),
@@ -93,8 +122,12 @@ pub fn parse_children(
                         });
                     } else {
                         let memos = parse_memos(reveals, ctx, *condition, false);
-                        let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                        let transfer_type = calculate_transfer_type(
+                            reveals,
+                            &memos,
+                            Some(BagAsset::Xch),
+                            condition.amount,
+                        )?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -123,7 +156,25 @@ pub fn parse_children(
                         CreateCoin::new(cat.info.p2_puzzle_hash, condition.amount, condition.memos),
                         true,
                     );
-                    let transfer_type = calculate_transfer_type(reveals, &memos, condition.amount)?;
+
+                    // The bag must be for the same CAT, including the revocation layer, so this is based on the
+                    // child's info rather than what the bag was revealed with.
+                    let bag_asset = match cat.info.hidden_puzzle_hash {
+                        Some(hidden_puzzle_hash) => BagAsset::RevocableCat {
+                            asset_id: cat.info.asset_id,
+                            hidden_puzzle_hash,
+                        },
+                        None => BagAsset::Cat {
+                            asset_id: cat.info.asset_id,
+                        },
+                    };
+
+                    let transfer_type = calculate_transfer_type(
+                        reveals,
+                        &memos,
+                        Some(bag_asset),
+                        condition.amount,
+                    )?;
 
                     children.push(ParsedChild {
                         asset: ParsedAsset::Cat(cat),
@@ -142,11 +193,43 @@ pub fn parse_children(
     Ok(children)
 }
 
+/// The bag asset is the asset of the child coin, or [`None`] if it can't be a bag (for example an NFT).
 fn calculate_transfer_type(
     reveals: &Reveals,
     memos: &ParsedMemos,
+    bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    // The root hash commits to every payment and to the total amount, so anyone can unroll a coin with the root hash
+    // and that amount to the payments. As with any revocable CAT, the issuer can still revoke the root or its nodes
+    // before then. If the amount is less, the root can't be spent. If it's more, the rest is lost to fees, which isn't
+    // something we want to show as a bag.
+    if memos.clawback.is_none()
+        && let Some(bag_asset) = bag_asset
+        && let Some(bag) = reveals.bag(memos.p2_puzzle_hash, bag_asset)
+        && bag.total_amount() == input_amount
+    {
+        // An offer in this transaction can't settle a payment that's only created once the bag is unrolled, so a
+        // payment to the settlement puzzle is anyone can spend, rather than offered.
+        let payments = bag
+            .payments()
+            .iter()
+            .map(|payment| ParsedBagPayment {
+                payment: *payment,
+                transfer_type: if payment.puzzle_hash == BURN_PUZZLE_HASH {
+                    TransferType::Burned
+                } else {
+                    TransferType::Sent
+                },
+            })
+            .collect();
+
+        return Ok(TransferType::SecureTheBag(SecureTheBagInfo {
+            format: bag.format(),
+            payments,
+        }));
+    }
+
     Ok(if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {

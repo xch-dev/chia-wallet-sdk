@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
-    self as sdk, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin, P2ConditionsOrSingleton,
-    SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
+    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin,
+    P2ConditionsOrSingleton, SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
-    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend, Vault, conditions_to_programs,
+    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, SecureTheBag, Spend, Vault,
+    conditions_to_programs,
 };
 
 type SharedContext = Arc<Mutex<SpendContext>>;
@@ -56,6 +57,11 @@ impl Reveals {
             .lock()
             .unwrap()
             .reveal_p2_conditions_or_singleton(p2);
+        Ok(())
+    }
+
+    pub fn reveal_bag(&self, bag: SecureTheBag) -> Result<()> {
+        self.inner.lock().unwrap().reveal_bag(bag.0);
         Ok(())
     }
 
@@ -477,6 +483,7 @@ pub enum TransferType {
     Burned,
     Offered,
     OfferPreSplit(OfferPreSplitInfo),
+    SecureTheBag(SecureTheBagInfo),
 }
 
 impl TransferType {
@@ -494,6 +501,19 @@ impl TransferType {
                 nonce: info.nonce,
                 fixed_conditions: conditions_to_programs(ctx, clvm, &info.fixed_conditions)?,
                 settlement_amount: info.settlement_amount,
+            }),
+            sdk::TransferType::SecureTheBag(info) => Self::SecureTheBag(SecureTheBagInfo {
+                format: info.format,
+                payments: info
+                    .payments
+                    .into_iter()
+                    .map(|payment| {
+                        Ok(ParsedBagPayment {
+                            payment: payment.payment,
+                            transfer_type: Self::from_sdk(ctx, clvm, payment.transfer_type)?,
+                        })
+                    })
+                    .collect::<Result<_>>()?,
             }),
         })
     }
@@ -516,6 +536,13 @@ impl TransferType {
             _ => None,
         })
     }
+
+    pub fn as_secure_the_bag(&self) -> Result<Option<SecureTheBagInfo>> {
+        Ok(match self {
+            Self::SecureTheBag(info) => Some(info.clone()),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -524,6 +551,18 @@ pub struct OfferPreSplitInfo {
     pub nonce: usize,
     pub fixed_conditions: Vec<Program>,
     pub settlement_amount: u64,
+}
+
+#[derive(Clone)]
+pub struct SecureTheBagInfo {
+    pub format: BagFormat,
+    pub payments: Vec<ParsedBagPayment>,
+}
+
+#[derive(Clone)]
+pub struct ParsedBagPayment {
+    pub payment: BagPayment,
+    pub transfer_type: TransferType,
 }
 
 #[derive(Clone)]

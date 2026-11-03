@@ -1,6 +1,9 @@
 import test from "ava";
 
 import {
+  BagAsset,
+  BagFormat,
+  BagPayment,
   blsMemberHash,
   calculateVaultCoinMessage,
   calculateVaultPuzzleMessage,
@@ -22,6 +25,7 @@ import {
   r1MemberHash,
   R1Pair,
   Reveals,
+  SecureTheBag,
   sha256,
   Signature,
   Simulator,
@@ -135,6 +139,93 @@ test("parses a vault transaction and signs the coin message", (t) => {
   t.notThrows(() =>
     sim.newTransaction(new SpendBundle(coinSpends, alice.sk.sign(message))),
   );
+});
+
+test("parses a vault transaction funding a secure the bag", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = sim.bls(0n);
+  const bob = sim.bls(0n);
+  const carol = sim.bls(0n);
+
+  const config = new MemberConfig().withTopLevel(true);
+
+  const [vault, coin] = mintVaultWithCoin(
+    sim,
+    clvm,
+    blsMemberHash(config, alice.pk, false),
+    1000n,
+  );
+
+  const bag = new SecureTheBag(BagFormat.legacy(null, true), BagAsset.xch(), [
+    new BagPayment(bob.puzzleHash, 600n),
+    new BagPayment(carol.puzzleHash, 300n),
+    new BagPayment(coin.puzzleHash, 100n),
+  ]);
+
+  const coinDelegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(bag.rootHash(), bag.totalAmount(), null),
+  ]);
+
+  const delegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+    clvm.sendMessage(23, coinDelegatedSpend.puzzle.treeHash(), [
+      clvm.alloc(coin.coinId()),
+    ]),
+  ]);
+
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.blsMember(config, alice.pk, false);
+  mips.spendVault(vault);
+
+  const p2Spend = clvm.mipsSpend(coin, coinDelegatedSpend);
+  p2Spend.singletonMember(
+    config,
+    vault.info.launcherId,
+    false,
+    vault.info.custodyHash,
+    vault.coin.amount,
+  );
+  clvm.spendCoin(coin, p2Spend.spend(coin.puzzleHash));
+
+  const reveals = Reveals.fromCoinSpends(clvm, clvm.coinSpends());
+  reveals.revealBag(bag);
+
+  const tx = parseVaultTransaction(
+    clvm,
+    reveals,
+    vault.info.launcherId,
+    delegatedSpend,
+  );
+
+  t.is(tx.spends.length, 1);
+  const [child] = tx.spends[0].children;
+  t.deepEqual(child.memos.p2PuzzleHash, bag.rootHash());
+  t.false(child.transferType.isSent());
+
+  const info = child.transferType.asSecureTheBag();
+  t.truthy(info);
+  t.true(info?.format.toLegacy()?.sorted);
+  t.deepEqual(
+    info?.payments.map((payment) => payment.payment.puzzleHash),
+    bag.payments().map((payment) => payment.puzzleHash),
+  );
+  t.true(info?.payments.every((payment) => payment.transferType.isSent()));
+
+  // The payment back to the vault can be told apart from the others
+  const ours = info?.payments.filter((payment) =>
+    tx.p2PuzzleHashes.some(
+      (puzzleHash) =>
+        Buffer.compare(puzzleHash, payment.payment.puzzleHash) === 0,
+    ),
+  );
+  t.is(ours?.length, 1);
+  t.is(ours?.[0].payment.amount, 100n);
+
+  const [flow] = tx.assetFlows;
+  t.is(flow.outputAmount, 1000n);
+  t.is(flow.unaccountedAmount, 0n);
 });
 
 test("signs the vault puzzle message for fast forward members", (t) => {

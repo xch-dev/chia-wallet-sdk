@@ -25,13 +25,14 @@ use clvmr::NodePtr;
 use rstest::rstest;
 
 use crate::{
-    Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
-    ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
-    DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, Layer, LinkedOffer, Nft,
-    OfferPreSplitInfo, P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset,
-    Puzzle, Reveals, SingleCatSpend, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction, iter_final_children,
-    parse_vault_transaction,
+    Action, AssetFlow, BURN_PUZZLE_HASH, BagAsset, BagCoin, BagFormat, BagPayment, Bulletin,
+    BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2,
+    ClearSigningAsset, CustodyInfo, Delta, Deltas, DriverError, DropCoin, FeeAction, HashedPtr, Id,
+    IssuanceKind, Layer, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton,
+    P2ConditionsOrSingletonVersion, ParsedAsset, ParsedBagPayment, ParsedChild, Puzzle, Reveals,
+    SecureTheBag, SecureTheBagInfo, SingleCatSpend, Spend, SpendContext, SpendKind, Spends,
+    TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction,
+    iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4055,6 +4056,480 @@ fn test_clear_signing_vault_take_one_sided_offer(
         let xch = xch_asset_flow(&tx.asset_flows);
         assert_eq!(xch.input_amount, 1000);
         assert_eq!(xch.output_amount, 1000 - u128::from(fee));
+    }
+
+    Ok(())
+}
+
+fn bag_asset(asset_id: Option<Bytes32>, hidden_puzzle_hash: Option<Bytes32>) -> BagAsset {
+    match (asset_id, hidden_puzzle_hash) {
+        (None, _) => BagAsset::Xch,
+        (Some(asset_id), None) => BagAsset::Cat { asset_id },
+        (Some(asset_id), Some(hidden_puzzle_hash)) => BagAsset::RevocableCat {
+            asset_id,
+            hidden_puzzle_hash,
+        },
+    }
+}
+
+/// Sends the amount to the p2 puzzle hash from the vault, and parses the transaction with the bags revealed.
+fn fund_bag(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    alice: &TestVault,
+    id: Id,
+    p2_puzzle_hash: Bytes32,
+    amount: u64,
+    bags: Vec<SecureTheBag>,
+) -> Result<VaultTransaction> {
+    let memos = ctx.hint(p2_puzzle_hash)?;
+
+    let result = alice.spend(sim, ctx, &[Action::send(id, p2_puzzle_hash, amount, memos)])?;
+
+    let mut reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+
+    for bag in bags {
+        reveals.reveal_bag(bag);
+    }
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?)
+}
+
+/// The child that the vault sent to the p2 puzzle hash, rather than the change.
+fn sent_child(tx: &VaultTransaction, p2_puzzle_hash: Bytes32) -> &ParsedChild {
+    let mut children = iter_final_children(&tx.spends).filter(|child| {
+        child.memos.p2_puzzle_hash == p2_puzzle_hash
+            || child
+                .memos
+                .clawback
+                .is_some_and(|clawback| clawback.tree_hash() == p2_puzzle_hash.into())
+    });
+    let child = children.next().expect("missing child");
+    assert!(children.next().is_none());
+    child
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+    let carol: Bytes32 = "carol".tree_hash().into();
+    let dave: Bytes32 = "dave".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1000)?;
+
+    let hinted = asset_id.is_some();
+
+    // We can claw back the payment to dave until it expires, and receive the one from bob once it expires
+    let our_clawback = ClawbackV2::new(alice.p2_puzzle_hash, dave, 1000, 100, hinted);
+    let their_clawback = ClawbackV2::new(bob, alice.p2_puzzle_hash, 1000, 50, hinted);
+
+    let bag = SecureTheBag::build(
+        BagFormat::Legacy {
+            leaf_width: Some(2),
+            sorted: true,
+        },
+        bag_asset(asset_id, hidden_puzzle_hash),
+        [
+            BagPayment::new(bob, 300),
+            BagPayment::new(carol, 200),
+            BagPayment::from_clawback(our_clawback),
+            BagPayment::from_clawback(their_clawback),
+            BagPayment::new(alice.p2_puzzle_hash, 250),
+            BagPayment::new(BURN_PUZZLE_HASH, 50),
+            BagPayment::new(SETTLEMENT_PAYMENT_HASH.into(), 50),
+        ],
+    )?;
+    assert!(bag.depth() > 1);
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        bag.total_amount(),
+        vec![bag.clone()],
+    )?;
+
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
+    assert_eq!(child.asset.coin().puzzle_hash, bag.root_puzzle_hash());
+
+    let expected_payments = bag
+        .payments()
+        .iter()
+        .map(|&payment| ParsedBagPayment {
+            payment,
+            transfer_type: if payment.puzzle_hash == BURN_PUZZLE_HASH {
+                TransferType::Burned
+            } else {
+                TransferType::Sent
+            },
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        child.transfer_type,
+        TransferType::SecureTheBag(SecureTheBagInfo {
+            format: bag.format(),
+            payments: expected_payments,
+        })
+    );
+
+    let TransferType::SecureTheBag(info) = &child.transfer_type else {
+        unreachable!();
+    };
+
+    // The display can tell the payments back to the vault apart from the others
+    let ours = info
+        .payments
+        .iter()
+        .filter(|payment| tx.p2_puzzle_hashes.contains(&payment.payment.puzzle_hash))
+        .map(|payment| payment.payment)
+        .collect::<Vec<_>>();
+    assert_eq!(ours.len(), 2);
+    assert!(ours.contains(&BagPayment::new(alice.p2_puzzle_hash, 250)));
+    assert!(ours.contains(&BagPayment::from_clawback(their_clawback)));
+
+    let clawbacks = info
+        .payments
+        .iter()
+        .filter_map(|payment| payment.payment.clawback)
+        .collect::<Vec<_>>();
+    assert_eq!(clawbacks.len(), 2);
+    assert!(clawbacks.contains(&our_clawback));
+    assert!(clawbacks.contains(&their_clawback));
+
+    // The root is only counted once, rather than also counting its payments
+    let flow = asset_flow(&tx.asset_flows, asset_from_bag(bag.asset())).unwrap();
+    assert_eq!(flow.input_amount, 1000);
+    assert_eq!(flow.output_amount, 1000);
+    assert_eq!(flow.paid_amount, 0);
+    assert_eq!(flow.unaccounted_amount, 0);
+    assert_eq!(iter_final_children(&tx.spends).count(), 1);
+
+    // The root can be unrolled to every payment
+    let root = match &child.asset {
+        ParsedAsset::Xch(coin) => BagCoin::Xch(*coin),
+        ParsedAsset::Cat(cat) => BagCoin::Cat(*cat),
+        _ => unreachable!(),
+    };
+    let coins = bag.unroll(&mut ctx, root)?;
+    sim.spend_coins(ctx.take(), &[])?;
+
+    assert_eq!(coins.len(), 7);
+    for coin in coins {
+        assert!(sim.coin_state(coin.coin().coin_id()).is_some());
+    }
+
+    Ok(())
+}
+
+fn asset_from_bag(asset: BagAsset) -> ClearSigningAsset {
+    match asset {
+        BagAsset::Xch => ClearSigningAsset::Xch,
+        BagAsset::Cat { asset_id } => ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: None,
+        },
+        BagAsset::RevocableCat {
+            asset_id,
+            hidden_puzzle_hash,
+        } => ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: Some(hidden_puzzle_hash),
+        },
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BagMismatch {
+    Unrevealed,
+    WrongPayment,
+    AmountTooLow,
+    AmountTooHigh,
+    WrongAsset,
+    WrongAssetId,
+    WrongHiddenPuzzleHash,
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag_mismatch(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+    #[values(
+        BagMismatch::Unrevealed,
+        BagMismatch::WrongPayment,
+        BagMismatch::AmountTooLow,
+        BagMismatch::AmountTooHigh,
+        BagMismatch::WrongAsset,
+        BagMismatch::WrongAssetId,
+        BagMismatch::WrongHiddenPuzzleHash
+    )]
+    mismatch: BagMismatch,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1001)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+    let carol: Bytes32 = "carol".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1001)?;
+
+    let asset = bag_asset(asset_id, hidden_puzzle_hash);
+    let other = Bytes32::new([1; 32]);
+
+    let bag = SecureTheBag::build(
+        BagFormat::legacy(),
+        asset,
+        [BagPayment::new(bob, 600), BagPayment::new(carol, 400)],
+    )?;
+
+    let revealed_asset = match mismatch {
+        BagMismatch::WrongAsset => match asset {
+            BagAsset::Xch => BagAsset::Cat { asset_id: other },
+            BagAsset::Cat { .. } => BagAsset::Xch,
+            BagAsset::RevocableCat { asset_id, .. } => BagAsset::Cat { asset_id },
+        },
+        BagMismatch::WrongAssetId => match asset {
+            BagAsset::Xch | BagAsset::Cat { .. } => BagAsset::Cat { asset_id: other },
+            BagAsset::RevocableCat {
+                hidden_puzzle_hash, ..
+            } => BagAsset::RevocableCat {
+                asset_id: other,
+                hidden_puzzle_hash,
+            },
+        },
+        BagMismatch::WrongHiddenPuzzleHash => match asset {
+            BagAsset::Xch => BagAsset::RevocableCat {
+                asset_id: other,
+                hidden_puzzle_hash: other,
+            },
+            BagAsset::Cat { asset_id } | BagAsset::RevocableCat { asset_id, .. } => {
+                BagAsset::RevocableCat {
+                    asset_id,
+                    hidden_puzzle_hash: other,
+                }
+            }
+        },
+        _ => asset,
+    };
+
+    // The same total, but paid to bob and carol differently, which changes the root
+    let revealed_payments = match mismatch {
+        BagMismatch::WrongPayment => vec![BagPayment::new(bob, 601), BagPayment::new(carol, 399)],
+        _ => bag.payments().to_vec(),
+    };
+
+    let revealed = SecureTheBag::build(BagFormat::legacy(), revealed_asset, revealed_payments)?;
+
+    let amount = match mismatch {
+        BagMismatch::AmountTooLow => 999,
+        BagMismatch::AmountTooHigh => 1001,
+        _ => 1000,
+    };
+
+    let bags = match mismatch {
+        BagMismatch::Unrevealed => vec![],
+        _ => vec![revealed],
+    };
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        amount,
+        bags,
+    )?;
+
+    // Without a matching reveal, the root is an ordinary send to an unknown puzzle hash
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, amount);
+    assert_eq!(child.memos.p2_puzzle_hash, bag.root_hash());
+    assert_eq!(child.memos.clawback, None);
+    assert_eq!(child.transfer_type, TransferType::Sent);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag_single_payment(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+    #[values(false, true)] clawback: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1000)?;
+
+    let payment = if clawback {
+        BagPayment::from_clawback(ClawbackV2::new(
+            alice.p2_puzzle_hash,
+            bob,
+            1000,
+            1000,
+            asset_id.is_some(),
+        ))
+    } else {
+        BagPayment::new(bob, 1000)
+    };
+
+    let bag = SecureTheBag::build(
+        BagFormat::legacy(),
+        bag_asset(asset_id, hidden_puzzle_hash),
+        [payment],
+    )?;
+
+    // A single payment isn't bagged unless it needs a node to create its clawback
+    assert_eq!(bag.root_hash() == bob, !clawback);
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        1000,
+        vec![bag.clone()],
+    )?;
+
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
+
+    if clawback {
+        assert_eq!(child.memos.p2_puzzle_hash, bag.root_hash());
+        assert_eq!(
+            child.transfer_type,
+            TransferType::SecureTheBag(SecureTheBagInfo {
+                format: bag.format(),
+                payments: vec![ParsedBagPayment {
+                    payment,
+                    transfer_type: TransferType::Sent,
+                }],
+            })
+        );
+    } else {
+        assert_eq!(child.memos.p2_puzzle_hash, bob);
+        assert_eq!(child.transfer_type, TransferType::Sent);
+    }
+
+    Ok(())
+}
+
+/// Measures how long it takes a signer to rebuild a revealed bag and verify that a vault transaction funds it.
+///
+/// Run in release mode with `BAG_PAYMENTS` (a comma separated list of sizes), `BAG_CLAWBACKS` (every nth payment
+/// is a clawback, 0 for none) and optionally `BAG_LEAF_WIDTH`, for example:
+/// `BAG_PAYMENTS=1000000 cargo test --release -p chia-sdk-driver bench_clear_signing_secure_the_bag -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark"]
+fn bench_clear_signing_secure_the_bag() -> Result<()> {
+    use std::time::Instant;
+
+    let sizes: Vec<usize> = std::env::var("BAG_PAYMENTS")
+        .unwrap_or_else(|_| "10000,100000,1000000".to_string())
+        .split(',')
+        .map(|size| size.trim().parse())
+        .collect::<Result<_, _>>()?;
+    let clawbacks: usize =
+        std::env::var("BAG_CLAWBACKS").map_or(Ok(0), |clawbacks| clawbacks.parse())?;
+    let leaf_width: Option<usize> = std::env::var("BAG_LEAF_WIDTH")
+        .ok()
+        .map(|width| width.parse())
+        .transpose()?;
+    let format = BagFormat::Legacy {
+        leaf_width,
+        sorted: true,
+    };
+
+    for size in sizes {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, size as u64)?;
+
+        let payments: Vec<BagPayment> = (0..size)
+            .map(|i| {
+                let puzzle_hash: Bytes32 = (i as u64).tree_hash().into();
+
+                if clawbacks > 0 && i % clawbacks == 0 {
+                    BagPayment::from_clawback(ClawbackV2::new(
+                        alice.p2_puzzle_hash,
+                        puzzle_hash,
+                        1000,
+                        1,
+                        false,
+                    ))
+                } else {
+                    BagPayment::new(puzzle_hash, 1)
+                }
+            })
+            .collect();
+
+        // The funding bag is dropped before measuring, so that only the revealed bag counts towards peak memory
+        let root_hash = SecureTheBag::build(format, BagAsset::Xch, payments.clone())?.root_hash();
+        let memos = ctx.hint(root_hash)?;
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(Id::Xch, root_hash, size as u64, memos)],
+        )?;
+
+        let start = Instant::now();
+        let bag = SecureTheBag::build(format, BagAsset::Xch, payments)?;
+        let build_time = start.elapsed();
+
+        let start = Instant::now();
+        let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+        reveals.reveal_bag(bag);
+        let tx = parse_vault_transaction(
+            reveals,
+            &mut ctx,
+            alice.info.launcher_id,
+            result.delegated_spend,
+        )?;
+        let parse_time = start.elapsed();
+
+        let child = sent_child(&tx, root_hash);
+        let TransferType::SecureTheBag(info) = &child.transfer_type else {
+            panic!("expected a bag");
+        };
+        assert_eq!(info.payments.len(), size);
+
+        println!(
+            "{size} payments (clawbacks every {clawbacks}, width {}): rebuild {build_time:?}, parse {parse_time:?}, total {:?}",
+            format.width(size),
+            build_time + parse_time
+        );
     }
 
     Ok(())
