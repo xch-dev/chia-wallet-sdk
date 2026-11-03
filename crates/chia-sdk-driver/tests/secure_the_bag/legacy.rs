@@ -136,7 +136,10 @@ fn legacy_large(
 #[test]
 #[ignore = "slow, run in release mode"]
 fn comparison_report() -> Result<()> {
-    let formats = [BagFormat::legacy(), BagFormat::chip0053()];
+    #[allow(unused_mut)]
+    let mut formats = vec![BagFormat::legacy(), BagFormat::chip0053()];
+    #[cfg(feature = "experimental-bag-formats")]
+    formats.push(BagFormat::optimized());
     let assets = [AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat];
     let sizes = [1, 2, 99, 101, 1000, 1001, 10_001, 100_000];
 
@@ -153,7 +156,7 @@ fn comparison_report() -> Result<()> {
             ));
             rows.push(Metrics::header());
 
-            for format in formats {
+            for &format in &formats {
                 for asset in assets {
                     for size in sizes {
                         let payments = generate(size, distribution, clawbacks, SEED);
