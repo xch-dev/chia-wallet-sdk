@@ -44,18 +44,23 @@ impl BagFormat {
         }
     }
 
-    pub(super) fn validate_width(&self, payment_count: usize) -> Result<usize, DriverError> {
-        let width = self.width(payment_count);
+    /// Checks that the format can build a bag with this many payments, and returns how it groups each level.
+    pub(super) fn grouping(&self, payment_count: usize) -> Result<Grouping, DriverError> {
+        match self {
+            Self::Legacy { .. } => {
+                let width = self.width(payment_count);
 
-        // A width of one never reduces the level, unless there's only one payment to begin with
-        if width == 0 || (width == 1 && payment_count > 1) {
-            return Err(DriverError::InvalidBagWidth {
-                width,
-                payments: payment_count,
-            });
+                // A width of one never reduces the level, unless there's only one payment to begin with
+                if width == 0 || (width == 1 && payment_count > 1) {
+                    return Err(DriverError::InvalidBagWidth {
+                        width,
+                        payments: payment_count,
+                    });
+                }
+
+                Ok(Grouping::Chunks { width })
+            }
         }
-
-        Ok(width)
     }
 
     pub(super) fn sort(&self, payments: &mut [BagChild]) {
@@ -65,22 +70,6 @@ impl BagFormat {
                     legacy::sort(payments);
                 }
             }
-        }
-    }
-
-    pub(super) fn is_root(&self, level: &[BagChild]) -> bool {
-        match self {
-            Self::Legacy { .. } => legacy::is_root(level),
-        }
-    }
-
-    pub(super) fn group<'a>(
-        &self,
-        level: &'a [BagChild],
-        width: usize,
-    ) -> impl Iterator<Item = &'a [BagChild]> {
-        match self {
-            Self::Legacy { .. } => level.chunks(width),
         }
     }
 
@@ -97,6 +86,26 @@ impl BagFormat {
     ) -> Result<Spend, DriverError> {
         match self {
             Self::Legacy { .. } => legacy::node_spend(ctx, children),
+        }
+    }
+}
+
+/// How a format groups each level of a bag into the nodes of the level above.
+#[derive(Debug, Clone)]
+pub(super) enum Grouping {
+    /// Consecutive chunks of the width, until a single coin remains.
+    Chunks { width: usize },
+}
+
+impl Grouping {
+    /// Groups the coins of a level into the nodes of the level above, by their index in the level.
+    ///
+    /// The payments are at depth 0, after they're sorted. Each group is the children of one node, in the order they're
+    /// created, and the nodes of the level above are in the order of the groups. Returns [`None`] once the level is
+    /// the root.
+    pub(super) fn group(&self, _depth: usize, level: &[BagChild]) -> Option<Vec<Vec<usize>>> {
+        match self {
+            Self::Chunks { width } => legacy::group(level, *width),
         }
     }
 }

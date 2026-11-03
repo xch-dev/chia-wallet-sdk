@@ -32,9 +32,19 @@ pub(super) fn sort(children: &mut [BagChild]) {
     children.sort_by_key(BagChild::puzzle_hash);
 }
 
-/// A single payment without a clawback isn't bagged, but a clawback still needs a node to create it.
-pub(super) fn is_root(level: &[BagChild]) -> bool {
-    matches!(level, [child] if !child.is_clawback())
+/// Splits the level into consecutive chunks of the width, until a single payment without a clawback or a single node
+/// remains. A single payment without a clawback isn't bagged, but a clawback still needs a node to create it.
+pub(super) fn group(level: &[BagChild], width: usize) -> Option<Vec<Vec<usize>>> {
+    if matches!(level, [child] if !child.is_clawback()) {
+        return None;
+    }
+
+    Some(
+        (0..level.len())
+            .step_by(width)
+            .map(|start| (start..level.len().min(start + width)).collect())
+            .collect(),
+    )
 }
 
 pub(super) fn node_puzzle_hash(children: &[BagChild]) -> Bytes32 {
