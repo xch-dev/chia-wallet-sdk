@@ -34,6 +34,7 @@ mod program;
 mod puzzle;
 mod rpc;
 mod secp;
+mod secure_the_bag;
 mod simulator;
 mod splitter;
 mod utils;
@@ -63,6 +64,7 @@ pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
+pub use secure_the_bag::*;
 pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
@@ -91,13 +93,14 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, Bulletin,
-    BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
-    CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
-    CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
-    Delta, DropCoin, FusionDirection, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate,
-    OptionAssetInfo, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
-    P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
+    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, BagAsset,
+    BagChild, BagCoin, BagFormat, BagNode, BagPayment, Bulletin, BulletinMessage, Cat,
+    CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog, CatalogRefundActionLog,
+    CatalogRegisterActionLog, CatalogRegistryConstants, CatalogRegistryState, Clawback,
+    ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta, DropCoin, FusionDirection,
+    MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo, OptionInfo,
+    OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
+    P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
     RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
     RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
     RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
