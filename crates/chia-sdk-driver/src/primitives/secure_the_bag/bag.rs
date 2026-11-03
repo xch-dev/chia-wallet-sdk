@@ -161,6 +161,8 @@ impl SecureTheBag {
             depth += 1;
         }
 
+        debug_assert_eq!(level.len(), 1, "the last level is the root");
+
         Ok(Self {
             format,
             asset,

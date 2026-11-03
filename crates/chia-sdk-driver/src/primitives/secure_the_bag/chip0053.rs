@@ -64,7 +64,8 @@ impl BagFanOuts {
     /// more levels in the same pattern.
     ///
     /// The formulas assume a leaf width of 100. For other leaf widths, the 100 that stands for the leaf width is
-    /// replaced by the leaf width, so that the levels always fit the payments.
+    /// replaced by the leaf width, so that the levels always fit the payments. A leaf width of 0 can't build a bag, and
+    /// is treated as 1 here.
     pub fn recommended(payment_count: usize, leaf_width: usize) -> Self {
         let d = payment_count as u128;
         let c = leaf_width.max(1) as u128;
@@ -162,7 +163,10 @@ pub(super) fn level_counts(
 
 /// Coin `k` of the level goes to node `k mod count` of the level above, in the order of the level.
 pub(super) fn group(level_len: usize, count: usize) -> Vec<Vec<usize>> {
-    let mut groups = vec![Vec::with_capacity(level_len.div_ceil(count)); count];
+    // Cloning a vector doesn't keep its capacity, so each group is allocated separately
+    let mut groups: Vec<Vec<usize>> = (0..count)
+        .map(|_| Vec::with_capacity(level_len.div_ceil(count)))
+        .collect();
 
     for index in 0..level_len {
         groups[index % count].push(index);

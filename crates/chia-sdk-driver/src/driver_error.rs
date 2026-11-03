@@ -360,7 +360,11 @@ pub enum DriverError {
     #[error("invalid bag width {width} for {payments} payments")]
     InvalidBagWidth { width: usize, payments: usize },
 
-    #[error("bag fan-outs must have 1 to 10 values, each from 1 to 300")]
+    #[error(
+        "bag fan-outs must have 1 to {} values, each from 1 to {}",
+        crate::BagFanOuts::MAX_LEVELS,
+        crate::BagFanOuts::MAX_FAN_OUT
+    )]
     InvalidBagFanOuts,
 
     #[error(
