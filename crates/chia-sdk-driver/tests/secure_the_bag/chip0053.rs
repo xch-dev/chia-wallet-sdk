@@ -1,8 +1,11 @@
 use anyhow::{Context, Result, ensure};
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    BagAsset, BagChild, BagFanOuts, BagFormat, BagNode, BagPayment, DriverError, SecureTheBag,
+    BagAsset, BagChild, BagCoin, BagFanOuts, BagFormat, BagNode, BagPayment, DriverError,
+    SecureTheBag, SpendContext, StandardLayer,
 };
+use chia_sdk_test::Simulator;
+use chia_sdk_types::{Condition, Conditions};
 use rstest::rstest;
 
 use crate::harness::{AssetKind, Clawbacks, Distribution, Metrics, boundary_sizes, generate, run};
@@ -245,9 +248,9 @@ fn chip0053_single_payment() -> Result<()> {
     Ok(())
 }
 
-/// Nodes are the same as in the legacy format, so a single leaf has the same puzzle hash in both.
+/// Nodes only create their children, without the legacy fee announcement.
 #[test]
-fn chip0053_nodes_match_legacy() -> Result<()> {
+fn chip0053_nodes_only_create_children() -> Result<()> {
     let payments = lines(10);
 
     let chip = SecureTheBag::build(chip0053(None, None, false), BagAsset::Xch, payments.clone())?;
@@ -260,9 +263,83 @@ fn chip0053_nodes_match_legacy() -> Result<()> {
         payments,
     )?;
 
-    let leaf = chip.nodes().first().context("missing leaf")?;
-    assert_eq!(*leaf.0, legacy.root_hash());
-    assert_eq!(leaf.1, &legacy.nodes()[&legacy.root_hash()]);
+    // A single leaf with the same children as the legacy root, but a different puzzle
+    let (&leaf_hash, leaf) = chip.nodes().first().context("missing leaf")?;
+    assert_eq!(leaf, &legacy.nodes()[&legacy.root_hash()]);
+    assert_ne!(leaf_hash, legacy.root_hash());
+
+    let mut ctx = SpendContext::new();
+
+    let spend = chip.node_spend(&mut ctx, leaf_hash)?;
+    let output = ctx.run(spend.puzzle, spend.solution)?;
+    let conditions = ctx.extract::<Vec<Condition>>(output)?;
+    assert_eq!(conditions.len(), 10);
+    assert!(
+        conditions
+            .iter()
+            .all(|condition| matches!(condition, Condition::CreateCoin(_)))
+    );
+
+    let spend = legacy.node_spend(&mut ctx, legacy.root_hash())?;
+    let output = ctx.run(spend.puzzle, spend.solution)?;
+    let conditions = ctx.extract::<Vec<Condition>>(output)?;
+    assert_eq!(conditions.len(), 11);
+    assert!(matches!(
+        conditions[0],
+        Condition::CreateCoinAnnouncement(_)
+    ));
+
+    Ok(())
+}
+
+/// A fee spend ties itself to a node with `ASSERT_CONCURRENT_SPEND` on the node's coin.
+#[test]
+fn chip0053_fee_asserts_concurrent_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let bag = SecureTheBag::build(BagFormat::chip0053(), BagAsset::Xch, lines(10))?;
+    let alice = sim.bls(bag.total_amount());
+
+    let hint = ctx.hint(bag.root_hash())?;
+    StandardLayer::new(alice.pk).spend(
+        &mut ctx,
+        alice.coin,
+        Conditions::new().create_coin(bag.root_hash(), bag.total_amount(), hint),
+    )?;
+    sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+    let root = BagCoin::Xch(Coin::new(
+        alice.coin.coin_id(),
+        bag.root_hash(),
+        bag.total_amount(),
+    ));
+
+    let bob = sim.bls(100);
+    let fee = || {
+        Conditions::new()
+            .assert_concurrent_spend(root.coin().coin_id())
+            .reserve_fee(100)
+    };
+
+    // The fee can't be spent without the node
+    StandardLayer::new(bob.pk).spend(&mut ctx, bob.coin, fee())?;
+    assert!(
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&bob.sk))
+            .is_err()
+    );
+
+    StandardLayer::new(bob.pk).spend(&mut ctx, bob.coin, fee())?;
+    let leaves = bag.spend_node(&mut ctx, root)?;
+    sim.spend_coins(ctx.take(), &[bob.sk])?;
+
+    assert!(
+        sim.coin_state(bob.coin.coin_id())
+            .is_some_and(|state| state.spent_height.is_some())
+    );
+    for leaf in leaves {
+        assert!(sim.coin_state(leaf.coin().coin_id()).is_some());
+    }
 
     Ok(())
 }

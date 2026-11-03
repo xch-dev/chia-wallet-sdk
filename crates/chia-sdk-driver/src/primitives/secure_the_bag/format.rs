@@ -39,9 +39,10 @@ pub enum BagFormat {
     /// - Each node creates its children in the order of the level, so payments are created in the order of the input.
     /// - Sorted payments are ordered by amount, largest first, and then by the puzzle hash of the coin each payment
     ///   creates. Unsorted payments keep the order of the input, like the lines of the CHIP's CSV file.
-    /// - Nodes are the same as in [`BagFormat::Legacy`]: `(q . conditions)`, starting with a `"$"` coin announcement,
-    ///   with each child hinted to its puzzle hash, or for a clawback payment, to the receiver with the clawback memo.
-    ///   Only the order and grouping differ.
+    /// - Each node is `(q . conditions)`, and only creates its children. Each child is hinted to its puzzle hash, or
+    ///   for a clawback payment, to the receiver with the clawback memo, as in [`BagFormat::Legacy`]. Unlike
+    ///   [`BagFormat::Legacy`], there's no `"$"` coin announcement, since a fee spend can use `ASSERT_CONCURRENT_SPEND`
+    ///   on the node's coin ID instead.
     /// - The root is always a node above the `i1` level, even for a single payment.
     /// - Duplicate payments are rejected, like in every format.
     /// - The CHIP's optional URL memo is on the coin that funds the root, so it isn't part of the bag.
@@ -156,7 +157,8 @@ impl BagFormat {
 
     pub(super) fn node_puzzle_hash(&self, children: &[BagChild]) -> Bytes32 {
         match self {
-            Self::Legacy { .. } | Self::Chip0053 { .. } => legacy::node_puzzle_hash(children),
+            Self::Legacy { .. } => legacy::node_puzzle_hash(children, true),
+            Self::Chip0053 { .. } => legacy::node_puzzle_hash(children, false),
         }
     }
 
@@ -166,7 +168,8 @@ impl BagFormat {
         children: &[BagChild],
     ) -> Result<Spend, DriverError> {
         match self {
-            Self::Legacy { .. } | Self::Chip0053 { .. } => legacy::node_spend(ctx, children),
+            Self::Legacy { .. } => legacy::node_spend(ctx, children, true),
+            Self::Chip0053 { .. } => legacy::node_spend(ctx, children, false),
         }
     }
 }
