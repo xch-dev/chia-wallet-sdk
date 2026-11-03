@@ -2,6 +2,7 @@ import test from "ava";
 
 import {
   calculateVaultPuzzleMessage,
+  Chip0007Metadata,
   Clvm,
   CreateCoin,
   fromHex,
@@ -209,4 +210,37 @@ test("vault message proofs can be created and verified without chain access", (t
       new Uint8Array(32),
     ),
   );
+});
+
+test("parses chip-0007 and chip-0015 metadata", (t) => {
+  const metadata = Chip0007Metadata.parse(
+    JSON.stringify({
+      format: "CHIP-0015",
+      name: "Example",
+      description: "An example NFT",
+      series_number: 22,
+      attributes: [{ trait_type: "Friendship", value: 50 }],
+      data: {
+        "@context": "https://schema.org",
+        "@type": "VideoObject",
+        encodingFormat: "video/mp4",
+      },
+    }),
+  );
+
+  t.is(metadata.name, "Example");
+  t.is(metadata.seriesNumber, 22n);
+  t.is(metadata.attributes[0].value.asInteger(), 50n);
+  t.true(metadata.schemaOrg()!.isCompliant());
+});
+
+test("parses malformed chip-0007 metadata leniently", (t) => {
+  const json = JSON.stringify({ name: "Partial", attributes: [1] });
+
+  t.throws(() => Chip0007Metadata.parse(json));
+
+  const result = Chip0007Metadata.parseLenient(json);
+
+  t.is(result.metadata.name, "Partial");
+  t.is(result.issues.length, 3);
 });

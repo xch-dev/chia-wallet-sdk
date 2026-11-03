@@ -130,6 +130,18 @@ pub enum DriverError {
     #[error("missing spend")]
     MissingSpend,
 
+    #[cfg(feature = "chip-0007")]
+    #[error("invalid chip-0007 metadata json: {0}")]
+    InvalidChip0007Json(#[from] serde_json::Error),
+
+    #[cfg(feature = "chip-0007")]
+    #[error("chip-0007 metadata must be a json object")]
+    InvalidChip0007Root,
+
+    #[cfg(feature = "chip-0007")]
+    #[error("invalid chip-0007 metadata: {0}")]
+    Chip0007(#[from] crate::Chip0007Issue),
+
     #[cfg(feature = "offer-compression")]
     #[error("missing compression version prefix")]
     MissingVersionPrefix,

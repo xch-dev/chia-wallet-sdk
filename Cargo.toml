@@ -72,6 +72,7 @@ implicit_hasher = "allow"
 workspace = true
 
 [features]
+chip-0007 = ["chia-sdk-driver/chip-0007"]
 chip-0008 = ["chia-sdk-driver/chip-0008", "chia-sdk-types/chip-0008"]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-driver/chip-0037", "chia-sdk-types/chip-0037"]

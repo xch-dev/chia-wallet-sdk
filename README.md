@@ -50,6 +50,7 @@ The Rust crate re-exports a set of smaller crates, which can also be used indivi
 
 | Feature                 | Description                                                                                               |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `chip-0007`             | Off-chain NFT metadata ([CHIP-0007](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0007.md), [CHIP-0015](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0015.md)) |
 | `chip-0008`             | Splitter puzzle ([CHIP-0008](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0008.md))         |
 | `chip-0035`             | DataLayer store support ([CHIP-0035](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0035.md)) |
 | `chip-0037`             | EIP-712 vault members ([CHIP-0037](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0037.md))   |

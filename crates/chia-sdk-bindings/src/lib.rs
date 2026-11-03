@@ -27,6 +27,7 @@ mod key_pairs;
 mod merkle_tree;
 mod mips;
 mod mnemonic;
+mod offchain_metadata;
 mod offer;
 mod partial_offer;
 mod program;
@@ -55,6 +56,7 @@ pub use key_pairs::*;
 pub use merkle_tree::*;
 pub use mips::*;
 pub use mnemonic::*;
+pub use offchain_metadata::*;
 pub use offer::*;
 pub use partial_offer::*;
 pub use program::*;
@@ -92,9 +94,11 @@ pub use chia_sdk_driver::{
     AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, Bulletin,
     BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
-    CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
-    Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
-    OptionInfo, OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
+    CatalogRegistryState, Chip0007Attribute, Chip0007Collection, Chip0007CollectionAttribute,
+    Chip0007SensitiveContent, Chip0007Value, Chip0015Identifier, Chip0015IdentifierValue,
+    Chip0015Object, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle, Delta,
+    DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo, OptionInfo,
+    OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
     P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
     RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
     RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,

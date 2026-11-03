@@ -1,4 +1,7 @@
+import pytest
+
 from chia_wallet_sdk import (
+    Chip0007Metadata,
     Clvm,
     InnerPuzzleMemo,
     K1Pair,
@@ -245,3 +248,37 @@ def test_vault_message_proof():
         assert False, "expected the wrong launcher id to be rejected"
     except Exception:
         pass
+
+
+def test_chip0007_metadata():
+    metadata = Chip0007Metadata.parse(
+        """{
+            "format": "CHIP-0015",
+            "name": "Example",
+            "description": "An example NFT",
+            "series_number": 22,
+            "attributes": [{ "trait_type": "Friendship", "value": 50 }],
+            "data": {
+                "@context": "https://schema.org",
+                "@type": "VideoObject",
+                "encodingFormat": "video/mp4"
+            }
+        }"""
+    )
+
+    assert metadata.name == "Example"
+    assert metadata.series_number == 22
+    assert metadata.attributes[0].value.as_integer() == 50
+    assert metadata.schema_org().is_compliant()
+
+
+def test_chip0007_metadata_lenient():
+    json = '{ "name": "Partial", "attributes": [1] }'
+
+    with pytest.raises(Exception):
+        Chip0007Metadata.parse(json)
+
+    result = Chip0007Metadata.parse_lenient(json)
+
+    assert result.metadata.name == "Partial"
+    assert len(result.issues) == 3
