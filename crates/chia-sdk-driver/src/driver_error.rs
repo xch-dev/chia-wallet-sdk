@@ -347,4 +347,19 @@ pub enum DriverError {
 
     #[error("consensus validation failed: {0}")]
     Validation(#[from] chia_consensus::validation_error::ValidationErr),
+
+    #[error("a bag must contain at least one payment")]
+    EmptyBag,
+
+    #[error("the bag already has a payment that creates a coin with puzzle hash {0}")]
+    DuplicateBagPayment(Bytes32),
+
+    #[error("a bag payment's clawback must have the same receiver and amount as the payment")]
+    BagClawbackMismatch,
+
+    #[error("invalid bag width {width} for {payments} payments")]
+    InvalidBagWidth { width: usize, payments: usize },
+
+    #[error("puzzle hash {0} is not a node in this bag")]
+    UnknownBagNode(Bytes32),
 }

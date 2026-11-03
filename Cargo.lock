@@ -733,6 +733,7 @@ dependencies = [
  "rand_chacha 0.10.0",
  "rstest 0.28.0",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
