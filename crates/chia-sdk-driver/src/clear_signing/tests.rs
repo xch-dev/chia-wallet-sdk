@@ -2521,6 +2521,99 @@ fn test_clear_signing_sender_path_facts_with_vault_expiration() -> Result<()> {
     Ok(())
 }
 
+#[rstest]
+#[test]
+fn test_clear_signing_sender_path_facts_with_later_expiration(
+    #[values(false, true)] clawback_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+
+    // The expiration coin's conditions are committed to by its puzzle hash, but it's only verified once the
+    // traversal reaches it as a child, which can be after the sender path is verified.
+    let expiration_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_before_seconds_absolute(1000)
+    ))?;
+    let expiration_puzzle_hash: Bytes32 = ctx.tree_hash(expiration_puzzle).into();
+
+    // Only the sender path asserts that this coin is spent.
+    let asserted_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let asserted_puzzle_hash: Bytes32 = ctx.tree_hash(asserted_puzzle).into();
+
+    let actions = [Action::send(Id::Xch, asserted_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let asserted_coin = Coin::new(parent, asserted_puzzle_hash, 1);
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new()
+            .reserve_fee(1)
+            .assert_concurrent_spend(asserted_coin.coin_id())
+    ))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    let expiration_action = Action::send(Id::Xch, expiration_puzzle_hash, 1, Memos::None);
+    let clawback_action = Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None);
+
+    // The last child created is the first one spent by the traversal, so the asserted coin is reached before the
+    // sender path spend is trusted.
+    let [expiration_action, clawback_action] = if clawback_first {
+        [expiration_action, clawback_action]
+    } else {
+        [clawback_action, expiration_action]
+    };
+    let actions = [expiration_action, clawback_action, actions[0].clone()];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+    let expiration_coin = Coin::new(parent, expiration_puzzle_hash, 1);
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(expiration_coin.coin_id());
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    ctx.spend(expiration_coin, Spend::new(expiration_puzzle, NodePtr::NIL))?;
+    ctx.spend(asserted_coin, Spend::new(asserted_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    // The vault-asserted expiration rules out the other paths, regardless of when it's verified.
+    assert_eq!(tx.reserved_fee, 1);
+    assert!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin().coin_id() == asserted_coin.coin_id())
+    );
+
+    Ok(())
+}
+
 #[test]
 fn test_clear_signing_push_through_message_bound_expiry() -> Result<()> {
     let mut sim = Simulator::new();
