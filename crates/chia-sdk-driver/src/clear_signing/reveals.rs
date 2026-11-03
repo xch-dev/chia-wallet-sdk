@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use clvm_traits::ToClvm;
@@ -7,7 +10,8 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AssetInfo, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle, RequestedPayments,
+    AssetInfo, BagAsset, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle,
+    RequestedPayments, SecureTheBag,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -27,6 +31,7 @@ pub struct RevealedCoinSpend {
 pub struct Reveals {
     coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
+    bags: HashMap<(Bytes32, BagAsset), Arc<SecureTheBag>>,
     requested_payments: RequestedPayments,
     asset_info: AssetInfo,
     vault_nonces: BTreeSet<usize>,
@@ -41,6 +46,7 @@ impl Default for Reveals {
         Self {
             coin_spends: IndexMap::new(),
             p2_puzzles: HashMap::new(),
+            bags: HashMap::new(),
             requested_payments: RequestedPayments::default(),
             asset_info: AssetInfo::default(),
             vault_nonces,
@@ -137,6 +143,23 @@ impl Reveals {
         );
     }
 
+    /// Reveals a Secure the Bag, so that a coin created with its root hash and total amount is shown as the bag's
+    /// payments rather than as a payment to an unknown puzzle hash.
+    ///
+    /// The bag is looked up by the p2 puzzle hash that the created coin's parent outputs (the puzzle hash inside of
+    /// the CAT layer for CATs), along with the asset of the coin, so a bag revealed for one asset doesn't match a
+    /// coin of another. A bag whose root is a payment rather than a node isn't bagged, so it's ignored and the
+    /// payment is shown on its own.
+    pub fn reveal_bag(&mut self, bag: impl Into<Arc<SecureTheBag>>) {
+        let bag = bag.into();
+
+        if bag.node(bag.root_hash()).is_none() {
+            return;
+        }
+
+        self.bags.insert((bag.root_hash(), bag.asset()), bag);
+    }
+
     /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for.
     pub fn reveal_vault_nonce(&mut self, nonce: usize) {
         self.vault_nonces.insert(nonce);
@@ -160,6 +183,10 @@ impl Reveals {
 
     pub fn p2_puzzle(&self, puzzle_hash: TreeHash) -> Option<&RevealedP2Puzzle> {
         self.p2_puzzles.get(&puzzle_hash)
+    }
+
+    pub fn bag(&self, root_hash: Bytes32, asset: BagAsset) -> Option<&SecureTheBag> {
+        self.bags.get(&(root_hash, asset)).map(AsRef::as_ref)
     }
 
     pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {
