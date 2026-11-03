@@ -76,7 +76,8 @@ impl SecureTheBag {
     /// Builds the bag for a list of payments.
     ///
     /// Fails if the list is empty, if two payments would create the same coin puzzle hash, if a clawback doesn't
-    /// match its payment, or if the total amount doesn't fit in a `u64`.
+    /// match its payment, if the total amount doesn't fit in a `u64`, or if a payment's puzzle hash is also the puzzle
+    /// hash of a node.
     pub fn build(
         format: BagFormat,
         asset: BagAsset,
@@ -133,6 +134,12 @@ impl SecureTheBag {
 
             for children in format.group(&level, width) {
                 let puzzle_hash = format.node_puzzle_hash(children);
+
+                // A payment's puzzle hash can be chosen to match a node built from other payments, which would make
+                // the bag ambiguous
+                if puzzle_hashes.contains(&puzzle_hash) || nodes.contains_key(&puzzle_hash) {
+                    return Err(DriverError::BagNodeCollision(puzzle_hash));
+                }
 
                 // This can't overflow, since the total amount fits
                 let amount = children.iter().map(BagChild::amount).sum();
@@ -241,29 +248,84 @@ impl SecureTheBag {
         Some(path)
     }
 
-    /// The coins from the root coin down to the coin with the given p2 puzzle hash, including both.
-    pub fn coin_path(&self, root: BagCoin, puzzle_hash: Bytes32) -> Option<Vec<BagCoin>> {
-        let path = self.path(puzzle_hash)?;
+    /// The amount of the coin with the given p2 puzzle hash, if it's the root, a node or a payment in the bag.
+    pub fn amount(&self, puzzle_hash: Bytes32) -> Option<u64> {
+        if puzzle_hash == self.root_hash {
+            return Some(self.total_amount);
+        }
 
-        let mut coins = vec![root];
-        let mut coin = root;
+        if let Some(node) = self.node(puzzle_hash) {
+            return Some(node.amount);
+        }
+
+        self.node(self.parent(puzzle_hash)?)?
+            .children
+            .iter()
+            .find(|child| child.puzzle_hash() == puzzle_hash)
+            .map(BagChild::amount)
+    }
+
+    /// Checks that a coin is part of this bag, with the right asset and amount.
+    fn check_coin(&self, coin: BagCoin) -> Result<(), DriverError> {
+        if !coin.matches(self.asset) {
+            return Err(DriverError::IncompatibleAssetInfo);
+        }
+
+        let puzzle_hash = coin.p2_puzzle_hash();
+        let amount = self
+            .amount(puzzle_hash)
+            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
+
+        if coin.coin().amount != amount {
+            return Err(DriverError::BagAmountMismatch);
+        }
+
+        Ok(())
+    }
+
+    /// The coins from `start` down to the coin with the given p2 puzzle hash, including both.
+    ///
+    /// The start can be the root coin, or any node coin on the path if part of the bag has already been unrolled.
+    pub fn coin_path(
+        &self,
+        start: BagCoin,
+        puzzle_hash: Bytes32,
+    ) -> Result<Vec<BagCoin>, DriverError> {
+        self.check_coin(start)?;
+
+        let path = self
+            .path(puzzle_hash)
+            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
+
+        let start_puzzle_hash = start.p2_puzzle_hash();
+
+        let index = if start_puzzle_hash == puzzle_hash {
+            path.len()
+        } else {
+            path.iter()
+                .position(|&node| node == start_puzzle_hash)
+                .ok_or(DriverError::NotBagAncestor(puzzle_hash))?
+        };
+
+        let mut coins = vec![start];
+        let mut coin = start;
 
         // Each node on the path creates the next one, and the last creates the target
-        for (index, &node_puzzle_hash) in path.iter().enumerate() {
-            let child_puzzle_hash = path.get(index + 1).copied().unwrap_or(puzzle_hash);
+        for (offset, &node_puzzle_hash) in path[index..].iter().enumerate() {
+            let child_puzzle_hash = path.get(index + offset + 1).copied().unwrap_or(puzzle_hash);
 
-            let amount = self
-                .node(node_puzzle_hash)?
+            let amount = self.nodes[&node_puzzle_hash]
                 .children
                 .iter()
-                .find(|child| child.puzzle_hash() == child_puzzle_hash)?
-                .amount();
+                .find(|child| child.puzzle_hash() == child_puzzle_hash)
+                .map(BagChild::amount)
+                .ok_or(DriverError::UnknownBagNode(child_puzzle_hash))?;
 
             coin = coin.child(child_puzzle_hash, amount);
             coins.push(coin);
         }
 
-        Some(coins)
+        Ok(coins)
     }
 
     /// The p2 spend of a node, which is the same for every asset. It still needs to be wrapped in the asset's outer
@@ -291,8 +353,24 @@ impl SecureTheBag {
         }
 
         let puzzle_hash = coin.p2_puzzle_hash();
-        let spend = self.node_spend(ctx, puzzle_hash)?;
-        let node = &self.nodes[&puzzle_hash];
+        let node = self
+            .node(puzzle_hash)
+            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
+
+        self.spend_known_node(ctx, coin, node)
+    }
+
+    fn spend_known_node(
+        &self,
+        ctx: &mut SpendContext,
+        coin: BagCoin,
+        node: &BagNode,
+    ) -> Result<Vec<BagCoin>, DriverError> {
+        if coin.coin().amount != node.amount {
+            return Err(DriverError::BagAmountMismatch);
+        }
+
+        let spend = self.format.node_spend(ctx, &node.children)?;
 
         match coin {
             BagCoin::Xch(coin) => ctx.spend(coin, spend)?,
@@ -308,40 +386,43 @@ impl SecureTheBag {
             .collect())
     }
 
-    /// Spends each node from the root coin down to the coin with the given p2 puzzle hash, and returns that coin.
+    /// Spends each node from `start` down to the coin with the given p2 puzzle hash, and returns that coin.
+    ///
+    /// The start can be the root coin, or the closest unspent node coin on the path if part of the bag has already been
+    /// unrolled, since spending the root again would be a double spend.
     pub fn spend_path(
         &self,
         ctx: &mut SpendContext,
-        root: BagCoin,
+        start: BagCoin,
         puzzle_hash: Bytes32,
     ) -> Result<BagCoin, DriverError> {
-        let coins = self
-            .coin_path(root, puzzle_hash)
-            .ok_or(DriverError::UnknownBagNode(puzzle_hash))?;
+        let coins = self.coin_path(start, puzzle_hash)?;
+        let (&target, nodes) = coins.split_last().expect("the path includes the start");
 
-        for &coin in &coins[..coins.len() - 1] {
+        for &coin in nodes {
             self.spend_node(ctx, coin)?;
         }
 
-        Ok(coins[coins.len() - 1])
+        Ok(target)
     }
 
-    /// Spends every node in the bag, starting with the root coin, and returns the payment coins.
+    /// Spends every node under `start`, which is usually the root coin, and returns the payment coins.
     ///
     /// For large bags, the spends may not fit in a single block, so consider [`SecureTheBag::spend_node`] instead.
     pub fn unroll(
         &self,
         ctx: &mut SpendContext,
-        root: BagCoin,
+        start: BagCoin,
     ) -> Result<Vec<BagCoin>, DriverError> {
-        let mut payments = Vec::with_capacity(self.payments.len());
-        let mut stack = vec![root];
+        self.check_coin(start)?;
+
+        let mut payments = Vec::new();
+        let mut stack = vec![start];
 
         while let Some(coin) = stack.pop() {
-            if self.node(coin.p2_puzzle_hash()).is_some() {
-                stack.extend(self.spend_node(ctx, coin)?);
-            } else {
-                payments.push(coin);
+            match self.node(coin.p2_puzzle_hash()) {
+                Some(node) => stack.extend(self.spend_known_node(ctx, coin, node)?),
+                None => payments.push(coin),
             }
         }
 
@@ -573,6 +654,130 @@ mod tests {
         // Its siblings are created too, but payments in other leaves aren't
         assert_eq!(sim.hinted_coins(Bytes32::new([3; 32])).len(), 1);
         assert!(sim.hinted_coins(Bytes32::new([0; 32])).is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rejects_node_collision() -> Result<()> {
+        // A payment whose puzzle hash is the node built from the first two payments
+        let node = build(Some(2), payments(2))?.root_hash();
+
+        let mut input = payments(2);
+        input.push(BagPayment::new(node, 1));
+
+        let format = BagFormat::Legacy {
+            leaf_width: Some(2),
+            sorted: false,
+        };
+        assert!(matches!(
+            SecureTheBag::build(format, BagAsset::Xch, input),
+            Err(DriverError::BagNodeCollision(puzzle_hash)) if puzzle_hash == node
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_claims_from_an_unrolled_node() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        // Leaves of [0, 1, 2], [3, 4, 5], [6, 7, 8] and [9], under nodes of the first three and the last one
+        let bag = build(Some(3), payments(10))?;
+        let alice = sim.bls(bag.total_amount());
+
+        let hint = ctx.hint(bag.root_hash())?;
+        StandardLayer::new(alice.pk).spend(
+            &mut ctx,
+            alice.coin,
+            Conditions::new().create_coin(bag.root_hash(), bag.total_amount(), hint),
+        )?;
+        let root = BagCoin::Xch(Coin::new(
+            alice.coin.coin_id(),
+            bag.root_hash(),
+            bag.total_amount(),
+        ));
+
+        // The first claim spends the root and the node above both leaves
+        let first = Bytes32::new([4; 32]);
+        bag.spend_path(&mut ctx, root, first)?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        // The second claim starts at the leaf that the first claim created, rather than the spent root
+        let second = Bytes32::new([1; 32]);
+        let leaf = *bag.path(second).unwrap().last().unwrap();
+        let leaf_coin = *bag.coin_path(root, leaf)?.last().unwrap();
+        assert!(
+            sim.coin_state(leaf_coin.coin().coin_id())
+                .is_some_and(|state| state.spent_height.is_none())
+        );
+
+        assert!(matches!(
+            bag.coin_path(leaf_coin, first),
+            Err(DriverError::NotBagAncestor(puzzle_hash)) if puzzle_hash == first
+        ));
+
+        let payment = bag.spend_path(&mut ctx, leaf_coin, second)?;
+        assert_eq!(bag.coin_path(leaf_coin, second)?.len(), 2);
+        sim.spend_coins(ctx.take(), &[])?;
+
+        assert_eq!(sim.hinted_coins(second), vec![payment.coin().coin_id()]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rejects_coins_outside_the_bag() -> Result<()> {
+        let mut ctx = SpendContext::new();
+        let bag = build(Some(3), payments(10))?;
+
+        let root = BagCoin::Xch(Coin::new(
+            Bytes32::default(),
+            bag.root_hash(),
+            bag.total_amount(),
+        ));
+
+        let wrong_amount = BagCoin::Xch(Coin::new(Bytes32::default(), bag.root_hash(), 1));
+        assert!(matches!(
+            bag.coin_path(wrong_amount, Bytes32::new([4; 32])),
+            Err(DriverError::BagAmountMismatch)
+        ));
+        assert!(matches!(
+            bag.unroll(&mut ctx, wrong_amount),
+            Err(DriverError::BagAmountMismatch)
+        ));
+        assert!(matches!(
+            bag.spend_node(&mut ctx, wrong_amount),
+            Err(DriverError::BagAmountMismatch)
+        ));
+
+        let unrelated = BagCoin::Xch(Coin::new(Bytes32::default(), Bytes32::new([99; 32]), 1));
+        assert!(matches!(
+            bag.unroll(&mut ctx, unrelated),
+            Err(DriverError::UnknownBagNode(_))
+        ));
+        assert!(matches!(
+            bag.coin_path(root, Bytes32::new([99; 32])),
+            Err(DriverError::UnknownBagNode(_))
+        ));
+
+        let cat = BagCoin::Cat(Cat::new(
+            root.coin(),
+            None,
+            crate::CatInfo::new(Bytes32::default(), None, bag.root_hash()),
+        ));
+        assert!(matches!(
+            bag.unroll(&mut ctx, cat),
+            Err(DriverError::IncompatibleAssetInfo)
+        ));
+
+        // A payment coin unrolls to itself
+        let payment = Bytes32::new([4; 32]);
+        let payment_coin = *bag.coin_path(root, payment)?.last().unwrap();
+        assert_eq!(bag.amount(payment), Some(5));
+        assert_eq!(bag.unroll(&mut ctx, payment_coin)?, vec![payment_coin]);
+        assert_eq!(bag.coin_path(payment_coin, payment)?, vec![payment_coin]);
 
         Ok(())
     }

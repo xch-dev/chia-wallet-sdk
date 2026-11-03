@@ -227,7 +227,17 @@ test("unrolls an xch bag with a clawback", (t) => {
   const coinPuzzleHash = payments[5].coinPuzzleHash();
   t.deepEqual(coinPuzzleHash, clawback.puzzleHash());
   t.is(bag.path(coinPuzzleHash)?.length, 3);
-  t.is(bag.coinPath(root, coinPuzzleHash)?.length, 4);
+  t.is(bag.coinPath(root, coinPuzzleHash).length, 4);
+  t.is(bag.amount(coinPuzzleHash), 10n);
+
+  // Coins that aren't part of the bag are rejected
+  t.throws(() =>
+    bag.coinPath(
+      BagCoin.xch(new Coin(alice.coin.coinId(), bag.rootHash(), 24n)),
+      coinPuzzleHash,
+    ),
+  );
+  t.throws(() => bag.unroll(clvm, BagCoin.xch(alice.coin)));
 
   const coins = bag.unroll(clvm, root);
   t.is(coins.length, 6);

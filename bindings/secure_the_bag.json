@@ -202,12 +202,18 @@
         },
         "return": "Option<Vec<Bytes32>>"
       },
-      "coin_path": {
+      "amount": {
         "args": {
-          "root": "BagCoin",
           "puzzle_hash": "Bytes32"
         },
-        "return": "Option<Vec<BagCoin>>"
+        "return": "Option<u64>"
+      },
+      "coin_path": {
+        "args": {
+          "start": "BagCoin",
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Vec<BagCoin>"
       },
       "node_spend": {
         "args": {
@@ -226,7 +232,7 @@
       "spend_path": {
         "args": {
           "clvm": "Clvm",
-          "root": "BagCoin",
+          "start": "BagCoin",
           "puzzle_hash": "Bytes32"
         },
         "return": "BagCoin"
@@ -234,7 +240,7 @@
       "unroll": {
         "args": {
           "clvm": "Clvm",
-          "root": "BagCoin"
+          "start": "BagCoin"
         },
         "return": "Vec<BagCoin>"
       }

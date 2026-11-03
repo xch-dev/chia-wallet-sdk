@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
@@ -7,12 +9,15 @@ use chia_sdk_driver::{
 
 use crate::{Clvm, Program, Spend};
 
+/// The bag is shared, since it can hold millions of payments and bindings clone their values.
 #[derive(Clone)]
-pub struct SecureTheBag(pub(crate) sdk::SecureTheBag);
+pub struct SecureTheBag(pub(crate) Arc<sdk::SecureTheBag>);
 
 impl SecureTheBag {
     pub fn new(format: BagFormat, asset: BagAsset, payments: Vec<BagPayment>) -> Result<Self> {
-        Ok(Self(sdk::SecureTheBag::build(format, asset, payments)?))
+        Ok(Self(Arc::new(sdk::SecureTheBag::build(
+            format, asset, payments,
+        )?)))
     }
 
     pub fn format(&self) -> Result<BagFormat> {
@@ -60,8 +65,12 @@ impl SecureTheBag {
         Ok(self.0.path(puzzle_hash))
     }
 
-    pub fn coin_path(&self, root: BagCoin, puzzle_hash: Bytes32) -> Result<Option<Vec<BagCoin>>> {
-        Ok(self.0.coin_path(root, puzzle_hash))
+    pub fn amount(&self, puzzle_hash: Bytes32) -> Result<Option<u64>> {
+        Ok(self.0.amount(puzzle_hash))
+    }
+
+    pub fn coin_path(&self, start: BagCoin, puzzle_hash: Bytes32) -> Result<Vec<BagCoin>> {
+        Ok(self.0.coin_path(start, puzzle_hash)?)
     }
 
     pub fn node_spend(&self, clvm: Clvm, puzzle_hash: Bytes32) -> Result<Spend> {
@@ -79,14 +88,14 @@ impl SecureTheBag {
         Ok(self.0.spend_node(&mut ctx, coin)?)
     }
 
-    pub fn spend_path(&self, clvm: Clvm, root: BagCoin, puzzle_hash: Bytes32) -> Result<BagCoin> {
+    pub fn spend_path(&self, clvm: Clvm, start: BagCoin, puzzle_hash: Bytes32) -> Result<BagCoin> {
         let mut ctx = clvm.0.lock().unwrap();
-        Ok(self.0.spend_path(&mut ctx, root, puzzle_hash)?)
+        Ok(self.0.spend_path(&mut ctx, start, puzzle_hash)?)
     }
 
-    pub fn unroll(&self, clvm: Clvm, root: BagCoin) -> Result<Vec<BagCoin>> {
+    pub fn unroll(&self, clvm: Clvm, start: BagCoin) -> Result<Vec<BagCoin>> {
         let mut ctx = clvm.0.lock().unwrap();
-        Ok(self.0.unroll(&mut ctx, root)?)
+        Ok(self.0.unroll(&mut ctx, start)?)
     }
 }
 

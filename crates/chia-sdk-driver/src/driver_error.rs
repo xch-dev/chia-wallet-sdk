@@ -360,6 +360,15 @@ pub enum DriverError {
     #[error("invalid bag width {width} for {payments} payments")]
     InvalidBagWidth { width: usize, payments: usize },
 
-    #[error("puzzle hash {0} is not a node in this bag")]
+    #[error("puzzle hash {0} is not part of this bag")]
     UnknownBagNode(Bytes32),
+
+    #[error("the coin isn't on the path to {0} in this bag")]
+    NotBagAncestor(Bytes32),
+
+    #[error("the coin's amount doesn't match the bag")]
+    BagAmountMismatch,
+
+    #[error("a payment has the same puzzle hash as node {0} of the bag")]
+    BagNodeCollision(Bytes32),
 }

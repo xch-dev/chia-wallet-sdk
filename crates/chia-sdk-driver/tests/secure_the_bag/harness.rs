@@ -55,16 +55,19 @@ pub enum Clawbacks {
 
 /// The sizes around the edges of a format's width: 1, 2, width ± 1 and width² ± 1.
 pub fn boundary_sizes(width: usize) -> Vec<usize> {
+    let squared = width * width;
     let mut sizes = vec![
         1,
         2,
-        width - 1,
+        width.saturating_sub(1),
         width,
         width + 1,
-        width * width - 1,
-        width * width,
-        width * width + 1,
+        squared.saturating_sub(1),
+        squared,
+        squared + 1,
     ];
+    sizes.retain(|&size| size > 0);
+    sizes.sort_unstable();
     sizes.dedup();
     sizes
 }

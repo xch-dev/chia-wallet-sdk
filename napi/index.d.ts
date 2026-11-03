@@ -4240,11 +4240,12 @@ export declare class SecureTheBag {
   node(puzzleHash: Uint8Array): BagNode | null
   parent(puzzleHash: Uint8Array): Buffer | null
   path(puzzleHash: Uint8Array): Array<Buffer> | null
-  coinPath(root: BagCoin, puzzleHash: Uint8Array): Array<BagCoin> | null
+  amount(puzzleHash: Uint8Array): bigint | null
+  coinPath(start: BagCoin, puzzleHash: Uint8Array): Array<BagCoin>
   nodeSpend(clvm: Clvm, puzzleHash: Uint8Array): Spend
   spendNode(clvm: Clvm, coin: BagCoin): Array<BagCoin>
-  spendPath(clvm: Clvm, root: BagCoin, puzzleHash: Uint8Array): BagCoin
-  unroll(clvm: Clvm, root: BagCoin): Array<BagCoin>
+  spendPath(clvm: Clvm, start: BagCoin, puzzleHash: Uint8Array): BagCoin
+  unroll(clvm: Clvm, start: BagCoin): Array<BagCoin>
 }
 
 export declare class SendMessage {
