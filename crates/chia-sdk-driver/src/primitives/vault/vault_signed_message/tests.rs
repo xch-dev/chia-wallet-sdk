@@ -482,6 +482,15 @@ fn test_vault_message_constants() -> Result<()> {
     );
     assert_eq!(VAULT_MESSAGE_COIN_ID, vault_message_coin().coin_id());
     assert_eq!(vault_message_coin().parent_coin_info, Bytes32::default());
+    assert_eq!(
+        VAULT_CONTROLLER_MESSAGE_COIN_ID,
+        vault_controller_message_coin().coin_id()
+    );
+    assert_eq!(
+        vault_controller_message_coin().parent_coin_info,
+        Bytes32::default()
+    );
+    assert_ne!(VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_MESSAGE_COIN_ID);
 
     Ok(())
 }
@@ -1698,9 +1707,11 @@ fn test_reject_missing_controller_spend(#[values(false, true)] fast_forward: boo
     Ok(())
 }
 
+/// A controller envelope with an extra condition, or without the message to the controller message coin, is rejected.
 #[rstest]
 fn test_reject_controller_with_extra_condition(
     #[values(false, true)] fast_forward: bool,
+    #[values(false, true)] with_marker: bool,
 ) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
@@ -1718,7 +1729,8 @@ fn test_reject_controller_with_extra_condition(
         (VAULT_MESSAGE_MODE, controlled.vault.coin.coin_id())
     };
     let receiver = ctx.alloc(&receiver)?;
-    let conditions = Conditions::new()
+    let envelope_hash: Bytes = ctx.tree_hash(envelope.puzzle).to_vec().into();
+    let mut conditions = Conditions::new()
         .create_coin(
             controlled.controller.info.custody_hash.into(),
             controlled.controller.coin.amount,
@@ -1726,10 +1738,20 @@ fn test_reject_controller_with_extra_condition(
         )
         .with(SendMessage::new(
             mode,
-            ctx.tree_hash(envelope.puzzle).to_vec().into(),
+            envelope_hash.clone(),
             vec![receiver],
-        ))
-        .reserve_fee(0);
+        ));
+
+    if with_marker {
+        let marker_coin_id = ctx.alloc(&VAULT_CONTROLLER_MESSAGE_COIN_ID)?;
+        conditions = conditions
+            .with(SendMessage::new(
+                VAULT_MESSAGE_MODE,
+                envelope_hash,
+                vec![marker_coin_id],
+            ))
+            .reserve_fee(0);
+    }
     let controller_envelope = ctx.delegated_spend(conditions)?;
     let controller_spend = controller_spend(
         &mut ctx,
@@ -2027,6 +2049,71 @@ fn test_reject_controller_message_with_wrong_mode(
         controlled.verify(&proof),
         Err(DriverError::Validation(_))
     ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_controller_envelope_is_invalid_on_chain(#[values(false, true)] marked: bool) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1], 1);
+    let controller = custody.mint(&mut sim, &mut ctx)?;
+
+    // A coin that receives the controller's message without a vault message envelope, like a vault whose custody can
+    // receive the message some other way.
+    let receiver = sim.new_coin(VAULT_MESSAGE_PUZZLE_HASH, 1);
+    let delegated_puzzle_hash = Bytes32::new([7; 32]);
+
+    let controller_envelope = if marked {
+        vault_controller_envelope(
+            &mut ctx,
+            &controller,
+            receiver,
+            delegated_puzzle_hash,
+            false,
+        )?
+    } else {
+        let receiver_id = ctx.alloc(&receiver.coin_id())?;
+        ctx.delegated_spend(
+            Conditions::new()
+                .create_coin(
+                    controller.info.custody_hash.into(),
+                    controller.coin.amount,
+                    Memos::None,
+                )
+                .with(SendMessage::new(
+                    VAULT_MESSAGE_MODE,
+                    delegated_puzzle_hash.to_vec().into(),
+                    vec![receiver_id],
+                )),
+        )?
+    };
+    let controller_spend =
+        controller_spend(&mut ctx, &custody, &controller, controller_envelope, &[0])?;
+
+    let sender = ctx.alloc(&controller.coin.puzzle_hash)?;
+    let receive = ctx.alloc(&clvm_list!(clvm_list!(
+        chia_consensus::opcodes::RECEIVE_MESSAGE,
+        VAULT_MESSAGE_MODE,
+        Bytes::new(delegated_puzzle_hash.to_vec()),
+        sender
+    )))?;
+    let receiver_spend = CoinSpend::new(receiver, Program::from(vec![1]), ctx.serialize(&receive)?);
+
+    let result = sim.new_transaction(SpendBundle::new(
+        vec![controller_spend, receiver_spend],
+        Signature::default(),
+    ));
+
+    // The message to the controller message coin can never be received, so the controller envelope can't be valid on
+    // chain, even though the controlled vault's message is received.
+    if marked {
+        assert!(result.is_err());
+    } else {
+        result?;
+    }
 
     Ok(())
 }

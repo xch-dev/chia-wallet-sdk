@@ -11,8 +11,9 @@ use crate::{
     Action, ControlledVaultRecovery, DelegatedPuzzleFeederLayer, DriverError, Id,
     IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SingletonInfo,
     SingletonLayer, Spend, SpendContext, TestVault, TransactionData,
-    VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE, VaultOutput, VaultTransaction,
-    VaultVersion, parse_vault_transaction, vault_recovery_delegated_puzzle_hash,
+    VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE,
+    VaultOutput, VaultTransaction, VaultVersion, parse_vault_transaction,
+    vault_recovery_delegated_puzzle_hash,
 };
 
 /// Reveals each vault below the vault at the top of the chain of controllers, which is the one being signed for.
@@ -383,6 +384,20 @@ fn controller_message(
     ))
 }
 
+/// The message that a vault which authorizes another vault to sign messages also sends to the controller message coin,
+/// so that its spend can never be valid on chain.
+fn controller_marker(
+    ctx: &mut SpendContext,
+    delegated_puzzle_hash: Bytes32,
+) -> Result<SendMessage<clvmr::NodePtr>> {
+    let coin_id = ctx.alloc(&VAULT_CONTROLLER_MESSAGE_COIN_ID)?;
+    Ok(SendMessage::new(
+        VAULT_MESSAGE_MODE,
+        delegated_puzzle_hash.to_vec().into(),
+        vec![coin_id],
+    ))
+}
+
 #[rstest]
 fn test_clear_signing_controlled_vault_recovery(
     #[values(VaultVersion::Legacy, VaultVersion::ForceSingletonRecreation)] version: VaultVersion,
@@ -599,7 +614,9 @@ fn test_clear_signing_controlled_vault_signs_messages(
     let envelope_hash: Bytes32 = ctx.tree_hash(envelope.puzzle).into();
 
     let middle_message = controller_message(&mut ctx, vault, envelope_hash, fast_forward)?;
-    let middle_spend = ctx.delegated_spend(middle.recreate().with(middle_message))?;
+    let middle_marker = controller_marker(&mut ctx, envelope_hash)?;
+    let middle_spend =
+        ctx.delegated_spend(middle.recreate().with(middle_message).with(middle_marker))?;
     let middle_hash: Bytes32 = ctx.tree_hash(middle_spend.puzzle).into();
 
     let mut reveals = Reveals::default();
@@ -607,7 +624,8 @@ fn test_clear_signing_controlled_vault_signs_messages(
     middle.reveal_to(&mut ctx, &mut reveals, middle_spend, None)?;
 
     let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
-    let top_spend = ctx.delegated_spend(top.recreate().with(top_message))?;
+    let top_marker = controller_marker(&mut ctx, middle_hash)?;
+    let top_spend = ctx.delegated_spend(top.recreate().with(top_message).with(top_marker))?;
 
     let tx = parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, top_spend)?;
     assert!(tx.signs_messages());
@@ -619,13 +637,33 @@ fn test_clear_signing_controlled_vault_signs_messages(
         messages
     );
 
-    // A vault that authorizes a vault to sign messages can't do anything else.
+    // A vault that authorizes a vault to sign messages must make its spend invalid on chain, since it could otherwise
+    // be valid if the vault's custody can receive the message some other way.
     let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
-    let mixed_spend = ctx.delegated_spend(top.recreate().with(top_message).create_coin(
-        Bytes32::default(),
-        0,
-        Memos::None,
-    ))?;
+    let unmarked_spend = ctx.delegated_spend(top.recreate().with(top_message))?;
+    assert!(matches!(
+        parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, unmarked_spend),
+        Err(DriverError::MixedVaultMessageEnvelope)
+    ));
+
+    // The marker must have the same message.
+    let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
+    let wrong_marker = controller_marker(&mut ctx, envelope_hash)?;
+    let wrong_spend = ctx.delegated_spend(top.recreate().with(top_message).with(wrong_marker))?;
+    assert!(matches!(
+        parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, wrong_spend),
+        Err(DriverError::MixedVaultMessageEnvelope)
+    ));
+
+    // And it can't do anything else.
+    let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
+    let top_marker = controller_marker(&mut ctx, middle_hash)?;
+    let mixed_spend = ctx.delegated_spend(
+        top.recreate()
+            .with(top_message)
+            .with(top_marker)
+            .create_coin(Bytes32::default(), 0, Memos::None),
+    )?;
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, top.launcher_id, mixed_spend),
         Err(DriverError::MixedVaultMessageEnvelope)
@@ -872,10 +910,12 @@ fn test_clear_signing_controller_of_message_signer_changes_custody(
     // The middle vault authorizes the vault to sign messages, but changes its own custody. Its custody hash is known,
     // since it's controlled by the top vault, so this is rejected.
     let middle_message = controller_message(&mut ctx, vault, envelope_hash, fast_forward)?;
+    let middle_marker = controller_marker(&mut ctx, envelope_hash)?;
     let middle_spend = ctx.delegated_spend(
         Conditions::new()
             .create_coin(Bytes32::new([9; 32]), 1, Memos::None)
-            .with(middle_message),
+            .with(middle_message)
+            .with(middle_marker),
     )?;
     let middle_hash: Bytes32 = ctx.tree_hash(middle_spend.puzzle).into();
 
@@ -884,7 +924,8 @@ fn test_clear_signing_controller_of_message_signer_changes_custody(
     middle.reveal_to(&mut ctx, &mut reveals, middle_spend, None)?;
 
     let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
-    let top_spend = ctx.delegated_spend(top.recreate().with(top_message))?;
+    let top_marker = controller_marker(&mut ctx, middle_hash)?;
+    let top_spend = ctx.delegated_spend(top.recreate().with(top_message).with(top_marker))?;
 
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, top.launcher_id, top_spend),

@@ -28,8 +28,8 @@ use crate::{
     Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
     MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
     SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer,
-    VAULT_FAST_FORWARD_MESSAGE_MODE, Vault, VaultInfo, coin_amount, mips_puzzle_hash,
-    vault_controller_envelope,
+    VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE, Vault, VaultInfo, coin_amount,
+    mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -361,7 +361,7 @@ impl TestVault {
         let mut controller_spends = Vec::new();
 
         if let (Some(controller), Some(controller_vault)) = (&self.controller, controller_vault) {
-            let controller_delegated_spend = vault_controller_envelope(
+            let controller_delegated_spend = controller_authorization(
                 ctx,
                 &controller_vault,
                 vault.coin,
@@ -499,6 +499,39 @@ pub fn controlled_custody_puzzle_hash(
     };
 
     mips_puzzle_hash(0, vec![], member_hash, true)
+}
+
+/// The delegated spend of a controller that authorizes a transaction of the vault it controls, which recreates the
+/// controller and sends the controlled vault its delegated puzzle hash. Unlike a
+/// [`vault_controller_envelope`](crate::vault_controller_envelope), this is valid on chain.
+pub fn controller_authorization(
+    ctx: &mut SpendContext,
+    controller: &Vault,
+    controlled_coin: Coin,
+    delegated_puzzle_hash: Bytes32,
+    fast_forward: bool,
+) -> Result<Spend> {
+    let (mode, receiver) = if fast_forward {
+        (VAULT_FAST_FORWARD_MESSAGE_MODE, controlled_coin.puzzle_hash)
+    } else {
+        (VAULT_MESSAGE_MODE, controlled_coin.coin_id())
+    };
+
+    let receiver = ctx.alloc(&receiver)?;
+
+    Ok(ctx.delegated_spend(
+        Conditions::new()
+            .create_coin(
+                controller.info.custody_hash.into(),
+                controller.coin.amount,
+                Memos::None,
+            )
+            .with(SendMessage::new(
+                mode,
+                delegated_puzzle_hash.to_vec().into(),
+                vec![receiver],
+            )),
+    )?)
 }
 
 /// Spends the singleton member of a vault whose custody is [`controlled_custody_puzzle_hash`], which receives the

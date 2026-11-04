@@ -13,10 +13,11 @@ use crate::{
     ClearSigningAsset, ControlledVaultRecovery, CustodyInfo, DriverError, DropCoin, Facts,
     Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo,
     ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext,
-    TransferType, VaultLayers, VaultMessage, VaultOutput, build_linked_offer,
-    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
-    parse_delegated_spend, parse_run_cat_tail, parse_spend, parse_vault_controller_envelope,
-    parse_vault_delegated_spend, split_asserted_payments, vault_recovery_delegated_puzzle_hash,
+    TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage, VaultOutput,
+    build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
+    parse_spend, parse_vault_controller_envelope, parse_vault_delegated_spend,
+    split_asserted_payments, vault_recovery_delegated_puzzle_hash,
 };
 
 /// The maximum depth of controlled vaults that are parsed below the vault being signed for, which bounds the work done
@@ -92,10 +93,11 @@ impl VaultTransaction {
     /// Whether this vault, or a vault that it controls, signs arbitrary messages with a
     /// [`vault_message_envelope`](crate::vault_message_envelope) rather than doing anything else.
     ///
-    /// Each controlled vault is required to be recreated as it was, but the vault being signed for can still be
-    /// recreated with a different custody hash, since its current custody hash isn't known. If a controlled vault's
-    /// custody can receive the message some other way, that would be valid on chain, so [`vault_child`](Self::vault_child)
-    /// must still be checked against the vault's current custody hash.
+    /// A vault that authorizes another vault to sign messages must use a
+    /// [`vault_controller_envelope`](crate::vault_controller_envelope), which sends a message to
+    /// [`VAULT_CONTROLLER_MESSAGE_COIN_ID`](crate::VAULT_CONTROLLER_MESSAGE_COIN_ID), so that its spend can never be
+    /// valid on chain either. Each controlled vault is also required to be recreated as it was, which can't be checked
+    /// for the vault being signed for, since its current custody hash isn't known.
     pub fn signs_messages(&self) -> bool {
         !self.signed_messages.is_empty()
             || self
@@ -232,6 +234,12 @@ fn parse_vault(
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     let mut messages_by_controlled_vault: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     for message in vault_spend.messages {
+        // A message to the controller message coin can never be received, so it only makes the spend invalid on chain,
+        // which a vault that authorizes another vault to sign messages must do. That's checked below.
+        if message.spent_coin_id == VAULT_CONTROLLER_MESSAGE_COIN_ID {
+            continue;
+        }
+
         let messages = if reveals.controlled_vault(message.spent_coin_id).is_some() {
             &mut messages_by_controlled_vault
         } else {
@@ -648,7 +656,9 @@ fn parse_vault(
     }
 
     // Like a vault that signs messages, a vault that authorizes another vault to sign messages can't do anything else,
-    // so that it can't look like it also authorizes a transaction. This is the same check that
+    // so that it can't look like it also authorizes a transaction. It must also send its message to the controller
+    // message coin, so that its spend can never be valid on chain, even if the controlled vault's custody can receive
+    // the message some other way than with a vault message envelope. This is the same check that
     // `verify_controlled_vault_signed_message` does.
     if controlled_vaults
         .iter()
@@ -663,9 +673,7 @@ fn parse_vault(
 
     // A vault that signs messages, or authorizes another vault to, must be recreated as it was, which is also what
     // `verify_controlled_vault_signed_message` requires. This can only be checked for a controlled vault, whose custody
-    // hash is known. It matters because a controller envelope can be valid on chain if the controlled vault's custody
-    // can receive the message some other way, so a vault shown as only signing messages could otherwise change its
-    // custody.
+    // hash is known.
     let signs_messages = !vault_spend.signed_messages.is_empty()
         || controlled_vaults
             .iter()
