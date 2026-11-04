@@ -360,6 +360,18 @@ pub enum DriverError {
     #[error("invalid bag width {width} for {payments} payments")]
     InvalidBagWidth { width: usize, payments: usize },
 
+    #[error(
+        "bag fan-outs must have 1 to {} values, each from 1 to {}",
+        crate::BagFanOuts::MAX_LEVELS,
+        crate::BagFanOuts::MAX_FAN_OUT
+    )]
+    InvalidBagFanOuts,
+
+    #[error(
+        "the bag's fan-outs and leaf width of {leaf_width} would leave a node empty or with too many children for {payments} payments"
+    )]
+    BagFanOutsMismatch { payments: usize, leaf_width: usize },
+
     #[error("puzzle hash {0} is not part of this bag")]
     UnknownBagNode(Bytes32),
 

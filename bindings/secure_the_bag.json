@@ -37,8 +37,25 @@
         },
         "return": "usize"
       },
+      "chip0053": {
+        "type": "factory",
+        "args": {
+          "leaf_width": "Option<usize>",
+          "fan_outs": "Option<Vec<usize>>",
+          "sorted": "bool"
+        }
+      },
+      "fan_outs": {
+        "args": {
+          "payment_count": "usize"
+        },
+        "return": "Option<Vec<usize>>"
+      },
       "to_legacy": {
         "return": "Option<BagFormatLegacy>"
+      },
+      "to_chip0053": {
+        "return": "Option<BagFormatChip0053>"
       }
     }
   },
@@ -46,6 +63,14 @@
     "type": "class",
     "fields": {
       "leaf_width": "Option<usize>",
+      "sorted": "bool"
+    }
+  },
+  "BagFormatChip0053": {
+    "type": "class",
+    "fields": {
+      "leaf_width": "Option<usize>",
+      "fan_outs": "Option<Vec<usize>>",
       "sorted": "bool"
     }
   },

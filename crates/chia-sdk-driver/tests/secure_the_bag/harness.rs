@@ -159,7 +159,10 @@ impl Metrics {
 
 /// Whether the root of the format depends only on the set of payments, and not their order.
 pub fn is_canonical(format: BagFormat) -> bool {
-    matches!(format, BagFormat::Legacy { sorted: true, .. })
+    matches!(
+        format,
+        BagFormat::Legacy { sorted: true, .. } | BagFormat::Chip0053 { sorted: true, .. }
+    )
 }
 
 /// Checks every invariant, including a full unroll in the simulator, and returns the metrics.

@@ -136,7 +136,7 @@ fn legacy_large(
 #[test]
 #[ignore = "slow, run in release mode"]
 fn comparison_report() -> Result<()> {
-    let formats = [BagFormat::legacy()];
+    let formats = [BagFormat::legacy(), BagFormat::chip0053()];
     let assets = [AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat];
     let sizes = [1, 2, 99, 101, 1000, 1001, 10_001, 100_000];
 
