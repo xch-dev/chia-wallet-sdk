@@ -329,7 +329,8 @@ impl MipsSpend {
         let restrictions = convert_restrictions(config.restrictions);
 
         let (member_hash, member_puzzle) = if fast_forward {
-            let member = SingletonMemberWithMode::new(launcher_id, 0b010_010);
+            let member =
+                SingletonMemberWithMode::new(launcher_id, sdk::VAULT_FAST_FORWARD_MESSAGE_MODE);
             let tree_hash = member.curry_tree_hash();
             (tree_hash, ctx.curry(member)?)
         } else {

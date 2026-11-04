@@ -1,7 +1,7 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{MofN, mips_puzzle_hash};
+use chia_sdk_driver::{MofN, VAULT_FAST_FORWARD_MESSAGE_MODE, mips_puzzle_hash};
 use chia_sdk_types::{
     Mod,
     puzzles::{
@@ -137,7 +137,8 @@ pub fn singleton_member_hash(
     member_hash(
         config,
         if fast_forward {
-            SingletonMemberWithMode::new(launcher_id, 0b010_010).curry_tree_hash()
+            SingletonMemberWithMode::new(launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
+                .curry_tree_hash()
         } else {
             SingletonMember::new(launcher_id).curry_tree_hash()
         },

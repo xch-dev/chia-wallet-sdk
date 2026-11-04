@@ -341,28 +341,9 @@ impl TestVault {
 
         let member_spend = if let Some(controller) = &self.controller {
             let vault = controller.fetch_vault(sim)?;
-            let (puzzle, solution) = if self.fast_forward {
-                (
-                    ctx.curry(SingletonMemberWithMode::new(
-                        controller.info.launcher_id,
-                        VAULT_FAST_FORWARD_MESSAGE_MODE,
-                    ))?,
-                    ctx.alloc(&SingletonMemberWithModeSolution::new(
-                        controller.info.custody_hash.into(),
-                        vault.coin.amount,
-                    ))?,
-                )
-            } else {
-                (
-                    ctx.curry(SingletonMember::new(controller.info.launcher_id))?,
-                    ctx.alloc(&SingletonMemberSolution::new(
-                        controller.info.custody_hash.into(),
-                        vault.coin.amount,
-                    ))?,
-                )
-            };
+            let member_spend = controlled_member_spend(ctx, &vault, self.fast_forward)?;
             controller_vault = Some(vault);
-            Spend::new(puzzle, solution)
+            member_spend
         } else {
             let puzzle = ctx.curry(BlsMember::new(self.secret_key.public_key()))?;
             Spend::new(puzzle, NodePtr::NIL)
@@ -504,7 +485,12 @@ fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
     mips_puzzle_hash(0, vec![], BlsMember::new(pk).curry_tree_hash(), true)
 }
 
-fn controlled_custody_puzzle_hash(controller_launcher_id: Bytes32, fast_forward: bool) -> TreeHash {
+/// The custody hash of a vault whose only member is a singleton member of the controller, which is fast-forwardable
+/// if it receives the controller's message by puzzle hash.
+pub fn controlled_custody_puzzle_hash(
+    controller_launcher_id: Bytes32,
+    fast_forward: bool,
+) -> TreeHash {
     let member_hash = if fast_forward {
         SingletonMemberWithMode::new(controller_launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
             .curry_tree_hash()
@@ -513,6 +499,37 @@ fn controlled_custody_puzzle_hash(controller_launcher_id: Bytes32, fast_forward:
     };
 
     mips_puzzle_hash(0, vec![], member_hash, true)
+}
+
+/// Spends the singleton member of a vault whose custody is [`controlled_custody_puzzle_hash`], which receives the
+/// controller's message.
+pub fn controlled_member_spend(
+    ctx: &mut SpendContext,
+    controller: &Vault,
+    fast_forward: bool,
+) -> Result<Spend> {
+    let inner_puzzle_hash = controller.info.custody_hash.into();
+    let amount = controller.coin.amount;
+
+    let (puzzle, solution) = if fast_forward {
+        (
+            ctx.curry(SingletonMemberWithMode::new(
+                controller.info.launcher_id,
+                VAULT_FAST_FORWARD_MESSAGE_MODE,
+            ))?,
+            ctx.alloc(&SingletonMemberWithModeSolution::new(
+                inner_puzzle_hash,
+                amount,
+            ))?,
+        )
+    } else {
+        (
+            ctx.curry(SingletonMember::new(controller.info.launcher_id))?,
+            ctx.alloc(&SingletonMemberSolution::new(inner_puzzle_hash, amount))?,
+        )
+    };
+
+    Ok(Spend::new(puzzle, solution))
 }
 
 fn fetch_cat(sim: &Simulator, coin: Coin) -> Result<Cat> {

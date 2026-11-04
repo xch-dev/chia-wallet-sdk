@@ -47,6 +47,7 @@ pub const VAULT_MESSAGE_MODE: u8 = 0x17;
 
 /// The message mode that a vault sends to a vault it controls when the controlled vault's singleton member is
 /// fast-forwardable, which is sent from the vault's puzzle to the controlled vault's puzzle hash rather than its coin id.
+/// This is the mode that's curried into a fast-forwardable [`SingletonMemberWithMode`](chia_sdk_types::puzzles::SingletonMemberWithMode).
 pub const VAULT_FAST_FORWARD_MESSAGE_MODE: u8 = 0x12;
 
 /// The version byte that prefixes an encoded [`VaultMessageProof`] that has no controller spends.
