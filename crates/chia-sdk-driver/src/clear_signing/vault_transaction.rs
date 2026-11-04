@@ -384,6 +384,20 @@ pub fn parse_vault_transaction(
         }
     }
 
+    // A spend that the transaction asserts is linked even without a vault message, so it can't be
+    // ignored if it couldn't be parsed. The revealed coin spends are iterated in order, so that the
+    // error is deterministic.
+    let asserted_error_coin_id = reveals
+        .coin_spends()
+        .map(|spend| spend.coin.coin_id())
+        .find(|coin_id| parse_errors.contains_key(coin_id) && facts.is_spend_asserted(*coin_id));
+
+    if let Some(coin_id) = asserted_error_coin_id
+        && let Some(error) = parse_errors.remove(&coin_id)
+    {
+        return Err(error);
+    }
+
     // If the transaction expires after the required expiration time of the spend,
     // we can't guarantee that the transaction will expire when the spend expires,
     // which is a security vulnerability.

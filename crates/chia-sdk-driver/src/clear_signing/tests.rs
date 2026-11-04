@@ -4855,7 +4855,9 @@ fn test_clear_signing_clawback_to_settlement_payment() -> Result<()> {
 }
 
 #[rstest]
-#[case::derived_amount(Conditions::new().reserve_fee(250), Some(500))]
+#[case::derived_amount(Conditions::new().reserve_fee(500), Some(500))]
+#[case::fee_paid_by_other_coins(Conditions::new().reserve_fee(600), Some(500))]
+#[case::unreserved_remainder(Conditions::new().reserve_fee(250), None)]
 #[case::other_create_coin(
     Conditions::new().create_coin(Bytes32::new([1; 32]), 250, Memos::None),
     None

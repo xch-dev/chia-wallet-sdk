@@ -247,11 +247,22 @@ fn calculate_transfer_type(
         reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
+        let (settlement_amount, reserved_fee) = calculate_settlement_amount(fixed_conditions)?;
+
+        // Any XCH that isn't paid to the settlement or reserved as a fee would be an implicit fee,
+        // which wouldn't be reflected in the offer. The fee may be paid by other coins, so it can exceed
+        // the remaining amount.
+        if bag_asset == Some(BagAsset::Xch)
+            && u128::from(settlement_amount) + reserved_fee < u128::from(input_amount)
+        {
+            return Err(DriverError::InvalidOfferPreSplitConditions);
+        }
+
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
-            settlement_amount: calculate_settlement_amount(fixed_conditions)?,
+            settlement_amount,
         })
     } else {
         TransferType::Sent
@@ -260,8 +271,11 @@ fn calculate_transfer_type(
 
 /// The fixed conditions of an offer pre-split coin can be output by anyone, so we only allow
 /// creating settlement coins, reserving fees, and assertions which restrict when they can be output.
-fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<u64, DriverError> {
+///
+/// Returns the settlement amount and the reserved fee.
+fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<(u64, u128), DriverError> {
     let mut settlement_amount = 0_u128;
+    let mut reserved_fee = 0_u128;
 
     for condition in fixed_conditions {
         match condition {
@@ -270,8 +284,10 @@ fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<u64, Dr
             {
                 settlement_amount += u128::from(condition.amount);
             }
-            Condition::ReserveFee(_)
-            | Condition::AssertPuzzleAnnouncement(_)
+            Condition::ReserveFee(condition) => {
+                reserved_fee += u128::from(condition.amount);
+            }
+            Condition::AssertPuzzleAnnouncement(_)
             | Condition::AssertCoinAnnouncement(_)
             | Condition::AssertConcurrentSpend(_)
             | Condition::AssertConcurrentPuzzle(_)
@@ -291,7 +307,7 @@ fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<u64, Dr
         }
     }
 
-    Ok(settlement_amount.try_into()?)
+    Ok((settlement_amount.try_into()?, reserved_fee))
 }
 
 /// Returns the announcements and messages created by a spend, which aren't otherwise reflected in
