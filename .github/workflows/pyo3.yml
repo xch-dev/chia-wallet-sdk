@@ -173,9 +173,17 @@ jobs:
           name: wheels-windows-${{ matrix.platform.target }}
           path: pyo3/dist
 
-  # Build both macOS wheels on a single runner, since macOS minutes are the most expensive
+  # Build each macOS wheel on its own runner in parallel, since GitHub's macOS runners are slow
+  # and the repo is public, so the minutes are free
   macos:
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-latest
+            target: aarch64
+          - runner: macos-latest
+            target: x86_64
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -183,23 +191,18 @@ jobs:
           python-version: 3.x
       - uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.platform.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Build wheels (aarch64)
+      - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: aarch64
-          args: --release --out dist --find-interpreter
-          working-directory: pyo3
-      - name: Build wheels (x86_64)
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x86_64
+          target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           working-directory: pyo3
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-macos
+          name: wheels-macos-${{ matrix.platform.target }}
           path: pyo3/dist
 
   sdist:
