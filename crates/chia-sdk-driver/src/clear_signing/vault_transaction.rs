@@ -214,6 +214,24 @@ fn parse_vault(
             .push(message);
     }
 
+    // A message to a puzzle hash is sent to a controlled vault whose singleton member is fast-forwardable. It isn't
+    // allowed for any other coin, since any coin with the puzzle hash could receive it, which would let a different
+    // coin than the one that's revealed be spent. A vault's puzzle hash commits to its launcher id and custody hash, so
+    // the controlled vault's delegated spend is authorized the same way on any of its coins.
+    for message in vault_spend.puzzle_messages {
+        let controlled_vault = reveals
+            .controlled_vault_by_puzzle_hash(message.puzzle_hash)?
+            .ok_or(DriverError::MissingSpend)?;
+
+        messages_by_controlled_vault
+            .entry(controlled_vault.coin.coin_id())
+            .or_default()
+            .push(VaultMessage {
+                spent_coin_id: controlled_vault.coin.coin_id(),
+                data: message.data,
+            });
+    }
+
     // The time bounds decide which clawback spends can be trusted, so they're recorded up front from the spends
     // that the vault authorizes and that can't be replaced. Any mismatched message fails the transaction below.
     for coin_id in messages_by_coin.keys() {

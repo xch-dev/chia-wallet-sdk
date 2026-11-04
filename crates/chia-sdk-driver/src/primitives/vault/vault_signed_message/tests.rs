@@ -2,7 +2,7 @@ use anyhow::Result;
 use chia_bls::SecretKey;
 use chia_consensus::opcodes::CREATE_COIN_ANNOUNCEMENT;
 use chia_consensus::validation_error::{ErrorCode, ValidationErr};
-use chia_protocol::{Bytes, Bytes32, CoinSpend, Program, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program, SpendBundle};
 use chia_puzzle_types::Memos;
 use chia_sdk_test::{BlsPair, R1Pair, Simulator, SimulatorError, sign_transaction};
 use chia_sdk_types::MerkleTree;
@@ -12,7 +12,8 @@ use chia_sdk_types::{
     puzzles::{
         BlsMember, ForceCoinMessageMod, MofNArgs, MofNSolution, PasskeyMemberPuzzleAssert,
         PasskeyMemberPuzzleAssertSolution, PreventConditionOpcode, R1MemberPuzzleAssert,
-        R1MemberPuzzleAssertSolution, SingletonMember, SingletonMemberSolution, Timelock,
+        R1MemberPuzzleAssertSolution, SingletonMember, SingletonMemberSolution,
+        SingletonMemberWithMode, SingletonMemberWithModeSolution, Timelock,
     },
 };
 use chia_secp::{R1PublicKey, R1SecretKey};
@@ -1461,14 +1462,17 @@ fn test_normal_vault_messages_unchanged() -> Result<()> {
     Ok(())
 }
 
-/// The custody hash of a vault whose only member is a singleton member of the controller.
-fn controlled_custody_hash(controller_launcher_id: Bytes32) -> TreeHash {
-    mips_puzzle_hash(
-        0,
-        vec![],
-        SingletonMember::new(controller_launcher_id).curry_tree_hash(),
-        true,
-    )
+/// The custody hash of a vault whose only member is a singleton member of the controller, which is fast-forwardable
+/// if it receives the controller's message by puzzle hash.
+fn controlled_custody_hash(controller_launcher_id: Bytes32, fast_forward: bool) -> TreeHash {
+    let member_hash = if fast_forward {
+        SingletonMemberWithMode::new(controller_launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
+            .curry_tree_hash()
+    } else {
+        SingletonMember::new(controller_launcher_id).curry_tree_hash()
+    };
+
+    mips_puzzle_hash(0, vec![], member_hash, true)
 }
 
 /// Spends a vault whose only member is a singleton member of the controller, with the given delegated spend.
@@ -1477,13 +1481,29 @@ fn controlled_spend(
     vault: &Vault,
     controller: &Vault,
     delegated_spend: Spend,
+    fast_forward: bool,
 ) -> Result<CoinSpend> {
     let mut spend = MipsSpend::new(delegated_spend);
-    let puzzle = ctx.curry(SingletonMember::new(controller.info.launcher_id))?;
-    let solution = ctx.alloc(&SingletonMemberSolution::new(
-        controller.info.custody_hash.into(),
-        controller.coin.amount,
-    ))?;
+    let (puzzle, solution) = if fast_forward {
+        (
+            ctx.curry(SingletonMemberWithMode::new(
+                controller.info.launcher_id,
+                VAULT_FAST_FORWARD_MESSAGE_MODE,
+            ))?,
+            ctx.alloc(&SingletonMemberWithModeSolution::new(
+                controller.info.custody_hash.into(),
+                controller.coin.amount,
+            ))?,
+        )
+    } else {
+        (
+            ctx.curry(SingletonMember::new(controller.info.launcher_id))?,
+            ctx.alloc(&SingletonMemberSolution::new(
+                controller.info.custody_hash.into(),
+                controller.coin.amount,
+            ))?,
+        )
+    };
     spend.members.insert(
         vault.info.custody_hash,
         InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, solution)),
@@ -1511,23 +1531,36 @@ struct ControlledVault {
     custody: TestCustody,
     controller: Vault,
     vault: Vault,
+    fast_forward: bool,
 }
 
 impl ControlledVault {
-    fn mint(sim: &mut Simulator, ctx: &mut SpendContext) -> Result<Self> {
+    fn mint(sim: &mut Simulator, ctx: &mut SpendContext, fast_forward: bool) -> Result<Self> {
         let custody = TestCustody::new(&[Kind::R1, Kind::Passkey, Kind::R1], 2);
         let controller = custody.mint(sim, ctx)?;
         let vault = mint_vault(
             sim,
             ctx,
-            controlled_custody_hash(controller.info.launcher_id),
+            controlled_custody_hash(controller.info.launcher_id, fast_forward),
         )?;
 
         Ok(Self {
             custody,
             controller,
             vault,
+            fast_forward,
         })
+    }
+
+    /// Spends the controlled vault with the delegated spend.
+    fn spend(&self, ctx: &mut SpendContext, delegated_spend: Spend) -> Result<CoinSpend> {
+        controlled_spend(
+            ctx,
+            &self.vault,
+            &self.controller,
+            delegated_spend,
+            self.fast_forward,
+        )
     }
 
     fn controllers(&self) -> Vec<VaultInfo> {
@@ -1541,13 +1574,14 @@ impl ControlledVault {
         messages: &[Bytes],
     ) -> Result<(VaultMessageProof, Spend, Spend)> {
         let envelope = vault_message_envelope(ctx, &self.vault, messages)?;
-        let vault_spend = controlled_spend(ctx, &self.vault, &self.controller, envelope)?;
+        let vault_spend = self.spend(ctx, envelope)?;
 
         let controller_envelope = vault_controller_envelope(
             ctx,
             &self.controller,
-            self.vault.coin.coin_id(),
+            self.vault.coin,
             ctx.tree_hash(envelope.puzzle).into(),
+            self.fast_forward,
         )?;
         let controller_spend = controller_spend(
             ctx,
@@ -1588,12 +1622,14 @@ impl ControlledVault {
     }
 }
 
-#[test]
-fn test_verify_controlled_vault_signed_message() -> Result<()> {
+#[rstest]
+fn test_verify_controlled_vault_signed_message(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let messages = messages();
     let (proof, envelope, controller_envelope) = controlled.sign_messages(&mut ctx, &messages)?;
 
@@ -1630,12 +1666,12 @@ fn test_verify_controlled_vault_signed_message() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_unknown_controller() -> Result<()> {
+#[rstest]
+fn test_reject_unknown_controller(#[values(false, true)] fast_forward: bool) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let (proof, ..) = controlled.sign_messages(&mut ctx, &messages())?;
 
     // The controller's custody hash must be given.
@@ -1669,12 +1705,12 @@ fn test_reject_unknown_controller() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_missing_controller_spend() -> Result<()> {
+#[rstest]
+fn test_reject_missing_controller_spend(#[values(false, true)] fast_forward: bool) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let (proof, ..) = controlled.sign_messages(&mut ctx, &messages())?;
 
     // Without the controller's spend, the singleton member's message isn't sent.
@@ -1687,21 +1723,26 @@ fn test_reject_missing_controller_spend() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_controller_with_extra_condition() -> Result<()> {
+#[rstest]
+fn test_reject_controller_with_extra_condition(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let envelope = vault_message_envelope(&mut ctx, &controlled.vault, &messages())?;
-    let vault_spend = controlled_spend(
-        &mut ctx,
-        &controlled.vault,
-        &controlled.controller,
-        envelope,
-    )?;
+    let vault_spend = controlled.spend(&mut ctx, envelope)?;
 
-    let coin_id = ctx.alloc(&controlled.vault.coin.coin_id())?;
+    let (mode, receiver) = if fast_forward {
+        (
+            VAULT_FAST_FORWARD_MESSAGE_MODE,
+            controlled.vault.coin.puzzle_hash,
+        )
+    } else {
+        (VAULT_MESSAGE_MODE, controlled.vault.coin.coin_id())
+    };
+    let receiver = ctx.alloc(&receiver)?;
     let conditions = Conditions::new()
         .create_coin(
             controlled.controller.info.custody_hash.into(),
@@ -1709,9 +1750,9 @@ fn test_reject_controller_with_extra_condition() -> Result<()> {
             Memos::None,
         )
         .with(SendMessage::new(
-            VAULT_MESSAGE_MODE,
+            mode,
             ctx.tree_hash(envelope.puzzle).to_vec().into(),
-            vec![coin_id],
+            vec![receiver],
         ))
         .reserve_fee(0);
     let controller_envelope = ctx.delegated_spend(conditions)?;
@@ -1736,27 +1777,25 @@ fn test_reject_controller_with_extra_condition() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_controller_message_outside_proof() -> Result<()> {
+#[rstest]
+fn test_reject_controller_message_outside_proof(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let envelope = vault_message_envelope(&mut ctx, &controlled.vault, &messages())?;
-    let vault_spend = controlled_spend(
-        &mut ctx,
-        &controlled.vault,
-        &controlled.controller,
-        envelope,
-    )?;
+    let vault_spend = controlled.spend(&mut ctx, envelope)?;
 
     // The controller authorizes a coin that isn't in the proof.
     let envelope_hash: Bytes32 = ctx.tree_hash(envelope.puzzle).into();
     let controller_envelope = vault_controller_envelope(
         &mut ctx,
         &controlled.controller,
-        Bytes32::new([1; 32]),
+        Coin::new(Bytes32::new([1; 32]), Bytes32::new([1; 32]), 1),
         envelope_hash,
+        fast_forward,
     )?;
     let controller_spend = controller_spend(
         &mut ctx,
@@ -1779,19 +1818,16 @@ fn test_reject_controller_message_outside_proof() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_controller_that_changes_custody() -> Result<()> {
+#[rstest]
+fn test_reject_controller_that_changes_custody(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let envelope = vault_message_envelope(&mut ctx, &controlled.vault, &messages())?;
-    let vault_spend = controlled_spend(
-        &mut ctx,
-        &controlled.vault,
-        &controlled.controller,
-        envelope,
-    )?;
+    let vault_spend = controlled.spend(&mut ctx, envelope)?;
 
     let changed = controlled
         .controller
@@ -1800,8 +1836,9 @@ fn test_reject_controller_that_changes_custody() -> Result<()> {
     let controller_envelope = vault_controller_envelope(
         &mut ctx,
         &changed,
-        controlled.vault.coin.coin_id(),
+        controlled.vault.coin,
         envelope_hash,
+        fast_forward,
     )?;
     let controller_spend = controller_spend(
         &mut ctx,
@@ -1824,27 +1861,23 @@ fn test_reject_controller_that_changes_custody() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_controller_below_threshold() -> Result<()> {
+#[rstest]
+fn test_reject_controller_below_threshold(#[values(false, true)] fast_forward: bool) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let envelope = vault_message_envelope(&mut ctx, &controlled.vault, &messages())?;
-    let vault_spend = controlled_spend(
-        &mut ctx,
-        &controlled.vault,
-        &controlled.controller,
-        envelope,
-    )?;
+    let vault_spend = controlled.spend(&mut ctx, envelope)?;
 
     let envelope_hash: Bytes32 = ctx.tree_hash(envelope.puzzle).into();
 
     let controller_envelope = vault_controller_envelope(
         &mut ctx,
         &controlled.controller,
-        controlled.vault.coin.coin_id(),
+        controlled.vault.coin,
         envelope_hash,
+        fast_forward,
     )?;
 
     // The controller's members sign a different delegated puzzle hash.
@@ -1870,12 +1903,14 @@ fn test_reject_controller_below_threshold() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_reject_duplicate_or_too_many_controller_spends() -> Result<()> {
+#[rstest]
+fn test_reject_duplicate_or_too_many_controller_spends(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let controlled = ControlledVault::mint(&mut sim, &mut ctx)?;
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
     let (proof, ..) = controlled.sign_messages(&mut ctx, &messages())?;
 
     let duplicate = VaultMessageProof::with_controllers(
@@ -1912,8 +1947,8 @@ fn test_reject_duplicate_or_too_many_controller_spends() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_verify_chained_controllers() -> Result<()> {
+#[rstest]
+fn test_verify_chained_controllers(#[values(false, true)] fast_forward: bool) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -1922,28 +1957,33 @@ fn test_verify_chained_controllers() -> Result<()> {
     let middle = mint_vault(
         &mut sim,
         &mut ctx,
-        controlled_custody_hash(top.info.launcher_id),
+        controlled_custody_hash(top.info.launcher_id, fast_forward),
     )?;
     let vault = mint_vault(
         &mut sim,
         &mut ctx,
-        controlled_custody_hash(middle.info.launcher_id),
+        controlled_custody_hash(middle.info.launcher_id, fast_forward),
     )?;
     let messages = messages();
 
     let envelope = vault_message_envelope(&mut ctx, &vault, &messages)?;
-    let vault_spend = controlled_spend(&mut ctx, &vault, &middle, envelope)?;
+    let vault_spend = controlled_spend(&mut ctx, &vault, &middle, envelope, fast_forward)?;
 
     let envelope_hash: Bytes32 = ctx.tree_hash(envelope.puzzle).into();
 
     let middle_envelope =
-        vault_controller_envelope(&mut ctx, &middle, vault.coin.coin_id(), envelope_hash)?;
-    let middle_spend = controlled_spend(&mut ctx, &middle, &top, middle_envelope)?;
+        vault_controller_envelope(&mut ctx, &middle, vault.coin, envelope_hash, fast_forward)?;
+    let middle_spend = controlled_spend(&mut ctx, &middle, &top, middle_envelope, fast_forward)?;
 
     let middle_envelope_hash: Bytes32 = ctx.tree_hash(middle_envelope.puzzle).into();
 
-    let top_envelope =
-        vault_controller_envelope(&mut ctx, &top, middle.coin.coin_id(), middle_envelope_hash)?;
+    let top_envelope = vault_controller_envelope(
+        &mut ctx,
+        &top,
+        middle.coin,
+        middle_envelope_hash,
+        fast_forward,
+    )?;
     let top_spend = controller_spend(&mut ctx, &custody, &top, top_envelope, &[0])?;
 
     let proof = VaultMessageProof::with_controllers(
@@ -1969,6 +2009,48 @@ fn test_verify_chained_controllers() -> Result<()> {
     assert!(matches!(
         verify(&[middle.info]),
         Err(DriverError::UnknownVaultController(launcher_id)) if launcher_id == top.info.launcher_id
+    ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_reject_controller_message_with_wrong_mode(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let controlled = ControlledVault::mint(&mut sim, &mut ctx, fast_forward)?;
+    let envelope = vault_message_envelope(&mut ctx, &controlled.vault, &messages())?;
+    let vault_spend = controlled.spend(&mut ctx, envelope)?;
+
+    // The controller sends its message to the coin id when the singleton member receives it by puzzle hash, or the
+    // other way around, so the singleton member doesn't receive it.
+    let envelope_hash: Bytes32 = ctx.tree_hash(envelope.puzzle).into();
+    let controller_envelope = vault_controller_envelope(
+        &mut ctx,
+        &controlled.controller,
+        controlled.vault.coin,
+        envelope_hash,
+        !fast_forward,
+    )?;
+    let controller_spend = controller_spend(
+        &mut ctx,
+        &controlled.custody,
+        &controlled.controller,
+        controller_envelope,
+        &[0, 1],
+    )?;
+
+    let proof = VaultMessageProof::with_controllers(
+        vault_spend,
+        vec![controller_spend],
+        Signature::default(),
+    );
+    assert!(matches!(
+        controlled.verify(&proof),
+        Err(DriverError::Validation(_))
     ));
 
     Ok(())

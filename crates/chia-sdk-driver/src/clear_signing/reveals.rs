@@ -56,7 +56,8 @@ impl ControlledVaultRecovery {
 /// from the vault that controls it.
 #[derive(Debug, Clone, Copy)]
 pub struct RevealedControlledVault {
-    /// The controlled vault's coin, which is sent the message.
+    /// The controlled vault's coin, which is sent the message. If the message is sent to its puzzle hash, which is the
+    /// case for a fast-forwardable singleton member, the spend can be fast-forwarded onto a newer coin of the vault.
     pub coin: Coin,
     pub launcher_id: Bytes32,
     /// The controlled vault's current custody hash, which the coin's puzzle hash commits to.
@@ -216,7 +217,9 @@ impl Reveals {
     ///
     /// The coin's puzzle hash must be the singleton puzzle hash for the launcher id and custody hash. Since the coin
     /// id commits to it, and the transaction can only be valid if the coin exists, the custody hash can be trusted
-    /// without looking it up.
+    /// without looking it up. If the controlled vault's singleton member is fast-forwardable, its message is sent to
+    /// the puzzle hash rather than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The
+    /// custody hash can still be trusted in that case, since the coin must have the same puzzle hash.
     pub fn reveal_controlled_vault(
         &mut self,
         controlled_vault: RevealedControlledVault,
@@ -276,6 +279,26 @@ impl Reveals {
 
     pub fn controlled_vault(&self, coin_id: Bytes32) -> Option<&RevealedControlledVault> {
         self.controlled_vaults.get(&coin_id)
+    }
+
+    /// Finds the controlled vault that a message to a puzzle hash is sent to. Since any coin with the puzzle hash could
+    /// receive the message, more than one revealed controlled vault with the puzzle hash is an error.
+    pub fn controlled_vault_by_puzzle_hash(
+        &self,
+        puzzle_hash: Bytes32,
+    ) -> Result<Option<&RevealedControlledVault>, DriverError> {
+        let mut matches = self
+            .controlled_vaults
+            .values()
+            .filter(|controlled_vault| controlled_vault.coin.puzzle_hash == puzzle_hash);
+
+        let controlled_vault = matches.next();
+
+        if matches.next().is_some() {
+            return Err(DriverError::DuplicateControlledVault);
+        }
+
+        Ok(controlled_vault)
     }
 
     /// Switches which vault the nonces are for, so that a controlled vault is parsed with its own p2 puzzle hashes.

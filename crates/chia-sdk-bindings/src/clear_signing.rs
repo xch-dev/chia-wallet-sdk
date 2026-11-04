@@ -129,15 +129,17 @@ pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) ->
 pub fn vault_controller_envelope(
     clvm: Clvm,
     controller: Vault,
-    controlled_coin_id: Bytes32,
+    controlled_coin: Coin,
     delegated_puzzle_hash: Bytes32,
+    fast_forward: bool,
 ) -> Result<Spend> {
     let mut ctx = clvm.0.lock().unwrap();
     let spend = sdk::vault_controller_envelope(
         &mut ctx,
         &controller.into(),
-        controlled_coin_id,
+        controlled_coin,
         delegated_puzzle_hash,
+        fast_forward,
     )?;
 
     Ok(Spend {

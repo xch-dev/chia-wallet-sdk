@@ -5346,7 +5346,7 @@ export declare const enum UriKind {
   License = 2,
 }
 
-export declare function vaultControllerEnvelope(clvm: Clvm, controller: Vault, controlledCoinId: Uint8Array, delegatedPuzzleHash: Uint8Array): Spend
+export declare function vaultControllerEnvelope(clvm: Clvm, controller: Vault, controlledCoin: Coin, delegatedPuzzleHash: Uint8Array, fastForward: boolean): Spend
 
 export declare function vaultMessageCoin(): Coin
 

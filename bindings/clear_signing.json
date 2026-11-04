@@ -81,8 +81,9 @@
     "args": {
       "clvm": "Clvm",
       "controller": "Vault",
-      "controlled_coin_id": "Bytes32",
-      "delegated_puzzle_hash": "Bytes32"
+      "controlled_coin": "Coin",
+      "delegated_puzzle_hash": "Bytes32",
+      "fast_forward": "bool"
     },
     "return": "Spend"
   },

@@ -589,107 +589,116 @@ test("signs and verifies vault messages", (t) => {
   t.throws(() => sim.spendCoins([coinSpend], []));
 });
 
-test("signs and verifies vault messages with a vault controlled by another vault", (t) => {
-  const sim = new Simulator();
-  const clvm = new Clvm();
+// A fast-forwardable singleton member receives the controller's message by puzzle hash rather than coin id.
+for (const [name, fastForward] of [
+  ["coin id", false],
+  ["fast forward", true],
+] as const) {
+  test(`signs and verifies vault messages with a vault controlled by another vault (${name})`, (t) => {
+    const sim = new Simulator();
+    const clvm = new Clvm();
 
-  const alice = sim.bls(0n);
-  const config = new MemberConfig().withTopLevel(true);
+    const alice = sim.bls(0n);
+    const config = new MemberConfig().withTopLevel(true);
 
-  const controller = mintVault(
-    sim,
-    clvm,
-    blsMemberHash(config, alice.pk, false),
-  );
-  const vault = mintVault(
-    sim,
-    clvm,
-    singletonMemberHash(config, controller.info.launcherId, false),
-  );
+    const controller = mintVault(
+      sim,
+      clvm,
+      blsMemberHash(config, alice.pk, false),
+    );
+    const vault = mintVault(
+      sim,
+      clvm,
+      singletonMemberHash(config, controller.info.launcherId, fastForward),
+    );
 
-  const messages = [Buffer.from("Sign in to example.com", "utf-8")];
-  const envelope = vaultMessageEnvelope(clvm, vault, messages);
+    const messages = [Buffer.from("Sign in to example.com", "utf-8")];
+    const envelope = vaultMessageEnvelope(clvm, vault, messages);
 
-  // The controller authorizes the controlled vault's envelope, and does nothing else.
-  const controllerEnvelope = vaultControllerEnvelope(
-    clvm,
-    controller,
-    vault.coin.coinId(),
-    envelope.puzzle.treeHash(),
-  );
+    // The controller authorizes the controlled vault's envelope, and does nothing else.
+    const controllerEnvelope = vaultControllerEnvelope(
+      clvm,
+      controller,
+      vault.coin,
+      envelope.puzzle.treeHash(),
+      fastForward,
+    );
 
-  // Clear signing shows the controller authorizing the controlled vault to sign the messages.
-  const reveals = new Reveals(clvm);
-  reveals.revealControlledVault(
-    vault.coin,
-    vault.info.launcherId,
-    vault.info.custodyHash,
-    envelope,
-    null,
-  );
-  const tx = parseVaultTransaction(
-    clvm,
-    reveals,
-    controller.info.launcherId,
-    controllerEnvelope,
-  );
-  t.true(tx.signsMessages());
-  t.is(tx.signedMessages.length, 0);
-  t.is(tx.controlledVaults.length, 1);
-  t.deepEqual(tx.controlledVaults[0].launcherId, vault.info.launcherId);
-  t.deepEqual(
-    tx.controlledVaults[0].transaction.signedMessages.map((message) =>
-      Buffer.from(message),
-    ),
-    messages,
-  );
-
-  const mips = clvm.mipsSpend(vault.coin, envelope);
-  mips.singletonMember(
-    config,
-    controller.info.launcherId,
-    false,
-    controller.info.custodyHash,
-    controller.coin.amount,
-  );
-  mips.spendVault(vault);
-
-  const controllerMips = clvm.mipsSpend(controller.coin, controllerEnvelope);
-  controllerMips.blsMember(config, alice.pk, false);
-  controllerMips.spendVault(controller);
-
-  const [vaultSpend, controllerSpend] = clvm.coinSpends();
-  const signature = alice.sk.sign(
-    calculateVaultCoinMessage(
-      controllerEnvelope.puzzle.treeHash(),
-      controller.coin.coinId(),
-      GENESIS_CHALLENGE,
-    ),
-  );
-  const proof = new VaultMessageProof(vaultSpend, signature, [controllerSpend]);
-
-  const decoded = VaultMessageProof.decodeString(proof.encodeString());
-  t.deepEqual(
-    verifyControlledVaultSignedMessage(
-      decoded,
+    // Clear signing shows the controller authorizing the controlled vault to sign the messages.
+    const reveals = new Reveals(clvm);
+    reveals.revealControlledVault(
+      vault.coin,
       vault.info.launcherId,
       vault.info.custodyHash,
-      [controller.info],
-      GENESIS_CHALLENGE,
-    ).map((message) => Buffer.from(message)),
-    messages,
-  );
+      envelope,
+      null,
+    );
+    const tx = parseVaultTransaction(
+      clvm,
+      reveals,
+      controller.info.launcherId,
+      controllerEnvelope,
+    );
+    t.true(tx.signsMessages());
+    t.is(tx.signedMessages.length, 0);
+    t.is(tx.controlledVaults.length, 1);
+    t.deepEqual(tx.controlledVaults[0].launcherId, vault.info.launcherId);
+    t.deepEqual(
+      tx.controlledVaults[0].transaction.signedMessages.map((message) =>
+        Buffer.from(message),
+      ),
+      messages,
+    );
 
-  // The controller's custody hash must be given.
-  t.throws(() =>
-    verifyVaultSignedMessage(
-      proof,
-      vault.info.launcherId,
-      vault.info.custodyHash,
-      GENESIS_CHALLENGE,
-    ),
-  );
-});
+    const mips = clvm.mipsSpend(vault.coin, envelope);
+    mips.singletonMember(
+      config,
+      controller.info.launcherId,
+      fastForward,
+      controller.info.custodyHash,
+      controller.coin.amount,
+    );
+    mips.spendVault(vault);
+
+    const controllerMips = clvm.mipsSpend(controller.coin, controllerEnvelope);
+    controllerMips.blsMember(config, alice.pk, false);
+    controllerMips.spendVault(controller);
+
+    const [vaultSpend, controllerSpend] = clvm.coinSpends();
+    const signature = alice.sk.sign(
+      calculateVaultCoinMessage(
+        controllerEnvelope.puzzle.treeHash(),
+        controller.coin.coinId(),
+        GENESIS_CHALLENGE,
+      ),
+    );
+    const proof = new VaultMessageProof(vaultSpend, signature, [
+      controllerSpend,
+    ]);
+
+    const decoded = VaultMessageProof.decodeString(proof.encodeString());
+    t.deepEqual(
+      verifyControlledVaultSignedMessage(
+        decoded,
+        vault.info.launcherId,
+        vault.info.custodyHash,
+        [controller.info],
+        GENESIS_CHALLENGE,
+      ).map((message) => Buffer.from(message)),
+      messages,
+    );
+
+    // The controller's custody hash must be given.
+    t.throws(() =>
+      verifyVaultSignedMessage(
+        proof,
+        vault.info.launcherId,
+        vault.info.custodyHash,
+        GENESIS_CHALLENGE,
+      ),
+    );
+  });
+}
 
 function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {
   const p2 = sim.bls(1n);

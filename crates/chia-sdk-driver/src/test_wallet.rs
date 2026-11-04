@@ -16,7 +16,7 @@ use chia_sdk_types::{
     conditions::{CreateCoin, SendMessage},
     puzzles::{
         BlsMember, EverythingWithSingletonTailArgs, RevocationArgs, SingletonMember,
-        SingletonMemberSolution,
+        SingletonMemberSolution, SingletonMemberWithMode, SingletonMemberWithModeSolution,
     },
 };
 use chia_sdk_utils::select_coins;
@@ -27,8 +27,9 @@ use clvmr::{Allocator, NodePtr};
 use crate::{
     Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
     MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
-    SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
-    coin_amount, mips_puzzle_hash, vault_controller_envelope,
+    SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer,
+    VAULT_FAST_FORWARD_MESSAGE_MODE, Vault, VaultInfo, coin_amount, mips_puzzle_hash,
+    vault_controller_envelope,
 };
 
 #[derive(Debug, Clone)]
@@ -67,22 +68,26 @@ pub struct TestVault {
     pub p2_puzzles: HashMap<TreeHash, TestP2Puzzle>,
     /// If set, the vault's custody is a singleton member of this vault, rather than a BLS key.
     pub controller: Option<Box<TestVault>>,
+    /// Whether the singleton member is fast-forwardable, so it receives the controller's message by puzzle hash.
+    pub fast_forward: bool,
 }
 
 impl TestVault {
     pub fn mint(sim: &mut Simulator, ctx: &mut SpendContext, balance: u64) -> Result<Self> {
-        Self::mint_with(sim, ctx, balance, None)
+        Self::mint_with(sim, ctx, balance, None, false)
     }
 
     /// Mints a vault whose custody is a singleton member of the controller, so its spends are authorized by the
-    /// controller's spends. The controller's BLS key signs for both.
+    /// controller's spends. The controller's BLS key signs for both. If the singleton member is fast-forwardable, it
+    /// receives the controller's message by puzzle hash rather than coin id.
     pub fn mint_controlled(
         sim: &mut Simulator,
         ctx: &mut SpendContext,
         balance: u64,
         controller: &TestVault,
+        fast_forward: bool,
     ) -> Result<Self> {
-        Self::mint_with(sim, ctx, balance, Some(controller))
+        Self::mint_with(sim, ctx, balance, Some(controller), fast_forward)
     }
 
     fn mint_with(
@@ -90,12 +95,15 @@ impl TestVault {
         ctx: &mut SpendContext,
         balance: u64,
         controller: Option<&TestVault>,
+        fast_forward: bool,
     ) -> Result<Self> {
         let pair = sim.bls(balance + 1);
         let p2 = StandardLayer::new(pair.pk);
 
         let custody_hash = match controller {
-            Some(controller) => controlled_custody_puzzle_hash(controller.info.launcher_id),
+            Some(controller) => {
+                controlled_custody_puzzle_hash(controller.info.launcher_id, fast_forward)
+            }
             None => vault_custody_puzzle_hash(pair.pk),
         };
 
@@ -131,6 +139,7 @@ impl TestVault {
             public_key,
             p2_puzzles,
             controller: controller.map(|controller| Box::new(controller.clone())),
+            fast_forward,
         })
     }
 
@@ -332,11 +341,26 @@ impl TestVault {
 
         let member_spend = if let Some(controller) = &self.controller {
             let vault = controller.fetch_vault(sim)?;
-            let puzzle = ctx.curry(SingletonMember::new(controller.info.launcher_id))?;
-            let solution = ctx.alloc(&SingletonMemberSolution::new(
-                controller.info.custody_hash.into(),
-                vault.coin.amount,
-            ))?;
+            let (puzzle, solution) = if self.fast_forward {
+                (
+                    ctx.curry(SingletonMemberWithMode::new(
+                        controller.info.launcher_id,
+                        VAULT_FAST_FORWARD_MESSAGE_MODE,
+                    ))?,
+                    ctx.alloc(&SingletonMemberWithModeSolution::new(
+                        controller.info.custody_hash.into(),
+                        vault.coin.amount,
+                    ))?,
+                )
+            } else {
+                (
+                    ctx.curry(SingletonMember::new(controller.info.launcher_id))?,
+                    ctx.alloc(&SingletonMemberSolution::new(
+                        controller.info.custody_hash.into(),
+                        vault.coin.amount,
+                    ))?,
+                )
+            };
             controller_vault = Some(vault);
             Spend::new(puzzle, solution)
         } else {
@@ -359,8 +383,9 @@ impl TestVault {
             let controller_delegated_spend = vault_controller_envelope(
                 ctx,
                 &controller_vault,
-                vault.coin.coin_id(),
+                vault.coin,
                 ctx.tree_hash(delegated_spend.puzzle).into(),
+                self.fast_forward,
             )?;
 
             let (coin_spend, parent_spends) =
@@ -479,13 +504,15 @@ fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
     mips_puzzle_hash(0, vec![], BlsMember::new(pk).curry_tree_hash(), true)
 }
 
-fn controlled_custody_puzzle_hash(controller_launcher_id: Bytes32) -> TreeHash {
-    mips_puzzle_hash(
-        0,
-        vec![],
-        SingletonMember::new(controller_launcher_id).curry_tree_hash(),
-        true,
-    )
+fn controlled_custody_puzzle_hash(controller_launcher_id: Bytes32, fast_forward: bool) -> TreeHash {
+    let member_hash = if fast_forward {
+        SingletonMemberWithMode::new(controller_launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
+            .curry_tree_hash()
+    } else {
+        SingletonMember::new(controller_launcher_id).curry_tree_hash()
+    };
+
+    mips_puzzle_hash(0, vec![], member_hash, true)
 }
 
 fn fetch_cat(sim: &Simulator, coin: Coin) -> Result<Cat> {

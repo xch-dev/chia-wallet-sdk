@@ -27,7 +27,8 @@ use indexmap::IndexMap;
 
 use crate::{
     DelegatedPuzzleFeederLayer, DriverError, IndexWrapperLayer, Layer, Puzzle, SingletonLayer,
-    Spend, SpendContext, Vault, VaultInfo, VaultOutput, parse_delegated_spend, parse_vault_message,
+    Spend, SpendContext, Vault, VaultInfo, VaultOutput, is_vault_puzzle_message,
+    parse_delegated_spend, parse_vault_message, parse_vault_puzzle_message,
 };
 
 /// The puzzle hash of the coin that every message in a vault message envelope is sent to, which is the tree hash
@@ -43,6 +44,10 @@ pub const VAULT_MESSAGE_COIN_ID: Bytes32 = Bytes32::new(hex!(
 
 /// The message mode used by a vault message envelope, which is sent from the vault's puzzle to a coin id.
 pub const VAULT_MESSAGE_MODE: u8 = 0x17;
+
+/// The message mode that a vault sends to a vault it controls when the controlled vault's singleton member is
+/// fast-forwardable, which is sent from the vault's puzzle to the controlled vault's puzzle hash rather than its coin id.
+pub const VAULT_FAST_FORWARD_MESSAGE_MODE: u8 = 0x12;
 
 /// The version byte that prefixes an encoded [`VaultMessageProof`] that has no controller spends.
 pub const VAULT_MESSAGE_PROOF_VERSION: u8 = 1;
@@ -135,13 +140,23 @@ pub fn vault_message_envelope(
 /// This recreates the controller with the same custody hash and amount, and sends the delegated puzzle hash to the
 /// controlled vault's coin. The delegated puzzle hash is the one that the controlled vault's singleton member is
 /// passed, which is the hash of its delegated puzzle, inside of any delegated puzzle wrappers of the member's path.
+///
+/// If the controlled vault's singleton member is fast-forwardable, the message is sent to the controlled vault's
+/// puzzle hash instead, with [`VAULT_FAST_FORWARD_MESSAGE_MODE`], so that its spend can be fast-forwarded.
 pub fn vault_controller_envelope(
     ctx: &mut SpendContext,
     controller: &Vault,
-    controlled_coin_id: Bytes32,
+    controlled_coin: Coin,
     delegated_puzzle_hash: Bytes32,
+    fast_forward: bool,
 ) -> Result<Spend, DriverError> {
-    let coin_id = ctx.alloc(&controlled_coin_id)?;
+    let (mode, receiver) = if fast_forward {
+        (VAULT_FAST_FORWARD_MESSAGE_MODE, controlled_coin.puzzle_hash)
+    } else {
+        (VAULT_MESSAGE_MODE, controlled_coin.coin_id())
+    };
+
+    let receiver = ctx.alloc(&receiver)?;
 
     let conditions = Conditions::new()
         .create_coin(
@@ -150,25 +165,34 @@ pub fn vault_controller_envelope(
             Memos::None,
         )
         .with(SendMessage::new(
-            VAULT_MESSAGE_MODE,
+            mode,
             delegated_puzzle_hash.to_vec().into(),
-            vec![coin_id],
+            vec![receiver],
         ));
 
     ctx.delegated_spend(conditions)
 }
 
-/// The delegated puzzle hash that a vault controller authorizes, and the controller that it recreates.
+/// The vault that a vault controller authorizes the spend of, and the controller that it recreates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct VaultControllerEnvelope {
     pub(crate) vault_child: VaultOutput,
-    pub(crate) controlled_coin_id: Bytes32,
+    pub(crate) controlled_vault: ControlledVaultReceiver,
+}
+
+/// How a vault controller's message identifies the controlled vault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ControlledVaultReceiver {
+    CoinId(Bytes32),
+    /// The controlled vault's puzzle hash, for a fast-forwardable singleton member.
+    PuzzleHash(Bytes32),
 }
 
 /// Parses the conditions of a vault's delegated spend as a [`vault_controller_envelope`].
 ///
 /// Returns [`None`] unless the conditions are exactly a single `CREATE_COIN` with an odd amount that recreates the
-/// vault, and a single message to a coin other than [`VAULT_MESSAGE_COIN_ID`]. This is shared by clear signing and
+/// vault, and a single message to a coin other than [`VAULT_MESSAGE_COIN_ID`] (or to a puzzle hash other than
+/// [`VAULT_MESSAGE_PUZZLE_HASH`], for a fast-forwardable singleton member). This is shared by clear signing and
 /// [`verify_controlled_vault_signed_message`], so that a controller can only authorize a vault message envelope by
 /// doing nothing else.
 pub(crate) fn parse_vault_controller_envelope(
@@ -189,15 +213,27 @@ pub(crate) fn parse_vault_controller_envelope(
         return Ok(None);
     }
 
-    let message = parse_vault_message(allocator, send_message.clone())?;
+    let controlled_vault = if is_vault_puzzle_message(send_message) {
+        let message = parse_vault_puzzle_message(allocator, send_message.clone())?;
 
-    if message.spent_coin_id == VAULT_MESSAGE_COIN_ID {
-        return Ok(None);
-    }
+        if message.puzzle_hash == VAULT_MESSAGE_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        ControlledVaultReceiver::PuzzleHash(message.puzzle_hash)
+    } else {
+        let message = parse_vault_message(allocator, send_message.clone())?;
+
+        if message.spent_coin_id == VAULT_MESSAGE_COIN_ID {
+            return Ok(None);
+        }
+
+        ControlledVaultReceiver::CoinId(message.spent_coin_id)
+    };
 
     Ok(Some(VaultControllerEnvelope {
         vault_child: VaultOutput::new(create_coin.puzzle_hash, create_coin.amount),
-        controlled_coin_id: message.spent_coin_id,
+        controlled_vault,
     }))
 }
 
@@ -225,6 +261,10 @@ pub(crate) fn parse_vault_message_envelope(
 
     for condition in conditions {
         match condition {
+            Condition::SendMessage(condition) if is_vault_puzzle_message(condition) => {
+                parse_vault_puzzle_message(allocator, condition.clone())?;
+                is_mixed = true;
+            }
             Condition::SendMessage(condition) => {
                 let message = parse_vault_message(allocator, condition.clone())?;
 
@@ -571,7 +611,7 @@ pub fn verify_controlled_vault_signed_message(
     vault_coins.insert(coin_spend.coin.coin_id(), vault_puzzle_hash);
 
     let mut launcher_ids = HashSet::from([expected_launcher_id]);
-    let mut controlled_coin_ids = Vec::new();
+    let mut controlled_vaults = Vec::new();
 
     for controller_spend in &proof.controller_spends {
         let (launcher_id, conditions) = parse_signed_vault_spend(&mut allocator, controller_spend)?;
@@ -603,14 +643,19 @@ pub fn verify_controlled_vault_signed_message(
         }
 
         vault_coins.insert(controller_spend.coin.coin_id(), controller_puzzle_hash);
-        controlled_coin_ids.push(envelope.controlled_coin_id);
+        controlled_vaults.push(envelope.controlled_vault);
     }
 
     // A controller can only authorize the spend of another vault in the proof, which is then checked to receive its
-    // message.
-    if controlled_coin_ids
+    // message. Each vault in the proof has a different launcher id, and therefore a different puzzle hash.
+    if !controlled_vaults
         .iter()
-        .any(|coin_id| !vault_coins.contains_key(coin_id))
+        .all(|controlled_vault| match controlled_vault {
+            ControlledVaultReceiver::CoinId(coin_id) => vault_coins.contains_key(coin_id),
+            ControlledVaultReceiver::PuzzleHash(puzzle_hash) => {
+                vault_coins.values().any(|value| value == puzzle_hash)
+            }
+        })
     {
         return Err(DriverError::InvalidVaultControllerEnvelope);
     }
