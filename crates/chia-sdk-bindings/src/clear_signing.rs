@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
-    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin,
-    P2ConditionsOrSingleton, SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
+    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2,
+    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SpendContext, VaultInfo,
+    VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
@@ -69,6 +70,35 @@ impl Reveals {
         self.inner.lock().unwrap().reveal_vault_nonce(nonce);
         Ok(())
     }
+
+    pub fn reveal_controlled_vault(
+        &self,
+        coin: Coin,
+        launcher_id: Bytes32,
+        custody_hash: Bytes32,
+        delegated_spend: Spend,
+        recovery: Option<ControlledVaultRecovery>,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_controlled_vault(sdk::RevealedControlledVault {
+                coin,
+                launcher_id,
+                custody_hash,
+                delegated_spend: delegated_spend.into(),
+                recovery,
+            })?;
+        Ok(())
+    }
+
+    pub fn reveal_controlled_vault_nonce(&self, launcher_id: Bytes32, nonce: usize) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_controlled_vault_nonce(launcher_id, nonce);
+        Ok(())
+    }
 }
 
 pub fn parse_vault_transaction(
@@ -96,6 +126,26 @@ pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) ->
     })
 }
 
+pub fn vault_controller_envelope(
+    clvm: Clvm,
+    controller: Vault,
+    controlled_coin_id: Bytes32,
+    delegated_puzzle_hash: Bytes32,
+) -> Result<Spend> {
+    let mut ctx = clvm.0.lock().unwrap();
+    let spend = sdk::vault_controller_envelope(
+        &mut ctx,
+        &controller.into(),
+        controlled_coin_id,
+        delegated_puzzle_hash,
+    )?;
+
+    Ok(Spend {
+        puzzle: Program(clvm.0.clone(), spend.puzzle),
+        solution: Program(clvm.0.clone(), spend.solution),
+    })
+}
+
 pub fn vault_message_coin() -> Result<Coin> {
     Ok(sdk::vault_message_coin())
 }
@@ -111,6 +161,24 @@ pub fn verify_vault_signed_message(
         &proof,
         expected_launcher_id,
         expected_custody_hash,
+        genesis_challenge,
+        max_cost,
+    )?)
+}
+
+pub fn verify_controlled_vault_signed_message(
+    proof: VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    controllers: Vec<VaultInfo>,
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>> {
+    Ok(sdk::verify_controlled_vault_signed_message(
+        &proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        &controllers,
         genesis_challenge,
         max_cost,
     )?)
@@ -210,9 +278,22 @@ pub struct VaultTransaction {
     pub p2_puzzle_hashes: Vec<Bytes32>,
     pub delegated_puzzle_hash: Bytes32,
     pub signed_messages: Vec<Bytes>,
+    pub controlled_vaults: Vec<ControlledVaultTransaction>,
 }
 
 impl VaultTransaction {
+    pub fn signs_messages(&self) -> Result<bool> {
+        Ok(self.is_signing_messages())
+    }
+
+    fn is_signing_messages(&self) -> bool {
+        !self.signed_messages.is_empty()
+            || self
+                .controlled_vaults
+                .iter()
+                .any(|controlled_vault| controlled_vault.transaction.is_signing_messages())
+    }
+
     fn from_sdk(
         ctx: &mut SpendContext,
         clvm: &SharedContext,
@@ -254,6 +335,38 @@ impl VaultTransaction {
             p2_puzzle_hashes: value.p2_puzzle_hashes,
             delegated_puzzle_hash: value.delegated_puzzle_hash,
             signed_messages: value.signed_messages,
+            controlled_vaults: value
+                .controlled_vaults
+                .into_iter()
+                .map(|controlled_vault| {
+                    ControlledVaultTransaction::from_sdk(ctx, clvm, controlled_vault)
+                })
+                .collect::<Result<_>>()?,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct ControlledVaultTransaction {
+    pub coin: Coin,
+    pub launcher_id: Bytes32,
+    pub custody_hash: Bytes32,
+    pub recovery: Option<ControlledVaultRecovery>,
+    pub transaction: VaultTransaction,
+}
+
+impl ControlledVaultTransaction {
+    fn from_sdk(
+        ctx: &mut SpendContext,
+        clvm: &SharedContext,
+        value: sdk::ControlledVaultTransaction,
+    ) -> Result<Self> {
+        Ok(Self {
+            coin: value.coin,
+            launcher_id: value.launcher_id,
+            custody_hash: value.custody_hash,
+            recovery: value.recovery,
+            transaction: VaultTransaction::from_sdk(ctx, clvm, value.transaction)?,
         })
     }
 }

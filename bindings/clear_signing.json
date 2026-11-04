@@ -39,6 +39,21 @@
         "args": {
           "nonce": "usize"
         }
+      },
+      "reveal_controlled_vault": {
+        "args": {
+          "coin": "Coin",
+          "launcher_id": "Bytes32",
+          "custody_hash": "Bytes32",
+          "delegated_spend": "Spend",
+          "recovery": "Option<ControlledVaultRecovery>"
+        }
+      },
+      "reveal_controlled_vault_nonce": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "nonce": "usize"
+        }
       }
     }
   },
@@ -61,6 +76,16 @@
     },
     "return": "Spend"
   },
+  "vault_controller_envelope": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "controller": "Vault",
+      "controlled_coin_id": "Bytes32",
+      "delegated_puzzle_hash": "Bytes32"
+    },
+    "return": "Spend"
+  },
   "vault_message_coin": {
     "type": "function",
     "return": "Coin"
@@ -76,13 +101,26 @@
     },
     "return": "Vec<Bytes>"
   },
+  "verify_controlled_vault_signed_message": {
+    "type": "function",
+    "args": {
+      "proof": "VaultMessageProof",
+      "expected_launcher_id": "Bytes32",
+      "expected_custody_hash": "Bytes32",
+      "controllers": "Vec<VaultInfo>",
+      "genesis_challenge": "Bytes32",
+      "max_cost": "Option<u64>"
+    },
+    "return": "Vec<Bytes>"
+  },
   "VaultMessageProof": {
     "type": "class",
     "new": true,
     "remote": true,
     "fields": {
       "coin_spend": "CoinSpend",
-      "aggregated_signature": "Signature"
+      "aggregated_signature": "Signature",
+      "controller_spends": "Vec<CoinSpend>"
     },
     "methods": {
       "encode": {
@@ -200,7 +238,34 @@
       "reserved_fee": "u64",
       "p2_puzzle_hashes": "Vec<Bytes32>",
       "delegated_puzzle_hash": "Bytes32",
-      "signed_messages": "Vec<Bytes>"
+      "signed_messages": "Vec<Bytes>",
+      "controlled_vaults": "Vec<ControlledVaultTransaction>"
+    },
+    "methods": {
+      "signs_messages": {
+        "return": "bool"
+      }
+    }
+  },
+  "ControlledVaultTransaction": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "launcher_id": "Bytes32",
+      "custody_hash": "Bytes32",
+      "recovery": "Option<ControlledVaultRecovery>",
+      "transaction": "VaultTransaction"
+    }
+  },
+  "ControlledVaultRecovery": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "version": "VaultVersion"
     }
   },
   "VaultOutput": {
