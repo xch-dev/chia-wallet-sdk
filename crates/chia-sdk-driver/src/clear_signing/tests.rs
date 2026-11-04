@@ -4585,7 +4585,9 @@ fn vault_coin(vault: &TestVault, amount: u64) -> Coin {
 #[case::coin_announcement(Conditions::new().create_coin_announcement(b"data".to_vec().into()))]
 #[case::puzzle_announcement(Conditions::new().create_puzzle_announcement(b"data".to_vec().into()))]
 #[case::receive_message(Conditions::new().receive_message(18, b"data".to_vec().into(), vec![]))]
-fn test_clear_signing_vault_unsupported_conditions(#[case] conditions: Conditions) -> Result<()> {
+fn test_clear_signing_vault_announcements_and_messages(
+    #[case] conditions: Conditions,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -4603,10 +4605,7 @@ fn test_clear_signing_vault_unsupported_conditions(#[case] conditions: Condition
         delegated_spend,
     );
 
-    assert!(matches!(
-        result.unwrap_err(),
-        DriverError::UnsupportedClearSigningCondition
-    ));
+    assert!(result.is_ok());
 
     Ok(())
 }

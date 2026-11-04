@@ -1,6 +1,4 @@
-use chia_consensus::opcodes::{
-    CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
-};
+use chia_consensus::opcodes::SEND_MESSAGE;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
@@ -127,12 +125,8 @@ pub fn parse_vault_delegated_spend(
                 // they can be validated to be impossible to circumvent.
                 messages.push(parse_vault_message(allocator, condition)?);
             }
-            // These conditions aren't included in the summary, so we can't allow them.
-            Condition::CreateCoinAnnouncement(_)
-            | Condition::CreatePuzzleAnnouncement(_)
-            | Condition::ReceiveMessage(_)
             // The vault isn't a CAT, and this would melt the vault.
-            | Condition::RunCatTail(_) => {
+            Condition::RunCatTail(_) => {
                 return Err(DriverError::UnsupportedClearSigningCondition);
             }
             Condition::Other(condition) => {
@@ -143,17 +137,6 @@ pub fn parse_vault_delegated_spend(
                 // If this happened, we wouldn't enforce the spend to be revealed, thus clear signing would be insecure.
                 if opcode == BigInt::from(SEND_MESSAGE) {
                     return Err(DriverError::InvalidVaultMessageFormat);
-                }
-
-                if [
-                    CREATE_COIN_ANNOUNCEMENT,
-                    CREATE_PUZZLE_ANNOUNCEMENT,
-                    RECEIVE_MESSAGE,
-                ]
-                .into_iter()
-                .any(|unsupported| opcode == BigInt::from(unsupported))
-                {
-                    return Err(DriverError::UnsupportedClearSigningCondition);
                 }
             }
             _ => {}
