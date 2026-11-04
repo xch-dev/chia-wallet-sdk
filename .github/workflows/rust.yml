@@ -1,5 +1,9 @@
 name: Rust
 on:
+  # Releases run standalone so trusted publishing sees this workflow, not ci.yml
+  push:
+    tags:
+      - "**"
   workflow_call:
 
 permissions:
