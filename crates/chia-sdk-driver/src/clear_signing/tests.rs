@@ -1473,6 +1473,48 @@ fn test_clear_signing_spend_clawback(
     Ok(())
 }
 
+#[test]
+fn test_clear_signing_clawback_to_settlement_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+
+    let clawback = ClawbackV2::new(
+        alice.p2_puzzle_hash,
+        SETTLEMENT_PAYMENT_HASH.into(),
+        1000,
+        1,
+        false,
+    );
+    let memos = ctx.memos(&clvm_list!(
+        Bytes32::from(SETTLEMENT_PAYMENT_HASH),
+        clawback.memo()
+    ))?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let child = &tx.spends[0].children[0];
+    assert_eq!(child.memos.clawback, Some(clawback));
+    assert_eq!(child.transfer_type, TransferType::Sent);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).output_amount, 1);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).unaccounted_amount, 0);
+
+    Ok(())
+}
+
 #[rstest]
 fn test_clear_signing_unasserted_claw_back_timestamp() -> Result<()> {
     let mut sim = Simulator::new();
