@@ -3,6 +3,8 @@ mod bag;
 mod chip0053;
 mod format;
 mod legacy;
+#[cfg(feature = "experimental-bag-formats")]
+mod optimized;
 mod payment;
 mod secured_mint;
 

@@ -2,6 +2,8 @@ use chia_protocol::Bytes32;
 
 use crate::{DriverError, Spend, SpendContext};
 
+#[cfg(feature = "experimental-bag-formats")]
+use super::optimized;
 use super::{BagChild, BagFanOuts, chip0053, legacy};
 
 /// Selects how a bag's payments are ordered and grouped into nodes, and what conditions each node outputs.
@@ -59,6 +61,22 @@ pub enum BagFormat {
         /// Whether payments are sorted by amount. Otherwise, the root depends on the order of the input.
         sorted: bool,
     },
+    /// An experimental format, only used to compare against [`BagFormat::Chip0053`] before the CHIP is finalized. It
+    /// will be folded into [`BagFormat::Chip0053`] or removed, so its roots aren't stable.
+    ///
+    /// Payments are sorted and spread across each level like [`BagFormat::Chip0053`], and nodes are the same, but
+    /// there are no `i` values. There are `ceil(d / leaf_width)` leaves, and each level above has
+    /// `ceil(previous / upper_fan_out)` nodes, or with `balanced`, the fewest levels that fit `upper_fan_out` with the
+    /// smallest fan-out that fits. The root creates the payments directly if there are no more than `leaf_width`.
+    #[cfg(feature = "experimental-bag-formats")]
+    Optimized {
+        /// The most payments in a leaf.
+        leaf_width: usize,
+        /// The most children of a node above the leaves.
+        upper_fan_out: usize,
+        /// Whether the levels above the leaves use the smallest fan-out that fits in the fewest levels.
+        balanced: bool,
+    },
 }
 
 impl BagFormat {
@@ -79,6 +97,16 @@ impl BagFormat {
         }
     }
 
+    /// The experimental format with the default maximum width.
+    #[cfg(feature = "experimental-bag-formats")]
+    pub const fn optimized() -> Self {
+        Self::Optimized {
+            leaf_width: optimized::DEFAULT_WIDTH,
+            upper_fan_out: optimized::DEFAULT_WIDTH,
+            balanced: true,
+        }
+    }
+
     /// The maximum number of children of a node in a bag with this many payments.
     pub fn width(&self, payment_count: usize) -> usize {
         match self {
@@ -94,6 +122,12 @@ impl BagFormat {
                     chip0053::levels(*leaf_width, *fan_outs, payment_count);
                 fan_outs.iter().fold(leaf_width, usize::max)
             }
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized {
+                leaf_width,
+                upper_fan_out,
+                ..
+            } => (*leaf_width).max(*upper_fan_out),
         }
     }
 
@@ -101,6 +135,8 @@ impl BagFormat {
     pub fn fan_outs(&self, payment_count: usize) -> Option<BagFanOuts> {
         match self {
             Self::Legacy { .. } => None,
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized { .. } => None,
             Self::Chip0053 {
                 leaf_width,
                 fan_outs,
@@ -137,6 +173,37 @@ impl BagFormat {
                     counts: chip0053::level_counts(payment_count, leaf_width, fan_outs)?,
                 })
             }
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized {
+                leaf_width,
+                upper_fan_out,
+                balanced,
+            } => {
+                // A fan-out of one never reduces the level above the leaves
+                let invalid = if *leaf_width == 0 {
+                    Some(*leaf_width)
+                } else if *upper_fan_out < 2 && payment_count > *leaf_width {
+                    Some(*upper_fan_out)
+                } else {
+                    None
+                };
+
+                if let Some(width) = invalid {
+                    return Err(DriverError::InvalidBagWidth {
+                        width,
+                        payments: payment_count,
+                    });
+                }
+
+                Ok(Grouping::Modulo {
+                    counts: optimized::level_counts(
+                        payment_count,
+                        *leaf_width,
+                        *upper_fan_out,
+                        *balanced,
+                    ),
+                })
+            }
         }
     }
 
@@ -152,6 +219,8 @@ impl BagFormat {
                     chip0053::sort(payments);
                 }
             }
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized { .. } => chip0053::sort(payments),
         }
     }
 
@@ -159,6 +228,8 @@ impl BagFormat {
         match self {
             Self::Legacy { .. } => legacy::node_puzzle_hash(children, true),
             Self::Chip0053 { .. } => legacy::node_puzzle_hash(children, false),
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized { .. } => legacy::node_puzzle_hash(children, false),
         }
     }
 
@@ -170,6 +241,8 @@ impl BagFormat {
         match self {
             Self::Legacy { .. } => legacy::node_spend(ctx, children, true),
             Self::Chip0053 { .. } => legacy::node_spend(ctx, children, false),
+            #[cfg(feature = "experimental-bag-formats")]
+            Self::Optimized { .. } => legacy::node_spend(ctx, children, false),
         }
     }
 }

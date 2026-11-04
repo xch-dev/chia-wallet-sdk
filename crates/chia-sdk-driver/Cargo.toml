@@ -26,6 +26,7 @@ chip-0052 = ["chia-sdk-types/chip-0052"]
 action-layer = ["chia-sdk-types/action-layer", "chip-0035"]
 auction = ["action-layer", "chia-sdk-types/auction"]
 offer-compression = ["dep:flate2"]
+experimental-bag-formats = []
 
 [dependencies]
 chia-sdk-signer = { workspace = true }
