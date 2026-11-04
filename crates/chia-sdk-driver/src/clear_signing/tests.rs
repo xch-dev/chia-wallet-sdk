@@ -4584,38 +4584,6 @@ fn vault_coin(vault: &TestVault, amount: u64) -> Coin {
 #[rstest]
 #[case::coin_announcement(Conditions::new().create_coin_announcement(b"data".to_vec().into()))]
 #[case::puzzle_announcement(Conditions::new().create_puzzle_announcement(b"data".to_vec().into()))]
-#[case::send_message(Conditions::new().send_message(18, b"data".to_vec().into(), vec![]))]
-fn test_clear_signing_linked_spend_extra_conditions(#[case] conditions: Conditions) -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
-    let coin = vault_coin(&alice, 1000);
-
-    let delegated_spend = ctx.delegated_spend(conditions.clone().create_coin(
-        alice.p2_puzzle_hash,
-        1000,
-        Memos::None,
-    ))?;
-    let tx = parse_linked_spend(
-        &mut ctx,
-        &alice,
-        coin,
-        delegated_spend,
-        Conditions::new(),
-        &[],
-    )??;
-
-    assert_eq!(tx.spends.len(), 1);
-    assert_eq!(tx.spends[0].children.len(), 1);
-    assert_eq!(tx.spends[0].extra_conditions, conditions.into_vec());
-
-    Ok(())
-}
-
-#[rstest]
-#[case::coin_announcement(Conditions::new().create_coin_announcement(b"data".to_vec().into()))]
-#[case::puzzle_announcement(Conditions::new().create_puzzle_announcement(b"data".to_vec().into()))]
 #[case::receive_message(Conditions::new().receive_message(18, b"data".to_vec().into(), vec![]))]
 fn test_clear_signing_vault_unsupported_conditions(#[case] conditions: Conditions) -> Result<()> {
     let mut sim = Simulator::new();
@@ -4855,14 +4823,17 @@ fn test_clear_signing_clawback_to_settlement_payment() -> Result<()> {
 }
 
 #[rstest]
-#[case::derived_amount(Conditions::new().reserve_fee(500), Some(500))]
-#[case::fee_paid_by_other_coins(Conditions::new().reserve_fee(600), Some(500))]
-#[case::unreserved_remainder(Conditions::new().reserve_fee(250), None)]
+#[case::derived_amount(Conditions::new().reserve_fee(250), Some(750))]
+#[case::fee_paid_by_other_coins(Conditions::new().reserve_fee(1500), Some(0))]
 #[case::other_create_coin(
     Conditions::new().create_coin(Bytes32::new([1; 32]), 250, Memos::None),
     None
 )]
-#[case::other_condition(Conditions::new().create_puzzle_announcement(Bytes::default()), None)]
+#[case::other_condition(Conditions::new().create_puzzle_announcement(Bytes::default()), Some(1000))]
+#[case::signature(
+    Conditions::new().agg_sig_me(chia_bls::PublicKey::default(), Bytes::default()),
+    Some(1000)
+)]
 fn test_clear_signing_pre_split_settlement_amount(
     #[case] extra_conditions: Conditions,
     #[case] settlement_amount: Option<u64>,

@@ -265,7 +265,6 @@ pub struct VerifiedSpend {
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
     pub revoked: bool,
-    pub extra_conditions: Vec<Program>,
 }
 
 impl VerifiedSpend {
@@ -284,7 +283,6 @@ impl VerifiedSpend {
                 .map(|child| ParsedChild::from_sdk(ctx, clvm, child))
                 .collect::<Result<_>>()?,
             revoked: value.revoked,
-            extra_conditions: conditions_to_programs(ctx, clvm, &value.extra_conditions)?,
         })
     }
 }

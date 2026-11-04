@@ -4728,7 +4728,7 @@ export type VDFProof = VdfProof
 
 export declare class VerifiedSpend {
   clone(): VerifiedSpend
-  constructor(asset: ParsedAsset, clawback: ClawbackInfo | undefined | null, custody: CustodyInfo, children: Array<ParsedChild>, revoked: boolean, extraConditions: Array<Program>)
+  constructor(asset: ParsedAsset, clawback: ClawbackInfo | undefined | null, custody: CustodyInfo, children: Array<ParsedChild>, revoked: boolean)
   get asset(): ParsedAsset
   set asset(value: ParsedAsset)
   get clawback(): ClawbackInfo | null
@@ -4739,8 +4739,6 @@ export declare class VerifiedSpend {
   set children(value: Array<ParsedChild>)
   get revoked(): boolean
   set revoked(value: boolean)
-  get extraConditions(): Array<Program>
-  set extraConditions(value: Array<Program>)
 }
 
 export declare class WrapperMemo {

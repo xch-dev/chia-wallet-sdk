@@ -14,9 +14,8 @@ use crate::{
     LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
     ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, TransferType, VaultMessage,
     VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_delegated_spend,
-    parse_extra_conditions, parse_run_cat_tail, parse_spend, parse_vault_delegated_spend,
-    split_asserted_payments,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -86,10 +85,6 @@ pub struct VerifiedSpend {
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
     pub revoked: bool,
-    /// Announcements and messages created by this spend. These aren't otherwise reflected in the
-    /// summary, but they could authorize other spends (which aren't necessarily revealed) that
-    /// assert or receive them.
-    pub extra_conditions: Vec<Condition>,
 }
 
 pub fn parse_vault_transaction(
@@ -387,15 +382,14 @@ pub fn parse_vault_transaction(
     // A spend that the transaction asserts is linked even without a vault message, so it can't be
     // ignored if it couldn't be parsed. The revealed coin spends are iterated in order, so that the
     // error is deterministic.
-    let asserted_error_coin_id = reveals
-        .coin_spends()
-        .map(|spend| spend.coin.coin_id())
-        .find(|coin_id| parse_errors.contains_key(coin_id) && facts.is_spend_asserted(*coin_id));
+    for spend in reveals.coin_spends() {
+        let coin_id = spend.coin.coin_id();
 
-    if let Some(coin_id) = asserted_error_coin_id
-        && let Some(error) = parse_errors.remove(&coin_id)
-    {
-        return Err(error);
+        if facts.is_spend_asserted(coin_id)
+            && let Some(error) = parse_errors.remove(&coin_id)
+        {
+            return Err(error);
+        }
     }
 
     // If the transaction expires after the required expiration time of the spend,
@@ -616,7 +610,6 @@ fn verify_spend(
     );
 
     let children = parse_children(reveals, allocator, &parsed_spend.asset, spend, conditions)?;
-    let extra_conditions = parse_extra_conditions(allocator, conditions)?;
 
     // Issuances are either:
     // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
@@ -631,7 +624,6 @@ fn verify_spend(
         custody,
         children,
         revoked: parsed_spend.revoked,
-        extra_conditions,
     }))
 }
 

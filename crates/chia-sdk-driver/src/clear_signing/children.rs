@@ -1,12 +1,8 @@
 use std::collections::VecDeque;
 
-use chia_consensus::opcodes::{CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, SEND_MESSAGE};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
-use clvm_traits::FromClvm;
-use clvmr::{Allocator, NodePtr};
-use num_bigint::BigInt;
 
 use crate::{
     BURN_PUZZLE_HASH, BagAsset, BagFormat, BagPayment, Cat, DriverError, Nft, ParsedAsset,
@@ -247,16 +243,7 @@ fn calculate_transfer_type(
         reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let (settlement_amount, reserved_fee) = calculate_settlement_amount(fixed_conditions)?;
-
-        // Any XCH that isn't paid to the settlement or reserved as a fee would be an implicit fee,
-        // which wouldn't be reflected in the offer. The fee may be paid by other coins, so it can exceed
-        // the remaining amount.
-        if bag_asset == Some(BagAsset::Xch)
-            && u128::from(settlement_amount) + reserved_fee < u128::from(input_amount)
-        {
-            return Err(DriverError::InvalidOfferPreSplitConditions);
-        }
+        let settlement_amount = calculate_settlement_amount(fixed_conditions, input_amount)?;
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
@@ -269,79 +256,35 @@ fn calculate_transfer_type(
     })
 }
 
-/// The fixed conditions of an offer pre-split coin can be output by anyone, so we only allow
-/// creating settlement coins, reserving fees, and assertions which restrict when they can be output.
+/// The fixed conditions of an offer pre-split coin can be output by anyone, so they must not move
+/// value anywhere other than the settlement. Conditions which don't create outputs are ignored.
 ///
-/// Returns the settlement amount and the reserved fee.
-fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<(u64, u128), DriverError> {
-    let mut settlement_amount = 0_u128;
+/// The settlement amount excludes the reserved fee. The fee can be paid by other coins in the
+/// bundle, so it may exceed the input amount.
+fn calculate_settlement_amount(
+    fixed_conditions: &[Condition],
+    input_amount: u64,
+) -> Result<u64, DriverError> {
     let mut reserved_fee = 0_u128;
 
     for condition in fixed_conditions {
         match condition {
             Condition::CreateCoin(condition)
-                if condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() =>
+                if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() =>
             {
-                settlement_amount += u128::from(condition.amount);
+                return Err(DriverError::InvalidOfferPreSplitConditions);
+            }
+            Condition::MeltSingleton(_) | Condition::RunCatTail(_) => {
+                return Err(DriverError::InvalidOfferPreSplitConditions);
             }
             Condition::ReserveFee(condition) => {
                 reserved_fee += u128::from(condition.amount);
-            }
-            Condition::AssertPuzzleAnnouncement(_)
-            | Condition::AssertCoinAnnouncement(_)
-            | Condition::AssertConcurrentSpend(_)
-            | Condition::AssertConcurrentPuzzle(_)
-            | Condition::AssertMyCoinId(_)
-            | Condition::AssertMyParentId(_)
-            | Condition::AssertMyPuzzleHash(_)
-            | Condition::AssertMyAmount(_)
-            | Condition::AssertSecondsRelative(_)
-            | Condition::AssertSecondsAbsolute(_)
-            | Condition::AssertHeightRelative(_)
-            | Condition::AssertHeightAbsolute(_)
-            | Condition::AssertBeforeSecondsRelative(_)
-            | Condition::AssertBeforeSecondsAbsolute(_)
-            | Condition::AssertBeforeHeightRelative(_)
-            | Condition::AssertBeforeHeightAbsolute(_) => {}
-            _ => return Err(DriverError::InvalidOfferPreSplitConditions),
-        }
-    }
-
-    Ok((settlement_amount.try_into()?, reserved_fee))
-}
-
-/// Returns the announcements and messages created by a spend, which aren't otherwise reflected in
-/// the summary. These can authorize other spends which assert them, so they must be surfaced.
-pub fn parse_extra_conditions(
-    allocator: &Allocator,
-    conditions: &[Condition],
-) -> Result<Vec<Condition>, DriverError> {
-    let mut extra_conditions = Vec::new();
-
-    for condition in conditions {
-        match condition {
-            Condition::CreateCoinAnnouncement(_)
-            | Condition::CreatePuzzleAnnouncement(_)
-            | Condition::SendMessage(_) => {
-                extra_conditions.push(condition.clone());
-            }
-            Condition::Other(raw_condition) => {
-                let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, *raw_condition)?;
-
-                if [
-                    CREATE_COIN_ANNOUNCEMENT,
-                    CREATE_PUZZLE_ANNOUNCEMENT,
-                    SEND_MESSAGE,
-                ]
-                .into_iter()
-                .any(|extra_opcode| opcode == BigInt::from(extra_opcode))
-                {
-                    extra_conditions.push(condition.clone());
-                }
             }
             _ => {}
         }
     }
 
-    Ok(extra_conditions)
+    let reserved_fee: u64 = reserved_fee.try_into()?;
+
+    Ok(input_amount.saturating_sub(reserved_fee))
 }

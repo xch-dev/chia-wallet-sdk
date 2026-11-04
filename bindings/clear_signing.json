@@ -229,8 +229,7 @@
       "clawback": "Option<ClawbackInfo>",
       "custody": "CustodyInfo",
       "children": "Vec<ParsedChild>",
-      "revoked": "bool",
-      "extra_conditions": "Vec<Program>"
+      "revoked": "bool"
     }
   },
   "ParsedAsset": {
