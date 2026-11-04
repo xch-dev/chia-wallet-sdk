@@ -2266,7 +2266,7 @@ export declare class IntermediaryCoinProof {
 
 export declare class Issuance {
   clone(): Issuance
-  constructor(coinId: Uint8Array, assetId: Uint8Array, extraDelta: bigint, kind: IssuanceKind)
+  constructor(coinId: Uint8Array, assetId: Uint8Array, extraDelta: bigint, kind: IssuanceKind, verified: boolean)
   get coinId(): Buffer
   set coinId(value: Uint8Array)
   get assetId(): Buffer
@@ -2275,6 +2275,8 @@ export declare class Issuance {
   set extraDelta(value: bigint)
   get kind(): IssuanceKind
   set kind(value: IssuanceKind)
+  get verified(): boolean
+  set verified(value: boolean)
 }
 
 export declare class IssuanceKind {
