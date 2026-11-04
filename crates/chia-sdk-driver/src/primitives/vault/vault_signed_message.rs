@@ -788,7 +788,9 @@ fn parse_signed_vault_spend(
     ))
 }
 
-type VaultLayers = SingletonLayer<IndexWrapperLayer<NodePtr, DelegatedPuzzleFeederLayer<Puzzle>>>;
+/// The layers of a vault's puzzle, which is a singleton whose inner puzzle is a top-level MIPS puzzle.
+pub(crate) type VaultLayers =
+    SingletonLayer<IndexWrapperLayer<NodePtr, DelegatedPuzzleFeederLayer<Puzzle>>>;
 
 /// Removes each [`AddDelegatedPuzzleWrapper`] layer that restrictions add around the delegated spend, to get the
 /// delegated spend that was originally signed.

@@ -365,6 +365,11 @@ pub enum DriverError {
     InvalidVaultAmount,
 
     #[error(
+        "the puzzle of a controlled vault must be a singleton whose inner puzzle is a top-level MIPS puzzle"
+    )]
+    InvalidControlledVaultPuzzle,
+
+    #[error(
         "a vault controller's delegated spend can only recreate the controller and send one message to the vault it controls"
     )]
     InvalidVaultControllerEnvelope,

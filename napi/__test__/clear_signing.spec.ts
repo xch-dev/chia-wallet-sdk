@@ -624,8 +624,26 @@ for (const [name, fastForward] of [
       fastForward,
     );
 
+    const mips = clvm.mipsSpend(vault.coin, envelope);
+    mips.singletonMember(
+      config,
+      controller.info.launcherId,
+      fastForward,
+      controller.info.custodyHash,
+      controller.coin.amount,
+    );
+    mips.spendVault(vault);
+
+    const controllerMips = clvm.mipsSpend(controller.coin, controllerEnvelope);
+    controllerMips.blsMember(config, alice.pk, false);
+    controllerMips.spendVault(controller);
+
+    const [vaultSpend, controllerSpend] = clvm.coinSpends();
+
     // Clear signing shows the controller authorizing the controlled vault to sign the messages.
+    // The controlled vault's coin spend must be revealed, so that its puzzle can be checked to be a vault.
     const reveals = new Reveals(clvm);
+    reveals.revealCoinSpend(vaultSpend);
     reveals.revealControlledVault(
       vault.coin,
       vault.info.launcherId,
@@ -650,21 +668,6 @@ for (const [name, fastForward] of [
       messages,
     );
 
-    const mips = clvm.mipsSpend(vault.coin, envelope);
-    mips.singletonMember(
-      config,
-      controller.info.launcherId,
-      fastForward,
-      controller.info.custodyHash,
-      controller.coin.amount,
-    );
-    mips.spendVault(vault);
-
-    const controllerMips = clvm.mipsSpend(controller.coin, controllerEnvelope);
-    controllerMips.blsMember(config, alice.pk, false);
-    controllerMips.spendVault(controller);
-
-    const [vaultSpend, controllerSpend] = clvm.coinSpends();
     const signature = alice.sk.sign(
       calculateVaultCoinMessage(
         controllerEnvelope.puzzle.treeHash(),

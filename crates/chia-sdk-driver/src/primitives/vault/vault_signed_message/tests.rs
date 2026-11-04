@@ -1618,6 +1618,7 @@ fn test_verify_controlled_vault_signed_message(
 
     // Clear signing shows the controller authorizing the controlled vault to sign the messages.
     let mut reveals = Reveals::default();
+    reveals.reveal_coin_spend(&mut ctx, &proof.coin_spend)?;
     reveals.reveal_controlled_vault(RevealedControlledVault {
         coin: controlled.vault.coin,
         launcher_id: controlled.vault.info.launcher_id,
