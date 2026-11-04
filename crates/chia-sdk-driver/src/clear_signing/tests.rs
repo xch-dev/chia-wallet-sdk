@@ -2074,6 +2074,50 @@ fn test_clear_signing_push_through_wrong_puzzle() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_clear_signing_unrelated_unparseable_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let coin = vault_coin(&alice, 1000);
+
+    // A spend of a coin owned by another vault, whose delegated spend isn't quoted conditions.
+    let TestP2Puzzle::P2Singleton(bob_p2_singleton) = bob.p2_puzzles[&bob.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let bob_coin = Coin::new(Bytes32::new([1; 32]), bob.p2_puzzle_hash, 1000);
+    let bob_spend = bob_p2_singleton.spend(
+        &mut ctx,
+        bob.info.custody_hash.into(),
+        1,
+        Spend::new(NodePtr::NIL, NodePtr::NIL),
+    )?;
+    ctx.spend(bob_coin, bob_spend)?;
+    let bob_coin_spends = ctx.take();
+
+    let delegated_spend = ctx.delegated_spend(Conditions::new().create_coin(
+        alice.p2_puzzle_hash,
+        1000,
+        Memos::None,
+    ))?;
+    let tx = parse_linked_spend(
+        &mut ctx,
+        &alice,
+        coin,
+        delegated_spend,
+        Conditions::new(),
+        &bob_coin_spends,
+    )??;
+
+    assert_eq!(tx.spends.len(), 1);
+    assert_eq!(tx.spends[0].asset.coin(), coin);
+
+    Ok(())
+}
+
 /// Mints a vault and locks one of its coins in a clawback to Bob.
 fn push_through_setup(
     sim: &mut Simulator,
@@ -4575,4 +4619,49 @@ fn bench_clear_signing_secure_the_bag() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Spends a coin owned by the vault's default p2 puzzle hash with the given delegated spend,
+/// and sends it a message from the vault (which includes the given vault conditions).
+fn parse_linked_spend(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    coin: Coin,
+    delegated_spend: Spend,
+    vault_conditions: Conditions,
+    extra_coin_spends: &[CoinSpend],
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle);
+
+    let TestP2Puzzle::P2Singleton(p2_singleton) = vault.p2_puzzles[&vault.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let spend = p2_singleton.spend(ctx, vault.info.custody_hash.into(), 1, delegated_spend)?;
+    ctx.spend(coin, spend)?;
+
+    let mut coin_spends = ctx.take();
+    coin_spends.extend_from_slice(extra_coin_spends);
+
+    let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+        | MessageFlags::COIN.encode(MessageSide::Receiver);
+    let coin_id = ctx.alloc(&coin.coin_id())?;
+    let vault_delegated_spend = ctx.delegated_spend(
+        vault_conditions
+            .send_message(mode, delegated_puzzle_hash.to_vec().into(), vec![coin_id])
+            .create_coin(vault.info.custody_hash.into(), 1, Memos::None),
+    )?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        vault.info.launcher_id,
+        vault_delegated_spend,
+    ))
+}
+
+fn vault_coin(vault: &TestVault, amount: u64) -> Coin {
+    Coin::new(Bytes32::new([42; 32]), vault.p2_puzzle_hash, amount)
 }

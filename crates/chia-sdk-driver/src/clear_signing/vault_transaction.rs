@@ -98,9 +98,18 @@ pub fn parse_vault_transaction(
     let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
 
     let mut parsed_spends = HashMap::new();
+    let mut parse_errors = HashMap::new();
 
     for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
-        let parsed_spend = parse_spend(&mut reveals, ctx, &spend)?;
+        // Spends which aren't linked to the vault are ignored, so they shouldn't prevent the
+        // transaction from being parsed. The error is only returned if the spend is linked.
+        let parsed_spend = match parse_spend(&mut reveals, ctx, &spend) {
+            Ok(parsed_spend) => parsed_spend,
+            Err(error) => {
+                parse_errors.insert(spend.coin.coin_id(), error);
+                continue;
+            }
+        };
 
         if let Some(
             CustodyInfo::P2Singleton(P2SingletonInfo {
@@ -171,9 +180,11 @@ pub fn parse_vault_transaction(
         let spend = *reveals
             .coin_spend(coin_id)
             .ok_or(DriverError::MissingSpend)?;
-        let parsed_spend = parsed_spends
-            .remove(&coin_id)
-            .ok_or(DriverError::MissingSpend)?;
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            return Err(parse_errors
+                .remove(&coin_id)
+                .unwrap_or(DriverError::MissingSpend));
+        };
 
         // The sender path could consume the message instead, unless the clawback has expired.
         if let Some(ClawbackInfo {
@@ -365,6 +376,19 @@ pub fn parse_vault_transaction(
                 &mut stack,
                 verified_spend,
             );
+        }
+    }
+
+    // A spend that the transaction asserts is linked even without a vault message, so it can't be
+    // ignored if it couldn't be parsed. The revealed coin spends are iterated in order, so that the
+    // error is deterministic.
+    for spend in reveals.coin_spends() {
+        let coin_id = spend.coin.coin_id();
+
+        if facts.is_spend_asserted(coin_id)
+            && let Some(error) = parse_errors.remove(&coin_id)
+        {
+            return Err(error);
         }
     }
 
