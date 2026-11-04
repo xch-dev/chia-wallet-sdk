@@ -295,9 +295,6 @@ pub enum DriverError {
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
-    #[error("unsupported condition in clear signing")]
-    UnsupportedClearSigningCondition,
-
     #[error("invalid offer pre-split conditions")]
     InvalidOfferPreSplitConditions,
 

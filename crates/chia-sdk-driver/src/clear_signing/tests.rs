@@ -4682,8 +4682,22 @@ fn test_clear_signing_vault_melt() -> Result<()> {
         DriverError::InvalidDelegatedSpendFormat
     ));
 
-    // Running a TAIL isn't supported from the vault itself.
+    // The vault isn't a CAT, so running a TAIL melts it.
     let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113, 1, ())]))?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    )?;
+
+    assert_eq!(tx.vault_child, None);
+
+    // It can't be combined with another odd output either.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![
+        clvm_list!(51, (), -113, 1, ()),
+        clvm_list!(51, Bytes32::from(alice.info.custody_hash), 1),
+    ]))?;
     let result = parse_vault_transaction(
         Reveals::default(),
         &mut ctx,
@@ -4693,7 +4707,7 @@ fn test_clear_signing_vault_melt() -> Result<()> {
 
     assert!(matches!(
         result.unwrap_err(),
-        DriverError::UnsupportedClearSigningCondition
+        DriverError::InvalidDelegatedSpendFormat
     ));
 
     Ok(())

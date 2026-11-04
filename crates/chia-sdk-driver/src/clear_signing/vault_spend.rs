@@ -53,7 +53,7 @@ pub fn parse_vault_delegated_spend(
     allocator: &mut Allocator,
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
-    let (conditions, melted) = parse_delegated_spend_with_melt(allocator, delegated_spend)?;
+    let (conditions, mut melted) = parse_delegated_spend_with_melt(allocator, delegated_spend)?;
 
     // A delegated spend that signs messages can't do anything other than recreate the vault, so that signing a message
     // can't look like it also authorizes a transaction. The messages are returned separately, in their original order.
@@ -125,9 +125,13 @@ pub fn parse_vault_delegated_spend(
                 // they can be validated to be impossible to circumvent.
                 messages.push(parse_vault_message(allocator, condition)?);
             }
-            // The vault isn't a CAT, and this would melt the vault.
+            // The vault isn't a CAT, so the singleton layer treats this as a melt.
             Condition::RunCatTail(_) => {
-                return Err(DriverError::UnsupportedClearSigningCondition);
+                if melted || child.is_some() {
+                    return Err(DriverError::InvalidDelegatedSpendFormat);
+                }
+
+                melted = true;
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
