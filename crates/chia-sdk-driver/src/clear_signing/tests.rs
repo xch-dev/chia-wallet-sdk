@@ -3198,6 +3198,72 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault(
 }
 
 #[rstest]
+#[case::derived_amount(Conditions::new().reserve_fee(250), Some(750))]
+#[case::fee_paid_by_other_coins(Conditions::new().reserve_fee(1500), Some(0))]
+#[case::other_create_coin(
+    Conditions::new().create_coin(Bytes32::new([1; 32]), 250, Memos::None),
+    None
+)]
+#[case::other_condition(Conditions::new().create_puzzle_announcement(Bytes::default()), Some(1000))]
+#[case::signature(
+    Conditions::new().agg_sig_me(chia_bls::PublicKey::default(), Bytes::default()),
+    Some(1000)
+)]
+fn test_clear_signing_pre_split_settlement_amount(
+    #[case] extra_conditions: Conditions,
+    #[case] settlement_amount: Option<u64>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 500, Memos::None)
+        .extend(extra_conditions);
+    let delegated_spend = ctx.delegated_spend(conditions.clone())?;
+    let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        conditions_hash,
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember,
+    );
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
+
+    let result = alice.partial_spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, p2.tree_hash().into(), 1000, memos)],
+    )?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_p2_conditions_or_singleton(p2);
+
+    let result = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    if let Some(settlement_amount) = settlement_amount {
+        let tx = result?;
+        let TransferType::OfferPreSplit(info) = &tx.spends[0].children[0].transfer_type else {
+            panic!("expected offer pre-split");
+        };
+        assert_eq!(info.settlement_amount, settlement_amount);
+    } else {
+        assert!(matches!(
+            result.unwrap_err(),
+            DriverError::InvalidOfferPreSplitConditions
+        ));
+    }
+
+    Ok(())
+}
+
+#[rstest]
 fn test_clear_signing_offer() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();

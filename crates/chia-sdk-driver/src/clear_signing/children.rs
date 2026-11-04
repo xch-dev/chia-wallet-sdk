@@ -239,24 +239,48 @@ fn calculate_transfer_type(
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let reserved_fee: u128 = fixed_conditions
-            .iter()
-            .filter_map(|condition| match condition {
-                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
-                _ => None,
-            })
-            .sum();
-
-        let reserved_fee: u64 = reserved_fee.try_into()?;
+        let settlement_amount = calculate_settlement_amount(fixed_conditions, input_amount)?;
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
-            // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
-            settlement_amount: input_amount.saturating_sub(reserved_fee),
+            settlement_amount,
         })
     } else {
         TransferType::Sent
     })
+}
+
+/// The fixed conditions of an offer pre-split coin can be output by anyone, so they must not move
+/// value anywhere other than the settlement. Conditions which don't create outputs are ignored.
+///
+/// The settlement amount excludes the reserved fee. The fee can be paid by other coins in the
+/// bundle, so it may exceed the input amount.
+fn calculate_settlement_amount(
+    fixed_conditions: &[Condition],
+    input_amount: u64,
+) -> Result<u64, DriverError> {
+    let mut reserved_fee = 0_u128;
+
+    for condition in fixed_conditions {
+        match condition {
+            Condition::CreateCoin(condition)
+                if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() =>
+            {
+                return Err(DriverError::InvalidOfferPreSplitConditions);
+            }
+            Condition::MeltSingleton(_) | Condition::RunCatTail(_) => {
+                return Err(DriverError::InvalidOfferPreSplitConditions);
+            }
+            Condition::ReserveFee(condition) => {
+                reserved_fee += u128::from(condition.amount);
+            }
+            _ => {}
+        }
+    }
+
+    let reserved_fee: u64 = reserved_fee.try_into()?;
+
+    Ok(input_amount.saturating_sub(reserved_fee))
 }
