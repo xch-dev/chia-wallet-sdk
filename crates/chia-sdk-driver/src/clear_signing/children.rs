@@ -200,12 +200,17 @@ fn calculate_transfer_type(
     bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    // The p2 puzzle hash of a clawback is the receiver's, but the coin can also be clawed back by
+    // the sender, so it can't be treated as anything other than a regular send.
+    if memos.clawback.is_some() {
+        return Ok(TransferType::Sent);
+    }
+
     // The root hash commits to every payment and to the total amount, so anyone can unroll a coin with the root hash
     // and that amount to the payments. As with any revocable CAT, the issuer can still revoke the root or its nodes
     // before then. If the amount is less, the root can't be spent. If it's more, the rest is lost to fees, which isn't
     // something we want to show as a bag.
-    if memos.clawback.is_none()
-        && let Some(bag_asset) = bag_asset
+    if let Some(bag_asset) = bag_asset
         && let Some(bag) = reveals.bag(memos.p2_puzzle_hash, bag_asset)
         && bag.total_amount() == input_amount
     {
@@ -234,9 +239,8 @@ fn calculate_transfer_type(
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
-    } else if memos.clawback.is_none()
-        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
-            reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+    } else if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
+        reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
         let reserved_fee: u128 = fixed_conditions
