@@ -553,7 +553,7 @@ fn verify_spend(
         None
     };
 
-    let issuance = if let Some(run_cat_tail) = run_cat_tail {
+    let mut issuance = if let Some(run_cat_tail) = run_cat_tail {
         let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
         Some(Issuance {
@@ -561,6 +561,7 @@ fn verify_spend(
             asset_id: run_cat_tail.asset_id,
             extra_delta: cat_solution.extra_delta,
             kind: run_cat_tail.kind,
+            verified: false,
         })
     } else {
         None
@@ -578,7 +579,7 @@ fn verify_spend(
             }
 
             custody_matched = true;
-        } else if let Some(issuance) = &issuance
+        } else if let Some(issuance) = &mut issuance
             && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {
@@ -587,6 +588,7 @@ fn verify_spend(
             }
 
             tail_matched = true;
+            issuance.verified = true;
         } else {
             return Err(DriverError::UnmatchedVaultMessage);
         }
@@ -761,6 +763,11 @@ fn build_asset_flows(
             let amount = u128::from(spend.asset.coin().amount);
             asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
+        }
+
+        // The extra delta comes from the solution, so it can't be relied on unless it was verified.
+        if !issuance.verified {
+            continue;
         }
 
         // The extra delta comes from an untrusted solution, so it can be `i64::MIN`.

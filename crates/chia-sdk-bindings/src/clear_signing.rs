@@ -571,6 +571,7 @@ pub struct Issuance {
     pub asset_id: Bytes32,
     pub extra_delta: i64,
     pub kind: IssuanceKind,
+    pub verified: bool,
 }
 
 impl From<sdk::Issuance> for Issuance {
@@ -580,6 +581,7 @@ impl From<sdk::Issuance> for Issuance {
             asset_id: value.asset_id,
             extra_delta: value.extra_delta,
             kind: value.kind.into(),
+            verified: value.verified,
         }
     }
 }
