@@ -6,7 +6,7 @@ use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
 use crate::{
-    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message,
+    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend_with_melt, parse_vault_message,
     parse_vault_message_envelope,
 };
 
@@ -53,11 +53,15 @@ pub fn parse_vault_delegated_spend(
     allocator: &mut Allocator,
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
-    let conditions = parse_delegated_spend(allocator, delegated_spend)?;
+    let (conditions, mut melted) = parse_delegated_spend_with_melt(allocator, delegated_spend)?;
 
     // A delegated spend that signs messages can't do anything other than recreate the vault, so that signing a message
     // can't look like it also authorizes a transaction. The messages are returned separately, in their original order.
     if let Some(envelope) = parse_vault_message_envelope(allocator, &conditions)? {
+        if melted {
+            return Err(DriverError::InvalidDelegatedSpendFormat);
+        }
+
         return Ok(VaultSpendSummary {
             child: Some(envelope.vault_child),
             drop_coins: Vec::new(),
@@ -98,6 +102,11 @@ pub fn parse_vault_delegated_spend(
                 // the special (puzzle specific) MELT_SINGLETON condition is included, but if it's not, then
                 // the transaction is invalid anyways.
                 if condition.amount % 2 == 1 {
+                    // The singleton layer doesn't allow more than one odd output, including the melt.
+                    if melted || child.is_some() {
+                        return Err(DriverError::InvalidDelegatedSpendFormat);
+                    }
+
                     child = Some(VaultOutput {
                         custody_hash: condition.puzzle_hash,
                         amount: condition.amount,
@@ -115,6 +124,14 @@ pub fn parse_vault_delegated_spend(
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
                 messages.push(parse_vault_message(allocator, condition)?);
+            }
+            // The vault isn't a CAT, so the singleton layer treats this as a melt.
+            Condition::RunCatTail(_) => {
+                if melted || child.is_some() {
+                    return Err(DriverError::InvalidDelegatedSpendFormat);
+                }
+
+                melted = true;
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;

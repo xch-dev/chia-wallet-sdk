@@ -246,6 +246,9 @@ pub enum DriverError {
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
 
+    #[error("singleton melt is not supported here")]
+    UnsupportedSingletonMelt,
+
     #[error("invalid vault message format")]
     InvalidVaultMessageFormat,
 

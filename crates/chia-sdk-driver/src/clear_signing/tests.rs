@@ -804,6 +804,145 @@ fn test_clear_signing_melt() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_clear_signing_vault_melt() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(
+        51,
+        Bytes32::from(alice.info.custody_hash),
+        -113
+    )]))?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    )?;
+
+    assert_eq!(tx.vault_child, None);
+    assert!(tx.drop_coins.is_empty());
+
+    // The melt can't be combined with another odd output.
+    let puzzle = ctx.alloc(&clvm_quote!((
+        clvm_list!(51, Bytes32::from(alice.info.custody_hash), -113),
+        (
+            clvm_list!(51, Bytes32::from(alice.info.custody_hash), 1),
+            ()
+        )
+    )))?;
+    let result = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    );
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::InvalidDelegatedSpendFormat
+    ));
+
+    // The same applies to a melt without a puzzle hash.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113)]))?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    )?;
+
+    assert_eq!(tx.vault_child, None);
+
+    let puzzle = ctx.alloc(&clvm_quote!((
+        clvm_list!(51, (), -113),
+        (
+            clvm_list!(51, Bytes32::from(alice.info.custody_hash), 1),
+            ()
+        )
+    )))?;
+    let result = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    );
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::InvalidDelegatedSpendFormat
+    ));
+
+    // The vault isn't a CAT, so running a TAIL melts it.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113, 1, ())]))?;
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    )?;
+
+    assert_eq!(tx.vault_child, None);
+
+    // It can't be combined with another odd output either.
+    let puzzle = ctx.alloc(&clvm_quote!(vec![
+        clvm_list!(51, (), -113, 1, ()),
+        clvm_list!(51, Bytes32::from(alice.info.custody_hash), 1),
+    ]))?;
+    let result = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        alice.info.launcher_id,
+        Spend::new(puzzle, NodePtr::NIL),
+    );
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::InvalidDelegatedSpendFormat
+    ));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::with_puzzle_hash(true)]
+#[case::without_puzzle_hash(false)]
+fn test_clear_signing_linked_spend_melt(#[case] with_puzzle_hash: bool) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let coin = vault_coin(&alice, 1);
+
+    let puzzle = if with_puzzle_hash {
+        ctx.alloc(&clvm_quote!(vec![clvm_list!(
+            51,
+            alice.p2_puzzle_hash,
+            -113
+        )]))?
+    } else {
+        ctx.alloc(&clvm_quote!(vec![clvm_list!(51, (), -113)]))?
+    };
+    let result = parse_linked_spend(
+        &mut ctx,
+        &alice,
+        coin,
+        Spend::new(puzzle, NodePtr::NIL),
+        Conditions::new(),
+        &[],
+    )?;
+
+    assert!(matches!(
+        result.unwrap_err(),
+        DriverError::UnsupportedSingletonMelt
+    ));
+
+    Ok(())
+}
+
 #[rstest]
 fn test_clear_signing_run_tail_increases_cat_supply() -> Result<()> {
     let mut sim = Simulator::new();
@@ -4533,4 +4672,49 @@ fn bench_clear_signing_secure_the_bag() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Spends a coin owned by the vault's default p2 puzzle hash with the given delegated spend,
+/// and sends it a message from the vault (which includes the given vault conditions).
+fn parse_linked_spend(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    coin: Coin,
+    delegated_spend: Spend,
+    vault_conditions: Conditions,
+    extra_coin_spends: &[CoinSpend],
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle);
+
+    let TestP2Puzzle::P2Singleton(p2_singleton) = vault.p2_puzzles[&vault.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let spend = p2_singleton.spend(ctx, vault.info.custody_hash.into(), 1, delegated_spend)?;
+    ctx.spend(coin, spend)?;
+
+    let mut coin_spends = ctx.take();
+    coin_spends.extend_from_slice(extra_coin_spends);
+
+    let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+        | MessageFlags::COIN.encode(MessageSide::Receiver);
+    let coin_id = ctx.alloc(&coin.coin_id())?;
+    let vault_delegated_spend = ctx.delegated_spend(
+        vault_conditions
+            .send_message(mode, delegated_puzzle_hash.to_vec().into(), vec![coin_id])
+            .create_coin(vault.info.custody_hash.into(), 1, Memos::None),
+    )?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        vault.info.launcher_id,
+        vault_delegated_spend,
+    ))
+}
+
+fn vault_coin(vault: &TestVault, amount: u64) -> Coin {
+    Coin::new(Bytes32::new([42; 32]), vault.p2_puzzle_hash, amount)
 }
