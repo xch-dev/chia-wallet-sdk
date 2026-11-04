@@ -14,7 +14,10 @@ use chia_sdk_test::{Simulator, sign_transaction};
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMember, EverythingWithSingletonTailArgs, RevocationArgs},
+    puzzles::{
+        BlsMember, EverythingWithSingletonTailArgs, RevocationArgs, SingletonMember,
+        SingletonMemberSolution,
+    },
 };
 use chia_sdk_utils::select_coins;
 use clvm_traits::{FromClvm, ToClvm};
@@ -25,7 +28,7 @@ use crate::{
     Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
     MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
     SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
-    coin_amount, mips_puzzle_hash,
+    coin_amount, mips_puzzle_hash, vault_controller_envelope,
 };
 
 #[derive(Debug, Clone)]
@@ -35,6 +38,17 @@ pub struct TransactionData {
     pub spend_bundle: SpendBundle,
     pub vault_spend: CoinSpend,
     pub signature: Signature,
+    /// The spends of the vaults that control the vault, from the vault that directly controls it to the vault at the
+    /// top, which is the one whose BLS key signs.
+    pub controller_spends: Vec<ControllerSpend>,
+}
+
+/// The spend of a vault that authorizes the spend of a vault that it controls.
+#[derive(Debug, Clone)]
+pub struct ControllerSpend {
+    pub vault: Vault,
+    pub delegated_spend: Spend,
+    pub coin_spend: CoinSpend,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,18 +65,42 @@ pub struct TestVault {
     pub secret_key: SecretKey,
     pub public_key: PublicKey,
     pub p2_puzzles: HashMap<TreeHash, TestP2Puzzle>,
+    /// If set, the vault's custody is a singleton member of this vault, rather than a BLS key.
+    pub controller: Option<Box<TestVault>>,
 }
 
 impl TestVault {
     pub fn mint(sim: &mut Simulator, ctx: &mut SpendContext, balance: u64) -> Result<Self> {
+        Self::mint_with(sim, ctx, balance, None)
+    }
+
+    /// Mints a vault whose custody is a singleton member of the controller, so its spends are authorized by the
+    /// controller's spends. The controller's BLS key signs for both.
+    pub fn mint_controlled(
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        balance: u64,
+        controller: &TestVault,
+    ) -> Result<Self> {
+        Self::mint_with(sim, ctx, balance, Some(controller))
+    }
+
+    fn mint_with(
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        balance: u64,
+        controller: Option<&TestVault>,
+    ) -> Result<Self> {
         let pair = sim.bls(balance + 1);
         let p2 = StandardLayer::new(pair.pk);
 
-        let (mut parent_conditions, vault) = Launcher::new(pair.coin.coin_id(), 1).mint_vault(
-            ctx,
-            vault_custody_puzzle_hash(pair.pk),
-            (),
-        )?;
+        let custody_hash = match controller {
+            Some(controller) => controlled_custody_puzzle_hash(controller.info.launcher_id),
+            None => vault_custody_puzzle_hash(pair.pk),
+        };
+
+        let (mut parent_conditions, vault) =
+            Launcher::new(pair.coin.coin_id(), 1).mint_vault(ctx, custody_hash, ())?;
 
         let mut p2_puzzles = HashMap::new();
 
@@ -81,12 +119,18 @@ impl TestVault {
 
         sim.spend_coins(ctx.take(), slice::from_ref(&pair.sk))?;
 
+        let (secret_key, public_key) = match controller {
+            Some(controller) => (controller.secret_key.clone(), controller.public_key),
+            None => (pair.sk, pair.pk),
+        };
+
         Ok(Self {
             info: vault.info,
             p2_puzzle_hash: p2_puzzle_hash.into(),
-            secret_key: pair.sk,
-            public_key: pair.pk,
+            secret_key,
+            public_key,
             p2_puzzles,
+            controller: controller.map(|controller| Box::new(controller.clone())),
         })
     }
 
@@ -247,23 +291,18 @@ impl TestVault {
             Memos::None,
         ))?;
 
-        let mut mips_spend = MipsSpend::new(delegated_spend);
-
-        let puzzle = ctx.curry(BlsMember::new(self.secret_key.public_key()))?;
-
-        mips_spend.members.insert(
-            self.info.custody_hash,
-            InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, NodePtr::NIL)),
-        );
-
-        vault.spend(ctx, &mips_spend)?;
-
-        let vault_spend = ctx.take().remove(0);
+        let (vault_spend, controller_spends) =
+            self.spend_vault(sim, ctx, &vault, delegated_spend)?;
 
         let bundle_coin_spends: Vec<CoinSpend> = coin_spends
             .clone()
             .into_iter()
             .chain(vec![vault_spend.clone()])
+            .chain(
+                controller_spends
+                    .iter()
+                    .map(|controller_spend| controller_spend.coin_spend.clone()),
+            )
             .collect();
 
         let signature = sign_transaction(&bundle_coin_spends, slice::from_ref(&self.secret_key))?;
@@ -275,7 +314,67 @@ impl TestVault {
             spend_bundle,
             vault_spend,
             signature,
+            controller_spends,
         })
+    }
+
+    /// Spends the vault with the delegated spend, and spends each of the vaults that control it to authorize it.
+    pub fn spend_vault(
+        &self,
+        sim: &Simulator,
+        ctx: &mut SpendContext,
+        vault: &Vault,
+        delegated_spend: Spend,
+    ) -> Result<(CoinSpend, Vec<ControllerSpend>)> {
+        let mut mips_spend = MipsSpend::new(delegated_spend);
+
+        let mut controller_vault = None;
+
+        let member_spend = if let Some(controller) = &self.controller {
+            let vault = controller.fetch_vault(sim)?;
+            let puzzle = ctx.curry(SingletonMember::new(controller.info.launcher_id))?;
+            let solution = ctx.alloc(&SingletonMemberSolution::new(
+                controller.info.custody_hash.into(),
+                vault.coin.amount,
+            ))?;
+            controller_vault = Some(vault);
+            Spend::new(puzzle, solution)
+        } else {
+            let puzzle = ctx.curry(BlsMember::new(self.secret_key.public_key()))?;
+            Spend::new(puzzle, NodePtr::NIL)
+        };
+
+        mips_spend.members.insert(
+            self.info.custody_hash,
+            InnerPuzzleSpend::new(0, vec![], member_spend),
+        );
+
+        vault.spend(ctx, &mips_spend)?;
+
+        let vault_spend = ctx.take().remove(0);
+
+        let mut controller_spends = Vec::new();
+
+        if let (Some(controller), Some(controller_vault)) = (&self.controller, controller_vault) {
+            let controller_delegated_spend = vault_controller_envelope(
+                ctx,
+                &controller_vault,
+                vault.coin.coin_id(),
+                ctx.tree_hash(delegated_spend.puzzle).into(),
+            )?;
+
+            let (coin_spend, parent_spends) =
+                controller.spend_vault(sim, ctx, &controller_vault, controller_delegated_spend)?;
+
+            controller_spends.push(ControllerSpend {
+                vault: controller_vault,
+                delegated_spend: controller_delegated_spend,
+                coin_spend,
+            });
+            controller_spends.extend(parent_spends);
+        }
+
+        Ok((vault_spend, controller_spends))
     }
 
     pub fn fetch_vault(&self, sim: &Simulator) -> Result<Vault> {
@@ -378,6 +477,15 @@ impl TestVault {
 
 fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
     mips_puzzle_hash(0, vec![], BlsMember::new(pk).curry_tree_hash(), true)
+}
+
+fn controlled_custody_puzzle_hash(controller_launcher_id: Bytes32) -> TreeHash {
+    mips_puzzle_hash(
+        0,
+        vec![],
+        SingletonMember::new(controller_launcher_id).curry_tree_hash(),
+        true,
+    )
 }
 
 fn fetch_cat(sim: &Simulator, coin: Coin) -> Result<Cat> {

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chia_bls::{Signature, aggregate_verify};
 use chia_consensus::{
     allocator::make_allocator, flags::MEMPOOL_MODE, spendbundle_conditions::run_spendbundle,
@@ -21,10 +23,11 @@ use clvmr::{
     serde::{node_from_bytes, node_to_bytes},
 };
 use hex_literal::hex;
+use indexmap::IndexMap;
 
 use crate::{
     DelegatedPuzzleFeederLayer, DriverError, IndexWrapperLayer, Layer, Puzzle, SingletonLayer,
-    Spend, SpendContext, Vault, VaultOutput, parse_delegated_spend, parse_vault_message,
+    Spend, SpendContext, Vault, VaultInfo, VaultOutput, parse_delegated_spend, parse_vault_message,
 };
 
 /// The puzzle hash of the coin that every message in a vault message envelope is sent to, which is the tree hash
@@ -41,8 +44,16 @@ pub const VAULT_MESSAGE_COIN_ID: Bytes32 = Bytes32::new(hex!(
 /// The message mode used by a vault message envelope, which is sent from the vault's puzzle to a coin id.
 pub const VAULT_MESSAGE_MODE: u8 = 0x17;
 
-/// The version byte that prefixes an encoded [`VaultMessageProof`].
+/// The version byte that prefixes an encoded [`VaultMessageProof`] that has no controller spends.
 pub const VAULT_MESSAGE_PROOF_VERSION: u8 = 1;
+
+/// The version byte that prefixes an encoded [`VaultMessageProof`] that has controller spends, which is used for a vault
+/// whose custody includes another vault. Proofs without controller spends are still encoded with
+/// [`VAULT_MESSAGE_PROOF_VERSION`], so that they can be verified by older versions.
+pub const VAULT_MESSAGE_PROOF_CONTROLLED_VERSION: u8 = 2;
+
+/// The maximum number of controller spends in a [`VaultMessageProof`].
+pub const VAULT_MESSAGE_PROOF_MAX_CONTROLLERS: usize = 16;
 
 /// The bech32m prefix of the string form of a [`VaultMessageProof`].
 pub const VAULT_MESSAGE_PROOF_PREFIX: &str = "vaultsig";
@@ -117,6 +128,79 @@ pub fn vault_message_envelope(
     ctx.delegated_spend(conditions)
 }
 
+/// Builds the delegated spend that a vault signs to authorize the delegated spend of a vault that it controls, which is
+/// a vault whose custody includes it as a singleton member. This is used to sign messages with the controlled vault,
+/// by authorizing its [`vault_message_envelope`].
+///
+/// This recreates the controller with the same custody hash and amount, and sends the delegated puzzle hash to the
+/// controlled vault's coin. The delegated puzzle hash is the one that the controlled vault's singleton member is
+/// passed, which is the hash of its delegated puzzle, inside of any delegated puzzle wrappers of the member's path.
+pub fn vault_controller_envelope(
+    ctx: &mut SpendContext,
+    controller: &Vault,
+    controlled_coin_id: Bytes32,
+    delegated_puzzle_hash: Bytes32,
+) -> Result<Spend, DriverError> {
+    let coin_id = ctx.alloc(&controlled_coin_id)?;
+
+    let conditions = Conditions::new()
+        .create_coin(
+            controller.info.custody_hash.into(),
+            controller.coin.amount,
+            Memos::None,
+        )
+        .with(SendMessage::new(
+            VAULT_MESSAGE_MODE,
+            delegated_puzzle_hash.to_vec().into(),
+            vec![coin_id],
+        ));
+
+    ctx.delegated_spend(conditions)
+}
+
+/// The delegated puzzle hash that a vault controller authorizes, and the controller that it recreates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VaultControllerEnvelope {
+    pub(crate) vault_child: VaultOutput,
+    pub(crate) controlled_coin_id: Bytes32,
+}
+
+/// Parses the conditions of a vault's delegated spend as a [`vault_controller_envelope`].
+///
+/// Returns [`None`] unless the conditions are exactly a single `CREATE_COIN` with an odd amount that recreates the
+/// vault, and a single message to a coin other than [`VAULT_MESSAGE_COIN_ID`]. This is shared by clear signing and
+/// [`verify_controlled_vault_signed_message`], so that a controller can only authorize a vault message envelope by
+/// doing nothing else.
+pub(crate) fn parse_vault_controller_envelope(
+    allocator: &Allocator,
+    conditions: &[Condition],
+) -> Result<Option<VaultControllerEnvelope>, DriverError> {
+    let [first, second] = conditions else {
+        return Ok(None);
+    };
+
+    let ((Condition::CreateCoin(create_coin), Condition::SendMessage(send_message))
+    | (Condition::SendMessage(send_message), Condition::CreateCoin(create_coin))) = (first, second)
+    else {
+        return Ok(None);
+    };
+
+    if create_coin.amount % 2 != 1 {
+        return Ok(None);
+    }
+
+    let message = parse_vault_message(allocator, send_message.clone())?;
+
+    if message.spent_coin_id == VAULT_MESSAGE_COIN_ID {
+        return Ok(None);
+    }
+
+    Ok(Some(VaultControllerEnvelope {
+        vault_child: VaultOutput::new(create_coin.puzzle_hash, create_coin.amount),
+        controlled_coin_id: message.spent_coin_id,
+    }))
+}
+
 /// The messages signed by a vault message envelope, and the vault that it recreates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct VaultMessageEnvelope {
@@ -177,24 +261,80 @@ pub(crate) fn parse_vault_message_envelope(
 }
 
 /// A portable proof that a vault signed one or more messages, which can be verified with
-/// [`verify_vault_signed_message`] without any chain access, given the vault's launcher id and custody hash.
+/// [`verify_vault_signed_message`] (or [`verify_controlled_vault_signed_message`] if it has controller spends) without
+/// any chain access, given the vault's launcher id and custody hash.
 ///
 /// This is the signed spend of the vault coin with a [`vault_message_envelope`] as its delegated spend, exactly as
-/// it would be submitted as a transaction.
-#[streamable]
+/// it would be submitted as a transaction. If the vault's custody includes other vaults, the spends of the controlling
+/// vaults with a [`vault_controller_envelope`] as their delegated spend are included as well.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultMessageProof {
     /// The spend of the vault coin.
     pub coin_spend: CoinSpend,
-    /// The aggregated BLS signature of the spend, which is the default (infinity) signature if no BLS signatures
-    /// are required.
+    /// The aggregated BLS signature of all of the spends, which is the default (infinity) signature if no BLS
+    /// signatures are required.
     pub aggregated_signature: Signature,
+    /// The spends of the vaults that control the vault (or that control another controller), if any.
+    pub controller_spends: Vec<CoinSpend>,
+}
+
+/// The encoding of a [`VaultMessageProof`] without controller spends.
+#[streamable]
+struct VaultMessageProofV1 {
+    coin_spend: CoinSpend,
+    aggregated_signature: Signature,
+}
+
+/// The encoding of a [`VaultMessageProof`] with controller spends.
+#[streamable]
+struct VaultMessageProofV2 {
+    coin_spend: CoinSpend,
+    controller_spends: Vec<CoinSpend>,
+    aggregated_signature: Signature,
 }
 
 impl VaultMessageProof {
-    /// Serializes the proof as a version byte followed by its streamable encoding.
+    /// Creates a proof without any controller spends.
+    pub fn new(coin_spend: CoinSpend, aggregated_signature: Signature) -> Self {
+        Self {
+            coin_spend,
+            aggregated_signature,
+            controller_spends: Vec::new(),
+        }
+    }
+
+    /// Creates a proof with the spends of the vaults that control the vault.
+    pub fn with_controllers(
+        coin_spend: CoinSpend,
+        controller_spends: Vec<CoinSpend>,
+        aggregated_signature: Signature,
+    ) -> Self {
+        Self {
+            coin_spend,
+            aggregated_signature,
+            controller_spends,
+        }
+    }
+
+    /// Serializes the proof as a version byte followed by its streamable encoding. Proofs without controller spends are
+    /// encoded as [`VAULT_MESSAGE_PROOF_VERSION`], and the rest as [`VAULT_MESSAGE_PROOF_CONTROLLED_VERSION`].
     pub fn encode(&self) -> Result<Bytes, DriverError> {
-        let mut bytes = vec![VAULT_MESSAGE_PROOF_VERSION];
-        self.stream(&mut bytes)?;
+        let mut bytes = Vec::new();
+
+        if self.controller_spends.is_empty() {
+            bytes.push(VAULT_MESSAGE_PROOF_VERSION);
+            VaultMessageProofV1::new(self.coin_spend.clone(), self.aggregated_signature.clone())
+                .stream(&mut bytes)?;
+        } else {
+            bytes.push(VAULT_MESSAGE_PROOF_CONTROLLED_VERSION);
+            VaultMessageProofV2::new(
+                self.coin_spend.clone(),
+                self.controller_spends.clone(),
+                self.aggregated_signature.clone(),
+            )
+            .stream(&mut bytes)?;
+        }
+
         Ok(bytes.into())
     }
 
@@ -210,11 +350,28 @@ impl VaultMessageProof {
             return Err(DriverError::MissingVaultMessageProofVersion);
         };
 
-        if version != VAULT_MESSAGE_PROOF_VERSION {
-            return Err(DriverError::UnsupportedVaultMessageProofVersion(version));
-        }
+        match version {
+            VAULT_MESSAGE_PROOF_VERSION => {
+                let proof = VaultMessageProofV1::from_bytes(rest)?;
+                Ok(Self::new(proof.coin_spend, proof.aggregated_signature))
+            }
+            VAULT_MESSAGE_PROOF_CONTROLLED_VERSION => {
+                let proof = VaultMessageProofV2::from_bytes(rest)?;
 
-        Ok(Self::from_bytes(rest)?)
+                // A proof without controller spends has a single encoding, so that the encoding of each proof is
+                // unique.
+                if proof.controller_spends.is_empty() {
+                    return Err(DriverError::UnsupportedVaultMessageProofVersion(version));
+                }
+
+                Ok(Self::with_controllers(
+                    proof.coin_spend,
+                    proof.controller_spends,
+                    proof.aggregated_signature,
+                ))
+            }
+            _ => Err(DriverError::UnsupportedVaultMessageProofVersion(version)),
+        }
     }
 
     /// Encodes the proof as a bech32m string with the [`VAULT_MESSAGE_PROOF_PREFIX`] prefix.
@@ -243,9 +400,10 @@ impl VaultMessageProof {
 /// The vault's delegated spend is read from the proof, and must be a [`vault_message_envelope`] that recreates the
 /// vault as it was. Then the proof's vault spend is validated with consensus rules in a spend bundle, alongside a spend
 /// of [`vault_message_coin`] that receives each message from the vault's puzzle hash. This doesn't depend on which
-/// kinds of members the vault has, since the vault's puzzle performs its own signature checks. However, members that
-/// are authorized by another spend, such as a singleton member that receives a message from the singleton that controls
-/// it, can't sign messages, since that spend can't be included in the proof.
+/// kinds of members the vault has, since the vault's puzzle performs its own signature checks. However, a singleton
+/// member, which receives a message from the vault that controls it, can only sign messages if the controller's spend
+/// is included in the proof, which [`verify_controlled_vault_signed_message`] verifies. This function verifies proofs
+/// without controller spends, and rejects the rest.
 ///
 /// # What is verified
 ///
@@ -326,15 +484,55 @@ pub fn verify_vault_signed_message(
     genesis_challenge: Bytes32,
     max_cost: Option<u64>,
 ) -> Result<Vec<Bytes>, DriverError> {
+    verify_controlled_vault_signed_message(
+        proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        &[],
+        genesis_challenge,
+        max_cost,
+    )
+}
+
+/// Verifies that the vault with the expected launcher id and custody hash signed the messages in the proof, like
+/// [`verify_vault_signed_message`], but also allows the vault's custody to include other vaults (as singleton
+/// members), which are authorized by the controller spends in the proof.
+///
+/// Each controller spend must be the spend of one of the given controllers, whose custody hashes must come from a
+/// trusted source, just like the expected custody hash. Since the coins in the proof aren't checked to exist, anyone
+/// could otherwise make up a coin with a controller's launcher id and a custody puzzle that doesn't require a
+/// signature, which could then authorize the vault's spend. A controller can itself be controlled by other vaults,
+/// in which case those vaults must be given and spent as well.
+///
+/// Each controller spend is checked like the vault's spend, except that its delegated spend must be exactly a
+/// [`vault_controller_envelope`], which recreates the controller as it was and sends one message to another vault in
+/// the proof. The consensus rules then check that every message is received by the vault it's sent to, which only a
+/// singleton member of the controller does. Every spend in the proof is run together, so each controller's members,
+/// restrictions and signatures are checked, and every spend must recreate its vault and create nothing else.
+pub fn verify_controlled_vault_signed_message(
+    proof: &VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    controllers: &[VaultInfo],
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>, DriverError> {
     let coin_spend = &proof.coin_spend;
     let constants = default_constants(genesis_challenge, genesis_challenge);
     let max_cost = max_cost
         .unwrap_or(VAULT_MESSAGE_PROOF_DEFAULT_MAX_COST)
         .min(constants.max_block_cost_clvm);
 
-    // Each byte of the spend has a cost, so a spend that's too large for the maximum cost is rejected before it's
-    // parsed.
-    let size = coin_spend.puzzle_reveal.len() + coin_spend.solution.len();
+    if proof.controller_spends.len() > VAULT_MESSAGE_PROOF_MAX_CONTROLLERS {
+        return Err(DriverError::TooManyVaultControllers);
+    }
+
+    // Each byte of the spends has a cost, so spends that are too large for the maximum cost are rejected before
+    // they're parsed.
+    let size = std::iter::once(coin_spend)
+        .chain(&proof.controller_spends)
+        .map(|spend| spend.puzzle_reveal.len() + spend.solution.len())
+        .sum::<usize>();
 
     if (size as u64).saturating_mul(constants.cost_per_byte) > max_cost {
         return Err(DriverError::VaultMessageProofTooLarge);
@@ -356,32 +554,11 @@ pub fn verify_vault_signed_message(
     ) | MEMPOOL_MODE;
     let mut allocator = make_allocator(flags);
 
-    let puzzle = node_from_bytes(&mut allocator, &coin_spend.puzzle_reveal)?;
-    let solution = node_from_bytes(&mut allocator, &coin_spend.solution)?;
+    // The delegated spend is what the vault's signers signed, and its conditions must be exactly a vault message
+    // envelope.
+    let (launcher_id, conditions) = parse_signed_vault_spend(&mut allocator, coin_spend)?;
+    debug_assert_eq!(launcher_id, expected_launcher_id);
 
-    // The puzzle reveal is checked before it's run. Since it matches the expected vault, its custody is the expected
-    // custody puzzle.
-    let puzzle = Puzzle::parse(&allocator, puzzle);
-
-    if puzzle.curried_puzzle_hash() != vault_puzzle_hash.into() {
-        return Err(DriverError::WrongVaultPuzzleHash);
-    }
-
-    let Some(vault) = VaultLayers::parse_puzzle(&allocator, puzzle)? else {
-        return Err(DriverError::UnsupportedVaultCustody);
-    };
-
-    // The delegated spend is what the vault's signers signed. It's read from the same place in the solution that the
-    // custody puzzle reads it from, and its conditions must be exactly a vault message envelope.
-    let solution = VaultLayers::parse_solution(&allocator, solution)?;
-    let delegated_spend = unwrap_delegated_spend(
-        &allocator,
-        Spend::new(
-            solution.inner_solution.delegated_puzzle,
-            solution.inner_solution.delegated_solution,
-        ),
-    )?;
-    let conditions = parse_delegated_spend(&allocator, delegated_spend)?;
     let envelope = parse_vault_message_envelope(&allocator, &conditions)?
         .ok_or(DriverError::EmptyVaultMessageEnvelope)?;
 
@@ -389,7 +566,54 @@ pub fn verify_vault_signed_message(
         return Err(DriverError::VaultMessageEnvelopeChangesVault);
     }
 
-    debug_assert_eq!(vault.launcher_id, expected_launcher_id);
+    // The coin id and puzzle hash of each vault in the proof, which is what each of them must recreate.
+    let mut vault_coins = IndexMap::new();
+    vault_coins.insert(coin_spend.coin.coin_id(), vault_puzzle_hash);
+
+    let mut launcher_ids = HashSet::from([expected_launcher_id]);
+    let mut controlled_coin_ids = Vec::new();
+
+    for controller_spend in &proof.controller_spends {
+        let (launcher_id, conditions) = parse_signed_vault_spend(&mut allocator, controller_spend)?;
+
+        if !launcher_ids.insert(launcher_id) {
+            return Err(DriverError::DuplicateVaultControllerSpend);
+        }
+
+        let custody_hash = controllers
+            .iter()
+            .find(|controller| controller.launcher_id == launcher_id)
+            .ok_or(DriverError::UnknownVaultController(launcher_id))?
+            .custody_hash;
+
+        let controller_puzzle_hash: Bytes32 =
+            SingletonArgs::curry_tree_hash(launcher_id, custody_hash).into();
+
+        if controller_spend.coin.puzzle_hash != controller_puzzle_hash {
+            return Err(DriverError::WrongVaultPuzzleHash);
+        }
+
+        let envelope = parse_vault_controller_envelope(&allocator, &conditions)?
+            .ok_or(DriverError::InvalidVaultControllerEnvelope)?;
+
+        if envelope.vault_child
+            != VaultOutput::new(custody_hash.into(), controller_spend.coin.amount)
+        {
+            return Err(DriverError::VaultMessageEnvelopeChangesVault);
+        }
+
+        vault_coins.insert(controller_spend.coin.coin_id(), controller_puzzle_hash);
+        controlled_coin_ids.push(envelope.controlled_coin_id);
+    }
+
+    // A controller can only authorize the spend of another vault in the proof, which is then checked to receive its
+    // message.
+    if controlled_coin_ids
+        .iter()
+        .any(|coin_id| !vault_coins.contains_key(coin_id))
+    {
+        return Err(DriverError::InvalidVaultControllerEnvelope);
+    }
 
     let sender = allocator.new_atom(&vault_puzzle_hash)?;
 
@@ -406,15 +630,15 @@ pub fn verify_vault_signed_message(
     let receive_conditions = receive_conditions.to_clvm(&mut allocator)?;
 
     let spend_bundle = SpendBundle::new(
-        vec![
-            coin_spend.clone(),
-            CoinSpend::new(
+        std::iter::once(coin_spend.clone())
+            .chain(proof.controller_spends.iter().cloned())
+            .chain(std::iter::once(CoinSpend::new(
                 vault_message_coin(),
                 // The puzzle `1`, which returns its solution as its conditions.
                 Program::from(vec![1]),
                 Program::from(node_to_bytes(&allocator, receive_conditions)?),
-            ),
-        ],
+            )))
+            .collect(),
         proof.aggregated_signature.clone(),
     );
 
@@ -444,19 +668,29 @@ pub fn verify_vault_signed_message(
         return Err(DriverError::VaultMessageTimelocked);
     }
 
-    // Delegated puzzle wrappers can change the vault's output, so the output itself must also only recreate the vault.
-    let recreates_vault_only = conditions.reserve_fee == 0
+    // Delegated puzzle wrappers can change a vault's output, so the output itself must also only recreate the vault.
+    let recreates_vaults_only = conditions.reserve_fee == 0
         && conditions.spends.iter().all(|spend| {
-            let is_vault = *spend.coin_id == coin_spend.coin.coin_id();
-            let expected = usize::from(is_vault);
+            let coin_id: Bytes32 = *spend.coin_id;
 
-            spend.create_coin.len() == expected
-                && spend.create_coin.iter().all(|coin| {
-                    coin.puzzle_hash == vault_puzzle_hash && coin.amount == coin_spend.coin.amount
-                })
+            match vault_coins.get(&coin_id) {
+                Some(&puzzle_hash) => {
+                    let amount = spend_bundle
+                        .coin_spends
+                        .iter()
+                        .find(|coin_spend| coin_spend.coin.coin_id() == coin_id)
+                        .map(|coin_spend| coin_spend.coin.amount);
+
+                    spend.create_coin.len() == 1
+                        && spend.create_coin.iter().all(|coin| {
+                            coin.puzzle_hash == puzzle_hash && Some(coin.amount) == amount
+                        })
+                }
+                None => spend.create_coin.is_empty(),
+            }
         });
 
-    if !recreates_vault_only {
+    if !recreates_vaults_only {
         return Err(DriverError::MixedVaultMessageEnvelope);
     }
 
@@ -468,6 +702,44 @@ pub fn verify_vault_signed_message(
     }
 
     Ok(envelope.messages)
+}
+
+/// Parses the launcher id of a vault spend in a proof, and the conditions of the delegated spend that it signed, after
+/// checking that its custody is a top-level MIPS puzzle. The delegated spend is read from the same place in the
+/// solution that the custody puzzle reads it from, inside of any delegated puzzle wrappers.
+///
+/// Nothing is trusted yet, so the coin's puzzle hash must then be checked against the expected custody hash, which
+/// determines the custody puzzle.
+fn parse_signed_vault_spend(
+    allocator: &mut Allocator,
+    coin_spend: &CoinSpend,
+) -> Result<(Bytes32, Vec<Condition>), DriverError> {
+    let puzzle = node_from_bytes(allocator, &coin_spend.puzzle_reveal)?;
+    let solution = node_from_bytes(allocator, &coin_spend.solution)?;
+
+    let puzzle = Puzzle::parse(allocator, puzzle);
+
+    if puzzle.curried_puzzle_hash() != coin_spend.coin.puzzle_hash.into() {
+        return Err(DriverError::WrongVaultPuzzleHash);
+    }
+
+    let Some(vault) = VaultLayers::parse_puzzle(allocator, puzzle)? else {
+        return Err(DriverError::UnsupportedVaultCustody);
+    };
+
+    let solution = VaultLayers::parse_solution(allocator, solution)?;
+    let delegated_spend = unwrap_delegated_spend(
+        allocator,
+        Spend::new(
+            solution.inner_solution.delegated_puzzle,
+            solution.inner_solution.delegated_solution,
+        ),
+    )?;
+
+    Ok((
+        vault.launcher_id,
+        parse_delegated_spend(allocator, delegated_spend)?,
+    ))
 }
 
 type VaultLayers = SingletonLayer<IndexWrapperLayer<NodePtr, DelegatedPuzzleFeederLayer<Puzzle>>>;

@@ -345,6 +345,38 @@ pub enum DriverError {
     #[error("the vault message proof's aggregated signature is invalid")]
     InvalidVaultMessageSignature,
 
+    #[error(
+        "a controlled vault's coin doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongControlledVaultPuzzleHash,
+
+    #[error(
+        "the message sent to a controlled vault doesn't match the delegated puzzle hash it was revealed with"
+    )]
+    WrongControlledVaultMessage,
+
+    #[error("a controlled vault is authorized more than once in the same transaction")]
+    DuplicateControlledVault,
+
+    #[error("controlled vaults are nested too deeply")]
+    ControlledVaultTooDeep,
+
+    #[error(
+        "a vault controller's delegated spend can only recreate the controller and send one message to the vault it controls"
+    )]
+    InvalidVaultControllerEnvelope,
+
+    #[error(
+        "the vault message proof has a spend of vault controller {0}, whose custody hash wasn't given"
+    )]
+    UnknownVaultController(Bytes32),
+
+    #[error("the vault message proof has too many vault controller spends")]
+    TooManyVaultControllers,
+
+    #[error("the vault message proof spends the same vault more than once")]
+    DuplicateVaultControllerSpend,
+
     #[error("consensus validation failed: {0}")]
     Validation(#[from] chia_consensus::validation_error::ValidationErr),
 
