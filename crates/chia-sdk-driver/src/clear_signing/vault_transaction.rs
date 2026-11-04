@@ -23,6 +23,9 @@ use crate::{
 /// to parse a transaction.
 pub const MAX_CONTROLLED_VAULT_DEPTH: usize = 8;
 
+/// The amount of every vault coin, which clear signing requires each vault to be recreated with.
+pub const VAULT_AMOUNT: u64 = 1;
+
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
 /// as a result of a transaction at a glance. Information that is not verifiable should not be included or displayed.
 /// We can still allow transactions which are not fully verifiable, but a conservative summary should be provided.
@@ -95,7 +98,9 @@ impl VaultTransaction {
 /// The spend of a vault that's controlled by another vault, and what it does.
 #[derive(Debug, Clone)]
 pub struct ControlledVaultTransaction {
-    /// The controlled vault's coin.
+    /// The controlled vault's coin. If the message is sent to its puzzle hash (for a fast-forwardable singleton member),
+    /// only the puzzle hash is committed to, so the spend can happen on another coin of the vault with a different
+    /// parent. Its amount is always [`VAULT_AMOUNT`] either way.
     pub coin: Coin,
     pub launcher_id: Bytes32,
     /// The controlled vault's current custody hash, which can be compared with the custody hash of its
@@ -165,6 +170,17 @@ fn parse_vault(
     let mut facts = Facts::default();
 
     let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
+
+    // Every vault is assumed to have an amount of 1, which is enforced here so that it stays that way. The vault's
+    // amount isn't otherwise known, since the coin of the vault being signed for isn't given, and a controlled vault
+    // whose message is sent to its puzzle hash could be spent with any of its coins. If the amount could be more than
+    // 1, recreating it with 1 would hide that the rest is spent as a fee.
+    if vault_spend
+        .child
+        .is_some_and(|child| child.amount != VAULT_AMOUNT)
+    {
+        return Err(DriverError::InvalidVaultAmount);
+    }
 
     let mut parsed_spends = HashMap::new();
     let mut parse_errors = HashMap::new();

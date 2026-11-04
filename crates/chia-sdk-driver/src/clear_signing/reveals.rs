@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 
 use crate::{
     AssetInfo, BagAsset, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle,
-    RequestedPayments, SecureTheBag, Spend, VaultVersion,
+    RequestedPayments, SecureTheBag, Spend, VAULT_AMOUNT, VaultVersion,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -219,7 +219,8 @@ impl Reveals {
     /// id commits to it, and the transaction can only be valid if the coin exists, the custody hash can be trusted
     /// without looking it up. If the controlled vault's singleton member is fast-forwardable, its message is sent to
     /// the puzzle hash rather than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The
-    /// custody hash can still be trusted in that case, since the coin must have the same puzzle hash.
+    /// custody hash can still be trusted in that case, since the coin must have the same puzzle hash. The coin's amount
+    /// must be [`VAULT_AMOUNT`], like every vault's.
     pub fn reveal_controlled_vault(
         &mut self,
         controlled_vault: RevealedControlledVault,
@@ -232,6 +233,10 @@ impl Reveals {
 
         if controlled_vault.coin.puzzle_hash != puzzle_hash {
             return Err(DriverError::WrongControlledVaultPuzzleHash);
+        }
+
+        if controlled_vault.coin.amount != VAULT_AMOUNT {
+            return Err(DriverError::InvalidVaultAmount);
         }
 
         self.controlled_vaults

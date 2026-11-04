@@ -361,6 +361,9 @@ pub enum DriverError {
     #[error("controlled vaults are nested too deeply")]
     ControlledVaultTooDeep,
 
+    #[error("a vault must be recreated with an amount of 1")]
+    InvalidVaultAmount,
+
     #[error(
         "a vault controller's delegated spend can only recreate the controller and send one message to the vault it controls"
     )]

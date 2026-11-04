@@ -718,3 +718,57 @@ fn test_clear_signing_puzzle_message_to_coin(#[values(false, true)] revealed: bo
 
     Ok(())
 }
+
+#[rstest]
+fn test_clear_signing_controlled_vault_amount(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let controller = UnmintedVault::new(1);
+    let vault = UnmintedVault::new(2);
+
+    // The controlled vault's coin must have an amount of 1.
+    let delegated_spend = ctx.delegated_spend(vault.recreate())?;
+    let mut reveals = Reveals::default();
+    assert!(matches!(
+        reveals.reveal_controlled_vault(RevealedControlledVault {
+            coin: Coin::new(vault.coin.parent_coin_info, vault.coin.puzzle_hash, 3),
+            ..vault.reveal(delegated_spend, None)
+        }),
+        Err(DriverError::InvalidVaultAmount)
+    ));
+
+    // And it must be recreated with an amount of 1, since a larger coin could be spent instead if the message is sent
+    // to its puzzle hash, and the rest would be spent as a fee.
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().create_coin(vault.custody_hash, 3, Memos::None))?;
+    let delegated_puzzle_hash: Bytes32 = ctx.tree_hash(delegated_spend.puzzle).into();
+    let message = controller_message(&mut ctx, vault, delegated_puzzle_hash, fast_forward)?;
+    let controller_spend = ctx.delegated_spend(controller.recreate().with(message))?;
+
+    let mut reveals = Reveals::default();
+    reveals.reveal_controlled_vault(vault.reveal(delegated_spend, None))?;
+    assert!(matches!(
+        parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend),
+        Err(DriverError::InvalidVaultAmount)
+    ));
+
+    // The same applies to the vault being signed for.
+    let controller_spend = ctx.delegated_spend(Conditions::new().create_coin(
+        controller.custody_hash,
+        3,
+        Memos::None,
+    ))?;
+    assert!(matches!(
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            controller.launcher_id,
+            controller_spend
+        ),
+        Err(DriverError::InvalidVaultAmount)
+    ));
+
+    Ok(())
+}

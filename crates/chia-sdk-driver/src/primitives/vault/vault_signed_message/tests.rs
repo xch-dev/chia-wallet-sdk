@@ -1020,17 +1020,23 @@ fn test_reject_changed_vault() -> Result<()> {
             ));
         let delegated_spend = ctx.delegated_spend(conditions)?;
 
-        // Clear signing doesn't know the current custody hash, so it shows the vault being recreated as signed.
+        // Clear signing doesn't know the current custody hash, so it shows the vault being recreated as signed. But
+        // it requires the vault's amount to stay 1.
         let tx = parse_vault_transaction(
             Reveals::default(),
             &mut ctx,
             vault.info.launcher_id,
             delegated_spend,
-        )?;
-        assert_eq!(
-            tx.vault_child,
-            Some(VaultOutput::new(custody_hash.into(), amount))
         );
+
+        if amount == 1 {
+            assert_eq!(
+                tx?.vault_child,
+                Some(VaultOutput::new(custody_hash.into(), amount))
+            );
+        } else {
+            assert!(matches!(tx, Err(DriverError::InvalidVaultAmount)));
+        }
 
         let signed = TestCustody::signed(&ctx, &vault, delegated_spend);
         let spend = custody.mips_spend(&mut ctx, delegated_spend, signed, &[0])?;
