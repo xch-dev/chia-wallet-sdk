@@ -33,13 +33,15 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          # Build both macOS targets on a single runner (macOS minutes are the most expensive)
-          - host: blacksmith-6vcpu-macos-latest
-            target: apple-darwin
-            build: |
-              pnpm build:macos-x64
-              pnpm build:macos-arm64
-              pnpm universal
+          # Build each macOS target on its own runner in parallel, since GitHub's macOS runners
+          # are slow and the repo is public, so the minutes are free. The universal binary is
+          # assembled in the macOS test job.
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: pnpm build:macos-arm64
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: pnpm build:macos-x64
           - host: windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
@@ -81,7 +83,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.settings.target == 'apple-darwin' && 'x86_64-apple-darwin,aarch64-apple-darwin' || matrix.settings.target }}
+          targets: ${{ matrix.settings.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -123,8 +125,7 @@ jobs:
     defaults:
       run:
         working-directory: ./napi
-    # Test every Node version in one job, since macOS minutes are the most expensive
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -145,8 +146,19 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
-          name: bindings-apple-darwin
+          pattern: bindings-*-apple-darwin
+          merge-multiple: true
           path: napi
+
+      - name: Create universal binary
+        run: pnpm universal
+
+      - name: Upload universal binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: bindings-universal-apple-darwin
+          path: napi/${{ env.APP_NAME }}.darwin-universal.node
+          if-no-files-found: error
 
       - name: List packages
         run: ls -R .
