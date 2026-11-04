@@ -295,6 +295,9 @@ pub enum DriverError {
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
+    #[error("invalid offer pre-split conditions")]
+    InvalidOfferPreSplitConditions,
+
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
 
