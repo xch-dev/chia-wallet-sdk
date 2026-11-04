@@ -219,10 +219,12 @@ impl Reveals {
     /// The coin's puzzle hash must be the singleton puzzle hash for the launcher id and custody hash. Since the coin
     /// id commits to it, and the transaction can only be valid if the coin exists, the custody hash is the vault's
     /// current one without looking it up. Whether the custody is controlled by the vault that sends it the message
-    /// isn't checked, so see [`VaultTransaction::controlled_vaults`](crate::VaultTransaction::controlled_vaults). If the controlled vault's singleton member is fast-forwardable, its message is sent to
-    /// the puzzle hash rather than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The
-    /// custody hash is still the vault's in that case, since the coin must have the same puzzle hash. The coin's amount
-    /// must be [`VAULT_AMOUNT`], like every vault's.
+    /// isn't checked, so see [`VaultTransaction::controlled_vaults`](crate::VaultTransaction::controlled_vaults).
+    ///
+    /// If the controlled vault's singleton member is fast-forwardable, its message is sent to the puzzle hash rather
+    /// than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The custody hash is still
+    /// the vault's in that case, since the coin must have the same puzzle hash. The coin's amount must be
+    /// [`VAULT_AMOUNT`], like every vault's.
     pub fn reveal_controlled_vault(
         &mut self,
         controlled_vault: RevealedControlledVault,

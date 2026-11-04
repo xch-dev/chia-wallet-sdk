@@ -3,6 +3,7 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{Memos, singleton::SingletonArgs};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{Conditions, conditions::SendMessage};
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 use rstest::rstest;
@@ -643,7 +644,7 @@ fn test_clear_signing_controlled_vault_signs_messages(
     let unmarked_spend = ctx.delegated_spend(top.recreate().with(top_message))?;
     assert!(matches!(
         parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, unmarked_spend),
-        Err(DriverError::MixedVaultMessageEnvelope)
+        Err(DriverError::InvalidVaultControllerEnvelope)
     ));
 
     // The marker must have the same message.
@@ -652,7 +653,7 @@ fn test_clear_signing_controlled_vault_signs_messages(
     let wrong_spend = ctx.delegated_spend(top.recreate().with(top_message).with(wrong_marker))?;
     assert!(matches!(
         parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, wrong_spend),
-        Err(DriverError::MixedVaultMessageEnvelope)
+        Err(DriverError::InvalidVaultControllerEnvelope)
     ));
 
     // And it can't do anything else.
@@ -666,7 +667,7 @@ fn test_clear_signing_controlled_vault_signs_messages(
     )?;
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, top.launcher_id, mixed_spend),
-        Err(DriverError::MixedVaultMessageEnvelope)
+        Err(DriverError::InvalidVaultControllerEnvelope)
     ));
 
     Ok(())
@@ -844,8 +845,10 @@ fn test_clear_signing_controlled_vault_amount(
     Ok(())
 }
 
-#[test]
-fn test_clear_signing_nft_revealed_as_controlled_vault() -> Result<()> {
+#[rstest]
+fn test_clear_signing_nft_revealed_as_controlled_vault(
+    #[values(false, true)] reveal_coin_spend: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -864,24 +867,76 @@ fn test_clear_signing_nft_revealed_as_controlled_vault() -> Result<()> {
         )],
     )?;
 
-    // The NFT is also a singleton, so it could be revealed as a controlled vault, which would hide that the vault is
-    // sending it. Its puzzle isn't a vault, so it's rejected.
-    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    // The delegated spend of the NFT's p2 puzzle, whose hash is the vault's message to the NFT.
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+    let nft_spend = tx
+        .spends
+        .iter()
+        .find(|spend| matches!(spend.asset, ParsedAsset::Nft(_)))
+        .unwrap();
+    let nft_puzzle = clvm_quote!(nft_spend.custody.conditions()).to_clvm(&mut ctx)?;
+    let nft_delegated_spend = Spend::new(nft_puzzle, NodePtr::NIL);
+
+    // The NFT is also a singleton, so it could be revealed as a controlled vault with that delegated spend, which would
+    // hide that the vault is sending it. Its puzzle isn't a vault, so it's rejected, and its coin spend can't be left
+    // out to skip that check.
+    let coin_spends: Vec<CoinSpend> = result
+        .spend_bundle
+        .coin_spends
+        .iter()
+        .filter(|coin_spend| reveal_coin_spend || coin_spend.coin != nft.coin)
+        .cloned()
+        .collect();
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
     reveals.reveal_controlled_vault(RevealedControlledVault {
         coin: nft.coin,
         launcher_id: nft.info.launcher_id,
         custody_hash: nft.info.inner_puzzle_hash().into(),
-        delegated_spend: result.delegated_spend,
+        delegated_spend: nft_delegated_spend,
         recovery: None,
     })?;
+    let result = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    if reveal_coin_spend {
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidControlledVaultPuzzle)
+        ));
+    } else {
+        assert!(matches!(result, Err(DriverError::MissingSpend)));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_controller_marker_outside_controller_envelope() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let vault = UnmintedVault::new(&mut ctx, 1)?;
+
+    // A message to the controller message coin is only allowed in a controller envelope.
+    let marker = controller_marker(&mut ctx, Bytes32::default())?;
+    let delegated_spend = ctx.delegated_spend(vault.recreate().with(marker))?;
     assert!(matches!(
         parse_vault_transaction(
-            reveals,
+            Reveals::default(),
             &mut ctx,
-            alice.info.launcher_id,
-            result.delegated_spend
+            vault.launcher_id,
+            delegated_spend
         ),
-        Err(DriverError::InvalidControlledVaultPuzzle)
+        Err(DriverError::InvalidVaultControllerEnvelope)
     ));
 
     Ok(())

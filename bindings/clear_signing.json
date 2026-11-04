@@ -91,6 +91,10 @@
     "type": "function",
     "return": "Coin"
   },
+  "vault_controller_message_coin": {
+    "type": "function",
+    "return": "Coin"
+  },
   "verify_vault_signed_message": {
     "type": "function",
     "args": {

@@ -233,10 +233,14 @@ fn parse_vault(
     // Messages to controlled vaults authorize their delegated spends, rather than the spend of a coin.
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     let mut messages_by_controlled_vault: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
+    let mut has_controller_marker = false;
+
     for message in vault_spend.messages {
         // A message to the controller message coin can never be received, so it only makes the spend invalid on chain,
-        // which a vault that authorizes another vault to sign messages must do. That's checked below.
+        // which a vault that authorizes another vault to sign messages must do. It's only allowed in a controller
+        // envelope, which is checked below.
         if message.spent_coin_id == VAULT_CONTROLLER_MESSAGE_COIN_ID {
+            has_controller_marker = true;
             continue;
         }
 
@@ -659,15 +663,17 @@ fn parse_vault(
     // so that it can't look like it also authorizes a transaction. It must also send its message to the controller
     // message coin, so that its spend can never be valid on chain, even if the controlled vault's custody can receive
     // the message some other way than with a vault message envelope. This is the same check that
-    // `verify_controlled_vault_signed_message` does.
-    if controlled_vaults
-        .iter()
-        .any(|controlled_vault| controlled_vault.transaction.signs_messages())
+    // `verify_controlled_vault_signed_message` does. A message to the controller message coin is only allowed in a
+    // controller envelope.
+    if has_controller_marker
+        || controlled_vaults
+            .iter()
+            .any(|controlled_vault| controlled_vault.transaction.signs_messages())
     {
         let conditions = parse_delegated_spend(ctx, delegated_spend)?;
 
         if parse_vault_controller_envelope(ctx, &conditions)?.is_none() {
-            return Err(DriverError::MixedVaultMessageEnvelope);
+            return Err(DriverError::InvalidVaultControllerEnvelope);
         }
     }
 

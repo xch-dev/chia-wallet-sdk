@@ -5348,6 +5348,8 @@ export declare const enum UriKind {
 
 export declare function vaultControllerEnvelope(clvm: Clvm, controller: Vault, controlledCoin: Coin, delegatedPuzzleHash: Uint8Array, fastForward: boolean): Spend
 
+export declare function vaultControllerMessageCoin(): Coin
+
 export declare function vaultMessageCoin(): Coin
 
 export declare function vaultMessageEnvelope(clvm: Clvm, vault: Vault, messages: Array<Uint8Array>): Spend

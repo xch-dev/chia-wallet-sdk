@@ -152,6 +152,10 @@ pub fn vault_message_coin() -> Result<Coin> {
     Ok(sdk::vault_message_coin())
 }
 
+pub fn vault_controller_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_controller_message_coin())
+}
+
 pub fn verify_vault_signed_message(
     proof: VaultMessageProof,
     expected_launcher_id: Bytes32,

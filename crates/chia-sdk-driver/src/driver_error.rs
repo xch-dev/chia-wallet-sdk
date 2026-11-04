@@ -319,7 +319,7 @@ pub enum DriverError {
     UnsupportedVaultCustody,
 
     #[error(
-        "a vault message envelope must recreate the vault with the same custody hash and amount"
+        "a vault that signs messages, or authorizes another vault to, must be recreated with the same custody hash and amount"
     )]
     VaultMessageEnvelopeChangesVault,
 
@@ -370,7 +370,7 @@ pub enum DriverError {
     InvalidControlledVaultPuzzle,
 
     #[error(
-        "a vault controller's delegated spend can only recreate the controller and send one message to the vault it controls"
+        "a vault controller's delegated spend can only recreate the controller, send one message to the vault it controls, and send the same message to the controller message coin"
     )]
     InvalidVaultControllerEnvelope,
 

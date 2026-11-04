@@ -605,9 +605,10 @@ pub fn verify_vault_signed_message(
 /// Each controller spend is checked like the vault's spend, except that its delegated spend must be exactly a
 /// [`vault_controller_envelope`], which recreates the controller as it was, sends one message to another vault in
 /// the proof, and sends the same message to [`vault_controller_message_coin`], which is spent alongside
-/// [`vault_message_coin`] to receive it. The consensus rules then check that every message is received by the coin it's
-/// sent to, which for another vault is only done by a singleton member of the controller. Every spend in the proof is run together, so each controller's members,
-/// restrictions and signatures are checked, and every spend must recreate its vault and create nothing else.
+/// [`vault_message_coin`] to receive it. The consensus rules then check that every message is received by the coin
+/// it's sent to, which for another vault is only done by a singleton member of the controller. Every spend in the
+/// proof is run together, so each controller's members, restrictions and signatures are checked, and every spend must
+/// recreate its vault and create nothing else.
 pub fn verify_controlled_vault_signed_message(
     proof: &VaultMessageProof,
     expected_launcher_id: Bytes32,

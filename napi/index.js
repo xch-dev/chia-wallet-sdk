@@ -1215,6 +1215,7 @@ module.exports.treeHashAtom = nativeBinding.treeHashAtom
 module.exports.treeHashPair = nativeBinding.treeHashPair
 module.exports.UriKind = nativeBinding.UriKind
 module.exports.vaultControllerEnvelope = nativeBinding.vaultControllerEnvelope
+module.exports.vaultControllerMessageCoin = nativeBinding.vaultControllerMessageCoin
 module.exports.vaultMessageCoin = nativeBinding.vaultMessageCoin
 module.exports.vaultMessageEnvelope = nativeBinding.vaultMessageEnvelope
 module.exports.vaultRecoveryDelegatedPuzzleHash = nativeBinding.vaultRecoveryDelegatedPuzzleHash
