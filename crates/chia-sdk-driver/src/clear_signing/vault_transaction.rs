@@ -14,8 +14,9 @@ use crate::{
     LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
     ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, TransferType, VaultMessage,
     VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
-    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend,
+    parse_extra_conditions, parse_run_cat_tail, parse_spend, parse_vault_delegated_spend,
+    split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -85,6 +86,10 @@ pub struct VerifiedSpend {
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
     pub revoked: bool,
+    /// Announcements and messages created by this spend. These aren't otherwise reflected in the
+    /// summary, but they could authorize other spends (which aren't necessarily revealed) that
+    /// assert or receive them.
+    pub extra_conditions: Vec<Condition>,
 }
 
 pub fn parse_vault_transaction(
@@ -98,9 +103,18 @@ pub fn parse_vault_transaction(
     let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
 
     let mut parsed_spends = HashMap::new();
+    let mut parse_errors = HashMap::new();
 
     for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
-        let parsed_spend = parse_spend(&mut reveals, ctx, &spend)?;
+        // Spends which aren't linked to the vault are ignored, so they shouldn't prevent the
+        // transaction from being parsed. The error is only returned if the spend is linked.
+        let parsed_spend = match parse_spend(&mut reveals, ctx, &spend) {
+            Ok(parsed_spend) => parsed_spend,
+            Err(error) => {
+                parse_errors.insert(spend.coin.coin_id(), error);
+                continue;
+            }
+        };
 
         if let Some(
             CustodyInfo::P2Singleton(P2SingletonInfo {
@@ -171,9 +185,11 @@ pub fn parse_vault_transaction(
         let spend = *reveals
             .coin_spend(coin_id)
             .ok_or(DriverError::MissingSpend)?;
-        let parsed_spend = parsed_spends
-            .remove(&coin_id)
-            .ok_or(DriverError::MissingSpend)?;
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            return Err(parse_errors
+                .remove(&coin_id)
+                .unwrap_or(DriverError::MissingSpend));
+        };
 
         // The sender path could consume the message instead, unless the clawback has expired.
         if let Some(ClawbackInfo {
@@ -529,7 +545,7 @@ fn verify_spend(
         None
     };
 
-    let issuance = if let Some(run_cat_tail) = run_cat_tail {
+    let mut issuance = if let Some(run_cat_tail) = run_cat_tail {
         let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
         Some(Issuance {
@@ -537,6 +553,7 @@ fn verify_spend(
             asset_id: run_cat_tail.asset_id,
             extra_delta: cat_solution.extra_delta,
             kind: run_cat_tail.kind,
+            verified: false,
         })
     } else {
         None
@@ -554,7 +571,7 @@ fn verify_spend(
             }
 
             custody_matched = true;
-        } else if let Some(issuance) = &issuance
+        } else if let Some(issuance) = &mut issuance
             && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {
@@ -563,6 +580,7 @@ fn verify_spend(
             }
 
             tail_matched = true;
+            issuance.verified = true;
         } else {
             return Err(DriverError::UnmatchedVaultMessage);
         }
@@ -584,6 +602,7 @@ fn verify_spend(
     );
 
     let children = parse_children(reveals, allocator, &parsed_spend.asset, spend, conditions)?;
+    let extra_conditions = parse_extra_conditions(allocator, conditions)?;
 
     // Issuances are either:
     // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
@@ -598,6 +617,7 @@ fn verify_spend(
         custody,
         children,
         revoked: parsed_spend.revoked,
+        extra_conditions,
     }))
 }
 
@@ -737,6 +757,11 @@ fn build_asset_flows(
             let amount = u128::from(spend.asset.coin().amount);
             asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
+        }
+
+        // The extra delta comes from the solution, so it can't be relied on unless it was verified.
+        if !issuance.verified {
+            continue;
         }
 
         // The extra delta comes from an untrusted solution, so it can be `i64::MIN`.

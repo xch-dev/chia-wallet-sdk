@@ -265,6 +265,7 @@ pub struct VerifiedSpend {
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
     pub revoked: bool,
+    pub extra_conditions: Vec<Program>,
 }
 
 impl VerifiedSpend {
@@ -283,6 +284,7 @@ impl VerifiedSpend {
                 .map(|child| ParsedChild::from_sdk(ctx, clvm, child))
                 .collect::<Result<_>>()?,
             revoked: value.revoked,
+            extra_conditions: conditions_to_programs(ctx, clvm, &value.extra_conditions)?,
         })
     }
 }
@@ -571,6 +573,7 @@ pub struct Issuance {
     pub asset_id: Bytes32,
     pub extra_delta: i64,
     pub kind: IssuanceKind,
+    pub verified: bool,
 }
 
 impl From<sdk::Issuance> for Issuance {
@@ -580,6 +583,7 @@ impl From<sdk::Issuance> for Issuance {
             asset_id: value.asset_id,
             extra_delta: value.extra_delta,
             kind: value.kind.into(),
+            verified: value.verified,
         }
     }
 }

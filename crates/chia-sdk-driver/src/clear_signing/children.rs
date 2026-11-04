@@ -1,8 +1,12 @@
 use std::collections::VecDeque;
 
+use chia_consensus::opcodes::{CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, SEND_MESSAGE};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
+use clvm_traits::FromClvm;
+use clvmr::{Allocator, NodePtr};
+use num_bigint::BigInt;
 
 use crate::{
     BURN_PUZZLE_HASH, BagAsset, BagFormat, BagPayment, Cat, DriverError, Nft, ParsedAsset,
@@ -200,12 +204,17 @@ fn calculate_transfer_type(
     bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    // The p2 puzzle hash of a clawback is the receiver's, but the coin can also be clawed back by
+    // the sender, so it can't be treated as anything other than a regular send.
+    if memos.clawback.is_some() {
+        return Ok(TransferType::Sent);
+    }
+
     // The root hash commits to every payment and to the total amount, so anyone can unroll a coin with the root hash
     // and that amount to the payments. As with any revocable CAT, the issuer can still revoke the root or its nodes
     // before then. If the amount is less, the root can't be spent. If it's more, the rest is lost to fees, which isn't
     // something we want to show as a bag.
-    if memos.clawback.is_none()
-        && let Some(bag_asset) = bag_asset
+    if let Some(bag_asset) = bag_asset
         && let Some(bag) = reveals.bag(memos.p2_puzzle_hash, bag_asset)
         && bag.total_amount() == input_amount
     {
@@ -234,29 +243,89 @@ fn calculate_transfer_type(
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
-    } else if memos.clawback.is_none()
-        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
-            reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+    } else if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
+        reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let reserved_fee: u128 = fixed_conditions
-            .iter()
-            .filter_map(|condition| match condition {
-                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
-                _ => None,
-            })
-            .sum();
-
-        let reserved_fee: u64 = reserved_fee.try_into()?;
-
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
-            // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
-            settlement_amount: input_amount.saturating_sub(reserved_fee),
+            settlement_amount: calculate_settlement_amount(fixed_conditions)?,
         })
     } else {
         TransferType::Sent
     })
+}
+
+/// The fixed conditions of an offer pre-split coin can be output by anyone, so we only allow
+/// creating settlement coins, reserving fees, and assertions which restrict when they can be output.
+fn calculate_settlement_amount(fixed_conditions: &[Condition]) -> Result<u64, DriverError> {
+    let mut settlement_amount = 0_u128;
+
+    for condition in fixed_conditions {
+        match condition {
+            Condition::CreateCoin(condition)
+                if condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() =>
+            {
+                settlement_amount += u128::from(condition.amount);
+            }
+            Condition::ReserveFee(_)
+            | Condition::AssertPuzzleAnnouncement(_)
+            | Condition::AssertCoinAnnouncement(_)
+            | Condition::AssertConcurrentSpend(_)
+            | Condition::AssertConcurrentPuzzle(_)
+            | Condition::AssertMyCoinId(_)
+            | Condition::AssertMyParentId(_)
+            | Condition::AssertMyPuzzleHash(_)
+            | Condition::AssertMyAmount(_)
+            | Condition::AssertSecondsRelative(_)
+            | Condition::AssertSecondsAbsolute(_)
+            | Condition::AssertHeightRelative(_)
+            | Condition::AssertHeightAbsolute(_)
+            | Condition::AssertBeforeSecondsRelative(_)
+            | Condition::AssertBeforeSecondsAbsolute(_)
+            | Condition::AssertBeforeHeightRelative(_)
+            | Condition::AssertBeforeHeightAbsolute(_) => {}
+            _ => return Err(DriverError::InvalidOfferPreSplitConditions),
+        }
+    }
+
+    Ok(settlement_amount.try_into()?)
+}
+
+/// Returns the announcements and messages created by a spend, which aren't otherwise reflected in
+/// the summary. These can authorize other spends which assert them, so they must be surfaced.
+pub fn parse_extra_conditions(
+    allocator: &Allocator,
+    conditions: &[Condition],
+) -> Result<Vec<Condition>, DriverError> {
+    let mut extra_conditions = Vec::new();
+
+    for condition in conditions {
+        match condition {
+            Condition::CreateCoinAnnouncement(_)
+            | Condition::CreatePuzzleAnnouncement(_)
+            | Condition::SendMessage(_) => {
+                extra_conditions.push(condition.clone());
+            }
+            Condition::Other(raw_condition) => {
+                let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, *raw_condition)?;
+
+                if [
+                    CREATE_COIN_ANNOUNCEMENT,
+                    CREATE_PUZZLE_ANNOUNCEMENT,
+                    SEND_MESSAGE,
+                ]
+                .into_iter()
+                .any(|extra_opcode| opcode == BigInt::from(extra_opcode))
+                {
+                    extra_conditions.push(condition.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(extra_conditions)
 }
