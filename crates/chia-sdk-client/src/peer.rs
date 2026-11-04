@@ -1,14 +1,14 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use chia_protocol::{
-    Bytes32, ChiaProtocolMessage, CoinStateFilters, Message, PuzzleSolutionResponse,
-    RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState, RejectPuzzleSolution,
-    RejectPuzzleState, RequestChildren, RequestCoinState, RequestPeers, RequestPuzzleSolution,
-    RequestPuzzleState, RequestRemoveCoinSubscriptions, RequestRemovePuzzleSubscriptions,
-    RequestTransaction, RespondChildren, RespondCoinState, RespondPeers, RespondPuzzleSolution,
-    RespondPuzzleState, RespondRemoveCoinSubscriptions, RespondRemovePuzzleSubscriptions,
-    RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction, SendTransaction, SpendBundle,
-    TransactionAck,
+    Bytes, Bytes32, ChiaProtocolMessage, CoinStateFilters, Message, ProtocolMessageTypes,
+    PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
+    RejectPuzzleSolution, RejectPuzzleState, RequestChildren, RequestCoinState, RequestPeers,
+    RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
+    RequestRemovePuzzleSubscriptions, RequestTransaction, RespondChildren, RespondCoinState,
+    RespondPeers, RespondPuzzleSolution, RespondPuzzleState, RespondRemoveCoinSubscriptions,
+    RespondRemovePuzzleSubscriptions, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
+    SendTransaction, SpendBundle, TransactionAck,
 };
 use chia_traits::Streamable;
 use futures_util::{
@@ -17,7 +17,11 @@ use futures_util::{
 };
 use tokio::{
     net::TcpStream,
-    sync::{Mutex, mpsc, oneshot},
+    sync::{
+        Mutex,
+        mpsc::{self, error::TrySendError},
+        oneshot,
+    },
     task::JoinHandle,
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -36,12 +40,24 @@ type Response<T, E> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    /// How long to wait for a response to a request before giving up.
+    /// `None` waits until the connection is closed.
+    pub request_timeout: Option<Duration>,
+    /// How long to wait for the connection and handshake to complete in `connect_peer`.
+    /// `None` waits indefinitely.
+    pub handshake_timeout: Option<Duration>,
+    /// The number of unsolicited messages that can be buffered before the receiver is read.
+    /// If the buffer fills up, the peer is disconnected rather than blocking responses to requests.
+    pub notification_capacity: usize,
 }
 
 impl Default for PeerOptions {
     fn default() -> Self {
         Self {
             rate_limit_factor: 0.6,
+            request_timeout: Some(Duration::from_secs(60)),
+            handshake_timeout: Some(Duration::from_secs(30)),
+            notification_capacity: 1024,
         }
     }
 }
@@ -56,6 +72,7 @@ struct PeerInner {
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
     outbound_rate_limiter: Mutex<RateLimiter>,
+    request_timeout: Option<Duration>,
 }
 
 impl Peer {
@@ -106,13 +123,18 @@ impl Peer {
         };
 
         let (sink, stream) = ws.split();
-        let (sender, receiver) = mpsc::channel(32);
+        let (sender, receiver) = mpsc::channel(options.notification_capacity.max(1));
 
         let requests = Arc::new(RequestMap::new());
         let requests_clone = requests.clone();
 
         let inbound_handle = tokio::spawn(async move {
-            if let Err(error) = handle_inbound_messages(stream, sender, requests_clone).await {
+            let result = handle_inbound_messages(stream, sender, &requests_clone).await;
+
+            // Nothing will respond to pending or future requests once the inbound loop exits.
+            requests_clone.close();
+
+            if let Err(error) = result {
                 debug!("Error handling message: {error}");
             }
         });
@@ -128,6 +150,7 @@ impl Peer {
                 options.rate_limit_factor,
                 V2_RATE_LIMITS.clone(),
             )),
+            request_timeout: options.request_timeout,
         }));
 
         Ok((peer, receiver))
@@ -303,19 +326,52 @@ impl Peer {
     where
         T: Streamable + ChiaProtocolMessage,
     {
+        let request = self.request_message(T::msg_type(), body.to_bytes()?.into());
+
+        match self.0.request_timeout {
+            Some(duration) => tokio::time::timeout(duration, request)
+                .await
+                .map_err(|_| ClientError::RequestTimeout(duration))?,
+            None => request.await,
+        }
+    }
+
+    async fn request_message(
+        &self,
+        msg_type: ProtocolMessageTypes,
+        data: Bytes,
+    ) -> Result<Message, ClientError> {
         let (sender, receiver) = oneshot::channel();
+        let id = self.0.requests.insert(sender).await?;
+        let pending = PendingRequest::new(&self.0.requests, id);
 
         self.send_raw(Message {
-            msg_type: T::msg_type(),
-            id: Some(self.0.requests.insert(sender).await),
-            data: body.to_bytes()?.into(),
+            msg_type,
+            id: Some(id),
+            data,
         })
         .await?;
 
-        Ok(receiver.await?)
+        let response = receiver.await.map_err(|_| ClientError::ConnectionClosed)?;
+        pending.complete();
+
+        Ok(response)
     }
 
     async fn send_raw(&self, message: Message) -> Result<(), ClientError> {
+        if self
+            .0
+            .outbound_rate_limiter
+            .lock()
+            .await
+            .exceeds_size_limits(&message)
+        {
+            return Err(ClientError::MessageTooLarge(
+                message.msg_type,
+                message.data.len(),
+            ));
+        }
+
         loop {
             if !self
                 .0
@@ -351,10 +407,39 @@ impl Drop for PeerInner {
     }
 }
 
+/// Removes the request from the map if it's cancelled or times out before a response arrives.
+struct PendingRequest<'a> {
+    requests: &'a RequestMap,
+    id: u16,
+    completed: bool,
+}
+
+impl<'a> PendingRequest<'a> {
+    fn new(requests: &'a RequestMap, id: u16) -> Self {
+        Self {
+            requests,
+            id,
+            completed: false,
+        }
+    }
+
+    fn complete(mut self) {
+        self.completed = true;
+    }
+}
+
+impl Drop for PendingRequest<'_> {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.requests.remove(self.id);
+        }
+    }
+}
+
 async fn handle_inbound_messages(
     mut stream: Stream,
     sender: mpsc::Sender<Message>,
-    requests: Arc<RequestMap>,
+    requests: &RequestMap,
 ) -> Result<(), ClientError> {
     use tungstenite::Message::{Binary, Close, Frame, Ping, Pong, Text};
 
@@ -372,16 +457,25 @@ async fn handle_inbound_messages(
                 let message = Message::from_bytes(&binary)?;
 
                 let Some(id) = message.id else {
-                    sender.send(message).await.ok();
+                    // Waiting for space would stop responses to requests from being delivered,
+                    // so disconnect instead if the receiver isn't keeping up.
+                    if let Err(TrySendError::Full(message)) = sender.try_send(message) {
+                        warn!(
+                            "Notification channel is full, dropping {:?} message and disconnecting",
+                            message.msg_type
+                        );
+                        return Err(ClientError::NotificationOverflow);
+                    }
                     continue;
                 };
 
-                let Some(request) = requests.remove(id).await else {
+                // This can happen if the request timed out or was cancelled before the response arrived.
+                let Some(request) = requests.remove(id) else {
                     warn!(
                         "Received {:?} message with untracked id {id}",
                         message.msg_type
                     );
-                    return Err(ClientError::UnexpectedMessage(message.msg_type));
+                    continue;
                 };
 
                 request.send(message);
@@ -389,4 +483,171 @@ async fn handle_inbound_messages(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::{Handshake, NodeType};
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::accept_async;
+
+    use super::*;
+
+    type ServerSocket = WebSocketStream<TcpStream>;
+
+    async fn connect(
+        options: PeerOptions,
+    ) -> anyhow::Result<(Peer, mpsc::Receiver<Message>, ServerSocket)> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            anyhow::Ok(accept_async(stream).await?)
+        });
+
+        let (ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}")).await?;
+        let (peer, receiver) = Peer::from_websocket(ws, options)?;
+
+        Ok((peer, receiver, server.await??))
+    }
+
+    async fn recv_message(server: &mut ServerSocket) -> anyhow::Result<Message> {
+        loop {
+            let message = server.next().await.expect("connection closed")?;
+            if let tungstenite::Message::Binary(bytes) = message {
+                return Ok(Message::from_bytes(&bytes)?);
+            }
+        }
+    }
+
+    async fn send_message(server: &mut ServerSocket, message: Message) -> anyhow::Result<()> {
+        server.send(message.to_bytes()?.into()).await?;
+        Ok(())
+    }
+
+    fn respond_peers(id: Option<u16>) -> anyhow::Result<Message> {
+        Ok(Message {
+            msg_type: ProtocolMessageTypes::RespondPeers,
+            id,
+            data: RespondPeers::new(Vec::new()).to_bytes()?.into(),
+        })
+    }
+
+    /// Fails the test instead of hanging if the future never completes.
+    async fn within<F: Future>(future: F) -> F::Output {
+        tokio::time::timeout(Duration::from_secs(10), future)
+            .await
+            .expect("future hung")
+    }
+
+    #[tokio::test]
+    async fn test_pending_request_fails_when_connection_closes() -> anyhow::Result<()> {
+        let options = PeerOptions {
+            request_timeout: None,
+            ..Default::default()
+        };
+        let (peer, _receiver, mut server) = connect(options).await?;
+
+        let request = tokio::spawn({
+            let peer = peer.clone();
+            async move { peer.request_peers().await }
+        });
+
+        // Close the connection without responding to the request.
+        recv_message(&mut server).await?;
+        server.close(None).await?;
+
+        let result = within(request).await?;
+        assert!(matches!(result, Err(ClientError::ConnectionClosed)));
+
+        // Requests made after the connection has closed fail immediately too.
+        let result = within(peer.request_peers()).await;
+        assert!(matches!(result, Err(ClientError::ConnectionClosed)));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_timeout_and_late_response() -> anyhow::Result<()> {
+        let timeout = Duration::from_millis(500);
+        let options = PeerOptions {
+            request_timeout: Some(timeout),
+            ..Default::default()
+        };
+        let (peer, _receiver, mut server) = connect(options).await?;
+
+        let result = within(peer.request_peers()).await;
+        assert!(
+            matches!(result, Err(ClientError::RequestTimeout(duration)) if duration == timeout)
+        );
+
+        let request = tokio::spawn({
+            let peer = peer.clone();
+            async move { peer.request_peers().await }
+        });
+
+        let first = recv_message(&mut server).await?;
+        let second = recv_message(&mut server).await?;
+        assert_ne!(first.id, second.id);
+
+        // The late response to the timed out request is ignored rather than killing the connection.
+        send_message(&mut server, respond_peers(first.id)?).await?;
+        send_message(&mut server, respond_peers(second.id)?).await?;
+
+        let response = within(request).await??;
+        assert!(response.peer_list.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_message_too_large() -> anyhow::Result<()> {
+        let (peer, _receiver, _server) = connect(PeerOptions::default()).await?;
+
+        // Handshakes are limited to 10 KiB.
+        let result = within(peer.send(Handshake {
+            network_id: "x".repeat(20 * 1024),
+            protocol_version: String::new(),
+            software_version: String::new(),
+            server_port: 0,
+            node_type: NodeType::Wallet,
+            capabilities: Vec::new(),
+        }))
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(ClientError::MessageTooLarge(
+                ProtocolMessageTypes::Handshake,
+                _
+            ))
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_notification_overflow_disconnects() -> anyhow::Result<()> {
+        let options = PeerOptions {
+            request_timeout: None,
+            notification_capacity: 2,
+            ..Default::default()
+        };
+        let (peer, mut receiver, mut server) = connect(options).await?;
+
+        for _ in 0..3 {
+            send_message(&mut server, respond_peers(None)?).await?;
+        }
+
+        // The buffered notifications are still delivered, then the channel is closed.
+        assert!(within(receiver.recv()).await.is_some());
+        assert!(within(receiver.recv()).await.is_some());
+        assert!(within(receiver.recv()).await.is_none());
+
+        let result = within(peer.request_peers()).await;
+        assert!(matches!(result, Err(ClientError::ConnectionClosed)));
+
+        Ok(())
+    }
 }
