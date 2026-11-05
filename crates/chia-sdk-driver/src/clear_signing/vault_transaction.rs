@@ -10,18 +10,18 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClawbackPath, ClawbackV2,
-    ClearSigningAsset, ControlledVaultRecovery, CustodyInfo, DriverError, DropCoin, Facts,
-    Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo,
-    ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext,
-    TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage, VaultOutput,
-    build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    ClearSigningAsset, ControlledVaultReceiver, ControlledVaultRecovery, CustodyInfo, DriverError,
+    DropCoin, Facts, Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo,
+    P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
+    SpendContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage,
+    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
     parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
     parse_spend, parse_vault_controller_spend, parse_vault_delegated_spend,
     split_asserted_payments, vault_recovery_delegated_puzzle_hash,
 };
 
-/// The maximum depth of controlled vaults that are parsed below the vault being signed for, which bounds the work done
-/// to parse a transaction.
+/// The maximum number of vaults in an [`authorization_path`](VaultTransaction::authorization_path), which bounds the
+/// work done to parse a transaction.
 pub const MAX_CONTROLLED_VAULT_DEPTH: usize = 8;
 
 /// The amount of every vault coin, which clear signing requires each vault to be recreated with.
@@ -65,7 +65,8 @@ pub struct VaultTransaction {
     pub reserved_fee: u64,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
     pub p2_puzzle_hashes: Vec<Bytes32>,
-    /// The delegated puzzle hash that is being signed for.
+    /// The delegated puzzle hash that is being signed for, which is that of the vault being signed for, even if this
+    /// is the transaction of a vault in its [`authorization_path`](Self::authorization_path).
     pub delegated_puzzle_hash: Bytes32,
     /// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), these are the
     /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else other than
@@ -73,60 +74,50 @@ pub struct VaultTransaction {
     /// current custody hash and amount, which [`verify_vault_signed_message`](crate::verify_vault_signed_message)
     /// requires, but that isn't checked here since the current custody hash isn't known.
     pub signed_messages: Vec<Bytes>,
-    /// Vaults whose custody includes this vault (as a singleton member), and whose spends this vault authorizes by
-    /// sending them a message with their delegated puzzle hash. Each one is parsed as its own transaction, with its own
-    /// p2 puzzle hashes, which can in turn authorize the spend of another vault that it controls.
+    /// The vaults that authorize this vault's spend, starting with the vault being signed for. It's empty if this is
+    /// the vault being signed for. Otherwise, the vault being signed for authorizes the spend of a vault that it
+    /// controls, which can in turn authorize the spend of a vault that it controls, down to this vault.
     ///
-    /// There's at most one. A vault that authorizes a controlled vault can only recreate itself and send it the message
-    /// (and for message signing, the same message to the controller message coin), which is how Cloud Wallet builds
-    /// the spends of vault controllers. So in a chain of controlled vaults, only the vault at the end does anything
-    /// else. A controlled vault that authorizes another vault must also be recreated with the same custody hash.
+    /// A vault that authorizes the spend of another vault can only recreate itself and send it the message (and for
+    /// message signing, the same message to the controller message coin), which is how Cloud Wallet builds the spends of
+    /// vault controllers. Everything else that the transaction does is done by this vault, so it's the only one whose
+    /// spends are parsed. A controlled vault in the path that authorizes another vault must also be recreated with the
+    /// same custody hash, but the custody of the vault being signed for can't be checked, so its
+    /// [`controller_child`](VaultAuthorization::controller_child) should be shown like a [`vault_child`](Self::vault_child).
     ///
     /// A controlled vault's puzzle is checked to be a vault, and its custody hash to be the one that its coin commits
-    /// to, but not that its custody is controlled by this vault. Like the rest of clear signing, this assumes that the
-    /// vaults in the transaction are the user's. Its transaction is what its delegated spend does, which is authorized
-    /// by its own custody rather than promised to this vault.
-    ///
-    /// What each controlled vault does is shown separately, rather than being merged into this transaction, so that
-    /// it's clear which vault is spending which assets. The facts of each transaction (such as which spends are
-    /// asserted, and its time bounds) are also kept separately, which is conservative, since each vault's facts only
-    /// come from its own conditions and the spends it authorizes.
-    pub controlled_vaults: Vec<ControlledVaultTransaction>,
+    /// to, but not that its custody is controlled by the vault that authorizes it. Like the rest of clear signing, this
+    /// assumes that the vaults in the transaction are the user's.
+    pub authorization_path: Vec<VaultAuthorization>,
 }
 
 impl VaultTransaction {
-    /// Whether this vault, or a vault that it controls, signs arbitrary messages with a
-    /// [`vault_message_envelope`](crate::vault_message_envelope) rather than doing anything else.
+    /// Whether the vault signs arbitrary messages with a [`vault_message_envelope`](crate::vault_message_envelope)
+    /// rather than doing anything else.
     ///
-    /// A vault that authorizes another vault to sign messages must use a
+    /// Each vault in the [`authorization_path`](Self::authorization_path) must then use a
     /// [`vault_controller_envelope`](crate::vault_controller_envelope), which sends a message to
     /// [`VAULT_CONTROLLER_MESSAGE_COIN_ID`](crate::VAULT_CONTROLLER_MESSAGE_COIN_ID), so that its spend can never be
-    /// valid on chain either. Each controlled vault is also required to be recreated as it was, which can't be checked
-    /// for the vault being signed for, since its current custody hash isn't known.
+    /// valid on chain either.
     pub fn signs_messages(&self) -> bool {
         !self.signed_messages.is_empty()
-            || self
-                .controlled_vaults
-                .iter()
-                .any(|controlled_vault| controlled_vault.transaction.signs_messages())
     }
 }
 
-/// The spend of a vault that's controlled by another vault, and what it does.
-#[derive(Debug, Clone)]
-pub struct ControlledVaultTransaction {
+/// A vault's authorization of the spend of a vault that it controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VaultAuthorization {
+    /// How the vault that authorizes the spend recreates itself.
+    pub controller_child: VaultOutput,
     /// The controlled vault's coin. If the message is sent to its puzzle hash (for a fast-forwardable singleton member),
     /// only the puzzle hash is committed to, so the spend can happen on another coin of the vault with a different
     /// parent. Its amount is always [`VAULT_AMOUNT`] either way.
     pub coin: Coin,
     pub launcher_id: Bytes32,
-    /// The controlled vault's current custody hash, which can be compared with the custody hash of its
-    /// [`vault_child`](VaultTransaction::vault_child) to tell whether its custody is changing.
+    /// The controlled vault's current custody hash.
     pub custody_hash: Bytes32,
     /// Set if the spend is authorized through the controlled vault's recovery path, which starts a recovery.
     pub recovery: Option<ControlledVaultRecovery>,
-    /// What the controlled vault does.
-    pub transaction: VaultTransaction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,44 +141,192 @@ pub struct VerifiedSpend {
     pub revoked: bool,
 }
 
+/// Parses what a vault's delegated spend does, from the point of view of the vault being signed for.
+///
+/// If the delegated spend authorizes the spend of a revealed controlled vault, the vaults are followed down to the
+/// vault at the end, which is the one whose transaction is returned. The vaults above it only authorize it, so they're
+/// described by [`VaultTransaction::authorization_path`] instead.
 pub fn parse_vault_transaction(
     reveals: Reveals,
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
     delegated_spend: Spend,
 ) -> Result<VaultTransaction, DriverError> {
-    let base_reveals = reveals.clone();
+    let signed_delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
+
+    let mut launcher_id = launcher_id;
+    let mut custody_hash = None;
+    let mut delegated_spend = delegated_spend;
+    let mut authorization_path = Vec::new();
+    let mut is_envelope_path = true;
+
+    // Each vault can only be reached once, so that the chain can't be followed around a cycle forever.
     let mut visited = HashSet::from([launcher_id]);
-    parse_vault(
-        reveals,
-        &base_reveals,
-        ctx,
-        launcher_id,
-        None,
-        delegated_spend,
-        &mut visited,
-        0,
-    )
+
+    while let Some(parsed) =
+        parse_vault_authorization(&reveals, ctx, custody_hash, delegated_spend)?
+    {
+        if authorization_path.len() >= MAX_CONTROLLED_VAULT_DEPTH {
+            return Err(DriverError::ControlledVaultTooDeep);
+        }
+
+        if !visited.insert(parsed.authorization.launcher_id) {
+            return Err(DriverError::DuplicateControlledVault);
+        }
+
+        launcher_id = parsed.authorization.launcher_id;
+        custody_hash = Some(parsed.authorization.custody_hash);
+        delegated_spend = parsed.delegated_spend;
+        is_envelope_path &= parsed.is_envelope;
+        authorization_path.push(parsed.authorization);
+    }
+
+    let mut transaction = parse_vault(reveals, ctx, launcher_id, custody_hash, delegated_spend)?;
+
+    // A vault that authorizes another vault to sign messages must also send its message to the controller message coin,
+    // so that its spend can never be valid on chain, even if the controlled vault's custody can receive the message some
+    // other way than with a vault message envelope. This is the same check that `verify_controlled_vault_signed_message`
+    // does.
+    if !transaction.signed_messages.is_empty() && !is_envelope_path {
+        return Err(DriverError::InvalidVaultControllerEnvelope);
+    }
+
+    transaction.delegated_puzzle_hash = signed_delegated_puzzle_hash;
+    transaction.authorization_path = authorization_path;
+
+    Ok(transaction)
 }
 
-/// Parses the spend of a vault, and the spends of the vaults it controls. Each vault is parsed with its own copy of the
-/// reveals as they were given, since parsing records the settlement payments of the spends it visits. The custody hash
-/// is only known for a controlled vault, rather than the vault being signed for.
-#[allow(clippy::too_many_arguments)]
+/// A vault's authorization of the spend of a controlled vault.
+struct ParsedVaultAuthorization {
+    authorization: VaultAuthorization,
+    /// The controlled vault's delegated spend.
+    delegated_spend: Spend,
+    /// Whether the authorization is a [`vault_controller_envelope`](crate::vault_controller_envelope).
+    is_envelope: bool,
+}
+
+/// Parses a vault's delegated spend as the authorization of a revealed controlled vault's spend, or returns [`None`] if
+/// it doesn't authorize one. The custody hash is only known for a controlled vault, rather than the vault being signed
+/// for.
+fn parse_vault_authorization(
+    reveals: &Reveals,
+    ctx: &mut SpendContext,
+    custody_hash: Option<Bytes32>,
+    delegated_spend: Spend,
+) -> Result<Option<ParsedVaultAuthorization>, DriverError> {
+    let vault_spend = parse_vault_delegated_spend(&mut Facts::default(), ctx, delegated_spend)?;
+
+    // A message to the controller message coin can never be received, so it only makes the spend invalid on chain,
+    // which a vault that authorizes another vault to sign messages must do. It's only allowed in a controller envelope.
+    let has_controller_marker = vault_spend
+        .messages
+        .iter()
+        .any(|message| message.spent_coin_id == VAULT_CONTROLLER_MESSAGE_COIN_ID);
+
+    let mut authorizes_controlled_vault = vault_spend
+        .messages
+        .iter()
+        .any(|message| reveals.controlled_vault(message.spent_coin_id).is_some());
+
+    for message in &vault_spend.puzzle_messages {
+        authorizes_controlled_vault |= reveals
+            .controlled_vault_by_puzzle_hash(message.puzzle_hash)?
+            .is_some();
+    }
+
+    if !has_controller_marker && !authorizes_controlled_vault {
+        return Ok(None);
+    }
+
+    // A vault that authorizes the spend of a controlled vault can only recreate itself and send that one message, which
+    // is how Cloud Wallet builds the spends of vault controllers. That way, everything a transaction does is done by the
+    // vault at the end of the chain.
+    let conditions = parse_delegated_spend(ctx, delegated_spend)?;
+
+    let Some(controller_spend) = parse_vault_controller_spend(ctx, &conditions)? else {
+        return Err(if has_controller_marker {
+            DriverError::InvalidVaultControllerEnvelope
+        } else {
+            DriverError::InvalidVaultControllerSpend
+        });
+    };
+
+    if controller_spend.vault_child.amount != VAULT_AMOUNT {
+        return Err(DriverError::InvalidVaultAmount);
+    }
+
+    // A controlled vault must also be recreated as it was, since its custody hash is known.
+    if let Some(custody_hash) = custody_hash
+        && controller_spend.vault_child != VaultOutput::new(custody_hash, VAULT_AMOUNT)
+    {
+        return Err(DriverError::VaultControllerChangesVault);
+    }
+
+    // A message to a puzzle hash is sent to a controlled vault whose singleton member is fast-forwardable. It isn't
+    // allowed for any other coin, since any coin with the puzzle hash could receive it, which would let a different
+    // coin than the one that's revealed be spent. A vault's puzzle hash commits to its launcher id and custody hash, so
+    // the controlled vault's delegated spend is authorized the same way on any of its coins.
+    let controlled_vault = *match controller_spend.controlled_vault {
+        ControlledVaultReceiver::CoinId(coin_id) => reveals.controlled_vault(coin_id),
+        ControlledVaultReceiver::PuzzleHash(puzzle_hash) => {
+            reveals.controlled_vault_by_puzzle_hash(puzzle_hash)?
+        }
+    }
+    .ok_or(DriverError::MissingSpend)?;
+
+    // A message authorizes whatever the coin's puzzle does with it, so the controlled vault's coin spend must be
+    // revealed, and its puzzle must be a vault. Otherwise, an asset that the vault owns (such as an NFT, which is also a
+    // singleton) could be revealed as a controlled vault, which would hide that it's being spent.
+    let coin_spend = reveals
+        .coin_spend(controlled_vault.coin.coin_id())
+        .ok_or(DriverError::MissingSpend)?;
+
+    if VaultLayers::parse_puzzle(ctx, coin_spend.puzzle)?.is_none() {
+        return Err(DriverError::InvalidControlledVaultPuzzle);
+    }
+
+    let controlled_delegated_puzzle_hash =
+        tree_hash(ctx, controlled_vault.delegated_spend.puzzle).into();
+
+    // A member of the recovery path is passed the delegated puzzle hash wrapped in the recovery path's delegated puzzle
+    // wrappers, which only restrict what the delegated puzzle can do.
+    let signed_delegated_puzzle_hash = match controlled_vault.recovery {
+        Some(recovery) => vault_recovery_delegated_puzzle_hash(
+            controlled_delegated_puzzle_hash,
+            recovery.left_side_subtree_hash,
+            recovery.recovery_timelock,
+            recovery.version,
+        ),
+        None => controlled_delegated_puzzle_hash,
+    };
+
+    if controller_spend.message.as_ref() != signed_delegated_puzzle_hash.as_ref() {
+        return Err(DriverError::WrongControlledVaultMessage);
+    }
+
+    Ok(Some(ParsedVaultAuthorization {
+        authorization: VaultAuthorization {
+            controller_child: controller_spend.vault_child,
+            coin: controlled_vault.coin,
+            launcher_id: controlled_vault.launcher_id,
+            custody_hash: controlled_vault.custody_hash,
+            recovery: controlled_vault.recovery,
+        },
+        delegated_spend: controlled_vault.delegated_spend,
+        is_envelope: controller_spend.is_envelope,
+    }))
+}
+
+/// Parses the spend of the vault whose transaction it is, which is the vault being signed for, or the vault at the end
+/// of its authorization path. The custody hash is only known for a controlled vault.
 fn parse_vault(
     mut reveals: Reveals,
-    base_reveals: &Reveals,
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
     custody_hash: Option<Bytes32>,
     delegated_spend: Spend,
-    visited: &mut HashSet<Bytes32>,
-    depth: usize,
 ) -> Result<VaultTransaction, DriverError> {
-    if depth > 0 {
-        reveals.use_controlled_vault_nonces(launcher_id);
-    }
-
     let mut facts = Facts::default();
 
     let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
@@ -235,78 +374,22 @@ fn parse_vault(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
-    // A message to a controlled vault authorizes its delegated spend, rather than the spend of a coin. A vault can only
-    // authorize one controlled vault, with one message, which is checked below.
+    // A message to a controlled vault or to the controller message coin would have made this vault part of the
+    // authorization path, so each message here authorizes the spend of a coin.
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
-    let mut controlled_vault_message = None;
-    let mut has_controller_marker = false;
 
     for message in vault_spend.messages {
-        // A message to the controller message coin can never be received, so it only makes the spend invalid on chain,
-        // which a vault that authorizes another vault to sign messages must do. It's only allowed in a controller
-        // envelope, which is checked below.
-        if message.spent_coin_id == VAULT_CONTROLLER_MESSAGE_COIN_ID {
-            has_controller_marker = true;
-            continue;
-        }
-
-        if reveals.controlled_vault(message.spent_coin_id).is_some() {
-            if controlled_vault_message.replace(message).is_some() {
-                return Err(DriverError::InvalidVaultControllerSpend);
-            }
-        } else {
-            messages_by_coin
-                .entry(message.spent_coin_id)
-                .or_default()
-                .push(message);
-        }
+        messages_by_coin
+            .entry(message.spent_coin_id)
+            .or_default()
+            .push(message);
     }
 
-    // A message to a puzzle hash is sent to a controlled vault whose singleton member is fast-forwardable. It isn't
-    // allowed for any other coin, since any coin with the puzzle hash could receive it, which would let a different
-    // coin than the one that's revealed be spent. A vault's puzzle hash commits to its launcher id and custody hash, so
-    // the controlled vault's delegated spend is authorized the same way on any of its coins.
-    for message in vault_spend.puzzle_messages {
-        let controlled_vault = reveals
-            .controlled_vault_by_puzzle_hash(message.puzzle_hash)?
-            .ok_or(DriverError::MissingSpend)?;
-
-        let message = VaultMessage {
-            spent_coin_id: controlled_vault.coin.coin_id(),
-            data: message.data,
-        };
-
-        if controlled_vault_message.replace(message).is_some() {
-            return Err(DriverError::InvalidVaultControllerSpend);
-        }
+    // A message to a puzzle hash is only allowed for a controlled vault, since any coin with the puzzle hash could
+    // receive it, which would let a different coin than the one that's revealed be spent.
+    if !vault_spend.puzzle_messages.is_empty() {
+        return Err(DriverError::MissingSpend);
     }
-
-    // A vault that authorizes the spend of a controlled vault can only recreate itself and send that one message, which
-    // is how Cloud Wallet builds the spends of vault controllers. That way, everything a transaction does is done by the
-    // vault at the end of the chain, rather than being split between the vaults that authorize it. A controlled vault
-    // must also be recreated as it was, since its custody hash is known. A message to the controller message coin is
-    // only allowed in a controller spend too, which then makes it a controller envelope.
-    let controller_spend = if has_controller_marker || controlled_vault_message.is_some() {
-        let conditions = parse_delegated_spend(ctx, delegated_spend)?;
-
-        let Some(controller_spend) = parse_vault_controller_spend(ctx, &conditions)? else {
-            return Err(if has_controller_marker {
-                DriverError::InvalidVaultControllerEnvelope
-            } else {
-                DriverError::InvalidVaultControllerSpend
-            });
-        };
-
-        if let Some(custody_hash) = custody_hash
-            && controller_spend.vault_child != VaultOutput::new(custody_hash, VAULT_AMOUNT)
-        {
-            return Err(DriverError::VaultControllerChangesVault);
-        }
-
-        Some(controller_spend)
-    } else {
-        None
-    };
 
     // The time bounds decide which clawback spends can be trusted, so they're recorded up front from the spends
     // that the vault authorizes and that can't be replaced. Any mismatched message fails the transaction below.
@@ -621,86 +704,6 @@ fn parse_vault(
         reserved_fee,
     );
 
-    let mut controlled_vaults = Vec::new();
-
-    if let Some(message) = controlled_vault_message {
-        let coin_id = message.spent_coin_id;
-        let controlled_vault = *reveals
-            .controlled_vault(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
-
-        // A message authorizes whatever the coin's puzzle does with it, so the controlled vault's coin spend must be
-        // revealed, and its puzzle must be a vault. Otherwise, an asset that the vault owns (such as an NFT, which is
-        // also a singleton) could be revealed as a controlled vault, which would hide that it's being spent.
-        let coin_spend = reveals
-            .coin_spend(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
-
-        if VaultLayers::parse_puzzle(ctx, coin_spend.puzzle)?.is_none() {
-            return Err(DriverError::InvalidControlledVaultPuzzle);
-        }
-
-        let controlled_delegated_puzzle_hash =
-            tree_hash(ctx, controlled_vault.delegated_spend.puzzle).into();
-
-        // A member of the recovery path is passed the delegated puzzle hash wrapped in the recovery path's delegated
-        // puzzle wrappers, which only restrict what the delegated puzzle can do.
-        let signed_delegated_puzzle_hash = match controlled_vault.recovery {
-            Some(recovery) => vault_recovery_delegated_puzzle_hash(
-                controlled_delegated_puzzle_hash,
-                recovery.left_side_subtree_hash,
-                recovery.recovery_timelock,
-                recovery.version,
-            ),
-            None => controlled_delegated_puzzle_hash,
-        };
-
-        if message.data.as_ref() != signed_delegated_puzzle_hash.as_ref() {
-            return Err(DriverError::WrongControlledVaultMessage);
-        }
-
-        if depth >= MAX_CONTROLLED_VAULT_DEPTH {
-            return Err(DriverError::ControlledVaultTooDeep);
-        }
-
-        // Each vault is only parsed once, so that the same spends aren't shown more than once, and so that cycles
-        // can't be parsed forever.
-        if !visited.insert(controlled_vault.launcher_id) {
-            return Err(DriverError::DuplicateControlledVault);
-        }
-
-        let transaction = parse_vault(
-            base_reveals.clone(),
-            base_reveals,
-            ctx,
-            controlled_vault.launcher_id,
-            Some(controlled_vault.custody_hash),
-            controlled_vault.delegated_spend,
-            visited,
-            depth + 1,
-        )?;
-
-        controlled_vaults.push(ControlledVaultTransaction {
-            coin: controlled_vault.coin,
-            launcher_id: controlled_vault.launcher_id,
-            custody_hash: controlled_vault.custody_hash,
-            recovery: controlled_vault.recovery,
-            transaction,
-        });
-    }
-
-    // A vault that authorizes another vault to sign messages must also send its message to the controller message coin,
-    // so that its spend can never be valid on chain, even if the controlled vault's custody can receive the message some
-    // other way than with a vault message envelope. This is the same check that `verify_controlled_vault_signed_message`
-    // does.
-    if controlled_vaults
-        .iter()
-        .any(|controlled_vault| controlled_vault.transaction.signs_messages())
-        && !controller_spend.is_some_and(|controller_spend| controller_spend.is_envelope)
-    {
-        return Err(DriverError::InvalidVaultControllerEnvelope);
-    }
-
     // A vault that signs messages must be recreated as it was, which is also what `verify_vault_signed_message`
     // requires. This can only be checked for a controlled vault, whose custody hash is known.
     if !vault_spend.signed_messages.is_empty()
@@ -724,7 +727,7 @@ fn parse_vault(
         p2_puzzle_hashes,
         delegated_puzzle_hash,
         signed_messages: vault_spend.signed_messages,
-        controlled_vaults,
+        authorization_path: Vec::new(),
     })
 }
 

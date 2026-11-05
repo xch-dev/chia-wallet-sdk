@@ -4,8 +4,8 @@ use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
     self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2,
-    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SpendContext, VaultInfo,
-    VaultMessageProof, VaultOutput, VaultVersion,
+    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SpendContext, VaultAuthorization,
+    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
@@ -89,14 +89,6 @@ impl Reveals {
                 delegated_spend: delegated_spend.into(),
                 recovery,
             })?;
-        Ok(())
-    }
-
-    pub fn reveal_controlled_vault_nonce(&self, launcher_id: Bytes32, nonce: usize) -> Result<()> {
-        self.inner
-            .lock()
-            .unwrap()
-            .reveal_controlled_vault_nonce(launcher_id, nonce);
         Ok(())
     }
 }
@@ -284,20 +276,12 @@ pub struct VaultTransaction {
     pub p2_puzzle_hashes: Vec<Bytes32>,
     pub delegated_puzzle_hash: Bytes32,
     pub signed_messages: Vec<Bytes>,
-    pub controlled_vaults: Vec<ControlledVaultTransaction>,
+    pub authorization_path: Vec<VaultAuthorization>,
 }
 
 impl VaultTransaction {
     pub fn signs_messages(&self) -> Result<bool> {
-        Ok(self.is_signing_messages())
-    }
-
-    fn is_signing_messages(&self) -> bool {
-        !self.signed_messages.is_empty()
-            || self
-                .controlled_vaults
-                .iter()
-                .any(|controlled_vault| controlled_vault.transaction.is_signing_messages())
+        Ok(!self.signed_messages.is_empty())
     }
 
     fn from_sdk(
@@ -341,38 +325,7 @@ impl VaultTransaction {
             p2_puzzle_hashes: value.p2_puzzle_hashes,
             delegated_puzzle_hash: value.delegated_puzzle_hash,
             signed_messages: value.signed_messages,
-            controlled_vaults: value
-                .controlled_vaults
-                .into_iter()
-                .map(|controlled_vault| {
-                    ControlledVaultTransaction::from_sdk(ctx, clvm, controlled_vault)
-                })
-                .collect::<Result<_>>()?,
-        })
-    }
-}
-
-#[derive(Clone)]
-pub struct ControlledVaultTransaction {
-    pub coin: Coin,
-    pub launcher_id: Bytes32,
-    pub custody_hash: Bytes32,
-    pub recovery: Option<ControlledVaultRecovery>,
-    pub transaction: VaultTransaction,
-}
-
-impl ControlledVaultTransaction {
-    fn from_sdk(
-        ctx: &mut SpendContext,
-        clvm: &SharedContext,
-        value: sdk::ControlledVaultTransaction,
-    ) -> Result<Self> {
-        Ok(Self {
-            coin: value.coin,
-            launcher_id: value.launcher_id,
-            custody_hash: value.custody_hash,
-            recovery: value.recovery,
-            transaction: VaultTransaction::from_sdk(ctx, clvm, value.transaction)?,
+            authorization_path: value.authorization_path,
         })
     }
 }

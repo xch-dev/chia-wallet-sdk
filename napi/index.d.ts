@@ -1612,21 +1612,6 @@ export declare class ControlledVaultRecovery {
   set version(value: VaultVersion)
 }
 
-export declare class ControlledVaultTransaction {
-  clone(): ControlledVaultTransaction
-  constructor(coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, recovery: ControlledVaultRecovery | undefined | null, transaction: VaultTransaction)
-  get coin(): Coin
-  set coin(value: Coin)
-  get launcherId(): Buffer
-  set launcherId(value: Uint8Array)
-  get custodyHash(): Buffer
-  set custodyHash(value: Uint8Array)
-  get recovery(): ControlledVaultRecovery | null
-  set recovery(value: ControlledVaultRecovery | undefined | null)
-  get transaction(): VaultTransaction
-  set transaction(value: VaultTransaction)
-}
-
 export declare class CreateCoin {
   clone(): CreateCoin
   constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
@@ -3650,7 +3635,6 @@ export declare class Reveals {
   revealBag(bag: SecureTheBag): void
   revealVaultNonce(nonce: bigint): void
   revealControlledVault(coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, recovery?: ControlledVaultRecovery | undefined | null): void
-  revealControlledVaultNonce(launcherId: Uint8Array, nonce: bigint): void
 }
 
 export declare class RewardChainBlock {
@@ -4659,6 +4643,21 @@ export declare class Vault {
   set info(value: VaultInfo)
 }
 
+export declare class VaultAuthorization {
+  clone(): VaultAuthorization
+  constructor(controllerChild: VaultOutput, coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, recovery?: ControlledVaultRecovery | undefined | null)
+  get controllerChild(): VaultOutput
+  set controllerChild(value: VaultOutput)
+  get coin(): Coin
+  set coin(value: Coin)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get custodyHash(): Buffer
+  set custodyHash(value: Uint8Array)
+  get recovery(): ControlledVaultRecovery | null
+  set recovery(value: ControlledVaultRecovery | undefined | null)
+}
+
 export declare class VaultInfo {
   clone(): VaultInfo
   constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
@@ -4704,7 +4703,7 @@ export declare class VaultOutput {
 export declare class VaultTransaction {
   clone(): VaultTransaction
   signsMessages(): boolean
-  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, controlledVaults: Array<ControlledVaultTransaction>)
+  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>)
   get vaultChild(): VaultOutput | null
   set vaultChild(value: VaultOutput | undefined | null)
   get dropCoins(): Array<DropCoin>
@@ -4731,8 +4730,8 @@ export declare class VaultTransaction {
   set delegatedPuzzleHash(value: Uint8Array)
   get signedMessages(): Array<Buffer>
   set signedMessages(value: Array<Uint8Array>)
-  get controlledVaults(): Array<ControlledVaultTransaction>
-  set controlledVaults(value: Array<ControlledVaultTransaction>)
+  get authorizationPath(): Array<VaultAuthorization>
+  set authorizationPath(value: Array<VaultAuthorization>)
 }
 
 export declare class VdfInfo {

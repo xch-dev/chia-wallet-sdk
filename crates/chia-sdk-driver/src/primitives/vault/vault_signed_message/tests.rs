@@ -1642,9 +1642,10 @@ fn test_verify_controlled_vault_signed_message(
         controller_envelope,
     )?;
     assert!(tx.signs_messages());
+    assert_eq!(tx.signed_messages, messages);
     assert_eq!(
-        tx.controlled_vaults[0].transaction.signed_messages,
-        messages
+        tx.authorization_path[0].launcher_id,
+        controlled.vault.info.launcher_id
     );
 
     Ok(())

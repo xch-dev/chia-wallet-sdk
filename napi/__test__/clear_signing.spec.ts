@@ -658,14 +658,15 @@ for (const [name, fastForward] of [
       controllerEnvelope,
     );
     t.true(tx.signsMessages());
-    t.is(tx.signedMessages.length, 0);
-    t.is(tx.controlledVaults.length, 1);
-    t.deepEqual(tx.controlledVaults[0].launcherId, vault.info.launcherId);
     t.deepEqual(
-      tx.controlledVaults[0].transaction.signedMessages.map((message) =>
-        Buffer.from(message),
-      ),
+      tx.signedMessages.map((message) => Buffer.from(message)),
       messages,
+    );
+    t.is(tx.authorizationPath.length, 1);
+    t.deepEqual(tx.authorizationPath[0].launcherId, vault.info.launcherId);
+    t.deepEqual(
+      tx.authorizationPath[0].controllerChild.custodyHash,
+      controller.info.custodyHash,
     );
 
     const signature = alice.sk.sign(

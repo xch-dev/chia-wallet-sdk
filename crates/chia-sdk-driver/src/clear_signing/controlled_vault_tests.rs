@@ -2,7 +2,7 @@ use anyhow::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{Memos, singleton::SingletonArgs};
 use chia_sdk_test::Simulator;
-use chia_sdk_types::{Conditions, conditions::SendMessage};
+use chia_sdk_types::{Conditions, Mod, conditions::SendMessage, puzzles::SingletonMember};
 use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -13,7 +13,7 @@ use crate::{
     IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SingletonInfo,
     SingletonLayer, Spend, SpendContext, Spends, TestVault, TransactionData,
     VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE,
-    VaultOutput, VaultTransaction, VaultVersion, parse_vault_transaction,
+    VaultOutput, VaultTransaction, VaultVersion, mips_puzzle_hash, parse_vault_transaction,
     vault_recovery_delegated_puzzle_hash,
 };
 
@@ -93,35 +93,36 @@ fn test_clear_signing_controlled_vault_transfer(
     // The controller only recreates itself, and authorizes the controlled vault's spend.
     assert_eq!(
         tx.vault_child,
-        Some(VaultOutput::new(controller.info.custody_hash.into(), 1))
-    );
-    assert!(tx.spends.is_empty());
-    assert!(tx.asset_flows.is_empty());
-    assert_eq!(tx.reserved_fee, 0);
-    assert!(!tx.signs_messages());
-    assert_eq!(tx.controlled_vaults.len(), 1);
-
-    let controlled_vault = &tx.controlled_vaults[0];
-    assert_eq!(controlled_vault.launcher_id, vault.info.launcher_id);
-    assert_eq!(
-        controlled_vault.custody_hash,
-        vault.info.custody_hash.into()
-    );
-    assert_eq!(controlled_vault.coin, result.vault_spend.coin);
-    assert_eq!(controlled_vault.recovery, None);
-
-    // The controlled vault's spends are parsed with its own p2 puzzle hash.
-    let controlled_tx = &controlled_vault.transaction;
-    assert_eq!(
-        controlled_tx.vault_child,
         Some(VaultOutput::new(vault.info.custody_hash.into(), 1))
     );
-    assert_eq!(controlled_tx.p2_puzzle_hashes, vec![vault.p2_puzzle_hash]);
-    assert_eq!(controlled_tx.reserved_fee, 100);
-    assert_eq!(controlled_tx.spends.len(), 1);
-    assert!(matches!(controlled_tx.spends[0].asset, ParsedAsset::Xch(_)));
+    assert!(!tx.signs_messages());
 
-    let children = &controlled_tx.spends[0].children;
+    // The controller only recreates itself, and authorizes the controlled vault's spend.
+    let [authorization] = tx.authorization_path.as_slice() else {
+        panic!("expected one authorization");
+    };
+    assert_eq!(
+        authorization.controller_child,
+        VaultOutput::new(controller.info.custody_hash.into(), 1)
+    );
+    assert_eq!(authorization.launcher_id, vault.info.launcher_id);
+    assert_eq!(authorization.custody_hash, vault.info.custody_hash.into());
+    assert_eq!(authorization.coin, result.vault_spend.coin);
+    assert_eq!(authorization.recovery, None);
+
+    // The transaction is the controlled vault's, parsed with its own p2 puzzle hash. The delegated puzzle hash is still
+    // the one that's signed by the controller.
+    assert_eq!(tx.p2_puzzle_hashes, vec![vault.p2_puzzle_hash]);
+    assert_eq!(
+        tx.delegated_puzzle_hash,
+        ctx.tree_hash(result.controller_spends[0].delegated_spend.puzzle)
+            .into()
+    );
+    assert_eq!(tx.reserved_fee, 100);
+    assert_eq!(tx.spends.len(), 1);
+    assert!(matches!(tx.spends[0].asset, ParsedAsset::Xch(_)));
+
+    let children = &tx.spends[0].children;
     assert!(
         children
             .iter()
@@ -189,18 +190,24 @@ fn test_clear_signing_chained_controlled_vaults(
     let reveals = reveal_controlled_vaults(&mut ctx, &vault, &result)?;
     let tx = parse_from_top(&mut ctx, &result, reveals)?;
 
-    assert!(tx.spends.is_empty());
-    assert_eq!(tx.controlled_vaults.len(), 1);
-
-    let middle_tx = &tx.controlled_vaults[0];
-    assert_eq!(middle_tx.launcher_id, middle.info.launcher_id);
-    assert!(middle_tx.transaction.spends.is_empty());
-    assert_eq!(middle_tx.transaction.controlled_vaults.len(), 1);
-
-    let vault_tx = &middle_tx.transaction.controlled_vaults[0];
-    assert_eq!(vault_tx.launcher_id, vault.info.launcher_id);
-    assert_eq!(vault_tx.transaction.spends.len(), 1);
-    assert!(vault_tx.transaction.controlled_vaults.is_empty());
+    let launcher_ids: Vec<Bytes32> = tx
+        .authorization_path
+        .iter()
+        .map(|authorization| authorization.launcher_id)
+        .collect();
+    assert_eq!(
+        launcher_ids,
+        vec![middle.info.launcher_id, vault.info.launcher_id]
+    );
+    assert_eq!(
+        tx.authorization_path[0].controller_child,
+        VaultOutput::new(top.info.custody_hash.into(), 1)
+    );
+    assert_eq!(
+        tx.authorization_path[1].controller_child,
+        VaultOutput::new(middle.info.custody_hash.into(), 1)
+    );
+    assert_eq!(tx.spends.len(), 1);
 
     Ok(())
 }
@@ -282,14 +289,22 @@ fn test_clear_signing_controlled_vault_nonces(
     )?;
 
     let mut reveals = reveal_controlled_vaults(&mut ctx, &vault, &result)?;
-    reveals.reveal_controlled_vault_nonce(vault.info.launcher_id, 1);
+    reveals.reveal_vault_nonce(1);
     let tx = parse_from_top(&mut ctx, &result, reveals)?;
 
-    // The nonce only applies to the controlled vault.
-    assert_eq!(tx.p2_puzzle_hashes.len(), 1);
+    // The nonces are the controlled vault's, since it's the vault whose transaction it is.
     assert_eq!(
-        tx.controlled_vaults[0].transaction.p2_puzzle_hashes.len(),
-        2
+        tx.p2_puzzle_hashes,
+        vec![
+            vault.p2_puzzle_hash,
+            mips_puzzle_hash(
+                1,
+                vec![],
+                SingletonMember::new(vault.info.launcher_id).curry_tree_hash(),
+                true
+            )
+            .into()
+        ]
     );
 
     Ok(())
@@ -430,10 +445,9 @@ fn test_clear_signing_controlled_vault_recovery(
     vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, Some(recovery))?;
     let tx = parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend)?;
 
-    let controlled = &tx.controlled_vaults[0];
-    assert_eq!(controlled.recovery, Some(recovery));
+    assert_eq!(tx.authorization_path[0].recovery, Some(recovery));
     assert_eq!(
-        controlled.transaction.vault_child,
+        tx.vault_child,
         Some(VaultOutput::new(recovered_custody_hash, 1))
     );
 
@@ -756,16 +770,15 @@ fn test_clear_signing_controlled_vault_depth(
     let result = parse_vault_transaction(reveals, &mut ctx, vaults[0].launcher_id, delegated_spend);
 
     if is_valid {
-        let mut tx = result?;
+        let tx = result?;
 
-        for vault in &vaults[1..] {
-            assert_eq!(tx.controlled_vaults.len(), 1);
-            let controlled = tx.controlled_vaults.remove(0);
-            assert_eq!(controlled.launcher_id, vault.launcher_id);
-            tx = controlled.transaction;
-        }
-
-        assert!(tx.controlled_vaults.is_empty());
+        let launcher_ids: Vec<Bytes32> = tx
+            .authorization_path
+            .iter()
+            .map(|authorization| authorization.launcher_id)
+            .collect();
+        let expected: Vec<Bytes32> = vaults[1..].iter().map(|vault| vault.launcher_id).collect();
+        assert_eq!(launcher_ids, expected);
     } else {
         assert!(matches!(result, Err(DriverError::ControlledVaultTooDeep)));
     }
@@ -813,13 +826,8 @@ fn test_clear_signing_controlled_vault_signs_messages(
 
     let tx = parse_vault_transaction(reveals.clone(), &mut ctx, top.launcher_id, top_spend)?;
     assert!(tx.signs_messages());
-    assert!(tx.signed_messages.is_empty());
-    let middle_tx = &tx.controlled_vaults[0].transaction;
-    assert!(middle_tx.signs_messages());
-    assert_eq!(
-        middle_tx.controlled_vaults[0].transaction.signed_messages,
-        messages
-    );
+    assert_eq!(tx.signed_messages, messages);
+    assert_eq!(tx.authorization_path.len(), 2);
 
     // A vault that authorizes a vault to sign messages must make its spend invalid on chain, since it could otherwise
     // be valid if the vault's custody can receive the message some other way.
@@ -888,7 +896,7 @@ fn test_clear_signing_fast_forwarded_controlled_vault(
 
     // A message to the coin id can only be received by the original coin, which isn't revealed.
     if fast_forward {
-        assert_eq!(result?.controlled_vaults[0].coin, newer.coin);
+        assert_eq!(result?.authorization_path[0].coin, newer.coin);
     } else {
         assert!(matches!(result, Err(DriverError::MissingSpend)));
     }

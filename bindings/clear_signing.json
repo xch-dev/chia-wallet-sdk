@@ -48,12 +48,6 @@
           "delegated_spend": "Spend",
           "recovery": "Option<ControlledVaultRecovery>"
         }
-      },
-      "reveal_controlled_vault_nonce": {
-        "args": {
-          "launcher_id": "Bytes32",
-          "nonce": "usize"
-        }
       }
     }
   },
@@ -244,7 +238,7 @@
       "p2_puzzle_hashes": "Vec<Bytes32>",
       "delegated_puzzle_hash": "Bytes32",
       "signed_messages": "Vec<Bytes>",
-      "controlled_vaults": "Vec<ControlledVaultTransaction>"
+      "authorization_path": "Vec<VaultAuthorization>"
     },
     "methods": {
       "signs_messages": {
@@ -252,15 +246,16 @@
       }
     }
   },
-  "ControlledVaultTransaction": {
+  "VaultAuthorization": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
+      "controller_child": "VaultOutput",
       "coin": "Coin",
       "launcher_id": "Bytes32",
       "custody_hash": "Bytes32",
-      "recovery": "Option<ControlledVaultRecovery>",
-      "transaction": "VaultTransaction"
+      "recovery": "Option<ControlledVaultRecovery>"
     }
   },
   "ControlledVaultRecovery": {

@@ -77,7 +77,6 @@ pub struct Reveals {
     asset_info: AssetInfo,
     vault_nonces: BTreeSet<usize>,
     controlled_vaults: IndexMap<Bytes32, RevealedControlledVault>,
-    controlled_vault_nonces: HashMap<Bytes32, BTreeSet<usize>>,
 }
 
 impl Default for Reveals {
@@ -94,7 +93,6 @@ impl Default for Reveals {
             asset_info: AssetInfo::default(),
             vault_nonces,
             controlled_vaults: IndexMap::new(),
-            controlled_vault_nonces: HashMap::new(),
         }
     }
 }
@@ -206,20 +204,23 @@ impl Reveals {
         self.bags.insert((bag.root_hash(), bag.asset()), bag);
     }
 
-    /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for.
+    /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for. They're the nonces of the vault
+    /// whose transaction is parsed, which is the vault at the end of the
+    /// [`authorization_path`](crate::VaultTransaction::authorization_path) if the vault being signed for authorizes the
+    /// spend of a controlled vault.
     pub fn reveal_vault_nonce(&mut self, nonce: usize) {
         self.vault_nonces.insert(nonce);
     }
 
     /// Reveals the spend of a vault that's controlled by another vault in the transaction, which must be revealed if
-    /// the vault being signed for (or another controlled vault) sends it a message. The controlled vault and the
-    /// spends that it authorizes are then parsed as part of the transaction. Its coin spend must also be revealed with
+    /// the vault being signed for (or another controlled vault) sends it a message. The controlled vault is then added
+    /// to the [`authorization_path`](crate::VaultTransaction::authorization_path). Its coin spend must also be revealed with
     /// [`reveal_coin_spend`](Self::reveal_coin_spend), so that its puzzle can be checked to be a vault.
     ///
     /// The coin's puzzle hash must be the singleton puzzle hash for the launcher id and custody hash. Since the coin
     /// id commits to it, and the transaction can only be valid if the coin exists, the custody hash is the vault's
     /// current one without looking it up. Whether the custody is controlled by the vault that sends it the message
-    /// isn't checked, so see [`VaultTransaction::controlled_vaults`](crate::VaultTransaction::controlled_vaults).
+    /// isn't checked, so see [`VaultTransaction::authorization_path`](crate::VaultTransaction::authorization_path).
     ///
     /// If the controlled vault's singleton member is fast-forwardable, its message is sent to the puzzle hash rather
     /// than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The custody hash is still
@@ -247,15 +248,6 @@ impl Reveals {
             .insert(controlled_vault.coin.coin_id(), controlled_vault);
 
         Ok(())
-    }
-
-    /// Adds a vault nonce of a controlled vault, to derive its p2 puzzle hashes. Like the vault being signed for, the
-    /// first nonce is included by default.
-    pub fn reveal_controlled_vault_nonce(&mut self, launcher_id: Bytes32, nonce: usize) {
-        self.controlled_vault_nonces
-            .entry(launcher_id)
-            .or_default()
-            .insert(nonce);
     }
 
     pub fn requested_payments(&self) -> &RequestedPayments {
@@ -308,18 +300,5 @@ impl Reveals {
         }
 
         Ok(controlled_vault)
-    }
-
-    /// Switches which vault the nonces are for, so that a controlled vault is parsed with its own p2 puzzle hashes.
-    pub(crate) fn use_controlled_vault_nonces(&mut self, launcher_id: Bytes32) {
-        let mut nonces = self
-            .controlled_vault_nonces
-            .get(&launcher_id)
-            .cloned()
-            .unwrap_or_default();
-
-        nonces.insert(0);
-
-        self.vault_nonces = nonces;
     }
 }
