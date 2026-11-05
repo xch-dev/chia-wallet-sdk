@@ -78,9 +78,9 @@ pub struct VaultTransaction {
     /// p2 puzzle hashes, which can in turn authorize the spends of other vaults that it controls.
     ///
     /// A controlled vault's puzzle is checked to be a vault, and its custody hash to be the one that its coin commits
-    /// to, but not that its custody is controlled by this vault. Its transaction is what its delegated spend does,
-    /// which only happens if the message can only be received through a singleton member of this vault. That depends on
-    /// its custody, so a controlled vault should only be shown as the user's own if its launcher id is known to be.
+    /// to, but not that its custody is controlled by this vault. Like the rest of clear signing, this assumes that the
+    /// vaults in the transaction are the user's. Its transaction is what its delegated spend does, which is authorized
+    /// by its own custody rather than promised to this vault.
     ///
     /// What each controlled vault does is shown separately, rather than being merged into this transaction, so that
     /// it's clear which vault is spending which assets. The facts of each transaction (such as which spends are
