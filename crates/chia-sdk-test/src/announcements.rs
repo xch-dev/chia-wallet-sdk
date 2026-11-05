@@ -126,13 +126,19 @@ pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announc
     let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
 
     for condition in conditions {
-        if let Ok(condition) = CreateCoinAnnouncement::from_clvm(allocator, condition) {
+        if let Ok(condition) = CreateCoinAnnouncement::<NodePtr>::from_clvm(allocator, condition) {
             announcements.created_coin.push(condition.message);
-        } else if let Ok(condition) = CreatePuzzleAnnouncement::from_clvm(allocator, condition) {
+        } else if let Ok(condition) =
+            CreatePuzzleAnnouncement::<NodePtr>::from_clvm(allocator, condition)
+        {
             announcements.created_puzzle.push(condition.message);
-        } else if let Ok(condition) = AssertCoinAnnouncement::from_clvm(allocator, condition) {
+        } else if let Ok(condition) =
+            AssertCoinAnnouncement::<NodePtr>::from_clvm(allocator, condition)
+        {
             announcements.asserted_coin.push(condition.announcement_id);
-        } else if let Ok(condition) = AssertPuzzleAnnouncement::from_clvm(allocator, condition) {
+        } else if let Ok(condition) =
+            AssertPuzzleAnnouncement::<NodePtr>::from_clvm(allocator, condition)
+        {
             announcements
                 .asserted_puzzle
                 .push(condition.announcement_id);

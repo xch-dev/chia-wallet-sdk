@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::{
-    Condition,
+    Condition, Nil,
     conditions::{CreateCoin, CreateCoinAnnouncement},
 };
 use clvm_traits::{clvm_list, clvm_quote};
@@ -77,7 +77,7 @@ fn child_memo(child: &BagChild) -> Memo {
     }
 }
 
-fn node_conditions<T, E>(
+fn node_conditions<T: Nil, E>(
     children: &[BagChild],
     mut memos: impl FnMut(Memo) -> Result<T, E>,
 ) -> Result<Vec<Condition<T>>, E> {

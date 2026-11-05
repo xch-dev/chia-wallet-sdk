@@ -132,7 +132,7 @@ mod tests {
 
         // mode 0b010111 == puzzle hash → coin
         let coin_id_ptr = ctx.alloc(&coin.coin_id())?;
-        let controller_solution = vec![SendMessage::new(
+        let controller_solution = vec![SendMessage::<_, ()>::new(
             23,
             Bytes::new(delegated_puzzle_hash.to_vec()),
             vec![coin_id_ptr],

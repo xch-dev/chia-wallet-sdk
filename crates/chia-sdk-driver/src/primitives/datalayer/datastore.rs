@@ -622,6 +622,7 @@ impl<M> Datastore<M> {
             } else {
                 vec![launcher_id.into()]
             })?,
+            rest: NodePtr::NIL,
         }))
     }
 
@@ -632,7 +633,7 @@ impl<M> Datastore<M> {
     where
         M: ToClvm<Allocator>,
     {
-        let new_metadata_condition = UpdateNftMetadata::<i32, NewMetadataOutput<M, ()>> {
+        let new_metadata_condition = UpdateNftMetadata::<i32, NewMetadataOutput<M, ()>, ()> {
             updater_puzzle_reveal: 11,
             // metadata updater will just return solution, so we can set the solution to NewMetadataOutput :)
             updater_solution: NewMetadataOutput {
@@ -642,6 +643,7 @@ impl<M> Datastore<M> {
                 },
                 conditions: (),
             },
+            rest: (),
         }
         .to_clvm(ctx)?;
 
@@ -1694,7 +1696,7 @@ pub mod tests {
         StandardLayer::new(owner.pk).spend(ctx, coin, launch_singleton)?;
 
         // owner melts
-        let output_conds = Conditions::new().melt_singleton();
+        let output_conds = Conditions::new().melt_singleton(None);
         let inner_datastore_spend =
             StandardLayer::new(owner.pk).spend_with_conditions(ctx, output_conds)?;
 
@@ -1792,6 +1794,7 @@ pub mod tests {
                 puzzle_hash: attacker_puzzle_hash.into(),
                 amount: 1,
                 memos: Memos::None,
+                rest: NodePtr::NIL,
             })),
         )?;
 
@@ -1838,7 +1841,7 @@ pub mod tests {
         StandardLayer::new(owner.pk).spend(ctx, coin, launch_singleton)?;
 
         // attacker tries to melt the coin via delegated puzzle
-        let conds = Conditions::new().melt_singleton();
+        let conds = Conditions::new().melt_singleton(None);
         let inner_datastore_spend = puzzle.get_spend(ctx, attacker.pk, conds)?;
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
@@ -1920,10 +1923,11 @@ pub mod tests {
                     new_updater_puzzle_hash: new_updater_ph.into(),
                 },
                 conditions: if output_conditions {
-                    vec![CreateCoin::<NodePtr> {
+                    vec![CreateCoin::<NodePtr, ()> {
                         puzzle_hash: [0; 32].into(),
                         amount: 1,
                         memos: Memos::None,
+                        rest: (),
                     }]
                 } else {
                     vec![]
@@ -2112,6 +2116,7 @@ pub mod tests {
                 second_root_hash.value(),
                 new_inner_ph,
             ])?,
+            rest: NodePtr::NIL,
         }));
 
         let inner_spend =
@@ -2333,7 +2338,7 @@ pub mod tests {
 
         // The DataLayer metadata updater allows the updater itself to be changed.
         let new_metadata_condition =
-            UpdateNftMetadata::<i32, NewMetadataOutput<DatastoreMetadata, ()>> {
+            UpdateNftMetadata::<i32, NewMetadataOutput<DatastoreMetadata, ()>, ()> {
                 updater_puzzle_reveal: 11,
                 updater_solution: NewMetadataOutput {
                     metadata_info: NewMetadataInfo {
@@ -2342,6 +2347,7 @@ pub mod tests {
                     },
                     conditions: (),
                 },
+                rest: (),
             };
         let new_metadata_condition = ctx.alloc(&new_metadata_condition)?;
 

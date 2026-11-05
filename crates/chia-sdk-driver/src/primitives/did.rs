@@ -695,7 +695,7 @@ mod tests {
         alice_p2.spend(ctx, alice.coin, create_did)?;
         sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
-        did.spend_with(ctx, &alice_p2, Conditions::new().melt_singleton())?;
+        did.spend_with(ctx, &alice_p2, Conditions::new().melt_singleton(None))?;
         let coin_spend = ctx.take().remove(0);
 
         assert_eq!(parse_child_from_spend(ctx, &coin_spend, did.coin)?, None);

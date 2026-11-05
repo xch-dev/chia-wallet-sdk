@@ -526,6 +526,9 @@
         "return": "Program"
       },
       "melt_singleton": {
+        "args": {
+          "puzzle_hash": "Option<Bytes32>"
+        },
         "return": "Program"
       },
       "transfer_nft": {
@@ -538,6 +541,7 @@
       },
       "run_cat_tail": {
         "args": {
+          "puzzle_hash": "Option<Bytes32>",
           "program": "Program",
           "solution": "Program"
         },

@@ -30,9 +30,9 @@ use super::OptionType;
 pub type OptionDelegatedPuzzle = (
     u8,
     match_list!(
-        AssertBeforeSecondsAbsolute,
-        AssertPuzzleAnnouncement,
-        CreateCoin<Bytes32>
+        AssertBeforeSecondsAbsolute<()>,
+        AssertPuzzleAnnouncement<()>,
+        CreateCoin<Bytes32, ()>
     ),
 );
 

@@ -259,7 +259,9 @@
   "MeltSingleton": {
     "type": "class",
     "new": true,
-    "fields": {}
+    "fields": {
+      "puzzle_hash": "Option<Bytes32>"
+    }
   },
   "TransferNft": {
     "type": "class",
@@ -274,6 +276,7 @@
     "type": "class",
     "new": true,
     "fields": {
+      "puzzle_hash": "Option<Bytes32>",
       "program": "Program",
       "solution": "Program"
     }

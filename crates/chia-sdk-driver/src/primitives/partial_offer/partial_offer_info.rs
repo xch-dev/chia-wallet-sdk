@@ -4,7 +4,7 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::{LineageProof, Memos, cat::CatArgs};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    Condition, Conditions, MerkleTree, Mod,
+    Condition, Conditions, MerkleTree, Mod, Nil,
     puzzles::{P2OneOfManyArgs, PartialOfferArgs, PartialOfferPrice, RevocationArgs},
 };
 use clvm_traits::{
@@ -186,7 +186,7 @@ impl PartialOfferInfo {
     }
 
     /// The conditions that are output every time the offer is filled.
-    pub fn persistent_conditions<T>(&self) -> Conditions<T> {
+    pub fn persistent_conditions<T: Nil>(&self) -> Conditions<T> {
         persistent_conditions(self.expiration, self.required_fee)
     }
 
@@ -364,7 +364,10 @@ pub struct PartialOfferHint<I> {
     pub min_other_asset_amount_minus_one: u64,
 }
 
-fn persistent_conditions<T>(expiration: Option<u64>, required_fee: Option<u64>) -> Conditions<T> {
+fn persistent_conditions<T: Nil>(
+    expiration: Option<u64>,
+    required_fee: Option<u64>,
+) -> Conditions<T> {
     let mut conditions = Conditions::default();
 
     if let Some(expiration) = expiration {

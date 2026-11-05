@@ -1119,9 +1119,9 @@ export declare class Clvm {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
-  meltSingleton(): Program
+  meltSingleton(puzzleHash?: Uint8Array | undefined | null): Program
   transferNft(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null): Program
-  runCatTail(program: Program, solution: Program): Program
+  runCatTail(puzzleHash: Uint8Array | undefined | null, program: Program, solution: Program): Program
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
   updateDatastoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   parseChildStreamedAsset(coinSpend: CoinSpend): StreamedAssetParsingResult
@@ -2397,7 +2397,9 @@ export declare class MedievalVaultInfo {
 
 export declare class MeltSingleton {
   clone(): MeltSingleton
-  constructor()
+  constructor(puzzleHash?: Uint8Array | undefined | null)
+  get puzzleHash(): Buffer | null
+  set puzzleHash(value: Uint8Array | undefined | null)
 }
 
 export declare class MemberConfig {
@@ -4216,7 +4218,9 @@ export declare class RpcClient {
 
 export declare class RunCatTail {
   clone(): RunCatTail
-  constructor(program: Program, solution: Program)
+  constructor(puzzleHash: Uint8Array | undefined | null, program: Program, solution: Program)
+  get puzzleHash(): Buffer | null
+  set puzzleHash(value: Uint8Array | undefined | null)
   get program(): Program
   set program(value: Program)
   get solution(): Program

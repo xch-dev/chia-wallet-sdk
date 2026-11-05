@@ -24,8 +24,11 @@ pub fn parse_delegated_spend(
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_protocol::Bytes;
     use chia_sdk_test::BlsPair;
     use chia_sdk_types::Conditions;
+    use clvm_traits::clvm_quote;
+    use clvmr::NodePtr;
 
     use crate::{SpendContext, SpendWithConditions, StandardLayer};
 
@@ -38,6 +41,24 @@ mod tests {
         let pair = BlsPair::new(1337);
         let spend =
             StandardLayer::new(pair.pk).spend_with_conditions(&mut ctx, Conditions::new())?;
+
+        let result = parse_delegated_spend(&ctx, spend);
+
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidDelegatedSpendFormat)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_clear_signing_delegated_spend_malformed_condition() -> Result<()> {
+        let mut ctx = SpendContext::new();
+
+        // A SEND_MESSAGE condition whose mode isn't an atom can't be parsed, so it must not be ignored.
+        let puzzle = ctx.alloc(&clvm_quote!([(66, ((1, 2), (Bytes::default(), ())))]))?;
+        let spend = Spend::new(puzzle, NodePtr::NIL);
 
         let result = parse_delegated_spend(&ctx, spend);
 

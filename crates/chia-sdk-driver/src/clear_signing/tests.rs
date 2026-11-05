@@ -1051,7 +1051,7 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
 
     let hint = ctx.hint(alice.p2_puzzle_hash)?;
     let eve_conditions = Conditions::new()
-        .run_cat_tail(tail_puzzle, tail_solution)
+        .run_cat_tail(None, tail_puzzle, tail_solution)
         .create_coin(alice.p2_puzzle_hash, 1000, hint);
     let delegated_spend = ctx.delegated_spend(eve_conditions)?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
@@ -1136,7 +1136,7 @@ fn test_clear_signing_minimum_extra_delta() -> Result<()> {
     let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
 
     let delegated_spend =
-        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+        ctx.delegated_spend(Conditions::new().run_cat_tail(None, tail_puzzle, tail_solution))?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
     let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
 
@@ -1208,7 +1208,7 @@ fn test_clear_signing_unknown_tail_issuance() -> Result<()> {
     let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
 
     let delegated_spend =
-        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, NodePtr::NIL))?;
+        ctx.delegated_spend(Conditions::new().run_cat_tail(None, tail_puzzle, NodePtr::NIL))?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
     let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
 

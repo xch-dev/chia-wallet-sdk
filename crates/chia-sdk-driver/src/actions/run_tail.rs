@@ -50,10 +50,11 @@ impl SpendAction for RunTailAction {
 
         match &mut source.kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(
-                    Conditions::new()
-                        .run_cat_tail(self.tail_spend.puzzle, self.tail_spend.solution),
-                );
+                spend.add_conditions(Conditions::new().run_cat_tail(
+                    None,
+                    self.tail_spend.puzzle,
+                    self.tail_spend.solution,
+                ));
             }
             SpendKind::Settlement(_) => {
                 return Err(DriverError::CannotEmitConditions);

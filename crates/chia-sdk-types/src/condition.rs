@@ -6,14 +6,27 @@ use nfts::TradePrice;
 
 mod agg_sig;
 mod announcements;
+mod consensus;
+mod encoding;
 mod list;
 mod messages;
 mod nfts;
 
 pub use announcements::*;
+pub use consensus::*;
+pub use encoding::*;
 pub use list::*;
 pub use messages::*;
 
+// Each field is one of the following:
+// * `name: Type` is a single argument.
+// * `name?: Type` is a single argument, which may be absent if the list ends before it.
+// * `..name: Vec<Type>` is every argument until the list ends.
+// * `...name: Type` is the rest of the list.
+// * Any of these followed by `if value` is a constant, which isn't stored.
+//
+// Unless the last field is a `...` field, a trailing `rest` field (of type `R`) is added to keep
+// any arguments after the known ones, so that every condition serializes back to the same value.
 conditions! {
     pub enum Condition<T> {
         Remark<T> as Copy {
@@ -64,7 +77,7 @@ conditions! {
             opcode: i8 if 51,
             puzzle_hash: Bytes32,
             amount: u64,
-            ...memos: Memos<T>,
+            memos?: Memos<T>,
         },
         ReserveFee as Copy {
             opcode: i8 if 52,
@@ -98,13 +111,13 @@ conditions! {
             opcode: i8 if 66,
             mode: u8,
             message: Bytes,
-            ...data: Vec<T>,
+            ..data: Vec<T>,
         },
         ReceiveMessage<T> {
             opcode: i8 if 67,
             mode: u8,
             message: Bytes,
-            ...data: Vec<T>,
+            ..data: Vec<T>,
         },
         AssertMyCoinId as Copy {
             opcode: i8 if 70,
@@ -176,17 +189,30 @@ conditions! {
             trade_prices: Vec<TradePrice>,
             singleton_inner_puzzle_hash: Option<Bytes32>,
         },
+        /// A `CREATE_COIN` with the magic -113 amount, followed by a TAIL reveal and solution.
+        ///
+        /// The meaning of this condition depends on the outer puzzle that consumes it. The CAT layer runs
+        /// the revealed TAIL, but the singleton layer treats any -113 output as a melt, regardless of what
+        /// follows the amount. Use [`Condition::is_magic_create_coin`] to detect either interpretation.
         RunCatTail<P, S> as Copy {
             opcode: i8 if 51,
-            puzzle_hash: () if (),
+            puzzle_hash: Option<Bytes32>,
             magic_amount: i8 if -113,
             program: P,
             solution: S,
         },
+        /// A `CREATE_COIN` with the magic -113 amount, and nothing following it.
+        ///
+        /// The meaning of this condition depends on the outer puzzle that consumes it. The singleton layer
+        /// melts the singleton, but the CAT layer treats any -113 output as a TAIL reveal (which fails here,
+        /// since there's no TAIL). A singleton will also melt if it outputs a [`Condition::RunCatTail`].
+        /// Use [`Condition::is_magic_create_coin`] to detect either interpretation.
         MeltSingleton as Default + Copy {
             opcode: i8 if 51,
-            puzzle_hash: () if (),
+            puzzle_hash: Option<Bytes32>,
             magic_amount: i8 if -113,
+            // Nothing can follow the magic amount, so that this can't be confused with `RunCatTail`.
+            ...rest: () if (),
         },
         UpdateNftMetadata<P, S> as Copy {
             opcode: i8 if -24,
@@ -200,3 +226,15 @@ conditions! {
         },
     }
 }
+
+impl<T> Condition<T> {
+    /// Whether this is a `CREATE_COIN` with the magic -113 amount, which outer puzzles intercept rather
+    /// than passing to consensus. This is either a [`Condition::RunCatTail`] or a [`Condition::MeltSingleton`],
+    /// but the outer puzzle determines what it means, so code that handles one should usually handle both.
+    pub fn is_magic_create_coin(&self) -> bool {
+        self.is_run_cat_tail() || self.is_melt_singleton()
+    }
+}
+
+#[cfg(test)]
+mod tests;

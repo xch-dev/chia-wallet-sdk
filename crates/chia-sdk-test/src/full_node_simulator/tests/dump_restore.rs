@@ -34,7 +34,11 @@ fn simulator_with_spend_and_hint() -> anyhow::Result<FullNodeSimulator> {
         vec![CoinSpend::new(
             parent,
             puzzle_reveal,
-            to_program([CreateCoin::new(puzzle_hash, 99, Memos::Some([hint]))])?,
+            to_program([CreateCoin::<_, ()>::new(
+                puzzle_hash,
+                99,
+                Memos::Some([hint]),
+            )])?,
         )],
         Signature::default(),
     );

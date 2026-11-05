@@ -4,7 +4,10 @@ use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::SpendContext;
-use chia_sdk_types::conditions::{self, Memos, TradePrice};
+use chia_sdk_types::{
+    Condition,
+    conditions::{Memos, TradePrice},
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 use paste::paste;
@@ -116,8 +119,7 @@ macro_rules! conditions {
                 pub fn $function( &self, $( $name: $ty ),* ) -> Result<Program> {
                     let mut ctx = self.0.lock().unwrap();
                     $( let $name = Convert::convert($name, &self.0)?; )*
-                    let ptr = conditions::$condition $( ::< $( $generic ),* > )? ::new( $( $name ),* )
-                    .to_clvm(&mut **ctx)?;
+                    let ptr = Condition::<NodePtr>::$function( $( $name ),* ).to_clvm(&mut **ctx)?;
                     Ok(Program(self.0.clone(), ptr))
                 }
             }
@@ -127,7 +129,10 @@ macro_rules! conditions {
                 pub fn [< parse_ $function >]( &self ) -> Result<Option<$condition>> {
                     let ctx = self.0.lock().unwrap();
 
-                    let Some(condition) = conditions::$condition $( ::< $( $generic ),* > )? ::from_clvm(&**ctx, self.1).ok() else {
+                    let Some(condition) = Condition::<NodePtr>::from_clvm(&**ctx, self.1)
+                        .ok()
+                        .and_then(Condition::[< into_ $function >])
+                    else {
                         return Ok(None);
                     };
 
@@ -247,13 +252,13 @@ conditions!(
         softfork(cost: u64, rest: Program)
     },
     MeltSingleton {
-        melt_singleton()
+        melt_singleton(puzzle_hash: Option<Bytes32>)
     },
     TransferNft {
         transfer_nft(launcher_id: Option<Bytes32>, trade_prices: Vec<TradePrice>, singleton_inner_puzzle_hash: Option<Bytes32>)
     },
     RunCatTail<NodePtr, NodePtr> {
-        run_cat_tail(program: Program, solution: Program)
+        run_cat_tail(puzzle_hash: Option<Bytes32>, program: Program, solution: Program)
     },
     UpdateNftMetadata<NodePtr, NodePtr> {
         update_nft_metadata(updater_puzzle_reveal: Program, updater_solution: Program)

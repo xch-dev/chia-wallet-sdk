@@ -93,12 +93,12 @@ impl OutputSet for ConditionsSpend {
     }
 
     fn can_run_cat_tail(&self) -> bool {
-        !self.conditions.iter().any(Condition::is_run_cat_tail)
+        !self.conditions.iter().any(Condition::is_magic_create_coin)
     }
 
     fn missing_singleton_output(&self) -> bool {
         !self.conditions.iter().any(|condition| {
-            condition.is_melt_singleton()
+            condition.is_magic_create_coin()
                 || condition
                     .as_create_coin()
                     .is_some_and(|create_coin| create_coin.amount % 2 == 1)
