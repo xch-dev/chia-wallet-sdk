@@ -38,8 +38,8 @@ pub struct VaultTransaction {
     pub launcher_id: Bytes32,
     /// If a new vault coin is created (i.e. the vault isn't melted), this will be set.
     /// It's the new inner puzzle hash and amount of the vault singleton. If the puzzle hash is different, the custody
-    /// configuration has changed. If the amount is different, XCH is being added or removed from its value. The hash
-    /// can be validated against a [`MipsMemo`](crate::MipsMemo) so that you know what specifically is happening.
+    /// configuration has changed. The amount is always [`VAULT_AMOUNT`], which clear signing requires. The hash can be
+    /// validated against a [`MipsMemo`](crate::MipsMemo) so that you know what specifically is happening.
     pub vault_child: Option<VaultOutput>,
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
