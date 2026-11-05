@@ -393,7 +393,7 @@ pub fn simulate(
         let children = bag.spend_node(&mut ctx, coin)?;
         let coin_spends = ctx.take();
 
-        let cost = spend_bundle_cost(&coin_spends)?;
+        let cost = spend_bundle_cost(&coin_spends, None)?;
         ensure!(cost <= NODE_COST_BUDGET, "node spend costs {cost}");
         costs.push(cost);
 

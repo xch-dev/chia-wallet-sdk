@@ -69,7 +69,23 @@
   "spend_bundle_cost": {
     "type": "function",
     "args": {
-      "coin_spends": "Vec<CoinSpend>"
+      "coin_spends": "Vec<CoinSpend>",
+      "height": "Option<u32>"
+    },
+    "return": "u64"
+  },
+  "minimum_fee": {
+    "type": "function",
+    "args": {
+      "cost": "u64"
+    },
+    "return": "u64"
+  },
+  "recommended_fee": {
+    "type": "function",
+    "args": {
+      "cost": "u64",
+      "market_fee_per_cost": "Option<f64>"
     },
     "return": "u64"
   }

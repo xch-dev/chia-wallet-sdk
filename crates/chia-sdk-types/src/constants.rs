@@ -65,7 +65,9 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         max_generator_ref_list_size: 512,
         pool_sub_slot_iters: 37_600_000_000,
         hard_fork_height: 5_496_000,
-        hard_fork2_height: 0xffff_fffa, // Placeholder
+        // Placeholder until the 3.0 hard fork height is decided. Update this to the activation
+        // height once it is, since `spend_bundle_cost` uses it to choose between the cost rules.
+        hard_fork2_height: 0xffff_fffa,
         soft_fork8_height: 8_655_000,
         soft_fork9_height: 8_655_000,
         plot_v1_phase_out_epoch_bits: 8,
