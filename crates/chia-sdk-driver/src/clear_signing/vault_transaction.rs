@@ -235,9 +235,10 @@ fn parse_vault(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
-    // Messages to controlled vaults authorize their delegated spends, rather than the spend of a coin.
+    // A message to a controlled vault authorizes its delegated spend, rather than the spend of a coin. A vault can only
+    // authorize one controlled vault, with one message, which is checked below.
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
-    let mut messages_by_controlled_vault: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
+    let mut controlled_vault_message = None;
     let mut has_controller_marker = false;
 
     for message in vault_spend.messages {
@@ -249,16 +250,16 @@ fn parse_vault(
             continue;
         }
 
-        let messages = if reveals.controlled_vault(message.spent_coin_id).is_some() {
-            &mut messages_by_controlled_vault
+        if reveals.controlled_vault(message.spent_coin_id).is_some() {
+            if controlled_vault_message.replace(message).is_some() {
+                return Err(DriverError::InvalidVaultControllerSpend);
+            }
         } else {
-            &mut messages_by_coin
-        };
-
-        messages
-            .entry(message.spent_coin_id)
-            .or_default()
-            .push(message);
+            messages_by_coin
+                .entry(message.spent_coin_id)
+                .or_default()
+                .push(message);
+        }
     }
 
     // A message to a puzzle hash is sent to a controlled vault whose singleton member is fast-forwardable. It isn't
@@ -270,13 +271,14 @@ fn parse_vault(
             .controlled_vault_by_puzzle_hash(message.puzzle_hash)?
             .ok_or(DriverError::MissingSpend)?;
 
-        messages_by_controlled_vault
-            .entry(controlled_vault.coin.coin_id())
-            .or_default()
-            .push(VaultMessage {
-                spent_coin_id: controlled_vault.coin.coin_id(),
-                data: message.data,
-            });
+        let message = VaultMessage {
+            spent_coin_id: controlled_vault.coin.coin_id(),
+            data: message.data,
+        };
+
+        if controlled_vault_message.replace(message).is_some() {
+            return Err(DriverError::InvalidVaultControllerSpend);
+        }
     }
 
     // A vault that authorizes the spend of a controlled vault can only recreate itself and send that one message, which
@@ -284,7 +286,7 @@ fn parse_vault(
     // vault at the end of the chain, rather than being split between the vaults that authorize it. A controlled vault
     // must also be recreated as it was, since its custody hash is known. A message to the controller message coin is
     // only allowed in a controller spend too, which then makes it a controller envelope.
-    let controller_spend = if has_controller_marker || !messages_by_controlled_vault.is_empty() {
+    let controller_spend = if has_controller_marker || controlled_vault_message.is_some() {
         let conditions = parse_delegated_spend(ctx, delegated_spend)?;
 
         let Some(controller_spend) = parse_vault_controller_spend(ctx, &conditions)? else {
@@ -621,7 +623,8 @@ fn parse_vault(
 
     let mut controlled_vaults = Vec::new();
 
-    for (coin_id, messages) in messages_by_controlled_vault {
+    if let Some(message) = controlled_vault_message {
+        let coin_id = message.spent_coin_id;
         let controlled_vault = *reveals
             .controlled_vault(coin_id)
             .ok_or(DriverError::MissingSpend)?;
@@ -636,11 +639,6 @@ fn parse_vault(
         if VaultLayers::parse_puzzle(ctx, coin_spend.puzzle)?.is_none() {
             return Err(DriverError::InvalidControlledVaultPuzzle);
         }
-
-        // The controlled vault's custody only receives one message from this vault for each spend.
-        let [message] = messages.as_slice() else {
-            return Err(DriverError::DuplicateVaultMessage);
-        };
 
         let controlled_delegated_puzzle_hash =
             tree_hash(ctx, controlled_vault.delegated_spend.puzzle).into();

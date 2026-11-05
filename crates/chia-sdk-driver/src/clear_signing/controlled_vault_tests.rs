@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{Memos, singleton::SingletonArgs};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{Conditions, conditions::SendMessage};
@@ -9,9 +9,9 @@ use clvmr::NodePtr;
 use rstest::rstest;
 
 use crate::{
-    Action, ControlledVaultRecovery, DelegatedPuzzleFeederLayer, DriverError, Id,
+    Action, ControlledVaultRecovery, DelegatedPuzzleFeederLayer, Deltas, DriverError, Id,
     IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SingletonInfo,
-    SingletonLayer, Spend, SpendContext, TestVault, TransactionData,
+    SingletonLayer, Spend, SpendContext, Spends, TestVault, TransactionData,
     VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE,
     VaultOutput, VaultTransaction, VaultVersion, parse_vault_transaction,
     vault_recovery_delegated_puzzle_hash,
@@ -498,8 +498,6 @@ fn test_clear_signing_duplicate_controlled_vault_message(
 enum ControllerExtra {
     /// The controller isn't recreated.
     Melt,
-    /// A payment from the vault's p2 coin, which the controller authorizes with a message.
-    Payment,
     /// A fee.
     Fee,
     /// Another controlled vault.
@@ -510,7 +508,6 @@ enum ControllerExtra {
 fn test_clear_signing_controller_does_more_than_authorize(
     #[values(
         ControllerExtra::Melt,
-        ControllerExtra::Payment,
         ControllerExtra::Fee,
         ControllerExtra::SecondControlledVault
     )]
@@ -536,16 +533,6 @@ fn test_clear_signing_controller_does_more_than_authorize(
 
     match extra {
         ControllerExtra::Melt => {}
-        ControllerExtra::Payment => {
-            let p2_coin_id = ctx.alloc(&Bytes32::new([7; 32]))?;
-            conditions = conditions
-                .extend(controller.recreate())
-                .with(SendMessage::new(
-                    VAULT_MESSAGE_MODE,
-                    Bytes32::new([8; 32]).to_vec().into(),
-                    vec![p2_coin_id],
-                ));
-        }
         ControllerExtra::Fee => {
             conditions = conditions.extend(controller.recreate()).reserve_fee(100);
         }
@@ -565,6 +552,85 @@ fn test_clear_signing_controller_does_more_than_authorize(
 
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend),
+        Err(DriverError::InvalidVaultControllerSpend)
+    ));
+
+    Ok(())
+}
+
+/// A controller that spends its own coins while authorizing a controlled vault is valid on chain, but clear signing
+/// only allows a controller to authorize the controlled vault.
+#[rstest]
+fn test_clear_signing_controller_spends_its_own_coins(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let controller = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let vault = TestVault::mint_controlled(&mut sim, &mut ctx, 0, &controller, fast_forward)?;
+
+    // The controlled vault only recreates itself. Its controller's spend is built below instead.
+    let vault_coin = vault.fetch_vault(&sim)?;
+    let delegated_spend = ctx.delegated_spend(Conditions::new().create_coin(
+        vault.info.custody_hash.into(),
+        1,
+        Memos::None,
+    ))?;
+    let (vault_spend, _) = vault.spend_vault(&sim, &mut ctx, &vault_coin, delegated_spend)?;
+
+    let (mode, receiver) = if fast_forward {
+        (
+            VAULT_FAST_FORWARD_MESSAGE_MODE,
+            vault_spend.coin.puzzle_hash,
+        )
+    } else {
+        (VAULT_MESSAGE_MODE, vault_spend.coin.coin_id())
+    };
+    let receiver = ctx.alloc(&receiver)?;
+    let authorization = SendMessage::new(
+        mode,
+        ctx.tree_hash(delegated_spend.puzzle).to_vec().into(),
+        vec![receiver],
+    );
+
+    // The controller pays Bob from its own p2 coin in the same spend that authorizes the controlled vault.
+    let actions = [Action::send(
+        Id::Xch,
+        "bob".tree_hash().into(),
+        1000,
+        Memos::None,
+    )];
+    let mut spends = Spends::new(controller.p2_puzzle_hash);
+    controller.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let result = controller.partial_custom_spend(
+        &mut sim,
+        &mut ctx,
+        &actions,
+        spends,
+        Conditions::new().with(authorization),
+    )?;
+
+    let mut coin_spends = result.spend_bundle.coin_spends.clone();
+    coin_spends.push(vault_spend.clone());
+    sim.new_transaction(SpendBundle::new(coin_spends.clone(), result.signature))?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    reveals.reveal_controlled_vault(RevealedControlledVault {
+        coin: vault_spend.coin,
+        launcher_id: vault.info.launcher_id,
+        custody_hash: vault.info.custody_hash.into(),
+        delegated_spend,
+        recovery: None,
+    })?;
+
+    assert!(matches!(
+        parse_vault_transaction(
+            reveals,
+            &mut ctx,
+            controller.info.launcher_id,
+            result.delegated_spend
+        ),
         Err(DriverError::InvalidVaultControllerSpend)
     ));
 
