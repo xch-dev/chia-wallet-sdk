@@ -319,7 +319,7 @@ pub enum DriverError {
     UnsupportedVaultCustody,
 
     #[error(
-        "a vault message envelope must recreate the vault with the same custody hash and amount"
+        "a vault that signs messages, or authorizes another vault to, must be recreated with the same custody hash and amount"
     )]
     VaultMessageEnvelopeChangesVault,
 
@@ -344,6 +344,61 @@ pub enum DriverError {
 
     #[error("the vault message proof's aggregated signature is invalid")]
     InvalidVaultMessageSignature,
+
+    #[error(
+        "a controlled vault's coin doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongControlledVaultPuzzleHash,
+
+    #[error(
+        "the message sent to a controlled vault doesn't match the delegated puzzle hash it was revealed with"
+    )]
+    WrongControlledVaultMessage,
+
+    #[error("a controlled vault is authorized more than once in the same transaction")]
+    DuplicateControlledVault,
+
+    #[error("controlled vaults are nested too deeply")]
+    ControlledVaultTooDeep,
+
+    #[error(
+        "the coin of the vault being signed for doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongSigningVaultPuzzleHash,
+
+    #[error("a vault must be recreated with an amount of 1")]
+    InvalidVaultAmount,
+
+    #[error(
+        "the puzzle of a controlled vault must be a singleton whose inner puzzle is a top-level MIPS puzzle"
+    )]
+    InvalidControlledVaultPuzzle,
+
+    #[error(
+        "a vault controller's delegated spend can only recreate the controller, send one message to the vault it controls, and send the same message to the controller message coin"
+    )]
+    InvalidVaultControllerEnvelope,
+
+    #[error(
+        "a vault that authorizes another vault's spend can only recreate itself and send that vault one message"
+    )]
+    InvalidVaultControllerSpend,
+
+    #[error(
+        "a controlled vault that authorizes another vault's spend must be recreated with the same custody hash and amount"
+    )]
+    VaultControllerChangesVault,
+
+    #[error(
+        "the vault message proof has a spend of vault controller {0}, whose custody hash wasn't given"
+    )]
+    UnknownVaultController(Bytes32),
+
+    #[error("the vault message proof has too many vault controller spends")]
+    TooManyVaultControllers,
+
+    #[error("the vault message proof spends the same vault more than once")]
+    DuplicateVaultControllerSpend,
 
     #[error("consensus validation failed: {0}")]
     Validation(#[from] chia_consensus::validation_error::ValidationErr),

@@ -4,6 +4,7 @@ use std::{
 };
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::singleton::SingletonArgs;
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -11,8 +12,16 @@ use indexmap::IndexMap;
 
 use crate::{
     AssetInfo, BagAsset, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle,
-    RequestedPayments, SecureTheBag,
+    RequestedPayments, SecureTheBag, Spend, VAULT_AMOUNT, VaultVersion,
 };
+
+/// The current custody hash and coin of the vault being signed for, which are revealed with
+/// [`Reveals::reveal_signing_vault`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RevealedSigningVault {
+    pub custody_hash: Bytes32,
+    pub coin: Option<Coin>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum RevealedP2Puzzle {
@@ -27,6 +36,46 @@ pub struct RevealedCoinSpend {
     pub solution: NodePtr,
 }
 
+/// The recovery path that a controlled vault's delegated spend is authorized through, if it isn't authorized through
+/// its custody path. The controlling vault signs the delegated puzzle hash wrapped in the recovery path's delegated
+/// puzzle wrappers, as calculated by [`vault_recovery_delegated_puzzle_hash`](crate::vault_recovery_delegated_puzzle_hash).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControlledVaultRecovery {
+    pub left_side_subtree_hash: Bytes32,
+    pub recovery_timelock: u64,
+    pub version: VaultVersion,
+}
+
+impl ControlledVaultRecovery {
+    pub fn new(
+        left_side_subtree_hash: Bytes32,
+        recovery_timelock: u64,
+        version: VaultVersion,
+    ) -> Self {
+        Self {
+            left_side_subtree_hash,
+            recovery_timelock,
+            version,
+        }
+    }
+}
+
+/// The spend of a vault whose custody includes another vault (as a singleton member), which is authorized by a message
+/// from the vault that controls it.
+#[derive(Debug, Clone, Copy)]
+pub struct RevealedControlledVault {
+    /// The controlled vault's coin, which is sent the message. If the message is sent to its puzzle hash, which is the
+    /// case for a fast-forwardable singleton member, the spend can be fast-forwarded onto a newer coin of the vault.
+    pub coin: Coin,
+    pub launcher_id: Bytes32,
+    /// The controlled vault's current custody hash, which the coin's puzzle hash commits to.
+    pub custody_hash: Bytes32,
+    /// The delegated spend of the controlled vault, whose delegated puzzle hash is the content of the message.
+    pub delegated_spend: Spend,
+    /// Set if the delegated spend is authorized through the controlled vault's recovery path.
+    pub recovery: Option<ControlledVaultRecovery>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Reveals {
     coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
@@ -35,6 +84,8 @@ pub struct Reveals {
     requested_payments: RequestedPayments,
     asset_info: AssetInfo,
     vault_nonces: BTreeSet<usize>,
+    controlled_vaults: IndexMap<Bytes32, RevealedControlledVault>,
+    signing_vault: Option<RevealedSigningVault>,
 }
 
 impl Default for Reveals {
@@ -50,6 +101,8 @@ impl Default for Reveals {
             requested_payments: RequestedPayments::default(),
             asset_info: AssetInfo::default(),
             vault_nonces,
+            controlled_vaults: IndexMap::new(),
+            signing_vault: None,
         }
     }
 }
@@ -68,8 +121,9 @@ impl Reveals {
         Ok(reveals)
     }
 
-    /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction
-    /// must be revealed. The coin spend is used to determine both the conditions that the spends output, and
+    /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction, or
+    /// from a vault that it controls, must be revealed. Controlled vaults themselves are revealed with
+    /// [`reveal_controlled_vault`](Self::reveal_controlled_vault) instead. The coin spend is used to determine both the conditions that the spends output, and
     /// the type of asset being sent.
     ///
     /// In some cases, it's insufficient to only reveal the coin spend. For example, if it's a clawback coin,
@@ -160,9 +214,67 @@ impl Reveals {
         self.bags.insert((bag.root_hash(), bag.asset()), bag);
     }
 
-    /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for.
+    /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for. They're the nonces of the vault
+    /// whose transaction is parsed, which is the vault at the end of the
+    /// [`authorization_path`](crate::VaultTransaction::authorization_path) if the vault being signed for authorizes the
+    /// spend of a controlled vault.
     pub fn reveal_vault_nonce(&mut self, nonce: usize) {
         self.vault_nonces.insert(nonce);
+    }
+
+    /// Reveals the current custody hash of the vault being signed for, and optionally its coin. They're checked against
+    /// the vault's launcher id when the transaction is parsed, and returned in
+    /// [`VaultTransaction::signing_vault`](crate::VaultTransaction::signing_vault).
+    ///
+    /// Clear signing can't look them up, so they're only verified by the signature: a key member signs the delegated
+    /// puzzle hash with the vault's puzzle hash ([`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message))
+    /// or coin id ([`calculate_vault_coin_message`](crate::calculate_vault_coin_message)), which commit to the custody
+    /// hash. So the message that's signed must be calculated from the returned
+    /// [`SigningVault`](crate::SigningVault), rather than from anything else in the request. Then if the custody hash or
+    /// coin is wrong, the signature can't be used to spend the vault.
+    ///
+    /// With the custody hash, the vault being signed for must be recreated with it if it authorizes the spend of a
+    /// controlled vault, or signs messages. With the coin, its amount is also checked to be [`VAULT_AMOUNT`].
+    pub fn reveal_signing_vault(&mut self, custody_hash: Bytes32, coin: Option<Coin>) {
+        self.signing_vault = Some(RevealedSigningVault { custody_hash, coin });
+    }
+
+    /// Reveals the spend of a vault that's controlled by another vault in the transaction, which must be revealed if
+    /// the vault being signed for (or another controlled vault) sends it a message. The controlled vault is then added
+    /// to the [`authorization_path`](crate::VaultTransaction::authorization_path). Its coin spend must also be revealed with
+    /// [`reveal_coin_spend`](Self::reveal_coin_spend), so that its puzzle can be checked to be a vault.
+    ///
+    /// The coin's puzzle hash must be the singleton puzzle hash for the launcher id and custody hash. Since the coin
+    /// id commits to it, and the transaction can only be valid if the coin exists, the custody hash is the vault's
+    /// current one without looking it up. Whether the custody is controlled by the vault that sends it the message
+    /// isn't checked, so see [`VaultTransaction::authorization_path`](crate::VaultTransaction::authorization_path).
+    ///
+    /// If the controlled vault's singleton member is fast-forwardable, its message is sent to the puzzle hash rather
+    /// than the coin id, so the spend can be fast-forwarded onto a newer coin of the vault. The custody hash is still
+    /// the vault's in that case, since the coin must have the same puzzle hash. The coin's amount must be
+    /// [`VAULT_AMOUNT`], like every vault's.
+    pub fn reveal_controlled_vault(
+        &mut self,
+        controlled_vault: RevealedControlledVault,
+    ) -> Result<(), DriverError> {
+        let puzzle_hash: Bytes32 = SingletonArgs::curry_tree_hash(
+            controlled_vault.launcher_id,
+            controlled_vault.custody_hash.into(),
+        )
+        .into();
+
+        if controlled_vault.coin.puzzle_hash != puzzle_hash {
+            return Err(DriverError::WrongControlledVaultPuzzleHash);
+        }
+
+        if controlled_vault.coin.amount != VAULT_AMOUNT {
+            return Err(DriverError::InvalidVaultAmount);
+        }
+
+        self.controlled_vaults
+            .insert(controlled_vault.coin.coin_id(), controlled_vault);
+
+        Ok(())
     }
 
     pub fn requested_payments(&self) -> &RequestedPayments {
@@ -189,7 +301,35 @@ impl Reveals {
         self.bags.get(&(root_hash, asset)).map(AsRef::as_ref)
     }
 
+    pub fn signing_vault(&self) -> Option<RevealedSigningVault> {
+        self.signing_vault
+    }
+
     pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {
         self.vault_nonces.iter().copied()
+    }
+
+    pub fn controlled_vault(&self, coin_id: Bytes32) -> Option<&RevealedControlledVault> {
+        self.controlled_vaults.get(&coin_id)
+    }
+
+    /// Finds the controlled vault that a message to a puzzle hash is sent to. Since any coin with the puzzle hash could
+    /// receive the message, more than one revealed controlled vault with the puzzle hash is an error.
+    pub fn controlled_vault_by_puzzle_hash(
+        &self,
+        puzzle_hash: Bytes32,
+    ) -> Result<Option<&RevealedControlledVault>, DriverError> {
+        let mut matches = self
+            .controlled_vaults
+            .values()
+            .filter(|controlled_vault| controlled_vault.coin.puzzle_hash == puzzle_hash);
+
+        let controlled_vault = matches.next();
+
+        if matches.next().is_some() {
+            return Err(DriverError::DuplicateControlledVault);
+        }
+
+        Ok(controlled_vault)
     }
 }

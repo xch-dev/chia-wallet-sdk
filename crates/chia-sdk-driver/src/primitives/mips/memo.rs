@@ -38,7 +38,9 @@ use clvm_traits::{FromClvm, ToClvm, apply_constants};
 use clvm_utils::{ToTreeHash, TreeCache, TreeHash, tree_hash_cached};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, MofN, wrap_mips_puzzle_hash};
+use crate::{
+    DriverError, MofN, VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE, wrap_mips_puzzle_hash,
+};
 
 /// The maximum nesting depth of M of N memos accepted by [`MipsMemo::from_clvm_bounded`].
 pub const MAX_MIPS_MEMO_DEPTH: usize = 32;
@@ -632,7 +634,7 @@ impl MemberMemo<NodePtr> {
     ) -> Result<Self, DriverError> {
         Ok(Self::new(
             if fast_forward {
-                SingletonMemberWithMode::new(launcher_id, 0b010_010)
+                SingletonMemberWithMode::new(launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
                     .curry_tree_hash()
                     .into()
             } else {
@@ -838,7 +840,7 @@ impl Default for MipsMemoContext {
                 CREATE_PUZZLE_ANNOUNCEMENT,
                 CREATE_COIN_ANNOUNCEMENT,
             ],
-            singleton_modes: vec![0b010_010, 0b010_111],
+            singleton_modes: vec![VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE],
         }
     }
 }
