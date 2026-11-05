@@ -482,11 +482,128 @@ fn test_clear_signing_duplicate_controlled_vault_message(
     let second = controller_message(&mut ctx, vault, delegated_puzzle_hash, second_fast_forward)?;
     let controller_spend = ctx.delegated_spend(controller.recreate().with(first).with(second))?;
 
+    // A controller can only send one message, so the controlled vault's custody can't receive it twice.
     let mut reveals = Reveals::default();
     vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, None)?;
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend),
-        Err(DriverError::DuplicateVaultMessage)
+        Err(DriverError::InvalidVaultControllerSpend)
+    ));
+
+    Ok(())
+}
+
+/// Something other than the controller's recreation and its message to the controlled vault.
+#[derive(Debug, Clone, Copy)]
+enum ControllerExtra {
+    /// The controller isn't recreated.
+    Melt,
+    /// A payment from the vault's p2 coin, which the controller authorizes with a message.
+    Payment,
+    /// A fee.
+    Fee,
+    /// Another controlled vault.
+    SecondControlledVault,
+}
+
+#[rstest]
+fn test_clear_signing_controller_does_more_than_authorize(
+    #[values(
+        ControllerExtra::Melt,
+        ControllerExtra::Payment,
+        ControllerExtra::Fee,
+        ControllerExtra::SecondControlledVault
+    )]
+    extra: ControllerExtra,
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let controller = UnmintedVault::new(&mut ctx, 1)?;
+    let vault = UnmintedVault::new(&mut ctx, 2)?;
+    let other_vault = UnmintedVault::new(&mut ctx, 3)?;
+
+    let delegated_spend = ctx.delegated_spend(vault.recreate())?;
+    let delegated_puzzle_hash: Bytes32 = ctx.tree_hash(delegated_spend.puzzle).into();
+    let other_delegated_spend = ctx.delegated_spend(other_vault.recreate())?;
+    let other_delegated_puzzle_hash: Bytes32 = ctx.tree_hash(other_delegated_spend.puzzle).into();
+
+    let mut reveals = Reveals::default();
+    vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, None)?;
+
+    let message = controller_message(&mut ctx, vault, delegated_puzzle_hash, fast_forward)?;
+    let mut conditions = Conditions::new().with(message);
+
+    match extra {
+        ControllerExtra::Melt => {}
+        ControllerExtra::Payment => {
+            let p2_coin_id = ctx.alloc(&Bytes32::new([7; 32]))?;
+            conditions = conditions
+                .extend(controller.recreate())
+                .with(SendMessage::new(
+                    VAULT_MESSAGE_MODE,
+                    Bytes32::new([8; 32]).to_vec().into(),
+                    vec![p2_coin_id],
+                ));
+        }
+        ControllerExtra::Fee => {
+            conditions = conditions.extend(controller.recreate()).reserve_fee(100);
+        }
+        ControllerExtra::SecondControlledVault => {
+            other_vault.reveal_to(&mut ctx, &mut reveals, other_delegated_spend, None)?;
+            let other_message = controller_message(
+                &mut ctx,
+                other_vault,
+                other_delegated_puzzle_hash,
+                fast_forward,
+            )?;
+            conditions = conditions.extend(controller.recreate()).with(other_message);
+        }
+    }
+
+    let controller_spend = ctx.delegated_spend(conditions)?;
+
+    assert!(matches!(
+        parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend),
+        Err(DriverError::InvalidVaultControllerSpend)
+    ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_middle_controller_changes_custody(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let top = UnmintedVault::new(&mut ctx, 1)?;
+    let middle = UnmintedVault::new(&mut ctx, 2)?;
+    let vault = UnmintedVault::new(&mut ctx, 3)?;
+
+    let delegated_spend = ctx.delegated_spend(vault.recreate())?;
+    let delegated_puzzle_hash: Bytes32 = ctx.tree_hash(delegated_spend.puzzle).into();
+
+    // The middle vault authorizes the vault's spend, but changes its own custody. Its custody hash is known, since it's
+    // controlled by the top vault, so this is rejected.
+    let middle_message = controller_message(&mut ctx, vault, delegated_puzzle_hash, fast_forward)?;
+    let middle_spend = ctx.delegated_spend(
+        Conditions::new()
+            .create_coin(Bytes32::new([9; 32]), 1, Memos::None)
+            .with(middle_message),
+    )?;
+    let middle_hash: Bytes32 = ctx.tree_hash(middle_spend.puzzle).into();
+
+    let mut reveals = Reveals::default();
+    vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, None)?;
+    middle.reveal_to(&mut ctx, &mut reveals, middle_spend, None)?;
+
+    let top_message = controller_message(&mut ctx, middle, middle_hash, fast_forward)?;
+    let top_spend = ctx.delegated_spend(top.recreate().with(top_message))?;
+
+    assert!(matches!(
+        parse_vault_transaction(reveals, &mut ctx, top.launcher_id, top_spend),
+        Err(DriverError::VaultControllerChangesVault)
     ));
 
     Ok(())
@@ -984,7 +1101,7 @@ fn test_clear_signing_controller_of_message_signer_changes_custody(
 
     assert!(matches!(
         parse_vault_transaction(reveals, &mut ctx, top.launcher_id, top_spend),
-        Err(DriverError::VaultMessageEnvelopeChangesVault)
+        Err(DriverError::VaultControllerChangesVault)
     ));
 
     Ok(())

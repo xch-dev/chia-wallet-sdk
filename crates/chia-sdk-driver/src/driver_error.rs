@@ -375,6 +375,16 @@ pub enum DriverError {
     InvalidVaultControllerEnvelope,
 
     #[error(
+        "a vault that authorizes another vault's spend can only recreate itself and send that vault one message"
+    )]
+    InvalidVaultControllerSpend,
+
+    #[error(
+        "a controlled vault that authorizes another vault's spend must be recreated with the same custody hash and amount"
+    )]
+    VaultControllerChangesVault,
+
+    #[error(
         "the vault message proof has a spend of vault controller {0}, whose custody hash wasn't given"
     )]
     UnknownVaultController(Bytes32),

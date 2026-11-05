@@ -201,11 +201,14 @@ pub fn vault_controller_envelope(
 
 /// The vault that a vault controller authorizes the spend of, and the controller that it recreates.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct VaultControllerEnvelope {
+pub(crate) struct VaultControllerSpend {
     pub(crate) vault_child: VaultOutput,
     pub(crate) controlled_vault: ControlledVaultReceiver,
-    /// The delegated puzzle hash that's sent to the controlled vault and to [`VAULT_CONTROLLER_MESSAGE_COIN_ID`].
+    /// The delegated puzzle hash that's sent to the controlled vault.
     pub(crate) message: Bytes,
+    /// Whether the message is also sent to [`VAULT_CONTROLLER_MESSAGE_COIN_ID`], which makes this a
+    /// [`vault_controller_envelope`] that can never be valid on chain.
+    pub(crate) is_envelope: bool,
 }
 
 /// How a vault controller's message identifies the controlled vault.
@@ -216,18 +219,19 @@ pub(crate) enum ControlledVaultReceiver {
     PuzzleHash(Bytes32),
 }
 
-/// Parses the conditions of a vault's delegated spend as a [`vault_controller_envelope`].
+/// Parses the conditions of a vault's delegated spend as the spend of a vault controller, which only authorizes the
+/// spend of a single controlled vault.
 ///
 /// Returns [`None`] unless the conditions are exactly a single `CREATE_COIN` with an odd amount that recreates the
-/// vault, a single message to the controlled vault's coin (or to its puzzle hash, for a fast-forwardable singleton
-/// member), and the same message to [`VAULT_CONTROLLER_MESSAGE_COIN_ID`], in any order. This is shared by clear signing and
-/// [`verify_controlled_vault_signed_message`], so that a controller can only authorize a vault message envelope by
-/// doing nothing else.
-pub(crate) fn parse_vault_controller_envelope(
+/// vault, and a single message to the controlled vault's coin (or to its puzzle hash, for a fast-forwardable singleton
+/// member), in any order. The same message can also be sent to [`VAULT_CONTROLLER_MESSAGE_COIN_ID`], which makes it a
+/// [`vault_controller_envelope`]. This is shared by clear signing and [`verify_controlled_vault_signed_message`], so
+/// that a controller can only authorize a vault message envelope by doing nothing else.
+pub(crate) fn parse_vault_controller_spend(
     allocator: &Allocator,
     conditions: &[Condition],
-) -> Result<Option<VaultControllerEnvelope>, DriverError> {
-    if conditions.len() != 3 {
+) -> Result<Option<VaultControllerSpend>, DriverError> {
+    if !matches!(conditions.len(), 2 | 3) {
         return Ok(None);
     }
 
@@ -283,16 +287,21 @@ pub(crate) fn parse_vault_controller_envelope(
         }
     }
 
-    match (vault_child, controlled_vault, marker) {
-        (Some(vault_child), Some((controlled_vault, data)), Some(marker)) if data == marker => {
-            Ok(Some(VaultControllerEnvelope {
-                vault_child,
-                controlled_vault,
-                message: data,
-            }))
-        }
-        _ => Ok(None),
+    let (Some(vault_child), Some((controlled_vault, message))) = (vault_child, controlled_vault)
+    else {
+        return Ok(None);
+    };
+
+    if marker.as_ref().is_some_and(|marker| marker != &message) {
+        return Ok(None);
     }
+
+    Ok(Some(VaultControllerSpend {
+        vault_child,
+        controlled_vault,
+        message,
+        is_envelope: marker.is_some(),
+    }))
 }
 
 /// The messages signed by a vault message envelope, and the vault that it recreates.
@@ -694,7 +703,8 @@ pub fn verify_controlled_vault_signed_message(
             return Err(DriverError::WrongVaultPuzzleHash);
         }
 
-        let envelope = parse_vault_controller_envelope(&allocator, &conditions)?
+        let envelope = parse_vault_controller_spend(&allocator, &conditions)?
+            .filter(|spend| spend.is_envelope)
             .ok_or(DriverError::InvalidVaultControllerEnvelope)?;
 
         if envelope.vault_child

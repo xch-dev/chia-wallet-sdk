@@ -16,7 +16,7 @@ use crate::{
     TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage, VaultOutput,
     build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
     parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
-    parse_spend, parse_vault_controller_envelope, parse_vault_delegated_spend,
+    parse_spend, parse_vault_controller_spend, parse_vault_delegated_spend,
     split_asserted_payments, vault_recovery_delegated_puzzle_hash,
 };
 
@@ -75,7 +75,12 @@ pub struct VaultTransaction {
     pub signed_messages: Vec<Bytes>,
     /// Vaults whose custody includes this vault (as a singleton member), and whose spends this vault authorizes by
     /// sending them a message with their delegated puzzle hash. Each one is parsed as its own transaction, with its own
-    /// p2 puzzle hashes, which can in turn authorize the spends of other vaults that it controls.
+    /// p2 puzzle hashes, which can in turn authorize the spend of another vault that it controls.
+    ///
+    /// There's at most one. A vault that authorizes a controlled vault can only recreate itself and send it the message
+    /// (and for message signing, the same message to the controller message coin), which is how Cloud Wallet builds
+    /// the spends of vault controllers. So in a chain of controlled vaults, only the vault at the end does anything
+    /// else. A controlled vault that authorizes another vault must also be recreated with the same custody hash.
     ///
     /// A controlled vault's puzzle is checked to be a vault, and its custody hash to be the one that its coin commits
     /// to, but not that its custody is controlled by this vault. Like the rest of clear signing, this assumes that the
@@ -273,6 +278,33 @@ fn parse_vault(
                 data: message.data,
             });
     }
+
+    // A vault that authorizes the spend of a controlled vault can only recreate itself and send that one message, which
+    // is how Cloud Wallet builds the spends of vault controllers. That way, everything a transaction does is done by the
+    // vault at the end of the chain, rather than being split between the vaults that authorize it. A controlled vault
+    // must also be recreated as it was, since its custody hash is known. A message to the controller message coin is
+    // only allowed in a controller spend too, which then makes it a controller envelope.
+    let controller_spend = if has_controller_marker || !messages_by_controlled_vault.is_empty() {
+        let conditions = parse_delegated_spend(ctx, delegated_spend)?;
+
+        let Some(controller_spend) = parse_vault_controller_spend(ctx, &conditions)? else {
+            return Err(if has_controller_marker {
+                DriverError::InvalidVaultControllerEnvelope
+            } else {
+                DriverError::InvalidVaultControllerSpend
+            });
+        };
+
+        if let Some(custody_hash) = custody_hash
+            && controller_spend.vault_child != VaultOutput::new(custody_hash, VAULT_AMOUNT)
+        {
+            return Err(DriverError::VaultControllerChangesVault);
+        }
+
+        Some(controller_spend)
+    } else {
+        None
+    };
 
     // The time bounds decide which clawback spends can be trusted, so they're recorded up front from the spends
     // that the vault authorizes and that can't be replaced. Any mismatched message fails the transaction below.
@@ -659,33 +691,21 @@ fn parse_vault(
         });
     }
 
-    // Like a vault that signs messages, a vault that authorizes another vault to sign messages can't do anything else,
-    // so that it can't look like it also authorizes a transaction. It must also send its message to the controller
-    // message coin, so that its spend can never be valid on chain, even if the controlled vault's custody can receive
-    // the message some other way than with a vault message envelope. This is the same check that
-    // `verify_controlled_vault_signed_message` does. A message to the controller message coin is only allowed in a
-    // controller envelope.
-    if has_controller_marker
-        || controlled_vaults
-            .iter()
-            .any(|controlled_vault| controlled_vault.transaction.signs_messages())
+    // A vault that authorizes another vault to sign messages must also send its message to the controller message coin,
+    // so that its spend can never be valid on chain, even if the controlled vault's custody can receive the message some
+    // other way than with a vault message envelope. This is the same check that `verify_controlled_vault_signed_message`
+    // does.
+    if controlled_vaults
+        .iter()
+        .any(|controlled_vault| controlled_vault.transaction.signs_messages())
+        && !controller_spend.is_some_and(|controller_spend| controller_spend.is_envelope)
     {
-        let conditions = parse_delegated_spend(ctx, delegated_spend)?;
-
-        if parse_vault_controller_envelope(ctx, &conditions)?.is_none() {
-            return Err(DriverError::InvalidVaultControllerEnvelope);
-        }
+        return Err(DriverError::InvalidVaultControllerEnvelope);
     }
 
-    // A vault that signs messages, or authorizes another vault to, must be recreated as it was, which is also what
-    // `verify_controlled_vault_signed_message` requires. This can only be checked for a controlled vault, whose custody
-    // hash is known.
-    let signs_messages = !vault_spend.signed_messages.is_empty()
-        || controlled_vaults
-            .iter()
-            .any(|controlled_vault| controlled_vault.transaction.signs_messages());
-
-    if signs_messages
+    // A vault that signs messages must be recreated as it was, which is also what `verify_vault_signed_message`
+    // requires. This can only be checked for a controlled vault, whose custody hash is known.
+    if !vault_spend.signed_messages.is_empty()
         && let Some(custody_hash) = custody_hash
         && vault_spend.child != Some(VaultOutput::new(custody_hash, VAULT_AMOUNT))
     {
