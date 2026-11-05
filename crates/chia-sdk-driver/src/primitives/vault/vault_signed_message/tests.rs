@@ -1318,6 +1318,7 @@ fn test_message_length_limit() -> Result<()> {
         Err(DriverError::VaultMessageTooLong)
     ));
 
+    // Consensus rejects a message that long, so the conditions can't be parsed at all.
     let conditions = envelope_conditions(&mut ctx, &vault, &too_long)?;
     let delegated_spend = ctx.delegated_spend(conditions)?;
     assert!(matches!(
@@ -1327,7 +1328,7 @@ fn test_message_length_limit() -> Result<()> {
             vault.info.launcher_id,
             delegated_spend
         ),
-        Err(DriverError::VaultMessageTooLong)
+        Err(DriverError::InvalidDelegatedSpendFormat)
     ));
 
     Ok(())

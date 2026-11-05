@@ -529,9 +529,14 @@ fn verify_spend(
     let conditions = custody.conditions();
 
     // The coin id is committed to by the conditions, and therefore the message. Since the coin id
-    // depends on the fixed conditions, they can't be made to receive the same message.
+    // depends on the fixed conditions, they can't be made to receive the same message. Consensus
+    // ignores any arguments after the coin id, so only the coin id needs to match.
     if matches!(&custody, CustodyInfo::P2ConditionsOrSingleton(_))
-        && !conditions.contains(&Condition::assert_my_coin_id(spend.coin.coin_id()))
+        && !conditions.iter().any(|condition| {
+            condition
+                .as_assert_my_coin_id()
+                .is_some_and(|condition| condition.coin_id == spend.coin.coin_id())
+        })
     {
         return Err(DriverError::MissingP2ConditionsOrSingletonAssertion);
     }

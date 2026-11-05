@@ -6,14 +6,27 @@ use nfts::TradePrice;
 
 mod agg_sig;
 mod announcements;
+mod consensus;
+mod encoding;
 mod list;
 mod messages;
 mod nfts;
 
 pub use announcements::*;
+pub use consensus::*;
+pub use encoding::*;
 pub use list::*;
 pub use messages::*;
 
+// Each field is one of the following:
+// * `name: Type` is a single argument.
+// * `name?: Type` is a single argument, which may be absent if the list ends before it.
+// * `..name: Vec<Type>` is every argument until the list ends.
+// * `...name: Type` is the rest of the list.
+// * Any of these followed by `if value` is a constant, which isn't stored.
+//
+// Unless the last field is a `...` field, a trailing `rest` field (of type `R`) is added to keep
+// any arguments after the known ones, so that every condition serializes back to the same value.
 conditions! {
     pub enum Condition<T> {
         Remark<T> as Copy {
@@ -64,7 +77,7 @@ conditions! {
             opcode: i8 if 51,
             puzzle_hash: Bytes32,
             amount: u64,
-            ...memos: Memos<T>,
+            memos?: Memos<T>,
         },
         ReserveFee as Copy {
             opcode: i8 if 52,
@@ -98,13 +111,13 @@ conditions! {
             opcode: i8 if 66,
             mode: u8,
             message: Bytes,
-            ...data: Vec<T>,
+            ..data: Vec<T>,
         },
         ReceiveMessage<T> {
             opcode: i8 if 67,
             mode: u8,
             message: Bytes,
-            ...data: Vec<T>,
+            ..data: Vec<T>,
         },
         AssertMyCoinId as Copy {
             opcode: i8 if 70,
@@ -224,106 +237,4 @@ impl<T> Condition<T> {
 }
 
 #[cfg(test)]
-mod tests {
-    use anyhow::Result;
-    use clvm_traits::{FromClvm, ToClvm};
-    use clvmr::{Allocator, NodePtr};
-
-    use super::*;
-
-    fn parse(allocator: &mut Allocator, value: impl ToClvm<Allocator>) -> Result<Condition> {
-        let ptr = value.to_clvm(allocator)?;
-        Ok(Condition::from_clvm(allocator, ptr)?)
-    }
-
-    #[test]
-    fn test_shared_opcode_variants() -> Result<()> {
-        let mut allocator = Allocator::new();
-        let puzzle_hash = Bytes32::new([1; 32]);
-
-        let condition = parse(&mut allocator, (51, (puzzle_hash, (1, ()))))?;
-        assert!(condition.is_create_coin());
-        assert!(!condition.is_magic_create_coin());
-
-        for puzzle_hash in [None, Some(puzzle_hash)] {
-            let condition = parse(&mut allocator, (51, (puzzle_hash, (-113, ((), ((), ()))))))?;
-            assert_eq!(
-                condition,
-                Condition::run_cat_tail(puzzle_hash, NodePtr::NIL, NodePtr::NIL)
-            );
-            assert_eq!(
-                condition.into_run_cat_tail().map(|tail| tail.puzzle_hash),
-                Some(puzzle_hash)
-            );
-
-            // Arguments after the TAIL solution are ignored by the CAT layer.
-            let condition = parse(
-                &mut allocator,
-                (51, (puzzle_hash, (-113, (1, (2, (3, ())))))),
-            )?;
-            assert!(condition.is_run_cat_tail());
-            assert!(condition.is_magic_create_coin());
-
-            let condition = parse(&mut allocator, (51, (puzzle_hash, (-113, ()))))?;
-            assert_eq!(condition, Condition::melt_singleton(puzzle_hash));
-            assert!(condition.is_magic_create_coin());
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_shared_opcode_roundtrip() -> Result<()> {
-        let mut allocator = Allocator::new();
-
-        for condition in [
-            Condition::create_coin(Bytes32::new([1; 32]), 1, Memos::None),
-            Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
-            Condition::melt_singleton(None),
-            Condition::melt_singleton(Some(Bytes32::new([1; 32]))),
-        ] {
-            assert_eq!(parse(&mut allocator, condition.clone())?, condition);
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_malformed_known_opcode() {
-        let mut allocator = Allocator::new();
-
-        // The mode must be an atom.
-        assert!(parse(&mut allocator, (66, ((1, 2), (Bytes::default(), ())))).is_err());
-
-        // A negative amount is only valid if it's the magic -113 amount.
-        assert!(parse(&mut allocator, (51, (Bytes32::default(), (-1, ())))).is_err());
-
-        // The puzzle hash must be nil or 32 bytes.
-        assert!(parse(&mut allocator, (51, ((), (1, ())))).is_err());
-        assert!(parse(&mut allocator, (51, (Bytes::new(vec![1; 31]), (-113, ())))).is_err());
-
-        // A -113 output with a TAIL reveal but no solution is neither a melt nor a TAIL reveal.
-        assert!(parse(&mut allocator, (51, ((), (-113, (1, ()))))).is_err());
-    }
-
-    #[test]
-    fn test_unknown_opcode() -> Result<()> {
-        let mut allocator = Allocator::new();
-
-        let condition = parse(&mut allocator, (100, (1, ())))?;
-        assert!(matches!(condition, Condition::Other(_)));
-
-        // Opcodes are matched by their exact atom, so redundant leading zeros aren't a known opcode.
-        let opcode = allocator.new_atom(&[0x00, 0x33])?;
-        let condition = parse(&mut allocator, (opcode, (Bytes32::default(), (1, ()))))?;
-        assert!(matches!(condition, Condition::Other(_)));
-
-        let condition = parse(&mut allocator, NodePtr::NIL)?;
-        assert!(matches!(condition, Condition::Other(_)));
-
-        let condition = parse(&mut allocator, ((51, ()), ()))?;
-        assert!(matches!(condition, Condition::Other(_)));
-
-        Ok(())
-    }
-}
+mod tests;

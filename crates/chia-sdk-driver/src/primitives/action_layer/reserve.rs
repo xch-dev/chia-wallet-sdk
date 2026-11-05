@@ -139,7 +139,7 @@ impl Reserve {
         // prepend CREATE_COIN, just like the reserve finalizer does
         // (list CREATE_COIN RESERVE_INNER_PUZZLE_HASH (f New_State) (list RESERVE_INNER_PUZZLE_HASH))
         let new_reserve_amount = state.1.reserve_amount(0);
-        let cc = CreateCoin::new(
+        let cc = CreateCoin::<_, ()>::new(
             self.inner_puzzle_hash,
             new_reserve_amount,
             ctx.hint(self.inner_puzzle_hash)?,

@@ -93,7 +93,7 @@ impl SecuredMint {
     ///
     /// This is the same p2 puzzle that [`Launcher::mint_nft`] creates when there's no transfer condition.
     pub fn eve_p2_puzzle_hash(&self) -> Bytes32 {
-        let create_coin = CreateCoin::new(
+        let create_coin = CreateCoin::<_, ()>::new(
             self.p2_puzzle_hash,
             1,
             Memos::Some(clvm_list!(self.p2_puzzle_hash).tree_hash()),

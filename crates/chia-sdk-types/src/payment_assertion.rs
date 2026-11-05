@@ -6,12 +6,12 @@ use chia_puzzle_types::{
 use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{announcement_id, conditions::AssertPuzzleAnnouncement};
+use crate::{Nil, announcement_id, conditions::AssertPuzzleAnnouncement};
 
-pub fn payment_assertion(
+pub fn payment_assertion<R: Nil>(
     puzzle_hash: Bytes32,
     notarized_payment_hash: TreeHash,
-) -> AssertPuzzleAnnouncement {
+) -> AssertPuzzleAnnouncement<R> {
     AssertPuzzleAnnouncement::new(announcement_id(puzzle_hash, notarized_payment_hash))
 }
 

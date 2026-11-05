@@ -755,7 +755,11 @@ mod tests {
                 cats[1],
                 Spend::new(
                     custom_p2,
-                    ctx.alloc(&[CreateCoin::new(custom_p2_puzzle_hash, 1, custom_memos)])?,
+                    ctx.alloc(&[CreateCoin::<_, ()>::new(
+                        custom_p2_puzzle_hash,
+                        1,
+                        custom_memos,
+                    )])?,
                 ),
             ),
         ];

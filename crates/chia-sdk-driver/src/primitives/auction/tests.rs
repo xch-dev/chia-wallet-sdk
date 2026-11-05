@@ -522,7 +522,7 @@ impl Harness {
 
         let p2_puzzle_hash = info.reserve.p2_puzzle_hash();
         let hint = self.ctx.hint(p2_puzzle_hash)?;
-        let new_reserve = CreateCoin::new(p2_puzzle_hash, reserve_amount, hint);
+        let new_reserve = CreateCoin::<_, ()>::new(p2_puzzle_hash, reserve_amount, hint);
         let delegated_puzzle = self.ctx.alloc(&clvm_quote!(vec![new_reserve]))?;
         let reserve_spend = spend_auction_lock(
             &mut self.ctx,

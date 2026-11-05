@@ -12,7 +12,7 @@ use crate::{DriverError, Layer, P2OneOfManyLayer, Spend, SpendContext, SpendWith
 
 pub type PushThroughPath = (
     u8,
-    match_list!(AssertSecondsAbsolute, CreateCoin<[Bytes32; 1]>),
+    match_list!(AssertSecondsAbsolute<()>, CreateCoin<[Bytes32; 1], ()>),
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -191,8 +191,11 @@ impl Auction {
 
         let p2_puzzle_hash = self.info.reserve.p2_puzzle_hash();
         let hint = ctx.hint(p2_puzzle_hash)?;
-        let new_reserve =
-            ctx.alloc(&CreateCoin::new(p2_puzzle_hash, state.reserve_amount, hint))?;
+        let new_reserve = ctx.alloc(&CreateCoin::<_, ()>::new(
+            p2_puzzle_hash,
+            state.reserve_amount,
+            hint,
+        ))?;
         reserve_conditions.insert(0, new_reserve);
 
         Ok(AuctionChildState {

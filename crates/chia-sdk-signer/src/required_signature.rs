@@ -353,9 +353,11 @@ mod tests {
             )],
         );
         let coin_spend = coin_spend(&a, puzzle);
+
+        // Consensus rejects a message that long, so the conditions can't be parsed at all.
         assert!(matches!(
             required(&mut a, &coin_spend),
-            Err(SignerError::AggSigMessageTooLong(1025))
+            Err(SignerError::FromClvm(_))
         ));
     }
 
