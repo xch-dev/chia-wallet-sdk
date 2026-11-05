@@ -112,6 +112,7 @@ fn test_clear_signing_controlled_vault_transfer(
 
     // The transaction is the controlled vault's, parsed with its own p2 puzzle hash. The delegated puzzle hash is still
     // the one that's signed by the controller.
+    assert_eq!(tx.launcher_id, vault.info.launcher_id);
     assert_eq!(tx.p2_puzzle_hashes, vec![vault.p2_puzzle_hash]);
     assert_eq!(
         tx.delegated_puzzle_hash,
@@ -646,6 +647,91 @@ fn test_clear_signing_controller_spends_its_own_coins(
             result.delegated_spend
         ),
         Err(DriverError::InvalidVaultControllerSpend)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_vault_without_controlled_vaults() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let vault = UnmintedVault::new(&mut ctx, 1)?;
+    let delegated_spend = ctx.delegated_spend(vault.recreate())?;
+
+    // A vault that doesn't authorize a controlled vault is the vault whose transaction it is.
+    let tx = parse_vault_transaction(
+        Reveals::default(),
+        &mut ctx,
+        vault.launcher_id,
+        delegated_spend,
+    )?;
+    assert_eq!(tx.launcher_id, vault.launcher_id);
+    assert!(tx.authorization_path.is_empty());
+    assert_eq!(
+        tx.delegated_puzzle_hash,
+        ctx.tree_hash(delegated_spend.puzzle).into()
+    );
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_top_controller_changes_custody(
+    #[values(false, true)] fast_forward: bool,
+) -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let controller = UnmintedVault::new(&mut ctx, 1)?;
+    let vault = UnmintedVault::new(&mut ctx, 2)?;
+
+    let delegated_spend = ctx.delegated_spend(vault.recreate())?;
+    let delegated_puzzle_hash: Bytes32 = ctx.tree_hash(delegated_spend.puzzle).into();
+
+    // The custody hash of the vault being signed for isn't known, so it can change its custody while authorizing the
+    // controlled vault. It's shown in the authorization path, like the vault child of an ordinary vault spend.
+    let new_custody_hash = Bytes32::new([9; 32]);
+    let message = controller_message(&mut ctx, vault, delegated_puzzle_hash, fast_forward)?;
+    let controller_spend = ctx.delegated_spend(
+        Conditions::new()
+            .create_coin(new_custody_hash, 1, Memos::None)
+            .with(message),
+    )?;
+
+    let mut reveals = Reveals::default();
+    vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, None)?;
+    let tx = parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend)?;
+
+    assert_eq!(tx.launcher_id, vault.launcher_id);
+    assert_eq!(
+        tx.authorization_path[0].controller_child,
+        VaultOutput::new(new_custody_hash, 1)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_controller_envelope_to_unrevealed_coin() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let controller = UnmintedVault::new(&mut ctx, 1)?;
+    let vault = UnmintedVault::new(&mut ctx, 2)?;
+
+    // An envelope must authorize a revealed controlled vault, rather than any other coin.
+    let delegated_puzzle_hash = Bytes32::new([7; 32]);
+    let message = controller_message(&mut ctx, vault, delegated_puzzle_hash, false)?;
+    let marker = controller_marker(&mut ctx, delegated_puzzle_hash)?;
+    let controller_spend = ctx.delegated_spend(controller.recreate().with(message).with(marker))?;
+
+    assert!(matches!(
+        parse_vault_transaction(
+            Reveals::default(),
+            &mut ctx,
+            controller.launcher_id,
+            controller_spend
+        ),
+        Err(DriverError::MissingSpend)
     ));
 
     Ok(())

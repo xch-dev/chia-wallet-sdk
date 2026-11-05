@@ -4703,7 +4703,9 @@ export declare class VaultOutput {
 export declare class VaultTransaction {
   clone(): VaultTransaction
   signsMessages(): boolean
-  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>)
+  constructor(launcherId: Uint8Array, vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
   get vaultChild(): VaultOutput | null
   set vaultChild(value: VaultOutput | undefined | null)
   get dropCoins(): Array<DropCoin>

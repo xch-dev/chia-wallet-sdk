@@ -662,6 +662,7 @@ for (const [name, fastForward] of [
       tx.signedMessages.map((message) => Buffer.from(message)),
       messages,
     );
+    t.deepEqual(tx.launcherId, vault.info.launcherId);
     t.is(tx.authorizationPath.length, 1);
     t.deepEqual(tx.authorizationPath[0].launcherId, vault.info.launcherId);
     t.deepEqual(

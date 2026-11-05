@@ -32,6 +32,10 @@ pub const VAULT_AMOUNT: u64 = 1;
 /// We can still allow transactions which are not fully verifiable, but a conservative summary should be provided.
 #[derive(Debug, Clone)]
 pub struct VaultTransaction {
+    /// The launcher id of the vault whose transaction it is. That's the vault being signed for, unless it authorizes the
+    /// spend of a controlled vault, in which case it's the vault at the end of the
+    /// [`authorization_path`](Self::authorization_path).
+    pub launcher_id: Bytes32,
     /// If a new vault coin is created (i.e. the vault isn't melted), this will be set.
     /// It's the new inner puzzle hash and amount of the vault singleton. If the puzzle hash is different, the custody
     /// configuration has changed. If the amount is different, XCH is being added or removed from its value. The hash
@@ -714,6 +718,7 @@ fn parse_vault(
     }
 
     Ok(VaultTransaction {
+        launcher_id,
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,

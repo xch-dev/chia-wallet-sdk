@@ -263,6 +263,7 @@ pub fn calculate_vault_start_recovery_message(
 
 #[derive(Clone)]
 pub struct VaultTransaction {
+    pub launcher_id: Bytes32,
     pub vault_child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub spends: Vec<VerifiedSpend>,
@@ -290,6 +291,7 @@ impl VaultTransaction {
         value: sdk::VaultTransaction,
     ) -> Result<Self> {
         Ok(Self {
+            launcher_id: value.launcher_id,
             vault_child: value.vault_child,
             drop_coins: value.drop_coins,
             spends: value

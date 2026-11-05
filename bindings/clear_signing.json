@@ -225,6 +225,7 @@
     "type": "class",
     "new": true,
     "fields": {
+      "launcher_id": "Bytes32",
       "vault_child": "Option<VaultOutput>",
       "drop_coins": "Vec<DropCoin>",
       "spends": "Vec<VerifiedSpend>",
