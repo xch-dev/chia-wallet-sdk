@@ -651,6 +651,7 @@ for (const [name, fastForward] of [
       envelope,
       null,
     );
+    reveals.revealSigningVault(controller.info.custodyHash, controller.coin);
     const tx = parseVaultTransaction(
       clvm,
       reveals,
@@ -663,6 +664,12 @@ for (const [name, fastForward] of [
       messages,
     );
     t.deepEqual(tx.launcherId, vault.info.launcherId);
+    t.deepEqual(tx.custodyHash, vault.info.custodyHash);
+    t.deepEqual(tx.signingVault?.puzzleHash, controller.coin.puzzleHash);
+    t.deepEqual(
+      tx.signingVault?.coin?.coinId(),
+      controller.coin.coinId(),
+    );
     t.is(tx.authorizationPath.length, 1);
     t.deepEqual(tx.authorizationPath[0].launcherId, vault.info.launcherId);
     t.deepEqual(

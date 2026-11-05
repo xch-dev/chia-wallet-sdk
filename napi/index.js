@@ -1096,6 +1096,7 @@ module.exports.SecuredMintOutput = nativeBinding.SecuredMintOutput
 module.exports.SendMessage = nativeBinding.SendMessage
 module.exports.SettlementNftSpendResult = nativeBinding.SettlementNftSpendResult
 module.exports.Signature = nativeBinding.Signature
+module.exports.SigningVault = nativeBinding.SigningVault
 module.exports.Simulator = nativeBinding.Simulator
 module.exports.SlotNeigborsInfo = nativeBinding.SlotNeigborsInfo
 module.exports.Softfork = nativeBinding.Softfork

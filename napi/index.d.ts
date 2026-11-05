@@ -3634,6 +3634,7 @@ export declare class Reveals {
   revealP2ConditionsOrSingleton(p2: P2ConditionsOrSingleton): void
   revealBag(bag: SecureTheBag): void
   revealVaultNonce(nonce: bigint): void
+  revealSigningVault(custodyHash: Uint8Array, coin?: Coin | undefined | null): void
   revealControlledVault(coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, recovery?: ControlledVaultRecovery | undefined | null): void
 }
 
@@ -4346,6 +4347,17 @@ export declare class Signature {
   isValid(): boolean
 }
 
+export declare class SigningVault {
+  clone(): SigningVault
+  constructor(custodyHash: Uint8Array, puzzleHash: Uint8Array, coin?: Coin | undefined | null)
+  get custodyHash(): Buffer
+  set custodyHash(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get coin(): Coin | null
+  set coin(value: Coin | undefined | null)
+}
+
 export declare class Simulator {
   clone(): Simulator
   constructor()
@@ -4703,9 +4715,11 @@ export declare class VaultOutput {
 export declare class VaultTransaction {
   clone(): VaultTransaction
   signsMessages(): boolean
-  constructor(launcherId: Uint8Array, vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>)
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array | undefined | null, vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>, signingVault?: SigningVault | undefined | null)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
+  get custodyHash(): Buffer | null
+  set custodyHash(value: Uint8Array | undefined | null)
   get vaultChild(): VaultOutput | null
   set vaultChild(value: VaultOutput | undefined | null)
   get dropCoins(): Array<DropCoin>
@@ -4734,6 +4748,8 @@ export declare class VaultTransaction {
   set signedMessages(value: Array<Uint8Array>)
   get authorizationPath(): Array<VaultAuthorization>
   set authorizationPath(value: Array<VaultAuthorization>)
+  get signingVault(): SigningVault | null
+  set signingVault(value: SigningVault | undefined | null)
 }
 
 export declare class VdfInfo {

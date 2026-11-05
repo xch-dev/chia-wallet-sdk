@@ -4,8 +4,8 @@ use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
     self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2,
-    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SpendContext, VaultAuthorization,
-    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
+    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SigningVault, SpendContext,
+    VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
@@ -68,6 +68,14 @@ impl Reveals {
 
     pub fn reveal_vault_nonce(&self, nonce: usize) -> Result<()> {
         self.inner.lock().unwrap().reveal_vault_nonce(nonce);
+        Ok(())
+    }
+
+    pub fn reveal_signing_vault(&self, custody_hash: Bytes32, coin: Option<Coin>) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_signing_vault(custody_hash, coin);
         Ok(())
     }
 
@@ -264,6 +272,7 @@ pub fn calculate_vault_start_recovery_message(
 #[derive(Clone)]
 pub struct VaultTransaction {
     pub launcher_id: Bytes32,
+    pub custody_hash: Option<Bytes32>,
     pub vault_child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub spends: Vec<VerifiedSpend>,
@@ -278,6 +287,7 @@ pub struct VaultTransaction {
     pub delegated_puzzle_hash: Bytes32,
     pub signed_messages: Vec<Bytes>,
     pub authorization_path: Vec<VaultAuthorization>,
+    pub signing_vault: Option<SigningVault>,
 }
 
 impl VaultTransaction {
@@ -292,6 +302,7 @@ impl VaultTransaction {
     ) -> Result<Self> {
         Ok(Self {
             launcher_id: value.launcher_id,
+            custody_hash: value.custody_hash,
             vault_child: value.vault_child,
             drop_coins: value.drop_coins,
             spends: value
@@ -328,6 +339,7 @@ impl VaultTransaction {
             delegated_puzzle_hash: value.delegated_puzzle_hash,
             signed_messages: value.signed_messages,
             authorization_path: value.authorization_path,
+            signing_vault: value.signing_vault,
         })
     }
 }

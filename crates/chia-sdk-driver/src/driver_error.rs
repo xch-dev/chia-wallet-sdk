@@ -361,6 +361,11 @@ pub enum DriverError {
     #[error("controlled vaults are nested too deeply")]
     ControlledVaultTooDeep,
 
+    #[error(
+        "the coin of the vault being signed for doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongSigningVaultPuzzleHash,
+
     #[error("a vault must be recreated with an amount of 1")]
     InvalidVaultAmount,
 

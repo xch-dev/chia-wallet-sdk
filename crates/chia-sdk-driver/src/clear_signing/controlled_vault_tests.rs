@@ -1,8 +1,11 @@
 use anyhow::Result;
+
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{Memos, singleton::SingletonArgs};
 use chia_sdk_test::Simulator;
-use chia_sdk_types::{Conditions, Mod, conditions::SendMessage, puzzles::SingletonMember};
+use chia_sdk_types::{
+    Conditions, Mod, TESTNET11_CONSTANTS, conditions::SendMessage, puzzles::SingletonMember,
+};
 use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -10,11 +13,11 @@ use rstest::rstest;
 
 use crate::{
     Action, ControlledVaultRecovery, DelegatedPuzzleFeederLayer, Deltas, DriverError, Id,
-    IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SingletonInfo,
-    SingletonLayer, Spend, SpendContext, Spends, TestVault, TransactionData,
-    VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_FAST_FORWARD_MESSAGE_MODE, VAULT_MESSAGE_MODE,
-    VaultOutput, VaultTransaction, VaultVersion, mips_puzzle_hash, parse_vault_transaction,
-    vault_recovery_delegated_puzzle_hash,
+    IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SigningVault,
+    SingletonInfo, SingletonLayer, Spend, SpendContext, Spends, TestVault, TransactionData,
+    VAULT_AMOUNT, VAULT_CONTROLLER_MESSAGE_COIN_ID, VAULT_FAST_FORWARD_MESSAGE_MODE,
+    VAULT_MESSAGE_MODE, VaultOutput, VaultTransaction, VaultVersion, calculate_vault_coin_message,
+    mips_puzzle_hash, parse_vault_transaction, vault_recovery_delegated_puzzle_hash,
 };
 
 /// Reveals each vault below the vault at the top of the chain of controllers, which is the one being signed for.
@@ -700,13 +703,146 @@ fn test_clear_signing_top_controller_changes_custody(
 
     let mut reveals = Reveals::default();
     vault.reveal_to(&mut ctx, &mut reveals, delegated_spend, None)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, controller_spend)?;
+    let tx = parse_vault_transaction(
+        reveals.clone(),
+        &mut ctx,
+        controller.launcher_id,
+        controller_spend,
+    )?;
 
     assert_eq!(tx.launcher_id, vault.launcher_id);
     assert_eq!(
         tx.authorization_path[0].controller_child,
         VaultOutput::new(new_custody_hash, 1)
     );
+
+    // Once its custody hash is revealed, it must be recreated with it like any other vault in the path.
+    reveals.reveal_signing_vault(controller.custody_hash, None);
+    assert!(matches!(
+        parse_vault_transaction(
+            reveals.clone(),
+            &mut ctx,
+            controller.launcher_id,
+            controller_spend
+        ),
+        Err(DriverError::VaultControllerChangesVault)
+    ));
+
+    let unchanged_spend = {
+        let message = controller_message(&mut ctx, vault, delegated_puzzle_hash, fast_forward)?;
+        ctx.delegated_spend(controller.recreate().with(message))?
+    };
+    let tx = parse_vault_transaction(reveals, &mut ctx, controller.launcher_id, unchanged_spend)?;
+    assert_eq!(
+        tx.signing_vault
+            .map(|signing_vault| signing_vault.custody_hash),
+        Some(controller.custody_hash)
+    );
+    assert_eq!(tx.custody_hash, Some(vault.custody_hash));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_signing_vault_signs_messages() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let vault = UnmintedVault::new(&mut ctx, 1)?;
+
+    // A vault that signs messages and changes its custody is only rejected once its custody hash is known.
+    let message_coin_id = ctx.alloc(&crate::VAULT_MESSAGE_COIN_ID)?;
+    let envelope = ctx.delegated_spend(
+        Conditions::new()
+            .create_coin(Bytes32::new([9; 32]), 1, Memos::None)
+            .with(SendMessage::new(
+                VAULT_MESSAGE_MODE,
+                b"hello".to_vec().into(),
+                vec![message_coin_id],
+            )),
+    )?;
+
+    let tx = parse_vault_transaction(Reveals::default(), &mut ctx, vault.launcher_id, envelope)?;
+    assert!(tx.signs_messages());
+    assert_eq!(tx.custody_hash, None);
+
+    let mut reveals = Reveals::default();
+    reveals.reveal_signing_vault(vault.custody_hash, None);
+    assert!(matches!(
+        parse_vault_transaction(reveals, &mut ctx, vault.launcher_id, envelope),
+        Err(DriverError::VaultMessageEnvelopeChangesVault)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_signing_vault_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let vault = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let result = vault.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            "bob".tree_hash().into(),
+            1000,
+            Memos::None,
+        )],
+    )?;
+    let coin = result.vault_spend.coin;
+    let custody_hash: Bytes32 = vault.info.custody_hash.into();
+
+    let parse = |ctx: &mut SpendContext, custody_hash: Bytes32, coin: Coin| {
+        let mut reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+        reveals.reveal_signing_vault(custody_hash, Some(coin));
+        parse_vault_transaction(reveals, ctx, vault.info.launcher_id, result.delegated_spend)
+    };
+
+    // The vault's puzzle hash and coin id are what its keys sign, so they're returned to calculate the message from.
+    let tx = parse(&mut ctx, custody_hash, coin)?;
+    assert_eq!(
+        tx.signing_vault,
+        Some(SigningVault {
+            custody_hash,
+            puzzle_hash: coin.puzzle_hash,
+            coin: Some(coin),
+        })
+    );
+    assert_eq!(tx.custody_hash, Some(custody_hash));
+    assert_eq!(
+        tx.vault_child,
+        Some(VaultOutput::new(custody_hash, VAULT_AMOUNT))
+    );
+
+    // The vault's key signed the message calculated from the coin that clear signing checked.
+    let message = calculate_vault_coin_message(
+        tx.delegated_puzzle_hash,
+        tx.signing_vault.unwrap().coin.unwrap().coin_id(),
+        TESTNET11_CONSTANTS.genesis_challenge,
+    );
+    assert!(chia_bls::verify(
+        &result.signature,
+        &vault.public_key,
+        message
+    ));
+
+    // The coin must be the vault's for the custody hash.
+    assert!(matches!(
+        parse(&mut ctx, Bytes32::new([9; 32]), coin),
+        Err(DriverError::WrongSigningVaultPuzzleHash)
+    ));
+
+    // And its amount must be 1.
+    assert!(matches!(
+        parse(
+            &mut ctx,
+            custody_hash,
+            Coin::new(coin.parent_coin_info, coin.puzzle_hash, 3)
+        ),
+        Err(DriverError::InvalidVaultAmount)
+    ));
 
     Ok(())
 }

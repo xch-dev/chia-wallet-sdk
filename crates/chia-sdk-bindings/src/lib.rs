@@ -108,7 +108,7 @@ pub use chia_sdk_driver::{
     RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
     RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SplitterPayout, StreamedAsset,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SigningVault, SplitterPayout, StreamedAsset,
     StreamingPuzzleInfo, UriKind, VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput,
     VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
     XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,

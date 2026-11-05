@@ -15,6 +15,14 @@ use crate::{
     RequestedPayments, SecureTheBag, Spend, VAULT_AMOUNT, VaultVersion,
 };
 
+/// The current custody hash and coin of the vault being signed for, which are revealed with
+/// [`Reveals::reveal_signing_vault`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RevealedSigningVault {
+    pub custody_hash: Bytes32,
+    pub coin: Option<Coin>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum RevealedP2Puzzle {
     Clawback(ClawbackV2),
@@ -77,6 +85,7 @@ pub struct Reveals {
     asset_info: AssetInfo,
     vault_nonces: BTreeSet<usize>,
     controlled_vaults: IndexMap<Bytes32, RevealedControlledVault>,
+    signing_vault: Option<RevealedSigningVault>,
 }
 
 impl Default for Reveals {
@@ -93,6 +102,7 @@ impl Default for Reveals {
             asset_info: AssetInfo::default(),
             vault_nonces,
             controlled_vaults: IndexMap::new(),
+            signing_vault: None,
         }
     }
 }
@@ -212,6 +222,23 @@ impl Reveals {
         self.vault_nonces.insert(nonce);
     }
 
+    /// Reveals the current custody hash of the vault being signed for, and optionally its coin. They're checked against
+    /// the vault's launcher id when the transaction is parsed, and returned in
+    /// [`VaultTransaction::signing_vault`](crate::VaultTransaction::signing_vault).
+    ///
+    /// Clear signing can't look them up, so they're only verified by the signature: a key member signs the delegated
+    /// puzzle hash with the vault's puzzle hash ([`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message))
+    /// or coin id ([`calculate_vault_coin_message`](crate::calculate_vault_coin_message)), which commit to the custody
+    /// hash. So the message that's signed must be calculated from the returned
+    /// [`SigningVault`](crate::SigningVault), rather than from anything else in the request. Then if the custody hash or
+    /// coin is wrong, the signature can't be used to spend the vault.
+    ///
+    /// With the custody hash, the vault being signed for must be recreated with it if it authorizes the spend of a
+    /// controlled vault, or signs messages. With the coin, its amount is also checked to be [`VAULT_AMOUNT`].
+    pub fn reveal_signing_vault(&mut self, custody_hash: Bytes32, coin: Option<Coin>) {
+        self.signing_vault = Some(RevealedSigningVault { custody_hash, coin });
+    }
+
     /// Reveals the spend of a vault that's controlled by another vault in the transaction, which must be revealed if
     /// the vault being signed for (or another controlled vault) sends it a message. The controlled vault is then added
     /// to the [`authorization_path`](crate::VaultTransaction::authorization_path). Its coin spend must also be revealed with
@@ -272,6 +299,10 @@ impl Reveals {
 
     pub fn bag(&self, root_hash: Bytes32, asset: BagAsset) -> Option<&SecureTheBag> {
         self.bags.get(&(root_hash, asset)).map(AsRef::as_ref)
+    }
+
+    pub fn signing_vault(&self) -> Option<RevealedSigningVault> {
+        self.signing_vault
     }
 
     pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {

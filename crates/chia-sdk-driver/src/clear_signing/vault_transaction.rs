@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chia_protocol::{Bytes, Bytes32, Coin};
-use chia_puzzle_types::cat::CatSolution;
+use chia_puzzle_types::{cat::CatSolution, singleton::SingletonArgs};
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
@@ -36,6 +36,11 @@ pub struct VaultTransaction {
     /// spend of a controlled vault, in which case it's the vault at the end of the
     /// [`authorization_path`](Self::authorization_path).
     pub launcher_id: Bytes32,
+    /// The current custody hash of the vault whose transaction it is, if it's known. It's known for a controlled vault,
+    /// and for the vault being signed for if it's revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). If it's different from the custody hash
+    /// of the [`vault_child`](Self::vault_child), the custody configuration is changing.
+    pub custody_hash: Option<Bytes32>,
     /// If a new vault coin is created (i.e. the vault isn't melted), this will be set.
     /// It's the new inner puzzle hash and amount of the vault singleton. If the puzzle hash is different, the custody
     /// configuration has changed. The amount is always [`VAULT_AMOUNT`], which clear signing requires. The hash can be
@@ -76,7 +81,7 @@ pub struct VaultTransaction {
     /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else other than
     /// recreating the vault, which is [`vault_child`](Self::vault_child). It should be recreated with the vault's
     /// current custody hash and amount, which [`verify_vault_signed_message`](crate::verify_vault_signed_message)
-    /// requires, but that isn't checked here since the current custody hash isn't known.
+    /// requires. That's checked if the [`custody_hash`](Self::custody_hash) is known.
     pub signed_messages: Vec<Bytes>,
     /// The vaults that authorize this vault's spend, starting with the vault being signed for. It's empty if this is
     /// the vault being signed for. Otherwise, the vault being signed for authorizes the spend of a vault that it
@@ -86,13 +91,31 @@ pub struct VaultTransaction {
     /// message signing, the same message to the controller message coin), which is how Cloud Wallet builds the spends of
     /// vault controllers. Everything else that the transaction does is done by this vault, so it's the only one whose
     /// spends are parsed. A controlled vault in the path that authorizes another vault must also be recreated with the
-    /// same custody hash, but the custody of the vault being signed for can't be checked, so its
+    /// same custody hash, and so must the vault being signed for if its custody hash is revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). Otherwise its
     /// [`controller_child`](VaultAuthorization::controller_child) should be shown like a [`vault_child`](Self::vault_child).
     ///
     /// A controlled vault's puzzle is checked to be a vault, and its custody hash to be the one that its coin commits
     /// to, but not that its custody is controlled by the vault that authorizes it. Like the rest of clear signing, this
     /// assumes that the vaults in the transaction are the user's.
     pub authorization_path: Vec<VaultAuthorization>,
+    /// The vault being signed for, if its custody hash was revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). The message that's signed should be
+    /// calculated from this, so that the signature can only be used if the custody hash (and coin) are correct.
+    pub signing_vault: Option<SigningVault>,
+}
+
+/// The vault being signed for, with the custody hash and coin that were revealed for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SigningVault {
+    pub custody_hash: Bytes32,
+    /// The singleton puzzle hash for the vault's launcher id and custody hash, which a key member that signs with
+    /// [`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message) signs.
+    pub puzzle_hash: Bytes32,
+    /// The vault's coin, if it was revealed, whose id a key member that signs with
+    /// [`calculate_vault_coin_message`](crate::calculate_vault_coin_message) signs. It's checked to have the puzzle
+    /// hash and an amount of [`VAULT_AMOUNT`].
+    pub coin: Option<Coin>,
 }
 
 impl VaultTransaction {
@@ -158,8 +181,34 @@ pub fn parse_vault_transaction(
 ) -> Result<VaultTransaction, DriverError> {
     let signed_delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
 
+    // The vault being signed for can only be spent with a signature on its puzzle hash or coin id, so the revealed
+    // custody hash and coin are correct if the message that's signed is calculated from them.
+    let signing_vault = reveals
+        .signing_vault()
+        .map(|revealed| {
+            let puzzle_hash: Bytes32 =
+                SingletonArgs::curry_tree_hash(launcher_id, revealed.custody_hash.into()).into();
+
+            if let Some(coin) = revealed.coin {
+                if coin.puzzle_hash != puzzle_hash {
+                    return Err(DriverError::WrongSigningVaultPuzzleHash);
+                }
+
+                if coin.amount != VAULT_AMOUNT {
+                    return Err(DriverError::InvalidVaultAmount);
+                }
+            }
+
+            Ok(SigningVault {
+                custody_hash: revealed.custody_hash,
+                puzzle_hash,
+                coin: revealed.coin,
+            })
+        })
+        .transpose()?;
+
     let mut launcher_id = launcher_id;
-    let mut custody_hash = None;
+    let mut custody_hash = signing_vault.map(|signing_vault| signing_vault.custody_hash);
     let mut delegated_spend = delegated_spend;
     let mut authorization_path = Vec::new();
     let mut is_envelope_path = true;
@@ -197,6 +246,7 @@ pub fn parse_vault_transaction(
 
     transaction.delegated_puzzle_hash = signed_delegated_puzzle_hash;
     transaction.authorization_path = authorization_path;
+    transaction.signing_vault = signing_vault;
 
     Ok(transaction)
 }
@@ -211,8 +261,8 @@ struct ParsedVaultAuthorization {
 }
 
 /// Parses a vault's delegated spend as the authorization of a revealed controlled vault's spend, or returns [`None`] if
-/// it doesn't authorize one. The custody hash is only known for a controlled vault, rather than the vault being signed
-/// for.
+/// it doesn't authorize one. The custody hash is known for a controlled vault, and for the vault being signed for if
+/// it's revealed.
 fn parse_vault_authorization(
     reveals: &Reveals,
     ctx: &mut SpendContext,
@@ -323,7 +373,8 @@ fn parse_vault_authorization(
 }
 
 /// Parses the spend of the vault whose transaction it is, which is the vault being signed for, or the vault at the end
-/// of its authorization path. The custody hash is only known for a controlled vault.
+/// of its authorization path. The custody hash is known for a controlled vault, and for the vault being signed for if
+/// it's revealed.
 fn parse_vault(
     mut reveals: Reveals,
     ctx: &mut SpendContext,
@@ -709,7 +760,7 @@ fn parse_vault(
     );
 
     // A vault that signs messages must be recreated as it was, which is also what `verify_vault_signed_message`
-    // requires. This can only be checked for a controlled vault, whose custody hash is known.
+    // requires. This can only be checked if the vault's custody hash is known.
     if !vault_spend.signed_messages.is_empty()
         && let Some(custody_hash) = custody_hash
         && vault_spend.child != Some(VaultOutput::new(custody_hash, VAULT_AMOUNT))
@@ -719,6 +770,7 @@ fn parse_vault(
 
     Ok(VaultTransaction {
         launcher_id,
+        custody_hash,
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
@@ -733,6 +785,7 @@ fn parse_vault(
         delegated_puzzle_hash,
         signed_messages: vault_spend.signed_messages,
         authorization_path: Vec::new(),
+        signing_vault: None,
     })
 }
 
