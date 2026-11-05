@@ -5253,6 +5253,8 @@ export declare function generateBytes(bytes: number): Buffer
 
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Buffer
 
+export declare function minimumFee(cost: bigint): bigint
+
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Buffer
 
 export declare const enum P2ConditionsOrSingletonVersion {
@@ -5273,6 +5275,8 @@ export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare function recommendedFee(cost: bigint, marketFeePerCost?: number | undefined | null): bigint
 
 export declare const enum Relation {
   Unrelated = 0,
@@ -5295,7 +5299,7 @@ export declare function singletonMemberHash(config: MemberConfig, launcherId: Ui
 
 export declare function singletonStructHash(launcherId: Uint8Array): Buffer
 
-export declare function spendBundleCost(coinSpends: Array<CoinSpend>): bigint
+export declare function spendBundleCost(coinSpends: Array<CoinSpend>, height?: number | undefined | null): bigint
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 
