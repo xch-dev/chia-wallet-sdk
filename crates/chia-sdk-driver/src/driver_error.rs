@@ -284,6 +284,9 @@ pub enum DriverError {
     #[error("multiple vault messages matched the same custody slot")]
     DuplicateVaultMessage,
 
+    #[error("CAT spend must have at most one -113 output, and it must reveal the TAIL")]
+    InvalidRunCatTail,
+
     #[error("wrong linked offer launcher id")]
     WrongLinkedOfferLauncherId,
 

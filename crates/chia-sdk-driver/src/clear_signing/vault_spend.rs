@@ -1,9 +1,6 @@
-use chia_consensus::opcodes::SEND_MESSAGE;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Condition;
-use clvm_traits::FromClvm;
-use clvmr::{Allocator, NodePtr};
-use num_bigint::BigInt;
+use clvmr::Allocator;
 
 use crate::{
     DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message,
@@ -115,16 +112,6 @@ pub fn parse_vault_delegated_spend(
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
                 messages.push(parse_vault_message(allocator, condition)?);
-            }
-            Condition::Other(condition) => {
-                let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
-
-                // If an unparseable opcode matches the SEND_MESSAGE opcode, we return an error.
-                // This is to make sure that we don't accidentally let a valid message slip through the cracks.
-                // If this happened, we wouldn't enforce the spend to be revealed, thus clear signing would be insecure.
-                if opcode == BigInt::from(SEND_MESSAGE) {
-                    return Err(DriverError::InvalidVaultMessageFormat);
-                }
             }
             _ => {}
         }

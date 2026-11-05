@@ -247,13 +247,13 @@ conditions!(
         softfork(cost: u64, rest: Program)
     },
     MeltSingleton {
-        melt_singleton()
+        melt_singleton(puzzle_hash: Option<Bytes32>)
     },
     TransferNft {
         transfer_nft(launcher_id: Option<Bytes32>, trade_prices: Vec<TradePrice>, singleton_inner_puzzle_hash: Option<Bytes32>)
     },
     RunCatTail<NodePtr, NodePtr> {
-        run_cat_tail(program: Program, solution: Program)
+        run_cat_tail(puzzle_hash: Option<Bytes32>, program: Program, solution: Program)
     },
     UpdateNftMetadata<NodePtr, NodePtr> {
         update_nft_metadata(updater_puzzle_reveal: Program, updater_solution: Program)

@@ -381,7 +381,7 @@ impl SingletonAsset for Did {
             SingletonDestination::Melt => {
                 match &mut singleton.kind {
                     SpendKind::Conditions(conditions) => {
-                        conditions.add_conditions(Conditions::new().melt_singleton());
+                        conditions.add_conditions(Conditions::new().melt_singleton(None));
                     }
                     SpendKind::Settlement(_) => {
                         return Err(DriverError::CannotEmitConditions);
@@ -577,7 +577,7 @@ impl SingletonAsset for OptionContract {
 
                 match &mut singleton.kind {
                     SpendKind::Conditions(spend) => {
-                        spend.add_conditions(Conditions::new().melt_singleton().send_message(
+                        spend.add_conditions(Conditions::new().melt_singleton(None).send_message(
                             23,
                             message,
                             vec![data],

@@ -107,9 +107,11 @@ impl SpendAction for IssueCatAction {
 
         match &mut cat_spend.kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(
-                    Conditions::new().run_cat_tail(tail_spend.puzzle, tail_spend.solution),
-                );
+                spend.add_conditions(Conditions::new().run_cat_tail(
+                    None,
+                    tail_spend.puzzle,
+                    tail_spend.solution,
+                ));
             }
             SpendKind::Settlement(_) => {
                 return Err(DriverError::CannotEmitConditions);

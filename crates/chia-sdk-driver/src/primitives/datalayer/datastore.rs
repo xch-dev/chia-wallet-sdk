@@ -1694,7 +1694,7 @@ pub mod tests {
         StandardLayer::new(owner.pk).spend(ctx, coin, launch_singleton)?;
 
         // owner melts
-        let output_conds = Conditions::new().melt_singleton();
+        let output_conds = Conditions::new().melt_singleton(None);
         let inner_datastore_spend =
             StandardLayer::new(owner.pk).spend_with_conditions(ctx, output_conds)?;
 
@@ -1838,7 +1838,7 @@ pub mod tests {
         StandardLayer::new(owner.pk).spend(ctx, coin, launch_singleton)?;
 
         // attacker tries to melt the coin via delegated puzzle
-        let conds = Conditions::new().melt_singleton();
+        let conds = Conditions::new().melt_singleton(None);
         let inner_datastore_spend = puzzle.get_spend(ctx, attacker.pk, conds)?;
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;

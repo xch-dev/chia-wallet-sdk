@@ -53,7 +53,7 @@ test("mints and spends an option", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-          clvm.runCatTail(tail, clvm.nil()),
+          clvm.runCatTail(null, tail, clvm.nil()),
         ]),
       ),
     ),

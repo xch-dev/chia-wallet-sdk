@@ -710,7 +710,7 @@ function initiateVaultRecovery(
   const delegatedSpend = clvm.delegatedSpend([
     ...(childAmount === null
       ? // Use the expected custody hash so force1Of2 allows the singleton melt amount.
-        [clvm.alloc([51, custodyHash, -113])]
+        [clvm.meltSingleton(custodyHash)]
       : [clvm.createCoin(custodyHash, childAmount, null)]),
     clvm.assertMyAmount(vault.coin.amount),
   ]);

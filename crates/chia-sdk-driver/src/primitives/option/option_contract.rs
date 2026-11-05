@@ -205,7 +205,7 @@ impl OptionContract {
                     self.info.underlying_delegated_puzzle_hash.into(),
                     vec![data],
                 )
-                .melt_singleton(),
+                .melt_singleton(None),
         )?;
 
         Ok(())
@@ -758,7 +758,7 @@ mod tests {
             ctx,
             &alice_p2,
             if melt {
-                Conditions::new().melt_singleton()
+                Conditions::new().melt_singleton(None)
             } else {
                 Conditions::new().send_message(
                     23,

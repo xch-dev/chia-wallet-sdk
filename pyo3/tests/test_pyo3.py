@@ -48,7 +48,7 @@ def test_alloc():
             bytes.fromhex("00" * 32),
             None,
             None,
-            RunCatTail(clvm.nil(), clvm.nil()),
+            RunCatTail(None, clvm.nil(), clvm.nil()),
         ]
     )
 

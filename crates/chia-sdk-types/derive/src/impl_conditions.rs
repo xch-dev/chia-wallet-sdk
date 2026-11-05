@@ -2,7 +2,7 @@ use convert_case::{Case, Casing};
 use proc_macro::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    Expr, Ident, Token, Type, braced,
+    Attribute, Expr, ExprLit, ExprUnary, Ident, Lit, Token, Type, UnOp, braced,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::{Pair, Punctuated},
@@ -18,6 +18,7 @@ struct Conditions {
 
 #[derive(Debug, Clone)]
 struct Condition {
+    attrs: Vec<Attribute>,
     name: Ident,
     generics: Option<Punctuated<Ident, Token![,]>>,
     additional_derives: Option<AdditionalDerives>,
@@ -36,6 +37,9 @@ struct ConditionField {
     ty: Type,
     constant: Option<Expr>,
 }
+
+/// The canonical opcode atom, and each variant (with its type) that shares it, in declaration order.
+type OpcodeGroup = (Vec<u8>, Vec<(Ident, proc_macro2::TokenStream)>);
 
 #[derive(Debug, Clone)]
 enum Modifier {
@@ -67,6 +71,7 @@ impl Parse for Conditions {
 
 impl Parse for Condition {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let name = input.parse()?;
         let generics = if input.peek(Token![<]) {
             input.parse::<Token![<]>()?;
@@ -94,6 +99,7 @@ impl Parse for Condition {
         let fields = content.parse_terminated(ConditionField::parse, Token![,])?;
 
         Ok(Self {
+            attrs,
             name,
             generics,
             additional_derives,
@@ -195,8 +201,10 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     let mut impls = Vec::new();
     let mut condition_impls = Vec::new();
     let mut condition_list_impls = Vec::new();
+    let mut opcode_groups: Vec<OpcodeGroup> = Vec::new();
 
     for Condition {
+        attrs,
         name: condition,
         generics: generic_list,
         additional_derives,
@@ -224,8 +232,22 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         };
 
         variants.push(quote! {
+            #( #attrs )*
             #condition(conditions::#condition #generics_remapped),
         });
+
+        let opcode = match condition_opcode(&fields) {
+            Ok(opcode) => opcode,
+            Err(error) => return error.into_compile_error().into(),
+        };
+
+        let variant_ty = quote!( conditions::#condition #generics_remapped );
+
+        if let Some((_, group)) = opcode_groups.iter_mut().find(|(bytes, _)| *bytes == opcode) {
+            group.push((condition.clone(), variant_ty));
+        } else {
+            opcode_groups.push((opcode, vec![(condition.clone(), variant_ty)]));
+        }
 
         let additional_derives = additional_derives.map(|AdditionalDerives { derives }| {
             let derives = derives.into_iter();
@@ -248,6 +270,10 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
                     pub #name: #ty,
                 },
                 Modifier::None => quote! {
+                    pub #name: #ty,
+                },
+                Modifier::Spread if constant.is_some() => quote! {
+                    #[clvm(rest, constant = #constant)]
                     pub #name: #ty,
                 },
                 Modifier::Spread => quote! {
@@ -301,6 +327,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             #[::clvm_traits::apply_constants]
             #[derive(Debug, Clone, PartialEq, Eq)]
             #additional_derives
+            #( #attrs )*
             #[clvm(list)]
             pub struct #condition #generics_original {
                 #( #definitions )*
@@ -378,13 +405,84 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         });
     }
 
+    let variant_bounds = opcode_groups
+        .iter()
+        .flat_map(|(_, group)| group.iter().map(|(_, ty)| ty));
+
+    let opcode_arms = opcode_groups.iter().map(|(opcode, group)| {
+        let parsers = group.iter().map(|(variant, ty)| {
+            quote! {
+                <#ty as ::clvm_traits::FromClvm<D>>::from_clvm(decoder, node.clone()).map(Self::#variant)
+            }
+        });
+
+        quote! {
+            [ #( #opcode ),* ] => {
+                let mut parsed = None;
+                let mut error = None;
+
+                #(
+                    match #parsers {
+                        Ok(condition) => {
+                            if parsed.is_some() {
+                                return Err(::clvm_traits::FromClvmError::Custom(
+                                    "condition matches more than one variant with the same opcode".to_string(),
+                                ));
+                            }
+
+                            parsed = Some(condition);
+                        }
+                        Err(err) => {
+                            error.get_or_insert(err);
+                        }
+                    }
+                )*
+
+                match parsed {
+                    Some(condition) => Ok(condition),
+                    None => Err(error.expect("opcode group is never empty")),
+                }
+            }
+        }
+    });
+
     quote! {
         #[non_exhaustive]
-        #[derive(Debug, Clone, PartialEq, Eq, ::clvm_traits::ToClvm, ::clvm_traits::FromClvm)]
+        #[derive(Debug, Clone, PartialEq, Eq, ::clvm_traits::ToClvm)]
         #[clvm(transparent)]
         pub enum #name<#enum_generic = ::clvmr::NodePtr> {
             #( #variants )*
             Other(T),
+        }
+
+        impl<D, #enum_generic> ::clvm_traits::FromClvm<D> for #name<#enum_generic>
+        where
+            D: ::clvm_traits::ClvmDecoder,
+            #enum_generic: ::clvm_traits::FromClvm<D>,
+            #( #variant_bounds: ::clvm_traits::FromClvm<D>, )*
+        {
+            fn from_clvm(
+                decoder: &D,
+                node: D::Node,
+            ) -> ::std::result::Result<Self, ::clvm_traits::FromClvmError> {
+                // The opcode is matched against its exact atom bytes, the same way consensus and the CLVM `=`
+                // operator do. A condition with a known opcode must parse as exactly one of the variants that
+                // share that opcode, and is an error if it matches none or more than one of them.
+                // This means `Other` can only contain conditions with an opcode that isn't otherwise known.
+                let opcode = decoder
+                    .decode_pair(&node)
+                    .ok()
+                    .and_then(|(first, _rest)| decoder.decode_atom(&first).ok());
+
+                let Some(opcode) = opcode else {
+                    return <#enum_generic as ::clvm_traits::FromClvm<D>>::from_clvm(decoder, node).map(Self::Other);
+                };
+
+                match opcode.as_ref() {
+                    #( #opcode_arms )*
+                    _ => <#enum_generic as ::clvm_traits::FromClvm<D>>::from_clvm(decoder, node).map(Self::Other),
+                }
+            }
         }
 
         impl<#enum_generic> #name<#enum_generic> {
@@ -408,4 +506,68 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         #( #impls )*
     }
     .into()
+}
+
+/// Finds the constant value of the `opcode` field, and encodes it as the canonical CLVM atom.
+fn condition_opcode(fields: &Punctuated<ConditionField, Token![,]>) -> syn::Result<Vec<u8>> {
+    let Some(field) = fields.iter().find(|field| field.name == "opcode") else {
+        return Err(syn::Error::new(
+            Span::call_site().into(),
+            "conditions must have an `opcode` field",
+        ));
+    };
+
+    let Some(constant) = &field.constant else {
+        return Err(syn::Error::new(
+            field.name.span(),
+            "the `opcode` field must have a constant value",
+        ));
+    };
+
+    let value = match constant {
+        Expr::Lit(ExprLit {
+            lit: Lit::Int(int), ..
+        }) => int.base10_parse::<i64>()?,
+        Expr::Unary(ExprUnary {
+            op: UnOp::Neg(_),
+            expr,
+            ..
+        }) => match expr.as_ref() {
+            Expr::Lit(ExprLit {
+                lit: Lit::Int(int), ..
+            }) => -int.base10_parse::<i64>()?,
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    constant,
+                    "expected an integer opcode",
+                ));
+            }
+        },
+        _ => {
+            return Err(syn::Error::new_spanned(
+                constant,
+                "expected an integer opcode",
+            ));
+        }
+    };
+
+    Ok(encode_int(value))
+}
+
+/// Encodes an integer as a minimal signed big-endian CLVM atom.
+fn encode_int(value: i64) -> Vec<u8> {
+    if value == 0 {
+        return Vec::new();
+    }
+
+    let mut bytes = value.to_be_bytes().to_vec();
+
+    while bytes.len() > 1
+        && ((bytes[0] == 0x00 && bytes[1] & 0x80 == 0)
+            || (bytes[0] == 0xff && bytes[1] & 0x80 != 0))
+    {
+        bytes.remove(0);
+    }
+
+    bytes
 }
