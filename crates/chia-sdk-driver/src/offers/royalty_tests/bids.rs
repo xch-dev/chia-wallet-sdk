@@ -320,7 +320,7 @@ fn test_smallest_trade_price_for_prepaid_royalty() -> anyhow::Result<()> {
                     u128::from(royalty)
                 );
                 assert!(
-                    amount == 0 || calculate_nft_royalty(amount - 1, basis_points) < royalty.into()
+                    amount == 0 || calculate_nft_royalty(amount - 1, basis_points) < u128::from(royalty)
                 );
             }
         }
