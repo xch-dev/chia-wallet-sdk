@@ -263,6 +263,8 @@ impl Offer {
             .collect()
     }
 
+    /// The royalty each offered NFT asserts for each trade price it revealed. Identical royalties
+    /// are only included once, since a single payment satisfies every identical assertion.
     fn committed_royalties(&self) -> IndexSet<CommittedRoyalty> {
         self.offered_coins
             .nfts

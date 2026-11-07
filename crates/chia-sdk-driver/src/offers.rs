@@ -5,9 +5,6 @@ mod offer_coins;
 mod requested_payments;
 mod royalty;
 
-#[cfg(test)]
-mod royalty_tests;
-
 pub use asset_info::*;
 pub use offer::*;
 pub use offer_amounts::*;
