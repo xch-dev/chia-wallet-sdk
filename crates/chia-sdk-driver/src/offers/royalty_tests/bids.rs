@@ -320,7 +320,8 @@ fn test_smallest_trade_price_for_prepaid_royalty() -> anyhow::Result<()> {
                     u128::from(royalty)
                 );
                 assert!(
-                    amount == 0 || calculate_nft_royalty(amount - 1, basis_points) < u128::from(royalty)
+                    amount == 0
+                        || calculate_nft_royalty(amount - 1, basis_points) < u128::from(royalty)
                 );
             }
         }
@@ -415,6 +416,51 @@ fn test_malformed_prepaid_royalties_are_ignored() -> anyhow::Result<()> {
 
     assert!(t.owns_nft(&nft, alice.puzzle_hash));
     assert_eq!(t.balance(ROYALTY_B), 1 + 30 + 30);
+
+    Ok(())
+}
+
+#[test]
+fn test_bid_for_nft_and_xch() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+
+    let nft = t.mint_nft(&bob, ROYALTY_A, 300)?;
+
+    // Alice offers 1000 for the NFT plus 100 back, prepaying the royalty on her gross 1000. The
+    // NFT has to reveal that gross trade price, not the net 900.
+    let royalty = coin_amount(calculate_nft_royalty(1000, nft.info.royalty_basis_points))?;
+    let settlement = RoyaltyInfo::new(
+        nft.info.launcher_id,
+        nft.info.royalty_puzzle_hash,
+        nft.info.royalty_basis_points,
+    )
+    .payment(&mut t.ctx, royalty)?;
+    let offer = t.bid_with_settlements_and_request(
+        &alice,
+        &nft,
+        &[(Price::Xch(1000), vec![settlement])],
+        &xch(100),
+    )?;
+    let offer = t.aggregate(&[offer])?;
+
+    assert_eq!(offer.offered_royalty_amounts()?, xch(30));
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft.info.launcher_id),
+        vec![xch_trade_price(1000)]
+    );
+
+    let coin = t.fund(&bob, 100);
+    t.take(&bob, &offer, |spends| {
+        spends.add(coin);
+        spends.add(nft);
+    })?;
+
+    assert!(t.owns_nft(&nft, alice.puzzle_hash));
+    assert_eq!(t.balance(alice.puzzle_hash), 100);
+    assert_eq!(t.balance(bob.puzzle_hash), 1000);
+    assert_eq!(t.balance(ROYALTY_A), 30);
 
     Ok(())
 }

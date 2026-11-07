@@ -200,3 +200,43 @@ fn test_aggregate_nft_sale_with_unrelated_cat_trade() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_aggregate_nft_for_nft_with_nft_sale() -> anyhow::Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+    let carol = t.pair();
+
+    let nft_a = t.mint_nft(&alice, ROYALTY_A, 300)?;
+    let nft_b = t.mint_nft(&bob, ROYALTY_B, 300)?;
+    let nft_c = t.mint_nft(&carol, ROYALTY_C, 300)?;
+
+    // Alice's NFT commits to no trade price, so only Bob's NFT is owed a royalty
+    let alice_offer = t.swap_nfts(&alice, &nft_a, &nft_c)?;
+    let bob_offer = t.sell_nfts(&bob, &[nft_b], &xch(1000))?;
+    let offer = t.aggregate(&[alice_offer, bob_offer])?;
+
+    assert_eq!(offer.requested_royalty_amounts()?, xch(30));
+    assert_eq!(offer.offered_royalty_amounts()?, OfferAmounts::new());
+    assert_eq!(
+        offer.requested_nft_trade_prices(nft_c.info.launcher_id),
+        Vec::new()
+    );
+
+    let coin = t.fund(&carol, 1030);
+    t.take(&carol, &offer, |spends| {
+        spends.add(coin);
+        spends.add(nft_c);
+    })?;
+
+    assert!(t.owns_nft(&nft_a, carol.puzzle_hash));
+    assert!(t.owns_nft(&nft_b, carol.puzzle_hash));
+    assert!(t.owns_nft(&nft_c, alice.puzzle_hash));
+    assert_eq!(t.balance(bob.puzzle_hash), 1000);
+    assert_eq!(t.balance(ROYALTY_A), 0);
+    assert_eq!(t.balance(ROYALTY_B), 30);
+    assert_eq!(t.balance(ROYALTY_C), 0);
+
+    Ok(())
+}

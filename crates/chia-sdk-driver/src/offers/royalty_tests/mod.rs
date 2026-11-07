@@ -321,6 +321,54 @@ impl Tester {
         self.finish_offer(maker, coin_spends, requested_payments, asset_info)
     }
 
+    /// Offers `offered` for `requested` with no fungible assets on either side, so neither NFT
+    /// commits to a trade price.
+    fn swap_nfts(
+        &mut self,
+        maker: &BlsPair,
+        offered: &Nft,
+        requested: &Nft,
+    ) -> anyhow::Result<SpendBundle> {
+        let nonce = Offer::nonce(vec![offered.coin.coin_id()]);
+        let hint = self.ctx.hint(maker.puzzle_hash)?;
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.nfts.insert(
+            requested.info.launcher_id,
+            vec![NotarizedPayment::new(
+                nonce,
+                vec![Payment::new(maker.puzzle_hash, 1, hint)],
+            )],
+        );
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_nft(
+            requested.info.launcher_id,
+            NftAssetInfo::new(
+                requested.info.metadata,
+                requested.info.metadata_updater_puzzle_hash,
+                requested.info.royalty_puzzle_hash,
+                requested.info.royalty_basis_points,
+            ),
+        )?;
+
+        let mut spends = Spends::new(maker.puzzle_hash);
+        spends.add(*offered);
+        spends.conditions.required = spends
+            .conditions
+            .required
+            .extend(requested_payments.assertions(&mut self.ctx, &asset_info)?);
+        let id = Id::Existing(offered.info.launcher_id);
+        let (_, coin_spends) = self.build(
+            spends,
+            &[
+                Action::update_nft(id, vec![], Some(TransferNftById::new(None, Vec::new()))),
+                Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+            ],
+            Relation::AssertConcurrent,
+            maker,
+        )?;
+        self.finish_offer(maker, coin_spends, requested_payments, asset_info)
+    }
+
     fn bid(&mut self, maker: &BlsPair, nft: &Nft, price: Price) -> anyhow::Result<SpendBundle> {
         self.bid_in_assets(maker, nft, &[price])
     }
@@ -382,6 +430,17 @@ impl Tester {
         nft: &Nft,
         prices: &[(Price, Vec<NotarizedPayment>)],
     ) -> anyhow::Result<SpendBundle> {
+        self.bid_with_settlements_and_request(maker, nft, prices, &OfferAmounts::new())
+    }
+
+    /// Bids for `nft` and also requests `requested` fungible amounts alongside it.
+    fn bid_with_settlements_and_request(
+        &mut self,
+        maker: &BlsPair,
+        nft: &Nft,
+        prices: &[(Price, Vec<NotarizedPayment>)],
+        requested: &OfferAmounts,
+    ) -> anyhow::Result<SpendBundle> {
         let launcher_id = nft.info.launcher_id;
         let mut spends = Spends::new(maker.puzzle_hash);
         let mut actions = Vec::new();
@@ -429,7 +488,8 @@ impl Tester {
 
         let nonce = Offer::nonce(coin_ids);
         let hint = self.ctx.hint(maker.puzzle_hash)?;
-        let mut requested_payments = RequestedPayments::new();
+        let (mut requested_payments, mut asset_info) =
+            self.requested_payments(maker, nonce, requested)?;
         requested_payments.nfts.insert(
             launcher_id,
             vec![NotarizedPayment::new(
@@ -438,7 +498,6 @@ impl Tester {
             )],
         );
 
-        let mut asset_info = AssetInfo::new();
         asset_info.insert_nft(
             launcher_id,
             NftAssetInfo::new(

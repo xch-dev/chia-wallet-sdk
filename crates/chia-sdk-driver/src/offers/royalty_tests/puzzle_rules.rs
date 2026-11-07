@@ -308,44 +308,7 @@ fn test_nft_for_nft_has_no_royalties() -> anyhow::Result<()> {
     let alice_nft = t.mint_nft(&alice, ROYALTY_A, 300)?;
     let bob_nft = t.mint_nft(&bob, ROYALTY_B, 500)?;
 
-    let nonce = Offer::nonce(vec![alice_nft.coin.coin_id()]);
-    let hint = t.ctx.hint(alice.puzzle_hash)?;
-    let mut requested_payments = RequestedPayments::new();
-    requested_payments.nfts.insert(
-        bob_nft.info.launcher_id,
-        vec![NotarizedPayment::new(
-            nonce,
-            vec![Payment::new(alice.puzzle_hash, 1, hint)],
-        )],
-    );
-    let mut asset_info = AssetInfo::new();
-    asset_info.insert_nft(
-        bob_nft.info.launcher_id,
-        NftAssetInfo::new(
-            bob_nft.info.metadata,
-            bob_nft.info.metadata_updater_puzzle_hash,
-            bob_nft.info.royalty_puzzle_hash,
-            bob_nft.info.royalty_basis_points,
-        ),
-    )?;
-
-    let mut spends = Spends::new(alice.puzzle_hash);
-    spends.add(alice_nft);
-    spends.conditions.required = spends
-        .conditions
-        .required
-        .extend(requested_payments.assertions(&mut t.ctx, &asset_info)?);
-    let id = Id::Existing(alice_nft.info.launcher_id);
-    let (_, coin_spends) = t.build(
-        spends,
-        &[
-            Action::update_nft(id, vec![], Some(TransferNftById::new(None, Vec::new()))),
-            Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
-        ],
-        Relation::AssertConcurrent,
-        &alice,
-    )?;
-    let offer = t.finish_offer(&alice, coin_spends, requested_payments, asset_info)?;
+    let offer = t.swap_nfts(&alice, &alice_nft, &bob_nft)?;
     let offer = t.aggregate(&[offer])?;
 
     assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
