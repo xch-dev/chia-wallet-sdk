@@ -3,11 +3,9 @@ use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
-use crate::{
-    AssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
-};
+use crate::{AssetInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoyaltyInfo {
     pub launcher_id: Bytes32,
     pub puzzle_hash: Bytes32,
@@ -77,21 +75,26 @@ pub fn calculate_trade_prices(
             continue;
         }
 
-        let info = asset_info
-            .cat(asset_id)
-            .ok_or(DriverError::MissingAssetInfo)?;
-        let puzzle_hash = CatInfo::new(
-            asset_id,
-            info.hidden_puzzle_hash,
-            SETTLEMENT_PAYMENT_HASH.into(),
-        )
-        .puzzle_hash()
-        .into();
-
-        trade_prices.push(TradePrice::new(coin_amount(amount)?, puzzle_hash));
+        trade_prices.push(TradePrice::new(
+            coin_amount(amount)?,
+            asset_info.settlement_puzzle_hash(Some(asset_id))?,
+        ));
     }
 
     Ok(trade_prices)
+}
+
+/// Returns the trade prices an NFT can reveal while still being possible to take, leaving out
+/// any whose royalty rounds down to zero.
+pub fn payable_trade_prices(
+    trade_prices: &[TradePrice],
+    royalty_basis_points: u16,
+) -> Vec<TradePrice> {
+    trade_prices
+        .iter()
+        .filter(|trade_price| calculate_nft_royalty(trade_price.amount, royalty_basis_points) > 0)
+        .copied()
+        .collect()
 }
 
 /// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in
@@ -162,60 +165,18 @@ pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u12
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
 }
 
-#[cfg(test)]
-mod tests {
-    use chia_bls::Signature;
-    use chia_protocol::SpendBundle;
-    use chia_puzzle_types::Memos;
-    use indexmap::indexmap;
-
-    use crate::{Offer, OfferCoins};
-
-    use super::*;
-
-    #[test]
-    fn test_missing_asset_info_is_an_error() {
-        let mut ctx = SpendContext::new();
-
-        let launcher_id = Bytes32::new([1; 32]);
-        let asset_id = Bytes32::new([2; 32]);
-        let notarized_payment = NotarizedPayment::new(
-            Bytes32::default(),
-            vec![Payment::new(Bytes32::default(), 1, Memos::None)],
-        );
-
-        let mut requested_payments = RequestedPayments::new();
-        requested_payments
-            .nfts
-            .insert(launcher_id, vec![notarized_payment.clone()]);
-
-        let offer = Offer::new(
-            SpendBundle::new(vec![], Signature::default()),
-            OfferCoins::new(),
-            requested_payments,
-            AssetInfo::new(),
-        );
-        assert!(matches!(
-            offer.offered_royalties(),
-            Err(DriverError::MissingAssetInfo)
-        ));
-
-        let mut requested_payments = RequestedPayments::new();
-        requested_payments
-            .cats
-            .insert(asset_id, vec![notarized_payment]);
-        assert!(matches!(
-            requested_payments.assertions(&mut ctx, &AssetInfo::new()),
-            Err(DriverError::MissingAssetInfo)
-        ));
-
-        let amounts = OfferAmounts {
-            xch: 0,
-            cats: indexmap! { asset_id => 100 },
-        };
-        assert!(matches!(
-            calculate_trade_prices(&amounts, &AssetInfo::new()),
-            Err(DriverError::MissingAssetInfo)
-        ));
+pub(crate) fn calculate_min_trade_price(royalty: u64, royalty_basis_points: u16) -> Option<u64> {
+    if royalty_basis_points == 0 {
+        return None;
     }
+
+    let trade_price =
+        u64::try_from((u128::from(royalty) * 10_000).div_ceil(u128::from(royalty_basis_points)))
+            .ok()?;
+
+    (calculate_nft_royalty(trade_price, royalty_basis_points) == u128::from(royalty))
+        .then_some(trade_price)
 }
+
+#[cfg(test)]
+mod tests;

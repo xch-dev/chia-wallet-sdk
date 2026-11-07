@@ -1,16 +1,20 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, SettlementPaymentsSolution},
+};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::{Condition, conditions::TradePrice, run_puzzle};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Layer, Nft, NftAssetInfo,
     OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
-    Spends,
+    RequestedPayments, SettlementLayer, Spends,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -20,6 +24,11 @@ pub struct OfferCoins {
     pub nfts: IndexMap<Bytes32, Nft>,
     pub options: IndexMap<Bytes32, OptionContract>,
     pub fee: u64,
+    /// The trade prices each offered NFT revealed when it was spent into settlement.
+    pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
+    /// Royalties paid up front for requested NFTs, in the only form an NFT's royalty assertion
+    /// accepts.
+    pub prepaid_royalties: RequestedPayments,
 }
 
 impl OfferCoins {
@@ -140,6 +149,9 @@ impl OfferCoins {
             }
         }
 
+        self.nft_trade_prices.extend(other.nft_trade_prices);
+        self.prepaid_royalties.extend(other.prepaid_royalties);
+
         for (launcher_id, option) in other.options {
             if self.options.insert(launcher_id, option).is_some() {
                 return Err(DriverError::ConflictingOfferInputs);
@@ -184,17 +196,24 @@ impl OfferCoins {
             }
         }
 
-        let nft = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?;
+        let nft =
+            Nft::parse_child_with_transfer(allocator, parent_coin, parent_puzzle, parent_solution)?;
 
-        if let Some(nft) = nft {
+        if let Some((nft, _)) = &nft {
             check_not_old_settlement(nft.info.p2_puzzle_hash)?;
         }
 
-        if let Some(nft) = nft
+        if let Some((nft, transfer)) = nft
             && !spent_coin_ids.contains(&nft.coin.coin_id())
             && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
             self.nfts.insert(nft.info.launcher_id, nft);
+            self.nft_trade_prices.insert(
+                nft.info.launcher_id,
+                transfer
+                    .map(|transfer| transfer.trade_prices)
+                    .unwrap_or_default(),
+            );
 
             let info = NftAssetInfo::new(
                 nft.info.metadata,
@@ -223,6 +242,20 @@ impl OfferCoins {
                 option.info.underlying_delegated_puzzle_hash,
             );
             asset_info.insert_option(option.info.launcher_id, info)?;
+        }
+
+        // Prepaid royalties are informational, so unparseable settlement solutions are ignored
+        if let Some((asset_id, settlement_solution)) =
+            settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && let Ok(solution) =
+                SettlementPaymentsSolution::from_clvm(allocator, settlement_solution)
+        {
+            self.prepaid_royalties.fungible_mut(asset_id).extend(
+                solution
+                    .notarized_payments
+                    .into_iter()
+                    .filter(|notarized_payment| is_royalty_payment(allocator, notarized_payment)),
+            );
         }
 
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
@@ -265,6 +298,37 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     }
 
     Ok(())
+}
+
+fn is_royalty_payment(allocator: &Allocator, notarized_payment: &NotarizedPayment) -> bool {
+    let [payment] = notarized_payment.payments.as_slice() else {
+        return false;
+    };
+
+    let Memos::Some(memos) = payment.memos else {
+        return false;
+    };
+
+    <(Bytes32, ())>::from_clvm(allocator, memos).is_ok_and(|(memo, ())| memo == payment.puzzle_hash)
+}
+
+fn settlement_spend(
+    allocator: &Allocator,
+    coin: Coin,
+    puzzle: Puzzle,
+    solution: NodePtr,
+) -> Result<Option<(Option<Bytes32>, NodePtr)>, DriverError> {
+    if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
+        return Ok(Some((None, solution)));
+    }
+
+    let Some(cat) = Cat::parse(allocator, coin, puzzle, solution)? else {
+        return Ok(None);
+    };
+
+    Ok(SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?
+        .is_some()
+        .then_some((Some(cat.cat.info.asset_id), cat.p2_solution)))
 }
 
 impl AddAsset for OfferCoins {
