@@ -126,6 +126,13 @@ parent's coin spend (such as [`Cat::parse_children`]) and to spend the coin with
 - A [`Vault`] is a singleton whose custody is a MIPS puzzle, made of members (such as keys) and
   restrictions (such as timelocks) combined with m-of-n logic. It's spent with a [`MipsSpend`].
 - [`Clawback`], [`ClawbackV2`], [`StreamedAsset`], and [`Bulletin`] are other kinds of coins.
+- [`SecureTheBag`] commits to many payments with a single coin, which anyone can later unroll into
+  the payments. [`SecuredMint`] uses a bag of pre-launcher coins to secure an NFT bulk mint.
+- Some primitives are behind feature flags: `Auction` is an English auction for an NFT,
+  `PartialOffer` is a CHIP-0052 offer which can be filled in parts at a fixed price, and `Fusion`
+  is a CHIP-0021 singleton which swaps the NFTs on one side for the NFTs on the other. The
+  CHIP-0008 `SplitterLayer` isn't a primitive, but it divides a coin between the recipients of a
+  fixed payout scheme.
 
 # Actions
 
@@ -155,11 +162,20 @@ that can't be verified from the revealed spends is left out.
 
 - `offer-compression`: Compressing and bech32m encoding offers, with functions such as
   `encode_offer` and `decode_offer`.
+- `chip-0008`: The `SplitterLayer` (CHIP-0008), which anyone can spend to divide a coin between
+  the recipients of a fixed payout scheme.
+- `chip-0021`: NFT fusion (CHIP-0021), with the `Fusion` primitive and the `FusionLayer` and
+  `P2FusionLayer`, which swap the NFTs on one side of a fusion for the NFTs on the other.
 - `chip-0035`: Data layer stores (CHIP-0035), with the `Datastore` primitive and the
   `DelegationLayer`, `WriterLayer`, and `OracleLayer`.
 - `chip-0037`: The `P2ControllerPuzzleLayer` and `P2Eip712MessageLayer` (CHIP-0037), which let
   coins be controlled by another coin, or by an Ethereum wallet that signs EIP-712 messages.
+- `chip-0052`: Partial offers (CHIP-0052), with `PartialOfferInfo`, `PartialOffer`, and
+  `PartialOfferBundle`. With `offer-compression`, they can also be encoded as `partial1...`
+  strings with `encode_partial_offer` and `decode_partial_offer`.
 - `action-layer`: The action layer and the apps built on it, such as the `CATalog` and `XCHandles`
   registries and the reward distributor. This also enables `chip-0035`.
+- `auction`: English auctions for NFTs, with the `Auction` primitive and
+  `Launcher::launch_auction`. This also enables `action-layer`.
 
 [`p2_delegated_puzzle_or_hidden_puzzle.clsp`]: https://github.com/Chia-Network/chia-blockchain/blob/bd022b0c9b0d3e0bc13a0efebba9f22417ca64b5/chia/wallet/puzzles/p2_delegated_puzzle_or_hidden_puzzle.clsp

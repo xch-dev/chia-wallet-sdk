@@ -10,13 +10,18 @@ use super::{BagAsset, BagCoin, BagFormat, BagPayment};
 /// A coin created by a node, which is either another node or a payment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BagChild {
+    /// Another node, which must be spent to unroll the bag further.
     Node {
+        /// The p2 puzzle hash of the node's coin.
         puzzle_hash: Bytes32,
+        /// The total amount of the payments under the node.
         amount: u64,
     },
+    /// A payment, which is the end of the bag.
     Payment {
         /// The puzzle hash of the coin created for the payment, see [`BagPayment::coin_puzzle_hash`].
         puzzle_hash: Bytes32,
+        /// The payment that the coin is created for.
         payment: BagPayment,
     },
 }
@@ -29,6 +34,7 @@ impl BagChild {
         }
     }
 
+    /// The amount of the child coin.
     pub fn amount(&self) -> u64 {
         match self {
             Self::Node { amount, .. } => *amount,
@@ -36,6 +42,7 @@ impl BagChild {
         }
     }
 
+    /// The payment, if this child is a payment rather than a node.
     pub fn payment(&self) -> Option<&BagPayment> {
         match self {
             Self::Node { .. } => None,
@@ -43,6 +50,7 @@ impl BagChild {
         }
     }
 
+    /// Whether this child is a payment that's created as a clawback coin.
     pub fn is_clawback(&self) -> bool {
         self.payment()
             .is_some_and(|payment| payment.clawback.is_some())
@@ -52,7 +60,9 @@ impl BagChild {
 /// A node in the bag, whose coin creates each of its children when spent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BagNode {
+    /// The amount of the node's coin, which is the sum of the amounts of its children.
     pub amount: u64,
+    /// The coins that the node creates when it's spent, in order.
     pub children: Vec<BagChild>,
 }
 
@@ -60,6 +70,55 @@ pub struct BagNode {
 ///
 /// A root coin with the asset's puzzle for [`SecureTheBag::root_hash`] and [`SecureTheBag::total_amount`] secures every
 /// payment, since anyone can spend the nodes down to the payments once the root is created.
+///
+/// # Example
+///
+/// This secures three XCH payments in a bag with a single coin, and then unrolls the bag to create
+/// them.
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{
+///     BagAsset, BagCoin, BagFormat, BagPayment, SecureTheBag, SpendContext, StandardLayer,
+/// };
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let alice = sim.bls(600);
+///
+/// let bag = SecureTheBag::build(
+///     BagFormat::legacy(),
+///     BagAsset::Xch,
+///     [
+///         BagPayment::new(Bytes32::new([1; 32]), 100),
+///         BagPayment::new(Bytes32::new([2; 32]), 200),
+///         BagPayment::new(Bytes32::new([3; 32]), 300),
+///     ],
+/// )?;
+///
+/// // Creating the root coin secures every payment in the bag
+/// StandardLayer::new(alice.pk).spend(
+///     &mut ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(bag.root_puzzle_hash(), bag.total_amount(), Memos::None),
+/// )?;
+///
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// // Later, anyone can unroll the bag, without a signature
+/// let root = Coin::new(alice.coin.coin_id(), bag.root_puzzle_hash(), bag.total_amount());
+/// let payments = bag.unroll(&mut ctx, BagCoin::Xch(root))?;
+///
+/// sim.spend_coins(ctx.take(), &[])?;
+///
+/// assert_eq!(payments.len(), 3);
+/// assert_eq!(sim.unspent_coins(Bytes32::new([2; 32]), false)[0].amount, 200);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct SecureTheBag {
     format: BagFormat,
@@ -178,10 +237,12 @@ impl SecureTheBag {
         })
     }
 
+    /// The format that the bag was built with.
     pub fn format(&self) -> BagFormat {
         self.format
     }
 
+    /// The asset held by the bag.
     pub fn asset(&self) -> BagAsset {
         self.asset
     }
@@ -197,6 +258,7 @@ impl SecureTheBag {
         self.asset.puzzle_hash(self.root_hash)
     }
 
+    /// The sum of the amounts of every payment, which is the amount of the root coin.
     pub fn total_amount(&self) -> u64 {
         self.total_amount
     }
@@ -217,6 +279,7 @@ impl SecureTheBag {
         &self.nodes
     }
 
+    /// The node with the given p2 puzzle hash, if it's part of the bag.
     pub fn node(&self, puzzle_hash: Bytes32) -> Option<&BagNode> {
         self.nodes.get(&puzzle_hash)
     }

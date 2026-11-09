@@ -59,33 +59,53 @@ pub enum DriverError {
     #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
     InvalidStateSchedule,
 
+    /// A splitter's payout scheme is empty, has a zero share or a duplicate puzzle hash, or its
+    /// shares add up to more than [`u64::MAX`]. This is returned by `SplitterLayer::new`, and when
+    /// parsing a splitter puzzle whose curried scheme doesn't reserialize to the same puzzle hash.
     #[error(
         "invalid splitter: must have at least one recipient, unique puzzle hashes, nonzero shares, and a total that fits in a u64"
     )]
     InvalidSplitter,
 
+    /// A fusion has a side without any NFTs, or lists the same NFT more than once. This is
+    /// returned by `FusionLayer::new`, and when parsing a fusion puzzle whose other curried
+    /// arguments aren't the standard values.
     #[error(
         "invalid fusion: each side must have at least one NFT, and an NFT can only be listed once"
     )]
     InvalidFusion,
 
+    /// A fusion is launched or parsed with an even singleton amount, which the singleton puzzle
+    /// would never allow to be spent.
     #[error("the fusion singleton has an amount of {0}, but it must be odd")]
     InvalidFusionSingletonAmount(u64),
 
+    /// When parsing the child of a fusion, the solution is too short to contain the direction of
+    /// the swap.
     #[error("the fusion solution is missing the direction of the swap")]
     InvalidFusionSolution,
 
+    /// A fusion swap would send an unlocked NFT to the fusion's p2 puzzle hash (where it would stay
+    /// locked) or to the settlement puzzle hash (where anyone could take it).
     #[error("an NFT can't be unlocked to the fusion's p2 puzzle or the settlement puzzle")]
     InvalidFusionTarget,
 
+    /// The NFTs given to a fusion don't match its sides. For example, an NFT that isn't on either
+    /// side is being locked, an NFT is missing from a swap, an offered NFT isn't in the settlement
+    /// puzzle, or an NFT being unlocked isn't locked by the fusion.
     #[error("the NFTs don't match the side of the fusion that they're being swapped for")]
     FusionNftMismatch,
 
+    /// An NFT being locked or swapped by a fusion doesn't have an amount of 1 and the default
+    /// metadata updater, which the fusion puzzle requires.
     #[error(
         "the NFT can't be used in a fusion: it must have an amount of 1 and the default metadata updater"
     )]
     UnsupportedFusionNft,
 
+    /// An offer can't be taken by `Fusion::take_offer`. For example, it doesn't offer exactly one
+    /// side and request exactly the other, requests or offers anything else, offers an NFT with an
+    /// assigned owner, or requests an NFT with a payment that the fusion puzzle doesn't make.
     #[error("the offer can't be taken by this fusion")]
     FusionOfferMismatch,
 
@@ -287,53 +307,88 @@ pub enum DriverError {
     #[error("offer uses the old settlement payments puzzle")]
     OldSettlementPayment,
 
+    /// A partial offer's minimum fill (stored as one less than the minimum) doesn't fit in a
+    /// [`u64`] when parsing its hint or a fill.
     #[error("invalid partial offer terms")]
     InvalidPartialOffer,
 
+    /// A partial offer fill is below the minimum, would release nothing, or would release more
+    /// than the offer coin has left.
     #[error(
         "partial offer fill is below the minimum, pays out nothing, or exceeds the remaining amount"
     )]
     InvalidPartialOfferFill,
 
+    /// A partial offer's persistent conditions are anything other than the optional expiration and
+    /// required fee that `PartialOfferInfo::persistent_conditions` creates.
     #[error("partial offer has unsupported persistent conditions")]
     UnsupportedPartialOfferConditions,
 
+    /// The maker's spend bundle doesn't create the partial offer coin with the expected puzzle hash
+    /// and amount, or the lineage proof of a CAT offer coin can't be found in the parent spend.
     #[error("partial offer coin is not created by the maker's spends")]
     PartialOfferNotCreated,
 
+    /// The maker's spend bundle creates more than one partial offer coin with the same terms, or the
+    /// parent of the offer coin creates another coin with the same maker and requested asset memos.
+    /// Those coins would share the payment nonce, so a single payment could fill all of them.
     #[error("partial offer coins with the same maker and requested asset can't share a parent")]
     PartialOfferSiblings,
 
+    /// The partial offer coin is created by a settlement payments coin, whose solution anyone could
+    /// change to take the funds.
     #[error("partial offer coin must not be created by a settlement payments coin")]
     UnsignedPartialOfferCreation,
 
+    /// One of an auction's fees (the buyer's premium, the commission, or the NFT royalty) is more
+    /// than `AUCTION_MAX_BPS` (100%).
     #[error("the auction's {name} of {bps} bps exceeds 10,000 bps")]
-    AuctionBpsTooHigh { name: &'static str, bps: u64 },
+    AuctionBpsTooHigh {
+        /// The name of the fee.
+        name: &'static str,
+        /// The fee, in basis points.
+        bps: u64,
+    },
 
+    /// Two of an auction's payments (the buyer's premium, the commission, and the payout) have the
+    /// same puzzle hash, so they could be identical coins and the auction couldn't be ended.
     #[error("puzzle hash {0} receives more than one payment when the auction ends")]
     DuplicateAuctionPaymentPuzzleHash(Bytes32),
 
+    /// One of an auction's payments is sent to the settlement payments puzzle hash or the auction's
+    /// lock puzzle hash, which are used by the auction itself.
     #[error("puzzle hash {0} can't receive an auction payment, since it's reserved by the auction")]
     ReservedAuctionPaymentPuzzleHash(Bytes32),
 
+    /// When parsing an auction launch, the auction reconstructed from the memo and royalty info
+    /// doesn't have the puzzle hash of the singleton that was launched.
     #[error("the launched singleton doesn't match the auction memo")]
     AuctionPuzzleHashMismatch,
 
+    /// An auction is launched or parsed with a singleton amount other than
+    /// `AUCTION_SINGLETON_AMOUNT`.
     #[error("the auction singleton has an amount of {0}, but it must be 1")]
     InvalidAuctionSingletonAmount(u64),
 
+    /// The reserve passed to `Launcher::launch_auction` isn't an empty coin locked by the auction.
     #[error("the auction reserve must be an empty coin locked by the auction")]
     InvalidAuctionReserve,
 
+    /// The NFT passed to `Launcher::launch_auction` isn't locked by the auction's lock puzzle hash.
     #[error("the NFT must be locked by the auction before it's launched")]
     AuctionNftNotLocked,
 
+    /// CAT spends were passed to `Auction::spend` for an auction whose reserve is XCH.
     #[error("CAT spends can't be included with an auction that has an XCH reserve")]
     UnexpectedAuctionCatSpends,
 
+    /// An offered NFT has a trade price whose royalty rounds down to zero, so the royalty payment
+    /// can't be made. This is returned when calculating an offer's requested royalty payments.
     #[error("nft {0} has a trade price whose royalty rounds to zero, so it can't be settled")]
     ZeroRoyaltyPayment(Bytes32),
 
+    /// A settlement puzzle hash isn't for XCH or any CAT in the [`AssetInfo`](crate::AssetInfo).
+    /// For example, an NFT trade price in an offer whose asset isn't known.
     #[error("unknown asset with settlement puzzle hash {0}")]
     UnknownSettlementAsset(Bytes32),
 
@@ -368,6 +423,9 @@ pub enum DriverError {
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
 
+    /// When clear signing, the vault receives a clawback with the receiver path, but the
+    /// transaction isn't guaranteed to only be valid after the clawback expires, so the sender
+    /// could still claw it back.
     #[error(
         "the transaction is not guaranteed to only be valid after its received clawbacks expire"
     )]
@@ -421,141 +479,215 @@ pub enum DriverError {
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
 
+    /// A vault message envelope has no messages. This is returned when building an envelope
+    /// without any messages, and when verifying a proof whose delegated spend doesn't send any.
     #[error("a vault message envelope must contain at least one message")]
     EmptyVaultMessageEnvelope,
 
+    /// A delegated spend that sends vault messages does anything other than recreate the vault,
+    /// such as creating other coins, sending other messages, or reserving a fee.
     #[error(
         "a delegated spend that signs vault messages can't contain any other conditions or messages, other than recreating the vault"
     )]
     MixedVaultMessageEnvelope,
 
+    /// An encoded vault message proof is empty, so it doesn't have a version byte.
     #[error("missing vault message proof version")]
     MissingVaultMessageProofVersion,
 
+    /// An encoded vault message proof has an unknown version byte, or uses the controlled version
+    /// without any controller spends.
     #[error("unsupported vault message proof version {0}")]
     UnsupportedVaultMessageProofVersion(u8),
 
+    /// The coin of a vault spend in a vault message proof doesn't have the singleton puzzle hash
+    /// for the expected launcher id and custody hash, or its puzzle reveal doesn't hash to the
+    /// coin's puzzle hash.
     #[error("the vault message proof is for a coin that isn't the expected vault")]
     WrongVaultPuzzleHash,
 
+    /// A vault spend in a vault message proof isn't a singleton whose inner puzzle is a top-level
+    /// MIPS puzzle.
     #[error("the vault message proof is for a vault whose custody isn't a top-level MIPS puzzle")]
     UnsupportedVaultCustody,
 
+    /// A vault that signs messages, or that authorizes another vault to, isn't recreated with the
+    /// same custody hash and amount.
     #[error(
         "a vault that signs messages, or authorizes another vault to, must be recreated with the same custody hash and amount"
     )]
     VaultMessageEnvelopeChangesVault,
 
+    /// A vault message proof's spends assert a height or time, which can't be checked without the
+    /// chain.
     #[error(
         "the vault message proof asserts a height or time, which can't be checked without the chain"
     )]
     VaultMessageTimelocked,
 
+    /// A message in a vault message envelope is longer than [`VAULT_MESSAGE_MAX_LENGTH`](crate::VAULT_MESSAGE_MAX_LENGTH) bytes.
     #[error("a vault message can be at most 1024 bytes")]
     VaultMessageTooLong,
 
+    /// A vault message proof is larger than can be decoded, or the cost of the bytes of its spends
+    /// alone exceeds the maximum cost of verifying it.
     #[error("the vault message proof is too large for the maximum cost")]
     VaultMessageProofTooLarge,
 
+    /// A vault message proof has more than
+    /// [`VAULT_MESSAGE_PROOF_MAX_WRAPPERS`](crate::VAULT_MESSAGE_PROOF_MAX_WRAPPERS) delegated
+    /// puzzle wrappers around the delegated spend.
     #[error("the vault message proof has too many delegated puzzle wrappers")]
     TooManyDelegatedPuzzleWrappers,
 
+    /// A vault message proof has a delegated puzzle wrapper that forces a coin message, which the
+    /// messages in the envelope would satisfy.
     #[error(
         "the vault message proof has a delegated puzzle wrapper that can't be used to sign messages"
     )]
     UnsupportedDelegatedPuzzleWrapper,
 
+    /// The aggregated signature of a vault message proof isn't valid for its `AGG_SIG_*`
+    /// conditions.
     #[error("the vault message proof's aggregated signature is invalid")]
     InvalidVaultMessageSignature,
 
+    /// When clear signing, a revealed controlled vault's coin doesn't have the singleton puzzle
+    /// hash for its launcher id and custody hash.
     #[error(
         "a controlled vault's coin doesn't have the singleton puzzle hash for its launcher id and custody hash"
     )]
     WrongControlledVaultPuzzleHash,
 
+    /// When clear signing, the message that a controller sends to a controlled vault isn't the
+    /// delegated puzzle hash that the controlled vault was revealed with.
     #[error(
         "the message sent to a controlled vault doesn't match the delegated puzzle hash it was revealed with"
     )]
     WrongControlledVaultMessage,
 
+    /// When clear signing, the same vault is reached more than once in an authorization path, or
+    /// more than one revealed controlled vault has the same puzzle hash.
     #[error("a controlled vault is authorized more than once in the same transaction")]
     DuplicateControlledVault,
 
+    /// When clear signing, the chain of vaults that authorize each other's spends is longer than
+    /// [`MAX_CONTROLLED_VAULT_DEPTH`](crate::MAX_CONTROLLED_VAULT_DEPTH).
     #[error("controlled vaults are nested too deeply")]
     ControlledVaultTooDeep,
 
+    /// When clear signing, the revealed coin of the signing vault doesn't have the singleton puzzle
+    /// hash for its launcher id and custody hash.
     #[error(
         "the coin of the vault being signed for doesn't have the singleton puzzle hash for its launcher id and custody hash"
     )]
     WrongSigningVaultPuzzleHash,
 
+    /// When clear signing, a vault's coin or recreated child doesn't have an amount of 1, which
+    /// every vault must have.
     #[error("a vault must be recreated with an amount of 1")]
     InvalidVaultAmount,
 
+    /// When clear signing, the coin spend of a controlled vault isn't a singleton whose inner
+    /// puzzle is a top-level MIPS puzzle.
     #[error(
         "the puzzle of a controlled vault must be a singleton whose inner puzzle is a top-level MIPS puzzle"
     )]
     InvalidControlledVaultPuzzle,
 
+    /// A vault controller envelope isn't exactly the recreation of the controller, one message to
+    /// a vault it controls, and the same message to the controller message coin. This is also
+    /// returned if the controlled vault isn't part of the proof, or when clear signing a vault
+    /// that signs messages with an authorization path that isn't made of controller envelopes.
     #[error(
         "a vault controller's delegated spend can only recreate the controller, send one message to the vault it controls, and send the same message to the controller message coin"
     )]
     InvalidVaultControllerEnvelope,
 
+    /// When clear signing, a vault that authorizes another vault's spend does anything other than
+    /// recreate itself and send that vault one message.
     #[error(
         "a vault that authorizes another vault's spend can only recreate itself and send that vault one message"
     )]
     InvalidVaultControllerSpend,
 
+    /// When clear signing, a controlled vault that authorizes another vault's spend isn't recreated
+    /// with the same custody hash and amount.
     #[error(
         "a controlled vault that authorizes another vault's spend must be recreated with the same custody hash and amount"
     )]
     VaultControllerChangesVault,
 
+    /// A vault message proof has a spend of a vault controller whose launcher id isn't one of the
+    /// given controllers, so its custody hash isn't known.
     #[error(
         "the vault message proof has a spend of vault controller {0}, whose custody hash wasn't given"
     )]
     UnknownVaultController(Bytes32),
 
+    /// A vault message proof has more than
+    /// [`VAULT_MESSAGE_PROOF_MAX_CONTROLLERS`](crate::VAULT_MESSAGE_PROOF_MAX_CONTROLLERS)
+    /// controller spends.
     #[error("the vault message proof has too many vault controller spends")]
     TooManyVaultControllers,
 
+    /// A vault message proof spends the same vault more than once.
     #[error("the vault message proof spends the same vault more than once")]
     DuplicateVaultControllerSpend,
 
+    /// Running the spends of a vault message proof with the consensus rules failed.
     #[error("consensus validation failed: {0}")]
     Validation(#[from] chia_consensus::validation_error::ValidationErr),
 
+    /// A Secure the Bag bag was built without any payments.
     #[error("a bag must contain at least one payment")]
     EmptyBag,
 
+    /// Two payments in a bag would create a coin with the same puzzle hash.
     #[error("the bag already has a payment that creates a coin with puzzle hash {0}")]
     DuplicateBagPayment(Bytes32),
 
+    /// A bag payment's clawback has a different receiver puzzle hash or amount than the payment.
     #[error("a bag payment's clawback must have the same receiver and amount as the payment")]
     BagClawbackMismatch,
 
+    /// A bag's width is zero, or it's one and there's more than one payment, so the bag would
+    /// never reach a single root.
     #[error("invalid bag width {width} for {payments} payments")]
-    InvalidBagWidth { width: usize, payments: usize },
+    InvalidBagWidth {
+        /// The maximum number of children of each node.
+        width: usize,
+        /// The number of payments in the bag.
+        payments: usize,
+    },
 
+    /// A coin with the given p2 puzzle hash isn't a node or payment of the bag.
     #[error("puzzle hash {0} is not part of this bag")]
     UnknownBagNode(Bytes32),
 
+    /// The coin that a path through a bag starts from isn't on the path to the coin with the given
+    /// p2 puzzle hash.
     #[error("the coin isn't on the path to {0} in this bag")]
     NotBagAncestor(Bytes32),
 
+    /// A coin in a bag doesn't have the amount that the bag expects for it.
     #[error("the coin's amount doesn't match the bag")]
     BagAmountMismatch,
 
+    /// A payment in a bag has the same puzzle hash as one of the bag's nodes, which would make the
+    /// bag ambiguous.
     #[error("a payment has the same puzzle hash as node {0} of the bag")]
     BagNodeCollision(Bytes32),
 
+    /// The coin passed to a secured mint doesn't have the mint's pre-launcher puzzle hash.
     #[error("the coin isn't the pre-launcher of this secured mint")]
     NotPreLauncher,
 
+    /// A secured mint's pre-launcher coin doesn't have an amount of 1.
     #[error("a pre-launcher must have an amount of 1, but it has {0}")]
     InvalidPreLauncherAmount(u64),
 
+    /// A secured mint without a melt public key can't melt its pre-launcher coin.
     #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
     NoMeltPublicKey,
 }

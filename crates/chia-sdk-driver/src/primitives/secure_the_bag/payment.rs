@@ -8,6 +8,7 @@ use crate::ClawbackV2;
 pub struct BagPayment {
     /// The puzzle hash of the recipient. For a clawback payment, this is the receiver puzzle hash.
     pub puzzle_hash: Bytes32,
+    /// The amount of the payment.
     pub amount: u64,
     /// If set, the payment is created as a clawback coin instead of being sent to the recipient directly.
     /// Its receiver puzzle hash and amount must match the payment.
@@ -15,6 +16,7 @@ pub struct BagPayment {
 }
 
 impl BagPayment {
+    /// Creates a payment of `amount` that is sent to `puzzle_hash` directly.
     pub fn new(puzzle_hash: Bytes32, amount: u64) -> Self {
         Self {
             puzzle_hash,
@@ -23,6 +25,8 @@ impl BagPayment {
         }
     }
 
+    /// Creates a payment that is sent to the clawback coin, with the clawback's receiver puzzle
+    /// hash and amount.
     pub fn from_clawback(clawback: ClawbackV2) -> Self {
         Self {
             puzzle_hash: clawback.receiver_puzzle_hash,

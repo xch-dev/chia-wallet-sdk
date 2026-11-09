@@ -5,12 +5,18 @@ use crate::{Cat, CatInfo};
 /// The asset held by a bag, which determines the outer puzzle that wraps each node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BagAsset {
+    /// The native XCH asset, so nodes aren't wrapped in an outer puzzle.
     Xch,
+    /// A CAT, so each node is wrapped in the CAT layer.
     Cat {
+        /// The asset id (TAIL hash) of the CAT.
         asset_id: Bytes32,
     },
+    /// A revocable CAT, so each node is wrapped in the revocation layer and the CAT layer.
     RevocableCat {
+        /// The asset id (TAIL hash) of the CAT.
         asset_id: Bytes32,
+        /// The hidden puzzle hash of the revocation layer.
         hidden_puzzle_hash: Bytes32,
     },
 }
@@ -44,11 +50,14 @@ impl BagAsset {
 /// A coin in a bag, either a node that can be spent to unroll the bag further or a payment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BagCoin {
+    /// A coin in a bag of XCH.
     Xch(Coin),
+    /// A coin in a bag of CATs (which may be revocable).
     Cat(Cat),
 }
 
 impl BagCoin {
+    /// The underlying coin.
     pub fn coin(&self) -> Coin {
         match self {
             Self::Xch(coin) => *coin,

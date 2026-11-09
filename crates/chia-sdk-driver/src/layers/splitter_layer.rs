@@ -14,7 +14,9 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 /// The amount a recipient receives when a [`SplitterLayer`] coin is spent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SplitterPayout {
+    /// The puzzle hash of the recipient, which the payout coin is created with and hinted to.
     pub puzzle_hash: Bytes32,
+    /// The amount of the payout coin.
     pub amount: u64,
 }
 
@@ -24,6 +26,56 @@ pub struct SplitterPayout {
 ///
 /// The puzzle reissues the full amount of the coin, so any fee must come from another coin. That
 /// spend can be tied to this one by asserting [`SplitterLayer::announcement_id`].
+///
+/// # Example
+///
+/// This sends 1,000 mojos to a splitter that pays 80% to one recipient and 20% to another, and
+/// then splits the coin.
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_sdk_driver::{SpendContext, SplitterLayer, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{Conditions, puzzles::SplitterShare};
+/// use clvm_utils::ToTreeHash;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let alice = sim.bls(1_000);
+///
+/// let first = Bytes32::new([1; 32]);
+/// let second = Bytes32::new([2; 32]);
+///
+/// let splitter = SplitterLayer::new(vec![
+///     SplitterShare::new(first, 80),
+///     SplitterShare::new(second, 20),
+/// ])?;
+///
+/// let puzzle_hash: Bytes32 = splitter.tree_hash().into();
+/// let memos = ctx.hint(puzzle_hash)?;
+///
+/// StandardLayer::new(alice.pk).spend(
+///     &mut ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(puzzle_hash, 1_000, memos),
+/// )?;
+///
+/// // Anyone can split the coin, without a signature
+/// let coin = Coin::new(alice.coin.coin_id(), puzzle_hash, 1_000);
+/// let spend = splitter.inner_spend(&mut ctx, coin.amount)?;
+/// ctx.spend(coin, spend)?;
+///
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// for payout in splitter.payouts(coin.amount) {
+///     let payout_coin = Coin::new(coin.coin_id(), payout.puzzle_hash, payout.amount);
+///     assert!(sim.coin_state(payout_coin.coin_id()).is_some());
+/// }
+///
+/// assert_eq!(sim.unspent_coins(first, false)[0].amount, 800);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
 pub struct SplitterLayer {
@@ -64,10 +116,12 @@ impl SplitterLayer {
         })
     }
 
+    /// The recipients of the payout scheme and their shares, in the order they're curried in.
     pub fn shares(&self) -> &[SplitterShare] {
         &self.shares
     }
 
+    /// The sum of every recipient's share, which is passed in the solution when the coin is split.
     pub fn total_shares(&self) -> u64 {
         self.total_shares
     }

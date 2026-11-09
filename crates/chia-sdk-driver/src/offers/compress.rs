@@ -62,11 +62,33 @@ pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
 #[cfg(feature = "chip-0052")]
 /// Encodes a partial offer (CHIP-0052), which is compressed like an offer but has a different
 /// prefix. See [`PartialOfferBundle`](crate::PartialOfferBundle).
+///
+/// The spend bundle is usually created with
+/// [`PartialOfferBundle::to_spend_bundle`](crate::PartialOfferBundle::to_spend_bundle).
+///
+/// # Example
+///
+/// ```
+/// use chia_bls::Signature;
+/// use chia_protocol::SpendBundle;
+/// use chia_sdk_driver::{decode_partial_offer, encode_partial_offer};
+///
+/// let spend_bundle = SpendBundle::new(Vec::new(), Signature::default());
+///
+/// let partial_offer = encode_partial_offer(&spend_bundle)?;
+/// assert!(partial_offer.starts_with("partial1"));
+/// assert_eq!(decode_partial_offer(&partial_offer)?, spend_bundle);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn encode_partial_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
     Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "partial".to_string()).encode()?)
 }
 
 #[cfg(feature = "chip-0052")]
+/// Decodes a partial offer string created by [`encode_partial_offer`] into its spend bundle.
+///
+/// The spend bundle is untrusted, so parse it with
+/// [`PartialOfferBundle::from_spend_bundle`](crate::PartialOfferBundle::from_spend_bundle).
 pub fn decode_partial_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("partial")?)
 }

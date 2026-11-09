@@ -16,12 +16,16 @@ use crate::{DriverError, SpendContext};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct AuctionSettings {
+    /// Determines which bids are accepted.
     pub bid_verifier: AuctionBidVerifier,
+    /// When the auction ends, and its grace period for late bids.
     pub timings: AuctionTimings,
+    /// The buyer's premium, the commission, and the payout puzzle hash.
     pub payments: AuctionPayments,
 }
 
 impl AuctionSettings {
+    /// Creates a new [`AuctionSettings`] with the given settings.
     pub fn new(
         bid_verifier: AuctionBidVerifier,
         timings: AuctionTimings,
@@ -45,24 +49,30 @@ impl AuctionSettings {
 pub enum AuctionBidVerifier {
     /// Each bid must be at least `bid_increment` more than the previous one.
     Flat {
+        /// The minimum amount of the first bid.
         minimum_bid: NonZeroU64,
+        /// The minimum amount by which each bid must exceed the previous one.
         bid_increment: NonZeroU64,
     },
     /// Each bid must be at least `bid_increment_bps` basis points (rounded down) more than the
     /// previous one.
     Percent {
+        /// The minimum amount of the first bid.
         minimum_bid: NonZeroU64,
+        /// The minimum percentage (in basis points) by which each bid must exceed the previous one.
         bid_increment_bps: NonZeroU64,
     },
 }
 
 impl AuctionBidVerifier {
+    /// The minimum amount of the first bid.
     pub fn minimum_bid(&self) -> NonZeroU64 {
         match *self {
             Self::Flat { minimum_bid, .. } | Self::Percent { minimum_bid, .. } => minimum_bid,
         }
     }
 
+    /// The puzzle hash of the curried bid verifier puzzle, which is curried into the bid action.
     pub fn curry_tree_hash(&self) -> TreeHash {
         match *self {
             Self::Flat {
@@ -78,6 +88,8 @@ impl AuctionBidVerifier {
         }
     }
 
+    /// Allocates the curried bid verifier puzzle, whose hash is
+    /// [`AuctionBidVerifier::curry_tree_hash`].
     pub fn get_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         match *self {
             Self::Flat {

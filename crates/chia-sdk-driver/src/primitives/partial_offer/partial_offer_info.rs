@@ -24,9 +24,13 @@ use crate::{CatMaker, DriverError, SpendContext};
 /// by CHIP-0052.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PartialOfferAsset {
+    /// The native XCH asset.
     Xch,
+    /// A CAT, which is revocable if it has a hidden puzzle hash.
     Cat {
+        /// The asset id (TAIL hash) of the CAT.
         asset_id: Bytes32,
+        /// The hidden puzzle hash of the CAT, if it's revocable.
         hidden_puzzle_hash: Option<Bytes32>,
     },
 }
@@ -113,10 +117,14 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for PartialOfferAsset {
 /// asset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartialOfferInfo {
+    /// The asset that is locked in the offer coin, which is released to takers.
     pub offered_asset: PartialOfferAsset,
+    /// The asset that takers pay to the maker.
     pub requested_asset: PartialOfferAsset,
     /// The puzzle hash that receives the requested asset, and that can claw back the offer.
     pub maker_puzzle_hash: Bytes32,
+    /// The fixed price of the offer, which determines how much of the offered asset is released
+    /// for each amount of the requested asset that is paid.
     pub price: PartialOfferPrice,
     /// The minimum amount of the requested asset that each fill must pay.
     pub min_requested_amount: NonZeroU64,
@@ -128,6 +136,8 @@ pub struct PartialOfferInfo {
 }
 
 impl PartialOfferInfo {
+    /// Creates a partial offer with the given price, without a minimum fill (other than 1),
+    /// expiration, or required fee. These can be added with the `with_*` methods.
     pub fn new(
         offered_asset: PartialOfferAsset,
         requested_asset: PartialOfferAsset,
@@ -167,18 +177,21 @@ impl PartialOfferInfo {
         )
     }
 
+    /// Sets the minimum amount of the requested asset that each fill must pay.
     #[must_use]
     pub fn with_min_requested_amount(mut self, min_requested_amount: NonZeroU64) -> Self {
         self.min_requested_amount = min_requested_amount;
         self
     }
 
+    /// Sets the timestamp (in seconds) at which the offer can no longer be filled.
     #[must_use]
     pub fn with_expiration(mut self, expiration: u64) -> Self {
         self.expiration = Some(expiration);
         self
     }
 
+    /// Sets the minimum blockchain fee that each fill must pay.
     #[must_use]
     pub fn with_required_fee(mut self, required_fee: u64) -> Self {
         self.required_fee = Some(required_fee);
@@ -238,6 +251,7 @@ impl PartialOfferInfo {
         .curry_tree_hash()
     }
 
+    /// Allocates the partial offer puzzle, whose hash is [`PartialOfferInfo::partial_puzzle_hash`].
     pub fn construct_partial_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let cat_maker = self.offered_asset.cat_maker().get_puzzle(ctx)?;
 
@@ -308,6 +322,8 @@ impl PartialOfferInfo {
         <(Bytes32, PartialOfferAsset)>::from_clvm(allocator, memos).ok()
     }
 
+    /// Allocates the [`PartialOfferHint`] that describes the offer coin in an encoded partial offer,
+    /// along with the lineage proof of the coin (if the offered asset is a CAT).
     pub fn alloc_hint(
         &self,
         ctx: &mut SpendContext,
@@ -354,13 +370,19 @@ impl PartialOfferInfo {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct PartialOfferHint<I> {
+    /// The lineage proof of the offer coin, if the offered asset is a CAT.
     pub lineage_proof: Option<LineageProof>,
+    /// The asset that is locked in the offer coin.
     pub offered_asset: PartialOfferAsset,
+    /// The asset that takers pay to the maker.
     pub requested_asset: PartialOfferAsset,
+    /// The fixed price of the offer.
     pub price: PartialOfferPrice,
+    /// The puzzle hash that receives the requested asset, and that can claw back the offer.
     pub maker_puzzle_hash: Bytes32,
     /// The quoted persistent conditions.
     pub inner_puzzle: I,
+    /// One less than the minimum amount of the requested asset that each fill must pay.
     pub min_other_asset_amount_minus_one: u64,
 }
 

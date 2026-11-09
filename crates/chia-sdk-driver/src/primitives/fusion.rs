@@ -35,6 +35,104 @@ mod tests;
 /// The singleton has no state of its own. It's deployed with [`Launcher::launch_fusion`], and then
 /// side A is locked with [`Fusion::lock_nft`]. Anyone holding the NFTs on the other side can then
 /// swap them for the locked ones with an offer, which is taken with [`Fusion::take_offer`].
+///
+/// # Example
+///
+/// This launches a fusion that swaps one NFT for another, and swaps them by taking the user's
+/// offer.
+///
+/// ```
+/// use chia_bls::Signature;
+/// use chia_protocol::SpendBundle;
+/// use chia_puzzle_types::offer::{NotarizedPayment, Payment};
+/// use chia_sdk_driver::{
+///     AssetInfo, HashedPtr, Launcher, NftAssetInfo, NftMint, Offer, RequestedPayments,
+///     SpendContext, StandardLayer,
+/// };
+/// use chia_sdk_test::{Simulator, sign_transaction};
+/// use chia_sdk_types::Conditions;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let house = sim.bls(1);
+/// let user = sim.bls(1);
+/// let house_p2 = StandardLayer::new(house.pk);
+/// let user_p2 = StandardLayer::new(user.pk);
+///
+/// // The house mints the NFT on side A, and the user mints the NFT on side B
+/// let mint = NftMint::new(HashedPtr::NIL, house.puzzle_hash, 0, None);
+/// let (mint_a, nft_a) = Launcher::new(house.coin.coin_id(), 1).mint_nft(&mut ctx, &mint)?;
+/// house_p2.spend(&mut ctx, house.coin, mint_a)?;
+///
+/// let mint = NftMint::new(HashedPtr::NIL, user.puzzle_hash, 0, None);
+/// let (mint_b, nft_b) = Launcher::new(user.coin.coin_id(), 1).mint_nft(&mut ctx, &mint)?;
+/// user_p2.spend(&mut ctx, user.coin, mint_b)?;
+///
+/// sim.spend_coins(ctx.take(), &[house.sk.clone(), user.sk.clone()])?;
+///
+/// // The house launches the fusion, and locks side A with it
+/// let coin = sim.new_coin(house.puzzle_hash, 1);
+///
+/// let (launch_fusion, fusion) = Launcher::for_fusion(&mut ctx, coin.coin_id())?.launch_fusion(
+///     &mut ctx,
+///     vec![nft_a.info.launcher_id],
+///     vec![nft_b.info.launcher_id],
+/// )?;
+///
+/// house_p2.spend(&mut ctx, coin, launch_fusion)?;
+/// let nft_a = fusion.lock_nft(&mut ctx, nft_a, &house_p2, Conditions::new())?;
+///
+/// sim.spend_coins(ctx.take(), &[house.sk])?;
+///
+/// // The user offers side B, and requests side A
+/// let nonce = Offer::nonce(vec![nft_b.coin.coin_id()]);
+/// let hint = ctx.hint(user.puzzle_hash)?;
+///
+/// let mut requested_payments = RequestedPayments::new();
+/// requested_payments.nfts.insert(
+///     nft_a.info.launcher_id,
+///     vec![NotarizedPayment::new(nonce, vec![Payment::new(user.puzzle_hash, 1, hint)])],
+/// );
+///
+/// let mut asset_info = AssetInfo::new();
+/// asset_info.insert_nft(
+///     nft_a.info.launcher_id,
+///     NftAssetInfo::new(
+///         nft_a.info.metadata,
+///         nft_a.info.metadata_updater_puzzle_hash,
+///         nft_a.info.royalty_puzzle_hash,
+///         nft_a.info.royalty_basis_points,
+///     ),
+/// )?;
+///
+/// let assertions = requested_payments.assertions(&mut ctx, &asset_info)?;
+/// let _ = nft_b.lock_settlement(
+///     &mut ctx,
+///     &user_p2,
+///     Vec::new(),
+///     Conditions::new().extend(assertions),
+/// )?;
+///
+/// let coin_spends = ctx.take();
+/// let signature = sign_transaction(&coin_spends, &[user.sk])?;
+///
+/// let offer = Offer::from_input_spend_bundle(
+///     &mut ctx,
+///     SpendBundle::new(coin_spends, signature),
+///     requested_payments,
+///     asset_info,
+/// )?;
+///
+/// // Anyone can take the offer with the fusion, which doesn't need a signature
+/// let swap = fusion.take_offer(&mut ctx, &offer, &[nft_a])?;
+///
+/// sim.new_transaction(offer.take(SpendBundle::new(ctx.take(), Signature::default())))?;
+///
+/// assert_eq!(swap.unlocked[0].info.p2_puzzle_hash, user.puzzle_hash);
+/// assert_eq!(swap.locked[0].info.launcher_id, nft_b.info.launcher_id);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type Fusion = Singleton<FusionLayer>;
 
 /// The odd amount of a fusion singleton.
@@ -60,10 +158,13 @@ pub enum FusionDirection {
 }
 
 impl FusionDirection {
+    /// The direction for the `unlock_a` flag of the fusion singleton's solution, which is
+    /// [`Fuse`](Self::Fuse) if it's true.
     pub fn from_unlock_a(unlock_a: bool) -> Self {
         if unlock_a { Self::Fuse } else { Self::Defuse }
     }
 
+    /// The `unlock_a` flag of the fusion singleton's solution, which is true when fusing.
     pub fn unlock_a(self) -> bool {
         matches!(self, Self::Fuse)
     }
@@ -72,11 +173,14 @@ impl FusionDirection {
 /// A locked NFT to release from the fusion, and the p2 puzzle hash that it's sent to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FusionUnlock {
+    /// The NFT that is locked by the fusion.
     pub nft: Nft,
+    /// The p2 puzzle hash that the NFT is sent to when it's released.
     pub p2_puzzle_hash: Bytes32,
 }
 
 impl FusionUnlock {
+    /// Creates a new [`FusionUnlock`] that releases `nft` to `p2_puzzle_hash`.
     pub fn new(nft: Nft, p2_puzzle_hash: Bytes32) -> Self {
         Self {
             nft,

@@ -7,11 +7,14 @@ use crate::{Cat, CatInfo};
 /// or in a CAT (which may be revocable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuctionReserve {
+    /// A reserve of XCH, whose puzzle hash is the auction's lock puzzle hash.
     Xch(Coin),
+    /// A reserve of a CAT, whose p2 puzzle hash is the auction's lock puzzle hash.
     Cat(Cat),
 }
 
 impl AuctionReserve {
+    /// The reserve coin.
     pub fn coin(&self) -> Coin {
         match self {
             Self::Xch(coin) => *coin,

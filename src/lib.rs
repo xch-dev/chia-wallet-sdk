@@ -60,13 +60,22 @@
 //! * `native-tls`: Enables connecting to peers, full node RPC servers, and the daemon using the
 //!   platform's TLS library.
 //! * `rustls`: The same as `native-tls`, but uses `rustls` instead.
+//! * `chip-0008`: Enables the `SplitterLayer` from CHIP-0008, which divides a coin between the
+//!   recipients of a fixed payout scheme.
+//! * `chip-0021`: Enables NFT fusion from CHIP-0021, with the `Fusion` primitive, which swaps the
+//!   NFTs on one side for the NFTs on the other.
 //! * `chip-0035`: Enables the data layer store primitives from CHIP-0035, such as `Datastore`.
 //! * `chip-0037`: Enables the `P2ControllerPuzzleLayer` and `P2Eip712MessageLayer` puzzle layers
 //!   from CHIP-0037.
+//! * `chip-0052`: Enables partial offers from CHIP-0052, such as `PartialOfferBundle`, which can
+//!   be filled in parts at a fixed price.
 //! * `action-layer`: Enables the action layer and the primitives built on it, such as
 //!   `RewardDistributor` and `CatalogRegistry`. This also enables `chip-0035`.
+//! * `auction`: Enables English auctions for NFTs, with the `Auction` primitive. This also enables
+//!   `action-layer`.
 //! * `offer-compression`: Enables compressing and encoding offers as `offer1...` strings, with
-//!   functions such as `encode_offer` and `decode_offer`.
+//!   functions such as `encode_offer` and `decode_offer`. With `chip-0052`, this also encodes
+//!   partial offers as `partial1...` strings.
 //! * `peer-simulator`: Enables `PeerSimulator`, a local full node that a [`Peer`](client::Peer)
 //!   can connect to in tests.
 //!

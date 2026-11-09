@@ -20,11 +20,57 @@ use crate::{
 /// The pre-launcher puzzle commits to the NFT's metadata, royalty and owner, so a bag of pre-launcher coins secures
 /// every mint in it. Each pre-launcher creates a singleton launcher, which creates an eve NFT that sends itself to
 /// [`SecuredMint::p2_puzzle_hash`].
+///
+/// # Example
+///
+/// This creates a pre-launcher coin, and mints the NFT from it.
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_puzzle_types::Memos;
+/// use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
+/// use chia_sdk_driver::{HashedPtr, SecuredMint, SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let alice = sim.bls(1);
+///
+/// let mint = SecuredMint::new(
+///     HashedPtr::NIL,
+///     NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+///     alice.puzzle_hash,
+///     300,
+///     alice.puzzle_hash,
+/// );
+///
+/// // The pre-launcher is usually created by unrolling a bag of mint payments
+/// StandardLayer::new(alice.pk).spend(
+///     &mut ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(mint.pre_launcher_puzzle_hash(), 1, Memos::None),
+/// )?;
+///
+/// let pre_launcher = Coin::new(alice.coin.coin_id(), mint.pre_launcher_puzzle_hash(), 1);
+/// let output = mint.mint(&mut ctx, pre_launcher)?;
+///
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// assert_eq!(output.nft.info.p2_puzzle_hash, alice.puzzle_hash);
+/// assert!(sim.coin_state(output.nft.coin.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecuredMint {
+    /// The metadata of the NFT.
     pub metadata: HashedPtr,
+    /// The puzzle hash of the NFT's metadata updater.
     pub metadata_updater_puzzle_hash: Bytes32,
+    /// The puzzle hash that receives the NFT's royalties.
     pub royalty_puzzle_hash: Bytes32,
+    /// The royalty percentage of the NFT, in basis points.
     pub royalty_basis_points: u16,
     /// The puzzle hash that the minted NFT is sent to.
     pub p2_puzzle_hash: Bytes32,
@@ -35,13 +81,18 @@ pub struct SecuredMint {
 /// The coins of a secured mint, from the pre-launcher down to the minted NFT.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecuredMintOutput {
+    /// The one mojo pre-launcher coin, which commits to the mint.
     pub pre_launcher: Coin,
+    /// The singleton launcher coin created by the pre-launcher.
     pub launcher: Coin,
+    /// The eve NFT created by the launcher, which sends itself to the owner.
     pub eve_nft: Nft,
+    /// The minted NFT, owned by [`SecuredMint::p2_puzzle_hash`].
     pub nft: Nft,
 }
 
 impl SecuredMint {
+    /// Creates a new [`SecuredMint`] without a melt public key.
     pub fn new(
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
@@ -59,12 +110,14 @@ impl SecuredMint {
         }
     }
 
+    /// Sets the key that can melt the pre-launcher coin instead of minting.
     #[must_use]
     pub fn with_melt_public_key(mut self, melt_public_key: PublicKey) -> Self {
         self.melt_public_key = Some(melt_public_key);
         self
     }
 
+    /// The curried arguments of the pre-launcher puzzle.
     pub fn pre_launcher_args(&self) -> SecureTheMintLauncherArgs {
         self.pre_launcher_args_with(self.eve_p2_puzzle_hash())
     }
@@ -80,6 +133,7 @@ impl SecuredMint {
         )
     }
 
+    /// The puzzle hash of the pre-launcher coin.
     pub fn pre_launcher_puzzle_hash(&self) -> Bytes32 {
         self.pre_launcher_args().curry_tree_hash().into()
     }
