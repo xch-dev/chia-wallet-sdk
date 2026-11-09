@@ -11,6 +11,11 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor unlock puzzle for staked NFTs, compiled from Rue.
+///
+/// For each NFT, spends its deposit slot and approves a delegated puzzle that sends the
+/// NFT back to the custody puzzle hash, which must request the unstake with a message of
+/// `"u"` followed by the NFT's launcher id. Returns the total shares removed.
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 837] = hex!(
     // Rue
     "
@@ -44,24 +49,35 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 837] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     3baf9c5ee72391dda01d40243db292668665a93e5ad5a6433c45bfda6646aed2
     "
 ));
 
+/// Curried arguments of [`REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorNftsUnlockingPuzzleArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Puzzle hash of the singleton launcher.
     pub singleton_launcher_hash: Bytes32,
+    /// Mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// Mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for deposit slots
+    /// ([`RewardDistributorSlotNonce::DEPOSIT`](crate::puzzles::RewardDistributorSlotNonce::DEPOSIT)).
     pub deposit_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that holds staked assets: [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs)
+    /// for the reward distributor singleton, with nonce 1.
     pub my_p2_puzzle_hash: Bytes32,
 }
 
 impl RewardDistributorNftsUnlockingPuzzleArgs {
+    /// Creates the arguments with the standard singleton and NFT mod hashes.
     pub fn new(my_p2_puzzle_hash: Bytes32, deposit_slot_1st_curry_hash: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -74,19 +90,29 @@ impl RewardDistributorNftsUnlockingPuzzleArgs {
     }
 }
 
+/// Information about a staked NFT to unlock.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct NftToUnlockInfo {
+    /// Launcher id of the NFT.
     pub nft_launcher_id: Bytes32,
+    /// Parent coin id of the locked NFT coin.
     pub nft_parent_id: Bytes32,
+    /// Tree hash of the NFT's metadata.
     pub nft_metadata_hash: Bytes32,
+    /// Tree hash of the NFT's metadata updater puzzle hash.
     pub nft_metadata_updater_hash_hash: Bytes32,
+    /// Current owner (DID launcher id) of the NFT, if any.
     pub nft_owner: Option<Bytes32>,
+    /// Puzzle hash of the NFT's royalty transfer program.
     pub nft_transfer_porgram_hash: Bytes32,
+    /// Shares recorded in the NFT's deposit slot.
     #[clvm(rest)]
     pub nft_shares: u64,
 }
 
+/// Solution to [`REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE`], after the ephemeral state and
+/// custody puzzle hash: the NFTs to unlock.
 pub type RewardDistributorNftsUnlockingPuzzleSolution = Vec<NftToUnlockInfo>;
 
 impl Mod for RewardDistributorNftsUnlockingPuzzleArgs {

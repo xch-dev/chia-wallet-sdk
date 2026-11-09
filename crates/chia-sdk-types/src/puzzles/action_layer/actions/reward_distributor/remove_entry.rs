@@ -10,6 +10,12 @@ use crate::{
     puzzles::{RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue},
 };
 
+/// Serialized reward distributor remove entry action, used by managed distributors.
+///
+/// Removes an entry: it spends the entry slot, pays the entry's pending reward from the
+/// reserve, and decreases the active shares. The payout's rounding error goes back to the
+/// remaining rewards. The manager singleton must send a puzzle-to-puzzle message of `"r"`
+/// followed by the tree hash of `(payout_puzzle_hash . shares)`.
 pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE: [u8; 683] = hex!(
     // Rue
     "
@@ -38,27 +44,42 @@ pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE: [u8; 683] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     6cdf7feefe369fa694e71ee9c40a383bfda5ef43eab52034195990d20086d2b9
     "
 ));
 
+/// Curried arguments of the remove entry action ([`REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorRemoveEntryActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Tree hash of the manager singleton's [`SingletonStruct`](chia_puzzle_types::singleton::SingletonStruct).
     pub manager_singleton_struct_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Maximum number of seconds since the distributor's last update. The action asserts
+    /// that the spend happens before `last_update + max_seconds_offset`, so entries can't be
+    /// changed with stale reward accounting.
     pub max_seconds_offset: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
+/// Solution to the remove entry action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRemoveEntryActionSolution {
+    /// Current value of the entry's slot.
     pub entry_slot: RewardDistributorEntrySlotValue,
+    /// Payout owed to the entry, computed from its shares and the cumulative payout.
     pub entry_payout_info: RewardDistributorEntryPayoutInfo,
+    /// Inner puzzle hash of the manager singleton's coin, used to verify the message's
+    /// sender.
     #[clvm(rest)]
     pub manager_singleton_inner_puzzle_hash: Bytes32,
 }

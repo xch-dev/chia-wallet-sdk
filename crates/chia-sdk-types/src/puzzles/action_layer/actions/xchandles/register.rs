@@ -13,6 +13,18 @@ use crate::{
     },
 };
 
+/// Serialized `XCHandles` register action, compiled from Rue.
+///
+/// `XCHandles` is a registry of handles, which the pricing puzzle validates (the
+/// default one accepts 3 to 63 lowercase letters and digits). Registering inserts a
+/// handle slot between two neighbors (whose handle hashes must bracket the new one),
+/// prices the handle with the pricing puzzle from the registry's state (with a current
+/// expiration of 0), consumes a precommit coin whose amount equals the price, and sets
+/// the expiration to `buy_time + registered_time`. The new owner singleton must approve
+/// with a message of `"a"` followed by the precommit coin's puzzle hash, and the
+/// resolved singleton with `"b"` followed by it, unless its puzzle hash is the same as
+/// the owner's. The action announces `"r"` followed by the precommit coin's puzzle hash,
+/// and leaves the state unchanged.
 pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1478] = hex!(
     // Rue
     "
@@ -66,32 +78,50 @@ pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1478] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_REGISTER_PUZZLE`].
 pub const XCHANDLES_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     150ae295efe60fa049b87cff5c05c0031fa768959ba466b425ef5a58b4a95ee8
     "
 ));
 
+/// Curried arguments of the `XCHandles` register action ([`XCHANDLES_REGISTER_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesRegisterActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Puzzle hash of the singleton launcher, used with
+    /// [`singleton_mod_hash`](Self::singleton_mod_hash) to compute singleton puzzle hashes
+    /// from launcher ids.
     pub singleton_launcher_puzzle_hash: Bytes32,
+    /// Hash of the precommit layer after its first curry
+    /// ([`PrecommitLayer1stCurryArgs`](crate::puzzles::PrecommitLayer1stCurryArgs)).
     pub precommit_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
 }
 
+/// Information about one of the two slots a new handle is inserted between.
+/// Encoded as `(this_counter this_this_value this_expiration . this_data)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRestOfSlot {
+    /// Counter of the neighbor slot.
     pub this_counter: u64,
+    /// Handle hash of the neighbor's own outer neighbor (the left neighbor's left neighbor,
+    /// or the right neighbor's right neighbor).
     pub this_this_value: Bytes32, // left_left_value or right_right_value
-    pub this_expiration: u64,     // left_expiration or right_expiration
+    /// Expiration of the neighbor's handle.
+    pub this_expiration: u64, // left_expiration or right_expiration
+    /// Owner and resolved launcher ids of the neighbor's handle.
     #[clvm(rest)]
     pub this_data: XchandlesDataValue, // left_data or right_data
 }
 
 impl XchandlesRestOfSlot {
+    /// Creates the value from its parts.
     pub fn new(
         this_counter: u64,
         this_this_value: Bytes32,
@@ -107,16 +137,30 @@ impl XchandlesRestOfSlot {
     }
 }
 
+/// Solution to the `XCHandles` register action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRegisterActionSolution<PP, PS, CMP, CMS, S> {
+    /// Tree hash of the handle being registered. It must match the handle in the pricing
+    /// solution.
     pub handle_hash: Bytes32,
+    /// Handle hashes of the left and right slots the new handle is inserted between.
     pub neighbors: SlotNeigborsInfo,
+    /// CAT maker puzzle and solution for the payment asset. The puzzle must match the CAT
+    /// maker puzzle hash in the registry's state.
     pub cat_maker_puzzle_and_solution: PuzzleAndSolution<CMP, CMS>,
+    /// Pricing puzzle and its solution (usually an
+    /// [`XchandlesPricingSolution`](crate::puzzles::XchandlesPricingSolution)). The puzzle
+    /// must match the pricing puzzle hash in the registry's state.
     pub pricing_puzzle_and_solution: PuzzleAndSolution<PP, PS>,
+    /// Rest of the left neighbor slot's value.
     pub left_rest_of_slot: XchandlesRestOfSlot,
+    /// Rest of the right neighbor slot's value.
     pub right_rest_of_slot: XchandlesRestOfSlot,
+    /// Inner puzzle hashes of the new owner and resolved singletons, which send the approval
+    /// messages.
     pub data_puzzle_hashes: XchandlesNewDataPuzzleHashes,
+    /// Rest of the data the precommit coin committed to.
     #[clvm(rest)]
     pub other_precommit_data: XchandlesOtherPrecommitData<S>,
 }

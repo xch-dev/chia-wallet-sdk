@@ -7,6 +7,13 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor withdraw incentives action, compiled from Rue.
+///
+/// Withdraws part of a commitment before its epoch starts. It spends the commitment
+/// slot, pays `committed_value * withdrawal_share_bps / 10000` from the reserve to the
+/// clawback puzzle hash, and removes that amount from the epoch's reward slot. The
+/// clawback puzzle hash must send a puzzle-to-puzzle message of `"w"` followed by the
+/// tree hash of `(epoch_start . committed_value)`.
 pub const REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE: [u8; 817] = hex!(
     // Rue
     "
@@ -39,28 +46,43 @@ pub const REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE: [u8; 817] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     3bc68bef318e3d6a1c2a6002e9f6f56cba0fe2a81404adcec99055b467df05a0
     "
 ));
 
+/// Curried arguments of the withdraw incentives action
+/// ([`REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorWithdrawIncentivesActionArgs {
+    /// Hash of the slot puzzle after its first curry for reward slots
+    /// ([`RewardDistributorSlotNonce::REWARD`](crate::puzzles::RewardDistributorSlotNonce::REWARD)).
     pub reward_slot_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for commitment slots
+    /// ([`RewardDistributorSlotNonce::COMMITMENT`](crate::puzzles::RewardDistributorSlotNonce::COMMITMENT)).
     pub commitment_slot_1st_curry_hash: Bytes32,
+    /// Share of a commitment that can be withdrawn, in basis points.
     pub withdrawal_share_bps: u64,
 }
 
+/// Solution to the withdraw incentives action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorWithdrawIncentivesActionSolution {
+    /// Counter of the epoch's reward slot.
     pub reward_slot_counter: u64,
+    /// Start of the epoch, which must not have started yet.
     pub reward_slot_epoch_time: u64,
+    /// Clawback puzzle hash of the commitment, which receives the withdrawal.
     pub clawback_ph: Bytes32,
+    /// Amount of the commitment.
     pub committed_value: u64,
+    /// Rewards of the epoch's reward slot.
     pub reward_slot_total_rewards: u64,
+    /// Whether the reward slot's next epoch is initialized.
     #[clvm(rest)]
     pub reward_slot_next_epoch_initialized: bool,
 }

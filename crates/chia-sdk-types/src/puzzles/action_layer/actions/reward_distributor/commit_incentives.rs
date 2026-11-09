@@ -7,6 +7,15 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor commit incentives action, compiled from Rue.
+///
+/// Commits rewards to an epoch that starts at or after the current epoch's end. It adds
+/// the rewards to the reserve, creates a commitment slot recording the commitment (so
+/// the committer can withdraw it before the epoch starts), and updates the reward slots:
+/// if the spent reward slot is for the target epoch, its rewards increase; otherwise it
+/// must be the last initialized epoch, and reward slots are created for every epoch up to
+/// the target. The action announces `"c"` followed by the tree hash of the new
+/// [`RewardDistributorCommitmentSlotValue`](crate::puzzles::RewardDistributorCommitmentSlotValue).
 pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1089] = hex!(
     // Rue
     "
@@ -48,29 +57,46 @@ pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE: [u8; 1089] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     dd092298c7331f56f00b34cb68425a4f34bac28729a60daff7384a517087d3ec
     "
 ));
 
+/// Curried arguments of the commit incentives action
+/// ([`REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorCommitIncentivesActionArgs {
+    /// Hash of the slot puzzle after its first curry for reward slots
+    /// ([`RewardDistributorSlotNonce::REWARD`](crate::puzzles::RewardDistributorSlotNonce::REWARD)).
     pub reward_slot_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for commitment slots
+    /// ([`RewardDistributorSlotNonce::COMMITMENT`](crate::puzzles::RewardDistributorSlotNonce::COMMITMENT)).
     pub commitment_slot_1st_curry_hash: Bytes32,
+    /// Length of each epoch, in seconds.
     pub epoch_seconds: u64,
 }
 
+/// Solution to the commit incentives action. The `slot_*` fields are the current value
+/// of the reward slot being spent.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorCommitIncentivesActionSolution {
+    /// Counter of the spent reward slot.
     pub slot_counter: u64,
+    /// Epoch start of the spent reward slot.
     pub slot_epoch_time: u64,
+    /// Whether the spent reward slot's next epoch is initialized.
     pub slot_next_epoch_initialized: bool,
+    /// Rewards of the spent reward slot.
     pub slot_total_rewards: u64,
+    /// Start of the epoch the rewards are committed to.
     pub epoch_start: u64,
+    /// Puzzle hash allowed to withdraw the commitment before the epoch starts.
     pub clawback_ph: Bytes32,
+    /// Amount committed. Must be positive.
     #[clvm(rest)]
     pub rewards_to_add: u64,
 }

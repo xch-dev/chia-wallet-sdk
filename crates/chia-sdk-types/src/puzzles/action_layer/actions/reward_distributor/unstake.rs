@@ -10,6 +10,12 @@ use crate::{
     puzzles::{RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue},
 };
 
+/// Serialized reward distributor unstake action, compiled from Rue.
+///
+/// Unlocks assets with the distributor's unlock puzzle and removes their shares from an
+/// entry. The rewards earned by the removed shares are paid from the reserve, and the
+/// entry slot is re-created with the remaining shares. Must run before
+/// `last_update + max_second_offset`.
 pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 770] = hex!(
     // Rue
     "
@@ -41,26 +47,43 @@ pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 770] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     cb50d490155740dc96112621315f05c3a5986a0c2d76b84e37a1acccc5af30f0
     "
 ));
 
+/// Curried arguments of the unstake action ([`REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorUnstakeActionArgs<UP> {
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Maximum number of seconds since the distributor's last update. The action asserts
+    /// that the spend happens before `last_update + max_second_offset`, so entries can't be
+    /// changed with stale reward accounting.
     pub max_second_offset: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
+    /// Puzzle that releases the locked assets, for example a curried
+    /// [`RewardDistributorCatUnlockingPuzzleArgs`](crate::puzzles::RewardDistributorCatUnlockingPuzzleArgs).
+    /// It is run as `(ephemeral_state custody_puzzle_hash . solution)` and returns
+    /// `(removed_shares . conditions)`.
     pub unlock_puzzle: UP,
 }
 
+/// Solution to the unstake action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorUnstakeActionSolution<UPS> {
+    /// Current value of the entry's slot.
     pub entry_slot: RewardDistributorEntrySlotValue,
+    /// Payout owed for the removed shares.
     pub entry_payout_info: RewardDistributorEntryPayoutInfo,
+    /// Solution passed to the unlock puzzle, after the ephemeral state and the entry's
+    /// custody puzzle hash.
     #[clvm(rest)]
     pub unlock_puzzle_solution: UPS,
 }

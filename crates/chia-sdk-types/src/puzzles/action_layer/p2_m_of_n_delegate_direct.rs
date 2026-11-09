@@ -7,6 +7,13 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized `p2_m_of_n_delegate_direct` puzzle: an M-of-N multisig.
+///
+/// The spender picks exactly `m` of the curried public keys with selectors, and the
+/// puzzle outputs an `AGG_SIG_UNSAFE` condition for each selected key on the tree hash of
+/// the delegated puzzle, followed by the delegated puzzle's conditions. Since the
+/// signatures are not bound to the coin, the delegated puzzle should include conditions
+/// that tie it to a specific spend. Medieval vaults use it as their inner puzzle.
 pub const P2_M_OF_N_DELEGATE_DIRECT_PUZZLE: [u8; 453] = hex!(
     "
     ff02ffff01ff02ffff03ffff09ff05ffff02ff16ffff04ff02ffff04ff17ff80
@@ -27,24 +34,30 @@ pub const P2_M_OF_N_DELEGATE_DIRECT_PUZZLE: [u8; 453] = hex!(
     "
 );
 
+/// Tree hash of [`P2_M_OF_N_DELEGATE_DIRECT_PUZZLE`].
 pub const P2_M_OF_N_DELEGATE_DIRECT_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     0f199d5263ac1a62b077c159404a71abd3f9691cc57520bf1d4c5cb501504457
     "
 ));
 
+/// Curried arguments of [`P2_M_OF_N_DELEGATE_DIRECT_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct P2MOfNDelegateDirectArgs {
+    /// Number of signatures required.
     pub m: usize,
+    /// The N public keys that may sign.
     pub public_key_list: Vec<PublicKey>,
 }
 
 impl P2MOfNDelegateDirectArgs {
+    /// Creates the arguments for an `m`-of-`public_key_list.len()` multisig.
     pub fn new(m: usize, public_key_list: Vec<PublicKey>) -> Self {
         Self { m, public_key_list }
     }
 
+    /// Computes the curried puzzle hash.
     pub fn curry_tree_hash(m: usize, public_key_list: Vec<PublicKey>) -> TreeHash {
         CurriedProgram {
             program: P2_M_OF_N_DELEGATE_DIRECT_PUZZLE_HASH,
@@ -53,6 +66,26 @@ impl P2MOfNDelegateDirectArgs {
         .tree_hash()
     }
 
+    /// Builds the [`selectors`](P2MOfNDelegateDirectSolution::selectors) for a solution:
+    /// `true` for each key in `public_key_list` that is also in `used_pubkeys`.
+    ///
+    /// The puzzle requires exactly `m` selectors to be `true`, so `used_pubkeys` should
+    /// contain exactly `m` of the keys.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use chia_bls::SecretKey;
+    /// use chia_sdk_types::puzzles::P2MOfNDelegateDirectArgs;
+    ///
+    /// let keys: Vec<_> = (0..3_u8)
+    ///     .map(|i| SecretKey::from_seed(&[i; 32]).public_key())
+    ///     .collect();
+    ///
+    /// let selectors =
+    ///     P2MOfNDelegateDirectArgs::selectors_for_used_pubkeys(&keys, &[keys[0], keys[2]]);
+    /// assert_eq!(selectors, [true, false, true]);
+    /// ```
     pub fn selectors_for_used_pubkeys(
         public_key_list: &[PublicKey],
         used_pubkeys: &[PublicKey],
@@ -64,11 +97,16 @@ impl P2MOfNDelegateDirectArgs {
     }
 }
 
+/// Solution to [`P2_M_OF_N_DELEGATE_DIRECT_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct P2MOfNDelegateDirectSolution<P, S> {
+    /// One flag per curried public key, `true` for the keys that sign. Exactly `m` must be
+    /// `true`.
     pub selectors: Vec<bool>,
+    /// Puzzle whose tree hash the selected keys sign and whose output is returned.
     pub delegated_puzzle: P,
+    /// Solution passed to the delegated puzzle.
     pub delegated_solution: S,
 }
 

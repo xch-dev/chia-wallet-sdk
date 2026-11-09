@@ -7,6 +7,12 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor initiate payout action that anyone can trigger.
+///
+/// Pays an entry its pending reward from the reserve, if it is at least the payout
+/// threshold. The entry slot is re-created with the current cumulative payout, and the
+/// payout's rounding error goes back to the remaining rewards. The action announces `"p"`
+/// followed by the tree hash of `(payout_puzzle_hash . payout_amount)`.
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE: [u8; 751] = hex!(
     // Rue
     "
@@ -37,6 +43,7 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE: [u8; 751] 
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH: TreeHash =
     TreeHash::new(hex!(
         "
@@ -44,6 +51,12 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH: TreeH
     "
     ));
 
+/// Serialized reward distributor initiate payout action that requires the entry's
+/// approval.
+///
+/// Same as [`REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE`], but the entry's
+/// payout puzzle hash must also send a puzzle-to-puzzle message of `"p"` followed by the
+/// tree hash of `(payout_amount . payout_rounding_error)`.
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE: [u8; 824] = hex!(
     // Rue
     "
@@ -76,6 +89,7 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE: [u8; 824] = h
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH: TreeHash =
     TreeHash::new(hex!(
         "
@@ -83,11 +97,17 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH: TreeHash
         "
     ));
 
+/// Curried arguments of [`REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE`].
+/// The solution is [`RewardDistributorInitiatePayoutActionSolution`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Minimum payout amount, which keeps entries from being spammed with tiny payouts.
     pub payout_threshold: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
@@ -101,11 +121,17 @@ impl Mod for RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
     }
 }
 
+/// Curried arguments of [`REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE`].
+/// The solution is [`RewardDistributorInitiatePayoutActionSolution`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorInitiatePayoutWithApprovalActionArgs {
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Minimum payout amount.
     pub payout_threshold: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
@@ -119,14 +145,22 @@ impl Mod for RewardDistributorInitiatePayoutWithApprovalActionArgs {
     }
 }
 
+/// Solution to both initiate payout actions. The `entry_*` fields are the current value
+/// of the entry's slot.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorInitiatePayoutActionSolution {
+    /// Counter of the entry's slot.
     pub slot_counter: u64,
+    /// Amount paid: `shares * (cumulative_payout - initial_cumulative_payout) / precision`.
     pub entry_payout_amount: u64,
+    /// Puzzle hash that receives the payout.
     pub entry_payout_puzzle_hash: Bytes32,
+    /// Remainder of the division by the precision, which must be less than the precision.
     pub payout_rounding_error: u128,
+    /// Shares of the entry.
     pub entry_shares: u64,
+    /// Cumulative payout recorded in the entry's slot.
     #[clvm(rest)]
     pub entry_initial_cumulative_payout: u128,
 }

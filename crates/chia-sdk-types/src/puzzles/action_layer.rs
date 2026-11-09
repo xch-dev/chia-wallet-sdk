@@ -1,3 +1,63 @@
+//! Puzzle arguments and solutions for the action layer and the apps built on it.
+//!
+//! # The action layer
+//!
+//! The action layer ([`ActionLayerArgs`]) is the inner puzzle of a singleton that holds
+//! a persistent state and can run any of a fixed set of actions. The set is committed
+//! to as a Merkle root of action puzzle hashes, and each spend reveals the actions it
+//! uses with Merkle proofs ([`RawActionLayerSolution`]). Actions run in sequence: each
+//! receives the current state and an ephemeral state (nil at the start of every spend)
+//! and returns new values along with conditions. A finalizer then turns the final state
+//! and conditions into the spend's output, usually re-creating the singleton:
+//!
+//! - [`DefaultFinalizer1stCurryArgs`] only re-creates the singleton.
+//! - [`ReserveFinalizer1stCurryArgs`] also manages a reserve coin, locked with
+//!   [`P2DelegatedBySingletonLayerArgs`], whose amount comes from the state. Actions
+//!   prefix conditions with `-42` to have the reserve output them, for example to pay
+//!   out rewards.
+//!
+//! # Building blocks
+//!
+//! - Slots ([`Slot1stCurryArgs`]) are 0-amount coins that store values for their
+//!   controller singleton, which can read a value once by spending the slot. Their
+//!   values are described [below](#slot-values).
+//! - Precommit coins ([`PrecommitLayer1stCurryArgs`]) commit to a value some blocks
+//!   before a registration, to prevent front-running.
+//! - Uniqueness prelaunchers ([`UniquenessPrelauncher1stCurryArgs`]) tie a singleton
+//!   launcher to a registry coin and value.
+//! - CAT makers ([`DefaultCatMakerArgs`], [`RevocableCatMakerArgs`], [`XchCatMaker`])
+//!   compute the puzzle hash of a payment asset from an inner puzzle hash.
+//! - The delegated state action ([`DelegatedStateActionArgs`]) lets another singleton,
+//!   such as a state scheduler ([`StateSchedulerLayerArgs`]), set the state.
+//! - [`P2MOfNDelegateDirectArgs`] is an M-of-N multisig, used by medieval vaults.
+//!
+//! # Apps
+//!
+//! - **`CATalog`**: a registry of CATs. Whoever first reveals a CAT's TAIL through a
+//!   precommit coin registers it and receives an NFT that holds its
+//!   [`CatNftMetadata`]. Actions: [`CatalogRegisterActionArgs`] and
+//!   [`CatalogRefundActionArgs`].
+//! - **`XCHandles`**: a registry of handles that expire and can be extended, updated,
+//!   and auctioned after expiry. Each handle points to an owner and a resolved
+//!   singleton. Actions: [`XchandlesRegisterActionArgs`], [`XchandlesExtendActionArgs`],
+//!   [`XchandlesExpireActionArgs`], [`XchandlesOracleActionArgs`],
+//!   [`XchandlesInitiateUpdateActionArgs`], [`XchandlesExecuteUpdateActionArgs`], and
+//!   [`XchandlesRefundActionArgs`], priced by [`XchandlesFactorPricingPuzzleArgs`] and
+//!   [`XchandlesExponentialPremiumRenewPuzzleArgs`].
+//! - **Reward distributor**: distributes incentives, epoch by epoch, to entries in
+//!   proportion to their shares. Entries are either added by a manager singleton
+//!   ([`RewardDistributorAddEntryActionArgs`]) or created by staking NFTs or CATs
+//!   ([`RewardDistributorStakeActionArgs`]) with lock and unlock puzzles. Other
+//!   actions add and commit incentives, sync, start new epochs, and pay out entries.
+//!
+//! # Slot values
+//!
+//! [`CatalogSlotValue`], [`XchandlesHandleSlotValue`], [`XchandlesUpdateSlotValue`],
+//! and the `RewardDistributor*SlotValue` types describe what each app stores in its
+//! slots. Registries keep their slots in a sorted doubly linked list bounded by
+//! [`SLOT32_MIN_VALUE`] and [`SLOT32_MAX_VALUE`], so a key can be proven absent by
+//! showing its two neighbors.
+
 mod action_layer_puzzle;
 mod actions;
 mod any_metadata_updater;

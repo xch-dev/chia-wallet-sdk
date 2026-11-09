@@ -7,6 +7,12 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor unlock puzzle for staked CATs, compiled from Rue.
+///
+/// Spends the CAT's deposit slot and sends a message to the locked CAT coin approving a
+/// delegated puzzle that pays the CAT to the custody puzzle hash. The custody puzzle
+/// hash must send a puzzle-to-puzzle message of `"u"` followed by the CAT coin's parent
+/// id. Returns the deposit's shares.
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 555] = hex!(
     // Rue
     "
@@ -31,21 +37,29 @@ pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 555] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     7146fbf50b1a688eb6263f76d93faee874030d26c8562e3538dab9e806498e5b
     "
 ));
 
+/// Curried arguments of the CAT unlock puzzle ([`REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorCatUnlockingPuzzleArgs<CM> {
+    /// CAT maker for the staked asset, used to compute the locked CAT's puzzle hash.
     pub cat_maker: CM,
+    /// Hash of the slot puzzle after its first curry for deposit slots
+    /// ([`RewardDistributorSlotNonce::DEPOSIT`](crate::puzzles::RewardDistributorSlotNonce::DEPOSIT)).
     pub deposit_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that holds staked assets: [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs)
+    /// for the reward distributor singleton, with nonce 1.
     pub my_p2_puzzle_hash: Bytes32,
 }
 
 impl<CM> RewardDistributorCatUnlockingPuzzleArgs<CM> {
+    /// Creates the arguments from their parts.
     pub fn new(
         cat_maker: CM,
         my_p2_puzzle_hash: Bytes32,
@@ -58,12 +72,17 @@ impl<CM> RewardDistributorCatUnlockingPuzzleArgs<CM> {
         }
     }
 }
+/// Solution to the CAT unlock puzzle, after the ephemeral state and custody puzzle hash.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorCatUnlockingPuzzleSolution<CMS> {
+    /// Parent coin id of the locked CAT coin.
     pub cat_parent_id: Bytes32,
+    /// Amount of the locked CAT coin.
     pub cat_amount: u64,
+    /// Shares recorded in the CAT's deposit slot. Must be positive.
     pub cat_shares: u64,
+    /// Rest of the CAT maker's solution, after the inner puzzle hash.
     #[clvm(rest)]
     pub cat_maker_solution_rest: CMS,
 }

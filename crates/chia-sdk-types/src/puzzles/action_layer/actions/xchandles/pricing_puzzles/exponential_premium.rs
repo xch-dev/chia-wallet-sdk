@@ -6,6 +6,14 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized `XCHandles` exponential premium pricing puzzle, compiled from Rue.
+///
+/// Expired handles are sold in a reverse auction to deter sniping. This puzzle runs a
+/// base pricing program and adds a premium of about
+/// `start_premium * 0.5^(elapsed / halving_period) - end_value` (or 0 if negative),
+/// where `elapsed = buy_time - current_expiration`. Its solution is an
+/// [`XchandlesPricingSolution`](crate::puzzles::XchandlesPricingSolution), which is also
+/// passed to the base program.
 pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE: [u8; 296] = hex!(
     // Rue
     "
@@ -22,14 +30,18 @@ pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE: [u8; 296] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE`].
 pub const XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     eec82d74678809577247f69adc8efdc5e8a342c4bb595e1dae00dc7f7aad1d10
     "
 ));
 
+/// Fixed-point precision of [`PREMIUM_BITS_LIST`]: `10^18`.
 pub const PREMIUM_PRECISION: u64 = 1_000_000_000_000_000_000; // 10^18
 
+/// Values of `0.5^(2^i / 65536) * 10^18` for `i` in `0..16`, used to apply the fractional
+/// part of the elapsed halving periods with 16 bits of precision.
 #[allow(clippy::unreadable_literal)]
 // https://github.com/ensdomains/ens-contracts/blob/master/contracts/ethregistrar/ExponentialPremiumPriceOracle.sol
 pub const PREMIUM_BITS_LIST: [u64; 16] = [
@@ -51,22 +63,51 @@ pub const PREMIUM_BITS_LIST: [u64; 16] = [
     707106781186547584,
 ];
 
+/// Curried arguments of the exponential premium pricing puzzle
+/// ([`XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE`]).
+///
+/// # Example
+///
+/// ```rust
+/// use chia_sdk_types::puzzles::XchandlesExponentialPremiumRenewPuzzleArgs;
+///
+/// // With 1,000 payment units per dollar, the auction starts at $100 million...
+/// let start = XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_start_premium(1_000);
+/// assert_eq!(start, 100_000_000_000);
+///
+/// // ...and the premium reaches 0 after 28 halving periods.
+/// let end = XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_end_value(1_000);
+/// assert_eq!(end, start >> 28);
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesExponentialPremiumRenewPuzzleArgs<P> {
+    /// Pricing program that computes the base price and registered time, usually a curried
+    /// [`XchandlesFactorPricingPuzzleArgs`](crate::puzzles::XchandlesFactorPricingPuzzleArgs)
+    /// puzzle.
     pub base_program: P,
+    /// Number of seconds after which the premium halves. The SDK uses one day (86,400).
     pub halving_period: u64,
+    /// Premium right after expiration (see [`get_start_premium`](Self::get_start_premium)).
     pub start_premium: u64,
+    /// Value subtracted from the decayed premium, so the premium reaches 0 at the end of the
+    /// auction (see [`get_end_value`](Self::get_end_value)).
     pub end_value: u64,
+    /// Fixed-point precision of [`bits_list`](Self::bits_list), normally [`PREMIUM_PRECISION`].
     pub precision: u64,
+    /// Fractional halving factors, normally [`PREMIUM_BITS_LIST`].
     pub bits_list: Vec<u64>,
 }
 
 impl<P> XchandlesExponentialPremiumRenewPuzzleArgs<P> {
+    /// Returns a start premium of $100 million, where `scale_factor` is the number of
+    /// payment units per dollar (for example 1,000 for a stablecoin CAT with 3 decimals).
     pub fn get_start_premium(scale_factor: u64) -> u64 {
         100_000_000 * scale_factor // start auction at $100 million
     }
 
+    /// Returns the end value for a [`get_start_premium`](Self::get_start_premium) of the same
+    /// `scale_factor`: the premium after 28 halvings, `$100 million / 2^28`, rounded down.
     #[allow(clippy::cast_possible_truncation)]
     pub fn get_end_value(scale_factor: u64) -> u64 {
         // 100000000 * 10 ** 18 // 2 ** 28 = 372529029846191406

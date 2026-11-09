@@ -10,6 +10,15 @@ use crate::{
     puzzles::{CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue},
 };
 
+/// Serialized `XCHandles` initiate update action, compiled from Rue.
+///
+/// Starts changing a handle's owner and resolved launcher ids. The current owner
+/// singleton coin must send a coin-to-puzzle message of `"i"` followed by the tree hash
+/// of the new [`XchandlesUpdateSlotValue`](crate::puzzles::XchandlesUpdateSlotValue). The
+/// action re-creates the handle slot unchanged (with its counter increased) and creates
+/// an update slot, hinted to the initiating coin's id, that can be executed at
+/// `min_height + relative_block_height`. The handle must not be expired, and
+/// `min_height` must be in the future.
 pub const XCHANDLES_INITIATE_UPDATE_PUZZLE: [u8; 791] = hex!(
     // Rue
     "
@@ -41,28 +50,47 @@ pub const XCHANDLES_INITIATE_UPDATE_PUZZLE: [u8; 791] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_INITIATE_UPDATE_PUZZLE`].
 pub const XCHANDLES_INITIATE_UPDATE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     23eeec5ecd731c2822adf82f23a2e73fdd4ad08df56558ad15873c68cadf68f8
     "
 ));
 
+/// Curried arguments of the `XCHandles` initiate update action
+/// ([`XCHANDLES_INITIATE_UPDATE_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesInitiateUpdateActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Puzzle hash of the singleton launcher, used with
+    /// [`singleton_mod_hash`](Self::singleton_mod_hash) to compute singleton puzzle hashes
+    /// from launcher ids.
     pub singleton_launcher_mod_hash: Bytes32,
+    /// Number of blocks, counted from the solution's `min_height`, before the update can be
+    /// executed.
     pub relative_block_height: u32,
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for update slots
+    /// ([`XchandlesSlotNonce::UPDATE`](crate::puzzles::XchandlesSlotNonce::UPDATE)).
     pub update_slot_1st_curry_hash: Bytes32,
 }
 
+/// Solution to the `XCHandles` initiate update action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesInitiateUpdateActionSolution {
+    /// Current value of the handle's slot.
     pub current_slot_value: XchandlesHandleSlotValue,
+    /// New owner and resolved launcher ids.
     pub new_data: XchandlesDataValue,
+    /// Proof of the current owner singleton coin, which sends the initiating message.
     pub current_owner: CompactCoinProof,
+    /// Block height that must not have been reached yet. The update can be executed at
+    /// `min_height + relative_block_height`.
     #[clvm(rest)]
     pub min_height: u32,
 }

@@ -7,6 +7,12 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor add incentives action, compiled from Rue.
+///
+/// Adds rewards to the current epoch, which must not have been fully distributed yet
+/// (`epoch_end > last_update`). A fee of `amount * fee_bps / 10000` goes to the fee payout
+/// puzzle hash, and the rest is added to the reserve and to the remaining rewards. The
+/// action announces `"i"` followed by the tree hash of `(amount . last_update)`.
 pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE: [u8; 247] = hex!(
     // Rue
     "
@@ -21,21 +27,28 @@ pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE: [u8; 247] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     01146475a5ece9f0625beb4a82298e37dc864a3c162e7533585967517b37bee7
     "
 ));
 
+/// Curried arguments of the add incentives action
+/// ([`REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorAddIncentivesActionArgs {
+    /// Puzzle hash that receives the fee.
     pub fee_payout_puzzle_hash: Bytes32,
+    /// Fee, in basis points of the added amount.
     pub fee_bps: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
 impl RewardDistributorAddIncentivesActionArgs {
+    /// Computes the action's curried puzzle hash.
     pub fn curry_tree_hash(
         fee_payout_puzzle_hash: Bytes32,
         fee_bps: u64,
@@ -53,10 +66,13 @@ impl RewardDistributorAddIncentivesActionArgs {
     }
 }
 
+/// Solution to the add incentives action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorAddIncentivesActionSolution {
+    /// Amount of incentives to add, including the fee. Must be positive.
     pub amount: u64,
+    /// Fee taken from `amount`. Must equal `amount * fee_bps / 10000`.
     #[clvm(rest)]
     pub manager_fee: u64,
 }
