@@ -66,6 +66,9 @@
 //!   CHIP-0037, such as `P2Eip712MessageArgs` and `P2ControllerPuzzleArgs`.
 //! - `chip-0052`: The partial offer puzzle from CHIP-0052 (`PartialOfferArgs`), which lets an
 //!   offer be filled in parts.
+//! - `pooling`: The plot NFT puzzles used for pooling, such as `PoolMemberArgs`,
+//!   `PoolWaitingRoomArgs`, and `P2SingletonOrDelayedArgs`, along with `SingletonV1Args` for the
+//!   original singleton top layer that plot NFTs use.
 //! - `action-layer`: The action layer puzzle (`ActionLayerArgs`) and related puzzles.
 //! - `auction`: The actions, bid verifiers, and NFT unlocker of English NFT auctions, such as
 //!   `AuctionBidActionArgs`, which run on the action layer. This enables `action-layer`.

@@ -54,6 +54,12 @@ mod partial_offer;
 #[cfg(feature = "chip-0052")]
 pub use partial_offer::*;
 
+#[cfg(feature = "pooling")]
+mod plot_nft;
+
+#[cfg(feature = "pooling")]
+pub use plot_nft::*;
+
 #[cfg(feature = "auction")]
 mod auction;
 

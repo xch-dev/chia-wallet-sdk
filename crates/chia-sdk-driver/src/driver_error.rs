@@ -109,6 +109,26 @@ pub enum DriverError {
     #[error("the offer can't be taken by this fusion")]
     FusionOfferMismatch,
 
+    /// A pool state isn't one that the reference wallet would create. For example, the version
+    /// isn't supported, the owner key is the infinity point, a self pooling state has a pool URL or
+    /// relative lock height, a pool's relative lock height is out of range, or a plot NFT is
+    /// launched in the leaving pool state or with an even amount.
+    #[error("invalid pool state: {0}")]
+    InvalidPoolState(&'static str),
+
+    /// A plot NFT can't move to the requested state from its current one. For example, leaving a
+    /// pool that it isn't farming to, joining a pool without leaving the current one first, or
+    /// moving to the state it's already in.
+    #[error("invalid plot NFT transition: {0}")]
+    InvalidPlotNftTransition(&'static str),
+
+    /// A coin can't be claimed by a plot NFT. For example, no rewards were given, a reward is
+    /// listed twice, the coin isn't locked to the plot NFT's p2 puzzle hash, it isn't a pool
+    /// reward, its amount is odd, or it was farmed at height 0. This is also returned when
+    /// parsing a solution whose reward height isn't an atom.
+    #[error("invalid pool reward: {0}")]
+    InvalidPoolReward(&'static str),
+
     /// A spend that must recreate an asset didn't create a child. For example, an NFT or
     /// datastore spend without an odd `CREATE_COIN`, or a CAT spend whose children can't be parsed
     /// when clear signing.
