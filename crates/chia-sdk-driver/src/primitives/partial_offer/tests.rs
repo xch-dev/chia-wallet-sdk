@@ -403,6 +403,7 @@ fn test_partial_offer_claw_back(#[case] offered: Kind) -> Result<()> {
 
     // Alice claws back the rest after it expires
     sim.pass_time(2000);
+    sim.create_block();
 
     let hint = ctx.hint(alice.puzzle_hash)?;
     let inner_spend = StandardLayer::new(alice.pk).spend_with_conditions(
@@ -438,6 +439,7 @@ fn test_partial_offer_expired() -> Result<()> {
 
     let bundle = alice.make(ctx, info, 1000)?;
     sim.pass_time(2000);
+    sim.create_block();
 
     let (spend_bundle, _) = bob.take(ctx, &bundle, 100, 0)?;
     let error = sim.new_transaction(spend_bundle).unwrap_err();

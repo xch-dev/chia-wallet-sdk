@@ -309,6 +309,7 @@ impl TryFrom<SimulatorStateDump> for FullNodeSimulator {
             prefarm_puzzle_hash: dump.prefarm_puzzle_hash,
             node_id: dump.node_id,
             events: Vec::new(),
+            mempool_mode: true,
         };
         for (expected_header, block) in dump.header_hashes.iter().zip(dump.blocks) {
             if block.header_hash != *expected_header {

@@ -93,7 +93,13 @@ pub fn run_spendbundle(
         let amount = a.new_number(coin_spend.coin.amount.into())?;
         let atoms_before = a.atom_count();
         let pairs_before = a.pair_count();
-        let Reduction(clvm_cost, conditions) = run_puzzle_with_cost(a, puz, sol, cost_left, false)?;
+        let Reduction(clvm_cost, conditions) = run_puzzle_with_cost(
+            a,
+            puz,
+            sol,
+            cost_left,
+            flags.contains(ConsensusFlags::NO_UNKNOWN_OPS),
+        )?;
 
         ret.execution_cost += clvm_cost;
         subtract_cost(&mut cost_left, clvm_cost)?;

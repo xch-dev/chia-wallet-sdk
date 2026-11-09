@@ -1505,6 +1505,7 @@ fn test_clear_signing_spend_clawback(
     )?;
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     bob.p2_puzzles
         .insert(clawback.tree_hash(), TestP2Puzzle::Clawback(clawback));
@@ -1700,6 +1701,7 @@ fn test_clear_signing_push_through(#[case] earliest_time: Option<u64>) -> Result
     let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     // The vault only pays the fee, and asserts the push-through spend that nobody needs to sign.
     let actions = [Action::Fee(FeeAction {
@@ -1789,6 +1791,7 @@ fn test_clear_signing_push_through_partially_expired() -> Result<()> {
     let unexpired_coin = sim.unspent_coins(unexpired.tree_hash().into(), false)[0];
 
     sim.set_next_timestamp(3000)?;
+    sim.create_block();
 
     let actions = [Action::Fee(FeeAction {
         amount: 1,
@@ -1914,6 +1917,7 @@ fn test_clear_signing_push_through_ephemeral_clawback() -> Result<()> {
     let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
     let actions = [Action::send(
@@ -1992,6 +1996,7 @@ fn test_clear_signing_push_through_spent_child() -> Result<()> {
     let child_coin = Coin::new(clawback_coin.coin_id(), receiver_puzzle_hash, 1);
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     let actions = [Action::Fee(FeeAction {
         amount: 1,
@@ -2054,6 +2059,7 @@ fn test_clear_signing_push_through_amount_mismatch() -> Result<()> {
     let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     let actions = [Action::Fee(FeeAction {
         amount: 1,
@@ -2458,6 +2464,7 @@ fn test_clear_signing_receiver_path_without_message(
     )];
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     let mut spends = Spends::new(alice.p2_puzzle_hash);
     alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
@@ -2923,6 +2930,7 @@ fn test_clear_signing_push_through_message_bound_expiry() -> Result<()> {
     let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
 
     sim.set_next_timestamp(2000)?;
+    sim.create_block();
 
     let actions = [Action::Fee(FeeAction {
         amount: 1,

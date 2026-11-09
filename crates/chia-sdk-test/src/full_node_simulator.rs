@@ -26,6 +26,7 @@ mod tests;
 use state::ChainState;
 use types::{SimBlock, SimCoinRecord, ValidatedBundle, ValidatedSpend};
 
+pub use push_tx::MEMPOOL_MIN_FEE_INCREASE;
 pub use types::{FullNodeSimulatorEvent, FullNodeSimulatorPushTxResponse};
 
 const BLOCK_REWARD_AMOUNT: u64 = 2_000_000_000_000;
@@ -45,6 +46,7 @@ pub struct FullNodeSimulator {
     prefarm_puzzle_hash: Bytes32,
     node_id: Bytes32,
     events: Vec<FullNodeSimulatorEvent>,
+    mempool_mode: bool,
 }
 
 impl Default for FullNodeSimulator {
@@ -168,11 +170,19 @@ impl FullNodeSimulator {
             prefarm_puzzle_hash,
             node_id: node_id.into(),
             events: Vec::new(),
+            mempool_mode: true,
         }
     }
 
+    /// Controls whether transactions are validated with the stricter mempool rules that mainnet
+    /// nodes apply before accepting a transaction. This is enabled by default.
+    pub fn set_mempool_mode(&mut self, mempool_mode: bool) {
+        self.mempool_mode = mempool_mode;
+    }
+
+    /// Inserts a coin as if it had been created in the peak block.
     pub fn insert_coin(&mut self, coin: Coin) {
-        self.insert_coin_record(coin, false, self.state.height, self.state.next_timestamp);
+        self.insert_coin_record(coin, false, self.state.height, self.state.peak_timestamp());
     }
 
     pub fn new_coin(&mut self, puzzle_hash: Bytes32, amount: u64) -> Coin {

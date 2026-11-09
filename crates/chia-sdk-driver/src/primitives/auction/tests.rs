@@ -313,6 +313,7 @@ impl Harness {
 
     fn set_time(&mut self, time: u64) -> Result<()> {
         self.sim.set_next_timestamp(time)?;
+        self.sim.create_block();
         Ok(())
     }
 
@@ -2300,11 +2301,13 @@ fn test_grace_period_extends_bidding() -> Result<()> {
     assert_fails_with(h.bid(200), "AssertBeforeSecondsAbsoluteFailed");
     let winner = h.bid_with_grace(200, true)?;
 
-    // The auction can't end until the grace period after the last bid has passed
-    h.set_time(1_100)?;
+    // The auction can't end until the grace period after the last bid has passed. Relative time
+    // locks count from the block the bid was included in, a second after the peak it was
+    // validated against.
+    h.set_time(1_120)?;
     assert_fails_with(h.end(), "AssertSecondsRelativeFailed");
 
-    h.set_time(1_120)?;
+    h.set_time(1_121)?;
     let nft = h.end()?;
     assert_eq!(nft.info.p2_puzzle_hash, winner.bid.puzzle_hash);
 
@@ -2318,7 +2321,8 @@ fn test_grace_window_closes() -> Result<()> {
     h.set_time(900)?;
     h.bid(100)?;
 
-    h.set_time(1_000)?;
+    // The bid was included in the block after the peak at 900, so the window closes at 1_001.
+    h.set_time(1_001)?;
     assert_fails_with(
         h.bid_with_grace(200, true),
         "AssertBeforeSecondsRelativeFailed",

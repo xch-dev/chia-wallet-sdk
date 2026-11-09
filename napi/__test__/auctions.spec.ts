@@ -223,6 +223,7 @@ test("auction pays out the winning bid", (t) => {
 
   // End the auction, which sends the NFT to the winning bidder
   sim.setNextTimestamp(END_TIME);
+  sim.createBlock();
 
   const finalReserve = auction.info.reserve.coin();
   const endAction = auction.endActionSpend(clvm, nft);

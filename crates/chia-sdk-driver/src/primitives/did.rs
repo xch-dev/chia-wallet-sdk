@@ -623,6 +623,7 @@ mod tests {
             (alice.puzzle_hash, alice_p2, alice.sk)
         } else {
             sim.set_next_timestamp(100)?;
+            sim.create_block();
             (bob.puzzle_hash, bob_p2, bob.sk)
         };
 

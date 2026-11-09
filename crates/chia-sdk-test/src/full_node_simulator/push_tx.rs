@@ -10,6 +10,10 @@ use super::{
     fast_forward::FastForwardResult,
 };
 
+/// The minimum amount by which a replacement transaction must increase the total fee, which matches
+/// `MEMPOOL_MIN_FEE_INCREASE` in the reference full node.
+pub const MEMPOOL_MIN_FEE_INCREASE: u64 = 10_000_000;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct NormalizationState {
     ordered_coin_ids: Vec<Bytes32>,
@@ -78,16 +82,34 @@ impl FullNodeSimulator {
             .filter_map(|tx_id| self.mempool.get(tx_id))
             .flat_map(|item| item.removals.iter().copied())
             .collect::<IndexSet<_>>();
-        let conflicting_fees = conflicting_tx_ids
+        let (conflicting_fees, conflicting_cost) = conflicting_tx_ids
             .iter()
             .filter_map(|tx_id| self.mempool.get(tx_id))
-            .map(|item| item.fee)
-            .sum::<u64>();
+            .fold((0_u64, 0_u64), |(fees, cost), item| {
+                (
+                    fees.saturating_add(item.fee),
+                    cost.saturating_add(item.cost),
+                )
+            });
 
-        conflicting_removals
+        // The replacement must spend every coin spent by the items it replaces.
+        if !conflicting_removals
             .iter()
             .all(|coin_id| validated.removals.contains(coin_id))
-            && validated.fee > conflicting_fees
+        {
+            return false;
+        }
+
+        // The replacement must have a strictly higher fee per cost. This compares
+        // `validated.fee / validated.cost > conflicting_fees / conflicting_cost` without division.
+        if u128::from(validated.fee) * u128::from(conflicting_cost)
+            <= u128::from(conflicting_fees) * u128::from(validated.cost)
+        {
+            return false;
+        }
+
+        // The replacement must increase the total fee by a minimum amount.
+        validated.fee.saturating_sub(conflicting_fees) >= MEMPOOL_MIN_FEE_INCREASE
     }
 
     fn conflicting_mempool_tx_ids(&self, validated: &ValidatedBundle) -> Vec<Bytes32> {

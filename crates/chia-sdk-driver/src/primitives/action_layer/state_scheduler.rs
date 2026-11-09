@@ -294,6 +294,7 @@ mod tests {
             StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
 
         sim.set_next_timestamp(required_timestamp)?;
+        sim.create_block();
         spend_with_receiver(
             ctx,
             &state_scheduler,
@@ -355,6 +356,7 @@ mod tests {
             StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
 
         sim.set_next_timestamp(required_timestamp + 100)?;
+        sim.create_block();
         spend_with_receiver(
             ctx,
             &state_scheduler,
@@ -429,6 +431,7 @@ mod tests {
         let mut other_singleton_coin_parent = other_singleton_coin;
         for (index, (timestamp, new_state)) in schedule.iter().enumerate() {
             sim.set_next_timestamp(*timestamp)?;
+            sim.create_block();
 
             state_scheduler
                 .clone()
