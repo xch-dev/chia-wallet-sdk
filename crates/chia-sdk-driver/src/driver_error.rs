@@ -157,10 +157,6 @@ pub enum DriverError {
     #[error("invalid action layer solution")]
     InvalidActionLayerSolution,
 
-    /// A puzzle isn't recognized. This isn't currently returned by this crate.
-    #[error("unknown puzzle")]
-    UnknownPuzzle,
-
     /// An m-of-n vault spend doesn't provide spends for enough distinct members to meet the
     /// required number.
     #[error("invalid spend count for vault subpath")]
@@ -206,11 +202,6 @@ pub enum DriverError {
     /// A settle action applies to a coin that isn't spent with the settlement payments puzzle.
     #[error("cannot settle from spend")]
     CannotSettleFromSpend,
-
-    /// A singleton spend was finalized more than once. This isn't currently returned by this
-    /// crate.
-    #[error("singleton spend already finalized")]
-    AlreadyFinalized,
 
     /// An action needs a coin to create its output from, but there isn't one that can be used.
     /// For example, an earlier action already recreated or melted the singleton.
@@ -441,10 +432,6 @@ pub enum DriverError {
     #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
 
-    /// Vault launcher ids conflict. This isn't currently returned by this crate.
-    #[error("conflicting vault launcher ids")]
-    ConflictingVaultLauncherIds,
-
     /// The conditions of a spend don't match the message that authorizes it.
     #[error("conditions do not match message")]
     WrongConditions,
@@ -472,11 +459,6 @@ pub enum DriverError {
     /// clear signed.
     #[error("wrong linked offer launcher id")]
     WrongLinkedOfferLauncherId,
-
-    /// A bulletin spend is missing its required conditions. This isn't currently returned by
-    /// this crate.
-    #[error("missing required bulletin conditions")]
-    MissingBulletinConditions,
 
     /// A p2 conditions or singleton spend doesn't assert its own coin id, so the spend path could
     /// be swapped without invalidating the vault's message.
