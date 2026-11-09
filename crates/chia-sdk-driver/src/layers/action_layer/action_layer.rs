@@ -164,7 +164,8 @@ pub struct ActionLayer<S, P = ()> {
 #[derive(Debug, Clone)]
 pub struct ActionLayerSolution<F> {
     /// The merkle proofs for [`action_spends`](Self::action_spends), in the same order. Use
-    /// [`ActionLayer::get_proofs`] to compute them.
+    /// [`ActionLayer::get_proofs`] to compute them. [`Layer::construct_solution`] returns
+    /// [`DriverError::InvalidActionLayerSolution`] if there isn't exactly one per action spend.
     ///
     /// The serialized solution only includes the proof for the first use of each action puzzle.
     pub proofs: Vec<MerkleProof>,
@@ -427,7 +428,12 @@ where
                 index += 1;
                 remaining_selector /= 2;
             }
-            actions.push(solution.puzzles[index]);
+            actions.push(
+                *solution
+                    .puzzles
+                    .get(index)
+                    .ok_or(DriverError::InvalidActionLayerSolution)?,
+            );
         }
 
         let action_spends = solution
@@ -503,6 +509,10 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
+        if solution.action_spends.len() != solution.proofs.len() {
+            return Err(DriverError::InvalidActionLayerSolution);
+        }
+
         let mut puzzle_to_selector = HashMap::<Bytes32, u32>::new();
         let mut next_selector = 2;
 
@@ -546,5 +556,67 @@ where
             finalizer_solution: solution.finalizer_solution,
         }
         .to_clvm(ctx)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_solution_with_out_of_range_selector() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        // The selector `5` refers to the second puzzle, but only one is revealed.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![NodePtr::NIL],
+            selectors_and_proofs: vec![(5, Some(MerkleProof::new(0, vec![])))],
+            solutions: vec![NodePtr::NIL],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        assert!(matches!(
+            ActionLayer::<u64>::parse_solution(ctx, solution),
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_construct_solution_with_missing_proof() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let action = ctx.alloc(&1)?;
+        let action_hash: Bytes32 = ctx.tree_hash(action).into();
+        let layer = ActionLayer::<u64>::from_action_puzzle_hashes(
+            &[action_hash],
+            0,
+            Finalizer::Default {
+                hint: Bytes32::default(),
+            },
+        );
+        let proofs = layer
+            .get_proofs(&[action_hash], &[action_hash])
+            .expect("the action is in the merkle tree");
+
+        let result = layer.construct_solution(
+            ctx,
+            ActionLayerSolution {
+                proofs,
+                action_spends: vec![
+                    Spend::new(action, NodePtr::NIL),
+                    Spend::new(action, NodePtr::NIL),
+                ],
+                finalizer_solution: NodePtr::NIL,
+            },
+        );
+
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
     }
 }
