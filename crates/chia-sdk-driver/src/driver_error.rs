@@ -152,8 +152,9 @@ pub enum DriverError {
     #[error("invalid merkle proof")]
     InvalidMerkleProof,
 
-    /// An action layer solution is malformed. Either a selector refers to an action puzzle that
-    /// isn't revealed, or the number of merkle proofs doesn't match the number of action spends.
+    /// An action layer solution is malformed. Either a selector doesn't pick one of the revealed
+    /// action puzzles, or the number of selectors, solutions, or merkle proofs doesn't match the
+    /// number of action spends.
     #[error("invalid action layer solution")]
     InvalidActionLayerSolution,
 
