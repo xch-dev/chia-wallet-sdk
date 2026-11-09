@@ -830,6 +830,7 @@ module.exports.BagAsset = nativeBinding.BagAsset
 module.exports.BagChild = nativeBinding.BagChild
 module.exports.BagCoin = nativeBinding.BagCoin
 module.exports.BagFormat = nativeBinding.BagFormat
+module.exports.BagFormatChip0053 = nativeBinding.BagFormatChip0053
 module.exports.BagFormatLegacy = nativeBinding.BagFormatLegacy
 module.exports.BagNode = nativeBinding.BagNode
 module.exports.BagPayment = nativeBinding.BagPayment

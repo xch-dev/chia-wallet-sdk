@@ -344,3 +344,44 @@ test("rejects invalid bags", (t) => {
       ]),
   );
 });
+
+test("builds a CHIP-0053 bag", (t) => {
+  // Example 2 of the CHIP, with amounts that are already sorted
+  const payments = Array.from(
+    { length: 10_001 },
+    (_, i) =>
+      new BagPayment(sha256(Buffer.from(`line ${i}`)), BigInt(10_001 - i)),
+  );
+
+  const format = BagFormat.chip0053(null, null, true);
+  t.deepEqual(format.fanOuts(10_001n), [2n, 51n]);
+  t.is(format.toLegacy(), null);
+  t.is(format.toChip0053()?.fanOuts, null);
+
+  const bag = new SecureTheBag(format, BagAsset.xch(), payments);
+  t.is(bag.depth(), 3n);
+  t.is(bag.nodePuzzleHashes().length, 101 + 2 + 1);
+
+  const root = bag.node(bag.rootHash());
+  t.is(root?.children.length, 2);
+
+  // The same bag with explicit values and the order of the input
+  const explicit = new SecureTheBag(
+    BagFormat.chip0053(100n, [2n, 51n], false),
+    BagAsset.xch(),
+    payments,
+  );
+  t.deepEqual(explicit.rootHash(), bag.rootHash());
+  t.deepEqual(explicit.format().toChip0053()?.fanOuts, [2n, 51n]);
+
+  // Values over 300, or that don't fit the payments, are rejected
+  t.throws(() => BagFormat.chip0053(null, [301n], true));
+  t.throws(
+    () =>
+      new SecureTheBag(
+        BagFormat.chip0053(null, [100n], true),
+        BagAsset.xch(),
+        payments,
+      ),
+  );
+});

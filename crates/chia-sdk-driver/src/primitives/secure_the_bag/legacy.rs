@@ -14,7 +14,7 @@ use crate::{DriverError, Spend, SpendContext};
 
 use super::BagChild;
 
-/// The message of the coin announcement that each node makes, so that a fee spend can assert it.
+/// The message of the coin announcement that each legacy node makes, so that a fee spend can assert it.
 const FEE_ANNOUNCEMENT: &[u8] = b"$";
 
 /// The default leaf width for a number of payments.
@@ -32,13 +32,25 @@ pub(super) fn sort(children: &mut [BagChild]) {
     children.sort_by_key(BagChild::puzzle_hash);
 }
 
-/// A single payment without a clawback isn't bagged, but a clawback still needs a node to create it.
-pub(super) fn is_root(level: &[BagChild]) -> bool {
-    matches!(level, [child] if !child.is_clawback())
+/// Splits the level into consecutive chunks of the width, until a single payment without a clawback or a single node
+/// remains. A single payment without a clawback isn't bagged, but a clawback still needs a node to create it.
+pub(super) fn group(level: &[BagChild], width: usize) -> Option<Vec<Vec<usize>>> {
+    if matches!(level, [child] if !child.is_clawback()) {
+        return None;
+    }
+
+    Some(
+        (0..level.len())
+            .step_by(width)
+            .map(|start| (start..level.len().min(start + width)).collect())
+            .collect(),
+    )
 }
 
-pub(super) fn node_puzzle_hash(children: &[BagChild]) -> Bytes32 {
-    let Ok(conditions) = node_conditions(children, |memo| {
+/// The puzzle hash of a node, which is `(q . conditions)`. Formats other than legacy leave out the fee announcement,
+/// since a fee spend can use `ASSERT_CONCURRENT_SPEND` on the node's coin instead.
+pub(super) fn node_puzzle_hash(children: &[BagChild], fee_announcement: bool) -> Bytes32 {
+    let Ok(conditions) = node_conditions(children, fee_announcement, |memo| {
         Ok::<TreeHash, Infallible>(match memo {
             Memo::Hint(hint) => clvm_list!(hint).tree_hash(),
             Memo::Clawback(receiver, memo) => clvm_list!(receiver, memo).tree_hash(),
@@ -50,8 +62,9 @@ pub(super) fn node_puzzle_hash(children: &[BagChild]) -> Bytes32 {
 pub(super) fn node_spend(
     ctx: &mut SpendContext,
     children: &[BagChild],
+    fee_announcement: bool,
 ) -> Result<Spend, DriverError> {
-    let conditions = node_conditions(children, |memo| match memo {
+    let conditions = node_conditions(children, fee_announcement, |memo| match memo {
         Memo::Hint(hint) => ctx.alloc(&clvm_list!(hint)),
         Memo::Clawback(receiver, memo) => ctx.alloc(&clvm_list!(receiver, memo)),
     })?;
@@ -79,13 +92,16 @@ fn child_memo(child: &BagChild) -> Memo {
 
 fn node_conditions<T, E>(
     children: &[BagChild],
+    fee_announcement: bool,
     mut memos: impl FnMut(Memo) -> Result<T, E>,
 ) -> Result<Vec<Condition<T>>, E> {
     let mut conditions = Vec::with_capacity(children.len() + 1);
 
-    conditions.push(Condition::CreateCoinAnnouncement(
-        CreateCoinAnnouncement::new(Bytes::new(FEE_ANNOUNCEMENT.to_vec())),
-    ));
+    if fee_announcement {
+        conditions.push(Condition::CreateCoinAnnouncement(
+            CreateCoinAnnouncement::new(Bytes::new(FEE_ANNOUNCEMENT.to_vec())),
+        ));
+    }
 
     for child in children {
         conditions.push(Condition::CreateCoin(CreateCoin::new(

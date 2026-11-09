@@ -115,7 +115,7 @@ impl SecureTheBag {
             return Err(DriverError::EmptyBag);
         }
 
-        let width = format.validate_width(level.len())?;
+        let grouping = format.grouping(level.len())?;
 
         format.sort(&mut level);
 
@@ -129,11 +129,12 @@ impl SecureTheBag {
         let mut parents = HashMap::new();
         let mut depth = 0;
 
-        while !format.is_root(&level) {
-            let mut next_level = Vec::with_capacity(level.len().div_ceil(width));
+        while let Some(groups) = grouping.group(depth, &level) {
+            let mut next_level = Vec::with_capacity(groups.len());
 
-            for children in format.group(&level, width) {
-                let puzzle_hash = format.node_puzzle_hash(children);
+            for group in groups {
+                let children: Vec<BagChild> = group.into_iter().map(|index| level[index]).collect();
+                let puzzle_hash = format.node_puzzle_hash(&children);
 
                 // A payment's puzzle hash can be chosen to match a node built from other payments, which would make
                 // the bag ambiguous
@@ -144,17 +145,11 @@ impl SecureTheBag {
                 // This can't overflow, since the total amount fits
                 let amount = children.iter().map(BagChild::amount).sum();
 
-                for child in children {
+                for child in &children {
                     parents.insert(child.puzzle_hash(), puzzle_hash);
                 }
 
-                nodes.insert(
-                    puzzle_hash,
-                    BagNode {
-                        amount,
-                        children: children.to_vec(),
-                    },
-                );
+                nodes.insert(puzzle_hash, BagNode { amount, children });
 
                 next_level.push(BagChild::Node {
                     puzzle_hash,
@@ -165,6 +160,8 @@ impl SecureTheBag {
             level = next_level;
             depth += 1;
         }
+
+        debug_assert_eq!(level.len(), 1, "the last level is the root");
 
         Ok(Self {
             format,
