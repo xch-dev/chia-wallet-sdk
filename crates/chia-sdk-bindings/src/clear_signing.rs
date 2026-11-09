@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
-    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin,
-    P2ConditionsOrSingleton, SpendContext, VaultMessageProof, VaultOutput, VaultVersion,
+    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2,
+    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SigningVault, SpendContext,
+    VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
 };
 
 use crate::{
@@ -69,6 +70,35 @@ impl Reveals {
         self.inner.lock().unwrap().reveal_vault_nonce(nonce);
         Ok(())
     }
+
+    pub fn reveal_signing_vault(&self, custody_hash: Bytes32, coin: Option<Coin>) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_signing_vault(custody_hash, coin);
+        Ok(())
+    }
+
+    pub fn reveal_controlled_vault(
+        &self,
+        coin: Coin,
+        launcher_id: Bytes32,
+        custody_hash: Bytes32,
+        delegated_spend: Spend,
+        recovery: Option<ControlledVaultRecovery>,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_controlled_vault(sdk::RevealedControlledVault {
+                coin,
+                launcher_id,
+                custody_hash,
+                delegated_spend: delegated_spend.into(),
+                recovery,
+            })?;
+        Ok(())
+    }
 }
 
 pub fn parse_vault_transaction(
@@ -96,8 +126,34 @@ pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) ->
     })
 }
 
+pub fn vault_controller_envelope(
+    clvm: Clvm,
+    controller: Vault,
+    controlled_coin: Coin,
+    delegated_puzzle_hash: Bytes32,
+    fast_forward: bool,
+) -> Result<Spend> {
+    let mut ctx = clvm.0.lock().unwrap();
+    let spend = sdk::vault_controller_envelope(
+        &mut ctx,
+        &controller.into(),
+        controlled_coin,
+        delegated_puzzle_hash,
+        fast_forward,
+    )?;
+
+    Ok(Spend {
+        puzzle: Program(clvm.0.clone(), spend.puzzle),
+        solution: Program(clvm.0.clone(), spend.solution),
+    })
+}
+
 pub fn vault_message_coin() -> Result<Coin> {
     Ok(sdk::vault_message_coin())
+}
+
+pub fn vault_controller_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_controller_message_coin())
 }
 
 pub fn verify_vault_signed_message(
@@ -111,6 +167,24 @@ pub fn verify_vault_signed_message(
         &proof,
         expected_launcher_id,
         expected_custody_hash,
+        genesis_challenge,
+        max_cost,
+    )?)
+}
+
+pub fn verify_controlled_vault_signed_message(
+    proof: VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    controllers: Vec<VaultInfo>,
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>> {
+    Ok(sdk::verify_controlled_vault_signed_message(
+        &proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        &controllers,
         genesis_challenge,
         max_cost,
     )?)
@@ -197,6 +271,8 @@ pub fn calculate_vault_start_recovery_message(
 
 #[derive(Clone)]
 pub struct VaultTransaction {
+    pub launcher_id: Bytes32,
+    pub custody_hash: Option<Bytes32>,
     pub vault_child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub spends: Vec<VerifiedSpend>,
@@ -210,15 +286,23 @@ pub struct VaultTransaction {
     pub p2_puzzle_hashes: Vec<Bytes32>,
     pub delegated_puzzle_hash: Bytes32,
     pub signed_messages: Vec<Bytes>,
+    pub authorization_path: Vec<VaultAuthorization>,
+    pub signing_vault: Option<SigningVault>,
 }
 
 impl VaultTransaction {
+    pub fn signs_messages(&self) -> Result<bool> {
+        Ok(!self.signed_messages.is_empty())
+    }
+
     fn from_sdk(
         ctx: &mut SpendContext,
         clvm: &SharedContext,
         value: sdk::VaultTransaction,
     ) -> Result<Self> {
         Ok(Self {
+            launcher_id: value.launcher_id,
+            custody_hash: value.custody_hash,
             vault_child: value.vault_child,
             drop_coins: value.drop_coins,
             spends: value
@@ -254,6 +338,8 @@ impl VaultTransaction {
             p2_puzzle_hashes: value.p2_puzzle_hashes,
             delegated_puzzle_hash: value.delegated_puzzle_hash,
             signed_messages: value.signed_messages,
+            authorization_path: value.authorization_path,
+            signing_vault: value.signing_vault,
         })
     }
 }

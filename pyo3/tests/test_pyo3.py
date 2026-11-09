@@ -232,7 +232,7 @@ def test_vault_message_proof():
 
     # The vault is spent like any other transaction, and the signed spend is the proof.
     mips.spend_vault(vault)
-    proof = VaultMessageProof(clvm.coin_spends()[0], Signature.infinity())
+    proof = VaultMessageProof(clvm.coin_spends()[0], Signature.infinity(), [])
 
     encoded = proof.encode_string()
     assert encoded.startswith("vaultsig1")

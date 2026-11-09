@@ -1601,6 +1601,17 @@ export declare class Constants {
   static auctionPercentBidVerifierHash(): Buffer
 }
 
+export declare class ControlledVaultRecovery {
+  clone(): ControlledVaultRecovery
+  constructor(leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, version: VaultVersion)
+  get leftSideSubtreeHash(): Buffer
+  set leftSideSubtreeHash(value: Uint8Array)
+  get recoveryTimelock(): bigint
+  set recoveryTimelock(value: bigint)
+  get version(): VaultVersion
+  set version(value: VaultVersion)
+}
+
 export declare class CreateCoin {
   clone(): CreateCoin
   constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
@@ -3623,6 +3634,8 @@ export declare class Reveals {
   revealP2ConditionsOrSingleton(p2: P2ConditionsOrSingleton): void
   revealBag(bag: SecureTheBag): void
   revealVaultNonce(nonce: bigint): void
+  revealSigningVault(custodyHash: Uint8Array, coin?: Coin | undefined | null): void
+  revealControlledVault(coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, recovery?: ControlledVaultRecovery | undefined | null): void
 }
 
 export declare class RewardChainBlock {
@@ -4334,6 +4347,17 @@ export declare class Signature {
   isValid(): boolean
 }
 
+export declare class SigningVault {
+  clone(): SigningVault
+  constructor(custodyHash: Uint8Array, puzzleHash: Uint8Array, coin?: Coin | undefined | null)
+  get custodyHash(): Buffer
+  set custodyHash(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get coin(): Coin | null
+  set coin(value: Coin | undefined | null)
+}
+
 export declare class Simulator {
   clone(): Simulator
   constructor()
@@ -4631,6 +4655,21 @@ export declare class Vault {
   set info(value: VaultInfo)
 }
 
+export declare class VaultAuthorization {
+  clone(): VaultAuthorization
+  constructor(controllerChild: VaultOutput, coin: Coin, launcherId: Uint8Array, custodyHash: Uint8Array, recovery?: ControlledVaultRecovery | undefined | null)
+  get controllerChild(): VaultOutput
+  set controllerChild(value: VaultOutput)
+  get coin(): Coin
+  set coin(value: Coin)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get custodyHash(): Buffer
+  set custodyHash(value: Uint8Array)
+  get recovery(): ControlledVaultRecovery | null
+  set recovery(value: ControlledVaultRecovery | undefined | null)
+}
+
 export declare class VaultInfo {
   clone(): VaultInfo
   constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
@@ -4646,11 +4685,13 @@ export declare class VaultMessageProof {
   static decode(proof: Uint8Array): VaultMessageProof
   encodeString(): string
   static decodeString(proof: string): VaultMessageProof
-  constructor(coinSpend: CoinSpend, aggregatedSignature: Signature)
+  constructor(coinSpend: CoinSpend, aggregatedSignature: Signature, controllerSpends: Array<CoinSpend>)
   get coinSpend(): CoinSpend
   set coinSpend(value: CoinSpend)
   get aggregatedSignature(): Signature
   set aggregatedSignature(value: Signature)
+  get controllerSpends(): Array<CoinSpend>
+  set controllerSpends(value: Array<CoinSpend>)
 }
 
 export declare class VaultMint {
@@ -4673,7 +4714,12 @@ export declare class VaultOutput {
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>)
+  signsMessages(): boolean
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array | undefined | null, vaultChild: VaultOutput | undefined | null, dropCoins: Array<DropCoin>, spends: Array<VerifiedSpend>, issuances: Array<Issuance>, assertedPayments: Array<AssertedNotarizedPayment>, receivedPayments: Array<AssertedPayment>, externalPayments: Array<AssertedPayment>, assetFlows: Array<AssetFlow>, linkedOffer: LinkedOffer | undefined | null, reservedFee: bigint, p2PuzzleHashes: Array<Uint8Array>, delegatedPuzzleHash: Uint8Array, signedMessages: Array<Uint8Array>, authorizationPath: Array<VaultAuthorization>, signingVault?: SigningVault | undefined | null)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get custodyHash(): Buffer | null
+  set custodyHash(value: Uint8Array | undefined | null)
   get vaultChild(): VaultOutput | null
   set vaultChild(value: VaultOutput | undefined | null)
   get dropCoins(): Array<DropCoin>
@@ -4700,6 +4746,10 @@ export declare class VaultTransaction {
   set delegatedPuzzleHash(value: Uint8Array)
   get signedMessages(): Array<Buffer>
   set signedMessages(value: Array<Uint8Array>)
+  get authorizationPath(): Array<VaultAuthorization>
+  set authorizationPath(value: Array<VaultAuthorization>)
+  get signingVault(): SigningVault | null
+  set signingVault(value: SigningVault | undefined | null)
 }
 
 export declare class VdfInfo {
@@ -5313,6 +5363,10 @@ export declare const enum UriKind {
   License = 2,
 }
 
+export declare function vaultControllerEnvelope(clvm: Clvm, controller: Vault, controlledCoin: Coin, delegatedPuzzleHash: Uint8Array, fastForward: boolean): Spend
+
+export declare function vaultControllerMessageCoin(): Coin
+
 export declare function vaultMessageCoin(): Coin
 
 export declare function vaultMessageEnvelope(clvm: Clvm, vault: Vault, messages: Array<Uint8Array>): Spend
@@ -5323,6 +5377,8 @@ export declare const enum VaultVersion {
   Legacy = 0,
   ForceSingletonRecreation = 1,
 }
+
+export declare function verifyControlledVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, controllers: Array<VaultInfo>, genesisChallenge: Uint8Array, maxCost?: bigint | undefined | null): Array<Buffer>
 
 export declare function verifyVaultSignedMessage(proof: VaultMessageProof, expectedLauncherId: Uint8Array, expectedCustodyHash: Uint8Array, genesisChallenge: Uint8Array, maxCost?: bigint | undefined | null): Array<Buffer>
 

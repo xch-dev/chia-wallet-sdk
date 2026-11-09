@@ -6,8 +6,9 @@ use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
 use crate::{
-    DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message,
-    parse_vault_message_envelope,
+    DriverError, Facts, Spend, VaultMessage, VaultPuzzleMessage, is_vault_puzzle_message,
+    parse_delegated_spend, parse_vault_message, parse_vault_message_envelope,
+    parse_vault_puzzle_message,
 };
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,8 @@ pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub messages: Vec<VaultMessage>,
+    /// Messages to the puzzle hashes of controlled vaults, which must each match a revealed controlled vault.
+    pub puzzle_messages: Vec<VaultPuzzleMessage>,
     pub signed_messages: Vec<Bytes>,
 }
 
@@ -62,6 +65,7 @@ pub fn parse_vault_delegated_spend(
             child: Some(envelope.vault_child),
             drop_coins: Vec::new(),
             messages: Vec::new(),
+            puzzle_messages: Vec::new(),
             signed_messages: envelope.messages,
         });
     }
@@ -69,6 +73,7 @@ pub fn parse_vault_delegated_spend(
     let mut child = None;
     let mut drop_coins = Vec::new();
     let mut messages = Vec::new();
+    let mut puzzle_messages = Vec::new();
 
     for condition in conditions {
         match condition {
@@ -113,8 +118,13 @@ pub fn parse_vault_delegated_spend(
                 // If the vault sends a message to a coin, we must first validate the message's format, and then ensure
                 // that the corresponding coin spend is revealed and matches the delegated puzzle hash in the message.
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
-                // they can be validated to be impossible to circumvent.
-                messages.push(parse_vault_message(allocator, condition)?);
+                // they can be validated to be impossible to circumvent. A message to a puzzle hash can only authorize
+                // the spend of a controlled vault, which is checked when the messages are matched.
+                if is_vault_puzzle_message(&condition) {
+                    puzzle_messages.push(parse_vault_puzzle_message(allocator, condition)?);
+                } else {
+                    messages.push(parse_vault_message(allocator, condition)?);
+                }
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -134,6 +144,7 @@ pub fn parse_vault_delegated_spend(
         child,
         drop_coins,
         messages,
+        puzzle_messages,
         signed_messages: Vec::new(),
     })
 }

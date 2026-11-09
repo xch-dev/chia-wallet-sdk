@@ -29,4 +29,6 @@ pub use vault_spend::*;
 pub use vault_transaction::*;
 
 #[cfg(test)]
+mod controlled_vault_tests;
+#[cfg(test)]
 mod tests;

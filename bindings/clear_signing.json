@@ -39,6 +39,21 @@
         "args": {
           "nonce": "usize"
         }
+      },
+      "reveal_signing_vault": {
+        "args": {
+          "custody_hash": "Bytes32",
+          "coin": "Option<Coin>"
+        }
+      },
+      "reveal_controlled_vault": {
+        "args": {
+          "coin": "Coin",
+          "launcher_id": "Bytes32",
+          "custody_hash": "Bytes32",
+          "delegated_spend": "Spend",
+          "recovery": "Option<ControlledVaultRecovery>"
+        }
       }
     }
   },
@@ -61,7 +76,22 @@
     },
     "return": "Spend"
   },
+  "vault_controller_envelope": {
+    "type": "function",
+    "args": {
+      "clvm": "Clvm",
+      "controller": "Vault",
+      "controlled_coin": "Coin",
+      "delegated_puzzle_hash": "Bytes32",
+      "fast_forward": "bool"
+    },
+    "return": "Spend"
+  },
   "vault_message_coin": {
+    "type": "function",
+    "return": "Coin"
+  },
+  "vault_controller_message_coin": {
     "type": "function",
     "return": "Coin"
   },
@@ -76,13 +106,26 @@
     },
     "return": "Vec<Bytes>"
   },
+  "verify_controlled_vault_signed_message": {
+    "type": "function",
+    "args": {
+      "proof": "VaultMessageProof",
+      "expected_launcher_id": "Bytes32",
+      "expected_custody_hash": "Bytes32",
+      "controllers": "Vec<VaultInfo>",
+      "genesis_challenge": "Bytes32",
+      "max_cost": "Option<u64>"
+    },
+    "return": "Vec<Bytes>"
+  },
   "VaultMessageProof": {
     "type": "class",
     "new": true,
     "remote": true,
     "fields": {
       "coin_spend": "CoinSpend",
-      "aggregated_signature": "Signature"
+      "aggregated_signature": "Signature",
+      "controller_spends": "Vec<CoinSpend>"
     },
     "methods": {
       "encode": {
@@ -188,6 +231,8 @@
     "type": "class",
     "new": true,
     "fields": {
+      "launcher_id": "Bytes32",
+      "custody_hash": "Option<Bytes32>",
       "vault_child": "Option<VaultOutput>",
       "drop_coins": "Vec<DropCoin>",
       "spends": "Vec<VerifiedSpend>",
@@ -200,7 +245,46 @@
       "reserved_fee": "u64",
       "p2_puzzle_hashes": "Vec<Bytes32>",
       "delegated_puzzle_hash": "Bytes32",
-      "signed_messages": "Vec<Bytes>"
+      "signed_messages": "Vec<Bytes>",
+      "authorization_path": "Vec<VaultAuthorization>",
+      "signing_vault": "Option<SigningVault>"
+    },
+    "methods": {
+      "signs_messages": {
+        "return": "bool"
+      }
+    }
+  },
+  "SigningVault": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "custody_hash": "Bytes32",
+      "puzzle_hash": "Bytes32",
+      "coin": "Option<Coin>"
+    }
+  },
+  "VaultAuthorization": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "controller_child": "VaultOutput",
+      "coin": "Coin",
+      "launcher_id": "Bytes32",
+      "custody_hash": "Bytes32",
+      "recovery": "Option<ControlledVaultRecovery>"
+    }
+  },
+  "ControlledVaultRecovery": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "version": "VaultVersion"
     }
   },
   "VaultOutput": {

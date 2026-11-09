@@ -731,8 +731,7 @@ impl ParsedMember {
             | Self::Bls { fast_forward, .. }
             | Self::BlsTaproot { fast_forward, .. }
             | Self::Passkey { fast_forward, .. } => *fast_forward,
-            // Mode 0b010_010 is the one used when constructing a fast forward singleton member.
-            Self::Singleton { mode, .. } => *mode == Some(0b010_010),
+            Self::Singleton { mode, .. } => *mode == Some(sdk::VAULT_FAST_FORWARD_MESSAGE_MODE),
             Self::FixedPuzzle(_) | Self::Custom(_) => false,
         })
     }
