@@ -278,7 +278,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe::new(public_key, Bytes::default())])?,
+                to_program([AggSigMe::<()>::new(public_key, Bytes::default())])?,
             )],
             Signature::default(),
         );
@@ -302,7 +302,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe::new(PublicKey::default(), Bytes::default())])?,
+                to_program([AggSigMe::<()>::new(PublicKey::default(), Bytes::default())])?,
             )],
             Signature::default(),
         );
@@ -328,7 +328,10 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe::new(pair.pk, b"Hello, world!".to_vec().into())])?,
+                to_program([AggSigMe::<()>::new(
+                    pair.pk,
+                    b"Hello, world!".to_vec().into(),
+                )])?,
             )],
             &[pair.sk],
         )
@@ -355,7 +358,7 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    AggSigMe::new(alice.pk, b"Hello, world!".to_vec().into()),
+                    AggSigMe::<()>::new(alice.pk, b"Hello, world!".to_vec().into()),
                     AggSigMe::new(bob.pk, b"Goodbye, world!".to_vec().into()),
                 ])?,
             )],
@@ -772,7 +775,11 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 0, Memos::Some([hint]))])?,
+                to_program([CreateCoin::<_, ()>::new(
+                    puzzle_hash,
+                    0,
+                    Memos::Some([hint]),
+                )])?,
             )],
             Signature::default(),
         );
