@@ -995,7 +995,10 @@ fn test_zero_royalty_trade_price_is_unpayable() -> Result<()> {
         })?;
         let offer = t.aggregate(&[offer])?;
 
-        assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
+        assert!(matches!(
+            offer.requested_royalty_amounts(),
+            Err(DriverError::ZeroRoyaltyPayment(launcher_id)) if launcher_id == nft.info.launcher_id
+        ));
         assert!(matches!(
             offer.requested_royalty_payments(&mut t.ctx),
             Err(DriverError::ZeroRoyaltyPayment(launcher_id)) if launcher_id == nft.info.launcher_id
@@ -1069,7 +1072,10 @@ fn test_unknown_trade_price_asset_is_rejected() -> Result<()> {
     let offer = t.sell_nfts_with(&alice, &[nft], &xch(1000), |_, _| vec![unknown])?;
     let offer = t.aggregate(&[offer])?;
 
-    assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
+    assert!(matches!(
+        offer.requested_royalty_amounts(),
+        Err(DriverError::UnknownSettlementAsset(puzzle_hash)) if puzzle_hash == unknown.puzzle_hash
+    ));
     assert!(matches!(
         offer.requested_royalty_payments(&mut t.ctx),
         Err(DriverError::UnknownSettlementAsset(puzzle_hash)) if puzzle_hash == unknown.puzzle_hash
@@ -1334,7 +1340,7 @@ fn test_bid_for_nft() -> Result<()> {
 
     assert_eq!(
         offer.requested_nft_trade_prices(nft.info.launcher_id),
-        vec![xch_trade_price(1967)]
+        vec![xch_trade_price(1999)]
     );
 
     t.take(&bob, &offer, |spends| spends.add(nft))?;
@@ -1658,6 +1664,66 @@ fn test_aggregate_sale_and_bid_for_same_nft() -> Result<()> {
 }
 
 #[test]
+fn test_prepaid_royalty_is_not_paid_again() -> Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+    let carol = t.pair();
+
+    // Bob's bid prepays the same royalty that Alice's NFT asserts, which satisfies it
+    let nft = t.mint_nft(&alice, ROYALTY_A, 500)?;
+    let alice_offer = t.sell_nfts(&alice, &[nft], &xch(1000))?;
+    let bob_offer = t.bid(&bob, &nft, Price::Xch(1000))?;
+    let offer = t.aggregate(&[alice_offer, bob_offer])?;
+
+    assert_eq!(offer.requested_royalty_amounts()?, OfferAmounts::new());
+    assert_eq!(offer.offered_royalty_amounts()?, xch(50));
+
+    t.take(&carol, &offer, |_| {})?;
+
+    assert!(t.owns_nft(&nft, bob.puzzle_hash));
+    assert_eq!(t.balance(alice.puzzle_hash), 1000);
+    assert_eq!(t.balance(carol.puzzle_hash), 0);
+    assert_eq!(t.balance(ROYALTY_A), 50);
+
+    Ok(())
+}
+
+#[test]
+fn test_aggregate_bids_reveal_split_trade_price() -> Result<()> {
+    let mut t = Tester::new();
+    let alice = t.pair();
+    let bob = t.pair();
+    let carol = t.pair();
+
+    // Each bid is 1999, which the even split of the combined 3998 reproduces, so each NFT reveals
+    // it rather than the smallest trade price with the same royalty, 1967
+    let first_nft = t.mint_nft(&carol, ROYALTY_A, 300)?;
+    let second_nft = t.mint_nft(&carol, ROYALTY_B, 300)?;
+    let alice_offer = t.bid(&alice, &first_nft, Price::Xch(1999))?;
+    let bob_offer = t.bid(&bob, &second_nft, Price::Xch(1999))?;
+    let offer = t.aggregate(&[alice_offer, bob_offer])?;
+
+    for nft in [first_nft, second_nft] {
+        assert_eq!(
+            offer.requested_nft_trade_prices(nft.info.launcher_id),
+            vec![xch_trade_price(1999)]
+        );
+    }
+
+    t.take(&carol, &offer, |spends| {
+        spends.add(first_nft);
+        spends.add(second_nft);
+    })?;
+
+    assert_eq!(t.balance(carol.puzzle_hash), 3998);
+    assert_eq!(t.balance(ROYALTY_A), 59);
+    assert_eq!(t.balance(ROYALTY_B), 59);
+
+    Ok(())
+}
+
+#[test]
 fn test_malformed_prepaid_royalties_are_ignored() -> Result<()> {
     let mut t = Tester::new();
     let alice = t.pair();
@@ -1957,13 +2023,10 @@ fn test_royalty_larger_than_a_coin_is_rejected() -> Result<()> {
     })?;
     let offer = t.aggregate(&[offer])?;
 
-    assert_eq!(
-        offer.requested_royalty_amounts()?,
-        OfferAmounts {
-            xch: u128::from(u64::MAX) * 65_535 / 10_000,
-            cats: IndexMap::new(),
-        }
-    );
+    assert!(matches!(
+        offer.requested_royalty_amounts(),
+        Err(DriverError::AmountOverflow)
+    ));
     assert!(matches!(
         offer.requested_royalty_payments(&mut t.ctx),
         Err(DriverError::AmountOverflow)
