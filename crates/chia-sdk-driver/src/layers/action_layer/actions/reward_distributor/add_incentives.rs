@@ -8,6 +8,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::bps_of;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorAddIncentivesActionLog,
     RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
@@ -110,9 +111,7 @@ impl RewardDistributorAddIncentivesAction {
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorAddIncentivesActionSolution {
             amount,
-            manager_fee: u64::try_from(
-                u128::from(amount) * u128::from(distributor.info.constants.fee_bps) / 10000,
-            )?,
+            manager_fee: bps_of(amount, distributor.info.constants.fee_bps)?,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 

@@ -9,6 +9,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::bps_of;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorCreatedAnnouncementPrefix, RewardDistributorNewEpochActionLog,
@@ -152,10 +153,7 @@ impl RewardDistributorNewEpochAction {
             } else {
                 0
             };
-        let fee = u64::try_from(
-            u128::from(epoch_total_rewards) * u128::from(distributor.info.constants.fee_bps)
-                / 10000,
-        )?;
+        let fee = bps_of(epoch_total_rewards, distributor.info.constants.fee_bps)?;
 
         // calculate announcement needed to ensure everything's happening as expected
         let new_epoch_announcement = RewardDistributorCreatedAnnouncementPrefix::new_epoch(

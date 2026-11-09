@@ -24,6 +24,15 @@ pub use sync::*;
 pub use unstake::*;
 pub use withdraw_incentives::*;
 
+use crate::DriverError;
+
+/// Calculates `bps` basis points of `amount`, rounded down to match the puzzles, which use
+/// arbitrary precision integers. Fails with [`DriverError::TryFromInt`] if the result doesn't fit
+/// in a [`u64`], which can only happen if `bps` is greater than 10,000.
+fn bps_of(amount: u64, bps: u64) -> Result<u64, DriverError> {
+    Ok(u64::try_from(u128::from(amount) * u128::from(bps) / 10000)?)
+}
+
 #[cfg(test)]
 mod tests {
     use chia_protocol::{Bytes32, Coin};

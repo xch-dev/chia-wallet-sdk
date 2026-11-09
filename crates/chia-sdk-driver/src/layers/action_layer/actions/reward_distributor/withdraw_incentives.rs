@@ -10,6 +10,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::bps_of;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
@@ -88,9 +89,7 @@ impl RewardDistributorWithdrawIncentivesAction {
         withdrawal_share_bps: u64,
     ) -> Result<RewardDistributorWithdrawIncentivesActionLog, DriverError> {
         let params = ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
-        let withdrawal_share = u64::try_from(
-            u128::from(params.committed_value) * u128::from(withdrawal_share_bps) / 10000,
-        )?;
+        let withdrawal_share = bps_of(params.committed_value, withdrawal_share_bps)?;
 
         Ok(RewardDistributorWithdrawIncentivesActionLog {
             spent_reward_slot: RewardDistributorRewardSlotValue {
@@ -135,10 +134,9 @@ impl RewardDistributorWithdrawIncentivesAction {
         // last u64 = withdrawn amount
         let commitment_slot = distributor.actual_commitment_slot_value(commitment_slot);
         let reward_slot = distributor.actual_reward_slot_value(reward_slot);
-        let withdrawal_share = u64::try_from(
-            u128::from(commitment_slot.info.value.rewards)
-                * u128::from(distributor.info.constants.withdrawal_share_bps)
-                / 10000,
+        let withdrawal_share = bps_of(
+            commitment_slot.info.value.rewards,
+            distributor.info.constants.withdrawal_share_bps,
         )?;
 
         // calculate message that the withdrawer needs to send
