@@ -39,7 +39,7 @@ const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 /// use chia_sdk_signer::{SecpDialect, SecpPublicKey};
 /// use chia_secp::K1SecretKey;
 /// use clvm_traits::{ToClvm, clvm_list, clvm_quote};
-/// use clvmr::{Allocator, ChiaDialect, NodePtr, run_program};
+/// use clvmr::{Allocator, ChiaDialect, ClvmFlags, NodePtr, run_program};
 ///
 /// let mut allocator = Allocator::new();
 /// let public_key = K1SecretKey::from_bytes(&[1; 32])?.public_key();
@@ -54,7 +54,7 @@ const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 /// )
 /// .to_clvm(&mut allocator)?;
 ///
-/// let dialect = ChiaDialect::new(0);
+/// let dialect = ChiaDialect::new(ClvmFlags::empty());
 /// let dialect = SecpDialect::new(&dialect);
 /// run_program(&mut allocator, &dialect, program, NodePtr::NIL, u64::MAX)?;
 ///

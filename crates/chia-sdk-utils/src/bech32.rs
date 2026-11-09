@@ -28,7 +28,8 @@ pub enum Bech32Error {
     #[error("bech32 decode error: {0}")]
     Decode(#[from] DecodeError),
 
-    /// The data couldn't be encoded.
+    /// The data couldn't be encoded. Since there's no length limit, this isn't expected to
+    /// happen in practice.
     #[error("bech32 encode error: {0}")]
     Encode(#[from] EncodeError),
 
@@ -97,8 +98,11 @@ impl Bech32 {
 
     /// Decodes a bech32m string into its data and prefix.
     ///
+    /// The string can be longer than the usual 1023 character limit of bech32m, which is needed
+    /// for long values such as offers. The prefix is converted to lowercase.
+    ///
     /// Returns [`Bech32Error::InvalidFormat`] if the string uses the original bech32
-    /// checksum rather than bech32m.
+    /// checksum rather than bech32m, or [`Bech32Error::Decode`] if it isn't valid bech32m.
     pub fn decode(address: &str) -> Result<Self, Bech32Error> {
         let unchecked = UncheckedHrpstring::new(address).map_err(DecodeError::Parse)?;
 
@@ -120,8 +124,10 @@ impl Bech32 {
 
     /// Encodes the data as a bech32m string with the prefix.
     ///
-    /// Returns an error if the prefix isn't a valid bech32 human-readable part, or if the
-    /// resulting string would be too long.
+    /// The usual 1023 character limit of bech32m isn't enforced, so long data such as offers can
+    /// be encoded.
+    ///
+    /// Returns [`Bech32Error::Prefix`] if the prefix isn't a valid bech32 human-readable part.
     pub fn encode(&self) -> Result<String, Bech32Error> {
         let hrp = Hrp::parse(&self.prefix)?;
         Ok(bech32::encode::<Bech32mUnbounded>(hrp, &self.data)?)
