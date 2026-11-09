@@ -8,23 +8,31 @@ use bech32::{
 use chia_protocol::{Bytes, Bytes32};
 use thiserror::Error;
 
+/// An error that occurs when encoding or decoding a [`Bech32`] string or an [`Address`].
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum Bech32Error {
+    /// The string is valid bech32, but uses the original bech32 checksum instead of bech32m.
     #[error("not bech32m encoded")]
     InvalidFormat,
 
+    /// An [`Address`] must contain exactly 32 bytes of data, but this many were decoded.
     #[error("expected 32 bytes, found {0}")]
     WrongLength(usize),
 
+    /// The prefix didn't match the expected one. The fields are the prefix that was found,
+    /// followed by the prefix that was expected.
     #[error("expected prefix {1}, found {0}")]
     WrongPrefix(String, String),
 
+    /// The string couldn't be decoded, for example because of an invalid checksum or character.
     #[error("bech32 decode error: {0}")]
     Decode(#[from] DecodeError),
 
+    /// The data couldn't be encoded.
     #[error("bech32 encode error: {0}")]
     Encode(#[from] EncodeError),
 
+    /// The prefix isn't a valid bech32 human-readable part.
     #[error("invalid bech32 prefix: {0}")]
     Prefix(#[from] hrp::Error),
 }
@@ -53,17 +61,44 @@ impl Checksum for Bech32mUnbounded {
     const TARGET_RESIDUE: u32 = 0x2bc8_30a3;
 }
 
+/// Arbitrary data encoded as a bech32m string with a human-readable prefix.
+///
+/// This is used for any bech32m value, regardless of length. For 32 byte puzzle hashes,
+/// use [`Address`] instead, which checks the length.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes;
+/// use chia_sdk_utils::Bech32;
+///
+/// let bech32 = Bech32::new(Bytes::new(vec![1, 2, 3]), "test".to_string());
+/// let encoded = bech32.encode()?;
+/// assert!(encoded.starts_with("test1"));
+///
+/// let decoded = Bech32::decode(&encoded)?;
+/// assert_eq!(decoded, bech32);
+/// assert_eq!(decoded.expect_prefix("test")?.as_ref(), &[1, 2, 3]);
+/// # Ok::<(), chia_sdk_utils::Bech32Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bech32 {
+    /// The decoded data.
     pub data: Bytes,
+    /// The human-readable part of the string, before the `1` separator.
     pub prefix: String,
 }
 
 impl Bech32 {
+    /// Creates a new [`Bech32`] value from its data and prefix.
     pub fn new(data: Bytes, prefix: String) -> Self {
         Self { data, prefix }
     }
 
+    /// Decodes a bech32m string into its data and prefix.
+    ///
+    /// Returns [`Bech32Error::InvalidFormat`] if the string uses the original bech32
+    /// checksum rather than bech32m.
     pub fn decode(address: &str) -> Result<Self, Bech32Error> {
         let unchecked = UncheckedHrpstring::new(address).map_err(DecodeError::Parse)?;
 
@@ -83,11 +118,17 @@ impl Bech32 {
         })
     }
 
+    /// Encodes the data as a bech32m string with the prefix.
+    ///
+    /// Returns an error if the prefix isn't a valid bech32 human-readable part, or if the
+    /// resulting string would be too long.
     pub fn encode(&self) -> Result<String, Bech32Error> {
         let hrp = Hrp::parse(&self.prefix)?;
         Ok(bech32::encode::<Bech32mUnbounded>(hrp, &self.data)?)
     }
 
+    /// Returns the data if the prefix matches `prefix`, otherwise returns
+    /// [`Bech32Error::WrongPrefix`].
     pub fn expect_prefix(self, prefix: &str) -> Result<Bytes, Bech32Error> {
         if self.prefix != prefix {
             return Err(Bech32Error::WrongPrefix(self.prefix, prefix.to_string()));
@@ -96,13 +137,34 @@ impl Bech32 {
     }
 }
 
+/// A Chia address, which is a puzzle hash encoded as a bech32m string.
+///
+/// The prefix identifies the network, for example `xch` on mainnet and `txch` on testnets.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_utils::Address;
+///
+/// let address = Address::new(Bytes32::new([0; 32]), "txch".to_string());
+/// let encoded = address.encode()?;
+/// assert!(encoded.starts_with("txch1"));
+///
+/// let decoded = Address::decode(&encoded)?;
+/// assert_eq!(decoded.expect_prefix("txch")?, Bytes32::new([0; 32]));
+/// # Ok::<(), chia_sdk_utils::Bech32Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Address {
+    /// The puzzle hash that coins sent to this address are locked with.
     pub puzzle_hash: Bytes32,
+    /// The human-readable part of the address, such as `xch` or `txch`.
     pub prefix: String,
 }
 
 impl Address {
+    /// Creates a new [`Address`] from a puzzle hash and prefix.
     pub fn new(puzzle_hash: Bytes32, prefix: String) -> Self {
         Self {
             puzzle_hash,
@@ -110,14 +172,21 @@ impl Address {
         }
     }
 
+    /// Decodes a bech32m address string.
+    ///
+    /// Returns [`Bech32Error::WrongLength`] if the data isn't exactly 32 bytes long.
+    /// The prefix is not checked, so use [`Address::expect_prefix`] to verify the network.
     pub fn decode(address: &str) -> Result<Self, Bech32Error> {
         Bech32::decode(address).and_then(TryInto::try_into)
     }
 
+    /// Encodes the puzzle hash as a bech32m address string with the prefix.
     pub fn encode(&self) -> Result<String, Bech32Error> {
         Bech32::from(self.clone()).encode()
     }
 
+    /// Returns the puzzle hash if the prefix matches `prefix`, otherwise returns
+    /// [`Bech32Error::WrongPrefix`].
     pub fn expect_prefix(self, prefix: &str) -> Result<Bytes32, Bech32Error> {
         if self.prefix != prefix {
             return Err(Bech32Error::WrongPrefix(self.prefix, prefix.to_string()));

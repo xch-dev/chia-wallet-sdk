@@ -13,16 +13,61 @@ pub enum CoinSelectionError {
     #[error("no spendable coins")]
     NoSpendableCoins,
 
-    /// There weren't enough coins to reach the amount.
+    /// There weren't enough coins to reach the amount. Contains the total amount of the
+    /// spendable coins.
     #[error("insufficient balance {0}")]
     InsufficientBalance(u64),
 
-    /// The selected coins exceeded the maximum.
+    /// Reaching the amount would require more than 500 coins.
     #[error("exceeded max coins")]
     ExceededMaxCoins,
 }
 
-/// Uses the knapsack algorithm to select coins.
+/// Selects a subset of `spendable_coins` whose total amount is at least `amount`.
+///
+/// Duplicate coins are only counted once. The selection is made in this order:
+///
+/// 1. A single coin whose amount is exactly `amount`.
+/// 2. All coins smaller than `amount`, if they add up to exactly `amount`.
+/// 3. The smallest single coin larger than `amount`, if the smaller coins don't add up
+///    to `amount`.
+/// 4. Otherwise, a knapsack search that tries to minimize the change, falling back to
+///    the largest coins until the amount is reached.
+///
+/// At most 500 coins are selected. The knapsack search uses a fixed seed, so the same
+/// input always gives the same result. The returned coins may add up to more than
+/// `amount`, in which case the caller should create a change coin for the difference.
+///
+/// # Errors
+///
+/// * [`CoinSelectionError::NoSpendableCoins`] if `spendable_coins` is empty.
+/// * [`CoinSelectionError::InsufficientBalance`] if the coins add up to less than `amount`.
+/// * [`CoinSelectionError::ExceededMaxCoins`] if more than 500 coins would be needed.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_sdk_utils::{CoinSelectionError, select_coins};
+///
+/// let coin = |amount| Coin::new(Bytes32::new([amount as u8; 32]), Bytes32::default(), amount);
+/// let coins = vec![coin(100), coin(200), coin(500)];
+///
+/// // No single coin or combination of smaller coins equals 400, so the smallest
+/// // coin that covers it is selected.
+/// assert_eq!(select_coins(coins.clone(), 400)?, vec![coin(500)]);
+///
+/// // The coins smaller than 300 add up to exactly 300.
+/// let mut selected = select_coins(coins.clone(), 300)?;
+/// selected.sort_by_key(|coin| coin.amount);
+/// assert_eq!(selected, vec![coin(100), coin(200)]);
+///
+/// assert_eq!(
+///     select_coins(coins, 1000),
+///     Err(CoinSelectionError::InsufficientBalance(800))
+/// );
+/// # Ok::<(), CoinSelectionError>(())
+/// ```
 pub fn select_coins(
     spendable_coins: Vec<Coin>,
     amount: u64,
@@ -142,7 +187,35 @@ fn smallest_coin_above(coins: &[Coin], amount: u128) -> Option<Coin> {
     unreachable!();
 }
 
-/// Runs the knapsack algorithm on a set of coins, attempting to find an optimal set.
+/// Runs a randomized knapsack search for a set of coins that adds up to at least `amount`
+/// with as little excess as possible.
+///
+/// The search makes 1000 attempts. Each attempt first adds coins at random, then adds the
+/// remaining coins in order until the total exceeds `amount`. An exact match is returned as
+/// soon as it's found. Otherwise, the set with the smallest total that is above `amount` and
+/// below `max_amount` is returned. At most `max_coins` coins are selected in each attempt.
+///
+/// Returns [`None`] if no attempt found a total in that range. [`select_coins`] calls this
+/// with a seeded `rng` so that its result is deterministic.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_sdk_utils::knapsack_coin_algorithm;
+/// use rand::SeedableRng;
+/// use rand_chacha::ChaCha8Rng;
+///
+/// let coin = |amount| Coin::new(Bytes32::new([amount as u8; 32]), Bytes32::default(), amount);
+/// let coins = vec![coin(50), coin(40), coin(30), coin(20)];
+///
+/// let mut rng = ChaCha8Rng::seed_from_u64(0);
+/// let selected = knapsack_coin_algorithm(&mut rng, &coins, 70, u128::MAX, 500)
+///     .expect("a set of coins adds up to 70");
+///
+/// let total: u64 = selected.iter().map(|coin| coin.amount).sum();
+/// assert_eq!(total, 70);
+/// ```
 pub fn knapsack_coin_algorithm(
     rng: &mut impl Rng,
     spendable_coins: &[Coin],
