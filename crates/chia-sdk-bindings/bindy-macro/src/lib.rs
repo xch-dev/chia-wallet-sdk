@@ -1905,20 +1905,25 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
                         },
                     ));
 
+                    // Some generators (such as Go) name constructors by prefixing the class name,
+                    // which can collide with other classes (for example, `OptionType::cat` and
+                    // `OptionTypeCat`).
+                    let constructor_attr = if binding_names
+                        .contains(&format!("{name}{}", method_name.to_case(Case::Pascal)))
+                    {
+                        let renamed = format!("new_{method_name}");
+                        quote!( #[uniffi::constructor(name = #renamed)] )
+                    } else {
+                        quote!( #[uniffi::constructor] )
+                    };
+
+                    let function_ident = Ident::new(
+                        &format!("{}_{method_name}", name.to_case(Case::Snake)),
+                        Span::mixed_site(),
+                    );
+
                     match method.kind {
                         MethodKind::Constructor | MethodKind::Factory if returns_self => {
-                            // Some generators (such as Go) name constructors by prefixing the
-                            // class name, which can collide with other classes (for example,
-                            // `OptionType::cat` and `OptionTypeCat`).
-                            let constructor_attr = if binding_names
-                                .contains(&format!("{name}{}", method_name.to_case(Case::Pascal)))
-                            {
-                                let renamed = format!("new_{method_name}");
-                                quote!( #[uniffi::constructor(name = #renamed)] )
-                            } else {
-                                quote!( #[uniffi::constructor] )
-                            };
-
                             method_tokens.extend(quote! {
                                 #constructor_attr
                                 pub fn #method_ident(
@@ -1930,9 +1935,9 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
                                 }
                             });
                         }
-                        MethodKind::AsyncFactory if blocking => {
+                        MethodKind::AsyncFactory if returns_self && blocking => {
                             method_tokens.extend(quote! {
-                                #[uniffi::constructor]
+                                #constructor_attr
                                 pub fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
@@ -1942,11 +1947,11 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
                                 }
                             });
                         }
-                        MethodKind::AsyncFactory => {
+                        MethodKind::AsyncFactory if returns_self => {
                             has_async = true;
 
                             method_tokens.extend(quote! {
-                                #[uniffi::constructor]
+                                #constructor_attr
                                 pub async fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
@@ -1957,11 +1962,6 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
                             });
                         }
                         MethodKind::Constructor | MethodKind::Factory | MethodKind::Static => {
-                            let function_ident = Ident::new(
-                                &format!("{}_{method_name}", name.to_case(Case::Snake)),
-                                Span::mixed_site(),
-                            );
-
                             function_tokens.extend(quote! {
                                 #[uniffi::export]
                                 pub fn #function_ident(
@@ -1969,6 +1969,30 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
                                 ) -> Result<#ret, ChiaError> {
                                     #args
                                     let value = #fully_qualified_ident::#method_ident( #( #arg_idents ),* )?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory if blocking => {
+                            function_tokens.extend(quote! {
+                                #[uniffi::export]
+                                pub fn #function_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    #args
+                                    let value = bindy::block_on(#fully_qualified_ident::#method_ident( #( #arg_idents ),* ))?;
+                                    #convert_return
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory => {
+                            function_tokens.extend(quote! {
+                                #[uniffi::export(async_runtime = "tokio")]
+                                pub async fn #function_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    #args
+                                    let value = #fully_qualified_ident::#method_ident( #( #arg_idents ),* ).await?;
                                     #convert_return
                                 }
                             });
