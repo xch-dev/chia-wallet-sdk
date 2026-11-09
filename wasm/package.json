@@ -6,7 +6,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
-    "ava": "^8.2.0"
+    "ava": "^8.3.0"
   },
   "ava": {
     "timeout": "3m",

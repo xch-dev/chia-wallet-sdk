@@ -38,9 +38,9 @@
     ]
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.9",
+    "@napi-rs/cli": "^3.10.12",
     "@types/node": "^26.6.6",
-    "ava": "^8.2.0"
+    "ava": "^8.3.0"
   },
   "ava": {
     "timeout": "3m",
