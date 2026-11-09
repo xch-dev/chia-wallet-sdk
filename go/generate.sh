@@ -57,6 +57,22 @@ EOF
   export CMAKE_TOOLCHAIN_FILE_aarch64_linux_android="$TOOLCHAIN_FILE"
 fi
 
+# The cmake crate treats this target as cross-compiled, even on an arm64 Windows host, so zlib-ng
+# can't detect the architecture from the compiler and falls back to `ARM64`, which it doesn't
+# recognize. Setting the compiler target lets it detect aarch64. The cmake crate doesn't pass the
+# compiler when there's a toolchain file, so it's set here too.
+if [ "$TARGET" = aarch64-pc-windows-gnullvm ]; then
+  TOOLCHAIN_FILE="$PWD/target/$TARGET/windows.toolchain.cmake"
+  mkdir -p "$(dirname "$TOOLCHAIN_FILE")"
+  cat > "$TOOLCHAIN_FILE" <<EOF
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_C_COMPILER aarch64-w64-mingw32-clang)
+set(CMAKE_C_COMPILER_TARGET aarch64-w64-mingw32)
+EOF
+  export CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_gnullvm="$TOOLCHAIN_FILE"
+fi
+
 cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target "$TARGET"
 
 LIB="target/$TARGET/release-uniffi/libchia_wallet_sdk.a"
