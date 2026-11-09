@@ -3,6 +3,33 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::ChiaRpcClient;
 
+/// A [`ChiaRpcClient`] for the RPC server of a Chia full node, which requires a client
+/// certificate.
+///
+/// Use the full node's private RPC certificate and key, which are found at
+/// `config/ssl/full_node/private_full_node.crt` and `.key` in the Chia root directory.
+/// The server's certificate is not verified, since full nodes use self-signed certificates.
+///
+/// This is only available with the `native-tls` or `rustls` feature, and not on `wasm32`.
+///
+/// # Example
+///
+/// This example is `no_run` because it needs a full node running locally.
+///
+/// ```no_run
+/// use chia_sdk_coinset::{ChiaRpcClient, FullNodeClient};
+///
+/// # #[tokio::main(flavor = "current_thread")]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let cert = std::fs::read("private_full_node.crt")?;
+/// let key = std::fs::read("private_full_node.key")?;
+///
+/// let client = FullNodeClient::new(&cert, &key)?;
+/// let response = client.get_network_info().await?;
+/// println!("Connected to {:?}", response.network_name);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct FullNodeClient {
     base_url: String,
@@ -10,10 +37,18 @@ pub struct FullNodeClient {
 }
 
 impl FullNodeClient {
+    /// Creates a client for a full node at the default local address, `https://localhost:8555`.
+    ///
+    /// The certificate and key must be PEM encoded. With the `native-tls` feature, the key must
+    /// be in PKCS #8 format, which is the format Chia generates.
     pub fn new(cert_bytes: &[u8], key_bytes: &[u8]) -> reqwest::Result<Self> {
         Self::with_base_url("https://localhost:8555".to_string(), cert_bytes, key_bytes)
     }
 
+    /// Creates a client for a full node at `base_url`, which shouldn't have a trailing slash.
+    ///
+    /// The certificate and key must be PEM encoded. With the `native-tls` feature, the key must
+    /// be in PKCS #8 format, which is the format Chia generates.
     pub fn with_base_url(
         base_url: String,
         cert_bytes: &[u8],
