@@ -10,11 +10,12 @@ go get github.com/xch-dev/chia-wallet-sdk/go
 
 Each release of the module includes the generated bindings and a prebuilt static library for every supported platform, so no Rust toolchain is required. A C compiler is needed, since the package uses cgo.
 
-| OS      | Architectures  |
-| ------- | -------------- |
-| Linux   | amd64, arm64   |
-| macOS   | amd64, arm64   |
-| Windows | amd64 (MinGW)  |
+| OS      | Architectures                     |
+| ------- | --------------------------------- |
+| Linux   | amd64, arm64                      |
+| macOS   | amd64, arm64                      |
+| Windows | amd64 (MinGW), arm64 (LLVM MinGW) |
+| Android | arm64                             |
 
 ## Example
 
