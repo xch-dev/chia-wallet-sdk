@@ -68,6 +68,9 @@ pub fn calculate_trade_price_amounts(
 /// Converts trade price amounts into [`TradePrice`] values for transferring royalty NFTs, with
 /// the settlement puzzle hash of each asset. Assets with a zero amount are skipped.
 ///
+/// An NFT can't be taken if the royalty of one of its trade prices rounds down to zero, so use
+/// [`payable_trade_prices`] to filter the result for each NFT.
+///
 /// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`], or
 /// [`DriverError::MissingAssetInfo`] if a CAT has no asset info.
 pub fn calculate_trade_prices(

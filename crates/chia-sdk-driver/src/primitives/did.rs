@@ -267,7 +267,7 @@ impl Did {
     /// # Example
     ///
     /// ```
-    /// use chia_sdk_driver::{Did, Launcher, Puzzle, SpendContext, StandardLayer};
+    /// use chia_sdk_driver::{Did, Launcher, Puzzle, SingletonInfo, SpendContext, StandardLayer};
     /// use chia_sdk_test::Simulator;
     /// use chia_sdk_types::Conditions;
     ///
@@ -291,6 +291,10 @@ impl Did {
     ///
     /// let parsed = Did::parse_child(ctx, did.coin, parent_puzzle, parent_solution, child.coin)?
     ///     .expect("the child is a DID");
+    ///
+    /// // The hint isn't verified, so check that the parsed DID is the coin that was created.
+    /// assert_eq!(parsed.coin.parent_coin_info, did.coin.coin_id());
+    /// assert_eq!(parsed.coin.puzzle_hash, parsed.info.puzzle_hash().into());
     /// assert_eq!(parsed, child);
     /// # Ok::<(), anyhow::Error>(())
     /// ```

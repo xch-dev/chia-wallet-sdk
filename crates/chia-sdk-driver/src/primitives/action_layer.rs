@@ -23,7 +23,9 @@
 //! - [`UniquenessPrelauncher`]: a coin that creates a singleton launcher whose id is tied to a value.
 //! - [`StateScheduler`]: a singleton that pushes a schedule of new states to another singleton.
 //! - [`MedievalVault`]: an m-of-n BLS multisig singleton that can send approval messages to the other apps.
-//! - [`CatMaker`](crate::CatMaker): puzzles that compute the CAT (or XCH) puzzle hash used for payments.
+//!
+//! The apps also use [`CatMaker`](crate::CatMaker) puzzles, which compute the CAT (or XCH) puzzle hash used for
+//! payments, but they aren't specific to the action layer, so they're available without this feature.
 //!
 //! The `launch_*` functions (such as [`launch_catalog_registry`]) launch these singletons from an
 //! [`Offer`](crate::Offer).

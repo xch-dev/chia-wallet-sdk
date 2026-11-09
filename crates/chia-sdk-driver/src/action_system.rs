@@ -51,8 +51,16 @@
 //! means a `RESERVE_FEE` condition for the total is attached to a spend, so the transaction is
 //! invalid unless the fee is actually left over. Once every action is applied, [`Spends::prepare`]
 //! computes the change of each fungible asset as the selected amount plus the delta input, minus the
-//! delta output, and sends it to the change puzzle hash. If the selected coins don't cover the
-//! outputs, [`DriverError::InsufficientFunds`](crate::DriverError::InsufficientFunds) is returned.
+//! delta output, and sends it to the change puzzle hash. Settlement coins return what's left after
+//! their payments, and the rest is created by a conditions spend, so there can be two change coins
+//! (see [`FungibleSpends::create_change`]). If the selected coins don't cover the outputs,
+//! [`DriverError::InsufficientFunds`](crate::DriverError::InsufficientFunds) is returned.
+//!
+//! The transaction-wide conditions (such as the reserved fee and the assertions that tie the spends
+//! together) are attached to a single conditions spend. If there's none, an intermediate coin is
+//! created to emit them, or with [`ConditionConfig::return_unplaced_conditions`] they're returned in
+//! [`Spends::unplaced_conditions`], so that another spend (such as a vault's delegated spend) can
+//! emit them.
 //!
 //! # Example
 //!

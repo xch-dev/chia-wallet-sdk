@@ -57,8 +57,14 @@ pub struct OfferPreSplitInfo {
     pub settlement_amount: u64,
 }
 
+/// The payments of a revealed Secure the Bag, whose root coin is created by a verified spend.
+///
+/// The root coin's puzzle hash commits to every payment and its amount is the bag's total, so once the root exists,
+/// anyone can unroll it into exactly these payments. Unrolling it takes further spends, which aren't part of this
+/// transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecureTheBagInfo {
+    /// The format of the bag, which determines how its tree of nodes is built.
     pub format: BagFormat,
     /// The payments in the order of the bag, which add up to the amount of the root coin.
     pub payments: Vec<ParsedBagPayment>,
@@ -70,17 +76,22 @@ pub struct SecureTheBagInfo {
 /// [`ParsedMemos::p2_puzzle_hash`] for a child coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedBagPayment {
+    /// The recipient, amount, and clawback of the payment. A payment with a clawback can still be clawed back by its
+    /// sender until the clawback expires.
     pub payment: BagPayment,
     /// This is either [`TransferType::Burned`] or [`TransferType::Sent`]. Bags aren't nested, their payments don't
-    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled.
+    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled, so a payment to the
+    /// settlement payments puzzle can be spent by anyone and is [`TransferType::Sent`].
     pub transfer_type: TransferType,
 }
 
-/// Parses the coins created by the `CREATE_COIN` conditions of a verified spend, and records its other conditions
-/// (announcement and concurrent spend assertions, fees, and expiration) in the [`Facts`].
+/// Parses the coins created by the `CREATE_COIN` conditions of a verified spend, whose asset is `asset`.
 ///
-/// If `is_claw_back` is true, the spend's `ASSERT_BEFORE_SECONDS_ABSOLUTE` conditions aren't recorded, so that a
-/// claw back can't claim that the transaction expires before the clawback does.
+/// CAT children are parsed from the spend, and each must have the same revocation layer as the parent, or
+/// [`DriverError::RevocableChild`] is returned. A missing CAT or NFT child returns [`DriverError::MissingChild`]. Each
+/// child's [`TransferType`] is calculated from its memos and the [`Reveals`] (such as revealed bags and
+/// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) puzzles). The spend's other conditions aren't recorded
+/// here.
 pub fn parse_children(
     reveals: &mut Reveals,
     ctx: &mut SpendContext,

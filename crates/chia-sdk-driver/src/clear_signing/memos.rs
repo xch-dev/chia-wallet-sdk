@@ -30,8 +30,8 @@ pub struct ParsedMemos {
 /// (clawbacks and fixed conditions) affect the destination, so the memos can't misrepresent where the coin goes.
 ///
 /// If `requires_hint` is true (for CATs and NFTs), a leading 32 byte memo is treated as the hint and removed. It's also
-/// used as the [`hinted`](ClawbackV2::hinted) flag of a clawback, which must match the coin's puzzle hash. The hint is always removed when a clawback or fixed conditions memo follows
-/// it.
+/// used as the [`hinted`](ClawbackV2::hinted) flag of a clawback, which must match the coin's puzzle hash. The hint is
+/// always removed when a clawback or fixed conditions memo follows it.
 pub fn parse_memos(
     reveals: &Reveals,
     allocator: &Allocator,

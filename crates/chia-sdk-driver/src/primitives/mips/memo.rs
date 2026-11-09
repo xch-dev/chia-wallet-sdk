@@ -606,8 +606,9 @@ impl MemoKind<NodePtr> {
 ///
 /// For the constructors below, `fast_forward` selects the variant of the member that signs with
 /// (or for singletons, sends messages to) the puzzle hash instead of the coin id, which is
-/// compatible with singleton fast forward, and `reveal` controls whether the key or hash is included in the memo. If it's not revealed,
-/// it must be provided in the [`MipsMemoContext`] when parsing.
+/// compatible with singleton fast forward, and `reveal` controls whether the key or hash is
+/// included in the memo. If it's not revealed, it must be provided in the [`MipsMemoContext`]
+/// when parsing.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MemberMemo<T = NodePtr> {
@@ -931,7 +932,8 @@ impl MofNMemo<NodePtr> {
 /// whose details weren't revealed in the memo.
 ///
 /// The default context has no keys, hashes, or timelocks, but includes the message and announcement
-/// opcodes for [`PreventConditionOpcode`], and common singleton message modes.
+/// opcodes for [`PreventConditionOpcode`], and the singleton message modes that vaults use
+/// ([`VAULT_FAST_FORWARD_MESSAGE_MODE`] and [`VAULT_MESSAGE_MODE`]).
 #[derive(Debug, Clone)]
 pub struct MipsMemoContext {
     /// Known secp256k1 public keys.

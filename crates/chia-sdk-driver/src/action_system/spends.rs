@@ -580,6 +580,9 @@ impl Spends<Unfinished> {
     /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
     /// together according to the [`Relation`], and wraps the outputs of revocation spends.
     ///
+    /// If [`ConditionConfig::return_unplaced_conditions`] is set and no spend can emit the
+    /// transaction-wide conditions, they're left in [`Spends::unplaced_conditions`] for the caller.
+    ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas, or
     /// [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same puzzle hash
     /// make the same notarized payment.
@@ -702,6 +705,9 @@ impl Spends<Finished> {
 
     /// Spends every coin with the p2 spends, keyed by coin id, and returns the [`Outputs`].
     /// Returns [`DriverError::MissingSpend`] if a p2 spend is missing.
+    ///
+    /// This doesn't emit the [unplaced conditions](Spends::unplaced_conditions), so the caller must
+    /// emit them from another spend in the same transaction.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

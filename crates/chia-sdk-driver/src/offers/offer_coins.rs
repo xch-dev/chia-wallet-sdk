@@ -49,6 +49,9 @@ impl OfferCoins {
     }
 
     /// Collects the settlement coins from the [`Outputs`] of the maker's spends, along with the fee.
+    ///
+    /// The outputs don't include the spends, so [`nft_trade_prices`](Self::nft_trade_prices) and
+    /// [`prepaid_royalties`](Self::prepaid_royalties) are left empty.
     pub fn from_outputs(outputs: &Outputs) -> Self {
         let mut coins = Self::default();
 
@@ -125,7 +128,8 @@ impl OfferCoins {
         coins
     }
 
-    /// Adds the coins and fee from another [`OfferCoins`], for example when combining offers.
+    /// Adds the coins, fee, NFT trade prices, and prepaid royalties from another [`OfferCoins`], for
+    /// example when combining offers.
     ///
     /// Returns [`DriverError::ConflictingOfferInputs`] if a coin, NFT, or option contract is in
     /// both, [`DriverError::IncompatibleAssetInfo`] if revocable and non-revocable CATs with the
@@ -189,7 +193,11 @@ impl OfferCoins {
     /// Adds the settlement coins that the spend creates, which aren't spent in the same bundle.
     ///
     /// The asset info of the CATs, NFTs, and option contracts that are created is added to the
-    /// [`AssetInfo`], and the `RESERVE_FEE` conditions are added to the fee.
+    /// [`AssetInfo`], and the `RESERVE_FEE` conditions are added to the fee. The trade prices that
+    /// an offered NFT reveals are added to [`nft_trade_prices`](Self::nft_trade_prices), and if the
+    /// spend is of an XCH or CAT settlement coin, the notarized payments in its solution that look
+    /// like royalties (a single payment, hinted to its own puzzle hash) are added to
+    /// [`prepaid_royalties`](Self::prepaid_royalties).
     ///
     /// Fails with [`DriverError::OldSettlementPayment`] if the spend creates a coin with the old
     /// settlement payments puzzle, since the offer would be insecure.

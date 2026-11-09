@@ -74,6 +74,8 @@ impl Facts {
         self.actual_expiration_time
     }
 
+    /// The latest asserted `ASSERT_SECONDS_ABSOLUTE` time, before which the transaction is invalid, or `None` if
+    /// there's no such assertion.
     pub fn actual_earliest_time(&self) -> Option<u64> {
         self.actual_earliest_time
     }

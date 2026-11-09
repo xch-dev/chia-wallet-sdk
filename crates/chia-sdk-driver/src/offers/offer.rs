@@ -249,6 +249,10 @@ impl Offer {
     /// Returns the royalty info for requested NFTs, since those are the royalties
     /// that need to be paid by the offered side.
     ///
+    /// The maker pays these up front, as payments of the settlement coins (see
+    /// [`Offer::offered_royalty_amounts`]), and the taker's NFT must reveal trade prices whose
+    /// royalties match them (see [`Offer::requested_nft_trade_prices`]).
+    ///
     /// Returns [`DriverError::MissingAssetInfo`] if a requested NFT has no asset info, since its
     /// royalty would otherwise be skipped.
     pub fn offered_royalties(&self) -> Result<Vec<RoyaltyInfo>, DriverError> {
@@ -274,6 +278,9 @@ impl Offer {
 
     /// Returns the royalty info for offered NFTs, since those are the royalties
     /// that need to be paid by the requested side.
+    ///
+    /// The amounts owed depend on the trade prices that each NFT revealed when it was spent into
+    /// settlement, so use [`Offer::requested_royalty_payments`] to calculate them.
     pub fn requested_royalties(&self) -> Vec<RoyaltyInfo> {
         self.offered_coins
             .nfts

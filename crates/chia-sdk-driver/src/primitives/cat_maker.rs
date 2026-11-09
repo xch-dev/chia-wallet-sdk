@@ -14,9 +14,10 @@ use crate::{DriverError, Puzzle, SpendContext};
 
 /// A puzzle that maps an inner puzzle hash to the full puzzle hash of a payment coin.
 ///
-/// Action-layer apps use CAT makers so the payment asset can be configured: the app curries or
-/// stores a CAT maker's puzzle hash, and actions run the CAT maker to find the puzzle hash that
-/// payments (for example a [`PrecommitCoin`](crate::PrecommitCoin)) must have.
+/// Puzzles such as the action-layer apps, partial offers, and the p2 parent puzzle use CAT makers
+/// so the asset can be configured: the puzzle curries or stores a CAT maker's puzzle hash, and runs
+/// the CAT maker to find the puzzle hash that a coin of the asset (for example a `PrecommitCoin`)
+/// must have.
 ///
 /// The solution of a CAT maker is `(inner_puzzle_hash . solution_rest)`.
 ///

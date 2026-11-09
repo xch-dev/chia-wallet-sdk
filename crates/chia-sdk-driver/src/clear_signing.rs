@@ -6,9 +6,13 @@
 //! the signature (if the transaction is valid at all):
 //!
 //! - The vault's own output ([`VaultOutput`]) and [`DropCoin`]s.
-//! - The [`VerifiedSpend`]s that the vault authorizes with messages, and the coins they create ([`ParsedChild`]).
+//! - The [`VerifiedSpend`]s that the vault authorizes with messages, and the coins they create ([`ParsedChild`]),
+//!   including the payments of revealed Secure the Bag roots ([`SecureTheBagInfo`]).
 //! - CAT [`Issuance`]s, asserted settlement payments ([`AssertedPayment`]), and future offers ([`LinkedOffer`]).
 //! - The reserved fee, and an [`AssetFlow`] per asset that shows how much value is unaccounted for.
+//! - The arbitrary messages that the vault signs, if its delegated spend is a vault message envelope.
+//! - The [`VaultAuthorization`]s of controlled vaults, if the vault being signed for authorizes the spend of a vault
+//!   that it controls, and the [`SigningVault`] that the message to sign should be calculated from.
 //!
 //! Anything that can't be verified is left out, and anything linked to the vault that can't be verified is an error.
 //! See [`parse_vault_transaction`] for exactly what is and isn't guaranteed.

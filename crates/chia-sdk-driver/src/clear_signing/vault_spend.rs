@@ -19,10 +19,13 @@ pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     /// The coins with an even amount that the vault creates.
     pub drop_coins: Vec<DropCoin>,
-    /// The messages that the vault sends to other coins to authorize their spends.
+    /// The messages that the vault sends to coin ids, to authorize their spends.
     pub messages: Vec<VaultMessage>,
     /// Messages to the puzzle hashes of controlled vaults, which must each match a revealed controlled vault.
     pub puzzle_messages: Vec<VaultPuzzleMessage>,
+    /// The arbitrary messages being signed, in order, if the delegated spend is a
+    /// [`vault_message_envelope`](crate::vault_message_envelope). In that case, every other field is empty except
+    /// [`child`](Self::child).
     pub signed_messages: Vec<Bytes>,
 }
 
@@ -67,10 +70,17 @@ impl DropCoin {
 
 /// Parses the conditions of the vault's delegated spend, which must be a quoted list of conditions.
 ///
-/// An odd `CREATE_COIN` is the recreated vault, and any other `CREATE_COIN` is a [`DropCoin`]. Each `SEND_MESSAGE`
-/// is parsed with [`parse_vault_message`], and a condition with the `SEND_MESSAGE` opcode that can't be parsed
-/// returns [`DriverError::InvalidVaultMessageFormat`], so no message can be missed. Puzzle announcement and
-/// concurrent spend assertions, `ASSERT_BEFORE_SECONDS_ABSOLUTE`, and `RESERVE_FEE` are recorded in the [`Facts`].
+/// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), its messages are returned
+/// in [`signed_messages`](VaultSpendSummary::signed_messages), along with the recreated vault, and nothing is recorded
+/// in the [`Facts`]. An envelope that does anything other than recreate the vault returns
+/// [`DriverError::MixedVaultMessageEnvelope`].
+///
+/// Otherwise, an odd `CREATE_COIN` is the recreated vault (if there's more than one, the last is used), and any other
+/// `CREATE_COIN` is a [`DropCoin`]. Each `SEND_MESSAGE` is parsed with [`parse_vault_puzzle_message`] if it's sent to
+/// a puzzle hash, or [`parse_vault_message`] otherwise, and a condition with the `SEND_MESSAGE` opcode that can't be
+/// parsed returns [`DriverError::InvalidVaultMessageFormat`], so no message can be missed. Puzzle announcement and
+/// concurrent spend assertions, `ASSERT_SECONDS_ABSOLUTE`, `ASSERT_BEFORE_SECONDS_ABSOLUTE`, and `RESERVE_FEE` are
+/// recorded in the [`Facts`].
 pub fn parse_vault_delegated_spend(
     facts: &mut Facts,
     allocator: &mut Allocator,

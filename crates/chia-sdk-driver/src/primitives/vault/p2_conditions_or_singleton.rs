@@ -66,7 +66,8 @@ impl P2ConditionsOrSingleton {
         )
     }
 
-    /// Calculates the fixed path hash for the tree hash of the quoted conditions.
+    /// Calculates the fixed path hash for the tree hash of the quoted conditions, in the format of
+    /// the given version.
     pub fn calculate_fixed_conditions_hash(
         quoted_conditions_hash: Bytes32,
         version: P2ConditionsOrSingletonVersion,
@@ -81,7 +82,8 @@ impl P2ConditionsOrSingleton {
         mips_puzzle_hash(0, vec![], member_hash, false).into()
     }
 
-    /// Returns the version of the fixed path, if it matches the tree hash of the quoted conditions.
+    /// Returns the version of the fixed path, if it matches the tree hash of the quoted conditions,
+    /// or [`None`] if the fixed path doesn't output them in either version.
     pub fn match_quoted_conditions_hash(
         &self,
         quoted_conditions_hash: Bytes32,

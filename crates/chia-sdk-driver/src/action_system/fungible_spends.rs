@@ -335,7 +335,7 @@ where
     ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
     /// cover the delta outputs, since the transaction would be invalid. Returns
-    /// [`DriverError::AmountOverflow`] if the change doesn't fit in a single coin.
+    /// [`DriverError::AmountOverflow`] if the total change doesn't fit in a [`u64`].
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,

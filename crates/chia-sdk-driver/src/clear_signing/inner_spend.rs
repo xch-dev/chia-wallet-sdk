@@ -63,6 +63,7 @@ pub enum CustodyInfo {
 }
 
 impl CustodyInfo {
+    /// The conditions that the p2 puzzle outputs.
     pub fn conditions(&self) -> &[Condition] {
         match self {
             Self::P2Singleton(P2SingletonInfo { conditions, .. })
