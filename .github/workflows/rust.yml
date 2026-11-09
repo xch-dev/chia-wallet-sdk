@@ -42,6 +42,15 @@ jobs:
       - name: Unused dependencies
         run: cargo machete
 
+      # Fails on missing docs and broken intra-doc links, with and without optional features
+      - name: Docs
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          set -e
+          cargo doc --no-deps --workspace --exclude chia-wallet-sdk-napi --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli --all-features
+          cargo doc --no-deps --workspace --exclude chia-wallet-sdk-napi --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli
+
   check-crates:
     runs-on: ubuntu-24.04
     steps:
@@ -92,6 +101,10 @@ jobs:
 
       - name: Run tests
         run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+
+      # The step above runs doctests with all features, this runs them without optional features
+      - name: Run doctests without optional features
+        run: cargo test --release --doc --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli
 
   publish:
     if: startsWith(github.event.ref, 'refs/tags')
