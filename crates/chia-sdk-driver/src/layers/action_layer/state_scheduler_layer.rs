@@ -10,15 +10,60 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext, XchandlesRegistryReceivedMessagePrefix};
 
+/// The state scheduler [`Layer`] is a singleton inner puzzle that sends a new state to another
+/// singleton once a timestamp has passed.
+///
+/// It's the inner puzzle of each generation of a [`StateScheduler`](crate::StateScheduler), which
+/// can be used as the price singleton of a registry. The registry receives the state with its
+/// [`DelegatedStateAction`](crate::DelegatedStateAction).
+///
+/// The puzzle ([`StateSchedulerLayerArgs`]) sends a message (mode 18) to the receiver singleton,
+/// containing [`XchandlesRegistryReceivedMessagePrefix::update_state`] of
+/// [`new_state_hash`](Self::new_state_hash). Its inner puzzle is a quoted list of conditions
+/// that recreates the singleton at [`new_puzzle_hash`](Self::new_puzzle_hash) with an amount of
+/// 1 and asserts that [`required_timestamp`](Self::required_timestamp) has passed with
+/// `ASSERT_SECONDS_ABSOLUTE`. The solution ([`StateSchedulerLayerSolution`]) contains the
+/// receiver's current inner puzzle hash.
+///
+/// [`Layer::parse_puzzle`] returns [`DriverError::NonStandardLayer`] if the puzzle is a state
+/// scheduler that doesn't match this format.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_driver::{Layer, Puzzle, SpendContext, StateSchedulerLayer};
+///
+/// let ctx = &mut SpendContext::new();
+///
+/// let layer = StateSchedulerLayer::new(
+///     Bytes32::new([1; 32]),
+///     Bytes32::new([2; 32]),
+///     1_700_000_000,
+///     Bytes32::new([3; 32]),
+/// );
+///
+/// let puzzle = layer.construct_puzzle(ctx)?;
+/// let parsed = StateSchedulerLayer::parse_puzzle(ctx, Puzzle::parse(ctx, puzzle))?;
+/// assert_eq!(parsed, Some(layer));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StateSchedulerLayer {
+    /// The tree hash of the [`SingletonStruct`](chia_puzzle_types::singleton::SingletonStruct)
+    /// of the singleton that receives the new state.
     pub receiver_singleton_struct_hash: Bytes32,
+    /// The tree hash of the new state sent to the receiver.
     pub new_state_hash: Bytes32,
+    /// The timestamp, in seconds, after which this layer can be spent.
     pub required_timestamp: u64,
+    /// The inner puzzle hash of this singleton after the spend, usually the next state
+    /// scheduler.
     pub new_puzzle_hash: Bytes32,
 }
 
 impl StateSchedulerLayer {
+    /// Creates a new [`StateSchedulerLayer`].
     pub fn new(
         receiver_singleton_struct_hash: Bytes32,
         new_state_hash: Bytes32,

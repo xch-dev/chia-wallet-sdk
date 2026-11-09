@@ -19,8 +19,17 @@ use crate::{
 
 use super::{XchandlesExecuteUpdateActionLog, coin_id_from_owner_proof};
 
+/// The `XCHandles` action that applies an update started with
+/// [`XchandlesInitiateUpdateAction`](crate::XchandlesInitiateUpdateAction).
+///
+/// It spends the handle slot and the update slot and recreates the handle slot with the new
+/// owner and resolved launcher ids. It must be authorized by the old owner, the new owner, and
+/// the new resolved singleton.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExecuteUpdateAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
 }
 
@@ -39,6 +48,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesExecuteUpdateAction {
 }
 
 impl XchandlesExecuteUpdateAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(launcher_id: Bytes32) -> XchandlesExecuteUpdateActionArgs {
         XchandlesExecuteUpdateActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -60,6 +70,11 @@ impl XchandlesExecuteUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id))
     }
 
+    /// Parses an action solution into an [`XchandlesExecuteUpdateActionLog`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -124,10 +139,18 @@ impl XchandlesExecuteUpdateAction {
         })
     }
 
-    // returns:
-    //  - message to be sent by old owner
-    //  - message to be sent by new owner
-    //  - message to be sent by new resolved
+    /// Applies the update in `update_slot` to the handle in `handle_slot` in the pending spend of
+    /// `registry`.
+    ///
+    /// `current_owner` is a proof of the current owner singleton coin, and the inner puzzle
+    /// hashes are those of the new owner and resolved singletons.
+    ///
+    /// Returns the `SEND_MESSAGE` conditions that must be output by the old owner (mode 58),
+    /// the new owner (mode 18), and the new resolved singleton (mode 18), in that order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,

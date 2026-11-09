@@ -17,11 +17,23 @@ use crate::{
     Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that pays an entry the rewards it has earned so far.
+///
+/// The payout goes to the entry's payout puzzle hash, and the entry slot is recreated with the
+/// current cumulative payout. If [`require_approval`](Self::require_approval) is set, the payout
+/// puzzle hash must approve the payout with a message.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorInitiatePayoutAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::payout_threshold`](crate::RewardDistributorConstants::payout_threshold).
     pub payout_threshold: u64,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
+    /// Whether the action requires an approval message, which selects the action puzzle. See
+    /// [`RewardDistributorConstants::require_payout_approval`](crate::RewardDistributorConstants::require_payout_approval).
     pub require_approval: bool,
 }
 
@@ -89,6 +101,13 @@ impl RewardDistributorInitiatePayoutAction {
         }
     }
 
+    /// Parses an action solution into a [`RewardDistributorInitiatePayoutActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -115,6 +134,17 @@ impl RewardDistributorInitiatePayoutAction {
         })
     }
 
+    /// Pays out the entry in `entry_slot` in the pending spend of `distributor`, and spends the
+    /// slot.
+    ///
+    /// Returns the condition that secures the payout, and the payout amount. If approval is
+    /// required, this is the `SEND_MESSAGE` condition (mode 18) that the entry's payout puzzle
+    /// must output.
+    /// Otherwise, it asserts the distributor's initiate payout announcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

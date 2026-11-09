@@ -13,8 +13,15 @@ use crate::{
 
 use super::XchandlesOracleActionLog;
 
+/// The `XCHandles` action that proves the current value of a handle slot.
+///
+/// It spends a handle slot and recreates it with its counter incremented, and the registry
+/// announces the slot value so that other spends can assert it.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesOracleAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
 }
 
@@ -33,6 +40,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesOracleAction {
 }
 
 impl XchandlesOracleAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(launcher_id: Bytes32) -> XchandlesOracleActionArgs {
         XchandlesOracleActionArgs {
             handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
@@ -47,6 +55,11 @@ impl XchandlesOracleAction {
         ctx.curry(Self::new_args(self.launcher_id))
     }
 
+    /// Parses an action solution into an [`XchandlesOracleActionLog`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -60,6 +73,13 @@ impl XchandlesOracleAction {
         })
     }
 
+    /// Adds an oracle action for `slot` to the pending spend of `registry` and spends the slot.
+    ///
+    /// Returns a condition that asserts the registry's oracle announcement for the slot value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

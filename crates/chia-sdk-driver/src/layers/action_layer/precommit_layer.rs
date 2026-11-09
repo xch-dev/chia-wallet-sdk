@@ -13,17 +13,80 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The precommit [`Layer`] locks a payment, usually a CAT, until a controller singleton either
+/// accepts or refunds it.
+///
+/// Registries such as `CATalog` and `XCHandles` use precommit coins for front-running protection: a
+/// user first creates a precommit coin that commits to the registration data in its
+/// [`value`](Self::value), and only reveals the data when the registry spends the coin after
+/// [`relative_block_height`](Self::relative_block_height) blocks.
+///
+/// The puzzle is curried twice, first with [`PrecommitLayer1stCurryArgs`] and then with
+/// [`PrecommitLayer2ndCurryArgs`]. When spent with a [`PrecommitLayerSolution`], it:
+///
+/// - Asserts that the coin is at least `relative_block_height` blocks old.
+/// - Creates a coin with the same amount at [`payout_puzzle_hash`](Self::payout_puzzle_hash)
+///   in [`PrecommitSpendMode::REGISTER`](chia_sdk_types::puzzles::PrecommitSpendMode::REGISTER)
+///   mode, or at [`refund_puzzle_hash`](Self::refund_puzzle_hash) in
+///   [`PrecommitSpendMode::REFUND`](chia_sdk_types::puzzles::PrecommitSpendMode::REFUND) mode,
+///   hinted to the same puzzle hash.
+/// - Requires a message containing the spend mode from the controller singleton.
+///
+/// The value isn't used by the puzzle, only committed to by its puzzle hash. See
+/// [`CatalogPrecommitValue`] and [`XchandlesPrecommitValue`].
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_driver::{Layer, PrecommitLayer, Puzzle, SpendContext};
+/// use clvm_utils::ToTreeHash;
+///
+/// let ctx = &mut SpendContext::new();
+///
+/// let layer = PrecommitLayer::new(
+///     Bytes32::new([1; 32]),
+///     32,
+///     Bytes32::new([2; 32]),
+///     Bytes32::new([3; 32]),
+///     Bytes32::new([4; 32]),
+/// );
+///
+/// let puzzle = layer.construct_puzzle(ctx)?;
+/// assert_eq!(
+///     ctx.tree_hash(puzzle),
+///     PrecommitLayer::<Bytes32>::puzzle_hash(
+///         layer.controller_singleton_struct_hash,
+///         layer.relative_block_height,
+///         layer.payout_puzzle_hash,
+///         layer.refund_puzzle_hash,
+///         layer.value.tree_hash(),
+///     )
+/// );
+///
+/// let parsed = PrecommitLayer::<Bytes32>::parse_puzzle(ctx, Puzzle::parse(ctx, puzzle))?
+///     .expect("precommit layer");
+/// assert_eq!(parsed.value, layer.value);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct PrecommitLayer<V> {
+    /// The tree hash of the [`SingletonStruct`](chia_puzzle_types::singleton::SingletonStruct)
+    /// of the singleton that can spend this coin, such as a registry.
     pub controller_singleton_struct_hash: Bytes32,
+    /// The number of blocks that must pass after the coin is created before it can be spent.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the coin when the controller accepts it.
     pub payout_puzzle_hash: Bytes32,
+    /// The puzzle hash that receives the coin when the controller refunds it.
     pub refund_puzzle_hash: Bytes32,
+    /// The value committed to by the puzzle, such as the registration data.
     pub value: V,
 }
 
 impl<V> PrecommitLayer<V> {
+    /// Creates a new [`PrecommitLayer`].
     pub fn new(
         controller_singleton_struct_hash: Bytes32,
         relative_block_height: u32,
@@ -40,6 +103,10 @@ impl<V> PrecommitLayer<V> {
         }
     }
 
+    /// Computes the tree hash of the puzzle curried with [`PrecommitLayer1stCurryArgs`].
+    ///
+    /// Action puzzles are curried with this hash so that they can compute the puzzle hash of
+    /// any precommit coin for their singleton.
     pub fn first_curry_hash(
         controller_singleton_struct_hash: Bytes32,
         relative_block_height: u32,
@@ -54,6 +121,8 @@ impl<V> PrecommitLayer<V> {
         .curry_tree_hash()
     }
 
+    /// Computes the puzzle hash of a precommit coin from its fields and the tree hash of its
+    /// value.
     pub fn puzzle_hash(
         controller_singleton_struct_hash: Bytes32,
         relative_block_height: u32,
@@ -75,6 +144,12 @@ impl<V> PrecommitLayer<V> {
         .tree_hash()
     }
 
+    /// Constructs the puzzle. This is the same as [`Layer::construct_puzzle`], but only requires
+    /// `V` to implement [`ToClvm`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle can't be allocated.
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError>
     where
         V: Clone + ToClvm<Allocator>,
@@ -96,6 +171,12 @@ impl<V> PrecommitLayer<V> {
         .to_clvm(ctx)?)
     }
 
+    /// Allocates the solution. This is the same as [`Layer::construct_solution`], but doesn't
+    /// require any traits on `V`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be allocated.
     pub fn construct_solution(
         &self,
         ctx: &mut SpendContext,
@@ -163,18 +244,30 @@ where
     }
 }
 
+/// The value of a `CATalog` registration [`PrecommitLayer`] coin.
+///
+/// It's encoded on-chain as `(tail_reveal . data_hash)`, where `data_hash` is the tree hash of
+/// `(initial_inner_puzzle_hash . (cat_maker_hash . cat_maker_solution))`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogPrecommitValue<T = NodePtr, S = ()>
 where
     S: ToTreeHash,
 {
+    /// The TAIL program of the CAT being registered. Its tree hash is the asset id.
     pub tail_reveal: T,
+    /// The p2 puzzle hash of the eve NFT minted for the registered CAT, usually the tree hash
+    /// of [`CatalogPrecommitValue::initial_inner_puzzle`].
     pub initial_inner_puzzle_hash: Bytes32,
+    /// The puzzle hash of the CAT maker for the payment asset.
     pub cat_maker_hash: Bytes32,
+    /// The solution of the CAT maker. Only its tree hash is used, so a [`TreeHash`] can be
+    /// passed.
     pub cat_maker_solution: S,
 }
 
 impl<T> CatalogPrecommitValue<T> {
+    /// Creates a value that uses the default CAT maker ([`DefaultCatMakerArgs`]) for a payment
+    /// asset whose asset id has the tree hash `payment_asset_tail_hash_hash`.
     pub fn with_default_cat_maker(
         payment_asset_tail_hash_hash: TreeHash,
         initial_inner_puzzle_hash: Bytes32,
@@ -190,6 +283,15 @@ impl<T> CatalogPrecommitValue<T> {
         }
     }
 
+    /// Creates the p2 puzzle of the eve NFT minted for a registered CAT.
+    ///
+    /// It's a quoted list of conditions that sends the NFT to `owner_inner_puzzle_hash` (hinted
+    /// to it), sets the metadata to `initial_metadata` with [`AnyMetadataUpdater`], and adds a
+    /// `"MEOW"` remark.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle can't be allocated.
     pub fn initial_inner_puzzle(
         ctx: &mut SpendContext,
         owner_inner_puzzle_hash: Bytes32,
@@ -226,11 +328,12 @@ where
     }
 }
 
-// value is:
-// (c
-//   (c (c cat_maker_reveal cat_maker_solution) (c pricing_puzzle_reveal pricing_solution))
-//   (c (c secret handle) (c owner_launcher_id resolved_data)))
-// )
+/// The value of an `XCHandles` registration [`PrecommitLayer`] coin.
+///
+/// It's encoded on-chain as only the tree hash of
+/// `(((cat_maker_hash . cat_maker_solution) . (pricing_puzzle_hash . pricing_solution)) .
+/// ((handle . secret) . (owner_launcher_id . resolved_launcher_id)))`, so the handle stays
+/// hidden until the registry spends the precommit coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XchandlesPrecommitValue<CS = (), PS = TreeHash, S = Bytes32>
 where
@@ -238,13 +341,24 @@ where
     PS: ToTreeHash,
     S: ToTreeHash,
 {
+    /// The puzzle hash of the CAT maker for the payment asset.
     pub cat_maker_hash: Bytes32,
+    /// The solution of the CAT maker. Only its tree hash is used, so a [`TreeHash`] can be
+    /// passed.
     pub cat_maker_solution: CS,
+    /// The puzzle hash of the pricing puzzle used to compute the registration price.
     pub pricing_puzzle_hash: Bytes32,
+    /// The solution of the pricing puzzle. Only its tree hash is used, so a [`TreeHash`] can
+    /// be passed.
     pub pricing_solution: PS,
+    /// The handle being registered.
     pub handle: String,
+    /// A secret that prevents others from guessing the handle from the puzzle hash. Only its
+    /// tree hash is committed to.
     pub secret: S,
+    /// The launcher id of the singleton that will own the handle.
     pub owner_launcher_id: Bytes32,
+    /// The launcher id of the singleton the handle will resolve to.
     pub resolved_launcher_id: Bytes32,
 }
 
@@ -254,6 +368,7 @@ where
     PS: ToTreeHash,
     S: ToTreeHash,
 {
+    /// Creates a new [`XchandlesPrecommitValue`].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         cat_maker_hash: Bytes32,
@@ -279,6 +394,11 @@ where
 }
 
 impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
+    /// Creates a value for a registration paid with a CAT through the default CAT maker
+    /// ([`DefaultCatMakerArgs`]).
+    ///
+    /// `payment_tail_hash_hash` is the tree hash of the payment asset id. Only the tree hash of
+    /// `pricing_puzzle_solution` is stored.
     pub fn for_normal_registration<PS>(
         payment_tail_hash_hash: TreeHash,
         pricing_puzzle_hash: TreeHash,

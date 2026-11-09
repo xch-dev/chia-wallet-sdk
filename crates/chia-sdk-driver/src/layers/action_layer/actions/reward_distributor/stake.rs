@@ -29,10 +29,26 @@ use crate::{
     RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that stakes NFTs or CATs to add shares to an entry.
+///
+/// The staked assets are locked by sending them to [`Self::my_p2_puzzle_hash`] through
+/// settlement payments, and a deposit slot is created for each of them so that they can be
+/// unstaked with a [`RewardDistributorUnstakeAction`](crate::RewardDistributorUnstakeAction).
+/// The entry belongs to a custody puzzle hash, which receives the payouts. If the custody
+/// puzzle hash already has an entry, it's replaced with one that has the combined shares, and
+/// its unclaimed rewards are given up.
+///
+/// The lock puzzle depends on the [`RewardDistributorType`]. Staking isn't available in a
+/// [`RewardDistributorType::Managed`] distributor.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorStakeAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::max_seconds_offset`](crate::RewardDistributorConstants::max_seconds_offset).
     pub max_second_offset: u64,
+    /// The type of the distributor, which determines the lock or unlock puzzle.
     pub distributor_type: RewardDistributorType,
 }
 
@@ -58,6 +74,11 @@ impl SingletonAction<RewardDistributor> for RewardDistributorStakeAction {
 }
 
 impl RewardDistributorStakeAction {
+    /// Computes the launcher id of an NFT minted by the DID with launcher id `did_launcher_id`,
+    /// from an [`NftLauncherProof`].
+    ///
+    /// The proof starts at a coin of the DID singleton, and each intermediary coin proof is the
+    /// next coin down to the NFT launcher.
     pub fn nft_launcher_id_from_proof(
         did_launcher_id: Bytes32,
         proof: &NftLauncherProof,
@@ -163,6 +184,13 @@ impl RewardDistributorStakeAction {
         Ok((cat_amount, nft_entries))
     }
 
+    /// Creates the curried arguments of the action puzzle, including the lock puzzle for
+    /// `distributor_type`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a [`RewardDistributorType::Managed`] distributor, or if a puzzle
+    /// can't be allocated.
     pub fn new_args(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -225,6 +253,9 @@ impl RewardDistributorStakeAction {
         })
     }
 
+    /// Creates the curried arguments of the action puzzle with the lock puzzle as a tree hash.
+    ///
+    /// For a [`RewardDistributorType::Managed`] distributor, the lock puzzle hash is all zeros.
     pub fn new_args_treehash(
         launcher_id: Bytes32,
         max_second_offset: u64,
@@ -287,6 +318,9 @@ impl RewardDistributorStakeAction {
         }
     }
 
+    /// Computes the puzzle hash that locked assets are sent to: a
+    /// [`P2DelegatedBySingletonLayer`](crate::P2DelegatedBySingletonLayer) controlled by the
+    /// distributor, with a nonce of 1.
     pub fn my_p2_puzzle_hash(launcher_id: Bytes32) -> Bytes32 {
         P2DelegatedBySingletonLayerArgs::curry_tree_hash(
             SingletonStruct::new(launcher_id).tree_hash().into(),
@@ -311,6 +345,14 @@ impl RewardDistributorStakeAction {
         ctx.curry(args)
     }
 
+    /// Computes the entry slot created by a stake action with the given solution.
+    ///
+    /// The lock puzzle is run to get the number of new shares, which are added to the existing
+    /// entry's shares. The new entry's initial cumulative payout is the one in `state`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lock puzzle can't be constructed or fails.
     pub fn created_slot_value<LPS>(
         ctx: &mut SpendContext,
         state: &RewardDistributorState,
@@ -340,6 +382,14 @@ impl RewardDistributorStakeAction {
         })
     }
 
+    /// Parses an action solution into a [`RewardDistributorStakeActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action, and `distributor_type` is
+    /// the distributor's type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the lock puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -390,6 +440,27 @@ impl RewardDistributorStakeAction {
         })
     }
 
+    /// Stakes `offered_nfts` in a [`RewardDistributorType::NftCollection`] distributor, in the
+    /// pending spend of `distributor`. Each NFT has one share.
+    ///
+    /// `nft_launcher_proofs` proves that each NFT was minted by the collection's DID, in the same
+    /// order as `offered_nfts`. The entry belongs to `entry_custody_puzzle_hash`, and
+    /// `existing_slot` is its current entry slot, if it has one.
+    ///
+    /// Besides the action, this spends `existing_slot` if provided. Returns the conditions that
+    /// secure the stake, which assert the distributor's announcements for each locked asset
+    /// and the new entry slot and, if `existing_slot` is provided, send a message (mode 18)
+    /// acknowledging the unclaimed rewards of the existing entry that are given up.
+    /// Also returns the [`NotarizedPayment`]s that must be paid with the NFTs, for example in
+    /// an offer, and the locked NFTs that will be created.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `nft_launcher_proofs` is shorter than `offered_nfts`.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_collection_nft_mode(
         self,
@@ -520,6 +591,29 @@ impl RewardDistributorStakeAction {
         Ok((security_conditions, notarized_payments, created_nfts))
     }
 
+    /// Stakes `offered_nfts` in a [`RewardDistributorType::CuratedNft`] distributor, in the
+    /// pending spend of `distributor`.
+    ///
+    /// `nft_shares` and `inclusion_proofs` give each NFT's shares and its merkle proof in the
+    /// curated `DataLayer` store, in the same order as `offered_nfts`. The `dl_*` arguments
+    /// describe the store's current root hash and puzzle. The entry belongs to
+    /// `entry_custody_puzzle_hash`, and `existing_slot` is its current entry slot, if it has
+    /// one.
+    ///
+    /// Besides the action, this spends `existing_slot` if provided. Returns the conditions that
+    /// secure the stake, which assert the distributor's announcements for each locked asset
+    /// and the new entry slot and, if `existing_slot` is provided, send a message (mode 18)
+    /// acknowledging the unclaimed rewards of the existing entry that are given up.
+    /// Also returns the [`NotarizedPayment`]s that must be paid with the NFTs, for example in
+    /// an offer, and the locked NFTs that will be created.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `nft_shares` or `inclusion_proofs` is shorter than `offered_nfts`.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_curated_nft_mode(
@@ -666,6 +760,22 @@ impl RewardDistributorStakeAction {
         Ok((security_conditions, notarized_payments, created_nfts))
     }
 
+    /// Stakes `offered_cat` in a [`RewardDistributorType::Cat`] distributor, in the pending
+    /// spend of `distributor`. Each mojo is one share.
+    ///
+    /// The entry belongs to `entry_custody_puzzle_hash`, and `existing_slot` is its current entry
+    /// slot, if it has one.
+    ///
+    /// Besides the action, this spends `existing_slot` if provided. Returns the conditions that
+    /// secure the stake, which assert the distributor's announcements for each locked asset
+    /// and the new entry slot and, if `existing_slot` is provided, send a message (mode 18)
+    /// acknowledging the unclaimed rewards of the existing entry that are given up.
+    /// Also returns the [`NotarizedPayment`] that must be paid with the CAT, for example in an
+    /// offer, and the locked CAT that will be created.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_cat_mode(
         self,

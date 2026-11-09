@@ -17,10 +17,20 @@ use crate::{
     RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that adds an entry with a number of shares, in a
+/// [`RewardDistributorType::Managed`](crate::RewardDistributorType::Managed) distributor.
+///
+/// The manager singleton must approve the entry with a message.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorAddEntryAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// The launcher id of the manager singleton, or all zeros if the distributor isn't
+    /// managed.
     pub manager_launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::max_seconds_offset`](crate::RewardDistributorConstants::max_seconds_offset).
     pub max_second_offset: u64,
 }
 
@@ -53,6 +63,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorAddEntryAction {
 }
 
 impl RewardDistributorAddEntryAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         manager_launcher_id: Bytes32,
@@ -80,6 +91,13 @@ impl RewardDistributorAddEntryAction {
         ))
     }
 
+    /// Parses an action solution into a [`RewardDistributorAddEntryActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -99,6 +117,16 @@ impl RewardDistributorAddEntryAction {
         })
     }
 
+    /// Adds an entry for `payout_puzzle_hash` with `shares` in the pending spend of
+    /// `distributor`.
+    ///
+    /// `manager_singleton_inner_puzzle_hash` is the manager singleton's current inner puzzle
+    /// hash. Returns the `SEND_MESSAGE` condition (mode 18) that the manager singleton must
+    /// output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the action spend can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
