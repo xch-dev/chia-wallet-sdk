@@ -40,6 +40,32 @@ impl RateLimiter {
         }
     }
 
+    /// Whether the message is too large to ever pass the rate limit, regardless of
+    /// how long the caller waits. Such messages should be rejected rather than retried.
+    pub fn exceeds_size_limits(&self, message: &Message) -> bool {
+        let Ok(size) = u32::try_from(message.data.len()) else {
+            return true;
+        };
+        let size = f64::from(size);
+
+        let limits = if let Some(tx_limits) = self.rate_limits.tx.get(&message.msg_type) {
+            *tx_limits
+        } else if let Some(other_limits) = self.rate_limits.other.get(&message.msg_type) {
+            if size > self.rate_limits.non_tx_max_total_size * self.limit_factor {
+                return true;
+            }
+            *other_limits
+        } else {
+            self.rate_limits.default_settings
+        };
+
+        let max_total_size = limits
+            .max_total_size
+            .unwrap_or(limits.frequency * limits.max_size);
+
+        size > limits.max_size || size > max_total_size * self.limit_factor
+    }
+
     pub fn handle_message(&mut self, message: &Message) -> bool {
         let size: u32 = message.data.len().try_into().expect("Message too large");
         let size = f64::from(size);
@@ -120,4 +146,35 @@ fn time() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::V2_RATE_LIMITS;
+
+    use super::*;
+
+    fn message(msg_type: ProtocolMessageTypes, size: usize) -> Message {
+        Message {
+            msg_type,
+            id: None,
+            data: vec![0; size].into(),
+        }
+    }
+
+    #[test]
+    fn test_exceeds_size_limits() {
+        let limiter = RateLimiter::new(false, 60, 0.6, V2_RATE_LIMITS.clone());
+
+        // RequestPeers has a max size of 100 bytes.
+        let small = message(ProtocolMessageTypes::RequestPeers, 10);
+        let large = message(ProtocolMessageTypes::RequestPeers, 101);
+
+        assert!(!limiter.exceeds_size_limits(&small));
+        assert!(limiter.exceeds_size_limits(&large));
+
+        let mut limiter = limiter;
+        assert!(limiter.handle_message(&small));
+        assert!(!limiter.handle_message(&large));
+    }
 }

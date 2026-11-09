@@ -69,6 +69,10 @@ impl Client {
         socket_addr: SocketAddr,
         options: PeerOptions,
     ) -> Result<mpsc::Receiver<Message>, ClientError> {
+        if self.state.lock().await.is_banned(&socket_addr.ip()) {
+            return Err(ClientError::BannedPeer);
+        }
+
         let (peer, receiver) = connect_peer(
             self.network_id.clone(),
             self.connector.clone(),
@@ -80,6 +84,7 @@ impl Client {
         let mut state = self.state.lock().await;
         let ip_addr = peer.socket_addr().ip();
 
+        // The peer may have been banned while the handshake was in progress.
         if state.is_banned(&ip_addr) {
             return Err(ClientError::BannedPeer);
         }

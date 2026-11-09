@@ -15,8 +15,24 @@ pub async fn connect_peer(
     socket_addr: SocketAddr,
     options: PeerOptions,
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
-    let (peer, mut receiver) = Peer::connect(socket_addr, connector, options).await?;
+    let connect = async {
+        let (peer, receiver) = Peer::connect(socket_addr, connector, options).await?;
+        handshake(peer, receiver, network_id).await
+    };
 
+    match options.handshake_timeout {
+        Some(duration) => tokio::time::timeout(duration, connect)
+            .await
+            .map_err(|_| ClientError::HandshakeTimeout(duration))?,
+        None => connect.await,
+    }
+}
+
+async fn handshake(
+    peer: Peer,
+    mut receiver: mpsc::Receiver<Message>,
+    network_id: String,
+) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
     peer.send(Handshake {
         network_id: network_id.clone(),
         protocol_version: "0.0.37".to_string(),
@@ -59,4 +75,55 @@ pub async fn connect_peer(
     }
 
     Ok((peer, receiver))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use chia_ssl::ChiaCertificate;
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_handshake_timeout() -> anyhow::Result<()> {
+        // Accept the TCP connection, but never complete the TLS or websocket handshake.
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let socket_addr = listener.local_addr()?;
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            drop(stream);
+            anyhow::Ok(())
+        });
+
+        let cert = ChiaCertificate::generate()?;
+
+        #[cfg(feature = "native-tls")]
+        let connector = crate::create_native_tls_connector(&cert)?;
+
+        #[cfg(not(feature = "native-tls"))]
+        let connector = crate::create_rustls_connector(&cert)?;
+
+        let timeout = Duration::from_millis(200);
+        let options = PeerOptions {
+            handshake_timeout: Some(timeout),
+            ..Default::default()
+        };
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            connect_peer("mainnet".to_string(), connector, socket_addr, options),
+        )
+        .await?;
+
+        assert!(
+            matches!(result, Err(ClientError::HandshakeTimeout(duration)) if duration == timeout)
+        );
+
+        server.abort();
+
+        Ok(())
+    }
 }
