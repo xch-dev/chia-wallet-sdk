@@ -2763,6 +2763,12 @@ export declare class PeerOptions {
   constructor()
   get rateLimitFactor(): number
   set rateLimitFactor(value: number)
+  get requestTimeoutSecs(): number | null
+  set requestTimeoutSecs(value: number | undefined | null)
+  get handshakeTimeoutSecs(): number | null
+  set handshakeTimeoutSecs(value: number | undefined | null)
+  get notificationCapacity(): number
+  set notificationCapacity(value: number)
 }
 
 export declare class PendingSpend {
@@ -3678,6 +3684,7 @@ export declare class RpcClient {
   static mainnet(): RpcClient
   static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
   static localWithUrl(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  static localWithCaCert(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array, caCertBytes: Uint8Array): RpcClient
   baseUrl(): string
   getBlockchainState(): Promise<BlockchainStateResponse>
   getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>

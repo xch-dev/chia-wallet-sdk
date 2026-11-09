@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use bindy::Result;
 use chia_protocol::{
@@ -53,6 +53,12 @@ impl Connector {
 #[derive(Clone)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    /// `None` waits for a response until the connection is closed.
+    pub request_timeout_secs: Option<u32>,
+    /// `None` waits for the connection and handshake indefinitely.
+    pub handshake_timeout_secs: Option<u32>,
+    /// The peer is disconnected if more notifications than this are left unread.
+    pub notification_capacity: u32,
 }
 
 impl PeerOptions {
@@ -60,8 +66,30 @@ impl PeerOptions {
         let options = SdkPeerOptions::default();
         Ok(Self {
             rate_limit_factor: options.rate_limit_factor,
+            request_timeout_secs: options.request_timeout.map(duration_secs),
+            handshake_timeout_secs: options.handshake_timeout.map(duration_secs),
+            notification_capacity: options.notification_capacity.try_into().unwrap_or(u32::MAX),
         })
     }
+}
+
+impl From<PeerOptions> for SdkPeerOptions {
+    fn from(value: PeerOptions) -> Self {
+        Self {
+            rate_limit_factor: value.rate_limit_factor,
+            request_timeout: value
+                .request_timeout_secs
+                .map(|secs| Duration::from_secs(secs.into())),
+            handshake_timeout: value
+                .handshake_timeout_secs
+                .map(|secs| Duration::from_secs(secs.into())),
+            notification_capacity: value.notification_capacity as usize,
+        }
+    }
+}
+
+fn duration_secs(duration: Duration) -> u32 {
+    duration.as_secs().try_into().unwrap_or(u32::MAX)
 }
 
 #[derive(Clone)]
@@ -97,10 +125,7 @@ impl Peer {
             network_id,
             connector.0.clone(),
             socket_addr.parse()?,
-            SdkPeerOptions {
-                rate_limit_factor: options.rate_limit_factor,
-                ..SdkPeerOptions::default()
-            },
+            options.into(),
         )
         .await?;
 

@@ -37,10 +37,14 @@ type Sink = SplitSink<WebSocket, tungstenite::Message>;
 type Stream = SplitStream<WebSocket>;
 type Response<T, E> = std::result::Result<T, E>;
 
+/// How long to wait for the close handshake when the connection is torn down.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
-    /// How long to wait for a response to a request before giving up.
+    /// How long to wait for a response once a request has been sent before giving up.
+    /// Time spent waiting on the outbound rate limiter isn't counted.
     /// `None` waits until the connection is closed.
     pub request_timeout: Option<Duration>,
     /// How long to wait for the connection and handshake to complete in `connect_peer`.
@@ -67,7 +71,8 @@ pub struct Peer(Arc<PeerInner>);
 
 #[derive(Debug)]
 struct PeerInner {
-    sink: Mutex<Sink>,
+    /// This is `None` once the connection has closed.
+    sink: Arc<Mutex<Option<Sink>>>,
     inbound_handle: JoinHandle<()>,
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
@@ -125,6 +130,9 @@ impl Peer {
         let (sink, stream) = ws.split();
         let (sender, receiver) = mpsc::channel(options.notification_capacity.max(1));
 
+        let sink = Arc::new(Mutex::new(Some(sink)));
+        let sink_clone = sink.clone();
+
         let requests = Arc::new(RequestMap::new());
         let requests_clone = requests.clone();
 
@@ -137,10 +145,17 @@ impl Peer {
             if let Err(error) = result {
                 debug!("Error handling message: {error}");
             }
+
+            // Close the socket too, so that the remote peer sees the disconnect and
+            // future sends fail instead of writing to a connection nobody is reading.
+            let sink = sink_clone.lock().await.take();
+            if let Some(mut sink) = sink {
+                tokio::time::timeout(CLOSE_TIMEOUT, sink.close()).await.ok();
+            }
         });
 
         let peer = Self(Arc::new(PeerInner {
-            sink: Mutex::new(sink),
+            sink,
             inbound_handle,
             requests,
             socket_addr,
@@ -159,6 +174,11 @@ impl Peer {
     /// The IP address and port of the peer connection.
     pub fn socket_addr(&self) -> SocketAddr {
         self.0.socket_addr
+    }
+
+    /// Whether the connection has closed, after which every request fails.
+    pub fn is_closed(&self) -> bool {
+        self.0.requests.is_closed()
     }
 
     pub async fn send_transaction(
@@ -326,14 +346,8 @@ impl Peer {
     where
         T: Streamable + ChiaProtocolMessage,
     {
-        let request = self.request_message(T::msg_type(), body.to_bytes()?.into());
-
-        match self.0.request_timeout {
-            Some(duration) => tokio::time::timeout(duration, request)
-                .await
-                .map_err(|_| ClientError::RequestTimeout(duration))?,
-            None => request.await,
-        }
+        self.request_message(T::msg_type(), body.to_bytes()?.into())
+            .await
     }
 
     async fn request_message(
@@ -352,51 +366,53 @@ impl Peer {
         })
         .await?;
 
-        let response = receiver.await.map_err(|_| ClientError::ConnectionClosed)?;
+        // The timeout starts once the request is sent, so that waiting on the rate limiter
+        // doesn't cause requests to time out before they've been sent.
+        let response = match self.0.request_timeout {
+            Some(duration) => tokio::time::timeout(duration, receiver)
+                .await
+                .map_err(|_| ClientError::RequestTimeout(duration))?,
+            None => receiver.await,
+        }
+        .map_err(|_| ClientError::ConnectionClosed)?;
+
         pending.complete();
 
         Ok(response)
     }
 
     async fn send_raw(&self, message: Message) -> Result<(), ClientError> {
-        if self
-            .0
-            .outbound_rate_limiter
-            .lock()
-            .await
-            .exceeds_size_limits(&message)
-        {
-            return Err(ClientError::MessageTooLarge(
-                message.msg_type,
-                message.data.len(),
-            ));
-        }
-
         loop {
-            if !self
-                .0
-                .outbound_rate_limiter
-                .lock()
-                .await
-                .handle_message(&message)
-            {
+            let passed = {
+                let mut rate_limiter = self.0.outbound_rate_limiter.lock().await;
+
+                if rate_limiter.exceeds_size_limits(&message) {
+                    return Err(ClientError::MessageTooLarge(
+                        message.msg_type,
+                        message.data.len(),
+                    ));
+                }
+
+                rate_limiter.handle_message(&message)
+            };
+
+            if !passed {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 continue;
             }
 
-            self.0
-                .sink
-                .lock()
-                .await
-                .send(message.to_bytes()?.into())
-                .await?;
+            let mut sink = self.0.sink.lock().await;
+            let sink = sink.as_mut().ok_or(ClientError::ConnectionClosed)?;
+            sink.send(message.to_bytes()?.into()).await?;
 
             return Ok(());
         }
     }
 
     pub async fn close(&self) -> Result<(), ClientError> {
-        self.0.sink.lock().await.close().await?;
+        if let Some(sink) = self.0.sink.lock().await.as_mut() {
+            sink.close().await?;
+        }
         Ok(())
     }
 }
@@ -646,6 +662,20 @@ mod tests {
         assert!(within(receiver.recv()).await.is_none());
 
         let result = within(peer.request_peers()).await;
+        assert!(matches!(result, Err(ClientError::ConnectionClosed)));
+        assert!(peer.is_closed());
+
+        // The socket itself is closed, so the remote peer sees the disconnect.
+        within(async {
+            while let Some(Ok(message)) = server.next().await {
+                if message.is_close() {
+                    break;
+                }
+            }
+        })
+        .await;
+
+        let result = within(peer.send(RequestPeers::new())).await;
         assert!(matches!(result, Err(ClientError::ConnectionClosed)));
 
         Ok(())

@@ -89,6 +89,7 @@ impl Client {
             return Err(ClientError::BannedPeer);
         }
 
+        state.peers.retain(|_, existing| !existing.is_closed());
         state.peers.insert(peer.socket_addr().ip(), peer);
 
         Ok(receiver)
@@ -96,8 +97,9 @@ impl Client {
 }
 
 impl ClientState {
+    /// The connected peers. Peers whose connection has closed are skipped.
     pub fn peers(&self) -> impl Iterator<Item = &Peer> {
-        self.peers.values()
+        self.peers.values().filter(|peer| !peer.is_closed())
     }
 
     pub fn disconnect(&mut self, ip_addr: &IpAddr) -> bool {

@@ -5,7 +5,7 @@ use std::{
 
 use chia_protocol::{Message, ProtocolMessageTypes};
 
-use crate::RateLimits;
+use crate::{RateLimit, RateLimits};
 
 #[derive(Debug, Clone)]
 pub struct RateLimiter {
@@ -47,23 +47,24 @@ impl RateLimiter {
             return true;
         };
         let size = f64::from(size);
+        let (limits, is_non_tx) = self.limits(message.msg_type);
 
-        let limits = if let Some(tx_limits) = self.rate_limits.tx.get(&message.msg_type) {
-            *tx_limits
-        } else if let Some(other_limits) = self.rate_limits.other.get(&message.msg_type) {
-            if size > self.rate_limits.non_tx_max_total_size * self.limit_factor {
-                return true;
-            }
-            *other_limits
+        if is_non_tx && size > self.rate_limits.non_tx_max_total_size * self.limit_factor {
+            return true;
+        }
+
+        size > limits.max_size || size > max_total_size(limits) * self.limit_factor
+    }
+
+    /// The limits for a message type, and whether it counts towards the non-tx limits.
+    fn limits(&self, msg_type: ProtocolMessageTypes) -> (RateLimit, bool) {
+        if let Some(tx_limits) = self.rate_limits.tx.get(&msg_type) {
+            (*tx_limits, false)
+        } else if let Some(other_limits) = self.rate_limits.other.get(&msg_type) {
+            (*other_limits, true)
         } else {
-            self.rate_limits.default_settings
-        };
-
-        let max_total_size = limits
-            .max_total_size
-            .unwrap_or(limits.frequency * limits.max_size);
-
-        size > limits.max_size || size > max_total_size * self.limit_factor
+            (self.rate_limits.default_settings, false)
+        }
     }
 
     pub fn handle_message(&mut self, message: &Message) -> bool {
@@ -89,13 +90,9 @@ impl RateLimiter {
         let mut new_non_tx_size = self.non_tx_size;
 
         let passed = 'checker: {
-            let mut limits = self.rate_limits.default_settings;
+            let (limits, is_non_tx) = self.limits(message.msg_type);
 
-            if let Some(tx_limits) = self.rate_limits.tx.get(&message.msg_type) {
-                limits = *tx_limits;
-            } else if let Some(other_limits) = self.rate_limits.other.get(&message.msg_type) {
-                limits = *other_limits;
-
+            if is_non_tx {
                 new_non_tx_count += 1.0;
                 new_non_tx_size += size;
 
@@ -108,10 +105,6 @@ impl RateLimiter {
                 }
             }
 
-            let max_total_size = limits
-                .max_total_size
-                .unwrap_or(limits.frequency * limits.max_size);
-
             if new_message_count > limits.frequency * self.limit_factor {
                 break 'checker false;
             }
@@ -120,7 +113,7 @@ impl RateLimiter {
                 break 'checker false;
             }
 
-            if new_cumulative_size > max_total_size * self.limit_factor {
+            if new_cumulative_size > max_total_size(limits) * self.limit_factor {
                 break 'checker false;
             }
 
@@ -139,6 +132,12 @@ impl RateLimiter {
 
         passed
     }
+}
+
+fn max_total_size(limits: RateLimit) -> f64 {
+    limits
+        .max_total_size
+        .unwrap_or(limits.frequency * limits.max_size)
 }
 
 fn time() -> u64 {

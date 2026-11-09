@@ -87,6 +87,10 @@ impl RequestMap {
             .remove(&id)
     }
 
+    pub(crate) fn is_closed(&self) -> bool {
+        self.state.lock().expect("request map poisoned").closed
+    }
+
     /// Fails all pending requests and rejects any new ones.
     pub(crate) fn close(&self) {
         self.semaphore.close();

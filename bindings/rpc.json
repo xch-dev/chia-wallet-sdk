@@ -31,6 +31,16 @@
           "key_bytes": "Bytes"
         }
       },
+      "local_with_ca_cert": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "base_url": "String",
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes",
+          "ca_cert_bytes": "Bytes"
+        }
+      },
       "base_url": {
         "return": "String"
       },

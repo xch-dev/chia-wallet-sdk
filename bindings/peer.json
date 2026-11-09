@@ -36,7 +36,10 @@
     "type": "class",
     "no_wasm": true,
     "fields": {
-      "rate_limit_factor": "f64"
+      "rate_limit_factor": "f64",
+      "request_timeout_secs": "Option<u32>",
+      "handshake_timeout_secs": "Option<u32>",
+      "notification_capacity": "u32"
     },
     "methods": {
       "new": {

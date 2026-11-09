@@ -36,6 +36,22 @@ mod inner {
         REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed).to_string()
     }
 
+    /// Opens the websocket, giving up if the connection or TLS handshake stalls.
+    async fn connect_websocket(
+        url: &str,
+        connector: Connector,
+        timeout: Duration,
+    ) -> Result<WebSocket, DaemonError> {
+        let connect =
+            tokio_tungstenite::connect_async_tls_with_config(url, None, false, Some(connector));
+
+        let (ws, _) = tokio::time::timeout(timeout, connect)
+            .await
+            .map_err(|_| DaemonError::Timeout(timeout))??;
+
+        Ok(ws)
+    }
+
     #[derive(Debug)]
     pub struct DaemonClient(Arc<DaemonClientInner>);
 
@@ -122,13 +138,7 @@ mod inner {
             connector: Connector,
             timeout: Duration,
         ) -> Result<Self, DaemonError> {
-            let (ws, _) = tokio_tungstenite::connect_async_tls_with_config(
-                url,
-                None,
-                false,
-                Some(connector.clone()),
-            )
-            .await?;
+            let ws = connect_websocket(url, connector.clone(), timeout).await?;
 
             let (sink, stream) = ws.split();
 
@@ -368,7 +378,7 @@ mod inner {
             attempt += 1;
 
             // Don't hold a strong reference while waiting, so the client can still be dropped.
-            let (base_url, connector) = {
+            let (base_url, connector, timeout) = {
                 let Some(inner) = inner.upgrade() else {
                     return Err(DaemonError::ConnectionClosed);
                 };
@@ -382,51 +392,60 @@ mod inner {
                     return Err(DaemonError::ReconnectFailed(max));
                 }
 
-                (inner.base_url.clone(), inner.connector.clone())
+                (
+                    inner.base_url.clone(),
+                    inner.connector.clone(),
+                    inner.timeout,
+                )
             };
 
             info!("Reconnecting to daemon (attempt {attempt})...");
 
-            match tokio_tungstenite::connect_async_tls_with_config(
-                &base_url,
-                None,
-                false,
-                Some(connector),
-            )
-            .await
-            {
-                Ok((ws, _)) => {
-                    let Some(inner) = inner.upgrade() else {
-                        return Err(DaemonError::ConnectionClosed);
-                    };
-
-                    let (new_sink, new_stream) = ws.split();
-                    *inner.sink.lock().await = new_sink;
-
-                    // Re-register all subscriptions (origin is first in the vec)
-                    let subs = inner.subscriptions.lock().await.clone();
-                    for service in &subs {
-                        if let Err(error) = inner.register_service(service).await {
-                            warn!("Failed to re-register service {service}: {error}");
-                        }
-                    }
-
-                    if !inner.mark_connected() {
-                        return Err(DaemonError::ConnectionClosed);
-                    }
-
-                    inner.reconnect_tx.send(()).ok();
-
+            match reconnect_once(inner, &base_url, connector, timeout).await {
+                Ok(Some(new_stream)) => {
                     info!("Reconnected to daemon successfully");
                     return Ok(new_stream);
                 }
-                Err(e) => {
-                    warn!("Reconnect attempt {attempt} failed: {e}");
+                Ok(None) => return Err(DaemonError::ConnectionClosed),
+                Err(error) => {
+                    warn!("Reconnect attempt {attempt} failed: {error}");
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(max_backoff);
                 }
             }
         }
+    }
+
+    /// Makes a single reconnection attempt. Returns `None` if the client was dropped or closed.
+    async fn reconnect_once(
+        inner: &Weak<DaemonClientInner>,
+        base_url: &str,
+        connector: Connector,
+        timeout: Duration,
+    ) -> Result<Option<Stream>, DaemonError> {
+        let ws = connect_websocket(base_url, connector, timeout).await?;
+
+        let Some(inner) = inner.upgrade() else {
+            return Ok(None);
+        };
+
+        let (new_sink, new_stream) = ws.split();
+        *inner.sink.lock().await = new_sink;
+
+        // Re-register all subscriptions (origin is first in the vec). If any of them fail,
+        // the attempt fails, rather than reporting a connection that's missing events.
+        let subs = inner.subscriptions.lock().await.clone();
+        for service in &subs {
+            inner.register_service(service).await?;
+        }
+
+        if !inner.mark_connected() {
+            return Ok(None);
+        }
+
+        inner.reconnect_tx.send(()).ok();
+
+        Ok(Some(new_stream))
     }
 
     impl Clone for DaemonClient {
@@ -573,6 +592,26 @@ mod inner {
             tokio::time::timeout(Duration::from_secs(10), future)
                 .await
                 .expect("future hung")
+        }
+
+        #[tokio::test]
+        async fn test_connect_times_out_on_stalled_handshake() -> anyhow::Result<()> {
+            let timeout = Duration::from_millis(500);
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let url = format!("ws://{}", listener.local_addr()?);
+
+            // Accept the TCP connection, but never complete the websocket handshake.
+            let _server = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await?;
+                std::future::pending::<()>().await;
+                drop(stream);
+                anyhow::Ok(())
+            });
+
+            let result = within(DaemonClient::connect(&url, Connector::Plain, timeout)).await;
+            assert!(matches!(result, Err(DaemonError::Timeout(duration)) if duration == timeout));
+
+            Ok(())
         }
 
         #[tokio::test]

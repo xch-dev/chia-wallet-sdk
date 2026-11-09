@@ -84,6 +84,23 @@ impl RpcClient {
         ))))
     }
 
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    pub fn local_with_ca_cert(
+        base_url: String,
+        cert_bytes: Bytes,
+        key_bytes: Bytes,
+        ca_cert_bytes: Bytes,
+    ) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::FullNode(
+            chia_sdk_coinset::FullNodeClient::with_ca_cert(
+                base_url,
+                &cert_bytes,
+                &key_bytes,
+                &ca_cert_bytes,
+            )?,
+        ))))
+    }
+
     pub fn base_url(&self) -> Result<String> {
         Ok(self.0.base_url().to_string())
     }

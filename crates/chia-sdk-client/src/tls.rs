@@ -11,13 +11,20 @@ use crate::ClientError;
 ///
 /// Any other error, including only one of the two files existing, is returned rather than
 /// overwriting what's already on disk. The key is written so that only the owner can read it.
+/// If generating fails partway, nothing is left behind, so the next call can try again.
 pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate, ClientError> {
     match (read_if_exists(cert_path)?, read_if_exists(key_path)?) {
         (Some(cert_pem), Some(key_pem)) => Ok(ChiaCertificate { cert_pem, key_pem }),
         (None, None) => {
             let cert = ChiaCertificate::generate()?;
-            write_private(key_path, &cert.key_pem)?;
-            fs::write(cert_path, &cert.cert_pem)?;
+            write_new(key_path, &cert.key_pem, true)?;
+
+            // A key without a certificate would make every later call fail, so remove it.
+            if let Err(error) = write_new(cert_path, &cert.cert_pem, false) {
+                fs::remove_file(key_path).ok();
+                return Err(error.into());
+            }
+
             Ok(cert)
         }
         (Some(_), None) => Err(not_found(key_path)),
@@ -37,16 +44,29 @@ fn not_found(path: &str) -> ClientError {
     io::Error::new(io::ErrorKind::NotFound, format!("{path} does not exist")).into()
 }
 
-fn write_private(path: &str, contents: &str) -> io::Result<()> {
+/// Writes a file that must not already exist, and removes it again if the write fails.
+fn write_new(path: &str, contents: &str, private: bool) -> io::Result<()> {
     use std::io::Write;
 
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
 
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    {
+        if private {
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = private;
 
-    options.open(path)?.write_all(contents.as_bytes())
+    let result = options.open(path)?.write_all(contents.as_bytes());
+
+    if result.is_err() {
+        fs::remove_file(path).ok();
+    }
+
+    result
 }
 
 /// Creates a native-tls connector from a certificate.
@@ -203,6 +223,26 @@ mod tests {
         fs::create_dir(&key_path)?;
         assert!(load_ssl_cert(path_str(&cert_path), path_str(&key_path)).is_err());
         assert_eq!(fs::read_to_string(&cert_path)?, "existing cert");
+
+        fs::remove_dir_all(dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_ssl_cert_cleans_up_when_cert_write_fails() -> anyhow::Result<()> {
+        let dir = temp_dir("cleanup")?;
+        let cert_path = dir.join("missing").join("cert.crt");
+        let key_path = dir.join("cert.key");
+
+        // The certificate's directory doesn't exist, so writing it fails after the key is written.
+        assert!(load_ssl_cert(path_str(&cert_path), path_str(&key_path)).is_err());
+        assert!(!key_path.exists());
+
+        // Once the problem is fixed, the next call generates both files.
+        fs::create_dir(dir.join("missing"))?;
+        load_ssl_cert(path_str(&cert_path), path_str(&key_path))?;
+        assert!(cert_path.exists());
+        assert!(key_path.exists());
 
         fs::remove_dir_all(dir)?;
         Ok(())
