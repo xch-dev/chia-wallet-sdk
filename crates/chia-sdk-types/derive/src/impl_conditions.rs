@@ -2,7 +2,7 @@ use convert_case::{Case, Casing};
 use proc_macro::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    Expr, Ident, Token, Type, braced,
+    Attribute, Expr, Ident, Token, Type, braced,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::{Pair, Punctuated},
@@ -11,6 +11,7 @@ use syn::{
 
 #[derive(Debug, Clone)]
 struct Conditions {
+    attrs: Vec<Attribute>,
     name: Ident,
     generic: Ident,
     items: Punctuated<Condition, Token![,]>,
@@ -18,6 +19,7 @@ struct Conditions {
 
 #[derive(Debug, Clone)]
 struct Condition {
+    attrs: Vec<Attribute>,
     name: Ident,
     generics: Option<Punctuated<Ident, Token![,]>>,
     additional_derives: Option<AdditionalDerives>,
@@ -31,6 +33,7 @@ struct AdditionalDerives {
 
 #[derive(Debug, Clone)]
 struct ConditionField {
+    attrs: Vec<Attribute>,
     modifier: Modifier,
     name: Ident,
     ty: Type,
@@ -46,6 +49,7 @@ enum Modifier {
 
 impl Parse for Conditions {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         input.parse::<Token![pub]>()?;
         input.parse::<Token![enum]>()?;
         let name = input.parse()?;
@@ -58,6 +62,7 @@ impl Parse for Conditions {
         let items = content.parse_terminated(Condition::parse, Token![,])?;
 
         Ok(Self {
+            attrs,
             name,
             generic,
             items,
@@ -67,6 +72,7 @@ impl Parse for Conditions {
 
 impl Parse for Condition {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let name = input.parse()?;
         let generics = if input.peek(Token![<]) {
             input.parse::<Token![<]>()?;
@@ -94,6 +100,7 @@ impl Parse for Condition {
         let fields = content.parse_terminated(ConditionField::parse, Token![,])?;
 
         Ok(Self {
+            attrs,
             name,
             generics,
             additional_derives,
@@ -124,6 +131,7 @@ impl Parse for AdditionalDerives {
 
 impl Parse for ConditionField {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let mut modifier = Modifier::None;
 
         if input.peek(Token![...]) {
@@ -150,6 +158,7 @@ impl Parse for ConditionField {
         };
 
         Ok(Self {
+            attrs,
             modifier,
             name,
             ty,
@@ -184,10 +193,10 @@ fn replace_ident_in_type(ty: &mut Type, from: Ident, to: Ident) {
 
 pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     let Conditions {
+        attrs: enum_attrs,
         name,
         generic: enum_generic,
         items,
-        ..
     } = parse_macro_input!(input as Conditions);
 
     let mut variants = Vec::new();
@@ -197,11 +206,11 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     let mut condition_list_impls = Vec::new();
 
     for Condition {
+        attrs: condition_attrs,
         name: condition,
         generics: generic_list,
         additional_derives,
         fields,
-        ..
     } in items
     {
         let generics_original = generic_list.as_ref().map(|idents| quote!( < #idents > ));
@@ -223,7 +232,10 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             None
         };
 
+        let variant_doc = format!("A [`{condition}`](conditions::{condition}) condition.");
+
         variants.push(quote! {
+            #[doc = #variant_doc]
             #condition(conditions::#condition #generics_remapped),
         });
 
@@ -236,6 +248,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
         let definitions = fields.clone().into_iter().map(|field| {
             let ConditionField {
+                attrs,
                 modifier,
                 name,
                 ty,
@@ -244,17 +257,21 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
             match modifier {
                 Modifier::None if constant.is_some() => quote! {
+                    #( #attrs )*
                     #[clvm(constant = #constant)]
                     pub #name: #ty,
                 },
                 Modifier::None => quote! {
+                    #( #attrs )*
                     pub #name: #ty,
                 },
                 Modifier::Spread => quote! {
+                    #( #attrs )*
                     #[clvm(rest)]
                     pub #name: #ty,
                 },
                 Modifier::Optional => quote! {
+                    #( #attrs )*
                     #[clvm(default)]
                     pub #name: #ty,
                 },
@@ -296,7 +313,10 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         let new_parameters = parameters_original.clone();
         let new_names = names.clone();
 
+        let new_doc = format!("Creates a new [`{condition}`] condition from its arguments.");
+
         conditions.push(quote! {
+            #( #condition_attrs )*
             #[derive(::clvm_traits::ToClvm, ::clvm_traits::FromClvm)]
             #[::clvm_traits::apply_constants]
             #[derive(Debug, Clone, PartialEq, Eq)]
@@ -307,6 +327,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             }
 
             impl #generics_original #condition #generics_original {
+                #[doc = #new_doc]
                 pub fn new( #( #new_parameters, )* ) -> Self {
                     Self { #( #new_names, )* }
                 }
@@ -329,13 +350,28 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             .clone()
             .map(|generics| quote!( ::#generics ));
 
+        let link = format!("[`{condition}`](conditions::{condition})");
+        let variant_link = format!("[`Condition::{condition}`]");
+
+        let constructor_doc = format!("Creates a {variant_link} from the arguments of a {link}.");
+        let into_doc =
+            format!("Returns the inner {link} if this is a {variant_link}, or [`None`] otherwise.");
+        let as_doc = format!(
+            "Returns a reference to the inner {link} if this is a {variant_link}, or [`None`] otherwise."
+        );
+        let is_doc = format!("Returns `true` if this is a {variant_link}.");
+        let builder_doc =
+            format!("Adds a {link} condition to the end of the list and returns the updated list.");
+
         condition_impls.push(quote! {
+            #[doc = #constructor_doc]
             pub fn #snake_case( #( #condition_parameters, )* ) -> Self {
                 Self::#condition( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
             }
         });
 
         condition_impls.push(quote! {
+            #[doc = #into_doc]
             pub fn #into_name(self) -> Option<conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
@@ -346,6 +382,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         });
 
         condition_impls.push(quote! {
+            #[doc = #as_doc]
             pub fn #as_name(&self) -> Option<&conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
@@ -356,6 +393,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         });
 
         condition_impls.push(quote! {
+            #[doc = #is_doc]
             pub fn #is_name(&self) -> bool {
                 matches!(self, Self::#condition(..))
             }
@@ -364,6 +402,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         let condition_names = names.clone();
 
         condition_list_impls.push(quote! {
+            #[doc = #builder_doc]
             pub fn #snake_case(self, #( #parameters_remapped, )* ) -> Self {
                 self.with( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
             }
@@ -379,11 +418,17 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     }
 
     quote! {
+        #( #enum_attrs )*
         #[non_exhaustive]
         #[derive(Debug, Clone, PartialEq, Eq, ::clvm_traits::ToClvm, ::clvm_traits::FromClvm)]
         #[clvm(transparent)]
         pub enum #name<#enum_generic = ::clvmr::NodePtr> {
             #( #variants )*
+            /// Any condition that doesn't match one of the other variants, kept as its raw value.
+            ///
+            /// When parsing, each variant is tried in order and this is the fallback, so it holds
+            /// conditions with unknown opcodes as well as known opcodes whose arguments don't fit
+            /// the expected shape.
             Other(T),
         }
 
@@ -395,6 +440,11 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             #( #condition_list_impls )*
         }
 
+        /// Strongly typed structs for each individual condition, along with related helper types.
+        ///
+        /// Each struct here is the payload of one [`Condition`] variant and can be serialized to or
+        /// parsed from CLVM on its own. This module also re-exports everything from the parent
+        /// module, as well as [`Memos`](chia_puzzle_types::Memos).
         pub mod conditions {
             pub use super::*;
 
