@@ -2,6 +2,29 @@ use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::Bytes32;
 use chia_sha2::Sha256;
 
+/// The network-specific additional data that is appended to `AGG_SIG_*` messages before
+/// they are signed.
+///
+/// Every `AGG_SIG_*` condition except `AGG_SIG_UNSAFE` signs the message followed by some
+/// information about the coin, followed by one of these values. Since the values differ
+/// between networks, a signature for one network can't be replayed on another. Each kind of
+/// condition also uses a different value, so a signature for one kind can't be reused for
+/// another.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_signer::AggSigConstants;
+/// use chia_sdk_types::TESTNET11_CONSTANTS;
+///
+/// let constants = AggSigConstants::from(&*TESTNET11_CONSTANTS);
+///
+/// // The other values are derived from the `AGG_SIG_ME` additional data.
+/// assert_eq!(
+///     constants,
+///     AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data)
+/// );
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AggSigConstants {
     me: Bytes32,
@@ -14,6 +37,11 @@ pub struct AggSigConstants {
 }
 
 impl AggSigConstants {
+    /// Derives all of the constants from the `AGG_SIG_ME` additional data, which is the
+    /// network's genesis challenge on mainnet and testnet11.
+    ///
+    /// Each other value is the SHA-256 hash of `agg_sig_me` followed by the condition's
+    /// opcode, which is how consensus derives them.
     pub fn new(agg_sig_me: Bytes32) -> Self {
         Self {
             me: agg_sig_me,
@@ -26,30 +54,37 @@ impl AggSigConstants {
         }
     }
 
+    /// The additional data for `AGG_SIG_ME`.
     pub fn me(&self) -> Bytes32 {
         self.me
     }
 
+    /// The additional data for `AGG_SIG_PARENT`.
     pub fn parent(&self) -> Bytes32 {
         self.parent
     }
 
+    /// The additional data for `AGG_SIG_PUZZLE`.
     pub fn puzzle(&self) -> Bytes32 {
         self.puzzle
     }
 
+    /// The additional data for `AGG_SIG_AMOUNT`.
     pub fn amount(&self) -> Bytes32 {
         self.amount
     }
 
+    /// The additional data for `AGG_SIG_PARENT_AMOUNT`.
     pub fn parent_amount(&self) -> Bytes32 {
         self.parent_amount
     }
 
+    /// The additional data for `AGG_SIG_PUZZLE_AMOUNT`.
     pub fn puzzle_amount(&self) -> Bytes32 {
         self.puzzle_amount
     }
 
+    /// The additional data for `AGG_SIG_PARENT_PUZZLE`.
     pub fn parent_puzzle(&self) -> Bytes32 {
         self.parent_puzzle
     }
