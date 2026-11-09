@@ -205,11 +205,27 @@ macro_rules! compile_rue {
 mod tests {
     use clvm_traits::{FromClvm, ToClvm};
     use clvm_utils::CurriedProgram;
-    use clvmr::{NodePtr, serde::node_from_bytes};
+    use clvmr::{ClvmFlags, NodePtr, run_program, serde::node_from_bytes};
+    use rue_lir::DebugDialect;
 
-    use crate::{Mod, run_puzzle, set_debug_dialect_enabled};
+    use crate::{MAINNET_CONSTANTS, Mod, run_puzzle};
 
     use super::*;
+
+    /// Runs a puzzle with Rue's debug dialect, which the debug prints in these puzzles require.
+    /// The dialect is passed directly rather than enabled for the whole process, so that it
+    /// doesn't leak into other tests running in parallel.
+    fn run_debug_puzzle(allocator: &mut Allocator, puzzle: NodePtr) -> anyhow::Result<NodePtr> {
+        let dialect = DebugDialect::new(ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD, true);
+        Ok(run_program(
+            allocator,
+            &dialect,
+            puzzle,
+            NodePtr::NIL,
+            MAINNET_CONSTANTS.max_block_cost_clvm,
+        )?
+        .1)
+    }
 
     #[test]
     fn test_compile_chialisp() -> anyhow::Result<()> {
@@ -250,9 +266,6 @@ mod tests {
             b: T,
         }
 
-        // The puzzle uses debug prints, which require the debug dialect.
-        set_debug_dialect_enabled(true);
-
         compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue");
 
         let args = TestArgs { a: 10, b: 20 };
@@ -267,7 +280,7 @@ mod tests {
         }
         .to_clvm(&mut allocator)?;
 
-        let output = run_puzzle(&mut allocator, ptr, NodePtr::NIL)?;
+        let output = run_debug_puzzle(&mut allocator, ptr)?;
 
         assert_eq!(hex::encode(node_to_bytes(&allocator, output)?), "8200e6");
 
@@ -283,9 +296,6 @@ mod tests {
             b: T,
         }
 
-        // The puzzle uses debug prints, which require the debug dialect.
-        set_debug_dialect_enabled(true);
-
         compile_rue!(debug TestArgs<T> = TEST_MOD, "compile_rue_test.rue", "another");
 
         let args = TestArgs { a: 10, b: 20 };
@@ -300,7 +310,7 @@ mod tests {
         }
         .to_clvm(&mut allocator)?;
 
-        let output = run_puzzle(&mut allocator, ptr, NodePtr::NIL)?;
+        let output = run_debug_puzzle(&mut allocator, ptr)?;
 
         assert_eq!(hex::encode(node_to_bytes(&allocator, output)?), "8200e6");
 

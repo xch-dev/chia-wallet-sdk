@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use chia_consensus::{
     check_time_locks::check_time_locks,
+    conditions::HAS_RELATIVE_CONDITION,
     consensus_constants::ConsensusConstants,
     flags::ConsensusFlags,
     owned_conditions::{OwnedSpendBundleConditions, OwnedSpendConditions},
@@ -120,13 +121,12 @@ pub(crate) fn ephemeral_coin_record(coin: Coin, clock: ValidationClock) -> CoinR
 
 /// Whether a spend has a condition which consensus doesn't allow on a coin that is created in
 /// the same block it's spent in.
+///
+/// This uses the flag set while parsing conditions rather than the parsed values, because some
+/// relative conditions (such as a negative `ASSERT_HEIGHT_RELATIVE`) are trivially true and aren't
+/// recorded as values, but are still not allowed on ephemeral coins.
 pub(crate) fn has_relative_time_lock(spend: &OwnedSpendConditions) -> bool {
-    spend.height_relative.is_some()
-        || spend.seconds_relative.is_some()
-        || spend.before_height_relative.is_some()
-        || spend.before_seconds_relative.is_some()
-        || spend.birth_height.is_some()
-        || spend.birth_seconds.is_some()
+    (spend.flags & HAS_RELATIVE_CONDITION) != 0
 }
 
 pub(crate) fn validate_reserve_fee(

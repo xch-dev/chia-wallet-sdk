@@ -35,7 +35,8 @@ pub enum TimestampMode {
     Fixed(u64),
     /// The genesis block has the timestamp `start`, and each block advances it by `step`.
     Increment { start: u64, step: u64 },
-    /// Each block uses the current system time, without going backwards.
+    /// Each block uses the system time when it's created, unless a later timestamp has been
+    /// scheduled for it.
     RealTime,
 }
 
@@ -51,6 +52,14 @@ impl TimestampMode {
             Self::Fixed(timestamp) => timestamp,
             Self::Increment { start, .. } => start,
             Self::RealTime => now(),
+        }
+    }
+
+    /// The timestamp a block created now would have, given the timestamp scheduled for it.
+    pub(crate) fn pending_timestamp(self, scheduled: u64) -> u64 {
+        match self {
+            Self::Fixed(_) | Self::Increment { .. } => scheduled,
+            Self::RealTime => now().max(scheduled),
         }
     }
 

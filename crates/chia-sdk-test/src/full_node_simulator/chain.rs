@@ -10,6 +10,7 @@ use crate::{FullNodeSimulatorEvent, SimulatorError};
 use super::{
     BLOCK_REWARD_AMOUNT, FullNodeSimulator, SimBlock, SimCoinRecord, ValidatedSpend,
     state::{BlockDelta, CoinChange, HintChange, SpendChange},
+    validation::ValidationOverlay,
 };
 
 impl FullNodeSimulator {
@@ -24,8 +25,12 @@ impl FullNodeSimulator {
         let mut included_spends_by_coin = IndexMap::<Bytes32, ValidatedSpend>::new();
         let max_block_cost = Self::constants().max_block_cost_clvm;
         let mut block_cost = 0_u64;
+        // Transactions can only spend coins created by transactions already in the block, so a
+        // transaction whose parent was left out waits for a later block as well.
+        let mut overlay = ValidationOverlay::default();
         for (tx_id, item) in self.mempool.clone() {
-            let Ok(validated) = self.validate_bundle(item.spend_bundle.clone()) else {
+            let Ok(validated) = self.validate_bundle_in_block(item.spend_bundle.clone(), &overlay)
+            else {
                 continue;
             };
             // Transactions that don't fit are left in the mempool for a later block.
@@ -56,6 +61,7 @@ impl FullNodeSimulator {
                     .or_insert_with(|| spend.clone());
             }
             block_cost = new_block_cost;
+            overlay.apply_additions(&validated);
             included_tx_ids.push(tx_id);
             included.push(validated);
         }

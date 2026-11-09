@@ -97,7 +97,9 @@ impl Simulator {
     /// Transactions are validated against [`Simulator::timestamp`], so time locks that depend on
     /// this timestamp only pass after the next block has been created.
     pub fn next_timestamp(&self) -> u64 {
-        self.data.next_timestamp
+        self.config
+            .timestamp_mode
+            .pending_timestamp(self.data.next_timestamp)
     }
 
     fn block_timestamp(&self, height: u32) -> u64 {
@@ -149,7 +151,7 @@ impl Simulator {
     /// Advances the timestamp of the next block. Call [`Simulator::create_block`] afterward for
     /// transactions to be validated against it.
     pub fn pass_time(&mut self, time: u64) {
-        self.data.next_timestamp += time;
+        self.data.next_timestamp = self.next_timestamp() + time;
     }
 
     pub fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
@@ -383,7 +385,7 @@ impl Simulator {
         self.data.rng.fill(&mut header_hash);
         self.data.header_hashes.push(header_hash.into());
 
-        let timestamp = self.data.next_timestamp;
+        let timestamp = self.next_timestamp();
         self.data.height += 1;
         self.data
             .block_timestamps

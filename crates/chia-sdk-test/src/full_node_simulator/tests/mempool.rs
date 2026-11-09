@@ -21,6 +21,32 @@ fn spend_to_child(
     ))
 }
 
+const LARGE_SPEND_OUTPUTS: u64 = 1500;
+const LARGE_SPEND_AMOUNT: u64 = LARGE_SPEND_OUTPUTS * LARGE_SPEND_OUTPUTS;
+
+/// Creates coins with amounts from 1 to [`LARGE_SPEND_OUTPUTS`], which costs roughly a third of
+/// the block cost limit, so only three of these fit in a block.
+fn large_spend(
+    coin: Coin,
+    puzzle_reveal: Program,
+    puzzle_hash: Bytes32,
+) -> anyhow::Result<SpendBundle> {
+    let conditions = (1..=LARGE_SPEND_OUTPUTS)
+        .map(|amount| CreateCoin::<NodePtr>::new(puzzle_hash, amount, Memos::None))
+        .collect::<Vec<_>>();
+    Ok(SpendBundle::new(
+        vec![CoinSpend::new(coin, puzzle_reveal, to_program(conditions)?)],
+        Signature::default(),
+    ))
+}
+
+fn mempool_size(sim: &FullNodeSimulator) -> u32 {
+    sim.get_blockchain_state()
+        .blockchain_state
+        .unwrap()
+        .mempool_size
+}
+
 #[test]
 fn push_tx_rejects_mempool_conflict() -> anyhow::Result<()> {
     let mut sim = FullNodeSimulator::new();
@@ -230,21 +256,9 @@ fn farm_block_respects_block_cost_limit() -> anyhow::Result<()> {
     let mut sim = FullNodeSimulator::new();
     let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-    // Each transaction costs roughly a third of the block cost limit, so only three fit.
-    let outputs = 1500;
     for _ in 0..4 {
-        let coin = sim.new_coin(puzzle_hash, outputs * outputs);
-        let conditions = (1..=outputs)
-            .map(|amount| CreateCoin::<NodePtr>::new(puzzle_hash, amount, Memos::None))
-            .collect::<Vec<_>>();
-        let spend_bundle = SpendBundle::new(
-            vec![CoinSpend::new(
-                coin,
-                puzzle_reveal.clone(),
-                to_program(conditions)?,
-            )],
-            Signature::default(),
-        );
+        let coin = sim.new_coin(puzzle_hash, LARGE_SPEND_AMOUNT);
+        let spend_bundle = large_spend(coin, puzzle_reveal.clone(), puzzle_hash)?;
         assert!(sim.push_tx(spend_bundle).success);
     }
 
@@ -269,6 +283,124 @@ fn farm_block_respects_block_cost_limit() -> anyhow::Result<()> {
             .unwrap()
             .mempool_size,
         0
+    );
+
+    Ok(())
+}
+
+#[test]
+fn farm_block_defers_child_of_transaction_that_does_not_fit() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::new();
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+    let mut parent = None;
+    for _ in 0..4 {
+        let coin = sim.new_coin(puzzle_hash, LARGE_SPEND_AMOUNT);
+        assert!(
+            sim.push_tx(large_spend(coin, puzzle_reveal.clone(), puzzle_hash)?)
+                .success
+        );
+        parent = Some(coin);
+    }
+
+    // The last large transaction doesn't fit in the next block, so neither can its child.
+    let child = Coin::new(parent.unwrap().coin_id(), puzzle_hash, 1);
+    assert!(
+        sim.push_tx(spend_to_child(child, puzzle_reveal, puzzle_hash, 1)?)
+            .success
+    );
+
+    sim.farm_block(1);
+    let spends = sim
+        .get_block_spends(sim.header_hash())
+        .block_spends
+        .unwrap();
+    assert_eq!(spends.len(), 3);
+    assert_eq!(mempool_size(&sim), 2);
+
+    sim.farm_block(1);
+    let spends = sim
+        .get_block_spends(sim.header_hash())
+        .block_spends
+        .unwrap();
+    assert_eq!(spends.len(), 2);
+    assert!(
+        spends
+            .iter()
+            .any(|spend| spend.coin.coin_id() == child.coin_id())
+    );
+    assert_eq!(mempool_size(&sim), 0);
+
+    Ok(())
+}
+
+#[test]
+fn push_tx_rejects_skipped_relative_condition_on_unconfirmed_coin() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::new();
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+    assert!(
+        sim.push_tx(spend_to_child(
+            coin,
+            puzzle_reveal.clone(),
+            puzzle_hash,
+            99
+        )?)
+        .success
+    );
+
+    // A negative relative height is always true, but it still isn't allowed on a coin that would
+    // be created in the same block.
+    let child = Coin::new(coin.coin_id(), puzzle_hash, 99);
+    let assert_height_relative = 82_u64;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            child,
+            puzzle_reveal,
+            to_program([(assert_height_relative, (-1_i64, ()))])?,
+        )],
+        Signature::default(),
+    );
+    let response = sim.push_tx(spend_bundle);
+
+    assert!(!response.success);
+    assert_eq!(
+        response.error.as_deref(),
+        Some("Validation error: EphemeralRelativeCondition")
+    );
+
+    Ok(())
+}
+
+#[test]
+fn farm_block_includes_transaction_accepted_without_mempool_mode() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::new();
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+
+    // Unknown conditions are only allowed outside of mempool mode.
+    let unknown_condition = 100_u64;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program([(unknown_condition, ())])?,
+        )],
+        Signature::default(),
+    );
+    assert!(!sim.push_tx(spend_bundle.clone()).success);
+
+    sim.set_mempool_mode(false);
+    assert!(sim.push_tx(spend_bundle).success);
+
+    // Blocks are validated without mempool rules, so the transaction is still included.
+    sim.set_mempool_mode(true);
+    sim.farm_block(1);
+    assert_eq!(mempool_size(&sim), 0);
+    assert!(
+        sim.get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .is_some_and(|record| record.spent)
     );
 
     Ok(())
