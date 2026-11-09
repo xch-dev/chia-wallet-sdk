@@ -21,6 +21,111 @@ use crate::{
 pub const OLD_SETTLEMENT_PAYMENT_HASH: [u8; 32] =
     hex!("bae24162efbd568f89bc7a340798a6118df0189eb9e3f8697bcea27af99f8f79");
 
+/// A parsed offer, which is a partial spend bundle that trades the offered coins for the
+/// requested payments.
+///
+/// The maker spends their coins into settlement coins (coins with the settlement payments puzzle
+/// as their p2 puzzle), which anyone can spend, and asserts the announcements of the payments that
+/// they request in return. The offer can only be completed by a taker whose spends make those
+/// payments, using settlement coins of the requested assets.
+///
+/// An offer is shared as a spend bundle, which includes a spend of a placeholder coin (with a
+/// parent coin id of zero) for each kind of requested payment. The `offer-compression` feature
+/// adds `encode_offer` and `decode_offer` to convert it to and from the bech32m `offer1...` format.
+///
+/// # Example
+///
+/// Alice offers a CAT for XCH, and Bob takes the offer:
+///
+/// ```
+/// use chia_sdk_driver::{
+///     Action, AssetInfo, Id, Offer, Relation, RequestedPayments, SpendContext, Spends,
+/// };
+/// use chia_sdk_test::{Simulator, sign_transaction};
+/// use chia_protocol::SpendBundle;
+/// use chia_puzzle_types::{Memos, offer::{NotarizedPayment, Payment}};
+/// use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+/// use indexmap::indexmap;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let alice = sim.bls(100);
+/// let bob = sim.bls(50);
+/// let alice_hint = ctx.hint(alice.puzzle_hash)?;
+/// let alice_keys = indexmap! { alice.puzzle_hash => alice.pk };
+/// let bob_keys = indexmap! { bob.puzzle_hash => bob.pk };
+///
+/// // Alice issues 100 of a CAT
+/// let mut spends = Spends::new(alice.puzzle_hash);
+/// spends.add(alice.coin);
+/// let deltas = spends.apply(
+///     &mut ctx,
+///     &[
+///         Action::single_issue_cat(None, 100),
+///         Action::send(Id::New(0), alice.puzzle_hash, 100, alice_hint),
+///     ],
+/// )?;
+/// let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &alice_keys)?;
+/// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+///
+/// let cat = outputs.cats[&Id::New(0)][0];
+/// let asset_id = cat.info.asset_id;
+///
+/// // Alice requests 50 mojos, notarized with the nonce of the coin she offers
+/// let mut requested_payments = RequestedPayments::new();
+/// requested_payments.xch.push(NotarizedPayment::new(
+///     Offer::nonce(vec![cat.coin.coin_id()]),
+///     vec![Payment::new(alice.puzzle_hash, 50, alice_hint)],
+/// ));
+/// let asset_info = AssetInfo::new();
+///
+/// // She sends the CAT to the settlement payments puzzle, asserting the requested payments
+/// let mut spends = Spends::new(alice.puzzle_hash);
+/// spends.add(cat);
+/// spends.conditions.required = spends
+///     .conditions
+///     .required
+///     .extend(requested_payments.assertions(&mut ctx, &asset_info)?);
+/// let deltas = spends.apply(
+///     &mut ctx,
+///     &[Action::send(Id::Existing(asset_id), SETTLEMENT_PAYMENT_HASH.into(), 100, Memos::None)],
+/// )?;
+/// spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &alice_keys)?;
+///
+/// let coin_spends = ctx.take();
+/// let signature = sign_transaction(&coin_spends, &[alice.sk])?;
+/// let offer = Offer::from_input_spend_bundle(
+///     &mut ctx,
+///     SpendBundle::new(coin_spends, signature),
+///     requested_payments,
+///     asset_info,
+/// )?;
+///
+/// // The offer is shared as a spend bundle, and the taker parses it
+/// let spend_bundle = offer.to_spend_bundle(&mut ctx)?;
+/// # #[cfg(feature = "offer-compression")]
+/// # let spend_bundle = chia_sdk_driver::decode_offer(&chia_sdk_driver::encode_offer(&spend_bundle)?)?;
+/// let offer = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+/// assert_eq!(offer.offered_coins().amounts().cats[&asset_id], 100);
+/// assert_eq!(offer.requested_payments().amounts().xch, 50);
+///
+/// // Bob spends the offered coins along with his own, and makes the requested payments.
+/// // The offered CAT isn't sent anywhere else, so it goes to Bob as change.
+/// let mut spends = Spends::new(bob.puzzle_hash);
+/// spends.add(offer.offered_coins().clone());
+/// spends.add(bob.coin);
+/// let deltas = spends.apply(&mut ctx, &offer.requested_payments().actions())?;
+/// let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &bob_keys)?;
+///
+/// let coin_spends = ctx.take();
+/// let signature = sign_transaction(&coin_spends, &[bob.sk])?;
+/// sim.new_transaction(offer.take(SpendBundle::new(coin_spends, signature)))?;
+///
+/// assert_eq!(outputs.cats[&Id::Existing(asset_id)][0].info.p2_puzzle_hash, bob.puzzle_hash);
+/// assert_eq!(sim.unspent_coins(alice.puzzle_hash, false)[0].amount, 50);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct Offer {
     spend_bundle: SpendBundle,
@@ -30,6 +135,10 @@ pub struct Offer {
 }
 
 impl Offer {
+    /// Creates an [`Offer`] from its parts, which aren't checked against each other.
+    ///
+    /// The spend bundle only contains the maker's spends, not the requested payments. Usually,
+    /// [`Offer::from_input_spend_bundle`] or [`Offer::from_spend_bundle`] is used instead.
     pub fn new(
         spend_bundle: SpendBundle,
         offered_coins: OfferCoins,
@@ -44,6 +153,11 @@ impl Offer {
         }
     }
 
+    /// The spends of the coins that the maker spends in the offer, other than the coins created
+    /// within it.
+    ///
+    /// Spending any of these coins in a separate transaction cancels the offer, since the offer's
+    /// spend bundle can no longer be included in a block.
     pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>, DriverError> {
         let mut allocator = Allocator::new();
         let mut created_coin_ids = HashSet::new();
@@ -112,18 +226,22 @@ impl Offer {
         Ok(removals - additions)
     }
 
+    /// The maker's spend bundle, without the requested payments.
     pub fn spend_bundle(&self) -> &SpendBundle {
         &self.spend_bundle
     }
 
+    /// The settlement coins offered by the maker.
     pub fn offered_coins(&self) -> &OfferCoins {
         &self.offered_coins
     }
 
+    /// The payments that the maker requests in return.
     pub fn requested_payments(&self) -> &RequestedPayments {
         &self.requested_payments
     }
 
+    /// The information needed to construct the puzzles of the offered and requested assets.
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
     }
@@ -340,6 +458,8 @@ impl Offer {
             })
     }
 
+    /// The difference between what the offer offers and requests, for each asset. See
+    /// [`Arbitrage`].
     pub fn arbitrage(&self) -> Arbitrage {
         let offered = self.offered_coins.amounts();
         let requested = self.requested_payments.amounts();
@@ -606,6 +726,12 @@ impl Offer {
         ))
     }
 
+    /// Combines another offer into this one, by concatenating the maker's spends, aggregating the
+    /// signatures, and merging the offered coins, requested payments, and asset info.
+    ///
+    /// Returns [`DriverError::ConflictingOfferInputs`] if both offers offer the same coin, or
+    /// [`DriverError::IncompatibleAssetInfo`] if they disagree on the info of an asset. The offer
+    /// may be partially combined if an error is returned.
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
         self.spend_bundle
             .coin_spends
@@ -618,6 +744,11 @@ impl Offer {
         Ok(())
     }
 
+    /// Completes the offer with the taker's spend bundle, which must make the requested payments.
+    ///
+    /// The result contains the maker's spends followed by the taker's spends, with the signatures
+    /// aggregated. The requested payment placeholder spends aren't included, since the taker's
+    /// spends of the settlement coins replace them.
     pub fn take(self, spend_bundle: SpendBundle) -> SpendBundle {
         SpendBundle::new(
             [self.spend_bundle.coin_spends, spend_bundle.coin_spends].concat(),

@@ -15,6 +15,10 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 /// The royalty transfer [`Layer`] is used to transfer NFTs with royalties.
 /// When an NFT is transferred, a percentage of the transfer amount is paid to an address.
 /// This address can for example be the creator, or a royalty split puzzle.
+///
+/// This is the transfer program of an [`NftOwnershipLayer`](crate::NftOwnershipLayer), rather
+/// than a puzzle that is spent directly, so it has no solution. Calling
+/// [`Layer::construct_solution`] or [`Layer::parse_solution`] panics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoyaltyTransferLayer {
     /// The launcher id of the NFT this transfer program belongs to.
@@ -27,6 +31,7 @@ pub struct RoyaltyTransferLayer {
 }
 
 impl RoyaltyTransferLayer {
+    /// Creates a [`RoyaltyTransferLayer`] for the NFT and its royalty.
     pub fn new(
         launcher_id: Bytes32,
         royalty_puzzle_hash: Bytes32,

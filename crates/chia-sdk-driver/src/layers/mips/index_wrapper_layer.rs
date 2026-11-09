@@ -4,13 +4,21 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The index wrapper [`Layer`] curries a nonce alongside an inner puzzle.
+///
+/// The puzzle ignores the nonce and runs the inner puzzle with the solution, so it only changes
+/// the puzzle hash. This is used to derive multiple distinct puzzle hashes for the same inner
+/// puzzle, such as the p2 puzzle hashes of a vault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IndexWrapperLayer<N, I> {
+    /// The nonce, which only affects the puzzle hash.
     pub nonce: N,
+    /// The inner puzzle layer, which is run with the solution.
     pub inner_puzzle: I,
 }
 
 impl<N, I> IndexWrapperLayer<N, I> {
+    /// Creates an [`IndexWrapperLayer`] with the nonce around the inner puzzle.
     pub fn new(nonce: N, inner_puzzle: I) -> Self {
         Self {
             nonce,

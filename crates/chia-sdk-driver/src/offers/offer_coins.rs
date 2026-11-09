@@ -17,12 +17,23 @@ use crate::{
     RequestedPayments, SettlementLayer, Spends,
 };
 
+/// The coins offered by the maker of an offer.
+///
+/// These are the settlement coins created by the maker's spends (coins with the settlement
+/// payments puzzle as their p2 puzzle), which the taker can spend to receive the offered assets.
+/// They can be added to [`Spends`] to take the offer.
 #[derive(Debug, Default, Clone)]
 pub struct OfferCoins {
+    /// The offered XCH settlement coins.
     pub xch: Vec<Coin>,
+    /// The offered CAT settlement coins, keyed by asset id.
     pub cats: IndexMap<Bytes32, Vec<Cat>>,
+    /// The offered NFTs, keyed by launcher id.
     pub nfts: IndexMap<Bytes32, Nft>,
+    /// The offered option contracts, keyed by launcher id.
     pub options: IndexMap<Bytes32, OptionContract>,
+    /// The fee paid by the maker's spends. When parsed from spends, this is the total of their
+    /// `RESERVE_FEE` conditions.
     pub fee: u64,
     /// The trade prices each offered NFT revealed when it was spent into settlement.
     pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
@@ -32,10 +43,12 @@ pub struct OfferCoins {
 }
 
 impl OfferCoins {
+    /// Creates an empty [`OfferCoins`].
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Collects the settlement coins from the [`Outputs`] of the maker's spends, along with the fee.
     pub fn from_outputs(outputs: &Outputs) -> Self {
         let mut coins = Self::default();
 
@@ -74,6 +87,7 @@ impl OfferCoins {
         coins
     }
 
+    /// The total amounts of the offered XCH and CATs.
     pub fn amounts(&self) -> OfferAmounts {
         OfferAmounts {
             xch: self.xch.iter().map(|c| u128::from(c.amount)).sum(),
@@ -90,6 +104,7 @@ impl OfferCoins {
         }
     }
 
+    /// Returns every offered coin, of any asset.
     pub fn flatten(&self) -> Vec<Coin> {
         let mut coins = self.xch.clone();
 
@@ -110,6 +125,11 @@ impl OfferCoins {
         coins
     }
 
+    /// Adds the coins and fee from another [`OfferCoins`], for example when combining offers.
+    ///
+    /// Returns [`DriverError::ConflictingOfferInputs`] if a coin, NFT, or option contract is in
+    /// both, [`DriverError::IncompatibleAssetInfo`] if revocable and non-revocable CATs with the
+    /// same asset id are combined, or [`DriverError::FeeOverflow`] if the total fee overflows.
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
         for coin in other.xch {
             if self.xch.iter().any(|c| c.coin_id() == coin.coin_id()) {
@@ -167,6 +187,9 @@ impl OfferCoins {
     }
 
     /// Adds the settlement coins that the spend creates, which aren't spent in the same bundle.
+    ///
+    /// The asset info of the CATs, NFTs, and option contracts that are created is added to the
+    /// [`AssetInfo`], and the `RESERVE_FEE` conditions are added to the fee.
     ///
     /// Fails with [`DriverError::OldSettlementPayment`] if the spend creates a coin with the old
     /// settlement payments puzzle, since the offer would be insecure.

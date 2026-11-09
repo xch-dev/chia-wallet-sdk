@@ -2,6 +2,7 @@
 // For context, see https://github.com/rust-lang/rust-clippy/issues/13774
 #![allow(clippy::large_stack_arrays)]
 #![doc = include_str!("../docs.md")]
+#![cfg_attr(not(test), warn(missing_docs))]
 
 pub mod action_system;
 mod actions;

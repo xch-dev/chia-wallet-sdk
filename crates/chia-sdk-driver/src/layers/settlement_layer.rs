@@ -6,7 +6,12 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-/// The settlement [`Layer`] is used to spend coins that are part of an offer.
+/// The settlement [`Layer`] is the settlement payments puzzle, which is used to spend coins that
+/// are part of an offer.
+///
+/// Anyone can spend a settlement coin. The solution is a list of notarized payments, and for each
+/// one the puzzle creates the payment coins and a puzzle announcement of the payment's tree hash,
+/// which the other side of the offer asserts. Unlike the other layers, it has no inner puzzle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementLayer;
 

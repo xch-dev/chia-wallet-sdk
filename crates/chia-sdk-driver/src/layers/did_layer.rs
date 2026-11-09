@@ -27,6 +27,7 @@ pub struct DidLayer<M, I> {
 }
 
 impl<M, I> DidLayer<M, I> {
+    /// Creates a [`DidLayer`] from its curried values and inner puzzle.
     pub fn new(
         launcher_id: Bytes32,
         recovery_list_hash: Option<Bytes32>,
@@ -43,6 +44,7 @@ impl<M, I> DidLayer<M, I> {
         }
     }
 
+    /// Replaces the metadata, which can change its type.
     pub fn with_metadata<N>(self, metadata: N) -> DidLayer<N, I> {
         DidLayer {
             launcher_id: self.launcher_id,

@@ -11,13 +11,22 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 /// The revocation [`Layer`] allows the issuer to revoke the asset.
+///
+/// The coin can either be spent by the inner puzzle, in which case the coins it creates are
+/// wrapped in the same revocation layer, or by the hidden puzzle (controlled by the issuer),
+/// whose output isn't wrapped. Both puzzles are curried by hash, so the one being used is revealed
+/// in the solution. This is used by revocable CATs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RevocationLayer {
+    /// The tree hash of the hidden puzzle, which can spend the coin without the inner puzzle's
+    /// permission.
     pub hidden_puzzle_hash: Bytes32,
+    /// The tree hash of the inner puzzle, which usually determines ownership.
     pub inner_puzzle_hash: Bytes32,
 }
 
 impl RevocationLayer {
+    /// Creates a [`RevocationLayer`] from the hidden puzzle hash and inner puzzle hash.
     pub fn new(hidden_puzzle_hash: Bytes32, inner_puzzle_hash: Bytes32) -> Self {
         Self {
             hidden_puzzle_hash,

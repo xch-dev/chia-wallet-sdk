@@ -5,25 +5,36 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{CatMaker, DriverError, Layer, Puzzle, SpendContext};
 
-/// The p2 parent [`Layer`] fixes a coin's delegated inner puzzle to match the parent's inner puzzle.
+/// The p2 parent [`Layer`] lets a coin be spent by the inner puzzle of its parent.
+///
+/// The solution reveals the parent's inner puzzle and a solution for it. The puzzle asserts that
+/// its parent coin has that inner puzzle (wrapped by the [`CatMaker`] to get the full puzzle hash),
+/// and outputs the conditions of the parent's inner puzzle. So whoever could spend the parent can
+/// also spend this coin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2ParentLayer {
+    /// The CAT maker that converts the parent's inner puzzle hash into its full puzzle hash.
     pub cat_maker: CatMaker,
 }
 
 impl P2ParentLayer {
+    /// Creates a [`P2ParentLayer`] for a coin whose parent is an XCH coin.
     pub fn xch() -> Self {
         Self {
             cat_maker: CatMaker::Xch,
         }
     }
 
+    /// Creates a [`P2ParentLayer`] for a coin whose parent is a CAT. The `tail_hash_hash` is the
+    /// tree hash of the asset id, as in `asset_id.tree_hash()`.
     pub fn cat(tail_hash_hash: TreeHash) -> Self {
         Self {
             cat_maker: CatMaker::Default { tail_hash_hash },
         }
     }
 
+    /// Creates a [`P2ParentLayer`] for a coin whose parent is a revocable CAT. The hashes are the
+    /// tree hashes of the asset id and of the hidden puzzle hash.
     pub fn revocable_cat(tail_hash_hash: TreeHash, hidden_puzzle_hash_hash: TreeHash) -> Self {
         Self {
             cat_maker: CatMaker::Revocable {

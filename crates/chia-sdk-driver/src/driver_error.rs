@@ -6,35 +6,56 @@ use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::error::EvalErr;
 use thiserror::Error;
 
+/// The error type returned by the drivers in this crate.
+///
+/// Most variants describe why a puzzle or spend couldn't be parsed or built. Errors from
+/// dependencies, such as CLVM serialization, are wrapped with [`From`] conversions so that they
+/// can be propagated with `?`.
 #[derive(Debug, Error)]
 pub enum DriverError {
+    /// An I/O error, for example from zlib while compressing or decompressing an offer.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// An integer didn't fit in the type it was converted to.
     #[error("try from int error")]
     TryFromInt(#[from] TryFromIntError),
 
+    /// A byte slice had the wrong length to be converted to a fixed-size array.
     #[error("try from slice error: {0}")]
     TryFromSlice(#[from] TryFromSliceError),
 
+    /// A value couldn't be converted to CLVM.
     #[error("failed to serialize clvm value: {0}")]
     ToClvm(#[from] ToClvmError),
 
+    /// A CLVM value didn't have the shape of the type it was parsed as. This is returned, for
+    /// example, when a puzzle has a known mod hash but its curried arguments or solution are
+    /// malformed.
     #[error("failed to deserialize clvm value: {0}")]
     FromClvm(#[from] FromClvmError),
 
+    /// Running a puzzle failed, for example because it raised an error or exceeded the cost limit.
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),
 
+    /// The curried mod hash argument of a CAT, NFT state, NFT ownership, or revocation layer
+    /// doesn't match the hash of the puzzle itself, so it wouldn't recreate the same layer.
     #[error("invalid mod hash")]
     InvalidModHash,
 
+    /// The metadata updater puzzle revealed to update an NFT's metadata doesn't hash to the NFT's
+    /// metadata updater puzzle hash.
     #[error("metadata updater puzzle hash mismatch")]
     MetadataUpdaterPuzzleHashMismatch,
 
+    /// A puzzle has a known outer layer, but a part that is required to be standard didn't parse.
+    /// For example, an NFT ownership layer whose transfer program isn't the expected transfer
+    /// layer, or an action layer or state scheduler with unexpected curried arguments.
     #[error("non-standard inner puzzle layer")]
     NonStandardLayer,
 
+    /// A state scheduler's schedule is empty, or its timestamps aren't strictly increasing.
     #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
     InvalidStateSchedule,
 
@@ -68,131 +89,201 @@ pub enum DriverError {
     #[error("the offer can't be taken by this fusion")]
     FusionOfferMismatch,
 
+    /// A spend that must recreate an asset didn't create a child. For example, an NFT or
+    /// datastore spend without an odd `CREATE_COIN`, or a CAT spend whose children can't be parsed
+    /// when clear signing.
     #[error("missing child")]
     MissingChild,
 
+    /// The child `CREATE_COIN` of a DID spend has no memos, so its p2 puzzle hash isn't known.
     #[error("missing hint")]
     MissingHint,
 
+    /// A datastore coin is missing a memo that is needed to parse its state.
     #[error("missing memo")]
     MissingMemo,
 
+    /// A memo is present but malformed. For example, a datastore memo with the wrong length, or a
+    /// clawback memo that can't be parsed.
     #[error("invalid memo")]
     InvalidMemo,
 
+    /// A curried singleton struct doesn't use the singleton top layer v1.1 mod hash and the
+    /// singleton launcher puzzle hash.
     #[error("invalid singleton struct")]
     InvalidSingletonStruct,
 
+    /// A data layer oracle fee is odd. Only even fees are allowed, since an odd `CREATE_COIN` would
+    /// be treated as the child of the singleton.
     #[error("expected even oracle fee, but it was odd")]
     OddOracleFee,
 
+    /// The total of the `RESERVE_FEE` conditions in an offer doesn't fit in a [`u64`].
     #[error("fee overflow")]
     FeeOverflow,
 
+    /// An error with a custom message, used for less common failures. For example, constructing
+    /// the puzzle of an `OracleLayer` with an odd fee, or an unsupported reward distributor
+    /// operation.
     #[error("custom driver error: {0}")]
     Custom(String),
 
+    /// A merkle proof couldn't be created or verified, because the leaf isn't in the merkle tree.
     #[error("invalid merkle proof")]
     InvalidMerkleProof,
 
+    /// A puzzle isn't recognized. This isn't currently returned by this crate.
     #[error("unknown puzzle")]
     UnknownPuzzle,
 
+    /// An m-of-n vault spend doesn't provide spends for enough distinct members to meet the
+    /// required number.
     #[error("invalid spend count for vault subpath")]
     InvalidSubpathSpendCount,
 
+    /// A vault spend is missing the spend of a member puzzle that is required. For 1-of-n and
+    /// n-of-n, this is also returned if there aren't enough distinct member spends.
     #[error("missing spend for vault subpath")]
     MissingSubpathSpend,
 
+    /// Two members of a vault require different delegated puzzle wrappers at the same position,
+    /// so no delegated puzzle can satisfy both of them.
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
 
+    /// An m-of-n requires fewer than one, or more than all, of its members.
     #[error("m of n requires between 1 and {items} members, but {required} were required")]
-    InvalidMofNRequired { required: usize, items: usize },
+    InvalidMofNRequired {
+        /// The number of members that are required to spend.
+        required: usize,
+        /// The total number of members.
+        items: usize,
+    },
 
+    /// An m-of-n memo lists the same member more than once.
     #[error("m of n contains duplicate members")]
     DuplicateMofNMembers,
 
+    /// A vault memo is nested more deeply than is allowed when parsing it.
     #[error("mips memo is nested too deeply")]
     MipsMemoTooDeep,
 
+    /// A vault memo contains more members and restrictions in total than is allowed when parsing
+    /// it.
     #[error("mips memo is too large")]
     MipsMemoTooLarge,
 
+    /// An action needs to output conditions, but none of the spends can emit them. For example,
+    /// when only settlement coins are being spent.
     #[error("cannot emit conditions from spend")]
     CannotEmitConditions,
 
+    /// A settle action applies to a coin that isn't spent with the settlement payments puzzle.
     #[error("cannot settle from spend")]
     CannotSettleFromSpend,
 
+    /// A singleton spend was finalized more than once. This isn't currently returned by this
+    /// crate.
     #[error("singleton spend already finalized")]
     AlreadyFinalized,
 
+    /// An action needs a coin to create its output from, but there isn't one that can be used.
+    /// For example, an earlier action already recreated or melted the singleton.
     #[error("there is no spendable source coin that can create the output without a conflict")]
     NoSourceForOutput,
 
+    /// An action refers to an [`Id`](crate::Id) that doesn't match an asset of the right kind in
+    /// the spends.
     #[error("invalid asset id")]
     InvalidAssetId,
 
+    /// The selected coins don't cover the outputs of the transaction.
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
+    /// single payment assertion would be satisfied by either of them.
     #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
     DuplicateSettlementPayment,
 
+    /// A send or melt action for a singleton has an amount other than the singleton's amount.
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
 
+    /// A CAT was added for revocation, but it doesn't have a revocation layer.
     #[error("the CAT does not have a revocation layer")]
     NotRevocable,
 
+    /// An amount doesn't fit in a [`u64`], so it can't be used in a coin or condition. For
+    /// example, a trade price in an offer, or the total of the fees.
     #[error("the amount is too large to fit in a coin")]
     AmountOverflow,
 
+    /// [`Spends::finish_with_keys`](crate::Spends::finish_with_keys) wasn't given a public key for
+    /// one of the p2 puzzle hashes being spent.
     #[error("missing key")]
     MissingKey,
 
+    /// A required spend wasn't provided. For example, [`Spends::spend`](crate::Spends::spend)
+    /// wasn't given the p2 spend of a coin, or a coin spend is missing when clear signing.
     #[error("missing spend")]
     MissingSpend,
 
+    /// Compressed offer bytes are shorter than the 2-byte version prefix.
     #[cfg(feature = "offer-compression")]
     #[error("missing compression version prefix")]
     MissingVersionPrefix,
 
+    /// Compressed offer bytes have a newer version prefix than is supported.
     #[cfg(feature = "offer-compression")]
     #[error("unsupported compression version")]
     UnsupportedVersion,
 
+    /// A value couldn't be serialized or deserialized in the streamable format.
     #[error("streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
+    /// The input to decompression isn't a zlib stream that uses a preset dictionary.
     #[cfg(feature = "offer-compression")]
     #[error("cannot decompress uncompressed input")]
     NotCompressed,
 
+    /// The decompressed offer would be larger than the 6 MB limit used by chia-blockchain.
     #[cfg(feature = "offer-compression")]
     #[error("decompressed output exceeds maximum allowed size")]
     DecompressionTooLarge,
 
+    /// zlib couldn't set the compression dictionary.
     #[cfg(feature = "offer-compression")]
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
+    /// Bech32m encoding or decoding failed, for example because an encoded offer or address is
+    /// invalid or has the wrong prefix.
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
 
+    /// A requested payment in an offer isn't XCH, a CAT, an NFT, or an option contract with the
+    /// settlement payments puzzle as its p2 puzzle.
     #[error("requested payment is for an unsupported asset")]
     UnsupportedRequestedAsset,
 
+    /// The same asset was given different [`AssetInfo`](crate::AssetInfo), or revocable and
+    /// non-revocable CATs with the same asset id were combined.
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,
 
+    /// A requested CAT, NFT, or option contract has no entry in the
+    /// [`AssetInfo`](crate::AssetInfo), so its settlement puzzle hash or royalty can't be
+    /// calculated.
     #[error("missing required singleton asset info")]
     MissingAssetInfo,
 
+    /// Offers being combined both offer the same coin, NFT, or option contract.
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
+    /// An offer uses the retired `settlement_payments_old.clsp` puzzle, which is insecure.
     #[error("offer uses the old settlement payments puzzle")]
     OldSettlementPayment,
 
@@ -246,24 +337,34 @@ pub enum DriverError {
     #[error("unknown asset with settlement puzzle hash {0}")]
     UnknownSettlementAsset(Bytes32),
 
+    /// Calculating the signatures required by a spend failed.
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
+    /// A vault's delegated puzzle isn't a quoted list of conditions, so it can't be clear signed.
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
 
+    /// A message sent by a vault isn't a puzzle-to-coin message with exactly one coin id.
     #[error("invalid vault message format")]
     InvalidVaultMessageFormat,
 
+    /// A puzzle reveal doesn't hash to the coin's puzzle hash. For example, a coin spend in an
+    /// untrusted offer, or a datastore child whose memos don't match the coin that was created.
     #[error("puzzle hash mismatch for coin spend")]
     WrongPuzzleHash,
 
+    /// A clawback is nested inside another clawback, which clear signing doesn't allow.
     #[error("nested clawbacks are not allowed")]
     NestedClawback,
 
+    /// A coin spend has a custody puzzle that clear signing doesn't recognize, but the vault sent
+    /// it a message.
     #[error("linked spend has unknown custody puzzle but was sent a message")]
     InvalidLinkedCustody,
 
+    /// A clawback spend requires the transaction to expire by a certain time, but the transaction
+    /// isn't guaranteed to expire by then.
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
 
@@ -272,35 +373,51 @@ pub enum DriverError {
     )]
     UnguaranteedClawbackExpiry,
 
+    /// When clear signing, a CAT child has a different revocation layer than its parent, which
+    /// could let someone else revoke it.
     #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
 
+    /// Vault launcher ids conflict. This isn't currently returned by this crate.
     #[error("conflicting vault launcher ids")]
     ConflictingVaultLauncherIds,
 
+    /// The conditions of a spend don't match the message that authorizes it.
     #[error("conditions do not match message")]
     WrongConditions,
 
+    /// A vault message doesn't match the custody conditions or a TAIL invocation of the coin it
+    /// was sent to.
     #[error("vault message did not match any custody auth or TAIL invocation")]
     UnmatchedVaultMessage,
 
+    /// A coin spend requires a message from the vault, but none was sent to it.
     #[error("missing message for linked custody puzzle")]
     MissingVaultMessage,
 
+    /// More than one vault message matched the custody conditions, or the TAIL invocation, of the
+    /// same coin spend.
     #[error("multiple vault messages matched the same custody slot")]
     DuplicateVaultMessage,
 
+    /// An offer pre-split coin is linked to a different vault launcher id than the vault being
+    /// clear signed.
     #[error("wrong linked offer launcher id")]
     WrongLinkedOfferLauncherId,
 
+    /// A bulletin spend is missing its required conditions. This isn't currently returned by
+    /// this crate.
     #[error("missing required bulletin conditions")]
     MissingBulletinConditions,
 
+    /// A p2 conditions or singleton spend doesn't assert its own coin id, so the spend path could
+    /// be swapped without invalidating the vault's message.
     #[error(
         "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
+    /// A stream payment time is before the last payment time, or the stream has already ended.
     #[error("stream payment time is before the last payment time, or the stream has already ended")]
     InvalidStreamPaymentTime,
 

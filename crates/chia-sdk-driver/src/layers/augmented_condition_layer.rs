@@ -8,10 +8,15 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-/// The augmented condition [`Layer`] allows for adding a condition to a puzzle's output.
+/// The augmented condition [`Layer`] adds a fixed condition to the output of its inner puzzle.
+///
+/// The condition is curried into the puzzle and prepended to the conditions output by the inner
+/// puzzle, so it's always output when the coin is spent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AugmentedConditionLayer<T, I> {
+    /// The condition that is added to the output of the inner puzzle.
     pub condition: Condition<T>,
+    /// The inner puzzle layer, which is run with the inner solution.
     pub inner_puzzle: I,
 }
 

@@ -13,8 +13,11 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 /// is to disambiguate it from standard atom nonces. This is not related to MIPS.
 pub type BulletinNonce = (MatchByte<98>, ());
 
-/// The Bulletin [`Layer`] is used to wrap a puzzle hash with a static nonce
-/// to differentiate it from normal XCH coins.
+/// The Bulletin [`Layer`] wraps an inner puzzle with a static nonce to differentiate bulletin
+/// coins from normal XCH coins.
+///
+/// It's an [`IndexWrapperLayer`](crate::IndexWrapperLayer) with the [`BulletinNonce`], so it
+/// doesn't change the behavior of the inner puzzle, only the puzzle hash.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BulletinLayer<I> {
     /// The inner puzzle layer, used to identify and spend the bulletin.
@@ -22,6 +25,7 @@ pub struct BulletinLayer<I> {
 }
 
 impl<I> BulletinLayer<I> {
+    /// Creates a [`BulletinLayer`] around the inner puzzle.
     pub fn new(inner_puzzle: I) -> Self {
         Self { inner_puzzle }
     }
