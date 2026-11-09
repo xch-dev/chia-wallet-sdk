@@ -63,19 +63,27 @@ jobs:
         with:
           key: ${{ matrix.settings.target }}
           cache-bin: false
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Cache uniffi-bindgen-go
-        uses: actions/cache@v6
+      - name: Restore uniffi-bindgen-go
+        id: uniffi-bindgen-go
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-go*
           key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
 
       - name: Install uniffi-bindgen-go
-        run: |
-          if ! command -v uniffi-bindgen-go > /dev/null; then
-            cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
-          fi
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-go
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
 
       - name: Build and generate bindings
         run: ./go/generate.sh ${{ matrix.settings.target }}
@@ -136,19 +144,27 @@ jobs:
         with:
           key: ${{ matrix.settings.target }}
           cache-bin: false
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Cache uniffi-bindgen-cs
-        uses: actions/cache@v6
+      - name: Restore uniffi-bindgen-cs
+        id: uniffi-bindgen-cs
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-cs*
           key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
 
       - name: Install uniffi-bindgen-cs
-        run: |
-          if ! command -v uniffi-bindgen-cs > /dev/null; then
-            cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
-          fi
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-cs
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
 
       - name: Build and generate bindings
         run: ./dotnet/generate.sh ${{ matrix.settings.target }}
@@ -193,19 +209,27 @@ jobs:
         with:
           key: ${{ matrix.settings.target }}
           cache-bin: false
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Cache uniffi-bindgen-cpp
-        uses: actions/cache@v6
+      - name: Restore uniffi-bindgen-cpp
+        id: uniffi-bindgen-cpp
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-cpp*
           key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
 
       - name: Install uniffi-bindgen-cpp
-        run: |
-          if ! command -v uniffi-bindgen-cpp > /dev/null; then
-            cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
-          fi
+        if: steps.uniffi-bindgen-cpp.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-cpp
+        if: steps.uniffi-bindgen-cpp.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cpp*
+          key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
 
       - name: Build and generate bindings
         run: ./cpp/generate.sh ${{ matrix.settings.target }}
@@ -252,43 +276,65 @@ jobs:
         with:
           key: apple-darwin
           cache-bin: false
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Cache uniffi-bindgen-go
-        uses: actions/cache@v6
+      - name: Restore uniffi-bindgen-go
+        id: uniffi-bindgen-go
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-go*
           key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
 
       - name: Install uniffi-bindgen-go
-        run: |
-          if ! command -v uniffi-bindgen-go > /dev/null; then
-            cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
-          fi
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
 
-      - name: Cache uniffi-bindgen-cs
-        uses: actions/cache@v6
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-go
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
+
+      - name: Restore uniffi-bindgen-cs
+        id: uniffi-bindgen-cs
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-cs*
           key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
 
       - name: Install uniffi-bindgen-cs
-        run: |
-          if ! command -v uniffi-bindgen-cs > /dev/null; then
-            cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
-          fi
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
 
-      - name: Cache uniffi-bindgen-cpp
-        uses: actions/cache@v6
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-cs
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
+
+      - name: Restore uniffi-bindgen-cpp
+        id: uniffi-bindgen-cpp
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo/bin/uniffi-bindgen-cpp*
           key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
 
       - name: Install uniffi-bindgen-cpp
-        run: |
-          if ! command -v uniffi-bindgen-cpp > /dev/null; then
-            cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
-          fi
+        if: steps.uniffi-bindgen-cpp.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-cpp
+        if: steps.uniffi-bindgen-cpp.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cpp*
+          key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
 
       - name: Go - build and generate bindings
         run: ./go/generate.sh aarch64-apple-darwin

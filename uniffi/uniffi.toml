@@ -5,6 +5,10 @@
 namespace = "ChiaWalletSdk"
 access_modifier = "public"
 global_methods_class_name = "Sdk"
+# The checksums are verified in one generated method with a statement per exported function,
+# which overflows the 512 KB stack of .NET's secondary threads on macOS. The package always ships
+# the bindings and the library from the same build, so they can't get out of sync.
+omit_checksums = true
 
 [bindings.kotlin]
 package_name = "dev.xch.chiawalletsdk"
