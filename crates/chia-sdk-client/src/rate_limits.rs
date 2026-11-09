@@ -2,16 +2,30 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use chia_protocol::ProtocolMessageTypes;
 
+/// A set of rate limits for each type of protocol message, used by [`RateLimiter`](crate::RateLimiter).
+///
+/// Limits are per period, and are scaled by the rate limiter's limit factor.
 #[derive(Debug, Clone)]
 pub struct RateLimits {
+    /// The limits for message types that aren't in [`tx`](Self::tx) or [`other`](Self::other).
     pub default_settings: RateLimit,
+    /// The maximum combined number of messages with types in [`other`](Self::other).
     pub non_tx_frequency: f64,
+    /// The maximum combined size in bytes of messages with types in [`other`](Self::other).
     pub non_tx_max_total_size: f64,
+    /// The limits for transaction related message types.
     pub tx: HashMap<ProtocolMessageTypes, RateLimit>,
+    /// The limits for other message types, which also count towards the combined
+    /// [`non_tx_frequency`](Self::non_tx_frequency) and
+    /// [`non_tx_max_total_size`](Self::non_tx_max_total_size) limits.
     pub other: HashMap<ProtocolMessageTypes, RateLimit>,
 }
 
 impl RateLimits {
+    /// Applies the limits from `other` on top of these.
+    ///
+    /// The default and combined non-transaction limits are replaced, and the per message type
+    /// limits are merged, with those in `other` taking precedence.
     pub fn extend(&mut self, other: &Self) {
         self.default_settings = other.default_settings;
         self.non_tx_frequency = other.non_tx_frequency;
@@ -21,14 +35,20 @@ impl RateLimits {
     }
 }
 
+/// The rate limits for a single type of protocol message.
 #[derive(Debug, Clone, Copy)]
 pub struct RateLimit {
+    /// The maximum number of messages of this type per period.
     pub frequency: f64,
+    /// The maximum size in bytes of the data of a single message.
     pub max_size: f64,
+    /// The maximum combined size in bytes of messages of this type per period. Defaults to
+    /// [`frequency`](Self::frequency) times [`max_size`](Self::max_size) if it's [`None`].
     pub max_total_size: Option<f64>,
 }
 
 impl RateLimit {
+    /// Creates a rate limit from its fields.
     pub fn new(frequency: f64, max_size: f64, max_total_size: Option<f64>) -> Self {
         Self {
             frequency,
@@ -60,6 +80,10 @@ macro_rules! settings {
     };
 }
 
+/// The version 1 rate limits used by Chia full nodes.
+///
+/// Only the transaction related message types have their own limits here. Every other
+/// type uses the default limits.
 // TODO: Fix commented out rate limits.
 pub static V1_RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(|| RateLimits {
     default_settings: RateLimit::new(100.0, 1024.0 * 1024.0, Some(100.0 * 1024.0 * 1024.0)),
@@ -206,6 +230,11 @@ static V2_RATE_LIMIT_CHANGES: LazyLock<RateLimits> = LazyLock::new(|| RateLimits
     },
 });
 
+/// The version 2 rate limits used by Chia full nodes, which are [`V1_RATE_LIMITS`] extended
+/// with limits for more message types.
+///
+/// [`Peer`](crate::Peer) uses these for its outgoing messages, scaled by
+/// [`PeerOptions::rate_limit_factor`](crate::PeerOptions::rate_limit_factor).
 pub static V2_RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(|| {
     let mut rate_limits = V1_RATE_LIMITS.clone();
     rate_limits.extend(&V2_RATE_LIMIT_CHANGES);

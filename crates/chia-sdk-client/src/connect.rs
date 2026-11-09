@@ -8,6 +8,14 @@ use tracing::instrument;
 
 use crate::{ClientError, Peer, PeerOptions};
 
+/// Connects to a full node and performs the wallet protocol handshake.
+///
+/// The `network_id` is the name of the network, such as `mainnet` or `testnet11`. The
+/// handshake identifies this side as a wallet, and fails with an error unless the first
+/// message from the peer is a [`Handshake`] from a full node on the same network.
+///
+/// Returns the [`Peer`] and the receiver for messages that aren't responses to requests.
+/// See [`Peer`] for an example.
 #[instrument(skip(connector))]
 pub async fn connect_peer(
     network_id: String,
