@@ -44,6 +44,15 @@ jobs:
           - host: windows-2022
             target: x86_64-pc-windows-gnu
             platform: windows_amd64
+          # Uses the LLVM MinGW target, since GCC doesn't support Windows on arm64
+          - host: windows-11-arm
+            target: aarch64-pc-windows-gnullvm
+            platform: windows_arm64
+            cc: aarch64-w64-mingw32-clang
+          # Cross-compiled with the runner's Android NDK, so the tests are built but not run
+          - host: ubuntu-22.04
+            target: aarch64-linux-android
+            platform: android_arm64
     defaults:
       run:
         shell: bash
@@ -58,6 +67,17 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache: false
+
+      - name: Install LLVM MinGW
+        if: matrix.settings.target == 'aarch64-pc-windows-gnullvm'
+        env:
+          LLVM_MINGW: llvm-mingw-20261104-ucrt-aarch64
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/llvm-mingw.zip" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.zip"
+          unzip -q "$RUNNER_TEMP/llvm-mingw.zip" -d "$RUNNER_TEMP"
+          cygpath -w "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+          # The cmake crate otherwise looks for MSYS or MinGW make, which this runner doesn't have
+          echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -89,8 +109,27 @@ jobs:
         run: ./go/generate.sh ${{ matrix.settings.target }}
 
       - name: Test
+        if: matrix.settings.platform != 'android_arm64'
         working-directory: go
-        run: go test -race -v ./...
+        env:
+          CC: ${{ matrix.settings.cc }}
+        # The race detector doesn't support Windows on arm64
+        run: go test ${{ matrix.settings.platform != 'windows_arm64' && '-race' || '' }} -v ./...
+
+      # There's no Android device to run on, so this only checks that the package and its tests
+      # compile and link
+      - name: Build tests
+        if: matrix.settings.platform == 'android_arm64'
+        working-directory: go
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: "1"
+        run: |
+          source android-env.sh
+          export CC="$ANDROID_CC"
+          go vet ./...
+          go test -c -o "$RUNNER_TEMP/" ./...
 
       - name: Upload library
         uses: actions/upload-artifact@v7
@@ -441,7 +480,7 @@ jobs:
       - name: Verify libraries
         working-directory: go/chiawalletsdk/lib
         run: |
-          for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64; do
+          for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64 windows_arm64 android_arm64; do
             if [ ! -f "$platform/libchia_wallet_sdk.a" ]; then
               echo "The module is missing the static library for $platform" >&2
               exit 1
