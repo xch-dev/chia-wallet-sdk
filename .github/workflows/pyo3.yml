@@ -25,6 +25,8 @@ jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
+      # A flaky download in one build shouldn't cancel the others
+      fail-fast: false
       matrix:
         platform:
           - runner: ubuntu-24.04
@@ -49,9 +51,13 @@ jobs:
           restore-keys: |
             linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             linux-${{ matrix.platform.target }}-
+      # The action downloads maturin inside the container, which sometimes gets an error page from
+      # GitHub instead of the release, so the build is retried once
       - name: Build wheels
+        id: build
+        continue-on-error: true
         uses: PyO3/maturin-action@v1
-        with:
+        with: &linux-build
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           manylinux: manylinux_2_28
@@ -71,6 +77,10 @@ jobs:
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
+      - name: Retry building wheels
+        if: ${{ steps.build.outcome == 'failure' }}
+        uses: PyO3/maturin-action@v1
+        with: *linux-build
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: actions/cache/save@v6
@@ -88,6 +98,8 @@ jobs:
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
+      # A flaky download in one build shouldn't cancel the others
+      fail-fast: false
       matrix:
         platform:
           - runner: ubuntu-24.04
@@ -112,14 +124,22 @@ jobs:
           restore-keys: |
             musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             musllinux-${{ matrix.platform.target }}-
+      # The action downloads maturin inside the container, which sometimes gets an error page from
+      # GitHub instead of the release, so the build is retried once
       - name: Build wheels
+        id: build
+        continue-on-error: true
         uses: PyO3/maturin-action@v1
-        with:
+        with: &musllinux-build
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           manylinux: musllinux_1_2
           working-directory: pyo3
           docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
+      - name: Retry building wheels
+        if: ${{ steps.build.outcome == 'failure' }}
+        uses: PyO3/maturin-action@v1
+        with: *musllinux-build
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: actions/cache/save@v6
