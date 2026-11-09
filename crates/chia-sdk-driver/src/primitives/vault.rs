@@ -16,13 +16,70 @@ use crate::{DriverError, Singleton, Spend, SpendContext};
 
 use super::MipsSpend;
 
+/// A vault is a singleton whose inner puzzle is a MIPS custody puzzle.
+///
+/// The custody puzzle can require any combination of members (such as BLS, secp256k1, secp256r1,
+/// passkey, or other singletons) and restrictions, so a vault can be used as a smart wallet. Coins
+/// owned by a vault are typically locked with a [`P2Singleton`] puzzle, which the vault spends by
+/// sending a message.
+///
+/// # Example
+///
+/// Create a vault with a single BLS key as its custody, and spend it to recreate itself:
+///
+/// ```
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{
+///     InnerPuzzleSpend, Launcher, MipsSpend, Spend, SpendContext, StandardLayer, mips_puzzle_hash,
+/// };
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{Conditions, Mod, puzzles::BlsMember};
+/// use clvmr::NodePtr;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(1);
+///
+/// // The custody puzzle is a top level MIPS puzzle with a single BLS member.
+/// let member = BlsMember::new(alice.pk);
+/// let custody_hash = mips_puzzle_hash(0, Vec::new(), member.curry_tree_hash(), true);
+///
+/// let (mint_vault, vault) =
+///     Launcher::new(alice.coin.coin_id(), 1).mint_vault(ctx, custody_hash, ())?;
+/// StandardLayer::new(alice.pk).spend(ctx, alice.coin, mint_vault)?;
+/// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+///
+/// // The delegated spend outputs the vault's conditions, and recreates it with the same custody.
+/// let conditions = Conditions::new().create_coin(custody_hash.into(), vault.coin.amount, Memos::None);
+/// let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
+///
+/// // The BLS member authorizes the delegated puzzle with an `AGG_SIG_ME` signature.
+/// let member_puzzle = ctx.curry(member)?;
+/// spend.members.insert(
+///     custody_hash,
+///     InnerPuzzleSpend::new(0, Vec::new(), Spend::new(member_puzzle, NodePtr::NIL)),
+/// );
+///
+/// vault.spend(ctx, &spend)?;
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// let child = vault.child(custody_hash, vault.coin.amount);
+/// assert!(sim.coin_state(child.coin.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type Vault = Singleton<VaultInfo>;
 
 impl Vault {
+    /// Creates a new [`Vault`] that represents a child of this one with the given custody hash.
     pub fn child(&self, custody_hash: TreeHash, amount: u64) -> Self {
         self.child_with(VaultInfo::new(self.info.launcher_id, custody_hash), amount)
     }
 
+    /// Spends this vault with the given [`MipsSpend`], adding it to the [`SpendContext`].
+    ///
+    /// The [`MipsSpend`] must include a member spend for the vault's custody hash. The vault's child
+    /// isn't returned, since it depends on the delegated spend. Use [`Vault::child`] to construct it.
     pub fn spend(&self, ctx: &mut SpendContext, spend: &MipsSpend) -> Result<(), DriverError> {
         let custody_spend = spend.spend(ctx, self.info.custody_hash)?;
 

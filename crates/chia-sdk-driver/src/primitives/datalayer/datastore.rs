@@ -34,7 +34,7 @@ use super::{
 pub struct Datastore<M = DatastoreMetadata> {
     /// The coin that holds this [`Datastore`].
     pub coin: Coin,
-    /// The lineage proof for the singletonlayer.
+    /// The lineage proof for the singleton layer.
     pub proof: Proof,
     /// The info associated with the [`Datastore`], including the metadata.
     pub info: DatastoreInfo<M>,
@@ -44,11 +44,16 @@ impl<M> Datastore<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator>,
 {
+    /// Creates a new [`Datastore`] from its coin, proof, and info.
     pub fn new(coin: Coin, proof: Proof, info: DatastoreInfo<M>) -> Self {
         Datastore { coin, proof, info }
     }
 
     /// Creates a coin spend for this [`Datastore`].
+    ///
+    /// The inner spend is either the owner's spend or the spend of a delegated puzzle, in which
+    /// case a merkle proof is included automatically. Unlike most primitives, the coin spend is
+    /// returned rather than added to the [`SpendContext`].
     pub fn spend(self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<CoinSpend, DriverError>
     where
         M: Clone,
@@ -113,20 +118,30 @@ where
     }
 }
 
+/// The key value list in the launcher solution of a datastore, which is used to parse it.
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DlLauncherKvList<M = DatastoreMetadata, T = NodePtr> {
+    /// The initial metadata of the datastore.
     pub metadata: M,
+    /// The hash of the inner puzzle of the [`NftStateLayer`]: the [`DelegationLayer`](crate::DelegationLayer) if there
+    /// are delegated puzzles, or the owner puzzle hash otherwise.
     pub state_layer_inner_puzzle_hash: Bytes32,
+    /// The owner puzzle hash and delegated puzzle memos, if there are delegated puzzles.
+    /// See [`Datastore::get_recreation_memos`].
     #[clvm(rest)]
     pub memos: Vec<T>,
 }
 
+/// The key value list of datastores launched with the old format, which only stored the root hash.
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct OldDlLauncherKvList<T = NodePtr> {
+    /// The initial root hash of the datastore.
     pub root_hash: Bytes32,
+    /// The hash of the inner puzzle of the [`NftStateLayer`].
     pub state_layer_inner_puzzle_hash: Bytes32,
+    /// The memos, as described in [`DlLauncherKvList::memos`].
     #[clvm(rest)]
     pub memos: Vec<T>,
 }
@@ -136,6 +151,11 @@ impl<M> Datastore<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + MetadataWithRootHash,
 {
+    /// Builds a [`Datastore`] from its coin and the memos of the `CREATE_COIN` that created it.
+    ///
+    /// The memos start with the launcher id, followed by the owner puzzle hash and the delegated
+    /// puzzles (see [`Datastore::get_recreation_memos`]). If there are no memos, the owner is
+    /// `fallback_owner_ph`. The memos aren't checked against the coin's puzzle hash.
     pub fn build_datastore(
         coin: Coin,
         launcher_id: Bytes32,
@@ -215,6 +235,11 @@ where
         })
     }
 
+    /// Parses the child [`Datastore`] created by the given coin spend.
+    ///
+    /// The coin spend is either the launcher spend (in which case the launcher solution is parsed),
+    /// or a spend of the previous datastore, whose delegated puzzles must be provided. Returns
+    /// [`None`] if the spend didn't create a datastore.
     pub fn from_spend(
         allocator: &mut Allocator,
         cs: &CoinSpend,
@@ -547,6 +572,11 @@ where
 }
 
 impl<M> Datastore<M> {
+    /// Returns the memos to use when recreating a datastore with a [`DelegationLayer`](crate::DelegationLayer), so that the
+    /// delegated puzzles can be parsed from them.
+    ///
+    /// The memos are the launcher id (which doubles as the hint), the owner puzzle hash, and then a
+    /// [`HintType`] byte, puzzle hash, and (for oracles) fee for each delegated puzzle.
     pub fn get_recreation_memos(
         launcher_id: Bytes32,
         owner_puzzle_hash: TreeHash,
@@ -588,9 +618,12 @@ impl<M> Datastore<M> {
         memos
     }
 
-    // As an owner use CREATE_COIN to:
-    //  - just re-create store (no hints needed)
-    //  - change delegated puzzles (hints needed)
+    /// Creates the `CREATE_COIN` condition that the owner uses to recreate the datastore with a
+    /// new inner puzzle hash and set of delegated puzzles.
+    ///
+    /// The new coin has an amount of 1. If `hint_delegated_puzzles` is set, the memos from
+    /// [`Datastore::get_recreation_memos`] are included, which is needed when the delegated puzzles
+    /// change. Otherwise, only the launcher id is used as the hint.
     pub fn owner_create_coin_condition(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -625,6 +658,8 @@ impl<M> Datastore<M> {
         }))
     }
 
+    /// Creates the `UPDATE_NFT_METADATA` condition that sets the metadata of the datastore with the
+    /// `DataLayer` metadata updater.
     pub fn new_metadata_condition(
         ctx: &mut SpendContext,
         new_metadata: M,

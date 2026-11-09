@@ -1,3 +1,7 @@
+// The `#[streamable]` macro generates an undocumented `new` constructor, and lint levels
+// for it can only be set at the module level.
+#![allow(missing_docs)]
+
 use crate::{
     DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext, SpendWithConditions,
 };
@@ -20,12 +24,83 @@ use clvm_traits::clvm_list;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
+/// A versioned, serialized payload, used to embed [`Clawback`] info in a `REMARK` condition.
 #[streamable]
 pub struct VersionedBlob {
+    /// The version of the payload format.
     version: u16,
+    /// The serialized payload.
     blob: Bytes,
 }
 
+/// The original (v1) clawback, which is compatible with the Chia reference wallet.
+///
+/// A clawback coin's puzzle is a [`P2OneOfManyLayer`] with two paths:
+/// - The receiver path wraps the receiver's puzzle with an `ASSERT_SECONDS_RELATIVE` condition
+///   for the [`timelock`](Self::timelock), so the receiver can only claim it after the timelock.
+/// - The sender path is a [`P2CurriedArgs`] puzzle for the sender's puzzle hash, which lets the
+///   sender claw it back at any time.
+///
+/// The coin is created with an accompanying `REMARK` condition (see
+/// [`Clawback::get_remark_condition`]) so that it can be discovered with
+/// [`Clawback::parse_children`]. For the newer version, which uses an absolute expiration time and
+/// is discovered through memos, see [`ClawbackV2`](crate::ClawbackV2).
+///
+/// # Example
+///
+/// Send a coin with a clawback, parse it from the parent spend, and claim it as the receiver:
+///
+/// ```
+/// use chia_protocol::Coin;
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{Clawback, Puzzle, SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+/// use clvm_utils::ToTreeHash;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(1);
+/// let bob = sim.bls(0);
+///
+/// let clawback = Clawback {
+///     timelock: 100,
+///     sender_puzzle_hash: alice.puzzle_hash,
+///     receiver_puzzle_hash: bob.puzzle_hash,
+/// };
+/// let clawback_puzzle_hash = clawback.tree_hash().into();
+///
+/// // Alice creates the clawback coin, along with the remark used to discover it.
+/// let remark = clawback.get_remark_condition(ctx)?;
+/// StandardLayer::new(alice.pk).spend(
+///     ctx,
+///     alice.coin,
+///     Conditions::new()
+///         .create_coin(clawback_puzzle_hash, 1, Memos::None)
+///         .with(remark),
+/// )?;
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// // Bob finds the clawback by parsing Alice's spend.
+/// let parent_spend = sim.coin_spend(alice.coin.coin_id()).unwrap();
+/// let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+/// let parent_puzzle = Puzzle::parse(ctx, parent_puzzle);
+/// let parent_solution = ctx.alloc(&parent_spend.solution)?;
+/// let parsed = Clawback::parse_child(ctx, parent_puzzle, parent_solution, clawback_puzzle_hash)?
+///     .expect("the clawback should be found");
+/// assert_eq!(parsed, clawback);
+///
+/// // Once the timelock has passed, Bob can claim the coin.
+/// sim.pass_time(100);
+/// let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+/// parsed.claim_coin_spend(ctx, clawback_coin, &StandardLayer::new(bob.pk), Conditions::new())?;
+/// sim.spend_coins(ctx.take(), &[bob.sk])?;
+///
+/// let bob_coin = Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1);
+/// assert!(sim.coin_state(bob_coin.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[streamable]
 #[derive(Copy)]
 pub struct Clawback {
@@ -38,6 +113,12 @@ pub struct Clawback {
 }
 
 impl Clawback {
+    /// Parses the [`Clawback`] coins created by a parent coin spend.
+    ///
+    /// This runs the parent puzzle and looks for `REMARK` conditions with clawback info (see
+    /// [`Clawback::get_remark_condition`]). A clawback is only returned if the spend also creates a
+    /// coin with its puzzle hash. Malformed remarks are skipped. This never returns [`None`], but it
+    /// returns an error if the parent spend fails to run.
     pub fn parse_children(
         allocator: &mut Allocator,
         parent_puzzle: Puzzle, // this could be any puzzle type
@@ -104,6 +185,9 @@ impl Clawback {
         Ok(Some(outputs))
     }
 
+    /// Parses the [`Clawback`] with the given puzzle hash from a parent coin spend.
+    ///
+    /// Returns [`None`] if there is no such clawback. See [`Clawback::parse_children`].
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_puzzle: Puzzle,
@@ -120,6 +204,8 @@ impl Clawback {
             .find(|clawback| clawback.tree_hash() == expected_puzzle_hash.into()))
     }
 
+    /// Calculates the puzzle hash of the receiver path, which wraps the receiver's puzzle hash
+    /// with an `ASSERT_SECONDS_RELATIVE` condition for the timelock.
     pub fn receiver_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
             program: TreeHash::new(AUGMENTED_CONDITION_HASH),
@@ -131,6 +217,8 @@ impl Clawback {
         .tree_hash()
     }
 
+    /// Constructs the receiver path puzzle around `inner_puzzle`, which must be the puzzle
+    /// whose hash is [`receiver_puzzle_hash`](Self::receiver_puzzle_hash).
     pub fn receiver_path_puzzle(
         &self,
         ctx: &mut SpendContext,
@@ -142,6 +230,7 @@ impl Clawback {
         ))
     }
 
+    /// Calculates the puzzle hash of the sender path, a [`P2CurriedArgs`] puzzle for the sender's puzzle hash.
     pub fn sender_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
             program: P2_CURRIED_PUZZLE_HASH,
@@ -150,10 +239,12 @@ impl Clawback {
         .tree_hash()
     }
 
+    /// Constructs the sender path puzzle.
     pub fn sender_path_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(P2CurriedArgs::new(self.sender_puzzle_hash))
     }
 
+    /// Builds the [`MerkleTree`] of the receiver and sender path puzzle hashes.
     pub fn merkle_tree(&self) -> MerkleTree {
         MerkleTree::new(&[
             self.receiver_path_puzzle_hash().into(),
@@ -161,17 +252,20 @@ impl Clawback {
         ])
     }
 
-    // Alias of to_layer(), to make handling between V1 and V2 more consistent.
+    /// An alias of [`Clawback::to_layer`], to make handling between V1 and V2 more consistent.
     pub fn into_1_of_n(&self) -> P2OneOfManyLayer {
         self.to_layer()
     }
 
+    /// Returns the [`P2OneOfManyLayer`] for the clawback's merkle root, which is the clawback puzzle.
     pub fn to_layer(&self) -> P2OneOfManyLayer {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
-    // this function returns the Remark condition required to hint at this clawback
-    // it should be included alongside the createcoin that creates this
+    /// Returns the `REMARK` condition that makes this clawback discoverable.
+    ///
+    /// It should be output alongside the `CREATE_COIN` that creates the clawback coin. The remark
+    /// contains the magic number 2 followed by the serialized clawback in a version 1 [`VersionedBlob`].
     pub fn get_remark_condition(
         &self,
         allocator: &mut Allocator,
@@ -193,6 +287,9 @@ impl Clawback {
         Ok(Remark::new(node_ptr))
     }
 
+    /// Wraps a spend of the receiver's puzzle in the receiver path of the clawback.
+    ///
+    /// The coin can't be spent this way until the timelock has passed.
     pub fn receiver_spend(
         &self,
         ctx: &mut SpendContext,
@@ -211,6 +308,7 @@ impl Clawback {
             .construct_spend(ctx, P2OneOfManySolution::new(proof, puzzle, solution))
     }
 
+    /// Wraps a spend of the sender's puzzle in the sender path of the clawback.
     pub fn sender_spend(&self, ctx: &mut SpendContext, spend: Spend) -> Result<Spend, DriverError> {
         let merkle_tree = self.merkle_tree();
 
@@ -225,7 +323,10 @@ impl Clawback {
             .construct_spend(ctx, P2OneOfManySolution::new(proof, puzzle, solution))
     }
 
-    // Receiver claim: create full-amount coin to receiver_puzzle_hash with a discovery hint.
+    /// Creates a receiver spend that sends the full amount of `coin` to the receiver's puzzle hash
+    /// (hinted), along with the extra `conditions`.
+    ///
+    /// `inner` must be the receiver's puzzle.
     pub fn claim_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -246,6 +347,7 @@ impl Clawback {
         self.receiver_spend(ctx, inner_spend)
     }
 
+    /// Like [`Clawback::claim_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn claim_coin_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -260,7 +362,10 @@ impl Clawback {
         ctx.spend(coin, spend)
     }
 
-    // Sender claw-back: create full-amount coin to sender_puzzle_hash with a discovery hint.
+    /// Creates a sender spend that claws back the full amount of `coin` to the sender's puzzle hash
+    /// (hinted), along with the extra `conditions`.
+    ///
+    /// `inner` must be the sender's puzzle.
     pub fn clawback_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -281,6 +386,7 @@ impl Clawback {
         self.sender_spend(ctx, inner_spend)
     }
 
+    /// Like [`Clawback::clawback_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn clawback_coin_spend<I>(
         &self,
         ctx: &mut SpendContext,

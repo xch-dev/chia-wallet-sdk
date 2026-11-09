@@ -1,3 +1,15 @@
+//! Primitives are high level types for the assets and coins that live on the Chia blockchain.
+//!
+//! Each primitive wraps a [`Coin`](chia_protocol::Coin) along with the information needed to
+//! construct its outer puzzle, such as a [`Cat`], [`Did`], [`Nft`], or [`Vault`]. They are built
+//! on top of [`Layer`](crate::Layer)s, and provide methods to create, spend, and parse them, so you
+//! don't need to construct puzzles and solutions by hand.
+//!
+//! Most primitives leave the inner (p2) puzzle up to you, so they can be owned by any puzzle such
+//! as the [`StandardLayer`](crate::StandardLayer) or a vault. Children can typically be parsed from
+//! the parent coin spend (for example, with [`Cat::parse_children`] or [`Nft::parse_child`]), which
+//! is how wallets discover and sync coins.
+
 mod bulletin;
 mod cat;
 mod cat_maker;

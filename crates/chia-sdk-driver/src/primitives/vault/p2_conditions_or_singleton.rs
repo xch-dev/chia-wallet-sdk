@@ -26,15 +26,23 @@ pub enum P2ConditionsOrSingletonVersion {
 /// Only the hash of the fixed path is stored, rather than the quoted conditions hash and version.
 /// This is so that coins can be constructed from the fixed path hash alone, without knowing which
 /// version they are. The version is detected from the quoted conditions when spending the fixed path.
+///
+/// The puzzle is a top level MIPS puzzle with a 1 of 2 [`MofN`] of:
+/// - The fixed path, which can only output the quoted conditions it was calculated from (see
+///   [`calculate_fixed_conditions_hash`](Self::calculate_fixed_conditions_hash)).
+/// - The singleton path, which requires a message from the singleton, like a [`P2Singleton`](crate::P2Singleton).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct P2ConditionsOrSingleton {
+    /// The launcher id of the singleton that can spend the coin.
     pub launcher_id: Bytes32,
+    /// The MIPS nonce of the singleton path.
     pub nonce: usize,
     /// The tree hash of the fixed path, which depends on the quoted conditions and version.
     pub fixed_conditions_hash: Bytes32,
 }
 
 impl P2ConditionsOrSingleton {
+    /// Creates a new [`P2ConditionsOrSingleton`] from the tree hash of its fixed path.
     pub fn new(launcher_id: Bytes32, nonce: usize, fixed_conditions_hash: Bytes32) -> Self {
         Self {
             launcher_id,
@@ -43,6 +51,8 @@ impl P2ConditionsOrSingleton {
         }
     }
 
+    /// Creates a new [`P2ConditionsOrSingleton`] from the tree hash of the quoted conditions that
+    /// the fixed path outputs, and the version of the fixed path.
     pub fn from_quoted_conditions_hash(
         launcher_id: Bytes32,
         nonce: usize,
@@ -87,10 +97,13 @@ impl P2ConditionsOrSingleton {
         })
     }
 
+    /// Returns the MIPS puzzle hash of the fixed path, which is
+    /// [`fixed_conditions_hash`](Self::fixed_conditions_hash).
     pub fn fixed_path_hash(&self) -> TreeHash {
         self.fixed_conditions_hash.into()
     }
 
+    /// Calculates the MIPS puzzle hash of the singleton path.
     pub fn p2_singleton_path_hash(&self) -> TreeHash {
         mips_puzzle_hash(
             self.nonce,
@@ -100,6 +113,10 @@ impl P2ConditionsOrSingleton {
         )
     }
 
+    /// Spends the singleton path, with the given delegated spend.
+    ///
+    /// `singleton_inner_puzzle_hash` and `singleton_amount` describe the singleton, which must be
+    /// spent in the same transaction and send the authorizing message.
     pub fn p2_singleton_spend(
         &self,
         ctx: &mut SpendContext,
@@ -133,7 +150,8 @@ impl P2ConditionsOrSingleton {
     }
 
     /// Spends the fixed path. The spend's puzzle must be the quoted conditions that the fixed
-    /// conditions hash was calculated from, and the version is detected from them.
+    /// conditions hash was calculated from, and the version is detected from them. Otherwise,
+    /// [`DriverError::WrongConditions`] is returned.
     pub fn fixed_spend(
         &self,
         ctx: &mut SpendContext,

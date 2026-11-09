@@ -16,20 +16,28 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use num_bigint::BigInt;
 
+/// The layers of a datastore puzzle: an [`NftStateLayer`] (with metadata `M` and the `DataLayer`
+/// metadata updater) wrapped in a [`SingletonLayer`], around the inner layer `I`. The inner layer is
+/// either a [`DelegationLayer`] or the owner's puzzle.
 pub type StandardDatastoreLayers<M = DatastoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
 
+/// The type byte that precedes each [`DelegatedPuzzle`] in a datastore's memos.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[repr(u8)]
 #[clvm(atom)]
 pub enum HintType {
     // 0 skipped to prevent confusion with () which is also none (end of list)
+    /// A [`DelegatedPuzzle::Admin`].
     AdminPuzzle = 1,
+    /// A [`DelegatedPuzzle::Writer`].
     WriterPuzzle = 2,
+    /// A [`DelegatedPuzzle::Oracle`].
     OraclePuzzle = 3,
 }
 
 impl HintType {
+    /// Converts a type byte into a [`HintType`], or returns [`None`] if it's not recognized.
     pub fn from_value(value: u8) -> Option<Self> {
         match value {
             1 => Some(Self::AdminPuzzle),
@@ -40,14 +48,24 @@ impl HintType {
     }
 }
 
+/// A puzzle that the owner of a datastore authorizes to spend it, through the [`DelegationLayer`].
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum DelegatedPuzzle {
-    Admin(TreeHash),      // puzzle hash
-    Writer(TreeHash),     // inner puzzle hash
-    Oracle(Bytes32, u64), // oracle fee puzzle hash, fee amount
+    /// An admin puzzle with the given puzzle hash, which can update the metadata and the list of
+    /// delegated puzzles, but can't change the owner.
+    Admin(TreeHash),
+    /// A writer, whose inner puzzle hash is wrapped in the [`WriterLayer`](crate::WriterLayer).
+    /// It can update the metadata, but can't change the delegated puzzles.
+    Writer(TreeHash),
+    /// An oracle, which lets anyone spend the datastore by paying the fee (the second value) to
+    /// the puzzle hash (the first value). See [`OracleLayer`].
+    Oracle(Bytes32, u64),
 }
 
 impl DelegatedPuzzle {
+    /// Parses a [`DelegatedPuzzle`] from the front of the memos, removing the memos it uses.
+    ///
+    /// The memos are a [`HintType`] byte, the puzzle hash, and for oracles, the fee.
     pub fn from_memos(remaining_memos: &mut Vec<Bytes>) -> Result<Self, DriverError> {
         if remaining_memos.len() < 2 {
             return Err(DriverError::MissingMemo);
@@ -93,8 +111,11 @@ impl DelegatedPuzzle {
     }
 }
 
+/// Datastore metadata that contains a merkle root hash of the data.
 pub trait MetadataWithRootHash {
+    /// Returns the root hash of the data.
     fn root_hash(&self) -> Bytes32;
+    /// Creates metadata with only a root hash, which is used for datastores launched with the old memo format.
     fn root_hash_only(root_hash: Bytes32) -> Self;
 }
 
@@ -114,12 +135,21 @@ impl MetadataWithRootHash for DatastoreMetadata {
     }
 }
 
+/// The standard metadata of a datastore.
+///
+/// It's encoded as `(root_hash . ((key . value)...))`, with the optional values stored under the
+/// keys `"l"`, `"d"`, `"b"`, and `"sp"`. Unknown keys are ignored when parsing.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DatastoreMetadata {
+    /// The merkle root hash of the data in the store.
     pub root_hash: Bytes32,
+    /// A short label for the store.
     pub label: Option<String>,
+    /// A description of the store.
     pub description: Option<String>,
+    /// The size of the data, in bytes.
     pub bytes: Option<u64>,
+    /// A proof of the size of the data.
     pub size_proof: Option<String>,
 }
 
@@ -166,16 +196,23 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DatastoreMetadata {
     }
 }
 
+/// Information needed to construct the outer puzzle of a [`Datastore`](crate::Datastore).
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatastoreInfo<M = DatastoreMetadata> {
+    /// The coin id of the launcher coin that created this datastore's singleton.
     pub launcher_id: Bytes32,
+    /// The metadata stored in the [`NftStateLayer`].
     pub metadata: M,
+    /// The puzzle hash of the owner, who has full control over the datastore.
     pub owner_puzzle_hash: Bytes32,
+    /// The puzzles that the owner has delegated access to. If this is empty, there is no
+    /// [`DelegationLayer`] and the owner's puzzle is the inner puzzle of the state layer.
     pub delegated_puzzles: Vec<DelegatedPuzzle>,
 }
 
 impl<M> DatastoreInfo<M> {
+    /// Creates a new [`DatastoreInfo`] from its fields.
     pub fn new(
         launcher_id: Bytes32,
         metadata: M,
@@ -190,6 +227,9 @@ impl<M> DatastoreInfo<M> {
         }
     }
 
+    /// Creates a [`DatastoreInfo`] from parsed layers that include a [`DelegationLayer`].
+    ///
+    /// The delegated puzzles aren't in the puzzle (only their merkle root is), so they must be provided.
     pub fn from_layers_with_delegation_layer(
         layers: StandardDatastoreLayers<M, DelegationLayer>,
         delegated_puzzles: Vec<DelegatedPuzzle>,
@@ -202,6 +242,8 @@ impl<M> DatastoreInfo<M> {
         }
     }
 
+    /// Creates a [`DatastoreInfo`] from parsed layers without a [`DelegationLayer`], where the
+    /// innermost puzzle is the owner's puzzle.
     pub fn from_layers_without_delegation_layer<I>(layers: StandardDatastoreLayers<M, I>) -> Self
     where
         I: ToTreeHash,
@@ -214,6 +256,7 @@ impl<M> DatastoreInfo<M> {
         }
     }
 
+    /// Constructs the [`StandardDatastoreLayers`] with a [`DelegationLayer`] for the delegated puzzles.
     pub fn into_layers_with_delegation_layer(
         self,
         ctx: &mut SpendContext,
@@ -232,6 +275,8 @@ impl<M> DatastoreInfo<M> {
         ))
     }
 
+    /// Constructs the [`StandardDatastoreLayers`] with the given innermost layer, which is
+    /// typically the owner's puzzle.
     #[must_use]
     pub fn into_layers_without_delegation_layer<I>(
         self,
@@ -247,6 +292,7 @@ impl<M> DatastoreInfo<M> {
         )
     }
 
+    /// Calculates the inner puzzle hash of the singleton, which is the hash of the [`NftStateLayer`].
     pub fn inner_puzzle_hash(&self, ctx: &mut SpendContext) -> Result<TreeHash, DriverError>
     where
         M: ToClvm<Allocator>,
@@ -285,6 +331,10 @@ impl<M> DatastoreInfo<M> {
         Ok(self.puzzle_hash(&mut ctx)? == puzzle_hash.into())
     }
 
+    /// Calculates the hash of the inner puzzle of the [`NftStateLayer`].
+    ///
+    /// This is the hash of the [`DelegationLayer`] if there are delegated puzzles, or the owner
+    /// puzzle hash otherwise.
     pub fn delegation_layer_puzzle_hash(
         &self,
         ctx: &mut SpendContext,
@@ -309,6 +359,10 @@ impl<M> DatastoreInfo<M> {
     }
 }
 
+/// Builds the [`MerkleTree`] of the full puzzle hashes of the delegated puzzles, which is
+/// curried into the [`DelegationLayer`].
+///
+/// Returns [`DriverError::OddOracleFee`] if an oracle has an odd fee.
 pub fn get_merkle_tree(
     ctx: &mut SpendContext,
     delegated_puzzles: Vec<DelegatedPuzzle>,

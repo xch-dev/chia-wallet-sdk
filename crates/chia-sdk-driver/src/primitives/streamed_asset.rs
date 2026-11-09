@@ -13,15 +13,24 @@ use clvmr::{Allocator, NodePtr, op_utils::u64_from_bytes};
 
 use crate::{StreamLayer, StreamPuzzleSolution};
 
+/// Information needed to construct the [`StreamLayer`] puzzle of a [`StreamedAsset`].
+///
+/// A streaming puzzle releases its amount to the recipient linearly over time, between the
+/// [`last_payment_time`](Self::last_payment_time) and the [`end_time`](Self::end_time).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StreamingPuzzleInfo {
+    /// The puzzle hash that receives the streamed payments, and that must authorize each claim.
     pub recipient: Bytes32,
+    /// The puzzle hash that can claw back the unpaid amount, if any.
     pub clawback_ph: Option<Bytes32>,
+    /// The timestamp at which the full amount has been streamed.
     pub end_time: u64,
+    /// The timestamp up to which the recipient has already been paid.
     pub last_payment_time: u64,
 }
 
 impl StreamingPuzzleInfo {
+    /// Creates a new [`StreamingPuzzleInfo`] from its fields.
     pub fn new(
         recipient: Bytes32,
         clawback_ph: Option<Bytes32>,
@@ -66,6 +75,8 @@ impl StreamingPuzzleInfo {
         u64::try_from(to_pay).map_err(|_| DriverError::AmountOverflow)
     }
 
+    /// Calculates the hint that the streaming puzzle adds to the coin it recreates after each payment,
+    /// which is the SHA-256 hash of `"s"` followed by the recipient puzzle hash.
     pub fn get_hint(recipient: Bytes32) -> Bytes32 {
         let mut s = Sha256::new();
         s.update(b"s");
@@ -73,6 +84,11 @@ impl StreamingPuzzleInfo {
         s.finalize().into()
     }
 
+    /// Returns the memos to use when creating the first (eve) streaming coin, so that it can be parsed
+    /// with [`StreamingPuzzleInfo::from_memos`].
+    ///
+    /// The memos are the recipient (which doubles as the hint), the clawback puzzle hash (or an
+    /// empty value), the last payment time, and the end time.
     pub fn get_launch_hints(&self) -> Vec<Bytes> {
         let hint: Bytes = self.recipient.into();
         let clawback_ph: Bytes = if let Some(clawback_ph) = self.clawback_ph {
@@ -86,6 +102,7 @@ impl StreamingPuzzleInfo {
         vec![hint, clawback_ph, second_memo.into(), third_memo.into()]
     }
 
+    /// Returns a copy of this info with a different last payment time.
     #[must_use]
     pub fn with_last_payment_time(self, last_payment_time: u64) -> Self {
         Self {
@@ -94,6 +111,7 @@ impl StreamingPuzzleInfo {
         }
     }
 
+    /// Parses a [`StreamingPuzzleInfo`] from a [`StreamLayer`] puzzle, or returns [`None`] if it isn't one.
     pub fn parse(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(layer) = StreamLayer::parse_puzzle(allocator, puzzle)? else {
             return Ok(None);
@@ -102,6 +120,7 @@ impl StreamingPuzzleInfo {
         Ok(Some(Self::from_layer(layer)))
     }
 
+    /// Converts this info into a [`StreamLayer`].
     pub fn into_layer(self) -> StreamLayer {
         StreamLayer::new(
             self.recipient,
@@ -111,6 +130,7 @@ impl StreamingPuzzleInfo {
         )
     }
 
+    /// Creates a [`StreamingPuzzleInfo`] from a [`StreamLayer`].
     pub fn from_layer(layer: StreamLayer) -> Self {
         Self {
             recipient: layer.recipient,
@@ -120,10 +140,15 @@ impl StreamingPuzzleInfo {
         }
     }
 
+    /// Calculates the hash of the streaming puzzle, which is the inner puzzle hash for CATs.
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         self.into_layer().puzzle_hash()
     }
 
+    /// Parses a [`StreamingPuzzleInfo`] from the memos of a `CREATE_COIN` condition.
+    ///
+    /// Accepts the four memos from [`StreamingPuzzleInfo::get_launch_hints`], optionally preceded
+    /// by one extra memo, which is ignored. Returns [`None`] if the memos don't have that shape.
     pub fn from_memos(memos: &[Bytes]) -> Result<Option<Self>, DriverError> {
         if memos.len() < 4 || memos.len() > 5 {
             return Ok(None);
@@ -185,16 +210,27 @@ impl StreamingPuzzleInfo {
     }
 }
 
+/// An XCH or CAT coin locked by a streaming puzzle, which pays its amount out to a recipient over time.
+///
+/// Each spend pays the recipient the amount that has vested since the last payment, and recreates
+/// the coin with the remainder (unless nothing is left). Claims must be authorized by a message from
+/// the recipient. If a clawback puzzle hash is set, it can authorize a clawback spend instead, after
+/// which the stream is not recreated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
 pub struct StreamedAsset {
+    /// The streaming coin.
     pub coin: Coin,
+    /// The asset id if this is a CAT, or [`None`] for XCH.
     pub asset_id: Option<Bytes32>,
+    /// The lineage proof of the coin, which is required for CATs.
     pub proof: Option<LineageProof>,
+    /// The information needed to construct the streaming puzzle.
     pub info: StreamingPuzzleInfo,
 }
 
 impl StreamedAsset {
+    /// Creates a streamed CAT.
     pub fn cat(
         coin: Coin,
         asset_id: Bytes32,
@@ -209,6 +245,7 @@ impl StreamedAsset {
         }
     }
 
+    /// Creates a streamed XCH coin.
     pub fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Self {
         Self {
             coin,
@@ -218,6 +255,7 @@ impl StreamedAsset {
         }
     }
 
+    /// Constructs the full puzzle of the coin, including the CAT layer for CATs.
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let inner_layer = self.info.into_layer();
         if let Some(asset_id) = self.asset_id {
@@ -227,6 +265,13 @@ impl StreamedAsset {
         }
     }
 
+    /// Constructs the solution that pays out the amount vested at `payment_time`, or claws back
+    /// the stream if `clawback` is set.
+    ///
+    /// The payment time is clamped to the end time (see [`StreamingPuzzleInfo::clamp_payment_time`]).
+    /// The spend must be authorized by a message containing the clamped payment time, sent from the
+    /// recipient (or the clawback puzzle hash). CATs are spent in a ring of one, and require a
+    /// lineage proof.
     pub fn construct_solution(
         &self,
         ctx: &mut SpendContext,
@@ -271,6 +316,7 @@ impl StreamedAsset {
         }
     }
 
+    /// Spends the coin and adds it to the [`SpendContext`]. See [`StreamedAsset::construct_solution`].
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -283,7 +329,13 @@ impl StreamedAsset {
         ctx.spend(self.coin, Spend::new(puzzle, solution))
     }
 
-    // if clawback, 3rd arg = last paid amount
+    /// Parses the streamed asset created by a parent coin spend.
+    ///
+    /// The parent can either be a streaming coin, or a coin that created an eve streaming coin with
+    /// the memos from [`StreamingPuzzleInfo::get_launch_hints`]. Returns a tuple of:
+    /// - The child [`StreamedAsset`], or [`None`] if there is none (such as after the final payment).
+    /// - Whether the parent was clawed back.
+    /// - If it was clawed back, the amount that was paid to the recipient in that spend. Otherwise, 0.
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
         coin_spend: &CoinSpend,

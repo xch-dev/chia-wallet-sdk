@@ -15,14 +15,22 @@ use super::{
     MipsSpendKind, RestrictionKind, m_of_n::MofN, mips_spend::MipsSpend, restriction::Restriction,
 };
 
+/// The spend of a single inner puzzle in a MIPS tree, inserted into [`MipsSpend::members`].
+///
+/// The nonce and restrictions must match those used to calculate the inner puzzle's hash with
+/// [`mips_puzzle_hash`].
 #[derive(Debug, Clone)]
 pub struct InnerPuzzleSpend {
+    /// The nonce of the inner puzzle, which allows the same puzzle to have different hashes.
     pub nonce: usize,
+    /// The restrictions on the inner puzzle.
     pub restrictions: Vec<Restriction>,
+    /// The puzzle inside of the MIPS wrappers, and how to spend it.
     pub kind: MipsSpendKind,
 }
 
 impl InnerPuzzleSpend {
+    /// Creates the spend of a member puzzle, such as a key or a singleton member.
     pub fn new(nonce: usize, restrictions: Vec<Restriction>, spend: Spend) -> Self {
         Self {
             nonce,
@@ -31,6 +39,7 @@ impl InnerPuzzleSpend {
         }
     }
 
+    /// Creates the spend of an [`MofN`] puzzle. The items that will be spent must also be in the [`MipsSpend`].
     pub fn m_of_n(
         nonce: usize,
         restrictions: Vec<Restriction>,
@@ -44,6 +53,10 @@ impl InnerPuzzleSpend {
         }
     }
 
+    /// Constructs the spend of this inner puzzle, including its MIPS wrappers.
+    ///
+    /// `delegated_spend` must be `true` for the top level puzzle, which runs the delegated spend of
+    /// the [`MipsSpend`], and `false` otherwise. Most callers should use [`MipsSpend::spend`] instead.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -217,6 +230,34 @@ fn merge_delegated_puzzle_wrappers(
     Ok(())
 }
 
+/// Calculates the puzzle hash of a MIPS inner puzzle.
+///
+/// The `inner_puzzle_hash` is the hash of the member puzzle (such as a
+/// [`BlsMember`](chia_sdk_types::puzzles::BlsMember)) or of an [`MofN`] (see [`MofN::inner_puzzle_hash`]).
+/// It's wrapped in the restrictions layer (if there are any restrictions), then the delegated puzzle
+/// feeder (if `top_level` is set), and finally the index wrapper with the `nonce`.
+///
+/// The top level puzzle is the custody puzzle, such as the inner puzzle of a [`Vault`](crate::Vault).
+/// Every other inner puzzle in the tree should have `top_level` set to `false`.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_driver::{MofN, mips_puzzle_hash};
+/// use chia_sdk_test::BlsPair;
+/// use chia_sdk_types::{Mod, puzzles::BlsMember};
+///
+/// // A 2 of 3 custody puzzle with BLS keys.
+/// let items = BlsPair::range_vec(3)
+///     .iter()
+///     .map(|pair| mips_puzzle_hash(0, Vec::new(), BlsMember::new(pair.pk).curry_tree_hash(), false))
+///     .collect();
+/// let m_of_n = MofN::new(2, items);
+/// let custody_hash = mips_puzzle_hash(0, Vec::new(), m_of_n.inner_puzzle_hash(), true);
+///
+/// // The top level puzzle includes the delegated puzzle feeder, so it's a different hash.
+/// assert_ne!(custody_hash, mips_puzzle_hash(0, Vec::new(), m_of_n.inner_puzzle_hash(), false));
+/// ```
 pub fn mips_puzzle_hash(
     nonce: usize,
     restrictions: Vec<Restriction>,

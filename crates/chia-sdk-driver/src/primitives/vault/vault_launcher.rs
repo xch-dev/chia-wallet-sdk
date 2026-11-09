@@ -9,6 +9,10 @@ use crate::{DriverError, Launcher, SpendContext, VaultInfo};
 use super::Vault;
 
 impl Launcher {
+    /// Spends this launcher to create an eve [`Vault`] with the given custody hash.
+    ///
+    /// The `memos` are stored as the launcher solution's key value list. Returns the conditions that
+    /// the launcher's parent must output, and the unspent eve [`Vault`].
     pub fn mint_vault<M>(
         self,
         ctx: &mut SpendContext,

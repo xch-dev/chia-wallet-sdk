@@ -5,6 +5,8 @@ use clvmr::Allocator;
 
 use crate::{DidLayer, DriverError, HashedPtr, Layer, Puzzle, SingletonInfo, SingletonLayer};
 
+/// The layers of a standard DID puzzle: a [`DidLayer`] (with [`HashedPtr`] metadata) wrapped in a
+/// [`SingletonLayer`], around the p2 puzzle `I`.
 pub type StandardDidLayers<I> = SingletonLayer<DidLayer<HashedPtr, I>>;
 
 /// Information needed to construct the outer puzzle of a DID.
@@ -38,6 +40,7 @@ pub struct DidInfo {
 }
 
 impl DidInfo {
+    /// Creates a new [`DidInfo`] from its fields.
     pub fn new(
         launcher_id: Bytes32,
         recovery_list_hash: Option<Bytes32>,
@@ -79,6 +82,9 @@ impl DidInfo {
         Ok(Some((Self::from_layers(&layers), p2_puzzle)))
     }
 
+    /// Extracts the [`DidInfo`] from parsed [`StandardDidLayers`], hashing the p2 puzzle.
+    ///
+    /// Unlike [`DidInfo::parse`], this doesn't check that the launcher ids of the two layers match.
     pub fn from_layers<I>(layers: &StandardDidLayers<I>) -> Self
     where
         I: ToTreeHash,
@@ -92,6 +98,7 @@ impl DidInfo {
         }
     }
 
+    /// Constructs the [`StandardDidLayers`] for this DID around the given p2 puzzle.
     #[must_use]
     pub fn into_layers<I>(self, p2_puzzle: I) -> StandardDidLayers<I> {
         SingletonLayer::new(

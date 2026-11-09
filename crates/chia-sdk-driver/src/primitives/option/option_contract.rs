@@ -18,9 +18,17 @@ use crate::{
 
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
 
+/// An option contract singleton, which gives its owner the right to claim an underlying coin in
+/// exchange for a strike payment to the creator, until it expires.
+///
+/// The underlying coin is locked with an [`OptionUnderlying`](crate::OptionUnderlying) p2 puzzle.
+/// Options are minted with an [`OptionLauncher`](crate::OptionLauncher).
 pub type OptionContract = Singleton<OptionInfo>;
 
 impl OptionContract {
+    /// Parses the child of an [`OptionContract`] from the parent coin spend.
+    ///
+    /// Returns [`None`] if the parent isn't an option contract, or if it was exercised or melted.
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -109,6 +117,7 @@ impl OptionContract {
         )))
     }
 
+    /// Parses the [`OptionMetadata`] from the solution of the option's launcher coin spend.
     pub fn parse_metadata(
         allocator: &mut Allocator,
         launcher_solution: NodePtr,
@@ -117,6 +126,10 @@ impl OptionContract {
         Ok(solution.key_value_list)
     }
 
+    /// Spends this option with the provided inner spend, adding it to the [`SpendContext`].
+    ///
+    /// Returns the child created by the first odd-amount `CREATE_COIN` of the inner spend,
+    /// or [`None`] if there isn't one (such as when the option is exercised).
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -151,6 +164,8 @@ impl OptionContract {
         Ok(None)
     }
 
+    /// Spends this option with a [`Layer`] that supports [`SpendWithConditions`].
+    /// See [`OptionContract::spend`].
     pub fn spend_with<I>(
         &self,
         ctx: &mut SpendContext,
@@ -164,6 +179,7 @@ impl OptionContract {
         self.spend(ctx, inner_spend)
     }
 
+    /// Transfers this option to a new p2 puzzle hash (hinted), returning the child.
     pub fn transfer<I>(
         self,
         ctx: &mut SpendContext,
@@ -185,6 +201,11 @@ impl OptionContract {
         Ok(self.child(p2_puzzle_hash, self.coin.amount))
     }
 
+    /// Exercises the option by sending a message to the underlying coin and melting the singleton.
+    ///
+    /// The message authorizes the underlying coin to be spent with its exercise path (see
+    /// [`OptionUnderlying::exercise_spend`](crate::OptionUnderlying::exercise_spend)), which must
+    /// happen in the same transaction along with the strike payment.
     pub fn exercise<I>(
         self,
         ctx: &mut SpendContext,
@@ -211,6 +232,7 @@ impl OptionContract {
         Ok(())
     }
 
+    /// Creates a new [`OptionContract`] that represents a child of this one with a new p2 puzzle hash.
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         let info = OptionInfo {
             p2_puzzle_hash,

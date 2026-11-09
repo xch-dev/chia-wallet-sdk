@@ -26,6 +26,43 @@ pub use did_info::*;
 /// This type should contain all of the information you need to store in a database for later.
 /// As long as you can figure out what puzzle the p2 puzzle hash corresponds to and spend it,
 /// you have enough information to spend the DID coin.
+///
+/// # Example
+///
+/// Create a DID and transfer it to a new owner:
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_driver::{Launcher, SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(1);
+/// let alice_p2 = StandardLayer::new(alice.pk);
+///
+/// // Spend Alice's coin to create the launcher, which creates the DID singleton.
+/// let launcher = Launcher::new(alice.coin.coin_id(), 1);
+/// let launcher_id = launcher.coin().coin_id();
+/// let (create_did, did) = launcher.create_simple_did(ctx, &alice_p2)?;
+/// alice_p2.spend(ctx, alice.coin, create_did)?;
+/// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+///
+/// assert_eq!(did.info.launcher_id, launcher_id);
+/// assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
+/// assert!(sim.coin_state(did.coin.coin_id()).is_some());
+///
+/// // Spend the DID singleton to transfer it.
+/// let bob_puzzle_hash = Bytes32::new([1; 32]);
+/// let did = did.transfer(ctx, &alice_p2, bob_puzzle_hash, Conditions::new())?;
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// assert_eq!(did.info.p2_puzzle_hash, bob_puzzle_hash);
+/// assert!(sim.coin_state(did.coin.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type Did = Singleton<DidInfo>;
 
 impl Did {
@@ -43,6 +80,11 @@ impl Did {
 
     /// Spends this DID coin with the provided inner spend.
     /// The spend is added to the [`SpendContext`] for convenience.
+    ///
+    /// Returns the child [`Did`] if it can be inferred from the inner spend's conditions. This is
+    /// the case when the first odd-amount `CREATE_COIN` is hinted with the new p2 puzzle hash and the
+    /// metadata is unchanged. Otherwise, such as when the DID is melted or the metadata is updated,
+    /// this returns [`None`].
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -107,6 +149,9 @@ impl Did {
 
     /// Transfers this DID coin to a new p2 puzzle hash.
     ///
+    /// The child is hinted with the new p2 puzzle hash and keeps the same metadata and amount.
+    /// Returns the child [`Did`].
+    ///
     /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
     /// use [`Did::spend_with`] instead.
     pub fn transfer<I>(
@@ -139,7 +184,7 @@ impl Did {
         Ok(self.child(p2_puzzle_hash, new_info.metadata, self.coin.amount))
     }
 
-    /// Updates the metadata of this DID.
+    /// Updates the metadata of this DID, returning the child [`Did`].
     ///
     /// Because DID coins aren't wrapped automatically, and due to the way they are parsed in wallets,
     /// an additional update spend is needed. This additional spend is not handled by this method, so
@@ -194,7 +239,7 @@ impl Did {
         self.update_with_metadata(ctx, inner, self.info.metadata, extra_conditions)
     }
 
-    /// Parses the child of an [`Did`] from the parent coin spend.
+    /// Parses the child of a [`Did`] from the parent coin spend.
     ///
     /// This relies on the child being hinted and having the same metadata as the parent.
     /// If this is not the case, the DID cannot be parsed or spent without additional context.
@@ -215,6 +260,40 @@ impl Did {
     /// matches `coin.puzzle_hash` (after replacing the p2 puzzle hash, if needed), and that the
     /// `coin` is actually a child of the `parent_coin`. Otherwise, a spoofed hint could produce a
     /// DID that looks like it belongs to you, but can't be spent.
+    ///
+    /// Returns [`None`] if the parent isn't a DID or the DID was melted, and
+    /// [`DriverError::MissingHint`] if the child coin isn't hinted.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_sdk_driver::{Did, Launcher, Puzzle, SpendContext, StandardLayer};
+    /// use chia_sdk_test::Simulator;
+    /// use chia_sdk_types::Conditions;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let ctx = &mut SpendContext::new();
+    ///
+    /// let alice = sim.bls(1);
+    /// let alice_p2 = StandardLayer::new(alice.pk);
+    ///
+    /// let (create_did, did) =
+    ///     Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+    /// alice_p2.spend(ctx, alice.coin, create_did)?;
+    /// let child = did.update(ctx, &alice_p2, Conditions::new())?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// // Look up the parent's spend and parse the child DID from it.
+    /// let parent_spend = sim.coin_spend(did.coin.coin_id()).unwrap();
+    /// let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+    /// let parent_puzzle = Puzzle::parse(ctx, parent_puzzle);
+    /// let parent_solution = ctx.alloc(&parent_spend.solution)?;
+    ///
+    /// let parsed = Did::parse_child(ctx, did.coin, parent_puzzle, parent_solution, child.coin)?
+    ///     .expect("the child is a DID");
+    /// assert_eq!(parsed, child);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -288,6 +367,8 @@ impl Did {
     }
 
     /// Parses a [`Did`] and its p2 spend from a coin spend.
+    ///
+    /// The p2 spend is [`None`] if the DID was spent with its recovery path instead of its p2 puzzle.
     ///
     /// If the puzzle is not a DID, this will return [`None`] instead of an error.
     /// However, if the puzzle should have been a DID but had a parsing error, this will return an error.
