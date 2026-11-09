@@ -9,10 +9,12 @@ pub struct Output {
     /// The puzzle hash in the `CREATE_COIN` condition. For CATs and singletons, this is the inner
     /// puzzle hash that the outer layers wrap.
     pub puzzle_hash: Bytes32,
+    /// The amount of the coin.
     pub amount: u64,
 }
 
 impl Output {
+    /// Creates an output with the puzzle hash and amount.
     pub fn new(puzzle_hash: Bytes32, amount: u64) -> Self {
         Self {
             puzzle_hash,

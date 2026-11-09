@@ -9,18 +9,32 @@ use crate::{
     ParsedMemos, RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
+/// A coin created by a verified spend.
 #[derive(Debug, Clone)]
 pub struct ParsedChild {
+    /// The coin and the asset it holds. CAT and NFT children inherit the parent's asset, and every other child
+    /// (including even amount children of an NFT) is XCH. A bulletin coin that is created and spent in the same
+    /// transaction by a verified spend is reported as [`ParsedAsset::Bulletin`].
     pub asset: ParsedAsset,
+    /// The destination and memos of the coin.
     pub memos: ParsedMemos,
+    /// What kind of transfer the coin represents.
     pub transfer_type: TransferType,
 }
 
+/// What kind of transfer a [`ParsedChild`] represents, based on its destination.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransferType {
+    /// Sent to [`ParsedMemos::p2_puzzle_hash`]. This could be the vault itself (for example, change), so compare
+    /// it to [`VaultTransaction::p2_puzzle_hashes`](crate::VaultTransaction::p2_puzzle_hashes).
     Sent,
+    /// Sent to [`BURN_PUZZLE_HASH`], so it can never be spent.
     Burned,
+    /// Sent to the settlement payments puzzle, which anyone can spend. This is how value is offered, and it's only
+    /// safe if the payments in return are asserted.
     Offered,
+    /// Sent to a revealed [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) with fixed conditions that
+    /// were revealed in the memos, such as a coin set aside for an offer.
     OfferPreSplit(OfferPreSplitInfo),
     /// The coin is the root of a revealed bag, so its value is paid out to the bag's payments once it's unrolled.
     ///
@@ -29,11 +43,17 @@ pub enum TransferType {
     SecureTheBag(SecureTheBagInfo),
 }
 
+/// A coin set aside for a future offer, which can be spent by anyone with its fixed conditions, or by the vault.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OfferPreSplitInfo {
+    /// The launcher id of the vault that can spend the coin.
     pub launcher_id: Bytes32,
+    /// The nonce of the p2 puzzle.
     pub nonce: usize,
+    /// The conditions that anyone can spend the coin with, such as the offer's payment assertions and fee.
     pub fixed_conditions: Vec<Condition>,
+    /// The amount of the coin minus the fee reserved by the fixed conditions (floored at zero), which is what's
+    /// left for the offer.
     pub settlement_amount: u64,
 }
 
@@ -56,6 +76,11 @@ pub struct ParsedBagPayment {
     pub transfer_type: TransferType,
 }
 
+/// Parses the coins created by the `CREATE_COIN` conditions of a verified spend, and records its other conditions
+/// (announcement and concurrent spend assertions, fees, and expiration) in the [`Facts`].
+///
+/// If `is_claw_back` is true, the spend's `ASSERT_BEFORE_SECONDS_ABSOLUTE` conditions aren't recorded, so that a
+/// claw back can't claim that the transaction expires before the clawback does.
 pub fn parse_children(
     reveals: &mut Reveals,
     ctx: &mut SpendContext,

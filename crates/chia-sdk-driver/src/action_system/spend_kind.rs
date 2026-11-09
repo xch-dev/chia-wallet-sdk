@@ -25,18 +25,22 @@ pub enum SpendKind {
 }
 
 impl SpendKind {
+    /// An empty [`SpendKind::Conditions`].
     pub fn conditions() -> Self {
         Self::Conditions(ConditionsSpend::new())
     }
 
+    /// An empty [`SpendKind::Settlement`].
     pub fn settlement() -> Self {
         Self::Settlement(SettlementSpend::new())
     }
 
+    /// Whether this is a [`SpendKind::Conditions`].
     pub fn is_conditions(&self) -> bool {
         matches!(self, Self::Conditions(_))
     }
 
+    /// Whether this is a [`SpendKind::Settlement`].
     pub fn is_settlement(&self) -> bool {
         matches!(self, Self::Settlement(_))
     }

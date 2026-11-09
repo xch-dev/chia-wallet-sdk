@@ -5,12 +5,21 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::DriverError;
 
+/// A message sent by the vault's puzzle to a coin, which authorizes that coin's spend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultMessage {
+    /// The id of the coin that must receive the message.
     pub spent_coin_id: Bytes32,
+    /// The message, which is the tree hash of the delegated puzzle the coin is authorized to run, or the extra
+    /// delta of a CAT issuance.
     pub data: Bytes,
 }
 
+/// Parses a `SEND_MESSAGE` condition from the vault's delegated spend into a [`VaultMessage`].
+///
+/// The message must be sent from the vault's puzzle to a single coin id, or
+/// [`DriverError::InvalidVaultMessageFormat`] is returned.
+///
 /// We intentionally expect a pretty rigid format here, out of an abundance of caution.
 /// If the message format is violated, we return an error. This can be expanded in the future if needed.
 pub fn parse_vault_message(

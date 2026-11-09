@@ -11,23 +11,33 @@ use crate::{
     parse_vault_puzzle_message,
 };
 
+/// What the vault's delegated spend does to the vault itself, as parsed by [`parse_vault_delegated_spend`].
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
+    /// The recreated vault singleton, or `None` if the delegated spend doesn't create an odd coin (in which case the
+    /// vault is melted, or the spend is invalid).
     pub child: Option<VaultOutput>,
+    /// The coins with an even amount that the vault creates.
     pub drop_coins: Vec<DropCoin>,
+    /// The messages that the vault sends to other coins to authorize their spends.
     pub messages: Vec<VaultMessage>,
     /// Messages to the puzzle hashes of controlled vaults, which must each match a revealed controlled vault.
     pub puzzle_messages: Vec<VaultPuzzleMessage>,
     pub signed_messages: Vec<Bytes>,
 }
 
+/// The vault singleton created by a vault spend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VaultOutput {
+    /// The new custody puzzle hash (the singleton's inner puzzle hash). If it differs from the current one, the
+    /// vault's custody configuration is changing.
     pub custody_hash: Bytes32,
+    /// The new amount of the vault singleton.
     pub amount: u64,
 }
 
 impl VaultOutput {
+    /// Creates a vault output.
     pub fn new(custody_hash: Bytes32, amount: u64) -> Self {
         Self {
             custody_hash,
@@ -36,13 +46,17 @@ impl VaultOutput {
     }
 }
 
+/// A coin with an even amount created directly by the vault singleton spend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DropCoin {
+    /// The puzzle hash of the coin, as written in the `CREATE_COIN` condition.
     pub puzzle_hash: Bytes32,
+    /// The amount of the coin.
     pub amount: u64,
 }
 
 impl DropCoin {
+    /// Creates a drop coin.
     pub fn new(puzzle_hash: Bytes32, amount: u64) -> Self {
         Self {
             puzzle_hash,
@@ -51,6 +65,12 @@ impl DropCoin {
     }
 }
 
+/// Parses the conditions of the vault's delegated spend, which must be a quoted list of conditions.
+///
+/// An odd `CREATE_COIN` is the recreated vault, and any other `CREATE_COIN` is a [`DropCoin`]. Each `SEND_MESSAGE`
+/// is parsed with [`parse_vault_message`], and a condition with the `SEND_MESSAGE` opcode that can't be parsed
+/// returns [`DriverError::InvalidVaultMessageFormat`], so no message can be missed. Puzzle announcement and
+/// concurrent spend assertions, `ASSERT_BEFORE_SECONDS_ABSOLUTE`, and `RESERVE_FEE` are recorded in the [`Facts`].
 pub fn parse_vault_delegated_spend(
     facts: &mut Facts,
     allocator: &mut Allocator,

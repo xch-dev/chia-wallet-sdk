@@ -12,7 +12,9 @@ pub struct MintNftAction {
     /// [`Id::Xch`] to mint the NFT from an XCH coin, or the id of a DID or NFT to mint it from the
     /// singleton's spend. Minting from a singleton doesn't assign the NFT to it.
     pub parent_id: Id,
+    /// The NFT's metadata.
     pub metadata: HashedPtr,
+    /// The puzzle hash of the puzzle that is allowed to update the metadata.
     pub metadata_updater_puzzle_hash: Bytes32,
     /// The puzzle hash that royalties are paid to when the NFT is traded.
     pub royalty_puzzle_hash: Bytes32,
@@ -23,6 +25,7 @@ pub struct MintNftAction {
 }
 
 impl MintNftAction {
+    /// Creates the action. See [`Action::mint_nft`](crate::Action::mint_nft).
     pub fn new(
         parent_id: Id,
         metadata: HashedPtr,

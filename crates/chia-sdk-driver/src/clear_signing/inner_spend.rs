@@ -12,35 +12,53 @@ use crate::{
     SingletonMemberLayer, Spend, parse_delegated_spend,
 };
 
+/// The custody of a coin's p2 puzzle, as parsed by [`parse_inner_spend`].
 #[derive(Debug, Clone)]
 pub struct InnerSpend {
+    /// The clawback the coin is locked in, and the path it's spent with, if the clawback was revealed.
     pub clawback: Option<ClawbackInfo>,
+    /// The p2 puzzle that controls the coin and the conditions it outputs, or `None` if it isn't recognized.
     pub custody: Option<CustodyInfo>,
 }
 
+/// A revealed clawback that a coin is locked in, and the path it's spent with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClawbackInfo {
+    /// The clawback.
     pub clawback: ClawbackV2,
+    /// The path of the clawback's merkle tree that the spend uses, as identified by its merkle proof.
     pub path: ClawbackPath,
 }
 
 impl ClawbackInfo {
+    /// Creates the clawback info.
     pub fn new(clawback: ClawbackV2, path: ClawbackPath) -> Self {
         Self { clawback, path }
     }
 }
 
+/// The path that a clawback is spent with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClawbackPath {
+    /// The sender claws the coin back, which is only possible before the clawback expires.
     Sender,
+    /// The receiver claims the coin, which is only possible after the clawback expires.
     Receiver,
+    /// Anyone sends the coin to the receiver after the clawback expires. The inner conditions aren't parsed.
     PushThrough,
 }
 
+/// The p2 puzzle that controls a coin, and the conditions it outputs when spent.
 #[derive(Debug, Clone)]
 pub enum CustodyInfo {
+    /// A [`P2Singleton`](crate::P2Singleton) of a vault, spent with a delegated puzzle of quoted conditions. The
+    /// vault must send the coin a message with the delegated puzzle's hash.
     P2Singleton(P2SingletonInfo),
+    /// A p2 puzzle that is itself a quoted list of conditions, so anyone can spend it, but only to output them.
     DelegatedConditions(Vec<Condition>),
+    /// A revealed [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton), spent with the singleton path and a
+    /// delegated puzzle of quoted conditions. The vault must send the coin a message with the delegated puzzle's
+    /// hash.
     P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo),
 }
 
@@ -53,6 +71,7 @@ impl CustodyInfo {
         }
     }
 
+    /// Whether the spend must receive a message from the vault, which commits to its conditions.
     pub fn receives_message(&self) -> bool {
         matches!(
             self,
@@ -61,24 +80,41 @@ impl CustodyInfo {
     }
 }
 
+/// A spend of a [`P2Singleton`](crate::P2Singleton) coin.
 #[derive(Debug, Clone)]
 pub struct P2SingletonInfo {
+    /// The launcher id of the vault that controls the coin.
     pub launcher_id: Bytes32,
+    /// The nonce of the p2 puzzle, which gives each vault more than one address.
     pub nonce: usize,
+    /// The conditions of the delegated puzzle.
     pub conditions: Vec<Condition>,
+    /// The puzzle hash of the p2 puzzle.
     pub p2_puzzle_hash: Bytes32,
 }
 
+/// A spend of a [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) coin with the singleton path.
 #[derive(Debug, Clone)]
 pub struct P2ConditionsOrSingletonInfo {
+    /// The launcher id of the vault that controls the coin.
     pub launcher_id: Bytes32,
+    /// The nonce of the p2 puzzle.
     pub nonce: usize,
+    /// The conditions of the delegated puzzle. These must include `ASSERT_MY_COIN_ID` for the spend to be verified.
     pub conditions: Vec<Condition>,
+    /// The puzzle hash of the p2 puzzle.
     pub p2_puzzle_hash: Bytes32,
 }
 
 type P2SingletonLayers = IndexWrapperLayer<usize, DelegatedPuzzleFeederLayer<SingletonMemberLayer>>;
 
+/// Parses the p2 puzzle and solution of a coin into its [`InnerSpend`].
+///
+/// [`P2Singleton`](crate::P2Singleton) puzzles are recognized directly. Clawbacks and
+/// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) puzzles are only recognized if they've been revealed
+/// in the [`Reveals`], and the custody inside a clawback is parsed as well (returning
+/// [`DriverError::NestedClawback`] for a clawback inside another). Any other puzzle that is a quoted list of
+/// conditions is [`CustodyInfo::DelegatedConditions`], and anything else has no custody.
 pub fn parse_inner_spend(
     reveals: &Reveals,
     allocator: &Allocator,

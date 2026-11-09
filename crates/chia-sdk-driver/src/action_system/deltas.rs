@@ -19,6 +19,7 @@ pub struct Deltas {
 }
 
 impl Deltas {
+    /// Creates an empty set of deltas.
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,6 +40,7 @@ impl Deltas {
         self.items.keys()
     }
 
+    /// The delta for the id, or `None` if no action refers to it.
     pub fn get(&self, id: &Id) -> Option<&Delta> {
         self.items.get(id)
     }
@@ -77,6 +79,7 @@ pub struct Delta {
 }
 
 impl Delta {
+    /// Creates a delta with the given input and output amounts.
     pub fn new(input: u64, output: u64) -> Self {
         Self {
             input: input.into(),

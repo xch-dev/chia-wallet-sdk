@@ -24,10 +24,16 @@ use crate::{
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Spends<S = Unfinished> {
+    /// The spends of XCH coins.
     pub xch: FungibleSpends<Coin>,
+    /// The spends of each CAT, keyed by [`Id::Existing`] asset id or by the [`Id::New`] of the
+    /// action that issued it.
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
+    /// The spends of each DID, keyed by launcher id or by the action that created it.
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
+    /// The spends of each NFT, keyed by launcher id or by the action that minted it.
     pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
+    /// The spends of each option contract, keyed by launcher id or by the action that minted it.
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
     /// The p2 puzzle hash of coins that are created and spent within the transaction, for example
     /// to emit conditions when no other spend can. The caller must be able to spend it.
@@ -97,11 +103,14 @@ pub struct Unfinished;
 pub struct Finished;
 
 impl Spends<Unfinished> {
-    /// Uses the change puzzle hash for intermediate coins as well.
+    /// Creates empty spends that send change (and unsent singletons) to the puzzle hash, and also
+    /// use it for intermediate coins.
     pub fn new(change_puzzle_hash: Bytes32) -> Self {
         Self::with_separate_change_puzzle_hash(change_puzzle_hash, change_puzzle_hash)
     }
 
+    /// Creates the spends with a separate p2 puzzle hash for intermediate coins, which are created
+    /// and spent within the transaction. The caller must be able to spend both puzzle hashes.
     pub fn with_separate_change_puzzle_hash(
         intermediate_puzzle_hash: Bytes32,
         change_puzzle_hash: Bytes32,
@@ -763,6 +772,8 @@ fn try_add_conditions(kind: &mut SpendKind, conditions: &mut Conditions) -> bool
 
 /// An asset that can be added to [`Spends`] with [`Spends::add`].
 pub trait AddAsset {
+    /// Adds the coin to the spends, to be spent with its p2 puzzle. Adding a singleton that is
+    /// already in the spends replaces it.
     fn add(self, spends: &mut Spends);
 }
 

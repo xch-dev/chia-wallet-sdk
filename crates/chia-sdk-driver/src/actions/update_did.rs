@@ -6,14 +6,18 @@ use crate::{Delta, Deltas, DriverError, HashedPtr, Id, SpendAction, SpendContext
 /// unchanged.
 #[derive(Debug, Clone, Copy)]
 pub struct UpdateDidAction {
+    /// The DID to update.
     pub id: Id,
     /// The new recovery list hash, where `Some(None)` removes it.
     pub new_recovery_list_hash: Option<Option<Bytes32>>,
+    /// The new number of verifications required for recovery.
     pub new_num_verifications_required: Option<u64>,
+    /// The new metadata.
     pub new_metadata: Option<HashedPtr>,
 }
 
 impl UpdateDidAction {
+    /// Creates the action. See [`Action::update_did`](crate::Action::update_did).
     pub fn new(
         id: Id,
         new_recovery_list_hash: Option<Option<Bytes32>>,

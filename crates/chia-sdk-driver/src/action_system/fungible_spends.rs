@@ -27,6 +27,7 @@ impl<A> FungibleSpends<A>
 where
     A: FungibleAsset,
 {
+    /// Creates an empty set of spends.
     pub fn new() -> Self {
         Self::default()
     }
@@ -443,6 +444,7 @@ impl<A> Default for FungibleSpends<A> {
 /// The spend of a single coin of a fungible asset.
 #[derive(Debug, Clone)]
 pub struct FungibleSpend<T> {
+    /// The coin being spent.
     pub asset: T,
     /// What the coin's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,

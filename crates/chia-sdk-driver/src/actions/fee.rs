@@ -3,6 +3,7 @@ use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 /// Created by [`Action::fee`](crate::Action::fee).
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
+    /// The fee amount, which is removed from the XCH delta.
     pub amount: u64,
     /// Whether the fee is asserted with a `RESERVE_FEE` condition. Otherwise, the amount is still
     /// left over as a fee, but isn't asserted.
@@ -10,6 +11,7 @@ pub struct FeeAction {
 }
 
 impl FeeAction {
+    /// Creates a reserved fee of the amount.
     pub fn new(amount: u64) -> Self {
         Self {
             amount,

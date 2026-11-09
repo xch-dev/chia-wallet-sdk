@@ -5,6 +5,7 @@ use crate::{Delta, Deltas, DriverError, Id, Spend, SpendAction, SpendContext, Sp
 /// Created by [`Action::run_tail`](crate::Action::run_tail).
 #[derive(Debug, Clone, Copy)]
 pub struct RunTailAction {
+    /// The CAT whose TAIL is run, which must be in the [`Spends`].
     pub id: Id,
     /// The spend of the CAT's TAIL, which must allow the change in supply.
     pub tail_spend: Spend,
@@ -13,6 +14,7 @@ pub struct RunTailAction {
 }
 
 impl RunTailAction {
+    /// Creates the action. See [`Action::run_tail`](crate::Action::run_tail).
     pub fn new(id: Id, tail_spend: Spend, supply_delta: Delta) -> Self {
         Self {
             id,

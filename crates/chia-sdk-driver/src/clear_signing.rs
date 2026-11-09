@@ -1,3 +1,18 @@
+//! Clear signing for vaults: parsing a vault spend into a summary that a person can review before signing.
+//!
+//! A vault's custody signs a delegated puzzle hash, which on its own says nothing about what the transaction does.
+//! [`parse_vault_transaction`] takes the delegated spend, the vault's launcher id, and the untrusted [`Reveals`] of
+//! the rest of the transaction, and returns a [`VaultTransaction`] that only contains facts that are guaranteed by
+//! the signature (if the transaction is valid at all):
+//!
+//! - The vault's own output ([`VaultOutput`]) and [`DropCoin`]s.
+//! - The [`VerifiedSpend`]s that the vault authorizes with messages, and the coins they create ([`ParsedChild`]).
+//! - CAT [`Issuance`]s, asserted settlement payments ([`AssertedPayment`]), and future offers ([`LinkedOffer`]).
+//! - The reserved fee, and an [`AssetFlow`] per asset that shows how much value is unaccounted for.
+//!
+//! Anything that can't be verified is left out, and anything linked to the vault that can't be verified is an error.
+//! See [`parse_vault_transaction`] for exactly what is and isn't guaranteed.
+
 mod children;
 mod delegated_spend;
 mod facts;

@@ -15,6 +15,7 @@ pub trait Asset {
     /// Restrictions on the coins that a spend of this asset can create.
     fn constraints(&self) -> OutputConstraints;
 
+    /// The id of the coin.
     fn coin_id(&self) -> Bytes32 {
         self.coin().coin_id()
     }
@@ -24,6 +25,7 @@ pub trait Asset {
         self.coin().puzzle_hash
     }
 
+    /// The amount of the coin.
     fn amount(&self) -> u64 {
         self.coin().amount
     }

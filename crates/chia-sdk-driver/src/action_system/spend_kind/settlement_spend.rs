@@ -15,6 +15,7 @@ pub struct SettlementSpend {
 }
 
 impl SettlementSpend {
+    /// Creates a spend with no notarized payments.
     pub fn new() -> Self {
         Self::default()
     }

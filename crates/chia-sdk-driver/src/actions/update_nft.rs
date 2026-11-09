@@ -21,6 +21,7 @@ pub struct TransferNftById {
 }
 
 impl TransferNftById {
+    /// Creates the transfer.
     pub fn new(owner_id: Option<Id>, trade_prices: Vec<TradePrice>) -> Self {
         Self {
             owner_id,
@@ -32,14 +33,17 @@ impl TransferNftById {
 /// Created by [`Action::update_nft`](crate::Action::update_nft).
 #[derive(Debug, Clone)]
 pub struct UpdateNftAction {
+    /// The NFT to update.
     pub id: Id,
     /// Spends of the metadata updater puzzle, which are run in order. Each one requires a separate
     /// spend of the NFT.
     pub metadata_update_spends: Vec<Spend>,
+    /// Assigns the NFT to a DID or NFT, or removes its owner.
     pub transfer: Option<TransferNftById>,
 }
 
 impl UpdateNftAction {
+    /// Creates the action. See [`Action::update_nft`](crate::Action::update_nft).
     pub fn new(
         id: Id,
         metadata_update_spends: Vec<Spend>,

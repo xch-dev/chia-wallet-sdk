@@ -23,16 +23,23 @@ pub struct RevealedSigningVault {
     pub coin: Option<Coin>,
 }
 
+/// A p2 puzzle that can't be identified from its puzzle hash alone, revealed so that it can be parsed.
 #[derive(Debug, Clone, Copy)]
 pub enum RevealedP2Puzzle {
+    /// A clawback, revealed with [`Reveals::reveal_clawback`].
     Clawback(ClawbackV2),
+    /// A p2 conditions or singleton puzzle, revealed with [`Reveals::reveal_p2_conditions_or_singleton`].
     P2ConditionsOrSingleton(P2ConditionsOrSingleton),
 }
 
+/// A revealed coin spend, whose puzzle has been checked to match the coin's puzzle hash.
 #[derive(Debug, Clone, Copy)]
 pub struct RevealedCoinSpend {
+    /// The coin being spent.
     pub coin: Coin,
+    /// The puzzle reveal.
     pub puzzle: Puzzle,
+    /// The solution.
     pub solution: NodePtr,
 }
 
@@ -76,6 +83,14 @@ pub struct RevealedControlledVault {
     pub recovery: Option<ControlledVaultRecovery>,
 }
 
+/// Information about a transaction that is revealed to [`parse_vault_transaction`](crate::parse_vault_transaction).
+///
+/// This typically comes from whoever built the transaction, so it isn't trusted. Coin spends are only accepted
+/// if their puzzle matches the coin's puzzle hash, and revealed p2 puzzles are looked up by their tree hash, so
+/// they can only be used for coins whose puzzle hash they actually match. Revealing too little makes parsing fail
+/// or leaves things out of the summary, but can't make it report something false.
+///
+/// By default, vault nonce 0 is revealed, so the vault's first p2 puzzle hash is known.
 #[derive(Debug, Clone)]
 pub struct Reveals {
     coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
@@ -108,6 +123,8 @@ impl Default for Reveals {
 }
 
 impl Reveals {
+    /// Reveals every coin spend with [`Reveals::reveal_coin_spend`], for example the coin spends of a spend
+    /// bundle.
     pub fn from_coin_spends(
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
@@ -121,6 +138,8 @@ impl Reveals {
         Ok(reveals)
     }
 
+    /// Reveals a coin spend, or returns [`DriverError::WrongPuzzleHash`] if its puzzle doesn't match the coin.
+    ///
     /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction, or
     /// from a vault that it controls, must be revealed. Controlled vaults themselves are revealed with
     /// [`reveal_controlled_vault`](Self::reveal_controlled_vault) instead. The coin spend is used to determine both the conditions that the spends output, and
@@ -132,7 +151,9 @@ impl Reveals {
     ///
     /// This also records requested payments (i.e., coin spends with a parent coin id of 32 zeros), which are
     /// used to determine what would be paid to us if the announcement from the settlement puzzle were to be
-    /// asserted. Note that requested payments are ignored if they aren't asserted.
+    /// asserted. Note that requested payments are ignored if they aren't asserted. These must be settlement
+    /// payments of XCH, a CAT, an NFT, or an option contract, or [`DriverError::UnsupportedRequestedAsset`] is
+    /// returned.
     pub fn reveal_coin_spend(
         &mut self,
         allocator: &mut Allocator,
@@ -277,22 +298,27 @@ impl Reveals {
         Ok(())
     }
 
+    /// The notarized payments of every revealed settlement spend, whether or not they're asserted.
     pub fn requested_payments(&self) -> &RequestedPayments {
         &self.requested_payments
     }
 
+    /// The CAT, NFT, and option details learned from the revealed settlement spends.
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
     }
 
+    /// The revealed coin spends, in the order they were revealed. Settlement payment reveals aren't included.
     pub fn coin_spends(&self) -> impl Iterator<Item = &RevealedCoinSpend> {
         self.coin_spends.values()
     }
 
+    /// The revealed spend of the coin, if any.
     pub fn coin_spend(&self, coin_id: Bytes32) -> Option<&RevealedCoinSpend> {
         self.coin_spends.get(&coin_id)
     }
 
+    /// The revealed p2 puzzle with the puzzle hash, if any.
     pub fn p2_puzzle(&self, puzzle_hash: TreeHash) -> Option<&RevealedP2Puzzle> {
         self.p2_puzzles.get(&puzzle_hash)
     }
@@ -305,6 +331,7 @@ impl Reveals {
         self.signing_vault
     }
 
+    /// The revealed vault nonces, in ascending order.
     pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {
         self.vault_nonces.iter().copied()
     }

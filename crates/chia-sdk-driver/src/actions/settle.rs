@@ -8,12 +8,14 @@ use crate::{Delta, Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind
 /// [`Action::settle_royalty`](crate::Action::settle_royalty).
 #[derive(Debug, Clone)]
 pub struct SettleAction {
+    /// The asset to pay from a settlement coin.
     pub id: Id,
     /// The payments to make from a settlement coin, and the nonce they're notarized with.
     pub notarized_payment: NotarizedPayment,
 }
 
 impl SettleAction {
+    /// Creates the action. See [`Action::settle`](crate::Action::settle).
     pub fn new(id: Id, notarized_payment: NotarizedPayment) -> Self {
         Self {
             id,
