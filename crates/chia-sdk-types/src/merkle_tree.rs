@@ -17,18 +17,35 @@ enum BinaryTree<T> {
 /// A merkle tree implementation that can be used to prove the existence of a set of leaves.
 /// The proof format is compatible with standard Chia puzzles, such as `p2_1_of_n.clsp`.
 ///
+/// Leaves are hashed as `sha256(1 || leaf)` and branches as `sha256(2 || left || right)`, which
+/// matches how CLVM tree hashes are computed. The list of leaves is split in half recursively
+/// (with the extra leaf going to the left when the count is odd), so the tree is balanced.
+///
+/// Puzzles such as [`P2OneOfManyArgs`](crate::puzzles::P2OneOfManyArgs) and
+/// [`OneOfNArgs`](crate::puzzles::OneOfNArgs) curry in the [`root`](MerkleTree::root), and the
+/// spender reveals one leaf (usually a puzzle hash) along with its [`MerkleProof`].
+///
 /// ## Example
 ///
 /// ```rust
 /// # use chia_protocol::Bytes32;
-/// # use chia_sdk_types::MerkleTree;
+/// # use chia_sdk_types::{MerkleProof, MerkleTree};
 /// let leaves = vec![
 ///     Bytes32::new([1; 32]),
 ///     Bytes32::new([2; 32]),
 /// ];
 /// let merkle_tree = MerkleTree::new(&leaves);
 /// let root = merkle_tree.root();
-/// let proof = merkle_tree.proof(leaves[0]);
+///
+/// // The second leaf is on the right, so the first bit of the path is set,
+/// // and the proof contains the hash of the first leaf.
+/// let proof = merkle_tree.proof(leaves[1]).expect("the leaf is in the tree");
+/// assert_eq!(proof.path, 0b1);
+/// assert_eq!(proof.proof.len(), 1);
+///
+/// // Leaves that aren't in the tree don't have a proof.
+/// assert_eq!(merkle_tree.proof(Bytes32::new([3; 32])), None);
+/// # let _ = root;
 /// ```
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
@@ -38,15 +55,22 @@ pub struct MerkleTree {
 
 /// A proof for a leaf in a merkle tree. This is a CLVM type that can be
 /// passed in the solution of puzzles.
+///
+/// It's encoded as `(path . proof)`, which is the format expected by `simplify_merkle_proof` in
+/// `merkle_utils.clib`.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MerkleProof {
+    /// A bitfield of which side the leaf's ancestors are on, starting from the leaf. Bit `i` is
+    /// set if the node `i` levels above the leaf is a right child.
     pub path: u32,
+    /// The hashes of the sibling nodes needed to recompute the root, starting from the leaf.
     #[clvm(rest)]
     pub proof: Vec<Bytes32>,
 }
 
 impl MerkleProof {
+    /// Creates a new [`MerkleProof`] from a path and list of sibling hashes.
     pub fn new(path: u32, proof: Vec<Bytes32>) -> Self {
         Self { path, proof }
     }
@@ -56,6 +80,9 @@ impl MerkleTree {
     /// Create a new merkle tree from a list of leaves. The tree will be
     /// built automatically up front, so it doesn't need to be recomputed
     /// when used later.
+    ///
+    /// The order of the leaves affects the root. An empty list of leaves has a root of all zeros.
+    /// If a leaf appears more than once, only the proof for its last occurrence is kept.
     pub fn new(leaves: &[Bytes32]) -> Self {
         if leaves.is_empty() {
             return Self {
@@ -74,7 +101,7 @@ impl MerkleTree {
         self.root
     }
 
-    /// Get the leaves of the merkle tree.
+    /// Get the leaves of the merkle tree, without duplicates and in no particular order.
     pub fn leaves(&self) -> Vec<Bytes32> {
         self.proofs.keys().copied().collect()
     }

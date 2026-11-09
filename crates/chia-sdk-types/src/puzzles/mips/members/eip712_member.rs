@@ -12,18 +12,50 @@ use crate::{Mod, puzzles::Eip712PrefixAndDomainSeparator};
 /// key that signs the canonical CHIP-0037 EIP-712 digest of
 /// `ChiaCoinSpend(bytes32 coin_id, bytes32 delegated_puzzle_hash)`.
 ///
+/// The puzzle verifies the signature on `signed_hash`, and checks that `signed_hash` is the
+/// Keccak-256 hash of `prefix_and_domain_separator` followed by the Keccak-256 hash of
+/// `type_hash`, the coin id, and the delegated puzzle hash. It outputs `ASSERT_MY_COIN_ID`, so the
+/// signature is bound to the coin being spent. Use
+/// [`eip712_hash_to_sign`](crate::puzzles::eip712_hash_to_sign) to compute the digest.
+///
 /// Composes with the existing `m_of_n`, `n_of_n`, and `one_of_n` quorum
 /// puzzles, restrictions, and delegated-puzzle wrappers in the same way as
 /// [`K1Member`](super::K1Member) and [`R1Member`](super::R1Member).
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::{
+/// #     Mod, MAINNET_CONSTANTS,
+/// #     puzzles::{Eip712Member, eip712_prefix_and_domain_separator, eip712_type_hash},
+/// # };
+/// # use chia_secp::K1SecretKey;
+/// let secret_key = K1SecretKey::from_bytes(&[1; 32])?;
+///
+/// let member = Eip712Member::new(
+///     eip712_prefix_and_domain_separator(MAINNET_CONSTANTS.genesis_challenge),
+///     eip712_type_hash(),
+///     secret_key.public_key(),
+/// );
+/// let member_hash = member.curry_tree_hash();
+/// # let _ = member_hash;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct Eip712Member {
+    /// The EIP-712 prefix and domain separator for the network. See
+    /// [`eip712_prefix_and_domain_separator`](crate::puzzles::eip712_prefix_and_domain_separator).
     pub prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
+    /// The EIP-712 type hash. See [`eip712_type_hash`](crate::puzzles::eip712_type_hash).
     pub type_hash: Bytes32,
+    /// The secp256k1 public key of the Ethereum account that must sign.
     pub public_key: K1PublicKey,
 }
 
 impl Eip712Member {
+    /// Creates a new [`Eip712Member`] from the domain, type hash, and public key.
     pub fn new(
         prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
         type_hash: Bytes32,
@@ -49,18 +81,23 @@ impl Mod for Eip712Member {
 
 /// Member-specific solution carried by an [`Eip712Member`] spend.
 ///
-/// `Delegated_Puzzle_Hash` is supplied by the parent M-of-N layer as a truth
+/// `Delegated_Puzzle_Hash` is supplied by the layer above as a truth
 /// rather than via this struct, matching the convention used by every other
 /// MIPS member type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct Eip712MemberSolution {
+    /// The coin id of the coin being spent.
     pub my_id: Bytes32,
+    /// The EIP-712 digest that was signed. See
+    /// [`eip712_hash_to_sign`](crate::puzzles::eip712_hash_to_sign).
     pub signed_hash: Bytes32,
+    /// The secp256k1 signature on `signed_hash`.
     pub signature: K1Signature,
 }
 
 impl Eip712MemberSolution {
+    /// Creates a new [`Eip712MemberSolution`] from the coin id, signed digest, and signature.
     pub fn new(my_id: Bytes32, signed_hash: Bytes32, signature: K1Signature) -> Self {
         Self {
             my_id,
@@ -72,7 +109,8 @@ impl Eip712MemberSolution {
 
 /// CLVM bytecode for the CHIP-0043 `eip712_member` puzzle.
 ///
-/// Source: <https://github.com/MattHintz/solslot-protocol/blob/108ac023d836cf0198775eebd377880d0f8d6aef/solslot_puzzles/eip712_member_v2.clsp>
+/// Source:
+/// <https://github.com/MattHintz/solslot-protocol/blob/108ac023d836cf0198775eebd377880d0f8d6aef/solslot_puzzles/eip712_member_v2.clsp>
 ///
 /// Adapted from the CHIP-0037 `p2_eip712_message` puzzle in Yakuhito's Hermes:
 /// <https://github.com/Yakuhito/hermes/blob/0f4779721ceb395129c3577eb3b4e0b3da708cfc/clsp/p2_eip712_message.clsp>
@@ -87,6 +125,7 @@ pub const EIP712_MEMBER: [u8; 171] = hex!(
     "
 );
 
+/// The tree hash of [`EIP712_MEMBER`].
 pub const EIP712_MEMBER_HASH: TreeHash = TreeHash::new(hex!(
     "aaf5d0676da9c06b02ae94acc7f226c6b583205d42f5b350bec43df7fcd09ea7"
 ));

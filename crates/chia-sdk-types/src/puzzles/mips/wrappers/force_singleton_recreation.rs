@@ -6,6 +6,8 @@ use hex_literal::hex;
 use crate::Mod;
 
 // TODO: Import these from `chia-puzzles` after they are published.
+/// The serialized CLVM bytecode of the MIPS `force_singleton_recreation` restriction. See
+/// [`ForceSingletonRecreationMod`].
 pub const FORCE_SINGLETON_RECREATION: [u8; 243] = hex!(
     "
     ff02ffff01ff02ff1effff04ff02ffff04ffff02ff16ffff04ff02ffff04ff05
@@ -18,9 +20,20 @@ pub const FORCE_SINGLETON_RECREATION: [u8; 243] = hex!(
     80ffff010bffff01ff088080ff0180ff018080
     "
 );
+/// The tree hash of [`FORCE_SINGLETON_RECREATION`].
 pub const FORCE_SINGLETON_RECREATION_HASH: [u8; 32] =
     hex!("63e04374ced7e7f9ab0f46e9bad1b4e82bf3edf671ea355cd60113c7a947ee1e");
 
+/// The MIPS `force_singleton_recreation` restriction, which requires a singleton to be recreated
+/// with the same amount.
+///
+/// It requires an odd `CREATE_COIN` whose amount matches the amount in an `ASSERT_MY_AMOUNT`
+/// condition, or `1` if there isn't one. This prevents the singleton from being melted. It has no
+/// curried arguments.
+///
+/// Like the other restrictions that take a list of conditions, it can be used as a member
+/// validator in [`RestrictionsArgs`](crate::puzzles::RestrictionsArgs) or as a delegated puzzle
+/// wrapper with [`AddDelegatedPuzzleWrapper`](crate::puzzles::AddDelegatedPuzzleWrapper).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ForceSingletonRecreationMod;
 

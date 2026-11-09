@@ -10,17 +10,22 @@ use crate::Mod;
 /// Curried arguments for the CHIP-0037 controller puzzle.
 ///
 /// A coin locked by this puzzle can only be spent when a coin whose puzzle
-/// hash equals `controller_puzzle_hash` sends a `RECEIVE_MESSAGE` whose body
-/// is the tree hash of the chosen `delegated_puzzle`. This collapses many
+/// hash equals `controller_puzzle_hash` sends it a message whose body is the
+/// tree hash of the chosen `delegated_puzzle`. The puzzle outputs a
+/// `RECEIVE_MESSAGE` condition with mode `0b010_111` (the sender is
+/// identified by its puzzle hash and the receiver by its coin id), followed
+/// by the conditions of the delegated puzzle. This collapses many
 /// coin-spending signatures into one (e.g. one EIP-712 prompt unlocks many
 /// downstream coins).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct P2ControllerPuzzleArgs {
+    /// The puzzle hash of the coin that must send the message.
     pub controller_puzzle_hash: Bytes32,
 }
 
 impl P2ControllerPuzzleArgs {
+    /// Creates new [`P2ControllerPuzzleArgs`] from the controller puzzle hash.
     pub fn new(controller_puzzle_hash: Bytes32) -> Self {
         Self {
             controller_puzzle_hash,
@@ -38,14 +43,18 @@ impl Mod for P2ControllerPuzzleArgs {
     }
 }
 
+/// The solution for the CHIP-0037 controller puzzle. See [`P2ControllerPuzzleArgs`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct P2ControllerPuzzleSolution<P, S> {
+    /// The delegated puzzle, whose tree hash must be the message sent by the controller.
     pub delegated_puzzle: P,
+    /// The solution to run the delegated puzzle with.
     pub delegated_solution: S,
 }
 
 impl<P, S> P2ControllerPuzzleSolution<P, S> {
+    /// Creates a new [`P2ControllerPuzzleSolution`] from the delegated puzzle and its solution.
     pub fn new(delegated_puzzle: P, delegated_solution: S) -> Self {
         Self {
             delegated_puzzle,
@@ -56,7 +65,8 @@ impl<P, S> P2ControllerPuzzleSolution<P, S> {
 
 /// CLVM bytecode for the CHIP-0037 `p2_controller_puzzle` puzzle.
 ///
-/// Source: <https://github.com/Chia-Network/chips/blob/main/assets/chip-0037/clsp/p2_controller_puzzle.clsp>
+/// Source:
+/// <https://github.com/Chia-Network/chips/blob/main/assets/chip-0037/clsp/p2_controller_puzzle.clsp>
 pub const P2_CONTROLLER_PUZZLE_PUZZLE: [u8; 151] = hex!(
     "
     ff02ffff01ff04ffff04ff04ffff04ffff0117ffff04ffff02ff06ffff04ff02
@@ -67,6 +77,7 @@ pub const P2_CONTROLLER_PUZZLE_PUZZLE: [u8; 151] = hex!(
     "
 );
 
+/// The tree hash of [`P2_CONTROLLER_PUZZLE_PUZZLE`].
 pub const P2_CONTROLLER_PUZZLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "d5415713619e318bfa7820e06e2b163beef32d82294a5a7fcf9c3c69b0949c88"
 ));

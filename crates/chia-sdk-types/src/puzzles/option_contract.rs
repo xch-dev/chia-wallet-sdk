@@ -7,16 +7,33 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Curried arguments for the option contract puzzle, which is the inner puzzle of an option
+/// singleton.
+///
+/// An option contract gives its owner the right to exercise an option on an underlying coin. The
+/// puzzle runs the inner puzzle (which decides who owns the option) and wraps every
+/// `CREATE_COIN` it outputs in another option contract layer with the same arguments.
+///
+/// Exercising the option means melting the singleton (a `CREATE_COIN` with the magic amount
+/// `-113`) and sending a message with mode `0b010_111` to the underlying coin, with
+/// `underlying_delegated_puzzle_hash` as the message. The puzzle fails if only one of the two
+/// is done.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct OptionContractArgs<I> {
+    /// The mod hash of the option contract puzzle, which is [`OPTION_CONTRACT_HASH`].
     pub mod_hash: Bytes32,
+    /// The coin id of the underlying coin that the option is exercised on.
     pub underlying_coin_id: Bytes32,
+    /// The hash of the delegated puzzle the underlying coin is spent with when the option is
+    /// exercised.
     pub underlying_delegated_puzzle_hash: Bytes32,
+    /// The inner puzzle, which controls the option.
     pub inner_puzzle: I,
 }
 
 impl<I> OptionContractArgs<I> {
+    /// Creates new [`OptionContractArgs`], using [`OPTION_CONTRACT_HASH`] as the mod hash.
     pub fn new(
         underlying_coin_id: Bytes32,
         underlying_delegated_puzzle_hash: Bytes32,
@@ -31,13 +48,16 @@ impl<I> OptionContractArgs<I> {
     }
 }
 
+/// The solution for the option contract puzzle. See [`OptionContractArgs`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct OptionContractSolution<I> {
+    /// The solution for the inner puzzle.
     pub inner_solution: I,
 }
 
 impl<I> OptionContractSolution<I> {
+    /// Creates a new [`OptionContractSolution`] from the inner solution.
     pub fn new(inner_solution: I) -> Self {
         Self { inner_solution }
     }
@@ -53,6 +73,7 @@ impl<I> Mod for OptionContractArgs<I> {
     }
 }
 
+/// The serialized CLVM bytecode of the option contract puzzle. See [`OptionContractArgs`].
 pub const OPTION_CONTRACT: [u8; 862] = hex!(
     "
     ff02ffff01ff02ff1effff04ff02ffff04ff05ffff04ff0bffff04ff17ffff04
@@ -85,6 +106,7 @@ pub const OPTION_CONTRACT: [u8; 862] = hex!(
     "
 );
 
+/// The tree hash of [`OPTION_CONTRACT`].
 pub const OPTION_CONTRACT_HASH: TreeHash = TreeHash::new(hex!(
     "5a084d1786fc0fe43c30bc5fc0233cc1a791cfde3a25580a9ca4883878f0ba63"
 ));

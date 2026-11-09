@@ -16,16 +16,28 @@ use crate::Mod;
 /// the puzzle when reconstructing the EIP-712 digest.
 pub type Eip712PrefixAndDomainSeparator = BytesImpl<34>;
 
-/// Curried arguments for the EIP-712 message puzzle (CHIP-0037).
+/// Curried arguments for the EIP-712 message puzzle (CHIP-0037), which lets an Ethereum wallet
+/// spend a coin by signing an EIP-712 message.
+///
+/// The puzzle verifies the secp256k1 signature on `signed_hash`, and checks that `signed_hash` is
+/// the Keccak-256 hash of `prefix_and_domain_separator` followed by the Keccak-256 hash of
+/// `type_hash`, the coin id, and the tree hash of the delegated puzzle. It outputs
+/// `ASSERT_MY_COIN_ID` followed by the conditions of the delegated puzzle. Use
+/// [`eip712_hash_to_sign`](crate::puzzles::eip712_hash_to_sign) to compute the digest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct P2Eip712MessageArgs {
+    /// The EIP-712 prefix and domain separator for the network. See
+    /// [`eip712_prefix_and_domain_separator`](crate::puzzles::eip712_prefix_and_domain_separator).
     pub prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
+    /// The EIP-712 type hash. See [`eip712_type_hash`](crate::puzzles::eip712_type_hash).
     pub type_hash: Bytes32,
+    /// The secp256k1 public key of the Ethereum account that must sign.
     pub public_key: K1PublicKey,
 }
 
 impl P2Eip712MessageArgs {
+    /// Creates new [`P2Eip712MessageArgs`] from the domain, type hash, and public key.
     pub fn new(
         prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
         type_hash: Bytes32,
@@ -57,14 +69,20 @@ impl Mod for P2Eip712MessageArgs {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct P2Eip712MessageSolution<P, S> {
+    /// The coin id of the coin being spent.
     pub my_id: Bytes32,
+    /// The EIP-712 digest that was signed.
     pub signed_hash: Bytes32,
+    /// The secp256k1 signature on `signed_hash`.
     pub signature: K1Signature,
+    /// The delegated puzzle, whose conditions are output.
     pub delegated_puzzle: P,
+    /// The solution to run the delegated puzzle with.
     pub delegated_solution: S,
 }
 
 impl<P, S> P2Eip712MessageSolution<P, S> {
+    /// Creates a new [`P2Eip712MessageSolution`] from its fields.
     pub fn new(
         my_id: Bytes32,
         signed_hash: Bytes32,
@@ -84,7 +102,8 @@ impl<P, S> P2Eip712MessageSolution<P, S> {
 
 /// CLVM bytecode for the CHIP-0037 `p2_eip712_message` puzzle.
 ///
-/// Source: <https://github.com/Chia-Network/chips/blob/main/assets/chip-0037/clsp/p2_eip712_message.clsp>
+/// Source:
+/// <https://github.com/Chia-Network/chips/blob/main/assets/chip-0037/clsp/p2_eip712_message.clsp>
 pub const P2_EIP712_MESSAGE_PUZZLE: [u8; 276] = hex!(
     "
     ff02ffff01ff02ffff03ffff22ffff20ffff8413d61f00ff17ff5fff81bf8080
@@ -99,6 +118,7 @@ pub const P2_EIP712_MESSAGE_PUZZLE: [u8; 276] = hex!(
     "
 );
 
+/// The tree hash of [`P2_EIP712_MESSAGE_PUZZLE`].
 pub const P2_EIP712_MESSAGE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "aacce7b99db5b1e9eb16d676fa5f1a2e469ef589f29c4ab0010bac338a4df085"
 ));

@@ -1,3 +1,38 @@
+//! Curried arguments, solutions, and bytecode for the puzzles used by the SDK.
+//!
+//! Types ending in `Args` are the curried arguments of a puzzle and implement [`Mod`](crate::Mod),
+//! so you can compute the puzzle hash with [`Mod::curry_tree_hash`](crate::Mod::curry_tree_hash).
+//! Types ending in `Solution` are the solutions passed when spending the puzzle. Both convert to
+//! and from CLVM with [`ToClvm`](clvm_traits::ToClvm) and [`FromClvm`](clvm_traits::FromClvm).
+//!
+//! Puzzles that don't take curried arguments are represented by marker structs (such as
+//! [`SettlementPayment`] and [`SingletonLauncher`]) that only implement [`Mod`](crate::Mod).
+//! The bytecode and hash of puzzles that aren't in the [`chia_puzzles`] crate are exported as
+//! constants, such as [`P2_CURRIED_PUZZLE`] and [`P2_CURRIED_PUZZLE_HASH`].
+//!
+//! This includes the building blocks of MIPS (Managed Inner Puzzle Spec, CHIP-0043) vaults:
+//! the `1_of_n`, `m_of_n`, and `n_of_n` puzzles that combine members, member puzzles for each
+//! kind of key (such as [`BlsMember`] and [`K1Member`]), and restrictions that limit what
+//! a member can do (such as [`Timelock`]).
+//!
+//! ## Example
+//!
+//! ```rust
+//! # use chia_protocol::Bytes32;
+//! # use chia_sdk_types::{
+//! #     Mod,
+//! #     puzzles::{P2CurriedArgs, P2CurriedSolution, P2_CURRIED_PUZZLE_HASH},
+//! # };
+//! # use clvm_utils::TreeHash;
+//! // Lock a coin so that it can only be spent by revealing a puzzle with a specific hash.
+//! let args = P2CurriedArgs::new(Bytes32::new([1; 32]));
+//! let puzzle_hash = args.curry_tree_hash();
+//!
+//! assert_eq!(P2CurriedArgs::mod_hash(), P2_CURRIED_PUZZLE_HASH);
+//! assert_ne!(puzzle_hash, P2_CURRIED_PUZZLE_HASH);
+//! # let _ = P2CurriedSolution::new(TreeHash::new([2; 32]), ());
+//! ```
+
 mod augmented_condition;
 mod cat_makers;
 mod everything_with_singleton;
@@ -78,6 +113,8 @@ pub use action_layer::*;
 
 #[cfg(test)]
 mod tests {
+    /// Asserts that the tree hash of the serialized puzzle `$puzzle` equals `$puzzle_hash`.
+    /// Must be used in a function that returns a [`Result`].
     #[macro_export]
     macro_rules! assert_puzzle_hash {
         ($puzzle:ident => $puzzle_hash:ident) => {

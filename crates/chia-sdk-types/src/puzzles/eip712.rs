@@ -43,6 +43,28 @@ pub fn eip712_type_hash() -> Bytes32 {
 ///
 /// `digest = keccak256(prefix_and_domain || keccak256(type_hash || coin_id ||
 /// delegated_puzzle_hash))`
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::{
+/// #     MAINNET_CONSTANTS,
+/// #     puzzles::{eip712_hash_to_sign, eip712_prefix_and_domain_separator},
+/// # };
+/// # use chia_secp::K1SecretKey;
+/// let prefix_and_domain = eip712_prefix_and_domain_separator(MAINNET_CONSTANTS.genesis_challenge);
+/// let coin_id = Bytes32::new([1; 32]);
+/// let delegated_puzzle_hash = Bytes32::new([2; 32]);
+///
+/// let digest = eip712_hash_to_sign(&prefix_and_domain, coin_id, delegated_puzzle_hash);
+///
+/// // The Ethereum wallet signs the digest directly, without hashing it again.
+/// let secret_key = K1SecretKey::from_bytes(&[3; 32])?;
+/// let signature = secret_key.sign_prehashed(&digest.to_bytes())?;
+/// assert!(secret_key.public_key().verify_prehashed(&digest.to_bytes(), &signature));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn eip712_hash_to_sign(
     prefix_and_domain_separator: &Eip712PrefixAndDomainSeparator,
     coin_id: Bytes32,

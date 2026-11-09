@@ -6,6 +6,32 @@ use rue_lir::DebugDialect;
 
 use crate::MAINNET_CONSTANTS;
 
+/// Runs a puzzle with a solution and returns the output, which is usually a list of conditions.
+///
+/// This uses the cost limit of a mainnet block ([`max_block_cost_clvm`]) and doesn't enable
+/// mempool mode, so it's lenient enough to run any puzzle that could be included on chain. See
+/// [`run_puzzle_with_cost`] for more control, and [`is_debug_dialect_enabled`] for which dialect
+/// is used.
+///
+/// [`max_block_cost_clvm`]:
+/// chia_consensus::consensus_constants::ConsensusConstants::max_block_cost_clvm
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::{Condition, Conditions, run_puzzle};
+/// # use clvm_traits::{FromClvm, ToClvm, clvm_quote};
+/// # use clvmr::{Allocator, NodePtr};
+/// let mut allocator = Allocator::new();
+///
+/// // A quoted program returns its value without evaluating it.
+/// let puzzle = clvm_quote!(Conditions::new().reserve_fee(100)).to_clvm(&mut allocator)?;
+/// let output = run_puzzle(&mut allocator, puzzle, NodePtr::NIL)?;
+///
+/// let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
+/// assert_eq!(conditions, vec![Condition::reserve_fee(100)]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn run_puzzle(
     allocator: &mut Allocator,
     puzzle: NodePtr,
@@ -21,6 +47,33 @@ pub fn run_puzzle(
     .1)
 }
 
+/// Runs a puzzle with a solution, a cost limit, and optionally in mempool mode, and returns the
+/// cost along with the output.
+///
+/// A `max_cost` of `0` means there is no limit.
+/// Mempool mode is stricter than block validation. It rejects unknown operators (which are
+/// otherwise allowed so that new ones can be added in soft forks) and limits the heap size. The
+/// `ENABLE_KECCAK_OPS_OUTSIDE_GUARD` flag is always set, so the `keccak256` operator can be used
+/// outside of the softfork guard. See [`is_debug_dialect_enabled`] for which dialect is used.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::run_puzzle_with_cost;
+/// # use clvm_traits::{ToClvm, clvm_quote};
+/// # use clvmr::{Allocator, NodePtr, reduction::Reduction};
+/// let mut allocator = Allocator::new();
+/// let puzzle = clvm_quote!(42).to_clvm(&mut allocator)?;
+///
+/// let Reduction(cost, output) =
+///     run_puzzle_with_cost(&mut allocator, puzzle, NodePtr::NIL, 1_000_000, true)?;
+/// assert!(cost > 0);
+/// assert_eq!(allocator.small_number(output), Some(42));
+///
+/// // The puzzle fails if it costs more than the limit.
+/// assert!(run_puzzle_with_cost(&mut allocator, puzzle, NodePtr::NIL, cost - 1, true).is_err());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn run_puzzle_with_cost(
     allocator: &mut Allocator,
     puzzle: NodePtr,
@@ -53,6 +106,15 @@ pub fn run_puzzle_with_cost(
     }
 }
 
+/// Returns whether [`run_puzzle`] and [`run_puzzle_with_cost`] use the debug dialect.
+///
+/// The debug dialect behaves like the normal Chia dialect, except that it also implements the
+/// debug print operator emitted by Rue's `debug` statements, which prints the value to stderr.
+///
+/// It's enabled when this crate is compiled with debug assertions (such as in the default `dev`
+/// profile), or when the `DEBUG_CLVM` environment variable is set to `true`, `yes`, or `1`
+/// (case-insensitive) at compile time. The variable is read with [`option_env!`], so setting it
+/// when the program runs has no effect.
 pub fn is_debug_dialect_enabled() -> bool {
     if cfg!(debug_assertions) || cfg!(test) {
         return true;

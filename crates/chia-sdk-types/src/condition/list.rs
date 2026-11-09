@@ -6,6 +6,32 @@ use clvmr::NodePtr;
 use super::Condition;
 
 /// A grow-only list of conditions which can be used when building spend bundles.
+///
+/// There is a builder method for every [`Condition`] variant, such as [`Conditions::create_coin`]
+/// and [`Conditions::reserve_fee`], each of which appends the condition and returns the updated
+/// list. Use [`Conditions::with`] or [`Conditions::extend`] to add conditions that are already
+/// constructed.
+///
+/// It serializes to and from CLVM as a plain list of conditions, which is what puzzles output.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_puzzle_types::Memos;
+/// # use chia_sdk_types::{Condition, Conditions, conditions::AssertConcurrentSpend};
+/// let conditions = Conditions::new()
+///     .create_coin(Bytes32::new([1; 32]), 900, Memos::None)
+///     .reserve_fee(100)
+///     .with(AssertConcurrentSpend::new(Bytes32::new([2; 32])));
+///
+/// assert_eq!(conditions.len(), 3);
+/// assert!(conditions[0].is_create_coin());
+/// assert_eq!(
+///     conditions.iter().filter_map(Condition::as_reserve_fee).map(|fee| fee.amount).sum::<u64>(),
+///     100
+/// );
+/// ```
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(transparent)]
@@ -26,7 +52,8 @@ impl Conditions<NodePtr> {
     /// the generic type defaults to [`NodePtr`], since that's the most general choice
     /// and common when building spend bundles.
     ///
-    /// If you need to create an instance with a different generic type, use [`Conditions::default`] instead.
+    /// If you need to create an instance with a different generic type, use [`Conditions::default`]
+    /// instead.
     pub fn new() -> Self {
         Self::default()
     }
