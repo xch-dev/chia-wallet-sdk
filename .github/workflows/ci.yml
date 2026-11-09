@@ -47,12 +47,18 @@ jobs:
       attestations: write
     secrets: inherit
 
+  uniffi:
+    name: UniFFI
+    uses: ./.github/workflows/uniffi.yml
+    permissions:
+      contents: write
+
   # The only check that branch protection needs to require. A skipped job counts as passing, so
   # this always runs and fails explicitly if anything it depends on didn't succeed.
   required:
     name: Required checks
     if: ${{ always() }}
-    needs: [rust, napi, wasm, pyo3]
+    needs: [rust, napi, wasm, pyo3, uniffi]
     runs-on: ubuntu-latest
     steps:
       - name: Check results

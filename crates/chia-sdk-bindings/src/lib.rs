@@ -69,10 +69,10 @@ pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
@@ -130,7 +130,7 @@ pub use chia_sdk_types::{
     },
 };
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
     CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };

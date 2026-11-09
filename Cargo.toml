@@ -22,6 +22,7 @@ members = [
     "wasm",
     "pyo3",
     "pyo3/stub-generator",
+    "uniffi",
 ]
 
 [workspace.package]
@@ -186,6 +187,7 @@ js-sys = "0.3.77"
 parking_lot = "0.12.5"
 chialisp = "0.6.0"
 pyo3-async-runtimes = "0.29"
+uniffi = "0.31.2"
 indoc = "2.0.6"
 console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
@@ -199,3 +201,8 @@ colored = "3.1.1"
 [profile.release]
 lto = true
 strip = "symbols"
+
+# UniFFI reads its interface metadata from the compiled library, so the symbol table must be kept.
+[profile.release-uniffi]
+inherits = "release"
+strip = "debuginfo"

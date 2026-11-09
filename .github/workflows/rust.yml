@@ -76,6 +76,7 @@ jobs:
           cargo check -p chia-sdk-bindings -F napi
           cargo check -p chia-sdk-bindings -F wasm
           cargo check -p chia-sdk-bindings -F pyo3
+          cargo check -p chia-sdk-bindings -F uniffi
 
   test:
     runs-on: ubuntu-24.04
@@ -91,7 +92,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run tests
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-wallet-sdk-uniffi --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
 
   publish:
     if: startsWith(github.event.ref, 'refs/tags')
