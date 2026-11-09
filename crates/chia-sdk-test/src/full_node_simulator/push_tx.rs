@@ -147,10 +147,28 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Validates a spend bundle and adds it to the mempool, returning the RPC response.
+    ///
+    /// See [`FullNodeSimulator::push_tx_detailed`] for the validation rules and a typed error.
     pub fn push_tx(&mut self, spend_bundle: SpendBundle) -> PushTxResponse {
         self.push_tx_detailed(spend_bundle).response
     }
 
+    /// Validates a spend bundle and adds it to the mempool, returning the RPC response along with
+    /// the typed [`SimulatorError`] on failure.
+    ///
+    /// The bundle is validated against the current peak, including its CLVM, cost, aggregate
+    /// signature, timelocks, and `RESERVE_FEE` conditions. Spent coins must be unspent in the coin
+    /// set, created in the same bundle, or created by a transaction in the mempool. Pushing a
+    /// bundle that is already in the mempool succeeds without changing anything.
+    ///
+    /// Like a real full node, the simulator handles conflicts with the mempool:
+    ///
+    /// - Identical spends that are eligible for deduplication don't conflict.
+    /// - Fast-forwardable singleton spends of a coin that was already spent (on chain or in the
+    ///   mempool) are rebased onto the latest singleton coin.
+    /// - Otherwise, a conflicting bundle replaces the conflicting mempool items only if it spends
+    ///   all of their coins and pays a higher fee than they do combined.
     pub fn push_tx_detailed(
         &mut self,
         spend_bundle: SpendBundle,

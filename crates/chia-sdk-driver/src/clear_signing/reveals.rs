@@ -17,22 +17,34 @@ use crate::{
 
 /// The current custody hash and coin of the vault being signed for, which are revealed with
 /// [`Reveals::reveal_signing_vault`].
+///
+/// These are untrusted until they're checked by [`parse_vault_transaction`](crate::parse_vault_transaction), which
+/// returns them as a [`SigningVault`](crate::SigningVault).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RevealedSigningVault {
+    /// The vault's current custody hash (the singleton's inner puzzle hash).
     pub custody_hash: Bytes32,
+    /// The vault's current coin, if it's known.
     pub coin: Option<Coin>,
 }
 
+/// A p2 puzzle that can't be identified from its puzzle hash alone, revealed so that it can be parsed.
 #[derive(Debug, Clone, Copy)]
 pub enum RevealedP2Puzzle {
+    /// A clawback, revealed with [`Reveals::reveal_clawback`].
     Clawback(ClawbackV2),
+    /// A p2 conditions or singleton puzzle, revealed with [`Reveals::reveal_p2_conditions_or_singleton`].
     P2ConditionsOrSingleton(P2ConditionsOrSingleton),
 }
 
+/// A revealed coin spend, whose puzzle has been checked to match the coin's puzzle hash.
 #[derive(Debug, Clone, Copy)]
 pub struct RevealedCoinSpend {
+    /// The coin being spent.
     pub coin: Coin,
+    /// The puzzle reveal.
     pub puzzle: Puzzle,
+    /// The solution.
     pub solution: NodePtr,
 }
 
@@ -41,12 +53,17 @@ pub struct RevealedCoinSpend {
 /// puzzle wrappers, as calculated by [`vault_recovery_delegated_puzzle_hash`](crate::vault_recovery_delegated_puzzle_hash).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ControlledVaultRecovery {
+    /// The hash of the left side of the controlled vault's 1-of-2 custody, which recovery must keep.
     pub left_side_subtree_hash: Bytes32,
+    /// The timelock that the recovery path requires the right side of the new custody to be restricted by, which
+    /// delays completing the recovery.
     pub recovery_timelock: u64,
+    /// The version of the controlled vault's puzzle, which determines the recovery path's restrictions.
     pub version: VaultVersion,
 }
 
 impl ControlledVaultRecovery {
+    /// Creates the recovery path details.
     pub fn new(
         left_side_subtree_hash: Bytes32,
         recovery_timelock: u64,
@@ -67,6 +84,7 @@ pub struct RevealedControlledVault {
     /// The controlled vault's coin, which is sent the message. If the message is sent to its puzzle hash, which is the
     /// case for a fast-forwardable singleton member, the spend can be fast-forwarded onto a newer coin of the vault.
     pub coin: Coin,
+    /// The controlled vault's launcher id.
     pub launcher_id: Bytes32,
     /// The controlled vault's current custody hash, which the coin's puzzle hash commits to.
     pub custody_hash: Bytes32,
@@ -76,6 +94,19 @@ pub struct RevealedControlledVault {
     pub recovery: Option<ControlledVaultRecovery>,
 }
 
+/// Information about a transaction that is revealed to [`parse_vault_transaction`](crate::parse_vault_transaction).
+///
+/// This typically comes from whoever built the transaction, so it isn't trusted. Coin spends are only accepted
+/// if their puzzle matches the coin's puzzle hash, and revealed p2 puzzles and bags are looked up by their tree hash,
+/// so they can only be used for coins whose puzzle hash they actually match. Controlled vaults are checked against
+/// their coin's puzzle hash. Revealing too little makes parsing fail or leaves things out of the summary, but can't
+/// make it report something false.
+///
+/// The exception is [`reveal_signing_vault`](Self::reveal_signing_vault), whose custody hash and coin can't be checked
+/// against anything but the launcher id. They're only guaranteed if the message that's signed is calculated from the
+/// returned [`SigningVault`](crate::SigningVault).
+///
+/// By default, vault nonce 0 is revealed, so the vault's first p2 puzzle hash is known.
 #[derive(Debug, Clone)]
 pub struct Reveals {
     coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
@@ -108,6 +139,8 @@ impl Default for Reveals {
 }
 
 impl Reveals {
+    /// Reveals every coin spend with [`Reveals::reveal_coin_spend`], for example the coin spends of a spend
+    /// bundle.
     pub fn from_coin_spends(
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
@@ -121,10 +154,12 @@ impl Reveals {
         Ok(reveals)
     }
 
-    /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction, or
-    /// from a vault that it controls, must be revealed. Controlled vaults themselves are revealed with
-    /// [`reveal_controlled_vault`](Self::reveal_controlled_vault) instead. The coin spend is used to determine both the conditions that the spends output, and
-    /// the type of asset being sent.
+    /// Reveals a coin spend, or returns [`DriverError::WrongPuzzleHash`] if its puzzle doesn't match the coin.
+    ///
+    /// All coins that are sent messages from the vault being signed for in the transaction, or from a vault that it
+    /// controls, must be revealed. That includes controlled vaults, which must also be revealed with
+    /// [`reveal_controlled_vault`](Self::reveal_controlled_vault). The coin spend is used to determine both the
+    /// conditions that the spends output, and the type of asset being sent.
     ///
     /// In some cases, it's insufficient to only reveal the coin spend. For example, if it's a clawback coin,
     /// you must reveal the clawback itself as well. Otherwise, there's no way to verify if the coin won't
@@ -132,7 +167,9 @@ impl Reveals {
     ///
     /// This also records requested payments (i.e., coin spends with a parent coin id of 32 zeros), which are
     /// used to determine what would be paid to us if the announcement from the settlement puzzle were to be
-    /// asserted. Note that requested payments are ignored if they aren't asserted.
+    /// asserted. Note that requested payments are ignored if they aren't asserted. These must be settlement
+    /// payments of XCH, a CAT, an NFT, or an option contract, or [`DriverError::UnsupportedRequestedAsset`] is
+    /// returned.
     pub fn reveal_coin_spend(
         &mut self,
         allocator: &mut Allocator,
@@ -277,38 +314,47 @@ impl Reveals {
         Ok(())
     }
 
+    /// The notarized payments of every revealed settlement spend, whether or not they're asserted.
     pub fn requested_payments(&self) -> &RequestedPayments {
         &self.requested_payments
     }
 
+    /// The CAT, NFT, and option details learned from the revealed settlement spends.
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
     }
 
+    /// The revealed coin spends, in the order they were revealed. Settlement payment reveals aren't included.
     pub fn coin_spends(&self) -> impl Iterator<Item = &RevealedCoinSpend> {
         self.coin_spends.values()
     }
 
+    /// The revealed spend of the coin, if any.
     pub fn coin_spend(&self, coin_id: Bytes32) -> Option<&RevealedCoinSpend> {
         self.coin_spends.get(&coin_id)
     }
 
+    /// The revealed p2 puzzle with the puzzle hash, if any.
     pub fn p2_puzzle(&self, puzzle_hash: TreeHash) -> Option<&RevealedP2Puzzle> {
         self.p2_puzzles.get(&puzzle_hash)
     }
 
+    /// The revealed bag with the root hash and asset, if any.
     pub fn bag(&self, root_hash: Bytes32, asset: BagAsset) -> Option<&SecureTheBag> {
         self.bags.get(&(root_hash, asset)).map(AsRef::as_ref)
     }
 
+    /// The custody hash and coin revealed for the vault being signed for, if any. These haven't been checked yet.
     pub fn signing_vault(&self) -> Option<RevealedSigningVault> {
         self.signing_vault
     }
 
+    /// The revealed vault nonces, in ascending order.
     pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {
         self.vault_nonces.iter().copied()
     }
 
+    /// The revealed controlled vault whose coin has the id, if any.
     pub fn controlled_vault(&self, coin_id: Bytes32) -> Option<&RevealedControlledVault> {
         self.controlled_vaults.get(&coin_id)
     }

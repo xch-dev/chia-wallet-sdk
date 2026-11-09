@@ -12,7 +12,10 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 /// The singleton [`Layer`] enforces uniqueness on a coin, which is identified by the launcher id.
 /// It contains an inner puzzle layer, which determines the actual behavior of the coin.
-/// Only one singleton can be created when the coin is spent, preserving the lineage of the asset.
+/// When the coin is spent, it must create exactly one child with an odd amount, which is wrapped
+/// in the same singleton layer. This preserves the lineage of the asset. Alternatively, the
+/// singleton can be melted by outputting a `CREATE_COIN` with an amount of `-113` instead, which
+/// is removed from the output.
 ///
 /// Examples of singletons include:
 /// * [`DidLayer`](crate::DidLayer) for Decentralized Identifiers (DIDs).
@@ -28,6 +31,7 @@ pub struct SingletonLayer<I> {
 }
 
 impl<I> SingletonLayer<I> {
+    /// Creates a [`SingletonLayer`] for the launcher id around the inner puzzle.
     pub fn new(launcher_id: Bytes32, inner_puzzle: I) -> Self {
         Self {
             launcher_id,

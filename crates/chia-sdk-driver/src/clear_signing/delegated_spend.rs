@@ -4,6 +4,9 @@ use clvmr::Allocator;
 
 use crate::{DriverError, Spend};
 
+/// Extracts the conditions of a delegated spend whose puzzle is a quoted list of conditions, or returns
+/// [`DriverError::InvalidDelegatedSpendFormat`]. The solution is ignored.
+///
 /// A delegated spend can technically be any puzzle and solution. The puzzle is the only
 /// thing that gets signed, so the solution allows malleability in behavior if needed.
 /// However, for the purposes of clear signing, we don't *want* malleability. We want the

@@ -8,6 +8,12 @@ use crate::{DriverError, HashedPtr, Launcher, SingletonInfo, SpendContext, Spend
 use super::{Did, DidInfo};
 
 impl Launcher {
+    /// Spends this launcher to create an eve [`Did`] with the given p2 puzzle hash, recovery
+    /// settings, and metadata.
+    ///
+    /// Returns the conditions the launcher's parent must output, and the eve [`Did`], which has an
+    /// [`EveProof`]. The eve DID is not spent, so wallets won't be able to parse its metadata from
+    /// the launcher spend until it's spent again. [`Launcher::create_did`] does this for you.
     pub fn create_eve_did(
         self,
         ctx: &mut SpendContext,
@@ -37,6 +43,11 @@ impl Launcher {
         Ok((launch_singleton, Did::new(eve_coin, proof, did_info)))
     }
 
+    /// Creates a [`Did`] owned by `inner` and immediately spends the eve DID with an update spend.
+    ///
+    /// The extra update spend recreates the DID with the same metadata so that wallets can parse
+    /// it from its parent. Returns the conditions the launcher's parent must output, and the
+    /// resulting (non-eve) [`Did`].
     pub fn create_did<I>(
         self,
         ctx: &mut SpendContext,
@@ -61,6 +72,8 @@ impl Launcher {
         Ok((create_eve, did))
     }
 
+    /// Creates a [`Did`] owned by `inner` with no recovery list, one required verification,
+    /// and nil metadata. See [`Launcher::create_did`].
     pub fn create_simple_did<I>(
         self,
         ctx: &mut SpendContext,

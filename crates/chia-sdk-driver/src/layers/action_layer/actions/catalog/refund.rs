@@ -20,10 +20,20 @@ use crate::{
 
 use super::CatalogRefundActionLog;
 
+/// The `CATalog` action that refunds a [`PrecommitCoin`] that can't be used for a registration.
+///
+/// The precommit coin is spent in refund mode, which sends it back to its refund puzzle hash.
+/// If it paid the current price with the current CAT maker, the action also needs the slot of
+/// the precommitted asset id.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRefundAction {
+    /// The launcher id of the `CATalog` registry.
     pub launcher_id: Bytes32,
+    /// The relative block height of the registry's precommit coins.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the payments of the registry's precommit coins.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -49,6 +59,7 @@ impl SingletonAction<CatalogRegistry> for CatalogRefundAction {
 }
 
 impl CatalogRefundAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         relative_block_height: u32,
@@ -65,6 +76,11 @@ impl CatalogRefundAction {
         }
     }
 
+    /// Constructs the action puzzle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle can't be allocated.
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(Self::new_args(
             self.launcher_id,
@@ -73,6 +89,13 @@ impl CatalogRefundAction {
         ))
     }
 
+    /// Parses an action solution into a [`CatalogRefundActionLog`].
+    ///
+    /// `state` is the registry state when the action ran.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -112,6 +135,17 @@ impl CatalogRefundAction {
         })
     }
 
+    /// Refunds `precommit_coin` in the pending spend of `catalog`.
+    ///
+    /// `tail_hash` is the precommitted asset id. If `slot` is provided, it's spent and recreated
+    /// as part of the action, and `neighbors` should be its neighbors.
+    ///
+    /// Returns a condition that asserts the registry's refund announcement. Include it in another
+    /// spend in the same bundle so that the refund can't be separated from it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

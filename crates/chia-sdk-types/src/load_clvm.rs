@@ -11,45 +11,90 @@ use rue_compiler::{Compiler, FileTree, normalize_path};
 use rue_options::find_project;
 use thiserror::Error;
 
+/// An error that can occur when compiling a Chialisp or Rue program with
+/// [`compile_chialisp`](fn@compile_chialisp) or [`compile_rue`](fn@compile_rue).
 #[derive(Debug, Error)]
 pub enum LoadClvmError {
+    /// The source file or project couldn't be read.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
+    /// The compiled program couldn't be serialized.
     #[error("CLVM error: {0}")]
     Clvm(#[from] EvalErr),
 
+    /// The path has no file name, isn't valid UTF-8, or has no parent directory.
     #[error("Invalid file name")]
     InvalidFileName,
 
+    /// The Chialisp compiler failed, with its error message.
     #[error("Compiler error: {0}")]
     Compiler(String),
 
+    /// A value couldn't be converted to CLVM.
     #[error("Conversion error: {0}")]
     Conversion(#[from] ToClvmError),
 
+    /// The Rue project configuration is invalid.
     #[error("Project error: {0}")]
     Project(#[from] rue_options::Error),
 
+    /// No Rue project or `.rue` file was found at the given path.
     #[error("Project not found")]
     ProjectNotFound,
 
+    /// No export name was given, and the Rue project has no `main` function.
     #[error("Main not found")]
     MainNotFound,
 
+    /// The Rue project has no export with the given name.
     #[error("Export not found: {0}")]
     ExportNotFound(String),
 
+    /// The Rue compiler failed.
     #[error("Rue error: {0}")]
     Rue(#[from] rue_compiler::Error),
 }
 
+/// A compiled CLVM program, as returned by [`compile_chialisp`](fn@compile_chialisp) and
+/// [`compile_rue`](fn@compile_rue).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Compilation {
+    /// The serialized CLVM bytecode of the program.
     pub reveal: Vec<u8>,
+    /// The tree hash of the program, which is its puzzle hash (or mod hash, before currying).
     pub hash: TreeHash,
 }
 
+/// Compiles a Chialisp source file into CLVM bytecode.
+///
+/// The `include_paths` are the directories searched for files referenced with `(include ...)`.
+/// Relative paths are resolved against the current working directory.
+///
+/// This is useful for prototyping puzzles or for tests. Production code usually embeds the
+/// compiled bytecode instead, so the compiler doesn't need to run.
+///
+/// ## Example
+///
+/// ```rust
+/// # use std::path::Path;
+/// # use chia_sdk_types::{compile_chialisp, run_puzzle};
+/// # use clvm_traits::{FromClvm, ToClvm, clvm_curried_args};
+/// # use clvm_utils::CurriedProgram;
+/// # use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
+/// // The file contains `(mod (AAA BBB) (+ (* AAA BBB) AAA BBB))`.
+/// let compilation = compile_chialisp(Path::new("compile_chialisp_test.clsp"), &[])?;
+///
+/// let mut allocator = Allocator::new();
+/// let program = node_from_bytes(&mut allocator, &compilation.reveal)?;
+/// assert_eq!(clvm_utils::tree_hash(&allocator, program), compilation.hash);
+///
+/// let args = clvm_curried_args!(10, 20);
+/// let puzzle = CurriedProgram { program, args }.to_clvm(&mut allocator)?;
+/// let output = run_puzzle(&mut allocator, puzzle, NodePtr::NIL)?;
+/// assert_eq!(u64::from_clvm(&allocator, output)?, 230);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn compile_chialisp(
     path: &Path,
     include_paths: &[String],
@@ -82,6 +127,37 @@ pub fn compile_chialisp(
     Ok(Compilation { reveal, hash })
 }
 
+/// Compiles a Rue program into CLVM bytecode.
+///
+/// The `path` can be a `.rue` file, or a file or directory inside a Rue project (a directory with
+/// a `Rue.toml` manifest or a `main.rue` file). The nearest enclosing project is used. If
+/// `debug` is `true`, the program is compiled with Rue's debug compiler options.
+///
+/// If `export_name` is given, that export is compiled. Otherwise, the `main` function of the
+/// project's `main.rue` (or of the file itself) is compiled.
+///
+/// ## Example
+///
+/// ```rust
+/// # use std::path::Path;
+/// # use chia_sdk_types::{compile_rue, run_puzzle};
+/// # use clvm_traits::{FromClvm, ToClvm, clvm_curried_args};
+/// # use clvm_utils::CurriedProgram;
+/// # use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
+/// // The file has `main` and `another` functions, which both take `a` and `b` and
+/// // return `a * b + a + b`.
+/// let main = compile_rue(Path::new("compile_rue_test.rue"), false, None)?;
+/// let another = compile_rue(Path::new("compile_rue_test.rue"), false, Some("another"))?;
+/// assert_eq!(main.reveal, another.reveal);
+///
+/// let mut allocator = Allocator::new();
+/// let program = node_from_bytes(&mut allocator, &main.reveal)?;
+/// let args = clvm_curried_args!(10, 20);
+/// let puzzle = CurriedProgram { program, args }.to_clvm(&mut allocator)?;
+/// let output = run_puzzle(&mut allocator, puzzle, NodePtr::NIL)?;
+/// assert_eq!(u64::from_clvm(&allocator, output)?, 230);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn compile_rue(
     path: &Path,
     debug: bool,
@@ -149,6 +225,49 @@ pub fn compile_rue(
     Ok(Compilation { reveal, hash })
 }
 
+/// Implements [`Mod`](crate::Mod) for a puzzle arguments type by compiling a Chialisp file.
+///
+/// The syntax is `compile_chialisp!(ArgsType<Generics> = STATIC_NAME, "path/to/file.clsp")`. This
+/// declares a static named `STATIC_NAME` that lazily compiles the file with
+/// [`compile_chialisp`](fn@compile_chialisp) the first time it's used, with `.` and `include` as
+/// the include paths. The path and include paths are relative to the working directory at runtime,
+/// not to the source file.
+///
+/// The macro expands to code that refers to [`Compilation`](crate::Compilation) without a path,
+/// so it must be imported where the macro is used.
+///
+/// # Panics
+///
+/// Using the [`Mod`](crate::Mod) implementation panics if the file fails to compile.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::{Compilation, Mod, compile_chialisp, run_puzzle};
+/// # use clvm_traits::{FromClvm, ToClvm};
+/// # use clvm_utils::CurriedProgram;
+/// # use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
+/// #[derive(Debug, Clone, ToClvm, FromClvm)]
+/// #[clvm(curry)]
+/// struct TestArgs {
+///     a: u64,
+///     b: u64,
+/// }
+///
+/// // The file contains `(mod (AAA BBB) (+ (* AAA BBB) AAA BBB))`.
+/// compile_chialisp!(TestArgs = TEST_MOD, "compile_chialisp_test.clsp");
+///
+/// let mut allocator = Allocator::new();
+/// let program = node_from_bytes(&mut allocator, &TestArgs::mod_reveal())?;
+/// let args = TestArgs { a: 10, b: 20 };
+///
+/// let puzzle = CurriedProgram { program, args: args.clone() }.to_clvm(&mut allocator)?;
+/// assert_eq!(clvm_utils::tree_hash(&allocator, puzzle), args.curry_tree_hash());
+///
+/// let output = run_puzzle(&mut allocator, puzzle, NodePtr::NIL)?;
+/// assert_eq!(u64::from_clvm(&allocator, output)?, 230);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[macro_export]
 macro_rules! compile_chialisp {
     ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {
@@ -167,6 +286,47 @@ macro_rules! compile_chialisp {
     };
 }
 
+/// Implements [`Mod`](crate::Mod) for a puzzle arguments type by compiling a Rue program.
+///
+/// The syntax is `compile_rue!(ArgsType<Generics> = STATIC_NAME, "path")`, optionally followed by
+/// an export name (`, "export_name"`), and optionally prefixed with `debug` to compile with debug
+/// options. This declares a static named `STATIC_NAME` that lazily compiles the program with
+/// [`compile_rue`](fn@compile_rue) the first time it's used. The path is relative to the working
+/// directory at runtime, not to the source file.
+///
+/// The macro expands to code that refers to [`Compilation`](crate::Compilation) without a path,
+/// so it must be imported where the macro is used.
+///
+/// # Panics
+///
+/// Using the [`Mod`](crate::Mod) implementation panics if the program fails to compile.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::{Compilation, Mod, compile_rue, run_puzzle};
+/// # use clvm_traits::{FromClvm, ToClvm};
+/// # use clvm_utils::CurriedProgram;
+/// # use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
+/// #[derive(Debug, Clone, ToClvm, FromClvm)]
+/// #[clvm(curry)]
+/// struct TestArgs {
+///     a: u64,
+///     b: u64,
+/// }
+///
+/// // The `another` export takes `a` and `b` and returns `a * b + a + b`.
+/// compile_rue!(TestArgs = TEST_MOD, "compile_rue_test.rue", "another");
+///
+/// let mut allocator = Allocator::new();
+/// let program = node_from_bytes(&mut allocator, &TestArgs::mod_reveal())?;
+/// let args = TestArgs { a: 10, b: 20 };
+/// let puzzle = CurriedProgram { program, args }.to_clvm(&mut allocator)?;
+///
+/// let output = run_puzzle(&mut allocator, puzzle, NodePtr::NIL)?;
+/// assert_eq!(u64::from_clvm(&allocator, output)?, 230);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[macro_export]
 macro_rules! compile_rue {
     ( $args:ident $(< $($generic:ident),+ >)? = $mod_name:ident, $path:literal ) => {

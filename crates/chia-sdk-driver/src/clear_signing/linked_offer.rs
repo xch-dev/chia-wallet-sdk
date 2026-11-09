@@ -9,13 +9,27 @@ use crate::{
     parse_asserted_requested_payments, split_asserted_payments,
 };
 
+/// A future offer that the transaction sets coins aside for, as described by the fixed conditions of its
+/// [`OfferPreSplit`](crate::TransferType::OfferPreSplit) children.
+///
+/// Anyone can spend the pre-split coins with their fixed conditions, so these are the terms the offer can be taken
+/// on. Only payments asserted by every pre-split coin are included, so they must be made no matter which of the
+/// pre-split coins are spent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedOffer {
+    /// The total fee reserved by the fixed conditions of the pre-split coins.
     pub reserved_fee: u64,
+    /// Revealed requested payments asserted by every pre-split coin, to one of the vault's known p2 puzzle hashes.
     pub received_payments: Vec<AssertedPayment>,
+    /// Revealed requested payments asserted by every pre-split coin, to other puzzle hashes.
     pub external_payments: Vec<AssertedPayment>,
 }
 
+/// Rolls the [`OfferPreSplit`](crate::TransferType::OfferPreSplit) children of the spends up into a
+/// [`LinkedOffer`], or returns `None` if there are none.
+///
+/// Returns [`DriverError::WrongLinkedOfferLauncherId`] if a pre-split coin belongs to a vault other than
+/// `expected_launcher_id`.
 pub fn build_linked_offer(
     reveals: &Reveals,
     allocator: &Allocator,

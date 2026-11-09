@@ -23,11 +23,26 @@ use crate::{
     SpendContext,
 };
 
+/// The reward distributor action that unstakes assets locked with a
+/// [`RewardDistributorStakeAction`](crate::RewardDistributorStakeAction).
+///
+/// It pays out the rewards earned by the unstaked shares, spends the deposit slots, sends the
+/// locked assets back to the entry's custody puzzle hash, and recreates the entry slot without
+/// those shares. The custody puzzle must approve each unstaked asset with a message.
+///
+/// The unlock puzzle depends on the [`RewardDistributorType`]. Unstaking isn't available in a
+/// [`RewardDistributorType::Managed`] distributor.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorUnstakeAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::max_seconds_offset`](crate::RewardDistributorConstants::max_seconds_offset).
     pub max_second_offset: u64,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
+    /// The type of the distributor, which determines the unlock puzzle.
     pub distributor_type: RewardDistributorType,
 }
 
@@ -86,6 +101,13 @@ impl RewardDistributorUnstakeAction {
         }
     }
 
+    /// Constructs the unlock puzzle for `distributor_type`, which the action puzzle is curried
+    /// with.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a [`RewardDistributorType::Managed`] distributor, or if the puzzle
+    /// can't be allocated.
     pub fn unlock_puzzle(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -127,6 +149,12 @@ impl RewardDistributorUnstakeAction {
         }
     }
 
+    /// Creates the curried arguments of the action puzzle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a [`RewardDistributorType::Managed`] distributor, or if a puzzle
+    /// can't be allocated.
     pub fn new_args(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -146,6 +174,9 @@ impl RewardDistributorUnstakeAction {
         })
     }
 
+    /// Creates the curried arguments of the action puzzle with the unlock puzzle as a tree hash.
+    ///
+    /// For a [`RewardDistributorType::Managed`] distributor, the unlock puzzle hash is all zeros.
     pub fn new_args_treehash(
         launcher_id: Bytes32,
         max_second_offset: u64,
@@ -192,6 +223,8 @@ impl RewardDistributorUnstakeAction {
         }
     }
 
+    /// Computes the puzzle hash that locked assets are sent to: a
+    /// [`P2DelegatedBySingletonLayer`] controlled by the distributor, with a nonce of 1.
     pub fn my_p2_puzzle_hash(launcher_id: Bytes32) -> Bytes32 {
         P2DelegatedBySingletonLayerArgs::curry_tree_hash(
             SingletonStruct::new(launcher_id).tree_hash().into(),
@@ -217,6 +250,15 @@ impl RewardDistributorUnstakeAction {
         ctx.curry(args)
     }
 
+    /// Parses an action solution into a [`RewardDistributorUnstakeActionLog`].
+    ///
+    /// The unlock puzzle is run to get the number of removed shares, so this needs the
+    /// distributor's `launcher_id` and `distributor_type`, and the `ephemeral_state` before the
+    /// action. `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the unlock puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -284,6 +326,21 @@ impl RewardDistributorUnstakeAction {
         })
     }
 
+    /// Unstakes `locked_nfts` from the entry in `entry_slot`, in the pending spend of
+    /// `distributor`.
+    ///
+    /// `locked_nft_shares` gives the shares of each NFT, in the same order; extra NFTs or shares
+    /// are ignored. `deposit_slots` must contain the deposit slot of each NFT, in any order. Each
+    /// NFT is sent back to the entry's payout puzzle hash.
+    ///
+    /// Returns the conditions that the entry's custody puzzle must output (a `SEND_MESSAGE`
+    /// with mode 18 for each NFT and an `ASSERT_CONCURRENT_PUZZLE` for the entry slot), and the
+    /// amount paid out for the removed shares.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a deposit slot is missing, the payout doesn't fit in a `u64`, or the
+    /// spends can't be created.
     pub fn spend_for_locked_nfts(
         self,
         ctx: &mut SpendContext,
@@ -401,6 +458,17 @@ impl RewardDistributorUnstakeAction {
         Ok((remove_entry_conditions, entry_payout_amount))
     }
 
+    /// Unstakes `locked_cat` from the entry in `entry_slot`, in the pending spend of
+    /// `distributor`, spending its `deposit_slot`. The CAT is sent back to the entry's payout
+    /// puzzle hash.
+    ///
+    /// Returns the conditions that the entry's custody puzzle must output (a `SEND_MESSAGE`
+    /// with mode 18 and an `ASSERT_CONCURRENT_PUZZLE` for the entry slot), and the amount paid
+    /// out for the removed shares.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created.
     pub fn spend_for_locked_cats(
         self,
         ctx: &mut SpendContext,

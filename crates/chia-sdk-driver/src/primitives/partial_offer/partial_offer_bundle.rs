@@ -19,7 +19,104 @@ pub const PARTIAL_OFFER_HINT_PUZZLE_HASH: Bytes32 = Bytes32::new([1; 32]);
 /// create it. If the coin is already on-chain, there are no spends.
 ///
 /// This is encoded as a spend bundle with an additional placeholder coin spend that describes the
-/// offer coin, as specified by CHIP-0052.
+/// offer coin, as specified by CHIP-0052. With the `offer-compression` feature, the spend bundle
+/// from [`to_spend_bundle`](PartialOfferBundle::to_spend_bundle) can be encoded as a `partial1...`
+/// string with `encode_partial_offer`, and decoded with `decode_partial_offer`.
+///
+/// # Example
+///
+/// This creates a partial offer of 1,000 mojos of a CAT for 500 mojos of XCH, and takes part of
+/// it by paying the maker 200 mojos of XCH.
+///
+/// ```
+/// use std::num::NonZeroU64;
+///
+/// use chia_protocol::SpendBundle;
+/// use chia_sdk_driver::{
+///     Action, Id, PartialOfferAsset, PartialOfferBundle, PartialOfferInfo, Relation,
+///     SpendContext, Spends,
+/// };
+/// use chia_sdk_test::{Simulator, sign_transaction};
+/// use indexmap::indexmap;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let maker = sim.bls(1_000);
+/// let taker = sim.bls(500);
+/// # let maker_keys = indexmap! { maker.puzzle_hash => maker.pk };
+/// # let taker_keys = indexmap! { taker.puzzle_hash => taker.pk };
+/// #
+/// # // The maker issues the CAT that they're going to offer
+/// # let maker_hint = ctx.hint(maker.puzzle_hash)?;
+/// # let mut spends = Spends::new(maker.puzzle_hash);
+/// # spends.add(maker.coin);
+/// # let deltas = spends.apply(
+/// #     &mut ctx,
+/// #     &[
+/// #         Action::single_issue_cat(None, 1_000),
+/// #         Action::send(Id::New(0), maker.puzzle_hash, 1_000, maker_hint),
+/// #     ],
+/// # )?;
+/// # let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &maker_keys)?;
+/// # sim.spend_coins(ctx.take(), &[maker.sk.clone()])?;
+/// # let cat = outputs.cats[&Id::New(0)][0];
+/// let asset_id = cat.info.asset_id;
+///
+/// // The maker locks their CAT in the offer coin, with the memos that let it be discovered
+/// let info = PartialOfferInfo::from_amounts(
+///     PartialOfferAsset::Cat {
+///         asset_id,
+///         hidden_puzzle_hash: None,
+///     },
+///     PartialOfferAsset::Xch,
+///     maker.puzzle_hash,
+///     NonZeroU64::new(1_000).unwrap(),
+///     NonZeroU64::new(500).unwrap(),
+/// );
+///
+/// let memos = info.creation_memos(&mut ctx)?;
+///
+/// let mut spends = Spends::new(maker.puzzle_hash);
+/// spends.add(cat);
+///
+/// let deltas = spends.apply(
+///     &mut ctx,
+///     &[Action::send(Id::Existing(asset_id), info.p2_puzzle_hash(), 1_000, memos)],
+/// )?;
+///
+/// spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &maker_keys)?;
+///
+/// let coin_spends = ctx.take();
+/// let signature = sign_transaction(&coin_spends, &[maker.sk])?;
+///
+/// let bundle = PartialOfferBundle::from_maker_spend_bundle(
+///     &mut ctx,
+///     SpendBundle::new(coin_spends, signature),
+///     info,
+/// )?;
+///
+/// // The taker fills part of the offer, which is taken like a regular offer
+/// let fill = bundle.fill(&mut ctx, 200)?;
+/// assert_eq!(fill.offered_amount, 400);
+///
+/// let mut spends = Spends::new(taker.puzzle_hash);
+/// spends.add(taker.coin);
+/// spends.add(fill.offer.offered_coins().clone());
+///
+/// let deltas = spends.apply(&mut ctx, &fill.actions())?;
+/// spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &taker_keys)?;
+///
+/// let coin_spends = ctx.take();
+/// let signature = sign_transaction(&coin_spends, &[taker.sk])?;
+///
+/// sim.new_transaction(fill.offer.take(SpendBundle::new(coin_spends, signature)))?;
+///
+/// // The rest of the CAT is left in a new offer coin for others to fill
+/// assert_eq!(fill.child.unwrap().coin.amount, 600);
+/// assert_eq!(sim.unspent_coins(maker.puzzle_hash, false)[0].amount, 200);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct PartialOfferBundle {
     partial_offer: PartialOffer,
@@ -196,6 +293,7 @@ impl PartialOfferBundle {
         Ok(spend_bundle)
     }
 
+    /// The offer coin.
     pub fn partial_offer(&self) -> &PartialOffer {
         &self.partial_offer
     }

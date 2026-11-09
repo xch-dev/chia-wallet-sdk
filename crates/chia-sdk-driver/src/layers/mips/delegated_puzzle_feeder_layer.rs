@@ -5,12 +5,20 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The delegated puzzle feeder [`Layer`] is the top layer of a vault's custody puzzle.
+///
+/// The solution contains a delegated puzzle and solution. The inner puzzle (the vault's tree of
+/// members and restrictions) is run with the tree hash of the delegated puzzle prepended to its
+/// solution, so that it can authorize it. The output is the conditions of the inner puzzle,
+/// followed by the conditions of the delegated puzzle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelegatedPuzzleFeederLayer<I> {
+    /// The inner puzzle layer, which authorizes the delegated puzzle.
     pub inner_puzzle: I,
 }
 
 impl<I> DelegatedPuzzleFeederLayer<I> {
+    /// Creates a [`DelegatedPuzzleFeederLayer`] around the inner puzzle.
     pub fn new(inner_puzzle: I) -> Self {
         Self { inner_puzzle }
     }

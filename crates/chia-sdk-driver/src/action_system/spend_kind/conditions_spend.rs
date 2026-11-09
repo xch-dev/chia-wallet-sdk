@@ -15,6 +15,7 @@ pub struct ConditionsSpend {
 }
 
 impl ConditionsSpend {
+    /// Creates a spend with no conditions.
     pub fn new() -> Self {
         Self::default()
     }

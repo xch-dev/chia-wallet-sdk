@@ -24,11 +24,27 @@ use crate::{
     SpendContext,
 };
 
+/// The reward distributor action that updates the shares of staked NFTs from the curated
+/// `DataLayer` store, in a refreshable [`RewardDistributorType::CuratedNft`] distributor.
+///
+/// For each refreshed entry, it pays out the rewards earned so far, applies the share changes
+/// of its NFTs, and recreates the entry slot and the NFTs' deposit slots. The NFTs are spent and
+/// recreated at the same locked puzzle hash.
+///
+/// [`ToTreeHash::tree_hash`] returns all zeros if the distributor isn't a refreshable curated
+/// NFT distributor, since the action isn't available.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorRefreshAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::max_seconds_offset`](crate::RewardDistributorConstants::max_seconds_offset).
     pub max_second_offset: u64,
+    /// The type of the distributor, which must be a refreshable
+    /// [`RewardDistributorType::CuratedNft`].
     pub distributor_type: RewardDistributorType,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
 }
 
@@ -59,6 +75,12 @@ impl SingletonAction<RewardDistributor> for RewardDistributorRefreshAction {
 }
 
 impl RewardDistributorRefreshAction {
+    /// Creates the curried arguments of the action puzzle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless `distributor_type` is a refreshable
+    /// [`RewardDistributorType::CuratedNft`].
     pub fn new_args(
         launcher_id: Bytes32,
         max_second_offset: u64,
@@ -100,6 +122,8 @@ impl RewardDistributorRefreshAction {
         }
     }
 
+    /// Computes the puzzle hash that locked assets are sent to: a
+    /// [`P2DelegatedBySingletonLayer`] controlled by the distributor, with a nonce of 1.
     pub fn my_p2_puzzle_hash(launcher_id: Bytes32) -> Bytes32 {
         P2DelegatedBySingletonLayerArgs::curry_tree_hash(
             SingletonStruct::new(launcher_id).tree_hash().into(),
@@ -120,6 +144,14 @@ impl RewardDistributorRefreshAction {
     }
 
     #[allow(clippy::cast_sign_loss)]
+    /// Parses an action solution into a [`RewardDistributorRefreshNftsFromDlActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action, and `store_launcher_id`
+    /// is the launcher id of the curated `DataLayer` store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or a share count is out of range.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -199,6 +231,26 @@ impl RewardDistributorRefreshAction {
         })
     }
 
+    /// Refreshes the entries in `slots`, in the pending spend of `distributor`.
+    ///
+    /// `nfts[i]`, `nft_shares_delta[i]`, `nft_new_shares[i]`, and `nft_inclusion_proofs[i]`
+    /// describe the NFTs of `slots[i]`: the locked NFTs, the change in their shares, their new
+    /// shares, and their merkle proofs in the store. `deposit_slots` must contain the current
+    /// deposit slot of each NFT, in any order. The `dl_*` arguments describe the store's current
+    /// root hash and puzzle.
+    ///
+    /// Returns the conditions that assert the distributor's refresh announcement for each NFT,
+    /// and the recreated NFTs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a deposit slot is missing, a share count or payout is out of range,
+    /// or the spends can't be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `nfts`, `nft_shares_delta`, `nft_new_shares`, or `nft_inclusion_proofs` is
+    /// shorter than needed for `slots` and `nfts`.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::cast_sign_loss)]
     pub fn spend(

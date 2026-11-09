@@ -20,22 +20,32 @@ use crate::{
 
 use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
 
+/// The actions queued for the next spend of an [`XchandlesRegistry`], and their effects.
 #[derive(Debug, Clone)]
 pub struct XchandlesPendingSpendInfo {
+    /// The action spends, in the order they will run.
     pub actions: Vec<Spend>,
+    /// The values of the handle slots the actions spend.
     pub spent_handle_slots: Vec<XchandlesHandleSlotValue>,
+    /// The values of the update slots the actions spend.
     pub spent_update_slots: Vec<XchandlesUpdateSlotValue>,
+    /// The values of the handle slots the actions create.
     pub created_handle_slots: Vec<XchandlesHandleSlotValue>,
+    /// The values of the update slots the actions create.
     pub created_update_slots: Vec<XchandlesUpdateSlotValue>,
 
+    /// A log entry for each action.
     pub logs: Vec<XchandlesActionLog>,
 
+    /// The ephemeral state and registry state after the queued actions have run.
     pub latest_state: (NodePtr, XchandlesRegistryState),
 
+    /// The aggregated signature that the spend needs, such as one from a parsed mempool item.
     pub signature: Signature,
 }
 
 impl XchandlesPendingSpendInfo {
+    /// Creates an empty pending spend starting from the given state.
     pub fn new(latest_state: XchandlesRegistryState) -> Self {
         Self {
             actions: vec![],
@@ -50,17 +60,38 @@ impl XchandlesPendingSpendInfo {
     }
 }
 
+/// The `XCHandles` registry: an action-layer singleton that registers handles.
+///
+/// Each registered handle is stored in a handle [`Slot`], and the slots form a sorted linked list
+/// keyed by handle hash, starting with the two end slots created at launch (see
+/// [`launch_xchandles_registry`](crate::launch_xchandles_registry)). A handle slot records the
+/// handle's expiration and the launcher ids of its owner and resolved NFTs. Handles are registered
+/// with a [`PrecommitCoin`](crate::PrecommitCoin), can be extended, expire, and can be moved to new
+/// owner and resolved NFTs with a two-step update that uses update slots.
+///
+/// To spend the registry, build actions with [`XchandlesRegistry::new_action`] and spend them. Most
+/// actions' `spend` methods call [`XchandlesRegistry::insert_action_spend`] and return conditions or
+/// messages that other coins in the bundle should output to approve or secure the action. The
+/// [`DelegatedStateAction`] returns its [`Spend`] instead, which you insert yourself. Finally, call
+/// [`XchandlesRegistry::finish_spend`]. While actions are pending, use
+/// [`XchandlesRegistry::actual_neigbors`], [`XchandlesRegistry::actual_handle_slot`], and
+/// [`XchandlesRegistry::actual_update_slot`] to account for slots created earlier in the same spend.
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct XchandlesRegistry {
+    /// The registry singleton coin.
     pub coin: Coin,
+    /// The proof needed to spend the singleton.
     pub proof: Proof,
+    /// The state and constants of the registry.
     pub info: XchandlesRegistryInfo,
 
+    /// The actions queued for the next spend.
     pub pending_spend: XchandlesPendingSpendInfo,
 }
 
 impl XchandlesRegistry {
+    /// Creates a new [`XchandlesRegistry`] with no pending actions.
     pub fn new(coin: Coin, proof: Proof, info: XchandlesRegistryInfo) -> Self {
         Self {
             coin,
@@ -77,6 +108,14 @@ impl ActionSingleton for XchandlesRegistry {
 }
 
 impl XchandlesRegistry {
+    /// Runs one action spend on top of the given state and identifies it.
+    ///
+    /// Returns the new ephemeral and registry state, the action's log, the values of the handle and
+    /// update slots it creates, and the values of the handle and update slots it spends.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::InvalidMerkleProof`] if the action isn't one of the registry's actions.
     #[allow(clippy::type_complexity)]
     pub fn pending_info_delta_from_spend(
         ctx: &mut SpendContext,
@@ -227,6 +266,7 @@ impl XchandlesRegistry {
         ))
     }
 
+    /// Parses all of the actions in an action-layer inner solution into an [`XchandlesPendingSpendInfo`].
     pub fn pending_info_from_spend(
         ctx: &mut SpendContext,
         inner_solution: NodePtr,
@@ -274,6 +314,10 @@ impl XchandlesRegistry {
         })
     }
 
+    /// Parses a registry and its actions from a spend of the registry coin.
+    ///
+    /// The returned registry is the spent coin, with its actions in `pending_spend`. Returns
+    /// [`None`] if the coin doesn't have amount 1 or isn't a registry with the given constants.
     pub fn from_spend(
         ctx: &mut SpendContext,
         spend: &CoinSpend,
@@ -312,10 +356,12 @@ impl XchandlesRegistry {
         }))
     }
 
+    /// Sets the signature that will be returned by [`XchandlesRegistry::finish_spend`].
     pub fn set_pending_signature(&mut self, signature: Signature) {
         self.pending_spend.signature = signature;
     }
 
+    /// Returns the lineage proof for the child of this registry coin.
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -324,6 +370,9 @@ impl XchandlesRegistry {
         }
     }
 
+    /// Parses the registry coin created by a spend of its parent registry coin.
+    ///
+    /// Returns [`None`] if the parent isn't a registry with the given constants.
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
         parent_spend: &CoinSpend,
@@ -357,6 +406,7 @@ impl XchandlesRegistry {
         }))
     }
 
+    /// Returns the registry coin created by spending this one, with the given state.
     pub fn child(&self, child_state: XchandlesRegistryState) -> Self {
         let new_info = self.info.with_state(child_state);
         let new_coin = Coin::new(self.coin.coin_id(), new_info.puzzle_hash().into(), 1);
@@ -369,6 +419,12 @@ impl XchandlesRegistry {
         }
     }
 
+    /// Parses a registry launched by [`launch_xchandles_registry`](crate::launch_xchandles_registry) from its launcher solution.
+    ///
+    /// Returns the first registry coin (created by the eve singleton), its two initial slots, the
+    /// initial registration asset id, and the initial base price. Returns [`None`] if the launcher
+    /// solution doesn't have the expected key-value list, the state doesn't match the launch
+    /// parameters, or the launched puzzle hash doesn't match.
     // Also returns initial registration asset id
     #[allow(clippy::type_complexity)]
     pub fn from_launcher_solution(
@@ -480,6 +536,13 @@ impl XchandlesRegistry {
         )))
     }
 
+    /// Parses the latest registry from a mempool item and prepares to spend it again.
+    ///
+    /// Finds the first registry spend in the bundle, follows its children through the bundle to the
+    /// latest registry coin, and parses that coin's actions into `pending_spend`. All other spends
+    /// are inserted into `ctx`, and the bundle's aggregated signature becomes the pending signature.
+    /// This lets you add more actions to an unconfirmed registry spend and replace it with
+    /// [`XchandlesRegistry::finish_spend`].
     pub fn from_mempool_item(
         ctx: &mut SpendContext,
         mempool_item: SpendBundle,
@@ -535,6 +598,14 @@ impl XchandlesRegistry {
 }
 
 impl XchandlesRegistry {
+    /// Spends the registry with all pending actions.
+    ///
+    /// Returns the child registry and the pending signature, which must be aggregated into the
+    /// final spend bundle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a Merkle proof can't be built for one of the pending actions.
     pub fn finish_spend(self, ctx: &mut SpendContext) -> Result<(Self, Signature), DriverError> {
         let layers = self.info.into_layers();
 
@@ -575,6 +646,7 @@ impl XchandlesRegistry {
         Ok((child, self.pending_spend.signature))
     }
 
+    /// Creates one of the registry's actions from its constants.
     pub fn new_action<A>(&self) -> A
     where
         A: SingletonAction<Self>,
@@ -582,6 +654,7 @@ impl XchandlesRegistry {
         A::from_constants(&self.info.constants)
     }
 
+    /// Returns the handle slot that this registry spend creates for `slot_value`.
     pub fn created_handle_slot_value_to_slot(
         &self,
         slot_value: XchandlesHandleSlotValue,
@@ -602,6 +675,7 @@ impl XchandlesRegistry {
         )
     }
 
+    /// Returns the update slot that this registry spend creates for `slot_value`.
     pub fn created_update_slot_value_to_slot(
         &self,
         slot_value: XchandlesUpdateSlotValue,
@@ -622,6 +696,10 @@ impl XchandlesRegistry {
         )
     }
 
+    /// Returns the handle slots that will be the neighbors of `new_handle_hash` once the pending actions run.
+    ///
+    /// `on_chain_left_slot` and `on_chain_right_slot` are the neighbors on chain. If pending actions
+    /// create closer slots, those are returned instead.
     pub fn actual_neigbors(
         &self,
         new_handle_hash: Bytes32,
@@ -651,6 +729,7 @@ impl XchandlesRegistry {
         (left, right)
     }
 
+    /// Returns the latest version of a handle slot, matched by handle hash, taking pending actions into account.
     pub fn actual_handle_slot(
         &self,
         slot: Slot<XchandlesHandleSlotValue>,
@@ -665,6 +744,7 @@ impl XchandlesRegistry {
         slot
     }
 
+    /// Returns the latest version of an update slot, matched by initiator coin id, taking pending actions into account.
     pub fn actual_update_slot(
         &self,
         slot: Slot<XchandlesUpdateSlotValue>,
@@ -679,6 +759,9 @@ impl XchandlesRegistry {
         slot
     }
 
+    /// Adds an action spend to the pending spend, updating the state, slots, and logs.
+    ///
+    /// Actions call this from their `spend` methods, so you rarely need to call it directly.
     pub fn insert_action_spend(
         &mut self,
         ctx: &mut SpendContext,

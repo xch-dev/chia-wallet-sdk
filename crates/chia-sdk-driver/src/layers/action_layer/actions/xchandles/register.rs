@@ -25,10 +25,21 @@ use super::{
     run_pricing_output,
 };
 
+/// The `XCHandles` action that registers a new handle.
+///
+/// Registration consumes a [`PrecommitCoin`] with an [`XchandlesPrecommitValue`] that paid the
+/// price computed by the registry's pricing puzzle, and inserts a slot for the handle hash
+/// between its two neighbors in the sorted slot list. The owner singleton, and the resolved
+/// singleton if it's different, must approve the registration with messages.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
+    /// The relative block height of the registry's precommit coins.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the registry's payments.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -54,6 +65,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesRegisterAction {
 }
 
 impl XchandlesRegisterAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         relative_block_height: u32,
@@ -84,6 +96,14 @@ impl XchandlesRegisterAction {
         ))
     }
 
+    /// Parses an action solution into an [`XchandlesRegisterActionLog`].
+    ///
+    /// The pricing puzzle in the solution is run to compute the price and the registration
+    /// time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the pricing puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -224,7 +244,23 @@ impl XchandlesRegisterAction {
         })
     }
 
-    /// Factor-pricing register. Matches `State.Pricing_Puzzle_Hash`.
+    /// Registers the handle of `precommit_coin` in the pending spend of `registry`, using the
+    /// factor pricing puzzle ([`XchandlesFactorPricingPuzzleArgs`]).
+    ///
+    /// The pricing puzzle is curried with `base_handle_price` and `registration_period`, so its
+    /// hash must equal [`XchandlesRegistryState::pricing_puzzle_hash`](crate::XchandlesRegistryState::pricing_puzzle_hash).
+    /// The number of periods is the precommit coin's amount divided by the price of one period,
+    /// rounded down. `start_time` is the buy time, and the inner puzzle hashes are those of the
+    /// owner and resolved singletons. See [`XchandlesRegisterAction::spend_with_pricing`] for
+    /// what's returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `base_handle_price` is 0, since the price of one period is then 0.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -265,11 +301,27 @@ impl XchandlesRegisterAction {
         )
     }
 
-    /// Register with an explicit pricing puzzle reveal and solution.
+    /// Registers the handle of `precommit_coin` in the pending spend of `registry`, with an
+    /// explicit pricing puzzle reveal and solution.
     ///
-    /// The reveal tree hash must equal `State.Pricing_Puzzle_Hash` (factor
-    /// pricing on the deployed registry). Do not pass the expiry-pricing
-    /// puzzle; that hash is only valid for `expire`.
+    /// The tree hash of `pricing_puzzle` must equal
+    /// [`XchandlesRegistryState::pricing_puzzle_hash`](crate::XchandlesRegistryState::pricing_puzzle_hash).
+    /// Don't pass the expired handle pricing puzzle from
+    /// [`XchandlesRegisterAction::expiry_pricing_puzzle`], which is only valid for
+    /// [`XchandlesExpireAction`](crate::XchandlesExpireAction). `left_slot` and `right_slot` are
+    /// the on-chain neighbors of the handle; neighbors created by earlier pending actions are used
+    /// instead if needed.
+    ///
+    /// Returns, in order:
+    ///
+    /// - A condition that asserts the registry's register announcement.
+    /// - The `SEND_MESSAGE` condition (mode 18) that the owner singleton must output.
+    /// - The `SEND_MESSAGE` condition that the resolved singleton must output, or `None` if it's
+    ///   the owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend_with_pricing(
         self,
@@ -366,7 +418,18 @@ impl XchandlesRegisterAction {
         ))
     }
 
-    /// Curry the deployed expiry-pricing puzzle (expire/refund reveals).
+    /// Constructs the expired handle pricing puzzle ([`XchandlesExpirePricingPuzzle`]) for the
+    /// given base price and registration period.
+    ///
+    /// Its tree hash is
+    /// [`XchandlesRegistryState::expired_handle_pricing_puzzle_hash`](crate::XchandlesRegistryState::expired_handle_pricing_puzzle_hash)
+    /// for a registry using these parameters. Use it with
+    /// [`XchandlesExpireAction`](crate::XchandlesExpireAction), or as the precommitted pricing
+    /// puzzle in an [`XchandlesRefundAction`](crate::XchandlesRefundAction).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle can't be allocated.
     pub fn expiry_pricing_puzzle(
         ctx: &mut SpendContext,
         base_handle_price: u64,

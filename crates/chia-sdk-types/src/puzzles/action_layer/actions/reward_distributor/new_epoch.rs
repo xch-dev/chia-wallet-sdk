@@ -7,6 +7,14 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor new epoch action, compiled from Rue.
+///
+/// Starts the next epoch once the current one has ended and the distributor has synced
+/// to its end (`last_update == epoch_end`). It reads the new epoch's rewards from the
+/// reward slot (or uses 0 if no rewards were committed to it), pays a fee of
+/// `epoch_total_rewards * fee_bps / 10000`, adds the rest to the remaining rewards, and
+/// moves `epoch_end` forward by `epoch_seconds`. The action announces `"e"` followed by
+/// the tree hash of the previous `epoch_end`.
 pub const REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE: [u8; 789] = hex!(
     // Rue
     "
@@ -38,29 +46,46 @@ pub const REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE: [u8; 789] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     1b2c758b5a4da560bf177ab23b9500dcdb302bc7724b39c82b641c214d13332f
     "
 ));
 
+/// Curried arguments of the new epoch action ([`REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorNewEpochActionArgs {
+    /// Hash of the slot puzzle after its first curry for reward slots
+    /// ([`RewardDistributorSlotNonce::REWARD`](crate::puzzles::RewardDistributorSlotNonce::REWARD)).
     pub reward_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that receives the fee.
     pub fee_payout_puzzle_hash: Bytes32,
+    /// Fee, in basis points of the epoch's rewards.
     pub fee_bps: u64,
+    /// Length of each epoch, in seconds.
     pub epoch_seconds: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
+/// Solution to the new epoch action. The `slot_*` fields are the current value of the
+/// reward slot being spent and re-created.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorNewEpochActionSolution {
+    /// Counter of the reward slot.
     pub slot_counter: u64,
+    /// Epoch start of the reward slot: the new epoch's start, or an earlier epoch whose next
+    /// epoch isn't initialized when no rewards were committed to the new epoch.
     pub slot_epoch_time: u64,
+    /// Whether the reward slot's next epoch is initialized.
     pub slot_next_epoch_initialized: bool,
+    /// Rewards of the reward slot.
     pub slot_total_rewards: u64,
+    /// Rewards for the new epoch: the slot's rewards if the slot is for the new epoch,
+    /// otherwise 0.
     #[clvm(rest)]
     pub epoch_total_rewards: u64,
 }

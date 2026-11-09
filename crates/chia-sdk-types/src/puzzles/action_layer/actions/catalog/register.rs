@@ -16,15 +16,27 @@ use crate::{
     puzzles::{ANY_METADATA_UPDATER_HASH, CatalogOtherPrecommitData},
 };
 
+/// Constants used by the `CATalog` register action to compute the puzzle hash of the
+/// registration NFT it mints.
+///
+/// Encoded as `(((launcher_hash . singleton_mod_hash) . (state_layer_mod_hash . metadata_updater_hash_hash)) . ((nft_ownership_layer_mod_hash . transfer_program_mod_hash) . (royalty_puzzle_hash_hash . trade_price_percentage)))`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftPack {
+    /// Puzzle hash of the singleton launcher.
     pub launcher_hash: Bytes32,
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Mod hash of the NFT state layer.
     pub state_layer_mod_hash: Bytes32,
+    /// Tree hash of the NFT metadata updater's puzzle hash.
     pub metadata_updater_hash_hash: Bytes32,
+    /// Mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// Mod hash of the NFT royalty transfer program.
     pub transfer_program_mod_hash: Bytes32,
+    /// Tree hash of the puzzle hash that receives NFT royalties.
     pub royalty_puzzle_hash_hash: Bytes32,
+    /// Royalty, in basis points.
     pub trade_price_percentage: u16,
 }
 
@@ -79,6 +91,8 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for NftPack {
 }
 
 impl NftPack {
+    /// Creates the pack with the standard NFT puzzles and [`ANY_METADATA_UPDATER_HASH`] as
+    /// the metadata updater.
     pub fn new(royalty_puzzle_hash_hash: Bytes32, trade_price_percentage: u16) -> Self {
         let meta_updater_hash: Bytes32 = ANY_METADATA_UPDATER_HASH.into();
 
@@ -96,6 +110,16 @@ impl NftPack {
     }
 }
 
+/// Serialized `CATalog` register action.
+///
+/// `CATalog` is a registry of CATs where the first party to reveal a CAT's TAIL (through
+/// a precommit coin) owns its entry. Registering inserts a slot for the new asset id
+/// between two neighboring slots (left and right asset ids must bracket it), consumes a
+/// precommit coin whose amount equals the registration price, and mints a registration
+/// NFT through a [uniqueness prelauncher](crate::puzzles::UNIQUENESS_PRELAUNCHER_PUZZLE)
+/// whose value is the asset id. The NFT starts with nil metadata and is owned by the
+/// precommitted initial owner puzzle hash. The action announces `"r"` followed by the tree
+/// hash of `(tail_hash . initial_nft_owner_ph)`, and leaves the state unchanged.
 pub const CATALOG_REGISTER_PUZZLE: [u8; 1456] = hex!(
     "
     ff02ffff01ff02ffff03ffff22ffff22ffff0aff820bffff82057f80ffff0aff
@@ -147,45 +171,65 @@ pub const CATALOG_REGISTER_PUZZLE: [u8; 1456] = hex!(
     "
 );
 
+/// Tree hash of [`CATALOG_REGISTER_PUZZLE`].
 pub const CATALOG_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     ef66622bbd9ac5922df81baac96082e16f51ae0a8a69e40e93b13a44fff1f8cf
     "
 ));
 
+/// Curried arguments of the `CATalog` register action ([`CATALOG_REGISTER_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct CatalogRegisterActionArgs {
+    /// Constants used to compute the registration NFT's puzzle hash.
     pub nft_pack: NftPack,
+    /// Hash of the uniqueness prelauncher after its first curry
+    /// ([`UniquenessPrelauncher1stCurryArgs`](crate::puzzles::UniquenessPrelauncher1stCurryArgs)).
     pub uniqueness_prelauncher_1st_curry_hash: Bytes32,
+    /// Hash of the precommit layer after its first curry
+    /// ([`PrecommitLayer1stCurryArgs`](crate::puzzles::PrecommitLayer1stCurryArgs)).
     pub precommit_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for the registry's slots
+    /// ([`Slot1stCurryArgs`](crate::puzzles::Slot1stCurryArgs)).
     pub slot_1st_curry_hash: Bytes32,
 }
 
+/// A puzzle reveal and its solution, encoded as `(puzzle . solution)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PuzzleAndSolution<P, S> {
+    /// Puzzle reveal.
     pub puzzle: P,
+    /// Solution to the puzzle.
     #[clvm(rest)]
     pub solution: S,
 }
 
 impl<P, S> PuzzleAndSolution<P, S> {
+    /// Creates the value from its parts.
     pub fn new(puzzle: P, solution: S) -> Self {
         Self { puzzle, solution }
     }
 }
 
+/// Information about one of the two slots a new `CATalog` entry is inserted between,
+/// encoded as `(this_counter this_tail_hash . this_this_tail_hash)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogDoubleTailHashData {
-    pub this_counter: u64,       // this slot's counters
+    /// Counter of the neighbor slot.
+    pub this_counter: u64, // this slot's counters
+    /// Asset id of the neighbor slot (the left or right asset id).
     pub this_tail_hash: Bytes32, // left_tail_hash or right_tail_hash
+    /// Asset id of the neighbor's own outer neighbor (the left neighbor's left neighbor, or
+    /// the right neighbor's right neighbor).
     #[clvm(rest)]
     pub this_this_tail_hash: Bytes32, // left_left_tail_hash or right_right_tail_hash
 }
 
 impl CatalogDoubleTailHashData {
+    /// Creates the value from its parts.
     pub fn new(this_counter: u64, this_tail_hash: Bytes32, this_this_tail_hash: Bytes32) -> Self {
         Self {
             this_counter,
@@ -195,13 +239,21 @@ impl CatalogDoubleTailHashData {
     }
 }
 
+/// Solution to the `CATalog` register action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogRegisterActionSolution<P, S> {
+    /// Coin id of the `CATalog` singleton coin being spent, which is the parent of the
+    /// uniqueness prelauncher.
     pub my_id: Bytes32,
+    /// Slot to the left of the new entry.
     pub left_data: CatalogDoubleTailHashData,
+    /// Slot to the right of the new entry.
     pub right_data: CatalogDoubleTailHashData,
+    /// CAT maker puzzle and solution of the precommit coin. The puzzle must match the CAT
+    /// maker puzzle hash in the registry's state.
     pub precommitted_cat_maker_data: PuzzleAndSolution<P, S>,
+    /// Rest of the data the precommit coin committed to.
     #[clvm(rest)]
     pub other_precommit_data: CatalogOtherPrecommitData,
 }

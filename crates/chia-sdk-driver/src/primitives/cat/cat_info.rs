@@ -28,6 +28,7 @@ pub struct CatInfo {
 }
 
 impl CatInfo {
+    /// Creates a new [`CatInfo`] from its asset id, optional hidden puzzle hash, and p2 puzzle hash.
     pub fn new(
         asset_id: Bytes32,
         hidden_puzzle_hash: Option<Bytes32>,
@@ -94,7 +95,7 @@ impl CatInfo {
     }
 
     /// Calculates the full puzzle of the CAT. If the CAT is revocable, the [`Self::p2_puzzle_hash`]
-    /// if used instead of the passed in p2 puzzle reveal. This is because the revocation layer
+    /// is used instead of the passed in p2 puzzle reveal. This is because the revocation layer
     /// reveals the inner puzzle in the solution instead of the puzzle.
     pub fn construct_puzzle(
         &self,

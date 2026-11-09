@@ -56,6 +56,7 @@ pub struct Cat {
 }
 
 impl Cat {
+    /// Creates a new [`Cat`] from its coin, lineage proof, and outer puzzle info.
     pub fn new(coin: Coin, lineage_proof: Option<LineageProof>, info: CatInfo) -> Self {
         Self {
             coin,
@@ -64,6 +65,63 @@ impl Cat {
         }
     }
 
+    /// Issues a CAT with a single-issuance TAIL ([`GenesisByCoinIdTailArgs`]) locked to `parent_coin_id`.
+    ///
+    /// Because the TAIL only allows issuance from an eve coin whose parent is `parent_coin_id`,
+    /// no more of this CAT can ever be minted. The asset id is the tree hash of the curried TAIL.
+    ///
+    /// The returned [`Conditions`] create the eve CAT coin and must be output by the spend of the
+    /// coin with id `parent_coin_id`. The eve coin is spent immediately with `extra_conditions`,
+    /// which must create CAT outputs that add up to exactly `amount`. The returned [`Cat`] list
+    /// contains those outputs. See [`Cat::issue`] for details.
+    ///
+    /// # Example
+    ///
+    /// Issue a CAT and then send it to another puzzle hash:
+    ///
+    /// ```
+    /// use chia_protocol::Bytes32;
+    /// use chia_sdk_driver::{Cat, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
+    /// use chia_sdk_test::Simulator;
+    /// use chia_sdk_types::Conditions;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let ctx = &mut SpendContext::new();
+    ///
+    /// let alice = sim.bls(1_000);
+    /// let alice_p2 = StandardLayer::new(alice.pk);
+    ///
+    /// // Issue 1,000 mojos of a new CAT to Alice, hinted so that her wallet can find it.
+    /// let memos = ctx.hint(alice.puzzle_hash)?;
+    /// let (issue_cat, cats) = Cat::single_issuance(
+    ///     ctx,
+    ///     alice.coin.coin_id(),
+    ///     None,
+    ///     1_000,
+    ///     Conditions::new().create_coin(alice.puzzle_hash, 1_000, memos),
+    /// )?;
+    /// alice_p2.spend(ctx, alice.coin, issue_cat)?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+    ///
+    /// let cat = cats[0];
+    /// assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
+    /// assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+    ///
+    /// // Send the CAT to Bob. The inner spend is Alice's standard puzzle.
+    /// let bob_puzzle_hash = Bytes32::new([1; 32]);
+    /// let memos = ctx.hint(bob_puzzle_hash)?;
+    /// let inner_spend = alice_p2.spend_with_conditions(
+    ///     ctx,
+    ///     Conditions::new().create_coin(bob_puzzle_hash, 1_000, memos),
+    /// )?;
+    /// let children = Cat::spend_all(ctx, &[CatSpend::new(cat, inner_spend)])?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// assert_eq!(children[0].info.p2_puzzle_hash, bob_puzzle_hash);
+    /// assert_eq!(children[0].info.asset_id, cat.info.asset_id);
+    /// assert!(sim.coin_state(children[0].coin.coin_id()).is_some());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn single_issuance(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
@@ -83,6 +141,13 @@ impl Cat {
         )
     }
 
+    /// Issues a CAT with a multi-issuance TAIL ([`EverythingWithSignatureTailArgs`]) curried with `public_key`.
+    ///
+    /// The TAIL requires an `AGG_SIG_ME` signature from `public_key` every time it is run, so the
+    /// owner of the matching secret key can issue more (or melt) this CAT later. The asset id is the
+    /// tree hash of the curried TAIL, so it doesn't depend on `parent_coin_id`.
+    ///
+    /// The returned [`Conditions`] and [`Cat`] list behave the same as in [`Cat::single_issuance`].
     pub fn multi_issuance(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
@@ -103,6 +168,16 @@ impl Cat {
         )
     }
 
+    /// Issues a CAT by running the given TAIL in the spend of a new eve coin.
+    ///
+    /// The eve coin is a CAT (wrapped in the [`RevocationLayer`] if `hidden_puzzle_hash` is set) whose
+    /// p2 puzzle is a delegated puzzle that outputs `conditions` plus `run_tail`. Its asset id is the
+    /// tree hash of `run_tail.program`, and its parent is `parent_coin_id`.
+    ///
+    /// Returns the [`Conditions`] that create the eve coin, which you need to add to the spend of
+    /// the parent coin, and the CAT outputs created by `conditions`. The eve spend itself is added
+    /// to the [`SpendContext`]. The CAT outputs are the children of the eve coin, and the TAIL must
+    /// accept the resulting delta (`amount` minus the sum of the outputs), which is passed to it as the extra delta.
     pub fn issue(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
@@ -137,6 +212,13 @@ impl Cat {
     ///
     /// All of the ring announcements and proofs required by the CAT puzzle are calculated automatically.
     /// This requires running the inner spends to get the conditions, so any errors will be propagated.
+    ///
+    /// Returns the child [`Cat`]s created by the inner spends, in the order that the spends and their
+    /// `CREATE_COIN` conditions appear. See [`Cat::child_from_p2_create_coin`] for how the revocation
+    /// layer of each child is determined.
+    ///
+    /// If one of the inner spends outputs a `RUN_CAT_TAIL` condition, the extra delta needed to
+    /// balance the ring is assigned to the first such spend.
     ///
     /// It's important not to spend CATs with different asset IDs at the same time, since they are not
     /// compatible.
@@ -269,7 +351,7 @@ impl Cat {
         Ok(())
     }
 
-    /// Creates a [`LineageProof`] for which would be valid for any children created by this [`Cat`].
+    /// Creates a [`LineageProof`] which would be valid for any children created by this [`Cat`].
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -382,8 +464,46 @@ impl Cat {
     /// You simply need to look up the parent coin's spend, parse the children, and
     /// find the one that matches the hinted coin.
     ///
+    /// Returns [`None`] if the parent is not a CAT. This runs the parent's inner spend,
+    /// so it returns an error if that fails.
+    ///
     /// There is special handling for the revocation layer.
     /// See [`Cat::child_from_p2_create_coin`] for more details.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_sdk_driver::{Cat, Puzzle, SpendContext, StandardLayer};
+    /// use chia_sdk_test::Simulator;
+    /// use chia_sdk_types::Conditions;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let ctx = &mut SpendContext::new();
+    ///
+    /// let alice = sim.bls(1);
+    /// let memos = ctx.hint(alice.puzzle_hash)?;
+    /// let (issue_cat, cats) = Cat::single_issuance(
+    ///     ctx,
+    ///     alice.coin.coin_id(),
+    ///     None,
+    ///     1,
+    ///     Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
+    /// )?;
+    /// StandardLayer::new(alice.pk).spend(ctx, alice.coin, issue_cat)?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// // Look up the parent spend (the eve CAT) and parse its children.
+    /// let parent_spend = sim.coin_spend(cats[0].coin.parent_coin_info).unwrap();
+    /// let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+    /// let parent_puzzle = Puzzle::parse(ctx, parent_puzzle);
+    /// let parent_solution = ctx.alloc(&parent_spend.solution)?;
+    ///
+    /// let children = Cat::parse_children(ctx, parent_spend.coin, parent_puzzle, parent_solution)?
+    ///     .expect("the parent is a CAT");
+    ///
+    /// assert_eq!(children, cats);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn parse_children(
         allocator: &mut Allocator,
         parent_coin: Coin,

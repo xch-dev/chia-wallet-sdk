@@ -16,9 +16,19 @@ use crate::{
     RewardDistributorStateTransition, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that commits incentives to a future epoch.
+///
+/// It adds the rewards to the epoch's reward slot, creating the reward slots of any epochs in
+/// between, and creates a commitment slot that records the rewards and a clawback puzzle hash
+/// so that a share can be withdrawn later with a
+/// [`RewardDistributorWithdrawIncentivesAction`](crate::RewardDistributorWithdrawIncentivesAction).
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorCommitIncentivesAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::epoch_seconds`](crate::RewardDistributorConstants::epoch_seconds).
     pub epoch_seconds: u64,
 }
 
@@ -38,6 +48,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorCommitIncentivesAct
 }
 
 impl RewardDistributorCommitIncentivesAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         epoch_seconds: u64,
@@ -61,6 +72,14 @@ impl RewardDistributorCommitIncentivesAction {
         ctx.curry(Self::new_args(self.launcher_id, self.epoch_seconds))
     }
 
+    /// Parses an action solution into a [`RewardDistributorCommitIncentivesActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action, and `epoch_seconds` is
+    /// the distributor's epoch length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -125,6 +144,17 @@ impl RewardDistributorCommitIncentivesAction {
         })
     }
 
+    /// Commits `rewards_to_add` to the epoch starting at `epoch_start` in the pending spend of
+    /// `distributor`, spending `reward_slot`.
+    ///
+    /// `reward_slot` is the slot of the committed epoch if it exists, or else the latest reward
+    /// slot. `clawback_ph` is the puzzle hash that can withdraw the commitment.
+    ///
+    /// Returns a condition that asserts the distributor's commit incentives announcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::type_complexity)]
     pub fn spend(
         self,

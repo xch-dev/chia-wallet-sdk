@@ -7,6 +7,17 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::ACTION_LAYER_PUZZLE_HASH};
 
+/// Serialized reserve finalizer puzzle, compiled from Rue.
+///
+/// It does everything [`DEFAULT_FINALIZER_PUZZLE`](crate::puzzles::DEFAULT_FINALIZER_PUZZLE)
+/// does, and also spends and re-creates a reserve coin controlled by the singleton
+/// through [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs).
+/// Actions route conditions to the reserve by prefixing them with `-42`; the finalizer
+/// removes those conditions from the singleton's output and has the reserve output them
+/// instead, along with a `CREATE_COIN` that re-creates the reserve with the amount
+/// computed from the new state.
+///
+/// Use [`ReserveFinalizer1stCurryArgs`] and [`ReserveFinalizer2ndCurryArgs`] to curry it.
 pub const RESERVE_FINALIZER_PUZZLE: [u8; 739] = hex!(
     // Rue
     "
@@ -37,19 +48,25 @@ pub const RESERVE_FINALIZER_PUZZLE: [u8; 739] = hex!(
     "
 );
 
+/// Tree hash of [`RESERVE_FINALIZER_PUZZLE`].
 pub const RESERVE_FINALIZER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     5b406eb66d10998027924c9bdea4254966e27ca765a8992227f826cb0e868095
     "
 ));
 
+/// Default program that computes the reserve amount from the state: `(f state)`, the
+/// first item of the state.
 // run '(mod state (f state))' -d
 pub const RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM: [u8; 1] = hex!("02");
+/// Tree hash of [`RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM`].
 pub const RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH: TreeHash =
     TreeHash::new(hex!(
         "a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222"
     ));
 
+/// Marker for [`RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM`], which takes
+/// no curried arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DefaultReserveAmountFromStateProgramArgs {}
 
@@ -63,17 +80,31 @@ impl Mod for DefaultReserveAmountFromStateProgramArgs {
     }
 }
 
+/// First curry of the reserve finalizer ([`RESERVE_FINALIZER_PUZZLE`]).
+///
+/// The result is curried again with [`ReserveFinalizer2ndCurryArgs`] so the finalizer
+/// can refer to its own hash.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct ReserveFinalizer1stCurryArgs<P> {
+    /// Mod hash of the action layer ([`ACTION_LAYER_PUZZLE_HASH`]), used to compute the
+    /// re-created singleton's inner puzzle hash.
     pub action_layer_mod_hash: Bytes32,
+    /// Full puzzle hash of the reserve coin (for example a CAT whose inner puzzle is
+    /// [`reserve_inner_puzzle_hash`](Self::reserve_inner_puzzle_hash)), used to compute the
+    /// current reserve's coin id.
     pub reserve_full_puzzle_hash: Bytes32,
+    /// Inner puzzle hash of the reserve, used for the re-created reserve coin and as its hint.
     pub reserve_inner_puzzle_hash: Bytes32,
+    /// Program run with the state as its environment that returns the reserve amount. The
+    /// default is [`RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM`].
     pub reserve_amount_from_state_program: P,
+    /// Hint (memo) added to the coin that re-creates the singleton, usually the launcher id.
     pub hint: Bytes32,
 }
 
 impl<P> ReserveFinalizer1stCurryArgs<P> {
+    /// Creates the arguments with the standard action layer mod hash.
     pub fn new(
         reserve_full_puzzle_hash: Bytes32,
         reserve_inner_puzzle_hash: Bytes32,
@@ -89,6 +120,8 @@ impl<P> ReserveFinalizer1stCurryArgs<P> {
         }
     }
 
+    /// Computes the hash of the finalizer after the first curry, given the tree hash of the
+    /// reserve amount program.
     pub fn curry_tree_hash(
         reserve_full_puzzle_hash: Bytes32,
         reserve_inner_puzzle_hash: Bytes32,
@@ -108,13 +141,18 @@ impl<P> ReserveFinalizer1stCurryArgs<P> {
     }
 }
 
+/// Second curry of the reserve finalizer. The resulting hash is what goes into
+/// [`ActionLayerArgs::finalizer`](crate::puzzles::ActionLayerArgs::finalizer).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct ReserveFinalizer2ndCurryArgs {
+    /// Hash of the finalizer after the first curry (see
+    /// [`ReserveFinalizer1stCurryArgs::curry_tree_hash`]).
     pub finalizer_self_hash: Bytes32,
 }
 
 impl ReserveFinalizer2ndCurryArgs {
+    /// Creates the arguments by computing the first curry's hash from its parts.
     pub fn new<P>(
         reserve_full_puzzle_hash: Bytes32,
         reserve_inner_puzzle_hash: Bytes32,
@@ -135,6 +173,7 @@ impl ReserveFinalizer2ndCurryArgs {
         }
     }
 
+    /// Computes the full finalizer puzzle hash (after both curries).
     pub fn curry_tree_hash(
         reserve_full_puzzle_hash: Bytes32,
         reserve_inner_puzzle_hash: Bytes32,
@@ -158,9 +197,13 @@ impl ReserveFinalizer2ndCurryArgs {
     }
 }
 
+/// Finalizer solution for [`RESERVE_FINALIZER_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(transparent)]
 pub struct ReserveFinalizerSolution {
+    /// Parent coin id of the reserve coin being spent alongside the singleton. The
+    /// finalizer combines it with the reserve's full puzzle hash and the amount computed from
+    /// the initial state to address its message to that coin.
     pub reserve_parent_id: Bytes32,
 }
 

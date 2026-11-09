@@ -23,33 +23,58 @@ use chia_puzzles::{
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, TreeHash, TreeHasher};
 
-/// This trait makes it possible to get the mod hash or puzzle reveal of a puzzle.
+/// A puzzle "mod" (the uncurried program) that is known at compile time, along with its hash.
 ///
-/// There is also a utility for calculating the curried tree hash, provided the type
-/// implements [`ToTreeHash`](clvm_utils::ToTreeHash). This is much more efficient than
-/// manually allocating and hashing the puzzle and its arguments.
+/// In Chia, many puzzles are built by currying arguments into a shared program. The program
+/// before currying is called the mod, and its tree hash is the mod hash. This trait gives access
+/// to the serialized mod ([`Mod::mod_reveal`]) and its hash ([`Mod::mod_hash`]).
 ///
-/// This trait should be be implemented for types that represent the curried arguments of puzzles.
-/// However, if a puzzle can't be curried (ie it has no arguments), this trait  can still be
-/// implemented on a marker struct that doesn't implement [`ToTreeHash`](clvm_utils::ToTreeHash).
-/// This will disable the [`curry_tree_hash`](Mod::curry_tree_hash) method.
+/// This trait should be implemented for types that represent the curried arguments of puzzles,
+/// which by convention end in `Args` and derive `ToClvm` and `FromClvm` with `#[clvm(curry)]`.
+/// However, if a puzzle can't be curried (it has no arguments), this trait can still be
+/// implemented on a marker struct that doesn't implement [`ToClvm`], such as
+/// [`SettlementPayment`](crate::puzzles::SettlementPayment). This disables the
+/// [`curry_tree_hash`](Mod::curry_tree_hash) method.
+///
+/// It's implemented for the common puzzle argument types from [`chia_puzzle_types`] (such as
+/// [`StandardArgs`], [`CatArgs`], and [`SingletonArgs`]), as well as the puzzle argument types in
+/// [`puzzles`](crate::puzzles). Use the [`compile_chialisp!`](macro@crate::compile_chialisp) or
+/// [`compile_rue!`](macro@crate::compile_rue) macros to implement it for your own puzzles.
 ///
 /// ## Usage Example
 ///
-/// We can specify the arguments of a puzzle to get its curried puzzle hash.
+/// We can specify the arguments of a puzzle to get its curried puzzle hash, without having to
+/// allocate the puzzle. This matches the tree hash of the actual curried puzzle.
 ///
 /// ```rust
 /// # use chia_bls::PublicKey;
 /// # use chia_puzzle_types::standard::StandardArgs;
 /// # use chia_sdk_types::Mod;
+/// # use clvm_traits::ToClvm;
+/// # use clvm_utils::{CurriedProgram, tree_hash};
+/// # use clvmr::{Allocator, serde::node_from_bytes};
 /// let args = StandardArgs::new(PublicKey::default());
 /// let puzzle_hash = args.curry_tree_hash();
+///
+/// let mut allocator = Allocator::new();
+/// let program = node_from_bytes(&mut allocator, &StandardArgs::mod_reveal())?;
+/// let puzzle = CurriedProgram { program, args }.to_clvm(&mut allocator)?;
+///
+/// assert_eq!(tree_hash(&allocator, program), StandardArgs::mod_hash());
+/// assert_eq!(tree_hash(&allocator, puzzle), puzzle_hash);
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub trait Mod {
+    /// The serialized CLVM bytecode of the uncurried puzzle.
     fn mod_reveal() -> Cow<'static, [u8]>;
+
+    /// The tree hash of the uncurried puzzle.
     fn mod_hash() -> TreeHash;
 
-    /// Curry the arguments into the [`Mod::mod_hash`].
+    /// Calculates the puzzle hash of the mod with these arguments curried in.
+    ///
+    /// This only hashes the arguments and combines them with [`Mod::mod_hash`], which is much
+    /// faster than allocating and hashing the whole curried puzzle.
     fn curry_tree_hash(&self) -> TreeHash
     where
         Self: Sized + ToClvm<TreeHasher>,

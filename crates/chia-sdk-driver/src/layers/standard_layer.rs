@@ -20,16 +20,64 @@ pub type P2DelegatedOrHiddenLayer = StandardLayer;
 /// When spending the coin, you can reveal this hidden puzzle and provide the original key.
 /// This functionality is seldom used in Chia, and usually the "default hidden puzzle" is used instead.
 /// The default hidden puzzle is not spendable, so you can only spend XCH coins by signing with your key.
+///
+/// Spending the coin without the hidden puzzle outputs an `AGG_SIG_ME` condition for the
+/// synthetic key and the tree hash of the delegated puzzle, so the spend bundle must be signed
+/// with the corresponding secret key.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_driver::{SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+/// use clvm_utils::ToTreeHash;
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let alice = sim.bls(1_000);
+/// let bob = sim.bls(0);
+///
+/// // The puzzle hash of the standard layer is the address of the key
+/// let alice_p2 = StandardLayer::new(alice.pk);
+/// assert_eq!(alice_p2.tree_hash(), alice.puzzle_hash.into());
+///
+/// // Send 300 mojos to Bob, and the rest back to Alice as change
+/// let bob_hint = ctx.hint(bob.puzzle_hash)?;
+/// let alice_hint = ctx.hint(alice.puzzle_hash)?;
+///
+/// alice_p2.spend(
+///     &mut ctx,
+///     alice.coin,
+///     Conditions::new()
+///         .create_coin(bob.puzzle_hash, 300, bob_hint)
+///         .create_coin(alice.puzzle_hash, 700, alice_hint),
+/// )?;
+///
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// let bob_coins = sim.unspent_coins(bob.puzzle_hash, false);
+/// assert!(bob_coins.iter().any(|coin| coin.amount == 300));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StandardLayer {
+    /// The synthetic public key, which is the original public key offset by the hidden puzzle
+    /// hash (usually the default hidden puzzle hash).
     pub synthetic_key: PublicKey,
 }
 
 impl StandardLayer {
+    /// Creates a [`StandardLayer`] for the synthetic key.
     pub fn new(synthetic_key: PublicKey) -> Self {
         Self { synthetic_key }
     }
 
+    /// Spends the coin by outputting the conditions, and adds the coin spend to the context.
+    ///
+    /// This is a shorthand for [`SpendWithConditions::spend_with_conditions`] followed by
+    /// [`SpendContext::spend`].
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -40,6 +88,11 @@ impl StandardLayer {
         ctx.spend(coin, spend)
     }
 
+    /// Creates a [`Spend`] that runs the given spend as the delegated puzzle and solution.
+    ///
+    /// The synthetic key must sign the tree hash of the delegated puzzle. Unlike
+    /// [`SpendWithConditions::spend_with_conditions`], the delegated puzzle doesn't need to be a
+    /// quoted list of conditions.
     pub fn delegated_inner_spend(
         &self,
         ctx: &mut SpendContext,

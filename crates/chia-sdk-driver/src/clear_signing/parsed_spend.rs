@@ -7,24 +7,38 @@ use crate::{
     Reveals, parse_inner_spend,
 };
 
+/// A revealed coin spend, parsed into its asset and custody, before it's known whether the vault authorizes it.
 #[derive(Debug, Clone)]
 pub struct ParsedSpend {
+    /// The asset held by the coin.
     pub asset: ParsedAsset,
+    /// The clawback the coin is locked in, and the path it's spent with, if the clawback was revealed.
     pub clawback: Option<ClawbackInfo>,
+    /// The p2 puzzle that controls the coin, or `None` if it isn't recognized (or is a clawback spent with the
+    /// push through path).
     pub custody: Option<CustodyInfo>,
+    /// The expiration time of the clawback, if the coin is being clawed back with the sender path. The
+    /// transaction must expire by then.
     pub required_expiration_time: Option<u64>,
+    /// Whether the coin is a revocable CAT being spent with its hidden puzzle.
     pub revoked: bool,
 }
 
+/// The asset held by a coin, as identified by its outer puzzles.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedAsset {
+    /// A CAT.
     Cat(Cat),
+    /// An NFT.
     Nft(Nft),
+    /// XCH, which is also used for any coin whose outer puzzle isn't recognized as another asset.
     Xch(Coin),
+    /// A bulletin coin, which holds XCH and publishes messages.
     Bulletin(Bulletin),
 }
 
 impl ParsedAsset {
+    /// The coin, including its outer puzzle hash.
     pub fn coin(&self) -> Coin {
         match self {
             Self::Cat(cat) => cat.coin,
@@ -35,6 +49,10 @@ impl ParsedAsset {
     }
 }
 
+/// Parses a revealed coin spend into its asset and custody.
+///
+/// If the coin's p2 puzzle is the settlement payments puzzle, its notarized payments are revealed as requested
+/// payments as well.
 pub fn parse_spend(
     reveals: &mut Reveals,
     allocator: &mut Allocator,

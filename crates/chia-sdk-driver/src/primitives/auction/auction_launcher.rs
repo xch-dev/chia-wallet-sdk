@@ -91,9 +91,14 @@ impl Launcher {
 /// [`reserve_parent_coin_info`](AuctionLaunch::reserve_parent_coin_info)) to get its lineage proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuctionLaunch {
+    /// The launcher coin that was spent.
     pub launcher_coin: Coin,
+    /// The auction memo from the key value list of the launcher solution.
     pub memo: AuctionMemo,
+    /// The puzzle hash of the singleton created by the launcher, which is checked against the
+    /// reconstructed auction by [`into_auction`](AuctionLaunch::into_auction).
     pub singleton_puzzle_hash: Bytes32,
+    /// The amount of the singleton created by the launcher.
     pub singleton_amount: u64,
 }
 
@@ -120,10 +125,14 @@ impl AuctionLaunch {
         })
     }
 
+    /// The coin id of the locked NFT, whose royalty info must be passed to
+    /// [`into_auction`](AuctionLaunch::into_auction).
     pub fn nft_coin_id(&self) -> Bytes32 {
         self.memo.nft_coin_id
     }
 
+    /// The parent coin id of the reserve. For CAT reserves, the spend of this coin is parsed to get
+    /// the reserve's lineage proof.
     pub fn reserve_parent_coin_info(&self) -> Bytes32 {
         self.memo.reserve.parent_coin_info()
     }

@@ -24,10 +24,16 @@ use crate::{
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Spends<S = Unfinished> {
+    /// The spends of XCH coins.
     pub xch: FungibleSpends<Coin>,
+    /// The spends of each CAT, keyed by [`Id::Existing`] asset id or by the [`Id::New`] of the
+    /// action that issued it.
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
+    /// The spends of each DID, keyed by launcher id or by the action that created it.
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
+    /// The spends of each NFT, keyed by launcher id or by the action that minted it.
     pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
+    /// The spends of each option contract, keyed by launcher id or by the action that minted it.
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
     /// The p2 puzzle hash of coins that are created and spent within the transaction, for example
     /// to emit conditions when no other spend can. The caller must be able to spend it.
@@ -97,11 +103,14 @@ pub struct Unfinished;
 pub struct Finished;
 
 impl Spends<Unfinished> {
-    /// Uses the change puzzle hash for intermediate coins as well.
+    /// Creates empty spends that send change (and unsent singletons) to the puzzle hash, and also
+    /// use it for intermediate coins.
     pub fn new(change_puzzle_hash: Bytes32) -> Self {
         Self::with_separate_change_puzzle_hash(change_puzzle_hash, change_puzzle_hash)
     }
 
+    /// Creates the spends with a separate p2 puzzle hash for intermediate coins, which are created
+    /// and spent within the transaction. The caller must be able to spend both puzzle hashes.
     pub fn with_separate_change_puzzle_hash(
         intermediate_puzzle_hash: Bytes32,
         change_puzzle_hash: Bytes32,
@@ -571,6 +580,9 @@ impl Spends<Unfinished> {
     /// Creates change for every asset, attaches the transaction-wide conditions, links the spends
     /// together according to the [`Relation`], and wraps the outputs of revocation spends.
     ///
+    /// If [`ConditionConfig::return_unplaced_conditions`] is set and no spend can emit the
+    /// transaction-wide conditions, they're left in [`Spends::unplaced_conditions`] for the caller.
+    ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins don't cover the deltas, or
     /// [`DriverError::DuplicateSettlementPayment`] if two settlement coins with the same puzzle hash
     /// make the same notarized payment.
@@ -693,6 +705,9 @@ impl Spends<Finished> {
 
     /// Spends every coin with the p2 spends, keyed by coin id, and returns the [`Outputs`].
     /// Returns [`DriverError::MissingSpend`] if a p2 spend is missing.
+    ///
+    /// This doesn't emit the [unplaced conditions](Spends::unplaced_conditions), so the caller must
+    /// emit them from another spend in the same transaction.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -763,6 +778,8 @@ fn try_add_conditions(kind: &mut SpendKind, conditions: &mut Conditions) -> bool
 
 /// An asset that can be added to [`Spends`] with [`Spends::add`].
 pub trait AddAsset {
+    /// Adds the coin to the spends, to be spent with its p2 puzzle. Adding a singleton that is
+    /// already in the spends replaces it.
     fn add(self, spends: &mut Spends);
 }
 

@@ -10,6 +10,14 @@ use crate::{
     puzzles::{PuzzleAndSolution, SlotNeigborsInfo},
 };
 
+/// Serialized `CATalog` refund action.
+///
+/// Refunds a precommit coin that can't be used to register a CAT. If the precommit's CAT
+/// maker and amount match the current state, the coin could otherwise be used to
+/// register, so the action requires the slot of the already registered asset id to be
+/// spent and re-created to prove the CAT is taken. In all cases, it tells the precommit
+/// coin to refund and announces `"$"` followed by the tree hash of
+/// `(tail_hash . initial_nft_owner_ph)`.
 pub const CATALOG_REFUND_PUZZLE: [u8; 780] = hex!(
     "
     ff02ffff01ff02ffff01ff02ffff01ff04ff5fffff02ffff03ffff22ffff09ff
@@ -40,29 +48,42 @@ pub const CATALOG_REFUND_PUZZLE: [u8; 780] = hex!(
     "
 );
 
+/// Tree hash of [`CATALOG_REFUND_PUZZLE`].
 pub const CATALOG_REFUND_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     ad293a8ba7393b2d23760cf2bdae38ae6e1407a1b2a26b89b39b0fd0cb0127a9
     "
 ));
 
+/// Curried arguments of the `CATalog` refund action ([`CATALOG_REFUND_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct CatalogRefundActionArgs {
+    /// Hash of the precommit layer after its first curry
+    /// ([`PrecommitLayer1stCurryArgs`](crate::puzzles::PrecommitLayer1stCurryArgs)).
     pub precommit_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for the registry's slots
+    /// ([`Slot1stCurryArgs`](crate::puzzles::Slot1stCurryArgs)).
     pub slot_1st_curry_hash: Bytes32,
 }
 
+/// A puzzle reveal and its solution, together with the puzzle hash it claims to have.
+/// Encoded as `(puzzle_hash puzzle . solution)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PuzzleHashPuzzleAndSolution<P, S> {
+    /// Claimed tree hash of [`puzzle`](Self::puzzle). Puzzles that use this type check it
+    /// against the puzzle.
     pub puzzle_hash: Bytes32,
+    /// Puzzle reveal.
     pub puzzle: P,
+    /// Solution to the puzzle.
     #[clvm(rest)]
     pub solution: S,
 }
 
 impl<P, S> PuzzleHashPuzzleAndSolution<P, S> {
+    /// Creates the value from its parts.
     pub fn new(puzzle_hash: Bytes32, puzzle: P, solution: S) -> Self {
         Self {
             puzzle_hash,
@@ -72,16 +93,22 @@ impl<P, S> PuzzleHashPuzzleAndSolution<P, S> {
     }
 }
 
+/// Data committed to by a `CATalog` precommit coin, besides the CAT maker.
+/// Encoded as `(tail_hash initial_nft_owner_ph . refund_puzzle_hash_hash)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogOtherPrecommitData {
+    /// Asset id (TAIL hash) of the CAT being registered.
     pub tail_hash: Bytes32,
+    /// Inner puzzle hash of the registration NFT when it is minted.
     pub initial_nft_owner_ph: Bytes32,
+    /// Tree hash of the precommit coin's refund puzzle hash.
     #[clvm(rest)]
     pub refund_puzzle_hash_hash: Bytes32,
 }
 
 impl CatalogOtherPrecommitData {
+    /// Creates the value from its parts.
     pub fn new(
         tail_hash: Bytes32,
         initial_nft_owner_ph: Bytes32,
@@ -95,14 +122,22 @@ impl CatalogOtherPrecommitData {
     }
 }
 
+/// Solution to the `CATalog` refund action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogRefundActionSolution<P, S> {
+    /// CAT maker puzzle and solution that the precommit coin was created with.
     // pub precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution<P, S>,
     pub precommited_cat_maker_and_solution: PuzzleAndSolution<P, S>,
+    /// Rest of the data the precommit coin committed to.
     pub other_precommit_data: CatalogOtherPrecommitData,
+    /// Amount of the precommit coin.
     pub precommit_amount: u64,
+    /// Neighbors of the registered asset id's slot. Only used when the precommit could
+    /// otherwise be used to register; `None` otherwise.
     pub neighbors: Option<SlotNeigborsInfo>,
+    /// Counter of the registered asset id's slot, used together with
+    /// [`neighbors`](Self::neighbors).
     #[clvm(rest)]
     pub slot_counter: u64,
 }

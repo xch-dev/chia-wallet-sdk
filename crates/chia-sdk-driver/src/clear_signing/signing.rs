@@ -11,6 +11,12 @@ use chia_sdk_types::{
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 
+/// The message that a vault custody member which commits to the vault's puzzle hash signs, which is the delegated
+/// puzzle hash followed by the vault coin's full puzzle hash.
+///
+/// This is the full `AGG_SIG_PUZZLE` message of a [`BlsMemberPuzzleAssert`](chia_sdk_types::puzzles::BlsMemberPuzzleAssert).
+/// The secp256k1 and secp256r1 puzzle assert members sign the SHA-256 hash of it instead. Since it doesn't commit to
+/// the coin id, the signature can be replayed on any vault coin with the same puzzle hash.
 pub fn calculate_vault_puzzle_message(
     delegated_puzzle_hash: Bytes32,
     vault_puzzle_hash: Bytes32,
@@ -23,6 +29,12 @@ pub fn calculate_vault_puzzle_message(
     .into()
 }
 
+/// The message that a vault custody member which commits to the vault's coin id signs, which is the delegated puzzle
+/// hash followed by the vault coin id and the network's genesis challenge.
+///
+/// This is the full `AGG_SIG_ME` message of a [`BlsMember`](chia_sdk_types::puzzles::BlsMember), whose additional
+/// data is the genesis challenge. The secp256k1 and secp256r1 members sign the SHA-256 hash of the delegated puzzle
+/// hash and coin id instead, without the genesis challenge.
 pub fn calculate_vault_coin_message(
     delegated_puzzle_hash: Bytes32,
     vault_coin_id: Bytes32,
@@ -92,6 +104,12 @@ pub fn vault_recovery_delegated_puzzle_hash(
     delegated_puzzle_hash.into()
 }
 
+/// The message that a recovery key signs to start recovery of a vault, if it signs the
+/// [`calculate_vault_coin_message`] format. This is the coin message of the
+/// [`vault_recovery_delegated_puzzle_hash`].
+///
+/// `left_side_subtree_hash` is the hash of the left side of the vault's 1-of-2 custody, which recovery must keep.
+/// The new custody can only change the right side, which is restricted by the `recovery_timelock`.
 pub fn calculate_vault_start_recovery_message(
     delegated_puzzle_hash: Bytes32,
     left_side_subtree_hash: Bytes32,

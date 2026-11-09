@@ -9,16 +9,24 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 /// The p2 singleton [`Layer`] allows for requiring that a
 /// singleton be spent alongside this coin to authorize it.
+///
+/// The coin asserts a puzzle announcement of its coin id from the singleton, asserts its own coin
+/// id, and creates a coin announcement of `$`. It doesn't create any coins, so the singleton's
+/// spend is responsible for creating the coins that the value goes to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2SingletonLayer {
+    /// The launcher id of the singleton that authorizes the spend.
     pub launcher_id: Bytes32,
 }
 
 impl P2SingletonLayer {
+    /// Creates a [`P2SingletonLayer`] for the singleton with the launcher id.
     pub fn new(launcher_id: Bytes32) -> Self {
         Self { launcher_id }
     }
 
+    /// Creates a [`Spend`] of the coin with the given id, which requires the singleton with the
+    /// given inner puzzle hash to announce the coin id in the same transaction.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -36,6 +44,7 @@ impl P2SingletonLayer {
         Ok(Spend { puzzle, solution })
     }
 
+    /// Spends the coin like [`P2SingletonLayer::spend`], and adds the coin spend to the context.
     pub fn spend_coin(
         &self,
         ctx: &mut SpendContext,

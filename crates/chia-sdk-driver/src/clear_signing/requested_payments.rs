@@ -8,42 +8,70 @@ use clvmr::Allocator;
 
 use crate::{AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
 
+/// A revealed notarized payment of a settlement coin whose announcement is asserted, so the transaction is only
+/// valid if some settlement coin of the asset makes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssertedNotarizedPayment {
+    /// The asset being paid.
     pub asset: ClearSigningAsset,
+    /// The nonce and payments.
     pub notarized_payment: NotarizedPayment,
 }
 
+/// A single payment of an [`AssertedNotarizedPayment`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssertedPayment {
+    /// The asset being paid.
     pub asset: ClearSigningAsset,
+    /// The nonce of the notarized payment. For NFT royalties, this is the NFT's launcher id.
     pub nonce: Bytes32,
+    /// The puzzle hash, amount, and memos of the payment.
     pub payment: Payment,
+    /// The royalty of the NFT if the nonce is the launcher id of a revealed NFT and the payment is to its royalty
+    /// puzzle hash, which suggests it's a royalty payment.
     pub royalty_basis_points: Option<u16>,
 }
 
+/// Asserted payments, split by whether they're paid to the vault.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitAssertedPayments {
+    /// Payments to one of the vault's known p2 puzzle hashes.
     pub received_payments: Vec<AssertedPayment>,
+    /// Payments to any other puzzle hash.
     pub external_payments: Vec<AssertedPayment>,
 }
 
+/// An asset, as identified for clear signing. Unlike an asset id alone, this includes every detail that affects
+/// the asset's puzzle hash, so two assets with the same id but different details are different.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClearSigningAsset {
+    /// XCH.
     Xch,
+    /// A CAT.
     Cat {
+        /// The asset id, which is the tree hash of the TAIL.
         asset_id: Bytes32,
+        /// The hidden puzzle hash of the revocation layer, or `None` if the CAT isn't revocable. A revocable CAT
+        /// can be taken back by its issuer.
         hidden_puzzle_hash: Option<Bytes32>,
     },
+    /// An NFT.
     Nft {
+        /// The launcher id.
         launcher_id: Bytes32,
+        /// The metadata.
         metadata: HashedPtr,
+        /// The puzzle hash of the metadata updater.
         metadata_updater_puzzle_hash: Bytes32,
+        /// The puzzle hash that royalties are paid to.
         royalty_puzzle_hash: Bytes32,
+        /// The royalty percentage, where 100 basis points is 1%.
         royalty_basis_points: u16,
     },
 }
 
+/// Splits each payment of the asserted notarized payments into received payments (to one of the `p2_puzzle_hashes`)
+/// and external payments (to anything else).
 pub fn split_asserted_payments(
     asserted_payments: &[AssertedNotarizedPayment],
     p2_puzzle_hashes: &HashSet<Bytes32>,
@@ -87,6 +115,13 @@ fn royalty_basis_points(asset_info: &AssetInfo, nonce: Bytes32, payment: &Paymen
     (payment.puzzle_hash == nft.royalty_puzzle_hash).then_some(nft.royalty_basis_points)
 }
 
+/// The revealed requested payments whose puzzle announcements are asserted in the [`Facts`], deduplicated by
+/// announcement id.
+///
+/// Requested payments are revealed by settlement spends in the [`Reveals`]. A payment is only included if the
+/// announcement of a settlement coin of its asset (XCH, or a CAT or NFT whose details were revealed) is asserted,
+/// which means the transaction requires the payment to be made. Payments of option contracts aren't included, and NFT
+/// payments are only matched for an NFT without an owner.
 pub fn parse_asserted_requested_payments(
     reveals: &Reveals,
     facts: &Facts,

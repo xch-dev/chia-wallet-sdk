@@ -18,6 +18,7 @@ pub struct WriterLayer<I> {
 }
 
 impl<I> WriterLayer<I> {
+    /// Creates a [`WriterLayer`] around the inner puzzle.
     pub fn new(inner_puzzle: I) -> Self {
         Self { inner_puzzle }
     }
@@ -88,6 +89,8 @@ where
 }
 
 impl WriterLayer<StandardLayer> {
+    /// Creates a [`Spend`] that outputs the conditions through the standard inner puzzle, which
+    /// requires a signature from its synthetic key.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

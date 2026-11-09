@@ -12,6 +12,12 @@ use crate::{
 use super::{Nft, NftInfo, NftMint};
 
 impl Launcher {
+    /// Spends this launcher to create an eve [`Nft`] with no assigned owner.
+    ///
+    /// Returns the conditions that the launcher's parent must output and the unspent eve [`Nft`].
+    /// The conditions also include a puzzle announcement of the launcher id, which the NFT's
+    /// transfer program asserts if the eve spend assigns the NFT to the coin outputting them.
+    /// Most callers should use [`Launcher::mint_nft`] instead.
     pub fn mint_eve_nft(
         self,
         ctx: &mut SpendContext,
@@ -47,6 +53,15 @@ impl Launcher {
         ))
     }
 
+    /// Mints an [`Nft`] from this launcher, as described by the [`NftMint`].
+    ///
+    /// The eve NFT is spent immediately to create the NFT at [`NftMint::p2_puzzle_hash`], running
+    /// [`NftMint::transfer_condition`] if one is provided. Returns the conditions that the launcher's
+    /// parent must output, and the resulting [`Nft`].
+    ///
+    /// If the transfer condition assigns an owner, the conditions also assert the NFT's assignment
+    /// announcement, so they must be output by the owner singleton. For example, a DID can create an
+    /// [`IntermediateLauncher`](crate::IntermediateLauncher) and output these conditions.
     pub fn mint_nft(
         self,
         ctx: &mut SpendContext,

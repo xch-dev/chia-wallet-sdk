@@ -18,9 +18,20 @@ use crate::{
 
 use super::{XchandlesInitiateUpdateActionLog, coin_id_from_owner_proof};
 
+/// The `XCHandles` action that starts changing the owner and resolved launcher ids of a handle.
+///
+/// Updates take two steps. This action is authorized by the current owner singleton and creates
+/// an update slot with the new data. The update slot stores a minimum height, and the update can
+/// only be applied with an [`XchandlesExecuteUpdateAction`](crate::XchandlesExecuteUpdateAction)
+/// once that height is reached.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesInitiateUpdateAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
+    /// The number of blocks added to the `min_height` in the solution to get the update slot's
+    /// minimum height.
     pub relative_block_height: u32,
 }
 
@@ -40,6 +51,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesInitiateUpdateAction {
 }
 
 impl XchandlesInitiateUpdateAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         relative_block_height: u32,
@@ -65,6 +77,7 @@ impl XchandlesInitiateUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id, self.relative_block_height))
     }
 
+    /// Computes the value of the update slot created by an action with the given solution.
     pub fn created_update_slot_value_from_solution(
         solution: &XchandlesInitiateUpdateActionSolution,
         relative_block_height: u32,
@@ -83,6 +96,13 @@ impl XchandlesInitiateUpdateAction {
         )
     }
 
+    /// Parses an action solution into an [`XchandlesInitiateUpdateActionLog`].
+    ///
+    /// `constants` are the registry's constants, which provide the relative block height.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -109,6 +129,18 @@ impl XchandlesInitiateUpdateAction {
         })
     }
 
+    /// Starts updating the handle in `slot` in the pending spend of `registry`.
+    ///
+    /// `current_owner` is a proof of the current owner singleton coin, which must send the
+    /// returned message. The update slot's minimum height is `min_height` plus
+    /// [`relative_block_height`](Self::relative_block_height).
+    ///
+    /// Returns the `SEND_MESSAGE` condition (mode 58) that the current owner singleton must
+    /// output to authorize the update.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,

@@ -21,6 +21,7 @@ pub struct NftOwnershipLayer<T, I> {
 }
 
 impl<T, I> NftOwnershipLayer<T, I> {
+    /// Creates an [`NftOwnershipLayer`] from its owner, transfer layer, and inner puzzle.
     pub fn new(current_owner: Option<Bytes32>, transfer_layer: T, inner_puzzle: I) -> Self {
         Self {
             current_owner,

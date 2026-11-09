@@ -9,6 +9,8 @@ use crate::{
     puzzles::{AuctionBid, AuctionTimings},
 };
 
+/// The serialized bytecode of the auction's bid action, compiled from Rue. See
+/// [`AuctionBidActionArgs`].
 pub const AUCTION_BID_ACTION_PUZZLE: [u8; 420] = hex!(
     // Rue
     "
@@ -29,22 +31,37 @@ pub const AUCTION_BID_ACTION_PUZZLE: [u8; 420] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_BID_ACTION_PUZZLE`].
 pub const AUCTION_BID_ACTION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "3357138553b6efb673f36202c78967ade33bbb80cc8e3683f9fe0de97e36a357"
 ));
 
 /// Places a bid, which must be strictly higher than the current winning bid and accepted by the bid
 /// verifier. The previous winning bidder is refunded in full by the reserve.
+///
+/// The new reserve amount is the bid plus the buyer's premium and the royalty, which are each
+/// rounded down separately so that the end action pays out exactly the reserve. The action creates
+/// a coin announcement of the tree hash of the bid, which the bidder should assert.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionBidActionArgs<V> {
+    /// The bid verifier puzzle, such as [`AuctionFlatBidVerifierArgs`] or
+    /// [`AuctionPercentBidVerifierArgs`] curried into its mod. It's run with the previous winning
+    /// bid (or nil if there isn't one) and the new bid, and must return a truthy value.
+    ///
+    /// [`AuctionFlatBidVerifierArgs`]: crate::puzzles::AuctionFlatBidVerifierArgs
+    /// [`AuctionPercentBidVerifierArgs`]: crate::puzzles::AuctionPercentBidVerifierArgs
     pub bid_verifier: V,
+    /// When bids can be placed.
     pub timings: AuctionTimings,
+    /// The buyer's premium in basis points, which the bidder locks up on top of the bid.
     pub buyers_premium_bps: u64,
+    /// The NFT's royalty in basis points, which the bidder locks up on top of the bid.
     pub royalty_bps: u64,
 }
 
 impl<V> AuctionBidActionArgs<V> {
+    /// Creates new [`AuctionBidActionArgs`] from the bid verifier, timings, and fees.
     pub fn new(
         bid_verifier: V,
         timings: AuctionTimings,
@@ -70,9 +87,11 @@ impl<V> Mod for AuctionBidActionArgs<V> {
     }
 }
 
+/// The solution of the [`AuctionBidActionArgs`] action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct AuctionBidActionSolution {
+    /// The new bid, which becomes the winning bid.
     pub bid: AuctionBid,
     /// Whether to place the bid within the grace period of the previous spend, rather than before
     /// the end time.
@@ -80,6 +99,8 @@ pub struct AuctionBidActionSolution {
 }
 
 impl AuctionBidActionSolution {
+    /// Creates a new [`AuctionBidActionSolution`] that places `bid`, within the grace period if
+    /// `grace` is `true`.
     pub fn new(bid: AuctionBid, grace: bool) -> Self {
         Self { bid, grace }
     }

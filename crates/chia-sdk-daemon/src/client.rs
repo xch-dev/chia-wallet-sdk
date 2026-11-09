@@ -35,6 +35,56 @@ mod inner {
         REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed).to_string()
     }
 
+    /// A websocket client for the Chia daemon, which routes requests to the services it runs.
+    ///
+    /// [`ChiaRpcClient`] is implemented by sending each RPC request to the `chia_full_node`
+    /// service, so the full node RPC methods can be used through the daemon.
+    ///
+    /// A background task reads messages from the daemon. Responses are matched to requests by
+    /// id, and every other message is broadcast to the receivers returned by
+    /// [`DaemonClient::subscribe`].
+    ///
+    /// If the connection fails, the client reconnects with exponential backoff, from 1 second
+    /// up to 30 seconds between attempts, and registers its services again. Pending requests
+    /// fail with [`DaemonError::ReceiveFailed`], and new requests fail with
+    /// [`DaemonError::ConnectionClosed`] until it reconnects. If the daemon closes the
+    /// connection cleanly, the client doesn't reconnect.
+    ///
+    /// [`DaemonClient`] is cheap to clone, and clones share the same connection.
+    ///
+    /// # Example
+    ///
+    /// This example is `no_run` because it connects to a Chia daemon running locally.
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "rustls")]
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::time::Duration;
+    ///
+    /// use chia_sdk_client::{create_rustls_connector, load_ssl_cert};
+    /// use chia_sdk_coinset::ChiaRpcClient;
+    /// use chia_sdk_daemon::DaemonClient;
+    ///
+    /// // Use the daemon's existing certificate from `config/ssl/daemon` in the Chia root
+    /// // directory. Note that `load_ssl_cert` generates new files if these can't be read.
+    /// let cert = load_ssl_cert("private_daemon.crt", "private_daemon.key")?;
+    /// let connector = create_rustls_connector(&cert)?;
+    ///
+    /// let client =
+    ///     DaemonClient::connect("wss://localhost:55400", connector, Duration::from_secs(30)).await?;
+    ///
+    /// let response = client.get_blockchain_state().await?;
+    /// if let Some(state) = response.blockchain_state {
+    ///     println!("Peak height: {}", state.peak.height);
+    /// }
+    ///
+    /// let mut events = client.subscribe("wallet_ui").await?;
+    /// while let Ok(event) = events.recv().await {
+    ///     println!("{} from {}", event.command, event.origin);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     #[derive(Debug)]
     pub struct DaemonClient(Arc<DaemonClientInner>);
 
@@ -65,11 +115,18 @@ mod inner {
     }
 
     impl DaemonClient {
-        /// Connects to the Chia daemon over WSS.
+        /// Connects to the Chia daemon over WSS, such as `wss://localhost:55400`.
         ///
         /// The `connector` should be built from TLS helpers in `chia-sdk-client`
         /// (e.g. `create_native_tls_connector` or `create_rustls_connector`)
         /// using the daemon's SSL certificate and key.
+        ///
+        /// The `timeout` applies to each request. Once connected, the client registers itself
+        /// with the daemon under a unique origin name, so that responses are routed to it.
+        ///
+        /// # Panics
+        ///
+        /// Panics if called outside of a Tokio runtime, since it spawns the background task.
         pub async fn connect(
             url: &str,
             connector: Connector,
@@ -155,7 +212,11 @@ mod inner {
         ///
         /// Calling `subscribe` also sends a `register_service` command to the daemon
         /// for the given service name, so that the daemon will forward events for
-        /// that service to this client.
+        /// that service to this client. Each service is only registered once, and is
+        /// registered again after reconnecting.
+        ///
+        /// Every receiver gets every event, regardless of which service it was subscribed
+        /// with. The receiver lags and skips events if more than 256 are waiting in it.
         pub async fn subscribe(
             &self,
             service: &str,
@@ -193,13 +254,17 @@ mod inner {
             Ok(())
         }
 
-        /// Closes the websocket connection and aborts the background reader task.
+        /// Closes the websocket connection.
+        ///
+        /// Once the daemon completes the close handshake, the background task stops without
+        /// reconnecting.
         pub async fn close(&self) -> Result<(), DaemonError> {
             self.0.sink.lock().await.close().await?;
             Ok(())
         }
 
-        /// Returns a receiver that fires when the connection is lost.
+        /// Returns a receiver that fires when the connection is lost unexpectedly, before the
+        /// client tries to reconnect.
         pub fn on_disconnect(&self) -> broadcast::Receiver<()> {
             self.0.disconnect_tx.subscribe()
         }

@@ -38,6 +38,9 @@ where
     DriverError::Custom(e.to_string())
 }
 
+/// Generates a random BLS secret key from a fresh 24-word mnemonic (with an empty passphrase).
+///
+/// The launch functions use it for the throwaway key of the security coin.
 pub fn new_sk() -> Result<SecretKey, DriverError> {
     // we need the security coin puzzle hash to spend the offer coin after finding it
     let mut entropy = [0u8; 32];
@@ -48,6 +51,41 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
     Ok(sk)
 }
 
+/// Spends a standard coin owned by `sk` with `conditions`, and returns the signature for the spend.
+///
+/// The security coin of a launch outputs the launch conditions and asserts the other spends, so
+/// the whole launch is bound together by its signature. `consensus_constants` determines the
+/// `AGG_SIG_ME` additional data.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::SpendBundle;
+/// use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+/// use chia_sdk_driver::{SpendContext, create_security_coin_with_pk, new_sk, spend_security_coin};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// // A coin locked by the settlement payments puzzle, such as the XCH offered in an offer.
+/// let settlement_coin = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), 1_000);
+///
+/// let sk = new_sk()?;
+/// let security_coin = create_security_coin_with_pk(ctx, settlement_coin, sk.public_key())?;
+/// assert_eq!(security_coin.amount, 1_000);
+///
+/// let signature = spend_security_coin(
+///     ctx,
+///     security_coin,
+///     Conditions::new().reserve_fee(1_000),
+///     &sk,
+///     &TESTNET11_CONSTANTS,
+/// )?;
+/// sim.new_transaction(SpendBundle::new(ctx.take(), signature))?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn spend_security_coin(
     ctx: &mut SpendContext,
     security_coin: Coin,
@@ -76,6 +114,13 @@ pub fn spend_security_coin(
     sign_standard_transaction(ctx, security_coin, spend, sk, consensus_constants)
 }
 
+/// Signs the `AGG_SIG_ME` condition output by a standard puzzle spend with `sk`.
+///
+/// The spend is run to find the condition. Only the first `AGG_SIG_ME` is signed.
+///
+/// # Errors
+///
+/// Returns an error if the spend fails or doesn't output an `AGG_SIG_ME` condition.
 pub fn sign_standard_transaction(
     ctx: &mut SpendContext,
     coin: Coin,
@@ -110,6 +155,12 @@ pub fn sign_standard_transaction(
     Ok(sign(sk, required_signature.message()))
 }
 
+/// Returns the inner puzzle of the eve singleton of a registry launch.
+///
+/// The puzzle is quoted conditions that create the two initial slots (with values
+/// `left_slot_value` and `right_slot_value`, hinted with [`Slot::first_curry_hash`]) and the
+/// registry coin with `target_inner_puzzle_hash`. The registry coin's memos are `launcher_id`
+/// followed by `memos_after_hint`.
 pub fn eve_singleton_inner_puzzle<S>(
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
@@ -236,8 +287,13 @@ where
 
 /// Spends `xch_settlement_coin` into a standard security coin locked by `public_key`.
 ///
-/// Use this when the security-coin key must be stable across prepare/submit (for example
-/// Browser Delegation outer `AGG_SIG_ME` over an ephemeral custody child of the security coin).
+/// The settlement coin (usually the XCH offered in an [`Offer`]) is paid in full to the standard
+/// puzzle hash of `public_key`, with a notarized payment nonce of its own coin id. Returns the
+/// security coin, which can then be spent with [`spend_security_coin`].
+///
+/// Use this instead of [`create_security_coin`] when the security-coin key must be stable across
+/// prepare/submit (for example, when an outer `AGG_SIG_ME` signs over an ephemeral custody child
+/// of the security coin).
 pub fn create_security_coin_with_pk(
     ctx: &mut SpendContext,
     xch_settlement_coin: Coin,
@@ -269,6 +325,9 @@ pub fn create_security_coin_with_pk(
     ))
 }
 
+/// Spends `xch_settlement_coin` into a standard security coin locked by a new random key.
+///
+/// Returns the key from [`new_sk`] and the security coin. See [`create_security_coin_with_pk`].
 pub fn create_security_coin(
     ctx: &mut SpendContext,
     xch_settlement_coin: Coin,
@@ -279,6 +338,86 @@ pub fn create_security_coin(
     Ok((security_coin_sk, security_coin))
 }
 
+/// Launches a [`CatalogRegistry`] funded by the XCH of `offer`.
+///
+/// The first offered XCH coin becomes a security coin with a new random key (see
+/// [`create_security_coin`]). That coin creates the registry launcher, whose eve singleton
+/// creates the two end slots and the registry with a default CAT maker state.
+///
+/// `get_additional_info` is called with the registry launcher id, the security coin, and
+/// `additional_args`. It returns extra conditions for the security coin, the registry constants
+/// (their launcher id is overwritten), and the asset id of the CAT that registrations are paid in.
+///
+/// Returns the aggregated signature of the launch (including the offer's signature), the
+/// security coin's secret key, the registry, its two initial slots, and the security coin. All
+/// spends, including the offer's, are added to `ctx`.
+///
+/// # Panics
+///
+/// Panics if `offer` doesn't offer any XCH.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Bytes32, SpendBundle};
+/// use chia_puzzle_types::Memos;
+/// use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+/// use chia_sdk_driver::{
+///     CatalogRegistryConstants, Offer, Spend, SpendContext, StandardLayer,
+///     launch_catalog_registry, sign_standard_transaction,
+/// };
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// // An offer of 1 mojo, which pays for the launch.
+/// let alice = sim.bls(1);
+/// StandardLayer::new(alice.pk).spend(
+///     ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+/// )?;
+/// let offer_spend = ctx.take().remove(0);
+/// let puzzle = ctx.alloc(&offer_spend.puzzle_reveal)?;
+/// let solution = ctx.alloc(&offer_spend.solution)?;
+/// let signature = sign_standard_transaction(
+///     ctx,
+///     alice.coin,
+///     Spend::new(puzzle, solution),
+///     &alice.sk,
+///     &TESTNET11_CONSTANTS,
+/// )?;
+/// let offer = Offer::from_spend_bundle(ctx, &SpendBundle::new(vec![offer_spend], signature))?;
+///
+/// let constants = CatalogRegistryConstants {
+///     launcher_id: Bytes32::default(),
+///     royalty_address: Bytes32::new([1; 32]),
+///     royalty_basis_points: 100,
+///     precommit_payout_puzzle_hash: Bytes32::new([2; 32]),
+///     relative_block_height: 1,
+///     price_singleton_launcher_id: Bytes32::new([3; 32]),
+/// };
+/// let payment_asset_id = Bytes32::new([4; 32]);
+///
+/// let (signature, _security_sk, registry, slots, _security_coin) = launch_catalog_registry(
+///     ctx,
+///     &offer,
+///     100,
+///     |_ctx, _launcher_id, _security_coin, (constants, payment_asset_id)| {
+///         Ok((Conditions::new(), constants, payment_asset_id))
+///     },
+///     &TESTNET11_CONSTANTS,
+///     (constants, payment_asset_id),
+/// )?;
+///
+/// sim.new_transaction(SpendBundle::new(ctx.take(), signature))?;
+/// assert!(sim.coin_state(registry.coin.coin_id()).is_some());
+/// assert_eq!(registry.info.state.registration_price, 100);
+/// assert_eq!(slots.len(), 2);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[allow(clippy::type_complexity)]
 pub fn launch_catalog_registry<V>(
     ctx: &mut SpendContext,
@@ -384,6 +523,18 @@ pub fn launch_catalog_registry<V>(
     ))
 }
 
+/// Launches an [`XchandlesRegistry`] funded by the XCH of `offer`.
+///
+/// This works like [`launch_catalog_registry`]. The initial state is
+/// [`XchandlesRegistryState::from`] with the payment asset id returned by `get_additional_info`,
+/// `initial_base_registration_price`, and `initial_registration_period` (in seconds). The
+/// launcher solution's key-value list contains the asset id, base price, registration period,
+/// initial state, and constants, so the registry can later be found with
+/// [`XchandlesRegistry::from_launcher_solution`].
+///
+/// # Panics
+///
+/// Panics if `offer` doesn't offer any XCH.
 #[allow(clippy::type_complexity)]
 pub fn launch_xchandles_registry<V>(
     ctx: &mut SpendContext,
@@ -489,6 +640,9 @@ pub fn launch_xchandles_registry<V>(
     ))
 }
 
+/// Spends all of the CATs with `asset_id` offered in `offer`, paying `(puzzle_hash, amount)` pairs.
+///
+/// Each payment is hinted with its puzzle hash. See [`spend_settlement_cats_with_payments`].
 pub fn spend_settlement_cats(
     ctx: &mut SpendContext,
     offer: &Offer,
@@ -504,6 +658,14 @@ pub fn spend_settlement_cats(
     spend_settlement_cats_with_payments(ctx, offer, asset_id, nonce, new_payments)
 }
 
+/// Spends all of the CATs with `asset_id` offered in `offer` as a single notarized payment.
+///
+/// Returns the CATs created by the payments, and the conditions that the spender (usually the
+/// security coin) must output to assert the settlement announcement.
+///
+/// # Errors
+///
+/// Returns an error if the offer doesn't offer any CATs with `asset_id`.
 pub fn spend_settlement_cats_with_payments(
     ctx: &mut SpendContext,
     offer: &Offer,
@@ -554,6 +716,9 @@ pub fn spend_settlement_cats_with_payments(
     Ok((created_cats, security_coin_conditions))
 }
 
+/// Spends the NFT with `nft_launcher_id` offered in `offer`, sending it to `destination_puzzle_hash`.
+///
+/// The payment is hinted with the destination. See [`spend_settlement_nft_with_payment`].
 pub fn spend_settlement_nft(
     ctx: &mut SpendContext,
     offer: &Offer,
@@ -570,6 +735,14 @@ pub fn spend_settlement_nft(
     spend_settlement_nft_with_payment(ctx, offer, nft_launcher_id, nonce, payment)
 }
 
+/// Spends the NFT with `nft_launcher_id` offered in `offer` with a single notarized payment.
+///
+/// Returns the NFT created by the payment, and the conditions that the spender (usually the
+/// security coin) must output to assert the settlement announcement.
+///
+/// # Errors
+///
+/// Returns an error if the offer doesn't offer the NFT.
 pub fn spend_settlement_nft_with_payment(
     ctx: &mut SpendContext,
     offer: &Offer,
@@ -612,6 +785,25 @@ pub fn spend_settlement_nft_with_payment(
     Ok((created_nft, security_coin_conditions))
 }
 
+/// Launches a [`RewardDistributor`] funded by `offer`.
+///
+/// The first offered XCH coin becomes the security coin (see [`create_security_coin`]). The
+/// offered reserve CATs (`constants.reserve_asset_id`) are spent to create the empty reserve and a
+/// refund CAT with the full amount at `cat_refund_puzzle_hash`. The launcher is hinted with the
+/// tree hash of `"Reward Distributor v1"` and `comment`, and its eve singleton creates the first
+/// reward slot and the distributor, whose first epoch starts at `first_epoch_start`.
+///
+/// Returns the aggregated signature of the launch (including the offer's signature), the security
+/// coin's secret key, the distributor, its first reward slot, and the refund CAT. All spends,
+/// including the offer's, are added to `ctx`.
+///
+/// # Panics
+///
+/// Panics if `offer` doesn't offer any XCH.
+///
+/// # Errors
+///
+/// Returns an error if `offer` doesn't offer any CATs with `constants.reserve_asset_id`.
 #[allow(clippy::type_complexity)]
 pub fn launch_reward_distributor(
     ctx: &mut SpendContext,

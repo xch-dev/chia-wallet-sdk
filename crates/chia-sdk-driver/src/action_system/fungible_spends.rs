@@ -27,6 +27,7 @@ impl<A> FungibleSpends<A>
 where
     A: FungibleAsset,
 {
+    /// Creates an empty set of spends.
     pub fn new() -> Self {
         Self::default()
     }
@@ -334,7 +335,7 @@ where
     ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
     /// cover the delta outputs, since the transaction would be invalid. Returns
-    /// [`DriverError::AmountOverflow`] if the change doesn't fit in a single coin.
+    /// [`DriverError::AmountOverflow`] if the total change doesn't fit in a [`u64`].
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
@@ -443,6 +444,7 @@ impl<A> Default for FungibleSpends<A> {
 /// The spend of a single coin of a fungible asset.
 #[derive(Debug, Clone)]
 pub struct FungibleSpend<T> {
+    /// The coin being spent.
     pub asset: T,
     /// What the coin's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,

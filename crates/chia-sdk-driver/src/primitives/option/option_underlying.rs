@@ -27,6 +27,10 @@ use crate::{
 
 use super::OptionType;
 
+/// The delegated puzzle that the underlying coin is spent with when an option is exercised.
+///
+/// It's a quoted list of conditions that asserts the option hasn't expired, asserts that the strike
+/// payment was made to the creator, and sends the underlying amount to the settlement payments puzzle.
 pub type OptionDelegatedPuzzle = (
     u8,
     match_list!(
@@ -36,16 +40,31 @@ pub type OptionDelegatedPuzzle = (
     ),
 );
 
+/// The p2 puzzle that locks the underlying coin of an option contract.
+///
+/// The puzzle is a [`P2OneOfManyLayer`] with two paths:
+/// - The exercise path can only be spent with a message from the option singleton (identified by
+///   [`launcher_id`](Self::launcher_id)), and runs [`OptionUnderlying::delegated_puzzle`] before expiration.
+/// - The clawback path lets the creator spend the coin at or after [`seconds`](Self::seconds).
+///
+/// For CATs and NFTs, this is the inner p2 puzzle inside of the asset's layers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptionUnderlying {
+    /// The launcher id of the option contract singleton.
     pub launcher_id: Bytes32,
+    /// The puzzle hash of the option's creator, who receives the strike payment and can claw back
+    /// the underlying coin after expiration.
     pub creator_puzzle_hash: Bytes32,
+    /// The absolute timestamp (in seconds) at which the option expires.
     pub seconds: u64,
+    /// The amount of the underlying coin.
     pub amount: u64,
+    /// The asset and amount that must be paid to exercise the option.
     pub strike_type: OptionType,
 }
 
 impl OptionUnderlying {
+    /// Creates a new [`OptionUnderlying`] from its fields.
     pub fn new(
         launcher_id: Bytes32,
         creator_puzzle_hash: Bytes32,
@@ -62,15 +81,20 @@ impl OptionUnderlying {
         }
     }
 
+    /// Builds the [`MerkleTree`] of the exercise and clawback path hashes.
     pub fn merkle_tree(&self) -> MerkleTree {
         MerkleTree::new(&[self.exercise_path_hash(), self.clawback_path_hash()])
     }
 
+    /// Calculates the hash of the exercise path, a MIPS puzzle whose only member is a
+    /// [`SingletonMember`] for the option's launcher id.
     pub fn exercise_path_hash(&self) -> Bytes32 {
         let singleton_member_hash = SingletonMember::new(self.launcher_id).curry_tree_hash();
         mips_puzzle_hash(0, Vec::new(), singleton_member_hash, true).into()
     }
 
+    /// Calculates the hash of the clawback path, which wraps the creator's puzzle hash with an
+    /// `ASSERT_SECONDS_ABSOLUTE` condition.
     pub fn clawback_path_hash(&self) -> Bytes32 {
         AugmentedConditionArgs::<TreeHash, TreeHash>::new(
             AssertSecondsAbsolute::new(self.seconds).into(),
@@ -80,10 +104,13 @@ impl OptionUnderlying {
         .into()
     }
 
+    /// Returns the [`P2OneOfManyLayer`] for the merkle root, which is the underlying p2 puzzle.
     pub fn into_1_of_n(&self) -> P2OneOfManyLayer {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
+    /// Returns the notarized payment of the strike amount to the creator, with the option's launcher id
+    /// as the nonce. The exerciser must pay this through the settlement payments puzzle.
     pub fn requested_payment<E>(
         &self,
         encoder: &mut E,
@@ -105,6 +132,7 @@ impl OptionUnderlying {
         })
     }
 
+    /// Returns the [`OptionDelegatedPuzzle`] that the underlying coin is spent with when exercised.
     pub fn delegated_puzzle(&self) -> OptionDelegatedPuzzle {
         let puzzle_hash = match self.strike_type {
             OptionType::Xch { .. } => SETTLEMENT_PAYMENT_HASH.into(),
@@ -139,6 +167,10 @@ impl OptionUnderlying {
         ))
     }
 
+    /// Creates a spend of the exercise path.
+    ///
+    /// `singleton_inner_puzzle_hash` and `singleton_amount` describe the option singleton being
+    /// spent, which must send the authorizing message (see [`OptionContract::exercise`](crate::OptionContract::exercise)).
     pub fn exercise_spend(
         &self,
         ctx: &mut SpendContext,
@@ -179,6 +211,7 @@ impl OptionUnderlying {
         )
     }
 
+    /// Wraps a spend of the creator's puzzle in the clawback path. It's only valid after expiration.
     pub fn clawback_spend(
         &self,
         ctx: &mut SpendContext,
@@ -204,6 +237,7 @@ impl OptionUnderlying {
         )
     }
 
+    /// Like [`OptionUnderlying::exercise_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn exercise_coin_spend(
         &self,
         ctx: &mut SpendContext,
@@ -215,6 +249,7 @@ impl OptionUnderlying {
         ctx.spend(coin, spend)
     }
 
+    /// Like [`OptionUnderlying::clawback_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn clawback_coin_spend(
         &self,
         ctx: &mut SpendContext,

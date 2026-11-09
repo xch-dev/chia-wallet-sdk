@@ -30,29 +30,44 @@ use crate::{
 
 use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
 
+/// The actions queued for the next spend of a [`RewardDistributor`], and their effects.
 #[derive(Debug, Clone)]
 pub struct RewardDistributorPendingSpendInfo {
+    /// The action spends, in the order they will run.
     pub actions: Vec<Spend>,
 
+    /// The values of the reward slots the actions spend.
     pub spent_reward_slots: Vec<RewardDistributorRewardSlotValue>,
+    /// The values of the commitment slots the actions spend.
     pub spent_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
+    /// The values of the entry slots the actions spend.
     pub spent_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+    /// The values of the deposit slots the actions spend.
     pub spent_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
 
+    /// The values of the reward slots the actions create.
     pub created_reward_slots: Vec<RewardDistributorRewardSlotValue>,
+    /// The values of the commitment slots the actions create.
     pub created_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
+    /// The values of the entry slots the actions create.
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+    /// The values of the deposit slots the actions create.
     pub created_deposit_slots: Vec<RewardDistributorDepositSlotValue>,
 
+    /// A log entry for each action.
     pub logs: Vec<RewardDistributorActionLog>,
 
+    /// The ephemeral state and distributor state after the queued actions have run.
     pub latest_state: (NodePtr, RewardDistributorState),
 
+    /// The aggregated signature that the spend needs, such as one from a parsed mempool item.
     pub signature: Signature,
+    /// Other spends of the reserve CAT that must be in the same CAT ring as the reserve.
     pub other_cats: Vec<CatSpend>,
 }
 
 impl RewardDistributorPendingSpendInfo {
+    /// Creates an empty pending spend starting from the given state.
     pub fn new(latest_state: RewardDistributorState) -> Self {
         Self {
             actions: vec![],
@@ -71,6 +86,9 @@ impl RewardDistributorPendingSpendInfo {
         }
     }
 
+    /// Appends the actions, slots, and logs of `delta` and takes its latest state.
+    ///
+    /// The signature and other CATs are left unchanged.
     pub fn add_delta(&mut self, delta: RewardDistributorPendingSpendInfo) {
         self.actions.extend(delta.actions);
 
@@ -96,18 +114,38 @@ impl RewardDistributorPendingSpendInfo {
     }
 }
 
+/// An action-layer singleton that distributes CAT rewards to entries over epochs.
+///
+/// The rewards are held in a [`Reserve`] controlled by the distributor. Anyone can add incentives,
+/// or commit incentives to a future epoch. Entries own shares and are paid out in proportion to
+/// them. Depending on the [`RewardDistributorType`](crate::RewardDistributorType), entries are
+/// managed by a manager singleton or created by staking NFTs or CATs. The distributor keeps its
+/// data in [`Slot`]s with the nonces in [`RewardDistributorSlotNonce`].
+///
+/// To spend the distributor, build actions with [`RewardDistributor::new_action`], spend them
+/// (their `spend` methods call [`RewardDistributor::insert_action_spend`]), and then call
+/// [`RewardDistributor::finish_spend`], which also spends the reserve. Use the `actual_*` methods
+/// to account for slots created earlier in the same spend.
+///
+/// Launch a distributor with [`launch_reward_distributor`](crate::launch_reward_distributor).
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct RewardDistributor {
+    /// The distributor singleton coin.
     pub coin: Coin,
+    /// The proof needed to spend the singleton.
     pub proof: Proof,
+    /// The state and constants of the distributor.
     pub info: RewardDistributorInfo,
+    /// The reserve that holds the rewards.
     pub reserve: Reserve,
 
+    /// The actions queued for the next spend.
     pub pending_spend: RewardDistributorPendingSpendInfo,
 }
 
 impl RewardDistributor {
+    /// Creates a new [`RewardDistributor`] with no pending actions.
     pub fn new(coin: Coin, proof: Proof, info: RewardDistributorInfo, reserve: Reserve) -> Self {
         Self {
             coin,
@@ -120,6 +158,13 @@ impl RewardDistributor {
 }
 
 impl RewardDistributor {
+    /// Runs one action spend on top of the given state and identifies it.
+    ///
+    /// Returns a [`RewardDistributorPendingSpendInfo`] containing only this action.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::InvalidMerkleProof`] if the action isn't one of the distributor's actions.
     #[allow(clippy::type_complexity)]
     pub fn pending_info_delta_from_spend(
         ctx: &mut SpendContext,
@@ -308,6 +353,7 @@ impl RewardDistributor {
         })
     }
 
+    /// Parses all of the actions in an action-layer inner solution into a [`RewardDistributorPendingSpendInfo`].
     pub fn pending_info_from_spend(
         ctx: &mut SpendContext,
         inner_solution: NodePtr,
@@ -335,6 +381,13 @@ impl RewardDistributor {
         Ok(pending_spend_info)
     }
 
+    /// Parses a distributor and its actions from a spend of the distributor coin.
+    ///
+    /// The returned distributor is the spent coin, with its actions in `pending_spend`. The reserve's
+    /// parent id comes from the finalizer solution and its amount from the state. If
+    /// `reserve_lineage_proof` is [`None`], a placeholder proof is used and the reserve can't be spent.
+    ///
+    /// Returns [`None`] if the coin doesn't have amount 1 or isn't a distributor with the given constants.
     pub fn from_spend(
         ctx: &mut SpendContext,
         spend: &CoinSpend,
@@ -396,6 +449,7 @@ impl RewardDistributor {
         }))
     }
 
+    /// Returns the lineage proof for the child of this distributor coin.
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -404,6 +458,10 @@ impl RewardDistributor {
         }
     }
 
+    /// Parses the distributor created by a spend of its parent distributor coin.
+    ///
+    /// The returned reserve has a placeholder lineage proof, since it can't be derived from the
+    /// distributor spend alone. Returns [`None`] if the parent isn't a distributor with the given constants.
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
         parent_spend: &CoinSpend,
@@ -435,6 +493,7 @@ impl RewardDistributor {
         }))
     }
 
+    /// Returns the distributor (and reserve) created by spending this one, with the given state.
     pub fn child(&self, child_state: RewardDistributorState) -> Self {
         let new_info = self.info.with_state(child_state);
         let new_coin = Coin::new(self.coin.coin_id(), new_info.puzzle_hash().into(), 1);
@@ -449,6 +508,11 @@ impl RewardDistributor {
         }
     }
 
+    /// Parses the constants, initial state, and eve coin of a distributor from its launcher solution.
+    ///
+    /// The launcher solution's key-value list must be `(first_epoch_start . constants)`, as created
+    /// by [`launch_reward_distributor`](crate::launch_reward_distributor). Returns [`None`] if it
+    /// can't be parsed, and an error if the constants don't match the launcher id.
     #[allow(clippy::type_complexity)]
     pub fn from_launcher_solution(
         ctx: &mut SpendContext,
@@ -481,6 +545,16 @@ impl RewardDistributor {
         Ok(Some((constants, initial_state, distributor_eve_coin)))
     }
 
+    /// Parses the first distributor and its first reward slot from the spend of the eve coin.
+    ///
+    /// Use the results of [`RewardDistributor::from_launcher_solution`] for `constants` and
+    /// `initial_state`. The reserve is created with amount 0 from `reserve_parent_id` and
+    /// `reserve_lineage_proof`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the eve coin isn't a singleton, doesn't create an odd coin, or doesn't
+    /// create the expected distributor.
     #[allow(clippy::type_complexity)]
     pub fn from_eve_coin_spend(
         ctx: &mut SpendContext,
@@ -575,14 +649,27 @@ impl RewardDistributor {
         Ok(Some((new_distributor, slot)))
     }
 
+    /// Sets the signature that will be returned by [`RewardDistributor::finish_spend`].
     pub fn set_pending_signature(&mut self, signature: Signature) {
         self.pending_spend.signature = signature;
     }
 
+    /// Sets the other reserve CAT spends that [`RewardDistributor::finish_spend`] adds to the reserve's ring.
     pub fn set_pending_other_cats(&mut self, other_cats: Vec<CatSpend>) {
         self.pending_spend.other_cats = other_cats;
     }
 
+    /// Parses the latest distributor from a mempool item and prepares to spend it again.
+    ///
+    /// Finds the first distributor spend in the bundle and the matching reserve spend, follows the
+    /// distributor's children to the latest coin, and parses that coin's actions into
+    /// `pending_spend`. Other spends of the reserve CAT are kept as pending other CATs so they are
+    /// in the same ring as the new reserve spend. All remaining spends are inserted into `ctx`, and
+    /// the bundle's aggregated signature becomes the pending signature.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bundle spends a distributor but not its reserve.
     pub fn from_mempool_item(
         ctx: &mut SpendContext,
         mempool_item: SpendBundle,
@@ -709,6 +796,15 @@ impl ActionSingleton for RewardDistributor {
 }
 
 impl RewardDistributor {
+    /// Spends the distributor with all pending actions, and spends the reserve.
+    ///
+    /// The reserve is spent in a CAT ring with `other_cat_spends` and the pending other CATs.
+    /// Returns the child distributor and the pending signature, which must be aggregated into the
+    /// final spend bundle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a Merkle proof can't be built for one of the pending actions.
     pub fn finish_spend(
         self,
         ctx: &mut SpendContext,
@@ -769,6 +865,7 @@ impl RewardDistributor {
         Ok((child, self.pending_spend.signature))
     }
 
+    /// Creates one of the distributor's actions from its constants.
     pub fn new_action<A>(&self) -> A
     where
         A: SingletonAction<Self>,
@@ -776,6 +873,7 @@ impl RewardDistributor {
         A::from_constants(&self.info.constants)
     }
 
+    /// Returns the slot with the given nonce that this distributor spend creates for `slot_value`.
     pub fn created_slot_value_to_slot<SlotValue>(
         &self,
         slot_value: SlotValue,
@@ -794,6 +892,9 @@ impl RewardDistributor {
         )
     }
 
+    /// Adds an action spend to the pending spend, updating the state, slots, and logs.
+    ///
+    /// Actions call this from their `spend` methods, so you rarely need to call it directly.
     pub fn insert_action_spend(
         &mut self,
         ctx: &mut SpendContext,
@@ -811,6 +912,7 @@ impl RewardDistributor {
         Ok(())
     }
 
+    /// Returns the latest version of a reward slot, matched by epoch start, taking pending actions into account.
     pub fn actual_reward_slot_value(
         &self,
         slot: Slot<RewardDistributorRewardSlotValue>,
@@ -827,6 +929,7 @@ impl RewardDistributor {
         slot
     }
 
+    /// Returns the latest version of an entry slot, matched by payout puzzle hash, taking pending actions into account.
     pub fn actual_entry_slot_value(
         &self,
         slot: Slot<RewardDistributorEntrySlotValue>,
@@ -843,6 +946,7 @@ impl RewardDistributor {
         slot
     }
 
+    /// Returns the latest version of a commitment slot, matched by epoch start, taking pending actions into account.
     pub fn actual_commitment_slot_value(
         &self,
         slot: Slot<RewardDistributorCommitmentSlotValue>,
@@ -861,6 +965,7 @@ impl RewardDistributor {
         slot
     }
 
+    /// Returns the latest version of a deposit slot, matched by payout puzzle hash and asset, taking pending actions into account.
     pub fn actual_deposit_slot_value(
         &self,
         slot: Slot<RewardDistributorDepositSlotValue>,

@@ -9,6 +9,13 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized delegated state action, compiled from Rue.
+///
+/// Replaces the action layer's state with a new state approved by another singleton,
+/// which must send a puzzle-to-puzzle message of `"s"` followed by the tree hash of the
+/// new state. The ephemeral state is left unchanged. Registries use it to let a price
+/// singleton (such as a [`StateSchedulerLayerArgs`](crate::puzzles::StateSchedulerLayerArgs)
+/// singleton) update their registration prices.
 pub const DELEGATED_STATE_ACTION_PUZZLE: [u8; 341] = hex!(
     // Rue
     "
@@ -26,20 +33,25 @@ pub const DELEGATED_STATE_ACTION_PUZZLE: [u8; 341] = hex!(
     "
 );
 
+/// Tree hash of [`DELEGATED_STATE_ACTION_PUZZLE`].
 pub const DELEGATED_STATE_ACTION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     491ee66c8ffd29ef41bf820d3d4d766deb1b6f650932af09f26f807dab1a362f
     "
 ));
 
+/// Curried arguments of the delegated state action ([`DELEGATED_STATE_ACTION_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct DelegatedStateActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Tree hash of the [`SingletonStruct`] of the singleton allowed to set the state.
     pub other_singleton_struct_hash: Bytes32,
 }
 
 impl DelegatedStateActionArgs {
+    /// Creates the arguments for the singleton with the given launcher id.
     pub fn new(other_launcher_id: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -49,6 +61,8 @@ impl DelegatedStateActionArgs {
 }
 
 impl DelegatedStateActionArgs {
+    /// Computes the action's curried puzzle hash for the singleton with the given launcher
+    /// id.
     pub fn curry_tree_hash(other_launcher_id: Bytes32) -> TreeHash {
         CurriedProgram {
             program: DELEGATED_STATE_ACTION_PUZZLE_HASH,
@@ -58,10 +72,14 @@ impl DelegatedStateActionArgs {
     }
 }
 
+/// Solution to the delegated state action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DelegatedStateActionSolution<S> {
+    /// New action layer state.
     pub new_state: S,
+    /// Inner puzzle hash of the approving singleton's coin, used to verify the message's
+    /// sender.
     #[clvm(rest)]
     pub other_singleton_inner_puzzle_hash: Bytes32,
 }

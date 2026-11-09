@@ -9,14 +9,72 @@ use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
 
 use crate::{DriverError, Layer, Spend, SpendContext, StateSchedulerInfo};
 
+/// A singleton that sends a fixed schedule of new states to another singleton.
+///
+/// Each spend sends the next state in the schedule to the receiver singleton, which must receive
+/// the message in the same block (for example through a
+/// [`DelegatedStateAction`](crate::DelegatedStateAction)). A spend is only valid once the entry's
+/// timestamp is reached. See [`StateSchedulerInfo`] for how the puzzle is built.
+///
+/// # Example
+///
+/// Launch a scheduler and parse it from its launcher spend:
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+/// use chia_sdk_driver::{
+///     CatalogRegistryState, Launcher, SpendContext, StateScheduler, StateSchedulerInfo,
+/// };
+/// use chia_sdk_test::Simulator;
+/// use clvmr::NodePtr;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let receiver_launcher_id = Bytes32::new([1; 32]);
+/// let schedule = vec![(
+///     1_000,
+///     CatalogRegistryState {
+///         cat_maker_puzzle_hash: Bytes32::default(),
+///         registration_price: 100,
+///     },
+/// )];
+///
+/// let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+/// let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+/// let info = StateSchedulerInfo::new(
+///     launcher.coin().coin_id(),
+///     receiver_launcher_id,
+///     schedule,
+///     0,
+///     Bytes32::new([2; 32]),
+/// )?;
+///
+/// let (_, coin) = launcher.spend(ctx, info.inner_puzzle_hash().into(), info.to_hints(NodePtr::NIL))?;
+/// let launcher_spend = ctx.take().remove(0);
+/// sim.spend_coins(vec![launcher_spend.clone()], &[])?;
+///
+/// let scheduler = StateScheduler::<CatalogRegistryState>::from_launcher_spend(ctx, &launcher_spend)?
+///     .expect("state scheduler");
+/// assert_eq!(scheduler.coin, coin);
+/// assert_eq!(scheduler.info, info);
+///
+/// // The only scheduled state ends the schedule, so there is no next scheduler coin.
+/// assert!(scheduler.child().is_none());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateScheduler<S>
 where
     S: ToTreeHash + Clone + ToClvm<Allocator> + FromClvm<Allocator>,
 {
+    /// The current scheduler coin.
     pub coin: Coin,
+    /// The proof needed to spend the singleton.
     pub proof: Proof,
 
+    /// The schedule and current generation.
     pub info: StateSchedulerInfo<S>,
 }
 
@@ -24,10 +82,15 @@ impl<S> StateScheduler<S>
 where
     S: ToTreeHash + Clone + ToClvm<Allocator> + FromClvm<Allocator>,
 {
+    /// Creates a new [`StateScheduler`].
     pub fn new(coin: Coin, proof: Proof, info: StateSchedulerInfo<S>) -> Self {
         Self { coin, proof, info }
     }
 
+    /// Returns the next scheduler coin, created by spending this one.
+    ///
+    /// Returns [`None`] if this is the last generation, since its spend leaves the schedule and
+    /// takes on the final puzzle hash.
     pub fn child(&self) -> Option<Self> {
         // check for both self.info.generation and self.info.generation + 1 to be < self.info.state_schedule.len()
         if self.info.generation + 1 >= self.info.state_schedule.len() {
@@ -55,6 +118,15 @@ where
         })
     }
 
+    /// Spends the scheduler, sending the current generation's state to the receiver singleton.
+    ///
+    /// `other_singleton_inner_puzzle_hash` is the receiver's inner puzzle hash at the time of the
+    /// spend. The receiver must be spent in the same block and receive the message, and the spend
+    /// is only valid after the scheduled timestamp.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the generation is past the end of the schedule.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -83,6 +155,10 @@ where
         Ok(())
     }
 
+    /// Parses the eve scheduler created by a launcher spend with [`StateSchedulerLauncherHints`](crate::StateSchedulerLauncherHints).
+    ///
+    /// Returns [`None`] if the coin isn't a launcher or the hints don't match the launched singleton,
+    /// and an error if the launcher solution doesn't contain valid hints.
     pub fn from_launcher_spend(
         ctx: &mut SpendContext,
         launcher_spend: &CoinSpend,

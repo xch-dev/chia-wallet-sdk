@@ -7,6 +7,12 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized `XCHandles` oracle action, compiled from Rue.
+///
+/// Confirms a handle slot's value on-chain: it spends and re-creates the slot (with its
+/// counter increased) and announces `"o"` followed by the spent slot value's hash. The
+/// action's solution is the [`XchandlesHandleSlotValue`](crate::puzzles::XchandlesHandleSlotValue)
+/// itself.
 pub const XCHANDLES_ORACLE_PUZZLE: [u8; 549] = hex!(
     // Rue
     "
@@ -31,15 +37,19 @@ pub const XCHANDLES_ORACLE_PUZZLE: [u8; 549] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_ORACLE_PUZZLE`].
 pub const XCHANDLES_ORACLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     f6f82232ff1dead535602b757dcbe21ee6efb38ff01a0500e59c52161a582c1b
     "
 ));
 
+/// Curried arguments of the `XCHandles` oracle action ([`XCHANDLES_ORACLE_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesOracleActionArgs {
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
 }
 

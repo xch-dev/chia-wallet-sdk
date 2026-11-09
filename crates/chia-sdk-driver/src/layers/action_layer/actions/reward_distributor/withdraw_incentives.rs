@@ -16,9 +16,19 @@ use crate::{
     RewardDistributorWithdrawIncentivesActionLog, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that withdraws part of the incentives committed with a
+/// [`RewardDistributorCommitIncentivesAction`](crate::RewardDistributorCommitIncentivesAction).
+///
+/// It spends the commitment slot and removes [`withdrawal_share_bps`](Self::withdrawal_share_bps)
+/// basis points of the committed rewards from the epoch's reward slot. The commitment's clawback
+/// puzzle hash must approve the withdrawal with a message.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorWithdrawIncentivesAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::withdrawal_share_bps`](crate::RewardDistributorConstants::withdrawal_share_bps).
     pub withdrawal_share_bps: u64,
 }
 
@@ -38,6 +48,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorWithdrawIncentivesA
 }
 
 impl RewardDistributorWithdrawIncentivesAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         withdrawal_share_bps: u64,
@@ -61,6 +72,14 @@ impl RewardDistributorWithdrawIncentivesAction {
         ctx.curry(Self::new_args(self.launcher_id, self.withdrawal_share_bps))
     }
 
+    /// Parses an action solution into a [`RewardDistributorWithdrawIncentivesActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action, and
+    /// `withdrawal_share_bps` is the distributor's withdrawal share.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -92,6 +111,16 @@ impl RewardDistributorWithdrawIncentivesAction {
         })
     }
 
+    /// Withdraws the commitment in `commitment_slot` in the pending spend of `distributor`,
+    /// spending it and the epoch's `reward_slot`.
+    ///
+    /// Returns the conditions that must be output by the commitment's clawback puzzle (a
+    /// `SEND_MESSAGE` with mode 18 and an `ASSERT_CONCURRENT_PUZZLE` for the commitment slot),
+    /// and the withdrawn amount.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

@@ -14,6 +14,12 @@ use crate::{DriverError, Launcher, SpendContext};
 use super::{Datastore, DatastoreInfo, DelegatedPuzzle, DlLauncherKvList, get_merkle_tree};
 
 impl Launcher {
+    /// Spends this launcher to create an eve [`Datastore`] with the given metadata, owner, and
+    /// delegated puzzles.
+    ///
+    /// The launcher solution includes a [`DlLauncherKvList`] so that the datastore can be parsed
+    /// with [`Datastore::from_spend`]. Returns the conditions that the launcher's parent must
+    /// output, and the unspent eve [`Datastore`].
     pub fn mint_datastore<M>(
         self,
         ctx: &mut SpendContext,

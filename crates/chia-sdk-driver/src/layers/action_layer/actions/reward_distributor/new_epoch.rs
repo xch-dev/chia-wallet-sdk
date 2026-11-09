@@ -15,12 +15,23 @@ use crate::{
     RewardDistributorStateTransition, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that starts the next epoch.
+///
+/// It reads the next epoch's rewards from its reward slot and takes a fee of
+/// [`fee_bps`](Self::fee_bps) basis points from them.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorNewEpochAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::fee_payout_puzzle_hash`](crate::RewardDistributorConstants::fee_payout_puzzle_hash).
     pub fee_payout_puzzle_hash: Bytes32,
+    /// See [`RewardDistributorConstants::fee_bps`](crate::RewardDistributorConstants::fee_bps).
     pub fee_bps: u64,
+    /// See [`RewardDistributorConstants::epoch_seconds`](crate::RewardDistributorConstants::epoch_seconds).
     pub epoch_seconds: u64,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
 }
 
@@ -50,6 +61,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorNewEpochAction {
 }
 
 impl RewardDistributorNewEpochAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         fee_payout_puzzle_hash: Bytes32,
@@ -80,6 +92,13 @@ impl RewardDistributorNewEpochAction {
         ))
     }
 
+    /// Parses an action solution into a [`RewardDistributorNewEpochActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -105,6 +124,17 @@ impl RewardDistributorNewEpochAction {
         })
     }
 
+    /// Starts the next epoch in the pending spend of `distributor`, spending `reward_slot`.
+    ///
+    /// `reward_slot` should be the slot of the epoch starting at the current epoch end. If it's
+    /// for another epoch, the new epoch has no rewards.
+    ///
+    /// Returns the conditions that assert the distributor's new epoch announcement and the
+    /// reward slot spend, and the fee paid for the epoch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

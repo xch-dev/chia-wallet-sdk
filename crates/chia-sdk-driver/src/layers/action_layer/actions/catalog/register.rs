@@ -21,12 +21,25 @@ use crate::{
 
 use super::CatalogRegisterActionLog;
 
+/// The `CATalog` action that registers a new asset id and mints an NFT for it.
+///
+/// Registration consumes a [`PrecommitCoin`] with a [`CatalogPrecommitValue`] that paid the
+/// registration price, inserts a slot for the asset id between its two neighbors in the sorted
+/// slot list, and mints the asset's NFT through a [`UniquenessPrelauncher`], which ensures each
+/// asset id can only be registered once.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRegisterAction {
+    /// The launcher id of the `CATalog` registry.
     pub launcher_id: Bytes32,
+    /// The tree hash of the royalty puzzle hash of the minted NFTs.
     pub royalty_puzzle_hash_hash: Bytes32,
+    /// The royalty of the minted NFTs, in basis points.
     pub trade_price_percentage: u16,
+    /// The relative block height of the registry's precommit coins.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the payments of the registry's precommit coins.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -56,6 +69,7 @@ impl SingletonAction<CatalogRegistry> for CatalogRegisterAction {
 }
 
 impl CatalogRegisterAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         royalty_puzzle_hash_hash: Bytes32,
@@ -77,6 +91,11 @@ impl CatalogRegisterAction {
         }
     }
 
+    /// Constructs the action puzzle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle can't be allocated.
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(Self::new_args(
             self.launcher_id,
@@ -87,6 +106,13 @@ impl CatalogRegisterAction {
         ))
     }
 
+    /// Parses an action solution into a [`CatalogRegisterActionLog`].
+    ///
+    /// `registration_price` is the price in the registry state when the action ran.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -147,6 +173,20 @@ impl CatalogRegisterAction {
         })
     }
 
+    /// Registers `tail_hash` in the pending spend of `catalog`.
+    ///
+    /// This spends `precommit_coin` in register mode, the uniqueness prelauncher, the NFT
+    /// launcher, the eve NFT (with `eve_nft_inner_spend`), and the two neighbor slots, then adds
+    /// the action to the pending spend. `left_slot` and `right_slot` are the on-chain neighbors
+    /// of `tail_hash`; neighbors created by earlier pending actions are used instead if needed.
+    ///
+    /// Returns a condition that asserts the registry's register announcement. Include it in
+    /// another spend in the same bundle, such as the one that funds the transaction, so that the
+    /// registration can't be separated from it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,

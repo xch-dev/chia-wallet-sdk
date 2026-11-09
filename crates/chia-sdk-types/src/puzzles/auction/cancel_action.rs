@@ -7,6 +7,8 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// The serialized bytecode of the auction's cancel action, compiled from Rue. See
+/// [`AuctionCancelActionArgs`].
 pub const AUCTION_CANCEL_ACTION_PUZZLE: [u8; 259] = hex!(
     // Rue
     "
@@ -22,6 +24,7 @@ pub const AUCTION_CANCEL_ACTION_PUZZLE: [u8; 259] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_CANCEL_ACTION_PUZZLE`].
 pub const AUCTION_CANCEL_ACTION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "3711cd50a0332a4b8f46bb2f1eb66d9c1d1ed658d104b94a4cf6e424906c782e"
 ));
@@ -36,15 +39,27 @@ pub const AUCTION_CANCEL_MESSAGE_MODE: u8 = 0b010_111;
 
 /// Cancels the auction before the first bid, which must be authorized by the payout puzzle. This
 /// leaves the auction in the same state as ending it without any bids.
+///
+/// The NFT is sent back to the payout puzzle hash, since that's the initial winning bid. The
+/// action's solution is passed to the unlocker after the winning bid, and like the end action, it
+/// creates a coin announcement of `$`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionCancelActionArgs<U> {
+    /// The unlocker puzzle, such as [`AuctionNftUnlockerArgs`] curried into its mod, which outputs
+    /// the conditions that the NFT is authorized to output.
+    ///
+    /// [`AuctionNftUnlockerArgs`]: crate::puzzles::AuctionNftUnlockerArgs
     pub unlocker: U,
+    /// The puzzle hash that must send [`AUCTION_CANCEL_MESSAGE`] to authorize the cancel.
     pub payout_puzzle_hash: Bytes32,
+    /// The coin id of the locked NFT, which the unlock message is sent to.
     pub nft_coin_id: Bytes32,
 }
 
 impl<U> AuctionCancelActionArgs<U> {
+    /// Creates new [`AuctionCancelActionArgs`] from the unlocker, payout puzzle hash, and NFT coin
+    /// id.
     pub fn new(unlocker: U, payout_puzzle_hash: Bytes32, nft_coin_id: Bytes32) -> Self {
         Self {
             unlocker,

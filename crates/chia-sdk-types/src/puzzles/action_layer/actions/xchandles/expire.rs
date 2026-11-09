@@ -12,6 +12,16 @@ use crate::{
     },
 };
 
+/// Serialized `XCHandles` expire action, compiled from Rue.
+///
+/// Registers an expired handle to a new owner. The handle's current expiration must have
+/// passed, and the price comes from the expired handle pricing puzzle in the registry's
+/// state (for example [`XchandlesExponentialPremiumRenewPuzzleArgs`](crate::puzzles::XchandlesExponentialPremiumRenewPuzzleArgs),
+/// which adds a decaying premium). The action consumes a precommit coin whose amount
+/// equals the price, re-creates the handle slot with the new data and an expiration of
+/// `buy_time + registered_time`, requires a message of `"e"` followed by the precommit
+/// coin's puzzle hash from the new owner singleton (and `"f"` followed by it from the
+/// resolved singleton if different), and announces `"x"` followed by that puzzle hash.
 pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1151] = hex!(
     // Rue
     "
@@ -54,30 +64,46 @@ pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1151] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_EXPIRE_PUZZLE`].
 pub const XCHANDLES_EXPIRE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     ee1554255f27b737b73dbba2d3fc2e3d7e8de2954c35c8660341362410d5b4e0
     "
 ));
 
+/// Curried arguments of the `XCHandles` expire action ([`XCHANDLES_EXPIRE_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesExpireActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Puzzle hash of the singleton launcher, used with
+    /// [`singleton_mod_hash`](Self::singleton_mod_hash) to compute singleton puzzle hashes
+    /// from launcher ids.
     pub singleton_launcher_mod_hash: Bytes32,
+    /// Hash of the precommit layer after its first curry
+    /// ([`PrecommitLayer1stCurryArgs`](crate::puzzles::PrecommitLayer1stCurryArgs)).
     pub precommit_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
 }
 
+/// Refund information and secret committed to by an `XCHandles` precommit coin, encoded
+/// as `(refund_puzzle_hash_hash . secret)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRefundAndSecret<S> {
+    /// Tree hash of the precommit coin's refund puzzle hash.
     pub refund_puzzle_hash_hash: Bytes32,
+    /// Secret included in the precommitted value, so the handle can't be guessed from the
+    /// precommit coin's puzzle hash before it is revealed.
     #[clvm(rest)]
     pub secret: S,
 }
 
 impl<S> XchandlesRefundAndSecret<S> {
+    /// Creates the value from its parts.
     pub fn new(refund_puzzle_hash_hash: Bytes32, secret: S) -> Self {
         Self {
             refund_puzzle_hash_hash,
@@ -86,15 +112,20 @@ impl<S> XchandlesRefundAndSecret<S> {
     }
 }
 
+/// Data committed to by an `XCHandles` precommit coin, besides the CAT maker, pricing
+/// puzzle, and handle. Encoded as `(launcher_ids . refund_and_secret)`.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesOtherPrecommitData<S> {
+    /// Owner and resolved launcher ids the handle will have after the registration.
     pub launcher_ids: XchandlesDataValue,
+    /// Refund puzzle hash and secret.
     #[clvm(rest)]
     pub refund_and_secret: XchandlesRefundAndSecret<S>,
 }
 
 impl<S> XchandlesOtherPrecommitData<S> {
+    /// Creates the value from its parts.
     pub fn new(
         owner_launcher_id: Bytes32,
         resolved_launcher_id: Bytes32,
@@ -111,15 +142,29 @@ impl<S> XchandlesOtherPrecommitData<S> {
     }
 }
 
+/// Solution to the `XCHandles` expire action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesExpireActionSolution<CMP, CMS, EP, ES, S> {
+    /// Expired handle pricing puzzle and its solution (usually an
+    /// [`XchandlesPricingSolution`](crate::puzzles::XchandlesPricingSolution) whose current
+    /// expiration is the handle's expiration). The puzzle must match the expired handle
+    /// pricing puzzle hash in the registry's state.
     pub expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution<EP, ES>,
+    /// CAT maker puzzle and solution for the payment asset. The puzzle must match the CAT
+    /// maker puzzle hash in the registry's state.
     pub cat_maker_and_solution: PuzzleAndSolution<CMP, CMS>,
+    /// Rest of the data the precommit coin committed to, including the new owner and
+    /// resolved launcher ids.
     pub other_precommit_data: XchandlesOtherPrecommitData<S>,
+    /// Counter of the handle's slot.
     pub counter: u64,
+    /// Neighbors of the handle's slot, which stay the same.
     pub neighbors: SlotNeigborsInfo,
+    /// Owner and resolved launcher ids currently in the handle's slot.
     pub old_rest: XchandlesDataValue,
+    /// Inner puzzle hashes of the new owner and resolved singletons, which send the approval
+    /// messages.
     #[clvm(rest)]
     pub new_inner_puzzle_hashes: XchandlesNewDataPuzzleHashes,
 }

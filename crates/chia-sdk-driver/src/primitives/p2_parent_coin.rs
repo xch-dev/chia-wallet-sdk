@@ -16,15 +16,26 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
+/// An XCH or CAT coin locked by the [`P2ParentLayer`], which can be spent by whoever controls
+/// its parent's inner puzzle.
+///
+/// To spend it, the parent's inner puzzle is revealed with a new solution. The puzzle asserts
+/// that its parent coin was created from that inner puzzle (wrapped by the CAT layer for CATs)
+/// and outputs the conditions it returns.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 #[must_use]
 pub struct P2ParentCoin {
+    /// The p2 parent coin.
     pub coin: Coin,
+    /// The asset id if this is a CAT, or [`None`] for XCH.
     pub asset_id: Option<Bytes32>,
+    /// The lineage proof of the parent coin, which is used in the solution. For XCH, the parent
+    /// inner puzzle hash is the parent's full puzzle hash.
     pub proof: LineageProof,
 }
 
 impl P2ParentCoin {
+    /// Creates a new [`P2ParentCoin`] from its coin, asset id, and parent lineage proof.
     pub fn new(coin: Coin, asset_id: Option<Bytes32>, proof: LineageProof) -> Self {
         Self {
             coin,
@@ -33,6 +44,7 @@ impl P2ParentCoin {
         }
     }
 
+    /// Constructs the full puzzle of the coin, including the CAT layer if [`asset_id`](Self::asset_id) is set.
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         if let Some(asset_id) = self.asset_id {
             CatLayer::new(asset_id, P2ParentLayer::cat(asset_id.tree_hash())).construct_puzzle(ctx)
@@ -41,6 +53,7 @@ impl P2ParentCoin {
         }
     }
 
+    /// Calculates the hash of the [`P2ParentLayer`] puzzle, which is the inner puzzle hash for CATs.
     pub fn inner_puzzle_hash(asset_id: Option<Bytes32>) -> TreeHash {
         P2ParentArgs {
             cat_maker: if let Some(asset_id) = asset_id {
@@ -55,6 +68,8 @@ impl P2ParentCoin {
         .curry_tree_hash()
     }
 
+    /// Calculates the full puzzle hash of a p2 parent coin for the given asset id
+    /// (or [`None`] for XCH). All p2 parent coins of the same asset share this puzzle hash.
     pub fn puzzle_hash(asset_id: Option<Bytes32>) -> TreeHash {
         let inner_puzzle_hash = Self::inner_puzzle_hash(asset_id);
 
@@ -65,6 +80,10 @@ impl P2ParentCoin {
         }
     }
 
+    /// Constructs the solution for the coin.
+    ///
+    /// `delegated_spend` is a spend of the parent's inner puzzle, whose output becomes the coin's
+    /// conditions. `cat_maker_solution` is passed to the [`CatMaker`]. CATs are spent in a ring of one.
     pub fn construct_solution<CMS>(
         &self,
         ctx: &mut SpendContext,
@@ -106,6 +125,8 @@ impl P2ParentCoin {
         }
     }
 
+    /// Spends the coin with the given parent inner puzzle spend and adds it to the [`SpendContext`].
+    /// See [`P2ParentCoin::construct_solution`].
     pub fn spend<CMS>(
         &self,
         ctx: &mut SpendContext,
@@ -121,8 +142,7 @@ impl P2ParentCoin {
         ctx.spend(self.coin, Spend::new(puzzle, solution))
     }
 
-    // also returns memo
-    /// Parses the first child of the parent coin spend that is a [`P2ParentCoin`].
+    /// Parses the first child of the parent coin spend that is a [`P2ParentCoin`], along with its memos.
     ///
     /// If the parent can create more than one, use [`P2ParentCoin::parse_children`] instead.
     pub fn parse_child(
@@ -139,6 +159,9 @@ impl P2ParentCoin {
     }
 
     /// Parses all children of the parent coin spend that are [`P2ParentCoin`]s, along with their memos.
+    ///
+    /// If the parent is a CAT, the children are expected to be CATs of the same asset id.
+    /// Otherwise they are expected to be XCH. This runs the full parent puzzle.
     pub fn parse_children(
         allocator: &mut Allocator,
         parent_coin: Coin,

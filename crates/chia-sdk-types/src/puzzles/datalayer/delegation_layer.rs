@@ -7,6 +7,8 @@ use hex_literal::hex;
 
 use crate::{MerkleProof, Mod};
 
+/// The serialized CLVM bytecode of the `DataLayer` delegation layer (CHIP-0035). See
+/// [`DelegationLayerArgs`].
 pub const DELEGATION_LAYER_PUZZLE: [u8; 1027] = hex!(
     "
     ff02ffff01ff02ff12ffff04ff02ffff04ff05ffff04ff0bffff04ff17ffff04ff2fffff04ff5fff
@@ -38,22 +40,63 @@ pub const DELEGATION_LAYER_PUZZLE: [u8; 1027] = hex!(
     "
 );
 
+/// The tree hash of [`DELEGATION_LAYER_PUZZLE`].
 pub const DELEGATION_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     c3b249466cb15c51e5abb5c54ef5077c1624ae2e6a0f8f7a3fa197a943a5d62e
     "
 ));
 
+/// Curried arguments for the `DataLayer` delegation layer (CHIP-0035), which lets a store's owner
+/// delegate limited control to other puzzles.
+///
+/// It's the inner puzzle of a `DataLayer` store's NFT state layer. The solution reveals a puzzle
+/// and its solution:
+///
+/// - If the puzzle's hash is `owner_puzzle_hash`, its conditions are returned unchanged, so the
+///   owner has full control.
+/// - Otherwise, the solution must include a [`MerkleProof`] that the puzzle hash is a leaf of the
+///   merkle tree with `merkle_root`. Such a delegated puzzle can update the metadata (as long as
+///   the metadata updater stays
+///   [`DL_METADATA_UPDATER_PUZZLE_HASH`](crate::puzzles::DL_METADATA_UPDATER_PUZZLE_HASH) and it
+///   outputs no extra conditions) and can change the merkle root with an
+///   [`UpdateDatastoreMerkleRoot`](crate::conditions::UpdateDatastoreMerkleRoot) condition. The
+///   layer then recreates itself with amount 1, keeping the owner and using the new merkle root if
+///   one was given, hinted with the memos from that condition (or the launcher id by default).
+///
+/// Delegated puzzles are usually wrapped in [`WriterLayerArgs`](crate::puzzles::WriterLayerArgs)
+/// so that they can't change the merkle root.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::{Mod, puzzles::DelegationLayerArgs};
+/// let launcher_id = Bytes32::new([1; 32]);
+/// let owner_puzzle_hash = Bytes32::new([2; 32]);
+/// let merkle_root = Bytes32::new([3; 32]);
+///
+/// let args = DelegationLayerArgs::new(launcher_id, owner_puzzle_hash, merkle_root);
+/// assert_eq!(
+///     Mod::curry_tree_hash(&args),
+///     DelegationLayerArgs::curry_tree_hash(launcher_id, owner_puzzle_hash, merkle_root)
+/// );
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct DelegationLayerArgs {
+    /// The mod hash of the delegation layer, which is [`DELEGATION_LAYER_PUZZLE_HASH`].
     pub mod_hash: Bytes32,
+    /// The launcher id of the store, used as the default hint when the layer recreates itself.
     pub launcher_id: Bytes32,
+    /// The puzzle hash of the owner, which has full control over the store.
     pub owner_puzzle_hash: Bytes32,
+    /// The root of the merkle tree of delegated puzzle hashes.
     pub merkle_root: Bytes32,
 }
 
 impl DelegationLayerArgs {
+    /// Creates new [`DelegationLayerArgs`], using [`DELEGATION_LAYER_PUZZLE_HASH`] as the mod hash.
     pub fn new(launcher_id: Bytes32, owner_puzzle_hash: Bytes32, merkle_root: Bytes32) -> Self {
         Self {
             mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
@@ -65,6 +108,7 @@ impl DelegationLayerArgs {
 }
 
 impl DelegationLayerArgs {
+    /// Calculates the puzzle hash of the delegation layer with the given arguments.
     pub fn curry_tree_hash(
         launcher_id: Bytes32,
         owner_puzzle_hash: Bytes32,
@@ -83,11 +127,15 @@ impl DelegationLayerArgs {
     }
 }
 
+/// The solution for the `DataLayer` delegation layer. See [`DelegationLayerArgs`].
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DelegationLayerSolution<P, S> {
+    /// The proof that the puzzle hash is in the merkle tree, or [`None`] if the owner is spending.
     pub merkle_proof: Option<MerkleProof>,
+    /// The owner's puzzle or a delegated puzzle.
     pub puzzle_reveal: P,
+    /// The solution to run the puzzle with.
     pub puzzle_solution: S,
 }
 

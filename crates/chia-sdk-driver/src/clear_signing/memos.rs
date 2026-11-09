@@ -7,14 +7,31 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{ClawbackV2, RevealedP2Puzzle, Reveals};
 
+/// The destination and memos of a created coin.
 #[derive(Debug, Clone)]
 pub struct ParsedMemos {
+    /// The puzzle hash that the coin is effectively sent to. For a clawback, this is the receiver's puzzle hash, and
+    /// for a CAT or NFT, it's the p2 puzzle hash. Otherwise, it's the puzzle hash in the condition.
     pub p2_puzzle_hash: Bytes32,
+    /// The clawback that the coin is locked in, if the memos describe one that matches the coin's puzzle hash. The
+    /// coin only reaches [`p2_puzzle_hash`](ParsedMemos::p2_puzzle_hash) if the sender doesn't claw it back before
+    /// the clawback expires.
     pub clawback: Option<ClawbackV2>,
+    /// The memos that are valid UTF-8 strings, after the hint and any clawback or fixed conditions memo. These are
+    /// arbitrary text chosen by whoever built the transaction. For an XCH child without a clawback or fixed
+    /// conditions memo, the hint isn't removed, so it's included if it happens to be valid UTF-8.
     pub human_readable_memos: Vec<String>,
+    /// The fixed conditions of a revealed [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) destination,
+    /// if they were revealed in the memos and match its puzzle hash.
     pub fixed_conditions: Option<Vec<Condition>>,
 }
 
+/// Parses the memos of a p2 `CREATE_COIN` condition. Only memos that are checked against the coin's puzzle hash
+/// (clawbacks and fixed conditions) affect the destination, so the memos can't misrepresent where the coin goes.
+///
+/// If `requires_hint` is true (for CATs and NFTs), a leading 32 byte memo is treated as the hint and removed. It's also
+/// used as the [`hinted`](ClawbackV2::hinted) flag of a clawback, which must match the coin's puzzle hash. The hint is
+/// always removed when a clawback or fixed conditions memo follows it.
 pub fn parse_memos(
     reveals: &Reveals,
     allocator: &Allocator,

@@ -5,14 +5,19 @@ use chia_sdk_types::conditions::TradePrice;
 
 use crate::{AssetInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount};
 
+/// The royalty of an NFT, which must be paid when it's traded in an offer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoyaltyInfo {
+    /// The launcher id of the NFT, which is used as the nonce of the royalty payment.
     pub launcher_id: Bytes32,
+    /// The puzzle hash that receives the royalty.
     pub puzzle_hash: Bytes32,
+    /// The royalty percentage in basis points, so a value of 300 means 3%.
     pub basis_points: u16,
 }
 
 impl RoyaltyInfo {
+    /// Creates a [`RoyaltyInfo`].
     pub fn new(launcher_id: Bytes32, puzzle_hash: Bytes32, basis_points: u16) -> Self {
         Self {
             launcher_id,
@@ -21,6 +26,8 @@ impl RoyaltyInfo {
         }
     }
 
+    /// Creates the notarized payment of the royalty amount, with the launcher id as the nonce and a
+    /// hint of the royalty puzzle hash.
     pub fn payment(
         &self,
         ctx: &mut SpendContext,
@@ -34,6 +41,9 @@ impl RoyaltyInfo {
     }
 }
 
+/// Calculates the trade price of each royalty NFT, by splitting the amounts evenly between them.
+///
+/// This is empty if there are no royalty NFTs.
 pub fn calculate_trade_price_amounts(
     amounts: &OfferAmounts,
     royalty_nft_count: usize,
@@ -55,6 +65,12 @@ pub fn calculate_trade_price_amounts(
     }
 }
 
+/// Converts trade price amounts into [`TradePrice`] values for transferring royalty NFTs, with
+/// the settlement puzzle hash of each asset. Assets with a zero amount are skipped.
+///
+/// An NFT can't be taken if the royalty of one of its trade prices rounds down to zero, so use
+/// [`payable_trade_prices`] to filter the result for each NFT.
+///
 /// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`], or
 /// [`DriverError::MissingAssetInfo`] if a CAT has no asset info.
 pub fn calculate_trade_prices(
@@ -97,6 +113,9 @@ pub fn payable_trade_prices(
         .collect()
 }
 
+/// Calculates the royalty payment of each NFT for each asset of the trade price. Payments with a
+/// zero amount are skipped.
+///
 /// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in
 /// a [`u64`].
 pub fn calculate_royalty_payments(
@@ -160,6 +179,8 @@ pub fn calculate_nft_trade_price(amount: u128, royalty_nft_count: usize) -> u128
     amount.checked_div(royalty_nft_count as u128).unwrap_or(0)
 }
 
+/// Calculates the royalty of an NFT for the trade price, rounded down.
+///
 /// Royalties above 100% are representable on chain, so the royalty can exceed the trade price.
 pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u128 {
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000

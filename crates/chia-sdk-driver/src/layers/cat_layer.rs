@@ -9,6 +9,14 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 /// The CAT [`Layer`] enforces restrictions on the supply of a token.
 /// Specifically, unless the TAIL program is run, the supply cannot change.
+///
+/// The `CREATE_COIN` conditions output by the inner puzzle are wrapped in the same CAT layer, and
+/// the CAT coins spent together form a ring of announcements that ensures the total amount is
+/// preserved. Building the solutions for a ring is handled by [`Cat::spend_all`](crate::Cat::spend_all),
+/// so this layer is usually used to construct and parse the puzzle.
+///
+/// A [`CatLayer`] can't have another [`CatLayer`] as its inner puzzle, since the inner CAT's
+/// announcements would conflict with the outer CAT's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatLayer<I> {
     /// The asset id of the CAT token. This is the tree hash of the TAIL program.
@@ -18,6 +26,7 @@ pub struct CatLayer<I> {
 }
 
 impl<I> CatLayer<I> {
+    /// Creates a [`CatLayer`] for the asset id around the inner puzzle.
     pub fn new(asset_id: Bytes32, inner_puzzle: I) -> Self {
         Self {
             asset_id,

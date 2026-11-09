@@ -10,6 +10,14 @@ use crate::{
     puzzles::{PuzzleAndSolution, SlotNeigborsInfo, XchandlesDataValue},
 };
 
+/// Serialized `XCHandles` extend action, compiled from Rue.
+///
+/// Lets anyone extend an unexpired handle's registration. The price comes from the
+/// pricing puzzle in the registry's state, and is paid with a settlement payment (from
+/// the CAT maker's asset) to the payout puzzle hash, whose nonce is the tree hash of
+/// `(handle . current_expiration)`. The handle slot is re-created with its expiration
+/// increased by `registered_time`, and the action announces `"e"` followed by the tree
+/// hash of `(total_price . handle)`.
 pub const XCHANDLES_EXTEND_PUZZLE: [u8; 887] = hex!(
     // Rue
     "
@@ -45,27 +53,44 @@ pub const XCHANDLES_EXTEND_PUZZLE: [u8; 887] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_EXTEND_PUZZLE`].
 pub const XCHANDLES_EXTEND_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     490522c6759f840a455ff5ca5a00f3eb83db2dfd3c4590553d7ff67d210bc353
     "
 ));
 
+/// Curried arguments of the `XCHandles` extend action ([`XCHANDLES_EXTEND_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesExtendActionArgs {
+    /// Mod hash of the settlement payments puzzle, wrapped by the CAT maker to find the
+    /// payment's origin.
     pub offer_mod_hash: Bytes32,
+    /// Puzzle hash that receives extension payments.
     pub payout_puzzle_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
 }
 
+/// Solution to the `XCHandles` extend action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesExtendActionSolution<PP, PS, CMP, CMS> {
+    /// Pricing puzzle and its solution (usually an
+    /// [`XchandlesPricingSolution`](crate::puzzles::XchandlesPricingSolution) whose current
+    /// expiration is the handle's expiration). The puzzle must match the pricing puzzle hash
+    /// in the registry's state.
     pub pricing_puzzle_and_solution: PuzzleAndSolution<PP, PS>,
+    /// Counter of the handle's slot.
     pub counter: u64,
+    /// Neighbors of the handle's slot.
     pub neighbors: SlotNeigborsInfo,
+    /// Owner and resolved launcher ids of the handle, which stay the same.
     pub rest: XchandlesDataValue,
+    /// CAT maker puzzle and solution for the payment asset. The puzzle must match the CAT
+    /// maker puzzle hash in the registry's state.
     #[clvm(rest)]
     pub cat_maker_and_solution: PuzzleAndSolution<CMP, CMS>,
 }

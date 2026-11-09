@@ -27,9 +27,16 @@ pub const MAX_CONTROLLED_VAULT_DEPTH: usize = 8;
 /// The amount of every vault coin, which clear signing requires each vault to be recreated with.
 pub const VAULT_AMOUNT: u64 = 1;
 
+/// A summary of what a vault spend will do, as parsed by [`parse_vault_transaction`].
+///
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
-/// as a result of a transaction at a glance. Information that is not verifiable should not be included or displayed.
-/// We can still allow transactions which are not fully verifiable, but a conservative summary should be provided.
+/// as a result of a transaction at a glance. Information that is not verifiable is not included, and should not be
+/// displayed from other sources. Transactions which are not fully verifiable can still be parsed, but the summary is
+/// conservative: anything that the transaction could do without the vault's signature (such as spends that aren't
+/// linked to the vault, or unasserted settlement payments) is left out rather than reported.
+///
+/// Every fact here holds *if the transaction is included in a block*. Clear signing can't tell you whether the
+/// transaction is valid, only what it does if it is.
 #[derive(Debug, Clone)]
 pub struct VaultTransaction {
     /// The launcher id of the vault whose transaction it is. That's the vault being signed for, unless it authorizes the
@@ -46,23 +53,32 @@ pub struct VaultTransaction {
     /// configuration has changed. The amount is always [`VAULT_AMOUNT`], which clear signing requires. The hash can be
     /// validated against a [`MipsMemo`](crate::MipsMemo) so that you know what specifically is happening.
     pub vault_child: Option<VaultOutput>,
-    /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
+    /// Coins with an even amount which are created by the vault singleton spend itself, for example to mint NFTs.
+    /// The vault's own amount is [`VAULT_AMOUNT`], so their value comes from other coins in the transaction, and is
+    /// counted as an XCH output in the [`asset_flows`](Self::asset_flows).
     pub drop_coins: Vec<DropCoin>,
-    /// The spends (and their children) which were authorized by the vault. This includes clawback push-throughs that
-    /// the vault asserts, which don't need its authorization, and whose coins aren't necessarily owned by the vault.
+    /// The spends whose output is guaranteed by the vault (see [`VerifiedSpend`]), and their children. This includes
+    /// clawback push-throughs that the vault asserts, which don't need its authorization, and whose coins aren't
+    /// necessarily owned by the vault.
     pub spends: Vec<VerifiedSpend>,
-    /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
-    /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
-    /// match it back to the corresponding `VerifiedSpend` by coin id if they want to.
+    /// The CAT TAILs run by verified spends, which issue or melt CATs. Each issuance records the coin id of the
+    /// spend that output the `RUN_CAT_TAIL` condition, so callers can match it back to the corresponding
+    /// [`VerifiedSpend`] by coin id if they want to. Its [`extra_delta`](Issuance::extra_delta) comes from the
+    /// spend's solution, so it can only be relied on if it's [`verified`](Issuance::verified).
     pub issuances: Vec<Issuance>,
-    /// Settlement payments which were both revealed and asserted by the transaction.
+    /// Settlement payments which were both revealed and asserted (with `ASSERT_PUZZLE_ANNOUNCEMENT`) by the vault
+    /// or a verified spend whose conditions are trusted, so the transaction is only valid if some settlement coin
+    /// makes them. This doesn't say who funds them, which could be the vault's own coins or another party (such as
+    /// the maker of an offer). Payments of option contracts aren't included, and payments of NFTs are only included
+    /// for an NFT without an owner.
     pub asserted_payments: Vec<AssertedNotarizedPayment>,
     /// Individual asserted payment outputs whose puzzle hash matches one of the vault's known p2 puzzle hashes.
     pub received_payments: Vec<AssertedPayment>,
     /// Individual asserted payment outputs whose puzzle hash doesn't match one of the vault's known p2 puzzle hashes.
     /// These are not necessarily paid by the vault, but the transaction requires them to happen.
     pub external_payments: Vec<AssertedPayment>,
-    /// Per-asset value flow for verified spends and asserted payments.
+    /// Per-asset value flow for verified spends, drop coins, issuances, and asserted payments. Assets with no
+    /// value flow at all are omitted.
     pub asset_flows: Vec<AssetFlow>,
     /// If this transaction creates one or more offer pre-split coins, this rolls them up into a
     /// description of the future offer. Per-leg details (the individual pre-split amounts) live
@@ -70,12 +86,22 @@ pub struct VaultTransaction {
     ///
     /// [`None`] means the transaction does not link any offer pre-split coins.
     pub linked_offer: Option<LinkedOffer>,
-    /// The amount of fees reserved by coin spends authorized by the vault.
+    /// The total of the `RESERVE_FEE` conditions of the vault spend and the verified spends whose conditions are
+    /// trusted. The transaction is only valid if at least this much is left over as a fee, but it may be paid by
+    /// other coins in the bundle.
     pub reserved_fee: u64,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
+    /// These are the [`P2Singleton`](crate::P2Singleton) puzzle hashes of the vault, in nonce order, and are used
+    /// to tell received payments apart from external ones. Other addresses the vault can spend (such as clawbacks
+    /// or [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) coins) aren't included.
     pub p2_puzzle_hashes: Vec<Bytes32>,
     /// The delegated puzzle hash that is being signed for, which is that of the vault being signed for, even if this
     /// is the transaction of a vault in its [`authorization_path`](Self::authorization_path).
+    ///
+    /// Use it with [`calculate_vault_coin_message`](crate::calculate_vault_coin_message) or
+    /// [`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message) to compute the message to sign,
+    /// with the coin id or puzzle hash of the [`signing_vault`](Self::signing_vault). A recovery key signs it wrapped
+    /// with [`vault_recovery_delegated_puzzle_hash`](crate::vault_recovery_delegated_puzzle_hash) instead.
     pub delegated_puzzle_hash: Bytes32,
     /// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), these are the
     /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else other than
@@ -106,8 +132,14 @@ pub struct VaultTransaction {
 }
 
 /// The vault being signed for, with the custody hash and coin that were revealed for it.
+///
+/// Clear signing can't look these up, so they're only checked to be consistent with the vault's launcher id. They're
+/// guaranteed by the signature as long as the message that's signed is calculated from [`puzzle_hash`](Self::puzzle_hash)
+/// or [`coin`](Self::coin), since the vault can't be spent with a signature for a different puzzle hash or coin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SigningVault {
+    /// The vault's current custody hash, as revealed. The vault is checked to be recreated with it if it authorizes
+    /// the spend of a controlled vault or signs messages.
     pub custody_hash: Bytes32,
     /// The singleton puzzle hash for the vault's launcher id and custody hash, which a key member that signs with
     /// [`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message) signs.
@@ -140,6 +172,7 @@ pub struct VaultAuthorization {
     /// only the puzzle hash is committed to, so the spend can happen on another coin of the vault with a different
     /// parent. Its amount is always [`VAULT_AMOUNT`] either way.
     pub coin: Coin,
+    /// The controlled vault's launcher id.
     pub launcher_id: Bytes32,
     /// The controlled vault's current custody hash.
     pub custody_hash: Bytes32,
@@ -147,32 +180,259 @@ pub struct VaultAuthorization {
     pub recovery: Option<ControlledVaultRecovery>,
 }
 
+/// How much of an asset flows into and out of the parts of a transaction that clear signing could verify.
+///
+/// The amounts are [`u128`] so that they can't overflow, even for a malicious transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssetFlow {
+    /// The asset that this flow is for. NFTs are keyed by launcher id, and XCH includes bulletin coins.
     pub asset: ClearSigningAsset,
+    /// The total amount of verified spends whose coins existed before the transaction (rather than being created
+    /// by another verified spend).
     pub input_amount: u128,
+    /// The total amount of the children of verified spends that aren't spent again within the verified spends,
+    /// plus drop coins for XCH. Children sent to the settlement payments puzzle are left out, since they're paid
+    /// out by asserted payments instead.
     pub output_amount: u128,
+    /// The amount created by issuances: CATs issued with a TAIL, or for XCH, the value of CATs melted back into XCH.
     pub issued_amount: u128,
+    /// The amount destroyed by issuances: CATs melted with a TAIL, or for XCH, the value that was turned into CATs
+    /// or NFTs (for example, by issuing a CAT or minting an NFT from an XCH coin).
     pub melted_amount: u128,
+    /// The total amount of asserted payments to the vault's [known p2 puzzle hashes](VaultTransaction::p2_puzzle_hashes).
     pub received_amount: u128,
+    /// The total amount of asserted payments to other puzzle hashes. These must happen for the transaction to be
+    /// valid, but may be paid by another party.
     pub paid_amount: u128,
+    /// The amount that is spent but not accounted for by outputs, melts, payments, or (for XCH) the reserved fee,
+    /// floored at zero. Value that isn't accounted for is implicitly left as a fee, so a nonzero amount should be
+    /// treated as a warning. This is conservative, since `paid_amount` and the reserved fee may be covered by other
+    /// parties, but they're still subtracted here.
     pub unaccounted_amount: u128,
 }
 
+/// A coin spend whose output is guaranteed by the vault being signed for.
+///
+/// A spend is verified if the vault sends it a message that commits to its exact conditions (or, for a spend whose
+/// conditions are fixed by its puzzle, to its CAT issuance), or if it's asserted with `ASSERT_CONCURRENT_SPEND` and
+/// its conditions are fixed by its puzzle (a child of a verified spend, or a clawback push-through). Either way, if
+/// the transaction is valid, this coin is spent and outputs exactly the conditions in
+/// [`custody`](VerifiedSpend::custody). See [`parse_vault_transaction`] for the details.
 #[derive(Debug, Clone)]
 pub struct VerifiedSpend {
+    /// The coin being spent, and the asset it holds.
     pub asset: ParsedAsset,
+    /// The clawback the coin is locked in, and the path it's spent with, if the clawback was revealed.
     pub clawback: Option<ClawbackInfo>,
+    /// The p2 puzzle that controls the coin, and the conditions it outputs.
     pub custody: CustodyInfo,
+    /// The coins created by the conditions, in order.
     pub children: Vec<ParsedChild>,
+    /// Whether the coin is a revocable CAT being spent with its hidden puzzle (revoked by the issuer), rather than
+    /// its p2 puzzle.
     pub revoked: bool,
 }
 
-/// Parses what a vault's delegated spend does, from the point of view of the vault being signed for.
+/// Parses a vault spend into a [`VaultTransaction`] that summarizes what the transaction will do, so that it can be
+/// reviewed by a person before the delegated puzzle is signed. This is what clear signing refers to: rather than
+/// blindly signing a puzzle hash, the signer can see which coins are spent, what they create, which payments must be
+/// made, and how much value is unaccounted for.
 ///
-/// If the delegated spend authorizes the spend of a revealed controlled vault, the vaults are followed down to the
-/// vault at the end, which is the one whose transaction is returned. The vaults above it only authorize it, so they're
-/// described by [`VaultTransaction::authorization_path`] instead.
+/// The transaction is parsed from the point of view of the vault being signed for. If the delegated spend authorizes
+/// the spend of a revealed controlled vault, the vaults are followed down to the vault at the end, which is the one
+/// whose transaction is returned. The vaults above it only authorize it, so they're described by
+/// [`VaultTransaction::authorization_path`] instead.
+///
+/// # Inputs
+///
+/// - `delegated_spend` is the delegated puzzle and solution of the vault spend, which is what the vault's custody
+///   signs. It must be a quoted list of conditions (as created by [`SpendContext::delegated_spend`]), so that the
+///   conditions are fixed by the signed puzzle hash. Otherwise, this returns
+///   [`DriverError::InvalidDelegatedSpendFormat`].
+/// - `launcher_id` is the launcher id of the vault being signed for.
+/// - `reveals` holds the coin spends of the transaction, and anything that can't be derived from them: the clawbacks,
+///   [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) puzzles, and bags of the coins involved, the vault
+///   nonces of the vault whose transaction it is, the spends of controlled vaults, and the current custody hash (and
+///   coin) of the vault being signed for. Everything in it comes from an untrusted source, and is only used if it's
+///   consistent with the coins and the signed conditions. See [`Reveals`].
+///
+/// # What is verified
+///
+/// *The vault's own spend.* The conditions of the delegated spend are fixed by the signature, so they're treated as
+/// fact. An odd `CREATE_COIN` is the new vault singleton, which must have an amount of [`VAULT_AMOUNT`], and any other
+/// `CREATE_COIN` is a [`DropCoin`]. Every `SEND_MESSAGE` must be sent from the vault's puzzle to a coin id, or to a
+/// puzzle hash (which is only allowed for a controlled vault). Its `ASSERT_SECONDS_ABSOLUTE`,
+/// `ASSERT_BEFORE_SECONDS_ABSOLUTE`, `RESERVE_FEE`, `ASSERT_PUZZLE_ANNOUNCEMENT`, and `ASSERT_CONCURRENT_SPEND`
+/// conditions are recorded.
+///
+/// *Spends that the vault sends a message to.* The coin's spend must be revealed, and its conditions must be fixed by
+/// the message or its puzzle. Either its p2 puzzle is a [`P2Singleton`](crate::P2Singleton) or revealed
+/// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) of this vault (directly, or inside a revealed
+/// clawback), and the message is the tree hash of the quoted conditions it outputs, or its p2 puzzle is itself a
+/// quoted list of conditions. So the spend can't output anything else without failing the whole transaction. A
+/// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) spend must also assert its own coin id. A CAT spend
+/// that runs an everything with singleton TAIL may also receive a message that commits to its extra delta (which is
+/// the only message that a quoted list of conditions can receive), and that marks the [`Issuance`] as
+/// [`verified`](Issuance::verified). Each message must match exactly one of these commitments, and a spend that
+/// needs a message must receive one, or an error is returned. A coin spent with a clawback's receiver path is only
+/// accepted if the transaction can't be valid before the clawback expires (with `ASSERT_SECONDS_ABSOLUTE` from the
+/// vault, or from a spend that the vault sends a message to that isn't in a clawback), since the sender path could
+/// otherwise consume the message.
+///
+/// *Spends that are asserted.* The spend of a child of a verified spend is also verified if the vault or a verified
+/// spend whose conditions are trusted asserts it with `ASSERT_CONCURRENT_SPEND`, and its p2 puzzle is a quoted list
+/// of conditions (possibly inside a revealed clawback, whose receiver path is only accepted once the clawback has
+/// expired). Any revealed clawback spent with its push-through path is verified if its spend is asserted, its amount
+/// matches the clawback, and the clawback has expired, with the conditions that the clawback commits to rather than
+/// the revealed solution. A spend that's asserted but can't be parsed returns the error from parsing it.
+///
+/// *Clawbacks.* If a verified spend claws a coin back with the sender path of a clawback, the transaction must also
+/// be guaranteed to expire (with `ASSERT_BEFORE_SECONDS_ABSOLUTE` from the vault, or from a verified spend that isn't
+/// in a clawback) no later than the clawback does, since another path could otherwise be spent instead. The
+/// conditions of a clawback spend (its assertions and reserved fees) are only trusted once the time bounds rule out
+/// the paths it could be replaced with: the sender path once the transaction is guaranteed to expire in time, the
+/// receiver path once the clawback has expired and only if the vault sends it a message, and the push-through path
+/// never.
+///
+/// *Settlement payments and offers.* Settlement payments are only reported if their puzzle announcement is asserted
+/// by the vault or a verified spend whose conditions are trusted. Coins set aside for a future offer are rolled up
+/// into a [`LinkedOffer`], and must belong to this vault.
+///
+/// *Message signing.* If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), it can't
+/// do anything other than recreate the vault, and the messages are returned in
+/// [`VaultTransaction::signed_messages`]. If the vault's custody hash is known, it must be recreated with it. If it's
+/// a controlled vault, every vault in the authorization path must use a
+/// [`vault_controller_envelope`](crate::vault_controller_envelope), so that its spend can never be valid on chain.
+///
+/// *Controlled vaults.* A vault that sends a message to a revealed controlled vault (or to
+/// [`VAULT_CONTROLLER_MESSAGE_COIN_ID`]) can only recreate itself with an amount of [`VAULT_AMOUNT`] and send that
+/// one message (plus the same message to [`VAULT_CONTROLLER_MESSAGE_COIN_ID`] for a controller envelope). It must be
+/// recreated with its custody hash if that's known, which it is for a controlled vault, and for the vault being
+/// signed for if it's revealed. The controlled vault's coin spend must be revealed, its puzzle must be a vault, and
+/// the message must be its delegated puzzle hash (wrapped with
+/// [`vault_recovery_delegated_puzzle_hash`](crate::vault_recovery_delegated_puzzle_hash) if it's authorized through
+/// its recovery path). A message to a puzzle hash must match exactly one revealed controlled vault. The path can be at
+/// most [`MAX_CONTROLLED_VAULT_DEPTH`] vaults long, and can't visit a vault twice.
+///
+/// *The vault being signed for.* If its custody hash is revealed, the [`SigningVault`] puzzle hash is calculated from
+/// it and the launcher id, and a revealed coin must have that puzzle hash and an amount of [`VAULT_AMOUNT`].
+///
+/// # What isn't verified
+///
+/// - Whether the transaction is valid, for example whether its signatures are correct, the coins exist, or the
+///   fee is left over. Every fact only holds if the transaction is included in a block.
+/// - Spends that aren't linked to the vault. They may be in the same spend bundle, but nothing they do is reported
+///   unless it's asserted by the vault or a verified spend.
+/// - Who funds asserted payments, which may be the vault's own coins, or another party.
+/// - The meaning of [`VaultTransaction::vault_child`], which is a new custody hash. Compare it to the current custody
+///   hash, or reveal it with a [`MipsMemo`](crate::MipsMemo), to know what it means.
+/// - That `launcher_id` and the controlled vaults are the user's, and that a controlled vault's custody actually
+///   includes the vault that authorizes it.
+/// - The revealed custody hash and coin of the vault being signed for, other than being consistent with its launcher
+///   id. They're only guaranteed if the message that's signed is calculated from [`VaultTransaction::signing_vault`].
+///   If they aren't revealed, the vault being signed for isn't checked to be recreated as it was when it authorizes a
+///   controlled vault or signs messages.
+/// - The extra delta of an [`Issuance`] that isn't [`verified`](Issuance::verified), which is left out of the
+///   [`AssetFlow`]s. For a verified issuance, only the vault's message is checked, not that the TAIL's singleton is
+///   the vault.
+/// - What happens to the payments of a Secure the Bag once it's unrolled (a revocable CAT's issuer can still revoke
+///   the bag), and the human readable memos of a child, which are arbitrary text.
+///
+/// # Errors
+///
+/// Returns an error rather than a partial summary whenever something linked to the vault can't be verified. Among
+/// others:
+///
+/// - [`DriverError::MissingSpend`] for a message to a coin whose spend isn't revealed or belongs to another vault, or
+///   a message to a puzzle hash that isn't a revealed controlled vault.
+/// - [`DriverError::InvalidLinkedCustody`] for a message to a coin whose p2 puzzle isn't recognized.
+/// - [`DriverError::WrongConditions`], [`DriverError::UnmatchedVaultMessage`],
+///   [`DriverError::DuplicateVaultMessage`], or [`DriverError::MissingVaultMessage`] if the messages don't match the
+///   spends.
+/// - [`DriverError::UnguaranteedClawBack`] or [`DriverError::UnguaranteedClawbackExpiry`] if a clawback spend could
+///   be replaced with another path.
+/// - [`DriverError::RevocableChild`] for a CAT child whose revocation layer differs from its parent's.
+/// - [`DriverError::WrongLinkedOfferLauncherId`] for pre-split offer coins of another vault.
+/// - [`DriverError::InvalidVaultAmount`] if a vault isn't recreated with [`VAULT_AMOUNT`].
+/// - [`DriverError::MixedVaultMessageEnvelope`] or [`DriverError::VaultMessageEnvelopeChangesVault`] for a vault
+///   message envelope that does something else.
+/// - [`DriverError::InvalidVaultControllerSpend`], [`DriverError::InvalidVaultControllerEnvelope`],
+///   [`DriverError::VaultControllerChangesVault`], [`DriverError::InvalidControlledVaultPuzzle`],
+///   [`DriverError::WrongControlledVaultMessage`], [`DriverError::ControlledVaultTooDeep`], or
+///   [`DriverError::DuplicateControlledVault`] for an invalid authorization of a controlled vault.
+/// - [`DriverError::WrongSigningVaultPuzzleHash`] if the revealed coin of the vault being signed for doesn't match.
+///
+/// # Example
+///
+/// A vault-owned XCH coin sends 900 mojos to Bob and reserves a 100 mojo fee:
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{
+///     ClearSigningAsset, P2Singleton, Reveals, SpendContext, TransferType,
+///     calculate_vault_puzzle_message, parse_vault_transaction,
+/// };
+/// use chia_sdk_types::{Conditions, MessageFlags, MessageSide};
+/// use clvm_utils::ToTreeHash;
+///
+/// let mut ctx = SpendContext::new();
+///
+/// // The vault being signed for, and its current custody puzzle hash.
+/// let launcher_id = Bytes32::new([1; 32]);
+/// let custody_hash = Bytes32::new([2; 32]);
+///
+/// // An XCH coin at the vault's first p2 puzzle hash.
+/// let p2 = P2Singleton::new(launcher_id, 0);
+/// let coin = Coin::new(Bytes32::new([3; 32]), p2.tree_hash().into(), 1_000);
+///
+/// // The conditions the coin will output. The vault authorizes them by sending the coin a message.
+/// let bob = Bytes32::new([4; 32]);
+/// let coin_conditions =
+///     ctx.delegated_spend(Conditions::new().create_coin(bob, 900, Memos::None).reserve_fee(100))?;
+/// let coin_spend = p2.spend(&mut ctx, custody_hash, 1, coin_conditions)?;
+/// ctx.spend(coin, coin_spend)?;
+/// let coin_spends = ctx.take();
+///
+/// // The delegated spend that the vault's custody signs, which sends the message and recreates the vault.
+/// let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+///     | MessageFlags::COIN.encode(MessageSide::Receiver);
+/// let message = ctx.tree_hash(coin_conditions.puzzle).to_vec().into();
+/// let coin_id = ctx.alloc(&coin.coin_id())?;
+/// let delegated_spend = ctx.delegated_spend(
+///     Conditions::new()
+///         .send_message(mode, message, vec![coin_id])
+///         .create_coin(custody_hash, 1, Memos::None),
+/// )?;
+///
+/// // The vault's current custody hash is revealed too, so that the message to sign commits to it.
+/// let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+/// reveals.reveal_signing_vault(custody_hash, None);
+///
+/// let tx = parse_vault_transaction(reveals, &mut ctx, launcher_id, delegated_spend)?;
+///
+/// // The vault is recreated with the same custody, so its configuration doesn't change.
+/// assert_eq!(tx.vault_child.unwrap().custody_hash, custody_hash);
+/// assert_eq!(tx.reserved_fee, 100);
+///
+/// let child = &tx.spends[0].children[0];
+/// assert_eq!(child.memos.p2_puzzle_hash, bob);
+/// assert_eq!(child.asset.coin().amount, 900);
+/// assert_eq!(child.transfer_type, TransferType::Sent);
+///
+/// // Every mojo spent is accounted for by the payment to Bob and the fee.
+/// let xch = tx.asset_flows.iter().find(|flow| flow.asset == ClearSigningAsset::Xch).unwrap();
+/// assert_eq!(xch.input_amount, 1_000);
+/// assert_eq!(xch.output_amount, 900);
+/// assert_eq!(xch.unaccounted_amount, 0);
+///
+/// // A key member that signs the vault's puzzle hash signs this message. If the revealed custody hash were wrong,
+/// // the signature couldn't be used to spend the vault.
+/// let signing_vault = tx.signing_vault.unwrap();
+/// let message = calculate_vault_puzzle_message(tx.delegated_puzzle_hash, signing_vault.puzzle_hash);
+/// assert_eq!(message.len(), 64);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn parse_vault_transaction(
     reveals: Reveals,
     ctx: &mut SpendContext,
@@ -1204,6 +1464,8 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     p2_puzzle_hashes
 }
 
+/// The children of the spends that aren't spent again by another spend in the list, which are the coins that remain
+/// at the end of the transaction (as far as the verified spends are concerned).
 pub fn iter_final_children(spends: &[VerifiedSpend]) -> impl Iterator<Item = &ParsedChild> {
     let spent_coin_ids: HashSet<Bytes32> = spends
         .iter()

@@ -20,11 +20,15 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 /// is bound to this exact coin and chosen `delegated_puzzle`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2Eip712MessageLayer {
+    /// The EIP-712 prefix (`\x19\x01`) followed by the domain separator of the network.
     pub prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
+    /// The secp256k1 public key that signs the EIP-712 digest.
     pub public_key: K1PublicKey,
 }
 
 impl P2Eip712MessageLayer {
+    /// Creates a [`P2Eip712MessageLayer`] from a public key and a precomputed prefix and domain
+    /// separator. Use [`P2Eip712MessageLayer::from_genesis_challenge`] to compute it.
     pub fn new(
         public_key: K1PublicKey,
         prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
@@ -77,8 +81,10 @@ impl P2Eip712MessageLayer {
         )
     }
 
-    /// Construct a `Spend` for a coin locked by this layer using a previously
-    /// obtained signature over `hash_to_sign(coin_id, tree_hash(delegated))`.
+    /// Creates a [`Spend`] of the coin with id `my_id` that runs the delegated spend.
+    ///
+    /// The signature must be over [`P2Eip712MessageLayer::hash_to_sign`] of the coin id and the
+    /// tree hash of the delegated puzzle.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,

@@ -49,21 +49,51 @@ pub const MAX_MIPS_MEMO_DEPTH: usize = 32;
 /// [`MipsMemo::from_clvm_bounded`]. Shared subtrees are counted once per occurrence.
 pub const MAX_MIPS_MEMO_NODES: usize = 10_000;
 
+/// A CHIP-0043 memo that describes a MIPS custody puzzle, so that its structure can be
+/// reconstructed from its hash.
+///
+/// The memo is encoded as `("CHIP-0043" inner_puzzle)`. Each part of the tree can reveal or hide
+/// details (such as public keys), and hidden details can be filled in with a [`MipsMemoContext`]
+/// when parsing.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_driver::{InnerPuzzleMemo, MemberMemo, MemoKind, MipsMemo, mips_puzzle_hash};
+/// use chia_sdk_test::BlsPair;
+/// use chia_sdk_types::{Mod, puzzles::BlsMember};
+/// use clvmr::Allocator;
+///
+/// let mut allocator = Allocator::new();
+/// let pair = BlsPair::default();
+///
+/// // Describe a custody puzzle with a single BLS member, revealing the public key.
+/// let member = MemberMemo::bls(&mut allocator, pair.pk, false, false, true)?;
+/// let memo = MipsMemo::new(InnerPuzzleMemo::new(0, Vec::new(), MemoKind::Member(member)));
+///
+/// let custody_hash = mips_puzzle_hash(0, Vec::new(), BlsMember::new(pair.pk).curry_tree_hash(), true);
+/// assert!(memo.verify(custody_hash));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct MipsMemo<T = NodePtr> {
+    /// The namespace of the memo, which is always `"CHIP-0043"`.
     #[clvm(constant = "CHIP-0043".to_string())]
     pub namespace: String,
+    /// The memo for the top level inner puzzle.
     pub inner_puzzle: InnerPuzzleMemo<T>,
 }
 
 impl MipsMemo<NodePtr> {
+    /// Creates a new [`MipsMemo`] for the given top level inner puzzle.
     pub fn new(inner_puzzle: InnerPuzzleMemo) -> Self {
         Self { inner_puzzle }
     }
 
+    /// Calculates the top level puzzle hash that the memo describes, without validating it.
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         self.inner_puzzle.inner_puzzle_hash(true)
     }
@@ -157,16 +187,21 @@ fn check_inner_puzzle_memo_bounds(
     Ok(())
 }
 
+/// A memo describing a single MIPS inner puzzle, mirroring [`InnerPuzzleSpend`](crate::InnerPuzzleSpend).
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct InnerPuzzleMemo<T = NodePtr> {
+    /// The nonce of the inner puzzle's index wrapper.
     pub nonce: usize,
+    /// The restrictions on the inner puzzle.
     pub restrictions: Vec<RestrictionMemo<T>>,
+    /// The member or M of N inside of the inner puzzle.
     #[clvm(rest)]
     pub kind: MemoKind<T>,
 }
 
 impl InnerPuzzleMemo<NodePtr> {
+    /// Creates a new [`InnerPuzzleMemo`].
     pub fn new(nonce: usize, restrictions: Vec<RestrictionMemo>, kind: MemoKind) -> Self {
         Self {
             nonce,
@@ -175,6 +210,8 @@ impl InnerPuzzleMemo<NodePtr> {
         }
     }
 
+    /// Calculates the MIPS puzzle hash that the memo describes, like [`mips_puzzle_hash`](crate::mips_puzzle_hash).
+    ///
     /// Note that an empty restriction list means there is no restrictions layer at all, so a
     /// restrictions layer with no validators can't be represented (the same is true of
     /// [`mips_puzzle_hash`](crate::mips_puzzle_hash)).
@@ -219,15 +256,20 @@ fn split_restrictions(restrictions: &[RestrictionMemo]) -> (Vec<TreeHash>, Vec<T
     (member_validators, delegated_puzzle_validators)
 }
 
+/// A memo describing a restriction on a MIPS inner puzzle.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct RestrictionMemo<T = NodePtr> {
+    /// Whether this is a member condition validator, rather than a delegated puzzle validator.
     pub member_condition_validator: bool,
+    /// The tree hash of the restriction puzzle.
     pub puzzle_hash: Bytes32,
+    /// Information about the restriction, which is used to identify it when parsing.
     pub memo: T,
 }
 
 impl RestrictionMemo<NodePtr> {
+    /// Creates a new [`RestrictionMemo`].
     pub fn new(member_condition_validator: bool, puzzle_hash: Bytes32, memo: NodePtr) -> Self {
         Self {
             member_condition_validator,
@@ -236,6 +278,8 @@ impl RestrictionMemo<NodePtr> {
         }
     }
 
+    /// Creates a delegated puzzle validator memo for an [`EnforceDelegatedPuzzleWrappers`]
+    /// restriction, which enforces the given stack of wrappers.
     pub fn enforce_delegated_puzzle_wrappers(
         allocator: &mut Allocator,
         wrapper_memos: &[WrapperMemo],
@@ -254,6 +298,10 @@ impl RestrictionMemo<NodePtr> {
         ))
     }
 
+    /// Creates a member condition validator memo for a [`Timelock`] restriction.
+    ///
+    /// If `reveal` is set, the number of seconds is included in the memo. Otherwise, it
+    /// must be provided in [`MipsMemoContext::timelocks`] when parsing.
     pub fn timelock(
         allocator: &mut Allocator,
         seconds: u64,
@@ -270,6 +318,8 @@ impl RestrictionMemo<NodePtr> {
         ))
     }
 
+    /// Identifies the restriction described by this memo, or returns [`None`] if it's not recognized.
+    ///
     /// Only combinations that can be spent are recognized. The delegated puzzle wrapper enforcer
     /// must validate the delegated puzzle, whereas the timelock and force 1 of 2 puzzles inspect
     /// conditions, so they must be member condition validators.
@@ -323,18 +373,24 @@ impl RestrictionMemo<NodePtr> {
     }
 }
 
+/// A memo describing a delegated puzzle wrapper, as part of an
+/// [`RestrictionMemo::enforce_delegated_puzzle_wrappers`] restriction.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct WrapperMemo<T = NodePtr> {
+    /// The tree hash of the wrapper puzzle.
     pub puzzle_hash: Bytes32,
+    /// Information about the wrapper, which is used to identify it when parsing.
     pub memo: T,
 }
 
 impl WrapperMemo<NodePtr> {
+    /// Creates a new [`WrapperMemo`].
     pub fn new(puzzle_hash: Bytes32, memo: NodePtr) -> Self {
         Self { puzzle_hash, memo }
     }
 
+    /// Creates a memo for the `force_assert_coin_announcement` wrapper.
     pub fn force_assert_coin_announcement() -> Self {
         Self {
             puzzle_hash: FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into(),
@@ -342,6 +398,7 @@ impl WrapperMemo<NodePtr> {
         }
     }
 
+    /// Creates a memo for the `force_coin_message` wrapper.
     pub fn force_coin_message() -> Self {
         Self {
             puzzle_hash: FORCE_COIN_MESSAGE_HASH.into(),
@@ -349,6 +406,7 @@ impl WrapperMemo<NodePtr> {
         }
     }
 
+    /// Creates a memo for the `prevent_multiple_create_coins` wrapper.
     pub fn prevent_multiple_create_coins() -> Self {
         Self {
             puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
@@ -356,6 +414,7 @@ impl WrapperMemo<NodePtr> {
         }
     }
 
+    /// Creates a memo for the `force_singleton_recreation` wrapper.
     pub fn force_singleton_recreation() -> Self {
         Self {
             puzzle_hash: FORCE_SINGLETON_RECREATION_HASH.into(),
@@ -363,6 +422,8 @@ impl WrapperMemo<NodePtr> {
         }
     }
 
+    /// Creates a memo for a [`Force1of2RestrictedVariable`] wrapper.
+    ///
     /// The restrictions are the ones applied to the new right side once the 1 of 2 is spent.
     pub fn force_1_of_2_restricted_variable(
         allocator: &mut Allocator,
@@ -379,6 +440,10 @@ impl WrapperMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a [`Timelock`] wrapper.
+    ///
+    /// If `reveal` is set, the number of seconds is included in the memo. Otherwise, it
+    /// must be provided in [`MipsMemoContext::timelocks`] when parsing.
     pub fn timelock(
         allocator: &mut Allocator,
         seconds: u64,
@@ -394,6 +459,10 @@ impl WrapperMemo<NodePtr> {
         })
     }
 
+    /// Creates a memo for a [`PreventConditionOpcode`] wrapper.
+    ///
+    /// If `reveal` is set, the opcode is included in the memo. Otherwise, it must be provided in
+    /// [`MipsMemoContext::opcodes`] when parsing.
     pub fn prevent_condition_opcode(
         allocator: &mut Allocator,
         opcode: u16,
@@ -409,6 +478,7 @@ impl WrapperMemo<NodePtr> {
         })
     }
 
+    /// Identifies the wrapper described by this memo, or returns [`None`] if it's not recognized.
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedWrapper> {
         if self.puzzle_hash == FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into() {
             return Some(ParsedWrapper::ForceAssertCoinAnnouncement);
@@ -463,15 +533,20 @@ impl WrapperMemo<NodePtr> {
     }
 }
 
+/// The memo of a [`Force1of2RestrictedVariable`] restriction or wrapper, which contains its curried values.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct Force1of2RestrictedVariableMemo<T = NodePtr> {
+    /// The hash of the fixed left side of the 1 of 2.
     pub left_side_subtree_hash: Bytes32,
+    /// The nonce used by the index wrappers of the 1 of 2 and its right side.
     pub nonce: usize,
+    /// The restrictions applied to the new right side.
     pub restrictions: Vec<RestrictionMemo<T>>,
 }
 
 impl Force1of2RestrictedVariableMemo<NodePtr> {
+    /// Creates a new [`Force1of2RestrictedVariableMemo`].
     pub fn new(
         left_side_subtree_hash: Bytes32,
         nonce: usize,
@@ -484,6 +559,7 @@ impl Force1of2RestrictedVariableMemo<NodePtr> {
         }
     }
 
+    /// Returns the [`Force1of2RestrictedVariable`] puzzle described by this memo.
     pub fn restriction(&self) -> Force1of2RestrictedVariable {
         let (member_validators, delegated_puzzle_validators) =
             split_restrictions(&self.restrictions);
@@ -497,14 +573,18 @@ impl Force1of2RestrictedVariableMemo<NodePtr> {
     }
 }
 
+/// The kind of puzzle inside of a MIPS inner puzzle memo, mirroring [`MipsSpendKind`](crate::MipsSpendKind).
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub enum MemoKind<T = NodePtr> {
+    /// A member puzzle.
     Member(MemberMemo<T>),
+    /// An M of N of other inner puzzles.
     MofN(MofNMemo<T>),
 }
 
 impl MemoKind<NodePtr> {
+    /// Calculates the puzzle hash inside of the MIPS wrappers, without validating it.
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         match self {
             Self::Member(member) => member.puzzle_hash.into(),
@@ -512,6 +592,8 @@ impl MemoKind<NodePtr> {
         }
     }
 
+    /// Like [`MemoKind::inner_puzzle_hash`], but fails if a nested M of N is invalid
+    /// (see [`MofNMemo::try_inner_puzzle_hash`]).
     pub fn try_inner_puzzle_hash(&self) -> Result<TreeHash, DriverError> {
         match self {
             Self::Member(member) => Ok(member.puzzle_hash.into()),
@@ -520,18 +602,29 @@ impl MemoKind<NodePtr> {
     }
 }
 
+/// A memo describing a MIPS member puzzle.
+///
+/// For the constructors below, `fast_forward` selects the variant of the member that signs with
+/// (or for singletons, sends messages to) the puzzle hash instead of the coin id, which is
+/// compatible with singleton fast forward, and `reveal` controls whether the key or hash is
+/// included in the memo. If it's not revealed, it must be provided in the [`MipsMemoContext`]
+/// when parsing.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MemberMemo<T = NodePtr> {
+    /// The tree hash of the member puzzle.
     pub puzzle_hash: Bytes32,
+    /// Information about the member, which is used to identify it when parsing.
     pub memo: T,
 }
 
 impl MemberMemo<NodePtr> {
+    /// Creates a new [`MemberMemo`].
     pub fn new(puzzle_hash: Bytes32, memo: NodePtr) -> Self {
         Self { puzzle_hash, memo }
     }
 
+    /// Creates a memo for a secp256k1 member ([`K1Member`] or [`K1MemberPuzzleAssert`]).
     pub fn k1(
         allocator: &mut Allocator,
         public_key: K1PublicKey,
@@ -553,6 +646,7 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a secp256r1 member ([`R1Member`] or [`R1MemberPuzzleAssert`]).
     pub fn r1(
         allocator: &mut Allocator,
         public_key: R1PublicKey,
@@ -574,6 +668,10 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a BLS member.
+    ///
+    /// If `taproot` is set, this is a [`BlsTaprootMember`] (or [`BlsTaprootMemberPuzzleAssert`]).
+    /// Otherwise, it's a [`BlsMember`] (or [`BlsMemberPuzzleAssert`]).
     pub fn bls(
         allocator: &mut Allocator,
         public_key: PublicKey,
@@ -605,6 +703,7 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a passkey member ([`PasskeyMember`] or [`PasskeyMemberPuzzleAssert`]).
     pub fn passkey(
         allocator: &mut Allocator,
         public_key: R1PublicKey,
@@ -626,6 +725,10 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a singleton member.
+    ///
+    /// If `fast_forward` is set, this is a [`SingletonMemberWithMode`] that uses puzzle hash to
+    /// puzzle hash messages. Otherwise, it's a [`SingletonMember`].
     pub fn singleton(
         allocator: &mut Allocator,
         launcher_id: Bytes32,
@@ -648,6 +751,7 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Creates a memo for a [`FixedPuzzleMember`], which requires the delegated puzzle to have the given hash.
     pub fn fixed_puzzle(
         allocator: &mut Allocator,
         puzzle_hash: Bytes32,
@@ -663,6 +767,10 @@ impl MemberMemo<NodePtr> {
         ))
     }
 
+    /// Identifies the member described by this memo, or returns [`None`] if it's not recognized.
+    ///
+    /// The known member types are tried with the revealed value and the values in the context. If
+    /// none of them match, the memo is treated as the full puzzle reveal of a custom member.
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedMember> {
         for &public_key in Option::<PublicKey>::from_clvm(allocator, self.memo)
             .ok()
@@ -770,18 +878,23 @@ impl MemberMemo<NodePtr> {
     }
 }
 
+/// A memo describing an M of N MIPS puzzle, mirroring [`MofN`].
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MofNMemo<T = NodePtr> {
+    /// The number of items that must be spent.
     pub required: usize,
+    /// The memos of the items, which are not top level.
     pub items: Vec<InnerPuzzleMemo<T>>,
 }
 
 impl MofNMemo<NodePtr> {
+    /// Creates a new [`MofNMemo`].
     pub fn new(required: usize, items: Vec<InnerPuzzleMemo>) -> Self {
         Self { required, items }
     }
 
+    /// Calculates the hash of the M of N puzzle, without validating it. See [`MofN::inner_puzzle_hash`].
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         let items = self
             .items
@@ -815,14 +928,27 @@ impl MofNMemo<NodePtr> {
     }
 }
 
+/// Known values that are tried when parsing memos, to identify members, restrictions, and wrappers
+/// whose details weren't revealed in the memo.
+///
+/// The default context has no keys, hashes, or timelocks, but includes the message and announcement
+/// opcodes for [`PreventConditionOpcode`], and the singleton message modes that vaults use
+/// ([`VAULT_FAST_FORWARD_MESSAGE_MODE`] and [`VAULT_MESSAGE_MODE`]).
 #[derive(Debug, Clone)]
 pub struct MipsMemoContext {
+    /// Known secp256k1 public keys.
     pub k1: Vec<K1PublicKey>,
+    /// Known secp256r1 public keys, used for both R1 and passkey members.
     pub r1: Vec<R1PublicKey>,
+    /// Known BLS public keys.
     pub bls: Vec<PublicKey>,
+    /// Known hashes, used for singleton launcher ids and fixed puzzle hashes.
     pub hashes: Vec<Bytes32>,
+    /// Known timelock durations, in seconds.
     pub timelocks: Vec<u64>,
+    /// Known condition opcodes for [`PreventConditionOpcode`] wrappers.
     pub opcodes: Vec<u16>,
+    /// Known message modes for [`SingletonMemberWithMode`] members.
     pub singleton_modes: Vec<u8>,
 }
 

@@ -7,11 +7,53 @@ use crate::{MAX_AGG_SIG_MESSAGE_LEN, SignerError};
 
 use super::AggSigConstants;
 
+/// A BLS signature requested by an `AGG_SIG_*` condition.
+///
+/// Sign [`message`](Self::message) with the secret key for [`public_key`](Self::public_key),
+/// then aggregate the result with the other BLS signatures into the spend bundle's
+/// aggregated signature.
+///
+/// # Example
+///
+/// ```
+/// use chia_bls::{SecretKey, sign, verify};
+/// use chia_protocol::{Bytes, Bytes32, Coin};
+/// use chia_sdk_signer::{AggSigConstants, RequiredBlsSignature};
+/// use chia_sdk_types::{
+///     TESTNET11_CONSTANTS,
+///     conditions::{AggSig, AggSigKind},
+/// };
+///
+/// let secret_key = SecretKey::from_seed(&[1; 32]);
+/// let coin = Coin::new(Bytes32::new([2; 32]), Bytes32::new([3; 32]), 1);
+/// let constants = AggSigConstants::from(&*TESTNET11_CONSTANTS);
+///
+/// let condition = AggSig::new(
+///     AggSigKind::Me,
+///     secret_key.public_key(),
+///     Bytes::new(b"hello".to_vec()),
+/// );
+/// let required = RequiredBlsSignature::try_from_condition(&coin, condition, &constants)?;
+///
+/// // AGG_SIG_ME signs the message, the coin id, and the AGG_SIG_ME additional data.
+/// let expected = [b"hello".as_slice(), coin.coin_id().as_ref(), constants.me().as_ref()].concat();
+/// assert_eq!(required.message(), expected);
+///
+/// let signature = sign(&secret_key, required.message());
+/// assert!(verify(&signature, &required.public_key, required.message()));
+/// # Ok::<(), chia_sdk_signer::SignerError>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct RequiredBlsSignature {
+    /// The public key that the signature must be made with.
     pub public_key: PublicKey,
+    /// The message from the condition, before anything is appended.
     pub raw_message: Bytes,
+    /// Information about the coin that is appended to the message, which depends on the
+    /// kind of condition. For example, `AGG_SIG_ME` appends the coin id. This is empty for
+    /// `AGG_SIG_UNSAFE`.
     pub appended_info: Vec<u8>,
+    /// The value from [`AggSigConstants`] that is appended last, or [`None`] for `AGG_SIG_UNSAFE`.
     pub domain_string: Option<Bytes32>,
 }
 
@@ -57,7 +99,7 @@ impl RequiredBlsSignature {
         Ok(())
     }
 
-    /// Converts a known [`AggSig`] condition to a `RequiredSignature` if possible.
+    /// Converts an [`AggSig`] condition to a `RequiredBlsSignature` for the given coin.
     ///
     /// This does not check that the condition is valid according to consensus.
     /// Prefer [`RequiredBlsSignature::try_from_condition`] for untrusted conditions.
@@ -116,7 +158,9 @@ impl RequiredBlsSignature {
         }
     }
 
-    /// Computes the message that needs to be signed.
+    /// Computes the message that needs to be signed, which is the
+    /// [`raw_message`](Self::raw_message), followed by the [`appended_info`](Self::appended_info),
+    /// followed by the [`domain_string`](Self::domain_string) if there is one.
     pub fn message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);

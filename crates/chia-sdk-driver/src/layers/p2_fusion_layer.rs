@@ -19,10 +19,13 @@ pub struct P2FusionLayer {
 }
 
 impl P2FusionLayer {
+    /// Creates a new [`P2FusionLayer`] for the fusion singleton with the given launcher id.
     pub fn new(launcher_id: Bytes32) -> Self {
         Self { launcher_id }
     }
 
+    /// Creates a spend of the locked NFT's p2 puzzle with the given solution. This is the same as
+    /// [`Layer::construct_spend`].
     pub fn spend(
         &self,
         ctx: &mut SpendContext,

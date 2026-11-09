@@ -18,20 +18,83 @@ const DIALECT_FLAGS: ClvmFlags = ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 /// The maximum cost allowed when running a puzzle to calculate required signatures.
 const MAX_COST: u64 = 11_000_000_000;
 
+/// A signature that must be provided for a coin spend to be valid.
+///
+/// See the [crate-level documentation](crate) for an example that signs a spend.
 #[derive(Debug, Clone)]
 pub enum RequiredSignature {
+    /// A BLS signature requested by an `AGG_SIG_*` condition, which is aggregated into the
+    /// spend bundle's aggregated signature.
     Bls(RequiredBlsSignature),
+    /// A secp signature checked by a `secp256k1_verify` or `secp256r1_verify` operator in the
+    /// puzzle, which goes in the solution instead.
     Secp(RequiredSecpSignature),
 }
 
 impl RequiredSignature {
-    /// Calculates the required signatures for a coin spend.
-    /// All of these signatures aggregated together should be
-    /// sufficient, unless secp keys are used as well.
+    /// Calculates the required signatures for a coin spend by running its puzzle with its
+    /// solution.
+    ///
+    /// The BLS signatures come from the `AGG_SIG_*` conditions in the output, in order,
+    /// followed by any secp signatures that were checked while the puzzle ran (see
+    /// [`SecpDialect`](crate::SecpDialect)). Each condition is checked as described in
+    /// [`RequiredBlsSignature::try_from_condition`], and conditions with the infinity public
+    /// key are rejected with [`SignerError::InfinityPublicKey`].
     ///
     /// The puzzle reveal must hash to the coin's puzzle hash, otherwise
     /// [`SignerError::PuzzleHashMismatch`] is returned. This prevents a malicious
     /// spend from using a fake puzzle to request a signature that is valid for the real coin.
+    ///
+    /// # Example
+    ///
+    /// Sign a coin whose puzzle checks a secp256k1 signature passed in as its solution:
+    ///
+    /// ```
+    /// use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program};
+    /// use chia_sdk_signer::{AggSigConstants, RequiredSignature, SecpPublicKey};
+    /// use chia_sdk_types::{TESTNET11_CONSTANTS, run_puzzle};
+    /// use chia_secp::K1SecretKey;
+    /// use clvm_traits::{FromClvm, ToClvm, clvm_list, clvm_quote};
+    /// use clvm_utils::tree_hash;
+    /// use clvmr::Allocator;
+    ///
+    /// let mut allocator = Allocator::new();
+    /// let secret_key = K1SecretKey::from_bytes(&[1; 32])?;
+    /// let message_hash = Bytes32::new([42; 32]);
+    ///
+    /// // (secp256k1_verify (q . public_key) (q . message_hash) 1), where 1 is the solution
+    /// let secp256k1_verify = Bytes::new(vec![0x13, 0xd6, 0x1f, 0x00]);
+    /// let puzzle = clvm_list!(
+    ///     secp256k1_verify,
+    ///     clvm_quote!(secret_key.public_key()),
+    ///     clvm_quote!(message_hash),
+    ///     1
+    /// )
+    /// .to_clvm(&mut allocator)?;
+    /// let puzzle_reveal = Program::from_clvm(&allocator, puzzle)?;
+    /// let coin = Coin::new(Bytes32::new([0; 32]), tree_hash(&allocator, puzzle).into(), 1);
+    ///
+    /// // Use a placeholder signature in the solution while calculating what to sign.
+    /// let placeholder = Bytes::new(vec![0; 64]).to_clvm(&mut allocator)?;
+    /// let coin_spend = CoinSpend::new(coin, puzzle_reveal, Program::from_clvm(&allocator, placeholder)?);
+    ///
+    /// let constants = AggSigConstants::from(&*TESTNET11_CONSTANTS);
+    /// let required = RequiredSignature::from_coin_spend(&mut allocator, &coin_spend, &constants)?;
+    ///
+    /// let [RequiredSignature::Secp(required)] = required.as_slice() else {
+    ///     panic!("expected a single secp signature");
+    /// };
+    /// assert_eq!(required.public_key, SecpPublicKey::K1(secret_key.public_key()));
+    ///
+    /// // Sign the hash and put the signature in the solution in place of the placeholder.
+    /// let signature = secret_key.sign_prehashed(&required.message_hash)?;
+    /// let solution = signature.to_clvm(&mut allocator)?;
+    ///
+    /// // The placeholder fails the signature check, but the real signature passes.
+    /// assert!(run_puzzle(&mut allocator, puzzle, placeholder).is_err());
+    /// assert!(run_puzzle(&mut allocator, puzzle, solution).is_ok());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
@@ -107,9 +170,13 @@ impl RequiredSignature {
         Ok(result)
     }
 
-    /// Calculates the required signatures for a spend bundle.
-    /// All of these signatures aggregated together should be
-    /// sufficient, unless secp keys are used as well.
+    /// Calculates the required signatures for every coin spend in a transaction, in order.
+    ///
+    /// Aggregating signatures for all of the [`RequiredSignature::Bls`] items gives the
+    /// aggregated signature for the spend bundle. Any [`RequiredSignature::Secp`] items must
+    /// be signed separately and placed in the solutions instead.
+    ///
+    /// See [`RequiredSignature::from_coin_spend`] for the errors that can occur.
     pub fn from_coin_spends(
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],

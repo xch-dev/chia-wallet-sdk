@@ -104,6 +104,36 @@ impl Launcher {
 
     /// Spends the launcher coin to create the eve singleton.
     /// Includes an optional metadata value that is traditionally a list of key value pairs.
+    ///
+    /// The launcher spend is added to the [`SpendContext`]. Returns the eve singleton coin, whose
+    /// parent is the launcher, and the conditions that the parent coin must output: the conditions
+    /// this [`Launcher`] was constructed with (such as the launcher's `CREATE_COIN`, which is omitted
+    /// if it was created early) plus an assertion of the launcher's announcement. For an
+    /// [`IntermediateLauncher`](crate::IntermediateLauncher), the intermediate coin's parent outputs them.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_protocol::Bytes32;
+    /// use chia_sdk_driver::{Launcher, SpendContext, StandardLayer};
+    /// use chia_sdk_test::Simulator;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let ctx = &mut SpendContext::new();
+    ///
+    /// let alice = sim.bls(1);
+    /// let launcher = Launcher::new(alice.coin.coin_id(), 1);
+    /// let launcher_id = launcher.coin().coin_id();
+    ///
+    /// // The eve singleton's inner puzzle hash would normally be a real puzzle, such as a DID's.
+    /// let (conditions, eve) = launcher.spend(ctx, Bytes32::default(), ())?;
+    /// StandardLayer::new(alice.pk).spend(ctx, alice.coin, conditions)?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// assert_eq!(eve.parent_coin_info, launcher_id);
+    /// assert!(sim.coin_state(eve.coin_id()).is_some());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn spend<T>(
         self,
         ctx: &mut SpendContext,

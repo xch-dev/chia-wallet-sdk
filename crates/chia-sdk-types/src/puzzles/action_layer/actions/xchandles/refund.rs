@@ -10,6 +10,14 @@ use crate::{
     puzzles::{PuzzleHashPuzzleAndSolution, XchandlesHandleSlotValue, XchandlesOtherPrecommitData},
 };
 
+/// Serialized `XCHandles` refund action, compiled from Rue.
+///
+/// Refunds a precommit coin that can't be used. If the precommit's CAT maker, handle,
+/// pricing puzzle (normal or expired handle pricing), and amount all match the current
+/// state, the coin could otherwise be used, so the action requires the handle's slot to
+/// be spent and re-created before its expiration to prove the handle is taken. In all
+/// cases it tells the precommit coin to refund and announces `"$"` followed by the
+/// precommit coin's puzzle hash.
 pub const XCHANDLES_REFUND_PUZZLE: [u8; 920] = hex!(
     // Rue
     "
@@ -45,27 +53,41 @@ pub const XCHANDLES_REFUND_PUZZLE: [u8; 920] = hex!(
     "
 );
 
+/// Tree hash of [`XCHANDLES_REFUND_PUZZLE`].
 pub const XCHANDLES_REFUND_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     a11cc9b151475ef6cc4b6e1846089dcf9c042413b7a5a943e6b11c4e0f59fcc7
     "
 ));
 
+/// Curried arguments of the `XCHandles` refund action ([`XCHANDLES_REFUND_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesRefundActionArgs {
+    /// Hash of the precommit layer after its first curry
+    /// ([`PrecommitLayer1stCurryArgs`](crate::puzzles::PrecommitLayer1stCurryArgs)).
     pub precommit_1st_curry_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for handle slots
+    /// ([`XchandlesSlotNonce::HANDLE`](crate::puzzles::XchandlesSlotNonce::HANDLE)).
     pub handle_slot_1st_curry_hash: Bytes32,
 }
 
+/// Solution to the `XCHandles` refund action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRefundActionSolution<CMP, CMS, PP, PS, S> {
+    /// Pricing puzzle hash, puzzle, and solution that the precommit coin was created with.
     pub precommited_pricing_puzzle_and_solution: PuzzleHashPuzzleAndSolution<PP, PS>,
+    /// CAT maker puzzle hash, puzzle, and solution that the precommit coin was created with.
     pub precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution<CMP, CMS>,
+    /// Handle the precommit coin committed to.
     pub handle: String,
+    /// Amount of the precommit coin.
     pub precommit_amount: u64,
+    /// Current value of the handle's slot. Required when the precommit could otherwise be
+    /// used; `None` otherwise.
     pub slot_value: Option<XchandlesHandleSlotValue>,
+    /// Rest of the data the precommit coin committed to.
     #[clvm(rest)]
     pub other_precommit_data: XchandlesOtherPrecommitData<S>,
 }

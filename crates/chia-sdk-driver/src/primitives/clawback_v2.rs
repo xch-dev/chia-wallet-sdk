@@ -10,21 +10,85 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, P2OneOfManyLayer, Spend, SpendContext, SpendWithConditions};
 
+/// The push-through path puzzle of a [`ClawbackV2`]: a quoted list of conditions that asserts the
+/// expiration time has passed and creates the coin for the receiver.
 pub type PushThroughPath = (
     u8,
     match_list!(AssertSecondsAbsolute, CreateCoin<[Bytes32; 1]>),
 );
 
+/// A clawback with an absolute expiration time, which can wrap the p2 puzzle of XCH or CAT coins.
+///
+/// The puzzle is a [`P2OneOfManyLayer`] with three paths:
+/// - The sender path lets the sender spend the coin before [`seconds`](Self::seconds). This is used
+///   to claw back the coin ([`ClawbackV2::recover_spend`]) or to send it to the receiver early
+///   ([`ClawbackV2::force_spend`]).
+/// - The receiver path lets the receiver spend the coin at or after `seconds`
+///   ([`ClawbackV2::finish_spend`]).
+/// - The push-through path lets anyone send the coin to the receiver at or after `seconds`
+///   ([`ClawbackV2::push_through_spend`]).
+///
+/// The clawback is discovered from the memos of the `CREATE_COIN` that creates it. The memos are the
+/// receiver's puzzle hash (as the hint) followed by [`ClawbackV2::memo`].
+///
+/// # Example
+///
+/// Send a coin with a clawback, then claw it back before it expires:
+///
+/// ```
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_sdk_driver::{ClawbackV2, SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+/// use clvm_traits::clvm_list;
+/// use clvm_utils::ToTreeHash;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(1);
+/// let alice_p2 = StandardLayer::new(alice.pk);
+/// let bob_puzzle_hash = Bytes32::new([1; 32]);
+///
+/// // The clawback expires at a timestamp of 100.
+/// let clawback = ClawbackV2::new(alice.puzzle_hash, bob_puzzle_hash, 100, 1, true);
+/// let clawback_puzzle_hash = clawback.tree_hash().into();
+///
+/// // Hint the coin to Bob and include the clawback memo so that it can be parsed.
+/// let memos = ctx.memos(&clvm_list!(bob_puzzle_hash, clawback.memo()))?;
+/// alice_p2.spend(
+///     ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(clawback_puzzle_hash, 1, memos),
+/// )?;
+/// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+///
+/// // Alice claws the coin back before it expires.
+/// let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+/// clawback.recover_coin_spend(ctx, clawback_coin, &alice_p2, Conditions::new())?;
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// let recovered = Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1);
+/// assert!(sim.coin_state(recovered.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClawbackV2 {
+    /// The puzzle hash of the sender, who can claw back the coin before it expires.
     pub sender_puzzle_hash: Bytes32,
+    /// The puzzle hash of the receiver, who can claim the coin once it expires.
     pub receiver_puzzle_hash: Bytes32,
+    /// The absolute timestamp (in seconds) at which the clawback expires.
     pub seconds: u64,
+    /// The amount of the clawback coin, which is the amount of the coin each path creates.
     pub amount: u64,
+    /// Whether the coins created by the spend paths are hinted with their destination puzzle hash.
+    /// This should be `true` for CATs, so that the outputs can be discovered.
     pub hinted: bool,
 }
 
 impl ClawbackV2 {
+    /// Creates a new [`ClawbackV2`] from its fields.
     pub fn new(
         sender_puzzle_hash: Bytes32,
         receiver_puzzle_hash: Bytes32,
@@ -41,6 +105,10 @@ impl ClawbackV2 {
         }
     }
 
+    /// Parses a [`ClawbackV2`] from the [`ClawbackV2::memo`] that follows the hint in a `CREATE_COIN`.
+    ///
+    /// The remaining fields come from the created coin and the context. Returns [`None`] if the memo
+    /// is malformed or the resulting clawback doesn't hash to `expected_puzzle_hash`.
     pub fn from_memo(
         allocator: &Allocator,
         memo: NodePtr,
@@ -67,10 +135,14 @@ impl ClawbackV2 {
         Some(clawback)
     }
 
+    /// Returns the memo that describes this clawback, which is the sender puzzle hash and expiration.
+    ///
+    /// This should be included after the receiver's hint in the memos of the `CREATE_COIN`.
     pub fn memo(&self) -> (Bytes32, (u64, ())) {
         (self.sender_puzzle_hash, (self.seconds, ()))
     }
 
+    /// Builds the [`MerkleTree`] of the sender, receiver, and push-through path hashes.
     pub fn merkle_tree(&self) -> MerkleTree {
         MerkleTree::new(&[
             self.sender_path_hash(),
@@ -79,6 +151,8 @@ impl ClawbackV2 {
         ])
     }
 
+    /// Calculates the hash of the sender path, which wraps the sender's puzzle hash with an
+    /// `ASSERT_BEFORE_SECONDS_ABSOLUTE` condition.
     pub fn sender_path_hash(&self) -> Bytes32 {
         AugmentedConditionArgs::<TreeHash, TreeHash>::new(
             AssertBeforeSecondsAbsolute::new(self.seconds).into(),
@@ -88,6 +162,8 @@ impl ClawbackV2 {
         .into()
     }
 
+    /// Calculates the hash of the receiver path, which wraps the receiver's puzzle hash with an
+    /// `ASSERT_SECONDS_ABSOLUTE` condition.
     pub fn receiver_path_hash(&self) -> Bytes32 {
         AugmentedConditionArgs::<TreeHash, TreeHash>::new(
             AssertSecondsAbsolute::new(self.seconds).into(),
@@ -97,6 +173,8 @@ impl ClawbackV2 {
         .into()
     }
 
+    /// Returns the push-through path puzzle, which asserts the expiration and creates a coin
+    /// of [`amount`](Self::amount) for the receiver (hinted if [`hinted`](Self::hinted) is set).
     pub fn push_through_path(&self) -> PushThroughPath {
         clvm_quote!(clvm_list!(
             AssertSecondsAbsolute::new(self.seconds),
@@ -112,14 +190,17 @@ impl ClawbackV2 {
         ))
     }
 
+    /// Calculates the hash of the push-through path.
     pub fn push_through_path_hash(&self) -> Bytes32 {
         self.push_through_path().tree_hash().into()
     }
 
+    /// Returns the [`P2OneOfManyLayer`] for the clawback's merkle root, which is the clawback puzzle.
     pub fn into_1_of_n(&self) -> P2OneOfManyLayer {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
+    /// Wraps a spend of the sender's puzzle in the sender path. It's only valid before expiration.
     pub fn sender_spend(&self, ctx: &mut SpendContext, spend: Spend) -> Result<Spend, DriverError> {
         let merkle_tree = self.merkle_tree();
 
@@ -141,6 +222,7 @@ impl ClawbackV2 {
         )
     }
 
+    /// Wraps a spend of the receiver's puzzle in the receiver path. It's only valid after expiration.
     pub fn receiver_spend(
         &self,
         ctx: &mut SpendContext,
@@ -166,6 +248,7 @@ impl ClawbackV2 {
         )
     }
 
+    /// Creates a spend of the push-through path, which requires no signature. It's only valid after expiration.
     pub fn push_through_spend(&self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
         let merkle_tree = self.merkle_tree();
 
@@ -182,6 +265,9 @@ impl ClawbackV2 {
         )
     }
 
+    /// Creates a sender spend that sends the coin back to the sender, along with the extra `conditions`.
+    ///
+    /// `inner` must be the sender's puzzle. It's only valid before expiration.
     pub fn recover_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -205,6 +291,7 @@ impl ClawbackV2 {
         self.sender_spend(ctx, inner_spend)
     }
 
+    /// Like [`ClawbackV2::recover_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn recover_coin_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -219,6 +306,9 @@ impl ClawbackV2 {
         ctx.spend(coin, spend)
     }
 
+    /// Creates a sender spend that sends the coin to the receiver early, along with the extra `conditions`.
+    ///
+    /// `inner` must be the sender's puzzle. It's only valid before expiration.
     pub fn force_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -242,6 +332,7 @@ impl ClawbackV2 {
         self.sender_spend(ctx, inner_spend)
     }
 
+    /// Like [`ClawbackV2::force_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn force_coin_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -256,6 +347,9 @@ impl ClawbackV2 {
         ctx.spend(coin, spend)
     }
 
+    /// Creates a receiver spend that sends the coin to the receiver, along with the extra `conditions`.
+    ///
+    /// `inner` must be the receiver's puzzle. It's only valid after expiration.
     pub fn finish_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -279,6 +373,7 @@ impl ClawbackV2 {
         self.receiver_spend(ctx, inner_spend)
     }
 
+    /// Like [`ClawbackV2::finish_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn finish_coin_spend<I>(
         &self,
         ctx: &mut SpendContext,
@@ -293,6 +388,7 @@ impl ClawbackV2 {
         ctx.spend(coin, spend)
     }
 
+    /// Like [`ClawbackV2::push_through_spend`], but adds the spend of `coin` to the [`SpendContext`].
     pub fn push_through_coin_spend(
         &self,
         ctx: &mut SpendContext,

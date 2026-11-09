@@ -9,6 +9,14 @@ use hex_literal::hex;
 
 use crate::{MerkleProof, Mod};
 
+/// Serialized reward distributor lock puzzle for staking curated NFTs, compiled from Rue.
+///
+/// The curated list lives in a `DataLayer` store whose Merkle root has a leaf for each
+/// eligible NFT: the tree hash of `(launcher_id . shares)`. The puzzle proves the
+/// store's current root by asserting the store's oracle puzzle announcement (`"$"`).
+/// For each NFT, it checks an inclusion proof against that root, verifies that the NFT is
+/// paid to the distributor's p2 puzzle hash through a settlement payment, and creates a
+/// deposit slot. Each NFT is worth the number of shares in its leaf.
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1233] = hex!(
     // Rue
     "
@@ -54,24 +62,35 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1233] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     b53e7d84cdf203fbbb2a56982d68af7f559976bb9b869b56b1e3e17a9008fb1a
     "
 ));
 
+/// Curried arguments of [`REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorNftsFromDlLockingPuzzleArgs {
+    /// Singleton struct of the `DataLayer` store that holds the curated list.
     pub dl_singleton_struct: SingletonStruct,
+    /// Mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// Mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// Mod hash of the settlement payments puzzle.
     pub offer_mod_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for deposit slots
+    /// ([`RewardDistributorSlotNonce::DEPOSIT`](crate::puzzles::RewardDistributorSlotNonce::DEPOSIT)).
     pub deposit_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that holds staked assets: [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs)
+    /// for the reward distributor singleton, with nonce 1.
     pub my_p2_puzzle_hash: Bytes32,
 }
 
 impl RewardDistributorNftsFromDlLockingPuzzleArgs {
+    /// Creates the arguments with the standard NFT and settlement payments mod hashes.
     pub fn new(
         store_launcher_id: Bytes32,
         my_p2_puzzle_hash: Bytes32,
@@ -88,27 +107,44 @@ impl RewardDistributorNftsFromDlLockingPuzzleArgs {
     }
 }
 
+/// Information about an NFT staked with [`REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE`].
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct StakeNftFromDlInfo {
+    /// Launcher id of the NFT.
     pub nft_launcher_id: Bytes32,
+    /// Tree hash of the NFT's metadata.
     pub nft_metadata_hash: Bytes32,
+    /// Tree hash of the NFT's metadata updater puzzle hash.
     pub nft_metadata_updater_hash_hash: Bytes32,
+    /// Current owner (DID launcher id) of the NFT, if any.
     pub nft_owner: Option<Bytes32>,
+    /// Puzzle hash of the NFT's royalty transfer program.
     pub nft_transfer_porgram_hash: Bytes32,
+    /// Shares the NFT is worth, as listed in the store.
     pub nft_shares: u64,
+    /// Proof that `(nft_launcher_id . nft_shares)` is in the store's Merkle root.
     #[clvm(rest)]
     pub nft_inclusion_proof: MerkleProof,
 }
 
+/// Solution to [`REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE`], after the ephemeral
+/// state and custody puzzle hash.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorNftsFromDlLockingPuzzleSolution {
+    /// Coin id of the reward distributor singleton coin being spent.
     pub my_id: Bytes32,
+    /// NFTs being staked.
     pub nft_infos: Vec<StakeNftFromDlInfo>,
+    /// Current Merkle root of the `DataLayer` store.
     pub dl_root_hash: Bytes32,
+    /// Tree hash of the store's metadata after the root hash.
     pub dl_metadata_rest_hash: Option<Bytes32>,
+    /// Tree hash of the store's metadata updater puzzle hash.
     pub dl_metadata_updater_hash_hash: Bytes32,
+    /// Puzzle hash of the store's inner puzzle below the NFT state layer (its delegation
+    /// layer).
     #[clvm(rest)]
     pub dl_inner_puzzle_hash: Bytes32,
 }

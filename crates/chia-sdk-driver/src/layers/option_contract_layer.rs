@@ -13,12 +13,17 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 /// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptionContractLayer<I> {
+    /// The coin id of the underlying coin, which is claimed when the option is exercised.
     pub underlying_coin_id: Bytes32,
+    /// The tree hash of the delegated puzzle that the underlying coin is spent with when the
+    /// option is exercised.
     pub underlying_delegated_puzzle_hash: Bytes32,
+    /// The inner puzzle layer, which determines who owns the option.
     pub inner_puzzle: I,
 }
 
 impl<I> OptionContractLayer<I> {
+    /// Creates an [`OptionContractLayer`] from the underlying coin and the inner puzzle.
     pub fn new(
         underlying_coin_id: Bytes32,
         underlying_delegated_puzzle_hash: Bytes32,

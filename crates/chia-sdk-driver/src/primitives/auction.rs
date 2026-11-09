@@ -40,6 +40,110 @@ pub use auction_settings::*;
 mod tests;
 
 /// An English auction for an NFT. See [`AuctionInfo`] for details.
+///
+/// An auction is launched with [`Launcher::launch_auction`](crate::Launcher::launch_auction), and
+/// discovered by other wallets with [`AuctionLaunch`]. Each spend of the auction runs one or more
+/// action spends, such as [`Auction::bid_action_spend`], [`Auction::end_action_spend`], or
+/// [`Auction::cancel_action_spend`], with [`Auction::spend`].
+///
+/// # Example
+///
+/// This launches an auction for a newly minted NFT, places a bid, and ends the auction, which sends
+/// the NFT to the winning bidder.
+///
+/// ```
+/// use std::num::NonZeroU64;
+///
+/// use chia_protocol::{Bytes32, Coin};
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{
+///     AuctionBidVerifier, AuctionReserve, AuctionSettings, HashedPtr, Launcher, NftMint,
+///     SpendContext, StandardLayer, auction_lock_p2_puzzle_hash,
+/// };
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{
+///     Conditions,
+///     puzzles::{AuctionBid, AuctionBpsPayment, AuctionPayments, AuctionTimings},
+/// };
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+///
+/// let seller = sim.bls(2);
+/// let seller_p2 = StandardLayer::new(seller.pk);
+///
+/// // Mint an NFT, and lock it with the auction that is about to be launched
+/// let (mint_nft, nft) = Launcher::new(seller.coin.coin_id(), 0)
+///     .with_singleton_amount(1)
+///     .mint_nft(&mut ctx, &NftMint::new(HashedPtr::NIL, seller.puzzle_hash, 300, None))?;
+///
+/// let launcher = Launcher::new(seller.coin.coin_id(), 1);
+/// let lock_puzzle_hash = auction_lock_p2_puzzle_hash(launcher.coin().coin_id());
+///
+/// let nft = nft.spend_with(
+///     &mut ctx,
+///     &seller_p2,
+///     Conditions::new().create_coin(lock_puzzle_hash, nft.coin.amount, Memos::None),
+/// )?;
+///
+/// // The reserve starts out as an empty coin, which is also locked by the auction
+/// let reserve = AuctionReserve::Xch(Coin::new(seller.coin.coin_id(), lock_puzzle_hash, 0));
+///
+/// let settings = AuctionSettings::new(
+///     AuctionBidVerifier::Flat {
+///         minimum_bid: NonZeroU64::new(100).unwrap(),
+///         bid_increment: NonZeroU64::new(10).unwrap(),
+///     },
+///     AuctionTimings::new(1_000, 0),
+///     AuctionPayments::new(
+///         AuctionBpsPayment::new(300, Bytes32::new([1; 32])),
+///         AuctionBpsPayment::new(100, Bytes32::new([2; 32])),
+///         seller.puzzle_hash,
+///     ),
+/// );
+///
+/// let (launch_auction, auction) = launcher.launch_auction(&mut ctx, settings, reserve, &nft)?;
+///
+/// seller_p2.spend(
+///     &mut ctx,
+///     seller.coin,
+///     mint_nft
+///         .extend(launch_auction)
+///         .create_coin(lock_puzzle_hash, 0, Memos::None),
+/// )?;
+///
+/// sim.spend_coins(ctx.take(), &[seller.sk])?;
+///
+/// // The bidder funds the reserve with the bid, buyer's premium, and royalty, and asserts the
+/// // bid's announcement so that the funds can't be used for anything else
+/// let amount = auction.info.reserve_amount_for_bid(100).unwrap();
+/// let bidder = sim.bls(amount);
+/// let bid = AuctionBid::new(100, bidder.puzzle_hash);
+///
+/// let bid_action = auction.bid_action_spend(&mut ctx, bid, false)?;
+///
+/// StandardLayer::new(bidder.pk).spend(
+///     &mut ctx,
+///     bidder.coin,
+///     Conditions::new().assert_coin_announcement(auction.bid_announcement_id(bid)),
+/// )?;
+///
+/// let auction = auction.spend(&mut ctx, vec![bid_action], vec![])?;
+/// sim.spend_coins(ctx.take(), &[bidder.sk])?;
+/// assert_eq!(auction.info.state.winning_bid, bid);
+///
+/// // After the end time, anyone can end the auction and unlock the NFT to the winner
+/// sim.set_next_timestamp(1_000)?;
+///
+/// let end_action = auction.end_action_spend(&mut ctx, &nft)?;
+/// let nft = auction.unlock_nft(&mut ctx, &nft)?;
+/// let auction = auction.spend(&mut ctx, vec![end_action], vec![])?;
+/// sim.spend_coins(ctx.take(), &[])?;
+///
+/// assert!(auction.info.state.ended);
+/// assert_eq!(nft.info.p2_puzzle_hash, bidder.puzzle_hash);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type Auction = Singleton<AuctionInfo>;
 
 /// The opcode that actions use to output conditions which are forwarded to the reserve coin.
@@ -48,6 +152,7 @@ const RESERVE_CONDITION_OPCODE: i64 = -42;
 /// The result of running an auction's actions, as the action layer and reserve finalizer will.
 #[derive(Debug, Clone)]
 pub struct AuctionChildState {
+    /// The state of the auction after the actions have run.
     pub state: AuctionState,
     /// The conditions output by the reserve coin, including the creation of the new reserve.
     pub reserve_conditions: Vec<NodePtr>,

@@ -38,6 +38,44 @@ pub use nft_mint::*;
 /// This type should contain all of the information you need to store in a database for later.
 /// As long as you can figure out what puzzle the p2 puzzle hash corresponds to and spend it,
 /// you have enough information to spend the NFT coin.
+///
+/// # Example
+///
+/// Mint an NFT and transfer it to a new owner:
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_puzzle_types::nft::NftMetadata;
+/// use chia_sdk_driver::{Launcher, NftMint, SpendContext, StandardLayer};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::Conditions;
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(1);
+/// let alice_p2 = StandardLayer::new(alice.pk);
+///
+/// // Mint an NFT owned by Alice with a 3% royalty paid to her puzzle hash.
+/// let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+/// let mint = NftMint::new(metadata, alice.puzzle_hash, 300, None);
+/// let (mint_nft, nft) = Launcher::new(alice.coin.coin_id(), 1).mint_nft(ctx, &mint)?;
+/// alice_p2.spend(ctx, alice.coin, mint_nft)?;
+/// sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+///
+/// assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
+/// assert_eq!(nft.info.royalty_basis_points, 300);
+/// assert!(sim.coin_state(nft.coin.coin_id()).is_some());
+///
+/// // Transfer the NFT to Bob.
+/// let bob_puzzle_hash = Bytes32::new([1; 32]);
+/// let nft = nft.transfer(ctx, &alice_p2, bob_puzzle_hash, Conditions::new())?;
+/// sim.spend_coins(ctx.take(), &[alice.sk])?;
+///
+/// assert_eq!(nft.info.p2_puzzle_hash, bob_puzzle_hash);
+/// assert!(sim.coin_state(nft.coin.coin_id()).is_some());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type Nft = Singleton<NftInfo>;
 
 impl Nft {
@@ -62,6 +100,10 @@ impl Nft {
 
     /// Spends this NFT coin with the provided inner spend.
     /// The spend is added to the [`SpendContext`] for convenience.
+    ///
+    /// Returns the child [`Nft`], which is inferred from the inner spend's conditions with
+    /// [`NftInfo::child_from_p2_spend`]. Returns [`DriverError::MissingChild`] if the inner
+    /// spend doesn't create an odd-amount coin.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<Self, DriverError> {
         let layers = self.info.into_layers(inner_spend.puzzle);
 
@@ -104,7 +146,9 @@ impl Nft {
     }
 
     /// Transfers this NFT coin to a new p2 puzzle hash and runs the metadata updater with the
-    /// provided spend.
+    /// provided spend, such as one from [`MetadataUpdate::spend`].
+    ///
+    /// The child is hinted with the new p2 puzzle hash. The current owner is left unchanged.
     ///
     /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
     /// use [`Nft::spend_with`] instead.
@@ -132,6 +176,9 @@ impl Nft {
 
     /// Transfers this NFT coin to a new p2 puzzle hash.
     ///
+    /// The child is hinted with the new p2 puzzle hash. The current owner is left unchanged,
+    /// so use [`Nft::assign_owner`] if you also need to unassign or change it.
+    ///
     /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
     /// use [`Nft::spend_with`] instead.
     pub fn transfer<I>(
@@ -155,6 +202,10 @@ impl Nft {
 
     /// Transfers this NFT coin to the settlement puzzle hash and runs the transfer program to
     /// remove the assigned owner and reveal the trade prices for the offer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the assignment returns conditions, which can't happen because the owner is removed.
     ///
     /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
     /// use [`Nft::spend_with`] instead.
@@ -251,6 +302,42 @@ impl Nft {
     /// This will automatically run the transfer program or metadata updater, if
     /// they are revealed in the p2 spend's output conditions. This way the returned
     /// [`Nft`] will have the correct owner (if present) and metadata.
+    ///
+    /// Returns [`None`] if the parent is not an NFT, and [`DriverError::MissingChild`]
+    /// if the parent was spent without creating an odd-amount child.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_puzzle_types::nft::NftMetadata;
+    /// use chia_sdk_driver::{Launcher, Nft, NftMint, Puzzle, SpendContext, StandardLayer};
+    /// use chia_sdk_test::Simulator;
+    /// use chia_sdk_types::Conditions;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let ctx = &mut SpendContext::new();
+    ///
+    /// let alice = sim.bls(1);
+    /// let alice_p2 = StandardLayer::new(alice.pk);
+    ///
+    /// let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+    /// let mint = NftMint::new(metadata, alice.puzzle_hash, 300, None);
+    /// let (mint_nft, nft) = Launcher::new(alice.coin.coin_id(), 1).mint_nft(ctx, &mint)?;
+    /// alice_p2.spend(ctx, alice.coin, mint_nft)?;
+    /// let child = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// // Look up the parent's spend and parse the child NFT from it.
+    /// let parent_spend = sim.coin_spend(nft.coin.coin_id()).unwrap();
+    /// let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+    /// let parent_puzzle = Puzzle::parse(ctx, parent_puzzle);
+    /// let parent_solution = ctx.alloc(&parent_spend.solution)?;
+    ///
+    /// let parsed = Nft::parse_child(ctx, nft.coin, parent_puzzle, parent_solution)?
+    ///     .expect("the parent is an NFT");
+    /// assert_eq!(parsed, child);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -325,6 +412,13 @@ impl Nft {
     }
 }
 
+/// Calculates the id of the puzzle announcement that an NFT creates when its ownership layer
+/// processes the given [`TransferNft`] condition.
+///
+/// This is the hash of `nft_full_puzzle_hash`, the `0xad4c` prefix, and the tree hash of the
+/// condition's launcher id, trade prices, and singleton inner puzzle hash. The new owner
+/// singleton must assert this announcement, and must also create a puzzle announcement of the
+/// NFT's launcher id for the NFT's transfer program to assert. See [`Nft::assign_owner`].
 pub fn assignment_puzzle_announcement_id(
     nft_full_puzzle_hash: Bytes32,
     new_nft_owner: &TransferNft,

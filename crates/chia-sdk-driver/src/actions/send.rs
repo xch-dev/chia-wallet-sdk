@@ -10,14 +10,18 @@ use crate::{
 /// Created by [`Action::send`](crate::Action::send) or [`Action::burn`](crate::Action::burn).
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
+    /// The asset to send.
     pub id: Id,
     /// The p2 puzzle hash of the coin to create. Outer layers (such as the CAT layer) are added.
     pub puzzle_hash: Bytes32,
+    /// The amount to send. For a singleton, this must be the singleton's amount.
     pub amount: u64,
+    /// The memos of the `CREATE_COIN` condition, which are used as given.
     pub memos: Memos,
 }
 
 impl SendAction {
+    /// Creates the action. See [`Action::send`](crate::Action::send).
     pub fn new(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
         Self {
             id,

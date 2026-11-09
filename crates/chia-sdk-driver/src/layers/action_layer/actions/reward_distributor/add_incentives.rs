@@ -14,10 +14,19 @@ use crate::{
     RewardDistributorStateTransition, SingletonAction, Spend, SpendContext,
 };
 
+/// The reward distributor action that adds incentives to the current epoch.
+///
+/// A fee of [`fee_bps`](Self::fee_bps) basis points is taken from the added amount and paid
+/// to [`fee_payout_puzzle_hash`](Self::fee_payout_puzzle_hash).
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorAddIncentivesAction {
+    /// See [`RewardDistributorConstants::fee_payout_puzzle_hash`](crate::RewardDistributorConstants::fee_payout_puzzle_hash).
     pub fee_payout_puzzle_hash: Bytes32,
+    /// See [`RewardDistributorConstants::fee_bps`](crate::RewardDistributorConstants::fee_bps).
     pub fee_bps: u64,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
 }
 
@@ -51,6 +60,13 @@ impl RewardDistributorAddIncentivesAction {
         })
     }
 
+    /// Parses an action solution into a [`RewardDistributorAddIncentivesActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -65,6 +81,13 @@ impl RewardDistributorAddIncentivesAction {
         })
     }
 
+    /// Adds `amount` of incentives in the pending spend of `distributor`.
+    ///
+    /// Returns a condition that asserts the distributor's add incentives announcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the action spend can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

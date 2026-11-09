@@ -24,10 +24,21 @@ use crate::{
 
 use super::{XchandlesExpireActionLog, XchandlesPrecommitValueLog, run_pricing_output};
 
+/// The `XCHandles` action that registers an expired handle to a new owner.
+///
+/// It consumes a [`PrecommitCoin`] that paid the price computed by the registry's expired handle
+/// pricing puzzle ([`XchandlesExpirePricingPuzzle`]), which adds a premium that decreases over
+/// time after the handle expires. The handle slot is recreated with the new owner and resolved
+/// launcher ids and a new expiration.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpireAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
+    /// The relative block height of the registry's precommit coins.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the registry's payments.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -53,6 +64,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesExpireAction {
 }
 
 impl XchandlesExpireAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         relative_block_height: u32,
@@ -83,6 +95,15 @@ impl XchandlesExpireAction {
         ))
     }
 
+    /// Parses an action solution into an [`XchandlesExpireActionLog`].
+    ///
+    /// `state` is the registry state when the action ran, which provides the CAT maker and
+    /// pricing puzzle hashes of the precommit value. The pricing puzzle in the solution is run to
+    /// compute the price and the registration time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the pricing puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -191,10 +212,23 @@ impl XchandlesExpireAction {
         })
     }
 
-    // returns:
-    //  - expire general announcement
-    //  - send message to be sent by the new owner
-    //  - send message to be sent by the new resolved launcher (if different from the owner)
+    /// Registers the expired handle in `slot` to the owner of `precommit_coin` in the pending
+    /// spend of `registry`, for `num_periods` registration periods.
+    ///
+    /// The pricing puzzle is [`XchandlesExpirePricingPuzzle`] built from `base_handle_price` and
+    /// `registration_period`, and `start_time` is the buy time. The inner puzzle hashes are those
+    /// of the new owner and resolved singletons.
+    ///
+    /// Returns, in order:
+    ///
+    /// - A condition that asserts the registry's expire announcement.
+    /// - The `SEND_MESSAGE` condition (mode 18) that the new owner singleton must output.
+    /// - The `SEND_MESSAGE` condition that the new resolved singleton must output, or `None` if
+    ///   it's the owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -290,12 +324,25 @@ impl XchandlesExpireAction {
     }
 }
 
+/// Helpers for the expired handle pricing puzzle used by `XCHandles` registries.
+///
+/// The puzzle is an [`XchandlesExponentialPremiumRenewPuzzleArgs`] wrapping the factor pricing
+/// puzzle ([`XchandlesFactorPricingPuzzleArgs`]). On top of the normal price, it charges a
+/// premium of $100 million (100,000,000,000 mojos with a scale factor of 1,000) when the
+/// handle expires, which halves every day (86,400 seconds) and reaches 0 after 28 days.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpirePricingPuzzle {}
 
 impl XchandlesExpirePricingPuzzle {
-    // A scale factor is how many units of the payment token equate to $1
-    // For exampe, you'd use scale_factor=1000 for wUSDC.b
+    /// Creates the curried arguments of the expired handle pricing puzzle for the given base
+    /// price and registration period.
+    ///
+    /// The premium uses a fixed scale factor of 1,000, which is the number of mojos of the
+    /// payment CAT that equal $1, as with wUSDC.b.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the factor pricing puzzle can't be allocated.
     pub fn from_info(
         ctx: &mut SpendContext,
         base_price: u64,
@@ -316,6 +363,8 @@ impl XchandlesExpirePricingPuzzle {
         })
     }
 
+    /// Computes the tree hash of the expired handle pricing puzzle created by
+    /// [`XchandlesExpirePricingPuzzle::from_info`].
     pub fn curry_tree_hash(base_price: u64, registration_period: u64) -> TreeHash {
         XchandlesExponentialPremiumRenewPuzzleArgs::<TreeHash> {
             base_program: XchandlesFactorPricingPuzzleArgs {
@@ -334,6 +383,13 @@ impl XchandlesExpirePricingPuzzle {
         .curry_tree_hash()
     }
 
+    /// Runs the pricing puzzle built from `args` and returns the total price, including the
+    /// premium, of registering `handle` for `num_periods` periods at `buy_time`, given that it
+    /// expired at `expiration`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the puzzle fails or its output can't be parsed.
     pub fn get_price(
         ctx: &mut SpendContext,
         args: XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr>,

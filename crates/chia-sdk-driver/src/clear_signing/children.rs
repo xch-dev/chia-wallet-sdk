@@ -9,18 +9,32 @@ use crate::{
     ParsedMemos, RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
+/// A coin created by a verified spend.
 #[derive(Debug, Clone)]
 pub struct ParsedChild {
+    /// The coin and the asset it holds. CAT and NFT children inherit the parent's asset, and every other child
+    /// (including even amount children of an NFT) is XCH. A bulletin coin that is created and spent in the same
+    /// transaction by a verified spend is reported as [`ParsedAsset::Bulletin`].
     pub asset: ParsedAsset,
+    /// The destination and memos of the coin.
     pub memos: ParsedMemos,
+    /// What kind of transfer the coin represents.
     pub transfer_type: TransferType,
 }
 
+/// What kind of transfer a [`ParsedChild`] represents, based on its destination.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransferType {
+    /// Sent to [`ParsedMemos::p2_puzzle_hash`]. This could be the vault itself (for example, change), so compare
+    /// it to [`VaultTransaction::p2_puzzle_hashes`](crate::VaultTransaction::p2_puzzle_hashes).
     Sent,
+    /// Sent to [`BURN_PUZZLE_HASH`], so it can never be spent.
     Burned,
+    /// Sent to the settlement payments puzzle, which anyone can spend. This is how value is offered, and it's only
+    /// safe if the payments in return are asserted.
     Offered,
+    /// Sent to a revealed [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) with fixed conditions that
+    /// were revealed in the memos, such as a coin set aside for an offer.
     OfferPreSplit(OfferPreSplitInfo),
     /// The coin is the root of a revealed bag, so its value is paid out to the bag's payments once it's unrolled.
     ///
@@ -29,16 +43,28 @@ pub enum TransferType {
     SecureTheBag(SecureTheBagInfo),
 }
 
+/// A coin set aside for a future offer, which can be spent by anyone with its fixed conditions, or by the vault.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OfferPreSplitInfo {
+    /// The launcher id of the vault that can spend the coin.
     pub launcher_id: Bytes32,
+    /// The nonce of the p2 puzzle.
     pub nonce: usize,
+    /// The conditions that anyone can spend the coin with, such as the offer's payment assertions and fee.
     pub fixed_conditions: Vec<Condition>,
+    /// The amount of the coin minus the fee reserved by the fixed conditions (floored at zero), which is what's
+    /// left for the offer.
     pub settlement_amount: u64,
 }
 
+/// The payments of a revealed Secure the Bag, whose root coin is created by a verified spend.
+///
+/// The root coin's puzzle hash commits to every payment and its amount is the bag's total, so once the root exists,
+/// anyone can unroll it into exactly these payments. Unrolling it takes further spends, which aren't part of this
+/// transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecureTheBagInfo {
+    /// The format of the bag, which determines how its tree of nodes is built.
     pub format: BagFormat,
     /// The payments in the order of the bag, which add up to the amount of the root coin.
     pub payments: Vec<ParsedBagPayment>,
@@ -50,12 +76,22 @@ pub struct SecureTheBagInfo {
 /// [`ParsedMemos::p2_puzzle_hash`] for a child coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedBagPayment {
+    /// The recipient, amount, and clawback of the payment. A payment with a clawback can still be clawed back by its
+    /// sender until the clawback expires.
     pub payment: BagPayment,
     /// This is either [`TransferType::Burned`] or [`TransferType::Sent`]. Bags aren't nested, their payments don't
-    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled.
+    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled, so a payment to the
+    /// settlement payments puzzle can be spent by anyone and is [`TransferType::Sent`].
     pub transfer_type: TransferType,
 }
 
+/// Parses the coins created by the `CREATE_COIN` conditions of a verified spend, whose asset is `asset`.
+///
+/// CAT children are parsed from the spend, and each must have the same revocation layer as the parent, or
+/// [`DriverError::RevocableChild`] is returned. A missing CAT or NFT child returns [`DriverError::MissingChild`]. Each
+/// child's [`TransferType`] is calculated from its memos and the [`Reveals`] (such as revealed bags and
+/// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) puzzles). The spend's other conditions aren't recorded
+/// here.
 pub fn parse_children(
     reveals: &mut Reveals,
     ctx: &mut SpendContext,

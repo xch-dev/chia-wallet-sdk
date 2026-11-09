@@ -16,18 +16,45 @@ use hex_literal::hex;
 
 use crate::DriverError;
 
+/// Serializes a spend bundle and compresses it with the latest offer compression version.
 pub fn compress_offer(spend_bundle: &SpendBundle) -> Result<Vec<u8>, DriverError> {
     compress_offer_bytes(&spend_bundle.to_bytes()?)
 }
 
+/// Decompresses bytes created by [`compress_offer`] (or by any older compression version), and
+/// deserializes the spend bundle.
 pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DriverError> {
     Ok(SpendBundle::from_bytes(&decompress_offer_bytes(bytes)?)?)
 }
 
+/// Encodes a spend bundle as an offer string, which is compressed and bech32m encoded with the
+/// `offer` prefix.
+///
+/// This is the format that wallets share offers in. Use [`Offer::to_spend_bundle`](crate::Offer::to_spend_bundle)
+/// to get the spend bundle of an [`Offer`](crate::Offer).
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_driver::{decode_offer, encode_offer};
+/// use chia_protocol::SpendBundle;
+/// use chia_bls::Signature;
+///
+/// let spend_bundle = SpendBundle::new(Vec::new(), Signature::default());
+///
+/// let offer = encode_offer(&spend_bundle)?;
+/// assert!(offer.starts_with("offer1"));
+/// assert_eq!(decode_offer(&offer)?, spend_bundle);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
     Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "offer".to_string()).encode()?)
 }
 
+/// Decodes an offer string created by [`encode_offer`] into its spend bundle.
+///
+/// The spend bundle is untrusted, so parse it with
+/// [`Offer::from_spend_bundle`](crate::Offer::from_spend_bundle), which checks the puzzle reveals.
 pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
 }
@@ -35,11 +62,33 @@ pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
 #[cfg(feature = "chip-0052")]
 /// Encodes a partial offer (CHIP-0052), which is compressed like an offer but has a different
 /// prefix. See [`PartialOfferBundle`](crate::PartialOfferBundle).
+///
+/// The spend bundle is usually created with
+/// [`PartialOfferBundle::to_spend_bundle`](crate::PartialOfferBundle::to_spend_bundle).
+///
+/// # Example
+///
+/// ```
+/// use chia_bls::Signature;
+/// use chia_protocol::SpendBundle;
+/// use chia_sdk_driver::{decode_partial_offer, encode_partial_offer};
+///
+/// let spend_bundle = SpendBundle::new(Vec::new(), Signature::default());
+///
+/// let partial_offer = encode_partial_offer(&spend_bundle)?;
+/// assert!(partial_offer.starts_with("partial1"));
+/// assert_eq!(decode_partial_offer(&partial_offer)?, spend_bundle);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn encode_partial_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
     Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "partial".to_string()).encode()?)
 }
 
 #[cfg(feature = "chip-0052")]
+/// Decodes a partial offer string created by [`encode_partial_offer`] into its spend bundle.
+///
+/// The spend bundle is untrusted, so parse it with
+/// [`PartialOfferBundle::from_spend_bundle`](crate::PartialOfferBundle::from_spend_bundle).
 pub fn decode_partial_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("partial")?)
 }
@@ -141,12 +190,19 @@ pub fn zdict_for_version(version: u16) -> Vec<u8> {
 
 static COMPRESSION_ZDICT: LazyLock<Vec<u8>> = LazyLock::new(|| zdict_for_version(LATEST_VERSION));
 
+/// Compresses serialized spend bundle bytes with the latest version's dictionary, prefixed with the
+/// version as a big-endian [`u16`].
 pub fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut output = LATEST_VERSION.to_be_bytes().to_vec();
     output.extend(zlib_compress(bytes, &COMPRESSION_ZDICT)?);
     Ok(output)
 }
 
+/// Decompresses bytes created by [`compress_offer_bytes`], using the dictionary of the version in
+/// the prefix.
+///
+/// Returns [`DriverError::MissingVersionPrefix`] if there is no version, or
+/// [`DriverError::UnsupportedVersion`] if it's newer than the latest supported version.
 pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
@@ -162,6 +218,7 @@ pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     zlib_decompress(&bytes[2..], &zdict_for_version(version))
 }
 
+/// Compresses the input with zlib (at compression level 6), using a preset dictionary.
 pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut compress = Compress::new(Compression::new(6), true);
     compress.set_dictionary(zdict)?;
@@ -175,6 +232,10 @@ pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
 // see https://github.com/Chia-Network/chia-blockchain/blob/383e1d4897738719ad945300f9be2dffbfa54f58/chia/wallet/util/puzzle_compression.py#L70
 const MAX_DECOMPRESSED_SIZE: usize = 6 * 1024 * 1024; // 6 MB
 
+/// Decompresses zlib input that was compressed with the preset dictionary.
+///
+/// Returns [`DriverError::NotCompressed`] if the input doesn't use a preset dictionary, or
+/// [`DriverError::DecompressionTooLarge`] if the output would be larger than 6 MB.
 pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut decompress = Decompress::new(true);
 

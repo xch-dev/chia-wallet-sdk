@@ -6,12 +6,14 @@ use crate::{
 /// Created by [`Action::melt_singleton`](crate::Action::melt_singleton).
 #[derive(Debug, Clone, Copy)]
 pub struct MeltSingletonAction {
+    /// The DID or option contract to melt.
     pub id: Id,
     /// The amount of the singleton, which is returned to the transaction as XCH.
     pub amount: u64,
 }
 
 impl MeltSingletonAction {
+    /// Creates the action. See [`Action::melt_singleton`](crate::Action::melt_singleton).
     pub fn new(id: Id, amount: u64) -> Self {
         Self { id, amount }
     }
