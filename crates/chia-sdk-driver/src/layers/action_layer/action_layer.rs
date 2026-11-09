@@ -407,8 +407,10 @@ where
         let solution =
             RawActionLayerSolution::<NodePtr, NodePtr, NodePtr>::from_clvm(allocator, solution)?;
 
-        // Each solution is for the action that the selector at the same position picks.
-        if solution.selectors_and_proofs.len() != solution.solutions.len() {
+        // The selectors are in the reverse order of the solutions, so the first solution is for
+        // the action that the last selector picks. The puzzle stops once it runs out of selectors
+        // and ignores any extra solutions, but fails if a selector has no solution.
+        if solution.solutions.len() < solution.selectors_and_proofs.len() {
             return Err(DriverError::InvalidActionLayerSolution);
         }
 
@@ -620,11 +622,16 @@ mod tests {
     #[case(3)]
     #[case(4)]
     #[case(6)]
+    #[case(7)]
+    #[case(8)]
+    #[case(10)]
     fn test_parse_solution_with_invalid_selector(#[case] selector: u32) -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
 
+        // None of these selectors are the path to an item of the list, but each of them used to be
+        // decoded as the index of one of the three puzzles.
         let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
-            puzzles: vec![NodePtr::NIL, NodePtr::NIL],
+            puzzles: vec![NodePtr::NIL, NodePtr::NIL, NodePtr::NIL],
             selectors_and_proofs: vec![(selector, Some(MerkleProof::new(0, vec![])))],
             solutions: vec![NodePtr::NIL],
             finalizer_solution: NodePtr::NIL,
@@ -634,6 +641,31 @@ mod tests {
             ActionLayer::<u64>::parse_solution(ctx, solution),
             Err(DriverError::InvalidActionLayerSolution)
         ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_solution_with_extra_solutions() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let action = ctx.alloc(&1)?;
+        let action_solution = ctx.alloc(&10)?;
+        let extra_solution = ctx.alloc(&20)?;
+
+        // The puzzle ignores solutions after the last selector, so the spend is still valid.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![action],
+            selectors_and_proofs: vec![(2, Some(MerkleProof::new(0, vec![])))],
+            solutions: vec![action_solution, extra_solution],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        let parsed = ActionLayer::<u64>::parse_solution(ctx, solution)?;
+
+        assert_eq!(parsed.action_spends.len(), 1);
+        assert_eq!(parsed.action_spends[0].puzzle, action);
+        assert_eq!(parsed.action_spends[0].solution, action_solution);
 
         Ok(())
     }
