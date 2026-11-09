@@ -9,7 +9,6 @@
     <NoWarn>$(NoWarn);CS0114</NoWarn>
 
     <PackageId>ChiaWalletSdk</PackageId>
-    <Version>0.36.0</Version>
     <Authors>Brandon Haggstrom</Authors>
     <Description>An unofficial SDK for building Chia wallets.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

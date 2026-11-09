@@ -5,7 +5,7 @@ Go bindings for the [Chia Wallet SDK](https://github.com/xch-dev/chia-wallet-sdk
 ## Installation
 
 ```bash
-go get github.com/xch-dev/chia-wallet-sdk/go@v0.36.0
+go get github.com/xch-dev/chia-wallet-sdk/go
 ```
 
 Each release of the module includes the generated bindings and a prebuilt static library for every supported platform, so no Rust toolchain is required. A C compiler is needed, since the package uses cgo.
