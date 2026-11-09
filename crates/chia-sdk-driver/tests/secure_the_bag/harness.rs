@@ -25,6 +25,9 @@ pub const NODE_COST_BUDGET: u64 = 5_500_000_000;
 /// mojos of the asset. This is roughly the fee for a large node spend at 5 mojos per cost.
 pub const FEE_THRESHOLD: u64 = 100_000_000;
 
+/// The fee rate, in mojos per cost, used to check whether a node's payments are worth the fee for its own spend.
+pub const FEE_RATE: u64 = 5;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssetKind {
     Xch,
@@ -51,6 +54,8 @@ pub enum Clawbacks {
     None,
     /// Every other payment has a clawback, starting with the first.
     Mixed,
+    /// Every payment has a clawback, which is the most expensive to create.
+    All,
 }
 
 /// The sizes around the edges of a format's width: 1, 2, width ± 1 and width² ± 1.
@@ -102,7 +107,13 @@ pub fn generate(
                 }
             };
 
-            if clawbacks == Clawbacks::Mixed && index % 2 == 0 {
+            let clawback = match clawbacks {
+                Clawbacks::None => false,
+                Clawbacks::Mixed => index % 2 == 0,
+                Clawbacks::All => true,
+            };
+
+            if clawback {
                 BagPayment::from_clawback(ClawbackV2::new(
                     Bytes32::new(rng.random()),
                     puzzle_hash,
@@ -130,20 +141,25 @@ pub struct Metrics {
     pub max_cost: u64,
     /// The share of nodes whose largest downstream payment is below [`FEE_THRESHOLD`].
     pub fee_incentive: f64,
+    /// The most that a recipient spends to unroll their own payment, which is the total cost of the nodes on its path.
+    pub max_claim_cost: u64,
+    /// The share of nodes whose largest downstream payment is worth less than the fee for the node's own spend, at
+    /// [`FEE_RATE`].
+    pub below_own_fee: f64,
 }
 
 impl Metrics {
     pub fn header() -> String {
         [
-            "| Format | Asset | Payments | Spends | Depth | Max fan-out | Total cost | Max node cost | Nodes below fee threshold |",
-            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Format | Asset | Payments | Spends | Depth | Max fan-out | Total cost | Max node cost | Max claim cost | Nodes below fee threshold | Nodes below own fee |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
         .join("\n")
     }
 
     pub fn row(&self) -> String {
         format!(
-            "| {:?} | {:?} | {} | {} | {} | {} | {} | {} | {:.1}% |",
+            "| {:?} | {:?} | {} | {} | {} | {} | {} | {} | {} | {:.1}% | {:.1}% |",
             self.format,
             self.asset,
             self.payments,
@@ -152,7 +168,9 @@ impl Metrics {
             self.max_fan_out,
             self.total_cost,
             self.max_cost,
-            self.fee_incentive * 100.0
+            self.max_claim_cost,
+            self.fee_incentive * 100.0,
+            self.below_own_fee * 100.0
         )
     }
 }
@@ -378,7 +396,7 @@ pub fn simulate(
     sim.spend_coins(ctx.take(), &[alice.sk])?;
 
     let width = format.width(payments.len());
-    let mut costs = Vec::with_capacity(bag.nodes().len());
+    let mut costs = HashMap::with_capacity(bag.nodes().len());
     let mut max_fan_out = 0;
     let mut payment_coins = Vec::with_capacity(payments.len());
     let mut stack = vec![root];
@@ -398,7 +416,7 @@ pub fn simulate(
 
         let cost = spend_bundle_cost(&coin_spends)?;
         ensure!(cost <= NODE_COST_BUDGET, "node spend costs {cost}");
-        costs.push(cost);
+        costs.insert(coin.p2_puzzle_hash(), cost);
 
         sim.new_transaction(SpendBundle::new(coin_spends, Signature::default()))?;
         stack.extend(children);
@@ -443,9 +461,11 @@ pub fn simulate(
         spends: costs.len(),
         depth: bag.depth(),
         max_fan_out,
-        total_cost: costs.iter().sum(),
-        max_cost: costs.iter().copied().max().unwrap_or(0),
+        total_cost: costs.values().sum(),
+        max_cost: costs.values().copied().max().unwrap_or(0),
         fee_incentive: fee_incentive(&bag, FEE_THRESHOLD),
+        max_claim_cost: max_claim_cost(&bag, &costs)?,
+        below_own_fee: below_own_fee(&bag, &costs),
     };
 
     Ok((bag, metrics))
@@ -488,6 +508,73 @@ pub fn fee_incentive(bag: &SecureTheBag, threshold: u64) -> f64 {
 
     let mut below = 0;
     largest_payment(bag, bag.root_hash(), &mut below, threshold);
+
+    #[allow(clippy::cast_precision_loss)]
+    let share = below as f64 / bag.nodes().len() as f64;
+    share
+}
+
+/// The most that any payment's path from the root costs to spend.
+pub fn max_claim_cost(bag: &SecureTheBag, costs: &HashMap<Bytes32, u64>) -> Result<u64> {
+    let mut max = 0;
+
+    for payment in bag.payments() {
+        let path = bag
+            .path(payment.coin_puzzle_hash())
+            .context("missing path to payment")?;
+        let cost = path
+            .iter()
+            .map(|node| costs.get(node).copied().context("missing node cost"))
+            .sum::<Result<u64>>()?;
+        max = max.max(cost);
+    }
+
+    Ok(max)
+}
+
+/// The share of nodes whose largest downstream payment is worth less than the fee for spending the node itself.
+pub fn below_own_fee(bag: &SecureTheBag, costs: &HashMap<Bytes32, u64>) -> f64 {
+    fn largest_payment(
+        bag: &SecureTheBag,
+        costs: &HashMap<Bytes32, u64>,
+        puzzle_hash: Bytes32,
+        below: &mut usize,
+    ) -> u64 {
+        let Some(node) = bag.node(puzzle_hash) else {
+            return 0;
+        };
+
+        let largest = node
+            .children
+            .iter()
+            .map(|child| match child {
+                BagChild::Node { puzzle_hash, .. } => {
+                    largest_payment(bag, costs, *puzzle_hash, below)
+                }
+                BagChild::Payment { payment, .. } => payment.amount,
+            })
+            .max()
+            .unwrap_or(0);
+
+        let fee = costs
+            .get(&puzzle_hash)
+            .copied()
+            .unwrap_or(0)
+            .saturating_mul(FEE_RATE);
+
+        if largest < fee {
+            *below += 1;
+        }
+
+        largest
+    }
+
+    if bag.nodes().is_empty() {
+        return 0.0;
+    }
+
+    let mut below = 0;
+    largest_payment(bag, costs, bag.root_hash(), &mut below);
 
     #[allow(clippy::cast_precision_loss)]
     let share = below as f64 / bag.nodes().len() as f64;
