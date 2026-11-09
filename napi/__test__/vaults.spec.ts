@@ -5,6 +5,8 @@ import {
   Clvm,
   Coin,
   customMemberHash,
+  eip712HashToSign,
+  eip712MemberHash,
   force1Of2Restriction,
   forceSingletonRecreationRestriction,
   k1MemberHash,
@@ -93,6 +95,41 @@ test("single signer vault", (t) => {
 
   const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
   mips.k1Member(config, k1.pk, signature, false);
+  mips.spendVault(vault);
+
+  sim.spendCoins(clvm.coinSpends(), []);
+
+  t.true(true);
+});
+
+test("eip712 member vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const k1 = K1Pair.fromSeed(1n);
+  const genesisChallenge = new Uint8Array(32).fill(1);
+
+  const config = new MemberConfig().withTopLevel(true);
+
+  const vault = mintVault(
+    sim,
+    clvm,
+    eip712MemberHash(config, genesisChallenge, k1.pk),
+  );
+
+  const delegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+  ]);
+
+  const signedHash = eip712HashToSign(
+    genesisChallenge,
+    vault.coin.coinId(),
+    delegatedSpend.puzzle.treeHash(),
+  );
+  const signature = k1.sk.signPrehashed(signedHash);
+
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.eip712Member(config, genesisChallenge, k1.pk, signedHash, signature);
   mips.spendVault(vault);
 
   sim.spendCoins(clvm.coinSpends(), []);

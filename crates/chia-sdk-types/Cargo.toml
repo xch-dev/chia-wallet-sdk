@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-types"
-version = "0.36.0"
+version = "0.37.1"
 edition = "2024"
 license = "Apache-2.0"
 description = "Standard Chia types for things such as puzzle info and conditions."
@@ -15,9 +15,13 @@ categories = { workspace = true }
 workspace = true
 
 [features]
+chip-0008 = []
+chip-0021 = []
 chip-0035 = []
-chip-0037 = []
+chip-0037 = ["dep:sha3"]
+chip-0052 = []
 action-layer = []
+auction = ["action-layer"]
 
 [dependencies]
 chia-sdk-derive = { workspace = true }
@@ -38,6 +42,7 @@ chialisp = { workspace = true }
 rue-compiler = { workspace = true }
 rue-options = { workspace = true }
 rue-lir = { workspace = true }
+sha3 = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex = { workspace = true }

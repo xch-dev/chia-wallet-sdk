@@ -6,18 +6,19 @@ use chia_consensus::{
         process_single_spend, validate_conditions,
     },
     consensus_constants::ConsensusConstants,
-    flags::COMPUTE_FINGERPRINT,
+    flags::ConsensusFlags,
     owned_conditions::OwnedSpendBundleConditions,
     puzzle_fingerprint::compute_puzzle_fingerprint,
     run_block_generator::subtract_cost,
     solution_generator::calculate_generator_length,
+    spend_visitor::SpendVisitor,
     validation_error::{ErrorCode, ValidationErr},
 };
 use chia_protocol::{Bytes, SpendBundle};
 use chia_sdk_types::run_puzzle_with_cost;
 use chia_sha2::Sha256;
 use clvm_utils::tree_hash;
-use clvmr::{Allocator, LIMIT_HEAP, reduction::Reduction, serde::node_from_bytes};
+use clvmr::{Allocator, reduction::Reduction, serde::node_from_bytes};
 
 // TODO: This function is copied here because WASM doesn't support std::time::Instant
 // Should this be changed upstream?
@@ -25,11 +26,11 @@ pub fn validate_clvm_and_signature(
     spend_bundle: &SpendBundle,
     max_cost: u64,
     constants: &ConsensusConstants,
-    flags: u32,
+    flags: ConsensusFlags,
 ) -> Result<OwnedSpendBundleConditions, ErrorCode> {
-    let mut a = make_allocator(LIMIT_HEAP);
-    let (sbc, pkm_pairs) =
-        run_spendbundle(&mut a, spend_bundle, max_cost, flags, constants).map_err(|e| e.1)?;
+    let mut a = make_allocator(ConsensusFlags::LIMIT_HEAP);
+    let (sbc, pkm_pairs) = run_spendbundle(&mut a, spend_bundle, max_cost, flags, constants)
+        .map_err(|e| e.error_code())?;
     let conditions = OwnedSpendBundleConditions::from(&a, sbc);
 
     // Collect all pairs in a single vector to avoid multiple iterations
@@ -69,7 +70,7 @@ pub fn run_spendbundle(
     a: &mut Allocator,
     spend_bundle: &SpendBundle,
     max_cost: u64,
-    flags: u32,
+    flags: ConsensusFlags,
     constants: &ConsensusConstants,
 ) -> Result<(SpendBundleConditions, Vec<(PublicKey, Bytes)>), ValidationErr> {
     // below is an adapted version of the code from run_block_generators::run_block_generator2()
@@ -82,7 +83,7 @@ pub fn run_spendbundle(
     let generator_length_without_quote = calculate_generator_length(&spend_bundle.coin_spends) - 2;
 
     let byte_cost = generator_length_without_quote as u64 * constants.cost_per_byte;
-    subtract_cost(a, &mut cost_left, byte_cost)?;
+    subtract_cost(&mut cost_left, byte_cost)?;
 
     for coin_spend in &spend_bundle.coin_spends {
         // process the spend
@@ -90,14 +91,18 @@ pub fn run_spendbundle(
         let sol = node_from_bytes(a, coin_spend.solution.as_slice())?;
         let parent = a.new_atom(coin_spend.coin.parent_coin_info.as_slice())?;
         let amount = a.new_number(coin_spend.coin.amount.into())?;
+        let atoms_before = a.atom_count();
+        let pairs_before = a.pair_count();
         let Reduction(clvm_cost, conditions) = run_puzzle_with_cost(a, puz, sol, cost_left, false)?;
 
         ret.execution_cost += clvm_cost;
-        subtract_cost(a, &mut cost_left, clvm_cost)?;
+        subtract_cost(&mut cost_left, clvm_cost)?;
+        let atom_count = (a.atom_count() - atoms_before) as u64;
+        let pair_count = (a.pair_count() - pairs_before) as u64;
 
         let buf = tree_hash(a, puz);
         if coin_spend.coin.puzzle_hash != buf.into() {
-            return Err(ValidationErr(puz, ErrorCode::WrongPuzzleHash));
+            return Err(ValidationErr::Err(ErrorCode::WrongPuzzleHash));
         }
         let puzzle_hash = a.new_atom(&buf)?;
         let spend = process_single_spend::<MempoolVisitor>(
@@ -111,15 +116,20 @@ pub fn run_spendbundle(
             flags,
             &mut cost_left,
             clvm_cost,
+            atom_count,
+            pair_count,
             constants,
         )?;
 
-        if (spend.flags & ELIGIBLE_FOR_DEDUP) != 0 && (flags & COMPUTE_FINGERPRINT) != 0 {
+        if (spend.flags & ELIGIBLE_FOR_DEDUP) != 0
+            && flags.contains(ConsensusFlags::COMPUTE_FINGERPRINT)
+        {
             spend.fingerprint = compute_puzzle_fingerprint(a, conditions)?;
         }
     }
 
-    validate_conditions(a, &ret, &state, a.nil(), flags)?;
+    MempoolVisitor::post_process(a, &state, &mut ret)?;
+    validate_conditions(a, &ret, &state, flags)?;
 
     assert!(max_cost >= cost_left);
     ret.cost = max_cost - cost_left;

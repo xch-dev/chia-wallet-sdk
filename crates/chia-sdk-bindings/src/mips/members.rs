@@ -1,7 +1,7 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{MofN, mips_puzzle_hash};
+use chia_sdk_driver::{MofN, VAULT_FAST_FORWARD_MESSAGE_MODE, mips_puzzle_hash};
 use chia_sdk_types::{
     Mod,
     puzzles::{
@@ -12,7 +12,7 @@ use chia_sdk_types::{
 };
 use clvm_utils::TreeHash;
 
-use crate::{K1PublicKey, R1PublicKey};
+use crate::{K1PublicKey, R1PublicKey, eip712_member_inner_puzzle_hash};
 
 use super::{Restriction, convert_restrictions};
 
@@ -137,7 +137,8 @@ pub fn singleton_member_hash(
     member_hash(
         config,
         if fast_forward {
-            SingletonMemberWithMode::new(launcher_id, 0b010_010).curry_tree_hash()
+            SingletonMemberWithMode::new(launcher_id, VAULT_FAST_FORWARD_MESSAGE_MODE)
+                .curry_tree_hash()
         } else {
             SingletonMember::new(launcher_id).curry_tree_hash()
         },
@@ -148,6 +149,18 @@ pub fn fixed_member_hash(config: MemberConfig, fixed_puzzle_hash: Bytes32) -> Re
     member_hash(
         config,
         FixedPuzzleMember::new(fixed_puzzle_hash).curry_tree_hash(),
+    )
+}
+
+/// MIPS member hash for an EIP-712-controlled secp256k1 key (CHIP-0037).
+pub fn eip712_member_hash(
+    config: MemberConfig,
+    genesis_challenge: Bytes32,
+    public_key: K1PublicKey,
+) -> Result<TreeHash> {
+    member_hash(
+        config,
+        eip712_member_inner_puzzle_hash(genesis_challenge, public_key)?,
     )
 }
 

@@ -1,5 +1,5 @@
 import test from "ava";
-import { Clvm, fromHex, PublicKey, RunCatTail, toHex, treeHashAtom } from "..";
+import { Clvm, fromHex, PublicKey, RunCatTail, toHex, treeHashAtom } from "../index.js";
 
 test("ensure Buffer and Uint8Array are used properly", (t) => {
   const roundtrip = fromHex("ff").toString("hex");

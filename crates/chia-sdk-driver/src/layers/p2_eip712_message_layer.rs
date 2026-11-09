@@ -1,12 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::puzzles::{
     Eip712PrefixAndDomainSeparator, P2_EIP712_MESSAGE_PUZZLE_HASH, P2Eip712MessageArgs,
-    P2Eip712MessageSolution,
+    P2Eip712MessageSolution, eip712_domain_separator, eip712_hash_to_sign,
+    eip712_prefix_and_domain_separator, eip712_type_hash,
 };
 use chia_secp::{K1PublicKey, K1Signature};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
-use sha3::{Digest, Keccak256};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
@@ -49,15 +49,7 @@ impl P2Eip712MessageLayer {
     /// Domain matches the schema mandated by CHIP-0037:
     /// `{ name: "Chia Coin Spend", version: "1", salt: <genesis_challenge> }`.
     pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
-        let type_hash = Keccak256::digest(b"EIP712Domain(string name,string version,bytes32 salt)");
-
-        let mut to_hash = Vec::new();
-        to_hash.extend_from_slice(&type_hash);
-        to_hash.extend_from_slice(&Keccak256::digest(b"Chia Coin Spend"));
-        to_hash.extend_from_slice(&Keccak256::digest(b"1"));
-        to_hash.extend_from_slice(&genesis_challenge);
-
-        Bytes32::new(Keccak256::digest(&to_hash).into())
+        eip712_domain_separator(genesis_challenge)
     }
 
     /// Compute the 34-byte concatenation of the EIP-712 prefix (`\x19\x01`)
@@ -65,19 +57,12 @@ impl P2Eip712MessageLayer {
     pub fn prefix_and_domain_separator(
         genesis_challenge: Bytes32,
     ) -> Eip712PrefixAndDomainSeparator {
-        let mut bytes = [0u8; 34];
-        bytes[0] = 0x19;
-        bytes[1] = 0x01;
-        bytes[2..].copy_from_slice(&Self::domain_separator(genesis_challenge));
-        bytes.into()
+        eip712_prefix_and_domain_separator(genesis_challenge)
     }
 
     /// Keccak-256 hash of the canonical CHIP-0037 EIP-712 type signature.
     pub fn type_hash() -> Bytes32 {
-        Bytes32::new(
-            Keccak256::digest(b"ChiaCoinSpend(bytes32 coin_id,bytes32 delegated_puzzle_hash)")
-                .into(),
-        )
+        eip712_type_hash()
     }
 
     /// Compute the 32-byte EIP-712 digest the off-chain wallet must sign.
@@ -85,17 +70,11 @@ impl P2Eip712MessageLayer {
     /// `digest = keccak256(prefix_and_domain || keccak256(type_hash || coin_id
     /// || delegated_puzzle_hash))`
     pub fn hash_to_sign(&self, coin_id: Bytes32, delegated_puzzle_hash: Bytes32) -> Bytes32 {
-        let mut to_hash = Vec::with_capacity(96);
-        to_hash.extend_from_slice(&Self::type_hash());
-        to_hash.extend_from_slice(&coin_id);
-        to_hash.extend_from_slice(&delegated_puzzle_hash);
-        let message_hash = Keccak256::digest(&to_hash);
-
-        let mut to_hash = Vec::with_capacity(34 + 32);
-        to_hash.extend_from_slice(&self.prefix_and_domain_separator);
-        to_hash.extend_from_slice(&message_hash);
-
-        Bytes32::new(Keccak256::digest(&to_hash).into())
+        eip712_hash_to_sign(
+            &self.prefix_and_domain_separator,
+            coin_id,
+            delegated_puzzle_hash,
+        )
     }
 
     /// Construct a `Spend` for a coin locked by this layer using a previously
@@ -180,11 +159,11 @@ mod tests {
     use chia_secp::K1SecretKey;
     use clvm_traits::{ToClvm, clvm_quote};
     use clvm_utils::ToTreeHash;
-    use clvmr::chia_dialect::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+    use clvmr::ClvmFlags;
     use clvmr::reduction::Reduction;
     use clvmr::serde::node_from_bytes;
     use hex_literal::hex;
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use rstest::rstest;
 
@@ -273,7 +252,7 @@ mod tests {
 
         let Reduction(cost, _) = clvmr::run_program(
             &mut ctx,
-            &clvmr::ChiaDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD),
+            &clvmr::ChiaDialect::new(ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD),
             puzzle_ptr,
             solution_ptr,
             11_000_000_000,

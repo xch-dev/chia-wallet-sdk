@@ -1,0 +1,329 @@
+{
+  "auction_lock_p2_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "launcher_id": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "calculate_auction_payment": {
+    "type": "function",
+    "args": {
+      "amount": "u64",
+      "bps": "u64"
+    },
+    "return": "Option<u64>"
+  },
+  "AuctionBid": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "amount": "u64",
+      "puzzle_hash": "Bytes32"
+    }
+  },
+  "AuctionTimings": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "end_time": "u64",
+      "grace_period": "u64"
+    }
+  },
+  "AuctionBpsPayment": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "bps": "u64",
+      "puzzle_hash": "Bytes32"
+    }
+  },
+  "AuctionPayments": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "buyers_premium": "AuctionBpsPayment",
+      "commission": "AuctionBpsPayment",
+      "payout_puzzle_hash": "Bytes32"
+    }
+  },
+  "AuctionState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "reserve_amount": "u64",
+      "ended": "bool",
+      "winning_bid": "AuctionBid"
+    },
+    "methods": {
+      "initial": {
+        "type": "factory",
+        "args": {
+          "payout_puzzle_hash": "Bytes32"
+        }
+      }
+    }
+  },
+  "AuctionBidVerifier": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "flat": {
+        "type": "factory",
+        "args": {
+          "minimum_bid": "u64",
+          "bid_increment": "u64"
+        }
+      },
+      "percent": {
+        "type": "factory",
+        "args": {
+          "minimum_bid": "u64",
+          "bid_increment_bps": "u64"
+        }
+      },
+      "is_flat": {
+        "return": "bool"
+      },
+      "minimum_bid": {
+        "return": "u64"
+      },
+      "bid_increment": {
+        "return": "Option<u64>"
+      },
+      "bid_increment_bps": {
+        "return": "Option<u64>"
+      }
+    }
+  },
+  "AuctionSettings": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "bid_verifier": "AuctionBidVerifier",
+      "timings": "AuctionTimings",
+      "payments": "AuctionPayments"
+    }
+  },
+  "AuctionReserve": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin"
+        }
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "cat": "Cat"
+        }
+      },
+      "coin": {
+        "return": "Coin"
+      },
+      "as_cat": {
+        "return": "Option<Cat>"
+      },
+      "p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "with_parent_coin_info": {
+        "args": {
+          "parent_coin_info": "Bytes32"
+        },
+        "return": "AuctionReserve"
+      },
+      "child": {
+        "args": {
+          "amount": "u64"
+        },
+        "return": "AuctionReserve"
+      },
+      "settlement_puzzle_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "AuctionInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "settings": "AuctionSettings",
+      "nft_coin_id": "Bytes32",
+      "nft_royalty": "RoyaltyInfo",
+      "state": "AuctionState",
+      "reserve": "AuctionReserve"
+    },
+    "methods": {
+      "royalty_bps": {
+        "return": "u64"
+      },
+      "reserve_amount_for_bid": {
+        "args": {
+          "bid_amount": "u64"
+        },
+        "return": "Option<u64>"
+      },
+      "bid_action_hash": {
+        "return": "TreeHash"
+      },
+      "end_action_hash": {
+        "return": "TreeHash"
+      },
+      "cancel_action_hash": {
+        "return": "TreeHash"
+      },
+      "nft_unlocker_hash": {
+        "return": "TreeHash"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "Auction": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "info": "AuctionInfo"
+    },
+    "methods": {
+      "bid_announcement_id": {
+        "args": {
+          "bid": "AuctionBid"
+        },
+        "return": "Bytes32"
+      },
+      "bid_action_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "bid": "AuctionBid",
+          "grace": "bool"
+        },
+        "return": "Spend"
+      },
+      "end_action_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "nft": "Nft"
+        },
+        "return": "Spend"
+      },
+      "cancel_action_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "nft": "Nft"
+        },
+        "return": "Spend"
+      },
+      "cancel_authorization": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Vec<Program>"
+      },
+      "unlock_nft": {
+        "args": {
+          "clvm": "Clvm",
+          "nft": "Nft"
+        },
+        "return": "Nft"
+      },
+      "child_state": {
+        "args": {
+          "clvm": "Clvm",
+          "action_spends": "Vec<Spend>"
+        },
+        "return": "AuctionChildState"
+      },
+      "spend": {
+        "args": {
+          "clvm": "Clvm",
+          "action_spends": "Vec<Spend>",
+          "other_cat_spends": "Vec<CatSpend>"
+        },
+        "return": "Auction"
+      },
+      "parse_child": {
+        "args": {
+          "clvm": "Clvm",
+          "solution": "Program"
+        },
+        "return": "Auction"
+      }
+    }
+  },
+  "AuctionChildState": {
+    "type": "class",
+    "fields": {
+      "state": "AuctionState",
+      "reserve_conditions": "Vec<Program>",
+      "royalty_amount": "Option<u64>"
+    }
+  },
+  "LaunchedAuction": {
+    "type": "class",
+    "fields": {
+      "auction": "Auction",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "AuctionLaunch": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "parse": {
+        "type": "static",
+        "args": {
+          "launcher_coin": "Coin",
+          "launcher_solution": "Program"
+        },
+        "return": "Option<AuctionLaunch>"
+      },
+      "launcher_coin": {
+        "return": "Coin"
+      },
+      "settings": {
+        "return": "AuctionSettings"
+      },
+      "nft_coin_id": {
+        "return": "Bytes32"
+      },
+      "reserve_parent_coin_info": {
+        "return": "Bytes32"
+      },
+      "reserve_asset_id": {
+        "return": "Option<Bytes32>"
+      },
+      "singleton_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "singleton_amount": {
+        "return": "u64"
+      },
+      "into_auction": {
+        "args": {
+          "nft_royalty": "RoyaltyInfo",
+          "reserve_lineage_proof": "Option<LineageProof>"
+        },
+        "return": "Auction"
+      }
+    }
+  }
+}

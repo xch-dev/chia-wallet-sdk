@@ -3,7 +3,7 @@
 use bindy::{FromRust, Pyo3Context};
 use num_bigint::BigInt;
 use pyo3::{
-    exceptions::PyTypeError,
+    exceptions::{PyTypeError, PyValueError},
     prelude::*,
     types::{PyList, PyNone, PyTuple},
 };
@@ -13,13 +13,18 @@ bindy_macro::bindy_pyo3!("bindings.json");
 #[pymethods]
 impl Clvm {
     pub fn alloc(&self, value: Bound<'_, PyAny>) -> PyResult<Program> {
-        Ok(Program::from_rust(alloc(&self.0, value)?, &Pyo3Context)?)
+        Ok(Program::from_rust(alloc(&self.0, value, 0)?, &Pyo3Context)?)
     }
 }
+
+/// Limits how deeply nested lists and tuples can be, so that deep or cyclic
+/// values result in an error rather than overflowing the stack.
+const MAX_ALLOC_DEPTH: usize = 512;
 
 fn alloc(
     clvm: &chia_sdk_bindings::Clvm,
     value: Bound<'_, PyAny>,
+    depth: usize,
 ) -> PyResult<chia_sdk_bindings::Program> {
     if let Some(value) = extract_clvm_type(&value) {
         return Ok(match value {
@@ -149,7 +154,7 @@ fn alloc(
         });
     }
 
-    if let Ok(_value) = value.downcast::<PyNone>() {
+    if let Ok(_value) = value.cast::<PyNone>() {
         Ok(clvm.nil()?)
     } else if let Ok(value) = value.extract::<BigInt>() {
         Ok(clvm.int(value)?)
@@ -159,26 +164,40 @@ fn alloc(
         Ok(clvm.string(value)?)
     } else if let Ok(value) = value.extract::<Vec<u8>>() {
         Ok(clvm.atom(value.into())?)
-    } else if let Ok(value) = value.downcast::<PyTuple>() {
+    } else if let Ok(value) = value.cast::<PyTuple>() {
+        check_depth(depth)?;
+
         if value.len() != 2 {
             return PyResult::Err(PyErr::new::<PyTypeError, _>(
                 "Expected a tuple with 2 items",
             ));
         }
 
-        let first = alloc(clvm, value.get_item(0)?)?;
-        let rest = alloc(clvm, value.get_item(1)?)?;
+        let first = alloc(clvm, value.get_item(0)?, depth + 1)?;
+        let rest = alloc(clvm, value.get_item(1)?, depth + 1)?;
 
         Ok(clvm.pair(first, rest)?)
-    } else if let Ok(value) = value.downcast::<PyList>() {
+    } else if let Ok(value) = value.cast::<PyList>() {
+        check_depth(depth)?;
+
         let mut list = Vec::new();
 
         for item in value.iter() {
-            list.push(alloc(clvm, item)?);
+            list.push(alloc(clvm, item, depth + 1)?);
         }
 
         Ok(clvm.list(list)?)
     } else {
         PyResult::Err(PyErr::new::<PyTypeError, _>("Unsupported CLVM value type"))
     }
+}
+
+fn check_depth(depth: usize) -> PyResult<()> {
+    if depth >= MAX_ALLOC_DEPTH {
+        return Err(PyErr::new::<PyValueError, _>(format!(
+            "Nesting exceeds the maximum depth of {MAX_ALLOC_DEPTH}"
+        )));
+    }
+
+    Ok(())
 }

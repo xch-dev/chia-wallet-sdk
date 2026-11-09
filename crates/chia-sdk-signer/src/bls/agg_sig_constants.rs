@@ -53,6 +53,20 @@ impl AggSigConstants {
     pub fn parent_puzzle(&self) -> Bytes32 {
         self.parent_puzzle
     }
+
+    /// All of the additional data values appended to `AGG_SIG_*` messages,
+    /// in the same order consensus checks them.
+    pub fn all(&self) -> [Bytes32; 7] {
+        [
+            self.me,
+            self.parent,
+            self.puzzle,
+            self.amount,
+            self.puzzle_amount,
+            self.parent_amount,
+            self.parent_puzzle,
+        ]
+    }
 }
 
 impl From<&ConsensusConstants> for AggSigConstants {

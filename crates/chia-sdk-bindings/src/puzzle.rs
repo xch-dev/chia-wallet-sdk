@@ -6,6 +6,7 @@ mod datastore;
 mod did;
 mod nft;
 mod option;
+mod p2_conditions_or_singleton;
 mod p2_next_reward_distributor_epoch;
 mod p2_parent_coin;
 mod streamed_asset;
@@ -18,6 +19,7 @@ pub use datastore::*;
 pub use did::*;
 pub use nft::*;
 pub use option::*;
+pub use p2_conditions_or_singleton::*;
 pub use p2_next_reward_distributor_epoch::*;
 pub use p2_parent_coin::*;
 pub use streamed_asset::*;
@@ -29,8 +31,8 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::{Memos, cat::CatArgs, standard::StandardArgs};
 use chia_sdk_driver::{
-    Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract,
-    OptionInfo, P2ParentCoin, RawPuzzle, SpendContext, StreamingPuzzleInfo,
+    Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, Layer, OptionContract as SdkOptionContract,
+    OptionInfo, P2ParentCoin, RawPuzzle, SpendContext, SplitterLayer, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -313,6 +315,13 @@ impl Puzzle {
             p2_puzzle: Self::new(&self.program.0, p2_puzzle),
             p2_solution: Program(self.program.0.clone(), p2_solution),
         }))
+    }
+
+    pub fn parse_splitter(&self) -> Result<Option<crate::Splitter>> {
+        let ctx = self.program.0.lock().unwrap();
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        Ok(SplitterLayer::parse_puzzle(&ctx, puzzle)?.map(crate::Splitter))
     }
 
     pub fn parse_child_p2_parent(

@@ -1,4 +1,3 @@
-mod cat_maker;
 mod catalog_registry;
 mod catalog_registry_info;
 mod catalog_registry_prefix;
@@ -18,7 +17,6 @@ mod xchandles_registry;
 mod xchandles_registry_info;
 mod xchandles_registry_prefix;
 
-pub use cat_maker::*;
 pub use catalog_registry::*;
 pub use catalog_registry_info::*;
 pub use catalog_registry_prefix::*;

@@ -164,6 +164,16 @@ impl Spends {
         Ok(())
     }
 
+    pub fn return_unplaced_conditions(&self) -> Result<()> {
+        self.spends
+            .lock()
+            .unwrap()
+            .conditions
+            .return_unplaced_conditions = true;
+
+        Ok(())
+    }
+
     pub fn selected_xch_amount(&self) -> Result<u128> {
         Ok(self.spends.lock().unwrap().xch.selected_amount())
     }
@@ -281,6 +291,17 @@ impl FinishedSpends {
         }
 
         Ok(pending)
+    }
+
+    pub fn unplaced_conditions(&self) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut conditions = Vec::new();
+
+        for condition in self.spends.lock().unwrap().unplaced_conditions.clone() {
+            conditions.push(Program(self.clvm.clone(), condition.to_clvm(&mut ctx)?));
+        }
+
+        Ok(conditions)
     }
 
     pub fn insert(&self, coin_id: Bytes32, spend: Spend) -> Result<()> {

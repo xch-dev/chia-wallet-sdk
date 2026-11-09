@@ -1,39 +1,36 @@
 name: WASM
 on:
+  # Releases run standalone so trusted publishing sees this workflow, not ci.yml
   push:
-    branches:
-      - main
     tags:
       - "**"
-  pull_request:
-    branches:
-      - "**"
-
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
-  actions: write
   id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fat LTO is only worth paying for on artifacts we publish
+  CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
 
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: ./wasm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -46,8 +43,13 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
 
       - name: Tests
         run: pnpm test

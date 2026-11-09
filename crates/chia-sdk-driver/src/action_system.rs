@@ -34,8 +34,13 @@
 //! - Change is calculated from the selected coins and the deltas. If the selected coins can't cover
 //!   the outputs, [`DriverError::InsufficientFunds`](crate::DriverError::InsufficientFunds) is returned
 //!   rather than building a transaction that would be rejected by the mempool.
-//! - Payments created from settlement coins are asserted with a nonce unique to the settlement coin,
-//!   so that the settlement spends can't be removed from the transaction.
+//! - Payments made by settlement coins are asserted by a conditions spend, so that the settlement
+//!   spends can't be removed from the transaction. Change and other coins created from a settlement
+//!   coin are notarized with its coin id as the nonce. Settle actions use the nonce they're given, so
+//!   [`Spends::apply`] and [`Spends::prepare`] return
+//!   [`DriverError::DuplicateSettlementPayment`](crate::DriverError::DuplicateSettlementPayment) if
+//!   two settlement coins with the same puzzle hash would make the same notarized payment, since a
+//!   single assertion would be satisfied by either of them.
 //! - Building the same actions against the same coins always produces the same coin spends.
 //! - With [`Relation::AssertConcurrent`] or [`Relation::CoinAnnouncementRing`], the spends can't be
 //!   split into separate transactions. With [`Relation::CoinAnnouncementHub`], every spend requires

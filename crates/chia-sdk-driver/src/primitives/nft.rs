@@ -601,4 +601,31 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_parse_nft_info_launcher_id_mismatch() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let info = NftInfo::new(
+            Bytes32::new([1; 32]),
+            HashedPtr::NIL,
+            Bytes32::default(),
+            None,
+            Bytes32::default(),
+            300,
+            Bytes32::default(),
+        );
+        let mut layers = info.into_layers(HashedPtr::NIL);
+        layers.inner_puzzle.inner_puzzle.transfer_layer.launcher_id = Bytes32::new([2; 32]);
+
+        let puzzle = layers.construct_puzzle(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+
+        assert!(matches!(
+            NftInfo::parse(ctx, puzzle),
+            Err(DriverError::InvalidSingletonStruct)
+        ));
+
+        Ok(())
+    }
 }

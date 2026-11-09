@@ -36,11 +36,34 @@ impl StreamingPuzzleInfo {
         }
     }
 
-    pub fn amount_to_be_paid(&self, my_coin_amount: u64, payment_time: u64) -> u64 {
+    /// Clamps the payment time to the end time of the stream, since nothing more can be paid after it.
+    ///
+    /// Returns an error if the payment time is before the last payment time, or if the stream has
+    /// already ended (in which case there is nothing left to pay and the puzzle can't be spent).
+    pub fn clamp_payment_time(&self, payment_time: u64) -> Result<u64, DriverError> {
+        if self.end_time <= self.last_payment_time || payment_time < self.last_payment_time {
+            return Err(DriverError::InvalidStreamPaymentTime);
+        }
+
+        Ok(payment_time.min(self.end_time))
+    }
+
+    /// Calculates the amount paid to the recipient if the coin is spent at the given payment time.
+    /// The payment time is clamped to the end time, so the amount will never exceed the coin amount.
+    pub fn amount_to_be_paid(
+        &self,
+        my_coin_amount: u64,
+        payment_time: u64,
+    ) -> Result<u64, DriverError> {
+        let payment_time = self.clamp_payment_time(payment_time)?;
+
         // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
         // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
-        my_coin_amount * (payment_time - self.last_payment_time)
-            / (self.end_time - self.last_payment_time)
+        // The intermediate product can exceed u64, so it's calculated as u128 like the puzzle would.
+        let to_pay = u128::from(my_coin_amount) * u128::from(payment_time - self.last_payment_time)
+            / u128::from(self.end_time - self.last_payment_time);
+
+        u64::try_from(to_pay).map_err(|_| DriverError::AmountOverflow)
     }
 
     pub fn get_hint(recipient: Bytes32) -> Bytes32 {
@@ -211,10 +234,16 @@ impl StreamedAsset {
         clawback: bool,
     ) -> Result<NodePtr, DriverError> {
         let inner_layer = self.info.into_layer();
+
+        // The payment time is curried into the next coin, so it must match the amount paid.
+        let payment_time = self.info.clamp_payment_time(payment_time)?;
+
         let inner_solution = StreamPuzzleSolution {
             my_amount: self.coin.amount,
             payment_time,
-            to_pay: self.info.amount_to_be_paid(self.coin.amount, payment_time),
+            to_pay: self
+                .info
+                .amount_to_be_paid(self.coin.amount, payment_time)?,
             clawback,
         };
 
@@ -294,7 +323,15 @@ impl StreamedAsset {
                 return Ok((None, true, streaming_solution.to_pay));
             }
 
-            let new_amount = parent_coin.amount - streaming_solution.to_pay;
+            let new_amount = parent_coin
+                .amount
+                .checked_sub(streaming_solution.to_pay)
+                .ok_or(DriverError::InsufficientFunds)?;
+
+            // The final payment doesn't recreate the streaming coin.
+            if new_amount == 0 {
+                return Ok((None, false, 0));
+            }
 
             let new_inner_layer = StreamLayer::new(
                 streaming_layer.recipient,
@@ -397,9 +434,11 @@ mod tests {
     use clvmr::serde::node_from_bytes;
     use rstest::rstest;
 
+    use clvm_utils::CurriedProgram;
+
     use crate::{
         Cat, CatSpend, FungibleAsset, STREAM_PUZZLE, STREAM_PUZZLE_HASH, SpendWithConditions,
-        StandardLayer,
+        StandardLayer, StreamPuzzle1stCurryArgs, StreamPuzzle2ndCurryArgs,
     };
 
     use super::*;
@@ -589,6 +628,119 @@ mod tests {
             "streamed-{}.costs",
             if xch_stream { "xch" } else { "cat" }
         )));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_amount_to_be_paid() -> anyhow::Result<()> {
+        let info = StreamingPuzzleInfo::new(Bytes32::default(), None, 1_000_000_000, 0);
+
+        // The intermediate product overflows u64, but the result doesn't.
+        assert_eq!(info.amount_to_be_paid(u64::MAX, 500_000_000)?, u64::MAX / 2);
+        assert_eq!(info.amount_to_be_paid(u64::MAX, 0)?, 0);
+
+        // Payment times past the end are clamped, so it never pays more than the coin amount.
+        assert_eq!(info.amount_to_be_paid(1000, u64::MAX)?, 1000);
+        assert_eq!(info.clamp_payment_time(u64::MAX)?, 1_000_000_000);
+
+        // Payment times before the last payment would underflow.
+        let info = info.with_last_payment_time(100);
+        assert!(matches!(
+            info.amount_to_be_paid(1000, 99),
+            Err(DriverError::InvalidStreamPaymentTime)
+        ));
+
+        // Streams that have already ended would divide by zero.
+        let info = info.with_last_payment_time(1_000_000_000);
+        assert!(matches!(
+            info.amount_to_be_paid(1000, 1_000_000_000),
+            Err(DriverError::InvalidStreamPaymentTime)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_final_payment_has_no_child() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+        let mut sim = Simulator::new();
+
+        let user_bls = sim.bls(0);
+        let info = StreamingPuzzleInfo::new(user_bls.puzzle_hash, None, 2000, 1000);
+        let coin = sim.new_coin(info.inner_puzzle_hash().into(), 1000);
+        let streamed_asset = StreamedAsset::xch(coin, info);
+
+        sim.set_next_timestamp(3000)?;
+
+        // The payment time is clamped to the end time, so the message has to use it as well.
+        let user_coin = sim.new_coin(user_bls.puzzle_hash, 0);
+        let coin_id_ptr = ctx.alloc(&coin.coin_id())?;
+        StandardLayer::new(user_bls.pk).spend(
+            &mut ctx,
+            user_coin,
+            Conditions::new().send_message(23, u64_to_bytes(2000).into(), vec![coin_id_ptr]),
+        )?;
+
+        streamed_asset.spend(&mut ctx, 3000, false)?;
+
+        let spends = ctx.take();
+        let streamed_asset_spend = spends.last().unwrap().clone();
+        sim.spend_coins(spends, slice::from_ref(&user_bls.sk))?;
+
+        // The whole amount was paid to the recipient, and the stream wasn't recreated.
+        assert!(
+            sim.unspent_coins(user_bls.puzzle_hash, false)
+                .iter()
+                .any(|coin| coin.amount == 1000)
+        );
+        assert!(
+            sim.unspent_coins(info.inner_puzzle_hash().into(), false)
+                .is_empty()
+        );
+
+        let (child, clawback, _) =
+            StreamedAsset::from_parent_spend(&mut ctx, &streamed_asset_spend)?;
+        assert!(child.is_none());
+        assert!(!clawback);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_stream_layer_rejects_wrong_self_hash() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let layer = StreamLayer::new(Bytes32::new([1; 32]), None, 2000, 1000);
+        let puzzle = layer.construct_puzzle(&mut ctx)?;
+        let puzzle = Puzzle::parse(&ctx, puzzle);
+        assert_eq!(StreamLayer::parse_puzzle(&ctx, puzzle)?, Some(layer));
+
+        // The remainder of each payment would be sent to the puzzle with this hash instead.
+        let first_curry = ctx.curry(StreamPuzzle1stCurryArgs::new(
+            layer.recipient,
+            layer.clawback_ph,
+            layer.end_time,
+        ))?;
+        let spoofed = ctx.alloc(&CurriedProgram {
+            program: first_curry,
+            args: StreamPuzzle2ndCurryArgs::new(Bytes32::new([2; 32]), layer.last_payment_time),
+        })?;
+        let spoofed = Puzzle::parse(&ctx, spoofed);
+        assert_eq!(StreamLayer::parse_puzzle(&ctx, spoofed)?, None);
+
+        // A different mod with the same curried arguments isn't a stream, which isn't an error.
+        let other_first_curry = ctx.alloc(&CurriedProgram {
+            program: NodePtr::NIL,
+            args: StreamPuzzle1stCurryArgs::new(layer.recipient, layer.clawback_ph, layer.end_time),
+        })?;
+        let other_self_hash = ctx.tree_hash(other_first_curry);
+        let other = ctx.alloc(&CurriedProgram {
+            program: other_first_curry,
+            args: StreamPuzzle2ndCurryArgs::new(other_self_hash.into(), layer.last_payment_time),
+        })?;
+        let other = Puzzle::parse(&ctx, other);
+        assert_eq!(StreamLayer::parse_puzzle(&ctx, other)?, None);
 
         Ok(())
     }

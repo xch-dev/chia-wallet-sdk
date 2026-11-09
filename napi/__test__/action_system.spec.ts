@@ -12,15 +12,20 @@ import {
   CoinSpend,
   Constants,
   decodeOffer,
+  decodePartialOffer,
   Delta,
   Deltas,
   encodeOffer,
+  encodePartialOffer,
   Id,
   Nft,
   NftMetadata,
   NotarizedPayment,
   Offer,
   OptionType,
+  PartialOfferAsset,
+  PartialOfferBundle,
+  PartialOfferInfo,
   Outputs,
   Payment,
   Relation,
@@ -33,7 +38,7 @@ import {
   Spends,
   standardPuzzleHash,
   TransferNftById,
-} from "..";
+} from "../index.js";
 
 class Wallet {
   pair: BlsPair;
@@ -401,6 +406,44 @@ test("update existing nft metadata", (t) => {
   t.true(metadataSource?.includes("https://example.com/2") ?? false);
 });
 
+test("mint an nft from an nft and assign it", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(19n);
+  alice.addXch(sim, 2n);
+
+  const outputs = alice.spend(sim, clvm, [
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      null,
+    ),
+    Action.mintNft(
+      clvm,
+      clvm.nil(),
+      Constants.nftMetadataUpdaterDefaultHash(),
+      alice.puzzleHash,
+      0,
+      1n,
+      Id.new(0n),
+    ),
+    Action.updateNft(Id.new(1n), [], new TransferNftById(Id.new(0n), [])),
+  ]);
+
+  const parent = outputs.nft(Id.new(0n));
+  const child = outputs.nft(Id.new(1n));
+
+  t.is(parent.info.currentOwner, null);
+  t.deepEqual(child.info.currentOwner, parent.info.launcherId);
+  t.is(sim.coinState(parent.coin.coinId())?.spentHeight, null);
+  t.is(sim.coinState(child.coin.coinId())?.spentHeight, null);
+});
+
 test("create, update, send, and melt a did", (t) => {
   const sim = new Simulator();
   const clvm = new Clvm();
@@ -689,6 +732,130 @@ test("offer cat for xch", (t) => {
   t.is(alice.balance(sim, Id.xch()), 50n);
   t.is(bob.balance(sim, Id.xch()), 0n);
   t.is(bob.balance(sim, id), 100n);
+});
+
+test("partial offer cat for xch", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(18n);
+  const bob = new Wallet(19n);
+
+  alice.addXch(sim, 100n);
+  bob.addXch(sim, 21n);
+
+  const issued = alice.spend(sim, clvm, [Action.singleIssueCat(null, 100n)]);
+  const cat = issued.cat(issued.cats()[0])[0];
+  const assetId = cat.info.assetId;
+  const id = Id.existing(assetId);
+
+  // Alice offers 100 CAT for 50 XCH, which can be partially filled
+  const info = PartialOfferInfo.fromAmounts(
+    PartialOfferAsset.cat(assetId),
+    PartialOfferAsset.xch(),
+    alice.puzzleHash,
+    100n,
+    50n,
+  );
+  info.minRequestedAmount = 10n;
+  info.requiredFee = 1n;
+
+  t.is(info.price.pricePrecision, 2n);
+  t.is(info.price.precision, 1n);
+  t.is(info.offeredAmount(20n), 40n);
+  t.is(info.requestedAmount(40n), 20n);
+
+  const memos = info.creationMemos(clvm);
+  const parsedMemos = PartialOfferInfo.parseCreationMemos(memos);
+  t.deepEqual(parsedMemos?.makerPuzzleHash, alice.puzzleHash);
+  t.true(parsedMemos?.requestedAsset.isXch());
+
+  const makerSpends = new Spends(clvm, alice.puzzleHash);
+  makerSpends.addCat(cat);
+
+  const maker = alice.build(clvm, makerSpends, [
+    Action.send(id, info.p2PuzzleHash(), 100n, memos),
+  ]);
+
+  const madeBundle = PartialOfferBundle.fromMakerSpendBundle(
+    clvm,
+    new SpendBundle(maker.coinSpends, Signature.infinity()),
+    info,
+  );
+
+  // The partial offer survives being encoded and decoded
+  const encoded = encodePartialOffer(madeBundle.toSpendBundle());
+  t.true(encoded.startsWith("partial1"));
+
+  const bundle = PartialOfferBundle.fromSpendBundle(
+    clvm,
+    decodePartialOffer(encoded),
+  );
+  const partialOffer = bundle.partialOffer();
+  t.is(partialOffer.coin.amount, 100n);
+  t.deepEqual(partialOffer.coin.puzzleHash, info.puzzleHash());
+  t.deepEqual(partialOffer.info.offeredAsset.assetId(), assetId);
+  t.is(partialOffer.info.minRequestedAmount, 10n);
+  t.is(partialOffer.info.requiredFee, 1n);
+  t.is(partialOffer.info.expiration, null);
+  t.is(partialOffer.maxRequestedAmount(), 50n);
+  t.throws(() => partialOffer.offeredAmount(5n));
+
+  // Bob pays 20 XCH (and the required fee) for 40 CAT
+  const fill = bundle.fill(20n);
+  t.is(fill.requestedAmount, 20n);
+  t.is(fill.offeredAmount, 40n);
+  t.is(fill.requiredFee, 1n);
+  t.is(fill.child?.coin.amount, 60n);
+
+  const takerSpends = new Spends(clvm, bob.puzzleHash);
+  takerSpends.addOfferedCoins(fill.offer);
+  for (const coin of bob.fetchXch(sim)) {
+    takerSpends.addXch(coin);
+  }
+
+  const taker = bob.build(
+    clvm,
+    takerSpends,
+    fill.actions(),
+    Relation.AssertConcurrent,
+  );
+
+  const transaction = fill.offer.take(
+    new SpendBundle(taker.coinSpends, Signature.infinity()),
+  );
+  sim.spendCoins(transaction.coinSpends, [alice.pair.sk, bob.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 20n);
+  t.is(bob.balance(sim, Id.xch()), 0n);
+  t.is(bob.balance(sim, id), 40n);
+
+  // The fill can be parsed from the chain to find the remaining offer coin
+  const parentSpend = sim.coinSpend(partialOffer.coin.coinId());
+  if (!parentSpend) throw new Error("Partial offer spend not found");
+
+  const puzzle = clvm.deserialize(parentSpend.puzzleReveal).puzzle();
+  const solution = clvm.deserialize(parentSpend.solution);
+
+  const parsed = puzzle.parsePartialOffer(parentSpend.coin, solution, null);
+  t.is(parsed?.requestedAmount, 20n);
+
+  const child = puzzle.parseChildPartialOffer(parentSpend.coin, solution, null);
+  if (!child) throw new Error("Remaining partial offer coin not found");
+  t.deepEqual(child.coin.coinId(), fill.child?.coin.coinId());
+  t.is(child.maxRequestedAmount(), 30n);
+
+  // Alice claws back the rest
+  const clawBackSpend = child.clawBackSpend(
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend([clvm.createCoin(alice.puzzleHash, 60n)]),
+    ),
+  );
+  clvm.spendCoin(child.coin, clawBackSpend);
+  sim.spendCoins(clvm.coinSpends(), [alice.pair.sk]);
+
+  t.is(alice.balance(sim, id), 60n);
 });
 
 test("offer nft for xch with royalty", (t) => {
@@ -993,4 +1160,51 @@ test("revoke a cat without actions returns it as revocable change", (t) => {
   const normal = issuer.spend(sim, clvm, [Action.singleIssueCat(null, 1n)]);
   const spends2 = new Spends(clvm, issuer.puzzleHash);
   t.throws(() => spends2.addCatForRevocation(normal.cat(normal.cats()[0])[0]));
+});
+
+test("unplaced conditions are returned instead of an intermediate coin", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(12n);
+  alice.addXch(sim, 5n);
+  const aliceCoin = alice.fetchXch(sim)[0];
+
+  // Only a settlement coin is spent, so nothing in the spends can emit conditions
+  const settlement = sim.newCoin(settlementPuzzleHash, 10n);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  spends.addXch(settlement);
+  spends.returnUnplacedConditions();
+
+  const deltas = spends.apply([Action.fee(1n)]);
+  const finished = spends.prepare(deltas);
+
+  t.is(finished.pendingSpends().length, 0);
+
+  // The change assertion and the reserved fee are returned for another spend to emit
+  const unplaced = finished.unplacedConditions();
+  t.is(unplaced.length, 2);
+  t.truthy(unplaced.some((condition) => condition.parseAssertPuzzleAnnouncement()));
+  t.is(
+    unplaced.find((condition) => condition.parseReserveFee())?.parseReserveFee()?.amount,
+    1n,
+  );
+
+  finished.spend();
+
+  clvm.spendCoin(
+    aliceCoin,
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend([
+        ...unplaced,
+        clvm.createCoin(alice.puzzleHash, aliceCoin.amount, null),
+      ]),
+    ),
+  );
+
+  sim.spendCoins(clvm.coinSpends(), [alice.pair.sk]);
+
+  t.is(alice.balance(sim, Id.xch()), 14n);
 });

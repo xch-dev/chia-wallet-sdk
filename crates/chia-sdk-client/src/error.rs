@@ -25,6 +25,10 @@ pub enum ClientError {
     Rustls(#[from] rustls::Error),
 
     #[cfg(feature = "rustls")]
+    #[error("PEM error: {0}")]
+    Pem(#[from] rustls::pki_types::pem::Error),
+
+    #[cfg(feature = "rustls")]
     #[error("Missing pkcs8 private key")]
     MissingPkcs8Key,
 
