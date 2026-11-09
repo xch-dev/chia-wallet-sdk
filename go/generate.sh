@@ -33,14 +33,9 @@ export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 
 # Android builds use the NDK's clang, both for the C dependencies and for linking
 if [ "$PLATFORM" = android_arm64 ]; then
-  NDK="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
-  if [ -z "$NDK" ]; then
-    echo "Set ANDROID_NDK_HOME to the Android NDK to build for $TARGET" >&2
-    exit 1
-  fi
-  NDK_BIN=$(echo "$NDK"/toolchains/llvm/prebuilt/*/bin)
-  export CC_aarch64_linux_android="$NDK_BIN/aarch64-linux-android${ANDROID_API:-21}-clang"
-  export CXX_aarch64_linux_android="$NDK_BIN/aarch64-linux-android${ANDROID_API:-21}-clang++"
+  source go/android-env.sh
+  export CC_aarch64_linux_android="$ANDROID_CC"
+  export CXX_aarch64_linux_android="$ANDROID_CXX"
   export AR_aarch64_linux_android="$NDK_BIN/llvm-ar"
   export RANLIB_aarch64_linux_android="$NDK_BIN/llvm-ranlib"
   export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC_aarch64_linux_android"
@@ -51,7 +46,7 @@ if [ "$PLATFORM" = android_arm64 ]; then
   mkdir -p "$(dirname "$TOOLCHAIN_FILE")"
   cat > "$TOOLCHAIN_FILE" <<EOF
 set(ANDROID_ABI arm64-v8a)
-set(ANDROID_PLATFORM android-${ANDROID_API:-21})
+set(ANDROID_PLATFORM android-$ANDROID_API)
 include("$NDK/build/cmake/android.toolchain.cmake")
 EOF
   export CMAKE_TOOLCHAIN_FILE_aarch64_linux_android="$TOOLCHAIN_FILE"

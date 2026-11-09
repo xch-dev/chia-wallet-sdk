@@ -17,6 +17,11 @@ Each release of the module includes the generated bindings and a prebuilt static
 | Windows | amd64 (MinGW), arm64 (LLVM MinGW) |
 | Android | arm64                             |
 
+cgo uses `gcc` by default, which doesn't target every platform, so set `CC` for these:
+
+- **Windows arm64:** `CC=aarch64-w64-mingw32-clang`, from [LLVM MinGW](https://github.com/mstorsjo/llvm-mingw).
+- **Android arm64:** the Android NDK's clang for API level 21 or later, such as `CC=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/<host>/bin/aarch64-linux-android21-clang`, along with `GOOS=android GOARCH=arm64 CGO_ENABLED=1`.
+
 ## Example
 
 ```go
