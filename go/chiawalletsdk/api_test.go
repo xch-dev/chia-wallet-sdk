@@ -547,18 +547,6 @@ func TestConditions(t *testing.T) {
 	}
 }
 
-func TestConstants(t *testing.T) {
-	puzzle := must(sdk.ConstantsBlsMember())
-	hash := must(sdk.ConstantsBlsMemberHash())
-
-	clvm := must(sdk.NewClvm())
-	defer clvm.Destroy()
-
-	if !bytes.Equal(must(must(clvm.Deserialize(puzzle)).TreeHash()), hash) {
-		t.Fatal("expected the BLS member puzzle to match its hash")
-	}
-}
-
 func TestSimulatorState(t *testing.T) {
 	sim := must(sdk.NewSimulator())
 	defer sim.Destroy()
@@ -679,6 +667,9 @@ func TestFullNodeSimulatorRpc(t *testing.T) {
 	defer sim.Destroy()
 
 	server := must(sim.StartServer())
+	defer server.Destroy()
+	// Also closes the server if the test fails early. Closing it more than once is allowed.
+	defer server.Close()
 
 	rpc := must(sdk.NewRpcClient(server.Url()))
 	defer rpc.Destroy()

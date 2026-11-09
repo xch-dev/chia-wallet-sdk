@@ -366,15 +366,25 @@ func BenchmarkOfferDecode(b *testing.B) {
 	}
 }
 
+// newPairs creates count coins with the given amount before a benchmark starts timing, so the
+// timer doesn't have to be paused in every iteration.
+func newPairs(b *testing.B, sim *sdk.Simulator, count int, amount uint64) []*sdk.BlsPairWithCoin {
+	b.Helper()
+
+	pairs := make([]*sdk.BlsPairWithCoin, count)
+	for i := range pairs {
+		pairs[i] = must(sim.Bls(amount))
+	}
+
+	b.ResetTimer()
+	return pairs
+}
+
 func BenchmarkXchSpendAndConfirm(b *testing.B) {
 	sim := must(sdk.NewSimulator())
 	defer sim.Destroy()
 
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		pair := must(sim.Bls(1_000_000))
-		b.StartTimer()
-
+	for _, pair := range newPairs(b, sim, b.N, 1_000_000) {
 		clvm := must(sdk.NewClvm())
 		delegated := must(clvm.DelegatedSpend([]*sdk.Program{
 			must(clvm.CreateCoin(pair.PuzzleHash(), 999_900, nil)),
@@ -398,15 +408,14 @@ func BenchmarkMultiCoinConsolidation(b *testing.B) {
 	sim := must(sdk.NewSimulator())
 	defer sim.Destroy()
 
+	allPairs := newPairs(b, sim, b.N*5, 200_000)
+
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		pairs := make([]*sdk.BlsPairWithCoin, 5)
-		secretKeys := make([]*sdk.SecretKey, 5)
-		for j := range pairs {
-			pairs[j] = must(sim.Bls(200_000))
-			secretKeys[j] = pairs[j].Sk()
+		pairs := allPairs[i*5 : i*5+5]
+		secretKeys := make([]*sdk.SecretKey, len(pairs))
+		for j, pair := range pairs {
+			secretKeys[j] = pair.Sk()
 		}
-		b.StartTimer()
 
 		clvm := must(sdk.NewClvm())
 		firstCoinID := must(pairs[0].Coin().CoinId())
@@ -445,11 +454,7 @@ func benchmarkActions(b *testing.B, amount uint64, build func(clvm *sdk.Clvm, pa
 	sim := must(sdk.NewSimulator())
 	defer sim.Destroy()
 
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		pair := must(sim.Bls(amount))
-		b.StartTimer()
-
+	for _, pair := range newPairs(b, sim, b.N, amount) {
 		clvm := must(sdk.NewClvm())
 		spendActions(b, sim, clvm, pair, build(clvm, pair)).Destroy()
 
