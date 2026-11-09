@@ -21,8 +21,10 @@ pub struct Issuance {
     pub extra_delta: i64,
     /// The kind of TAIL, if it's recognized.
     pub kind: IssuanceKind,
-    /// Whether the extra delta was authorized by a message from the vault. If not, the extra delta
-    /// may be different when the transaction is included in a block, so it should not be relied on.
+    /// Whether the extra delta was authorized by a message from the vault, to a CAT whose TAIL is an everything
+    /// with singleton TAIL of the vault itself (for a controlled vault, the controlled vault that sends the message).
+    /// If not, the extra delta may be different when the transaction is included in a block, so it should not be
+    /// relied on.
     pub verified: bool,
 }
 

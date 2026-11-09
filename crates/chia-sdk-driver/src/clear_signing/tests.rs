@@ -28,11 +28,12 @@ use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, BagAsset, BagCoin, BagFormat, BagPayment, Bulletin,
     BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2,
     ClearSigningAsset, CustodyInfo, Delta, Deltas, DriverError, DropCoin, FeeAction, HashedPtr, Id,
-    IssuanceKind, Layer, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton,
-    P2ConditionsOrSingletonVersion, ParsedAsset, ParsedBagPayment, ParsedChild, Puzzle, Reveals,
-    SecureTheBag, SecureTheBagInfo, SingleCatSpend, Spend, SpendContext, SpendKind, Spends,
-    TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction,
-    iter_final_children, parse_vault_transaction,
+    IssuanceKind, Layer, LinkedOffer, Nft, NftInfo, OfferPreSplitInfo, OptionInfo,
+    P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset, ParsedBagPayment,
+    ParsedChild, Puzzle, Reveals, SecureTheBag, SecureTheBagInfo, SingleCatSpend, Spend,
+    SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransactionData, TransferNftById,
+    TransferType, VaultOutput, VaultTransaction, get_extra_delta_message, iter_final_children,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1266,6 +1267,123 @@ fn test_clear_signing_unknown_tail_issuance() -> Result<()> {
     // The extra delta isn't verified, so it isn't counted as a melt.
     assert_eq!(cat_asset_flow(&tx.asset_flows).melted_amount, 0);
     assert_eq!(xch_asset_flow(&tx.asset_flows).issued_amount, 0);
+
+    Ok(())
+}
+
+/// Sends 1000 mojos from the vault to an eve CAT whose TAIL is an everything with singleton TAIL for
+/// `tail_launcher_id`, and whose p2 puzzle is a quoted list of conditions that runs it, then melts all of it. The vault
+/// sends the eve CAT the extra delta message, which the test wallet only does by itself for the vault's own TAIL.
+pub(super) fn melt_eve_cat(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    tail_launcher_id: Bytes32,
+) -> Result<TransactionData> {
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        tail_launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        vault.info.custody_hash.into(),
+    ))?;
+    let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+    let delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
+    let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
+
+    let actions = [Action::send(
+        Id::Xch,
+        eve_info.puzzle_hash().into(),
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(vault.p2_puzzle_hash);
+    vault.select_coins(sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let eve_coin = Coin::new(input_coin_id, eve_info.puzzle_hash().into(), 1000);
+    let eve = Cat::new(eve_coin, None, eve_info);
+
+    eve.spend(
+        ctx,
+        SingleCatSpend {
+            p2_spend: delegated_spend,
+            prev_coin_id: eve_coin.coin_id(),
+            next_coin_proof: CoinProof {
+                parent_coin_info: eve_coin.parent_coin_info,
+                inner_puzzle_hash: delegated_puzzle_hash,
+                amount: eve_coin.amount,
+            },
+            prev_subtotal: 0,
+            extra_delta: -1000,
+            revoke: false,
+        },
+    )?;
+
+    let mut vault_conditions = Conditions::new();
+
+    if tail_launcher_id != vault.info.launcher_id {
+        let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver);
+        let eve_coin_id = ctx.alloc(&eve_coin.coin_id())?;
+        vault_conditions =
+            vault_conditions.send_message(mode, get_extra_delta_message(-1000), vec![eve_coin_id]);
+    }
+
+    vault.partial_custom_spend(sim, ctx, &actions, spends, vault_conditions)
+}
+
+#[test]
+fn test_clear_signing_verified_issuance() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let result = melt_eve_cat(&mut sim, &mut ctx, &alice, alice.info.launcher_id)?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.issuances.len(), 1);
+    assert!(tx.issuances[0].verified);
+    assert_eq!(cat_asset_flow(&tx.asset_flows).melted_amount, 1000);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).issued_amount, 1000);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_issuance_of_another_singleton() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // The TAIL is authorized by a different singleton, so the vault's message to the eve CAT doesn't authorize the
+    // extra delta. The eve CAT's p2 puzzle could receive the message itself, so the melt isn't guaranteed.
+    let result = melt_eve_cat(&mut sim, &mut ctx, &alice, Bytes32::new([7; 32]))?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+
+    assert!(matches!(
+        parse_vault_transaction(
+            reveals,
+            &mut ctx,
+            alice.info.launcher_id,
+            result.delegated_spend,
+        ),
+        Err(DriverError::UnmatchedVaultMessage)
+    ));
 
     Ok(())
 }
@@ -3706,6 +3824,167 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     );
     assert_eq!(tx.received_payments[0].payment.amount, 1);
     assert_eq!(tx.received_payments[0].royalty_basis_points, None);
+
+    Ok(())
+}
+
+/// Reveals a requested payment to the vault from a settlement coin with the given puzzle, and has the vault assert
+/// its announcement.
+fn parse_asserted_settlement_payment(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    settlement_puzzle: NodePtr,
+) -> Result<Result<VaultTransaction, DriverError>> {
+    parse_asserted_settlement_payments(ctx, vault, &[settlement_puzzle])
+}
+
+/// Reveals the same requested payment to the vault for each settlement puzzle, and asserts each of their
+/// announcements from the vault.
+fn parse_asserted_settlement_payments(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    settlement_puzzles: &[NodePtr],
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::new([9; 32]),
+        vec![Payment::new(vault.p2_puzzle_hash, 1, Memos::None)],
+    );
+    let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
+        notarized_payment.clone(),
+    ]))?;
+    let payment_hash = tree_hash_notarized_payment(ctx, &notarized_payment);
+
+    let mut coin_spends = Vec::new();
+    let mut conditions = Conditions::new();
+
+    for &settlement_puzzle in settlement_puzzles {
+        let settlement_puzzle_hash: Bytes32 = ctx.tree_hash(settlement_puzzle).into();
+
+        // Requested payments are revealed as coin spends with a default parent coin id.
+        coin_spends.push(CoinSpend::new(
+            Coin::new(Bytes32::default(), settlement_puzzle_hash, 1),
+            ctx.serialize(&settlement_puzzle)?,
+            ctx.serialize(&settlement_solution)?,
+        ));
+
+        conditions = conditions
+            .assert_puzzle_announcement(announcement_id(settlement_puzzle_hash, payment_hash));
+    }
+
+    let delegated_spend = ctx.delegated_spend(conditions.create_coin(
+        vault.info.custody_hash.into(),
+        1,
+        Memos::None,
+    ))?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        vault.info.launcher_id,
+        delegated_spend,
+    ))
+}
+
+#[rstest]
+fn test_clear_signing_asserted_nft_payment_with_owner(
+    #[values(None, Some(Bytes32::new([8; 32])))] owner: Option<Bytes32>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let info = NftInfo::new(
+        Bytes32::new([1; 32]),
+        HashedPtr::NIL,
+        NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+        owner,
+        Bytes32::new([2; 32]),
+        300,
+        SETTLEMENT_PAYMENT_HASH.into(),
+    );
+    let puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
+
+    // The settlement coin's puzzle hash commits to the NFT's owner, so the announcement is matched for the owner that
+    // the requested payment is revealed with.
+    let tx = parse_asserted_settlement_payment(&mut ctx, &alice, puzzle)??;
+
+    assert_eq!(tx.asserted_payments.len(), 1);
+    assert_eq!(
+        tx.asserted_payments[0].asset,
+        ClearSigningAsset::Nft {
+            launcher_id: info.launcher_id,
+            metadata: info.metadata,
+            metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: info.royalty_puzzle_hash,
+            royalty_basis_points: info.royalty_basis_points,
+        }
+    );
+    assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_asserted_nft_payment_with_two_owners() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let puzzles = [None, Some(Bytes32::new([8; 32]))]
+        .into_iter()
+        .map(|owner| {
+            NftInfo::new(
+                Bytes32::new([1; 32]),
+                HashedPtr::NIL,
+                NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+                owner,
+                Bytes32::new([2; 32]),
+                300,
+                SETTLEMENT_PAYMENT_HASH.into(),
+            )
+            .into_layers(settlement)
+            .construct_puzzle(&mut ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // The same payment is asserted for settlement coins of the NFT with two different owners. Only one coin of the NFT
+    // can exist, so the payment is only reported once.
+    let tx = parse_asserted_settlement_payments(&mut ctx, &alice, &puzzles)??;
+
+    assert_eq!(tx.asserted_payments.len(), 1);
+    assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_asserted_option_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let info = OptionInfo::new(
+        Bytes32::new([1; 32]),
+        Bytes32::new([2; 32]),
+        Bytes32::new([3; 32]),
+        SETTLEMENT_PAYMENT_HASH.into(),
+    );
+    let puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
+
+    // Option contracts can't be represented as a clear signing asset, so an asserted payment of one can't be reported,
+    // and isn't silently left out either.
+    assert!(matches!(
+        parse_asserted_settlement_payment(&mut ctx, &alice, puzzle)?,
+        Err(DriverError::UnsupportedAssertedOptionPayment)
+    ));
 
     Ok(())
 }

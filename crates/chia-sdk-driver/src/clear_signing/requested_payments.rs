@@ -6,7 +6,9 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
 
-use crate::{AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
+use crate::{
+    AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, OptionInfo, Reveals, SingletonInfo,
+};
 
 /// A revealed notarized payment of a settlement coin whose announcement is asserted, so the transaction is only
 /// valid if some settlement coin of the asset makes it.
@@ -55,7 +57,7 @@ pub enum ClearSigningAsset {
         /// can be taken back by its issuer.
         hidden_puzzle_hash: Option<Bytes32>,
     },
-    /// An NFT.
+    /// An NFT. Its current owner isn't included, since it doesn't control the NFT.
     Nft {
         /// The launcher id.
         launcher_id: Bytes32,
@@ -116,12 +118,18 @@ fn royalty_basis_points(asset_info: &AssetInfo, nonce: Bytes32, payment: &Paymen
 }
 
 /// The revealed requested payments whose puzzle announcements are asserted in the [`Facts`], deduplicated by
-/// announcement id.
+/// announcement id (and for NFTs, by payment, since only one coin of an NFT can exist).
 ///
 /// Requested payments are revealed by settlement spends in the [`Reveals`]. A payment is only included if the
 /// announcement of a settlement coin of its asset (XCH, or a CAT or NFT whose details were revealed) is asserted,
-/// which means the transaction requires the payment to be made. Payments of option contracts aren't included, and NFT
-/// payments are only matched for an NFT without an owner.
+/// which means the transaction requires the payment to be made. An NFT payment is matched for each current owner that
+/// a settlement spend of the NFT was revealed with, since the settlement coin's puzzle hash commits to it (the owner
+/// isn't part of the [`ClearSigningAsset`]).
+///
+/// # Errors
+///
+/// Returns [`DriverError::UnsupportedAssertedOptionPayment`] if a payment of an option contract is asserted, since an
+/// option contract can't be represented as a [`ClearSigningAsset`].
 pub fn parse_asserted_requested_payments(
     reveals: &Reveals,
     facts: &Facts,
@@ -181,39 +189,78 @@ pub fn parse_asserted_requested_payments(
     }
 
     for (&launcher_id, notarized_payments) in &requested_payments.nfts {
-        for notarized_payment in notarized_payments {
-            let Some(info) = asset_info.nft(launcher_id) else {
-                continue;
-            };
+        let Some(info) = asset_info.nft(launcher_id) else {
+            continue;
+        };
 
+        // The settlement coin's puzzle hash commits to the NFT's current owner, which is whatever the requested
+        // payments were revealed with. Each owner is a different settlement coin, whose announcement is checked
+        // separately.
+        let settlement_puzzle_hashes: Vec<Bytes32> = reveals
+            .nft_owners(launcher_id)
+            .map(|current_owner| {
+                NftInfo::new(
+                    launcher_id,
+                    info.metadata,
+                    info.metadata_updater_puzzle_hash,
+                    current_owner,
+                    info.royalty_puzzle_hash,
+                    info.royalty_basis_points,
+                    SETTLEMENT_PAYMENT_HASH.into(),
+                )
+                .puzzle_hash()
+                .into()
+            })
+            .collect();
+
+        // Only one coin of the NFT can exist, so the same payment can't be made by more than one of its settlement
+        // coins, and it's only reported once.
+        let mut seen_payments = HashSet::new();
+
+        for notarized_payment in notarized_payments {
             let hash = tree_hash_notarized_payment(allocator, notarized_payment);
-            let puzzle_hash = NftInfo::new(
-                launcher_id,
-                info.metadata,
-                info.metadata_updater_puzzle_hash,
-                None,
-                info.royalty_puzzle_hash,
-                info.royalty_basis_points,
-                SETTLEMENT_PAYMENT_HASH.into(),
-            )
-            .puzzle_hash();
+
+            let is_asserted = settlement_puzzle_hashes.iter().any(|&puzzle_hash| {
+                let announcement_id = announcement_id(puzzle_hash, hash);
+                facts.is_puzzle_announcement_asserted(announcement_id)
+            });
+
+            if is_asserted && seen_payments.insert(hash) {
+                payments.push(AssertedNotarizedPayment {
+                    asset: ClearSigningAsset::Nft {
+                        launcher_id,
+                        metadata: info.metadata,
+                        metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
+                        royalty_puzzle_hash: info.royalty_puzzle_hash,
+                        royalty_basis_points: info.royalty_basis_points,
+                    },
+                    notarized_payment: notarized_payment.clone(),
+                });
+            }
+        }
+    }
+
+    // An option contract can't be represented as a `ClearSigningAsset`, so an asserted payment of one can't be
+    // reported. It's an error rather than being left out, since the transaction requires the payment to be made.
+    for (&launcher_id, notarized_payments) in &requested_payments.options {
+        let Some(info) = asset_info.option(launcher_id) else {
+            continue;
+        };
+
+        let puzzle_hash = OptionInfo::new(
+            launcher_id,
+            info.underlying_coin_id,
+            info.underlying_delegated_puzzle_hash,
+            SETTLEMENT_PAYMENT_HASH.into(),
+        )
+        .puzzle_hash();
+
+        for notarized_payment in notarized_payments {
+            let hash = tree_hash_notarized_payment(allocator, notarized_payment);
             let announcement_id = announcement_id(puzzle_hash.into(), hash);
 
-            let payment = AssertedNotarizedPayment {
-                asset: ClearSigningAsset::Nft {
-                    launcher_id,
-                    metadata: info.metadata,
-                    metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
-                    royalty_puzzle_hash: info.royalty_puzzle_hash,
-                    royalty_basis_points: info.royalty_basis_points,
-                },
-                notarized_payment: notarized_payment.clone(),
-            };
-
-            if facts.is_puzzle_announcement_asserted(announcement_id)
-                && seen_announcements.insert(announcement_id)
-            {
-                payments.push(payment);
+            if facts.is_puzzle_announcement_asserted(announcement_id) {
+                return Err(DriverError::UnsupportedAssertedOptionPayment);
             }
         }
     }

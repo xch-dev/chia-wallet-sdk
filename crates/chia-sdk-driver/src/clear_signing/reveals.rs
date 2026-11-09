@@ -8,7 +8,7 @@ use chia_puzzle_types::singleton::SingletonArgs;
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssetInfo, BagAsset, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle,
@@ -114,6 +114,7 @@ pub struct Reveals {
     bags: HashMap<(Bytes32, BagAsset), Arc<SecureTheBag>>,
     requested_payments: RequestedPayments,
     asset_info: AssetInfo,
+    nft_owners: HashMap<Bytes32, IndexSet<Option<Bytes32>>>,
     vault_nonces: BTreeSet<usize>,
     controlled_vaults: IndexMap<Bytes32, RevealedControlledVault>,
     signing_vault: Option<RevealedSigningVault>,
@@ -131,6 +132,7 @@ impl Default for Reveals {
             bags: HashMap::new(),
             requested_payments: RequestedPayments::default(),
             asset_info: AssetInfo::default(),
+            nft_owners: HashMap::new(),
             vault_nonces,
             controlled_vaults: IndexMap::new(),
             signing_vault: None,
@@ -204,18 +206,26 @@ impl Reveals {
     /// Reveals settlement payment spends, which are used to determine what would be paid to us if
     /// the announcement from the settlement puzzle were to be asserted. Note that requested payments
     /// are ignored if they aren't asserted.
+    ///
+    /// The current owner of a requested NFT is recorded too, since the settlement coin's puzzle hash (and therefore
+    /// the announcement of its payments) commits to it.
     pub fn reveal_settlement_payment(
         &mut self,
         allocator: &mut Allocator,
         outer_puzzle: Puzzle,
         inner_settlement_solution: NodePtr,
     ) -> Result<(), DriverError> {
-        self.requested_payments.parse(
+        if let Some((launcher_id, current_owner)) = self.requested_payments.parse_settlement(
             allocator,
             &mut self.asset_info,
             outer_puzzle,
             inner_settlement_solution,
-        )?;
+        )? {
+            self.nft_owners
+                .entry(launcher_id)
+                .or_default()
+                .insert(current_owner);
+        }
 
         Ok(())
     }
@@ -322,6 +332,16 @@ impl Reveals {
     /// The CAT, NFT, and option details learned from the revealed settlement spends.
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
+    }
+
+    /// The current owners (`None` for no owner) that the revealed settlement spends of the NFT with the launcher id
+    /// have, in the order they were revealed.
+    pub(crate) fn nft_owners(&self, launcher_id: Bytes32) -> impl Iterator<Item = Option<Bytes32>> {
+        self.nft_owners
+            .get(&launcher_id)
+            .into_iter()
+            .flatten()
+            .copied()
     }
 
     /// The revealed coin spends, in the order they were revealed. Settlement payment reveals aren't included.

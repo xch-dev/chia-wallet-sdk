@@ -164,7 +164,8 @@ pub struct ActionLayer<S, P = ()> {
 #[derive(Debug, Clone)]
 pub struct ActionLayerSolution<F> {
     /// The merkle proofs for [`action_spends`](Self::action_spends), in the same order. Use
-    /// [`ActionLayer::get_proofs`] to compute them.
+    /// [`ActionLayer::get_proofs`] to compute them. [`Layer::construct_solution`] returns
+    /// [`DriverError::InvalidActionLayerSolution`] if there isn't exactly one per action spend.
     ///
     /// The serialized solution only includes the proof for the first use of each action puzzle.
     pub proofs: Vec<MerkleProof>,
@@ -406,6 +407,13 @@ where
         let solution =
             RawActionLayerSolution::<NodePtr, NodePtr, NodePtr>::from_clvm(allocator, solution)?;
 
+        // The selectors are in the reverse order of the solutions, so the first solution is for
+        // the action that the last selector picks. The puzzle stops once it runs out of selectors
+        // and ignores any extra solutions, but fails if a selector has no solution.
+        if solution.solutions.len() < solution.selectors_and_proofs.len() {
+            return Err(DriverError::InvalidActionLayerSolution);
+        }
+
         let mut actions = Vec::<NodePtr>::with_capacity(solution.solutions.len());
         let mut proofs = Vec::<MerkleProof>::with_capacity(solution.solutions.len());
         let mut selector_proofs = HashMap::<u32, MerkleProof>::new();
@@ -421,13 +429,24 @@ where
 
             proofs.push(proof);
 
+            // The selector is the path to an item of the puzzles list, which is 2 for the first
+            // item, and `2 * previous + 1` for each item after that. Anything else would pick
+            // something other than one of the revealed puzzles.
             let mut index = 0;
-            let mut remaining_selector = selector;
-            while remaining_selector > 2 {
+            let mut item_selector = 2_u64;
+            while item_selector < u64::from(selector) {
                 index += 1;
-                remaining_selector /= 2;
+                item_selector = item_selector * 2 + 1;
             }
-            actions.push(solution.puzzles[index]);
+            if item_selector != u64::from(selector) {
+                return Err(DriverError::InvalidActionLayerSolution);
+            }
+            actions.push(
+                *solution
+                    .puzzles
+                    .get(index)
+                    .ok_or(DriverError::InvalidActionLayerSolution)?,
+            );
         }
 
         let action_spends = solution
@@ -503,6 +522,10 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
+        if solution.action_spends.len() != solution.proofs.len() {
+            return Err(DriverError::InvalidActionLayerSolution);
+        }
+
         let mut puzzle_to_selector = HashMap::<Bytes32, u32>::new();
         let mut next_selector = 2;
 
@@ -546,5 +569,192 @@ where
             finalizer_solution: solution.finalizer_solution,
         }
         .to_clvm(ctx)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_solution_with_out_of_range_selector() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        // The selector `5` refers to the second puzzle, but only one is revealed.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![NodePtr::NIL],
+            selectors_and_proofs: vec![(5, Some(MerkleProof::new(0, vec![])))],
+            solutions: vec![NodePtr::NIL],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        assert!(matches!(
+            ActionLayer::<u64>::parse_solution(ctx, solution),
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_solution_with_mismatched_solutions() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        // There are two selectors, but only one solution.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![NodePtr::NIL],
+            selectors_and_proofs: vec![(2, Some(MerkleProof::new(0, vec![]))), (2, None)],
+            solutions: vec![NodePtr::NIL],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        assert!(matches!(
+            ActionLayer::<u64>::parse_solution(ctx, solution),
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
+    }
+
+    #[rstest::rstest]
+    #[case(0)]
+    #[case(1)]
+    #[case(3)]
+    #[case(4)]
+    #[case(6)]
+    #[case(7)]
+    #[case(8)]
+    #[case(10)]
+    fn test_parse_solution_with_invalid_selector(#[case] selector: u32) -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        // None of these selectors are the path to an item of the list, but each of them used to be
+        // decoded as the index of one of the three puzzles.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![NodePtr::NIL, NodePtr::NIL, NodePtr::NIL],
+            selectors_and_proofs: vec![(selector, Some(MerkleProof::new(0, vec![])))],
+            solutions: vec![NodePtr::NIL],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        assert!(matches!(
+            ActionLayer::<u64>::parse_solution(ctx, solution),
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_solution_with_extra_solutions() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let action = ctx.alloc(&1)?;
+        let action_solution = ctx.alloc(&10)?;
+        let extra_solution = ctx.alloc(&20)?;
+
+        // The puzzle ignores solutions after the last selector, so the spend is still valid.
+        let solution = ctx.alloc(&RawActionLayerSolution::<NodePtr, NodePtr, NodePtr> {
+            puzzles: vec![action],
+            selectors_and_proofs: vec![(2, Some(MerkleProof::new(0, vec![])))],
+            solutions: vec![action_solution, extra_solution],
+            finalizer_solution: NodePtr::NIL,
+        })?;
+
+        let parsed = ActionLayer::<u64>::parse_solution(ctx, solution)?;
+
+        assert_eq!(parsed.action_spends.len(), 1);
+        assert_eq!(parsed.action_spends[0].puzzle, action);
+        assert_eq!(parsed.action_spends[0].solution, action_solution);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_solution_round_trip_with_repeated_actions() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let first = ctx.alloc(&1)?;
+        let second = ctx.alloc(&2)?;
+        let first_hash: Bytes32 = ctx.tree_hash(first).into();
+        let second_hash: Bytes32 = ctx.tree_hash(second).into();
+        let layer = ActionLayer::<u64>::from_action_puzzle_hashes(
+            &[first_hash, second_hash],
+            0,
+            Finalizer::Default {
+                hint: Bytes32::default(),
+            },
+        );
+        let proofs = layer
+            .get_proofs(
+                &[first_hash, second_hash],
+                &[first_hash, second_hash, first_hash],
+            )
+            .expect("the actions are in the merkle tree");
+
+        let solutions = [ctx.alloc(&10)?, ctx.alloc(&20)?, ctx.alloc(&30)?];
+        let action_spends = vec![
+            Spend::new(first, solutions[0]),
+            Spend::new(second, solutions[1]),
+            Spend::new(first, solutions[2]),
+        ];
+
+        let solution = layer.construct_solution(
+            ctx,
+            ActionLayerSolution {
+                proofs,
+                action_spends: action_spends.clone(),
+                finalizer_solution: NodePtr::NIL,
+            },
+        )?;
+        let parsed = ActionLayer::<u64>::parse_solution(ctx, solution)?;
+
+        assert_eq!(parsed.action_spends.len(), 3);
+        for (parsed, expected) in parsed.action_spends.iter().zip(&action_spends) {
+            assert_eq!(ctx.tree_hash(parsed.puzzle), ctx.tree_hash(expected.puzzle));
+            assert_eq!(
+                ctx.tree_hash(parsed.solution),
+                ctx.tree_hash(expected.solution)
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_construct_solution_with_missing_proof() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+
+        let action = ctx.alloc(&1)?;
+        let action_hash: Bytes32 = ctx.tree_hash(action).into();
+        let layer = ActionLayer::<u64>::from_action_puzzle_hashes(
+            &[action_hash],
+            0,
+            Finalizer::Default {
+                hint: Bytes32::default(),
+            },
+        );
+        let proofs = layer
+            .get_proofs(&[action_hash], &[action_hash])
+            .expect("the action is in the merkle tree");
+
+        let result = layer.construct_solution(
+            ctx,
+            ActionLayerSolution {
+                proofs,
+                action_spends: vec![
+                    Spend::new(action, NodePtr::NIL),
+                    Spend::new(action, NodePtr::NIL),
+                ],
+                finalizer_solution: NodePtr::NIL,
+            },
+        );
+
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidActionLayerSolution)
+        ));
+
+        Ok(())
     }
 }

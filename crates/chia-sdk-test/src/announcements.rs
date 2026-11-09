@@ -32,11 +32,6 @@ pub struct Announcements {
 /// shortened to the hex of their first 4 bytes. This is useful for finding why a spend bundle
 /// fails with an announcement error.
 ///
-/// Note that the check for unasserted announcements currently computes the announcement id with
-/// the coin id (or puzzle hash) of the asserting spend rather than the creating spend. So an
-/// announcement that is created by one spend and asserted by a spend with a different coin id
-/// (or puzzle hash) is reported as not asserted, and this function panics.
-///
 /// # Panics
 ///
 /// Panics if a spend can't be run with [`announcements_for_spend`], or if any announcement is
@@ -110,11 +105,10 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
         }
 
         for created_coin in &announcements.created_coin {
-            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
-                a.asserted_coin.iter().any(|&id| {
-                    id == announcement_id(coin_spends[i].coin.coin_id(), created_coin.clone())
-                })
-            });
+            let id = announcement_id(coin_spends[i].coin.coin_id(), created_coin.clone());
+            let asserted = all_announcements
+                .iter()
+                .any(|a| a.asserted_coin.contains(&id));
 
             if !asserted {
                 println!(
@@ -126,11 +120,10 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
         }
 
         for created_puzzle in &announcements.created_puzzle {
-            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
-                a.asserted_puzzle.iter().any(|&id| {
-                    id == announcement_id(coin_spends[i].coin.puzzle_hash, created_puzzle.clone())
-                })
-            });
+            let id = announcement_id(coin_spends[i].coin.puzzle_hash, created_puzzle.clone());
+            let asserted = all_announcements
+                .iter()
+                .any(|a| a.asserted_puzzle.contains(&id));
 
             if !asserted {
                 println!(
@@ -198,4 +191,49 @@ pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announc
     }
 
     Ok(announcements)
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::Coin;
+
+    use crate::{to_program, to_puzzle};
+
+    use super::*;
+
+    #[test]
+    fn test_announcements_asserted_by_another_spend() -> anyhow::Result<()> {
+        let (creator_puzzle_hash, creator_puzzle) = to_puzzle(1)?;
+        let (asserter_puzzle_hash, asserter_puzzle) = to_puzzle(2)?;
+        assert_ne!(creator_puzzle_hash, asserter_puzzle_hash);
+
+        let creator = Coin::new(Bytes32::new([1; 32]), creator_puzzle_hash, 1);
+        let asserter = Coin::new(Bytes32::new([2; 32]), asserter_puzzle_hash, 1);
+
+        let message = Bytes::from(b"hello".to_vec());
+
+        let creator_solution = to_program((
+            CreateCoinAnnouncement::new(message.clone()),
+            (CreatePuzzleAnnouncement::new(message.clone()), ()),
+        ))?;
+
+        // The asserting puzzle is `2`, so the solution is `(conditions)`.
+        let asserter_solution = to_program([(
+            AssertCoinAnnouncement::new(announcement_id(creator.coin_id(), message.clone())),
+            (
+                AssertPuzzleAnnouncement::new(announcement_id(
+                    creator.puzzle_hash,
+                    message.clone(),
+                )),
+                (),
+            ),
+        )])?;
+
+        debug_announcements(&[
+            CoinSpend::new(creator, creator_puzzle, creator_solution),
+            CoinSpend::new(asserter, asserter_puzzle, asserter_solution),
+        ]);
+
+        Ok(())
+    }
 }

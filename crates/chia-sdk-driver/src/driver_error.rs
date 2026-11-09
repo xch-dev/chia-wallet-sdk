@@ -152,9 +152,11 @@ pub enum DriverError {
     #[error("invalid merkle proof")]
     InvalidMerkleProof,
 
-    /// A puzzle isn't recognized. This isn't currently returned by this crate.
-    #[error("unknown puzzle")]
-    UnknownPuzzle,
+    /// An action layer solution is malformed. Either a selector doesn't pick one of the revealed
+    /// action puzzles, a selector has no solution, or the number of merkle proofs doesn't match the
+    /// number of action spends.
+    #[error("invalid action layer solution")]
+    InvalidActionLayerSolution,
 
     /// An m-of-n vault spend doesn't provide spends for enough distinct members to meet the
     /// required number.
@@ -201,11 +203,6 @@ pub enum DriverError {
     /// A settle action applies to a coin that isn't spent with the settlement payments puzzle.
     #[error("cannot settle from spend")]
     CannotSettleFromSpend,
-
-    /// A singleton spend was finalized more than once. This isn't currently returned by this
-    /// crate.
-    #[error("singleton spend already finalized")]
-    AlreadyFinalized,
 
     /// An action needs a coin to create its output from, but there isn't one that can be used.
     /// For example, an earlier action already recreated or melted the singleton.
@@ -436,10 +433,6 @@ pub enum DriverError {
     #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
 
-    /// Vault launcher ids conflict. This isn't currently returned by this crate.
-    #[error("conflicting vault launcher ids")]
-    ConflictingVaultLauncherIds,
-
     /// The conditions of a spend don't match the message that authorizes it.
     #[error("conditions do not match message")]
     WrongConditions,
@@ -448,6 +441,11 @@ pub enum DriverError {
     /// was sent to.
     #[error("vault message did not match any custody auth or TAIL invocation")]
     UnmatchedVaultMessage,
+
+    /// When clear signing, the transaction asserts a requested payment of an option contract,
+    /// which can't be reported as a clear signing asset.
+    #[error("asserted requested payment is for an option contract, which can't be clear signed")]
+    UnsupportedAssertedOptionPayment,
 
     /// A coin spend requires a message from the vault, but none was sent to it.
     #[error("missing message for linked custody puzzle")]
@@ -462,11 +460,6 @@ pub enum DriverError {
     /// clear signed.
     #[error("wrong linked offer launcher id")]
     WrongLinkedOfferLauncherId,
-
-    /// A bulletin spend is missing its required conditions. This isn't currently returned by
-    /// this crate.
-    #[error("missing required bulletin conditions")]
-    MissingBulletinConditions,
 
     /// A p2 conditions or singleton spend doesn't assert its own coin id, so the spend path could
     /// be swapped without invalidating the vault's message.

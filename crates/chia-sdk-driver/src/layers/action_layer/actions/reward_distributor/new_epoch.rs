@@ -9,6 +9,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::bps_of;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorCreatedAnnouncementPrefix, RewardDistributorNewEpochActionLog,
@@ -134,7 +135,8 @@ impl RewardDistributorNewEpochAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
+    /// Returns an error if any of the spends can't be created, or if the fee doesn't fit in a
+    /// [`u64`], which is only possible if `fee_bps` is over 10,000.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -151,7 +153,7 @@ impl RewardDistributorNewEpochAction {
             } else {
                 0
             };
-        let fee = epoch_total_rewards * distributor.info.constants.fee_bps / 10000;
+        let fee = bps_of(epoch_total_rewards, distributor.info.constants.fee_bps)?;
 
         // calculate announcement needed to ensure everything's happening as expected
         let new_epoch_announcement = RewardDistributorCreatedAnnouncementPrefix::new_epoch(
