@@ -87,7 +87,8 @@ impl RewardDistributorAddIncentivesAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the action spend can't be created.
+    /// Returns an error if the action spend can't be created, or if the fee doesn't fit in a
+    /// [`u64`], which is only possible if `fee_bps` is over 10,000.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -109,7 +110,9 @@ impl RewardDistributorAddIncentivesAction {
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorAddIncentivesActionSolution {
             amount,
-            manager_fee: amount * distributor.info.constants.fee_bps / 10000,
+            manager_fee: u64::try_from(
+                u128::from(amount) * u128::from(distributor.info.constants.fee_bps) / 10000,
+            )?,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
