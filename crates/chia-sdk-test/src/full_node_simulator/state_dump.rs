@@ -44,6 +44,35 @@ struct DumpBlock {
 }
 
 impl FullNodeSimulator {
+    /// Serializes the chain to a JSON string that can be loaded with
+    /// [`FullNodeSimulator::restore_state`].
+    ///
+    /// The dump includes the canonical blocks and their transactions, the coins they created, and
+    /// the simulator's keys and random number generator state. It doesn't include the mempool,
+    /// orphaned blocks, pending events, or coins added with [`FullNodeSimulator::insert_coin`]
+    /// or [`FullNodeSimulator::new_coin`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StateDumpError::UnsupportedManualCoinSpend`] if a block spends a coin that was
+    /// added manually, since that spend couldn't be replayed. Returns another
+    /// [`StateDumpError`] if the state can't be serialized.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_sdk_test::FullNodeSimulator;
+    ///
+    /// let mut sim = FullNodeSimulator::new();
+    /// sim.farm_block(2);
+    /// let json = sim.dump_state()?;
+    ///
+    /// let mut restored = FullNodeSimulator::with_seed(0);
+    /// restored.restore_state(&json)?;
+    /// assert_eq!(restored.height(), sim.height());
+    /// assert_eq!(restored.header_hash(), sim.header_hash());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn dump_state(&self) -> Result<String, SimulatorError> {
         let canonical_coin_ids = self.canonical_coin_ids()?;
         let blocks = self
@@ -103,6 +132,16 @@ impl FullNodeSimulator {
             .map_err(|error| StateDumpError::Serialize(error.to_string()).into())
     }
 
+    /// Replaces this simulator with the state from a JSON string created by
+    /// [`FullNodeSimulator::dump_state`].
+    ///
+    /// Every block is replayed and checked against the dumped coins, spends, and hints. The
+    /// mempool and pending events are cleared.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`StateDumpError`] if the JSON can't be parsed, has an unsupported format or
+    /// version, or is inconsistent. In that case this simulator is unchanged.
     pub fn restore_state(&mut self, state_json: &str) -> Result<(), SimulatorError> {
         let dump: SimulatorStateDump = serde_json::from_str(state_json)
             .map_err(|error| StateDumpError::Deserialize(error.to_string()))?;

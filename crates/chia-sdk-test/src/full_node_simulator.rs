@@ -34,6 +34,57 @@ const SIMULATOR_GENESIS_CHALLENGE: Bytes32 = Bytes32::new(hex!(
     "eb8c4d20b322be8d9fddbf9412016bdffe9a2901d7edb0e364e94266d0e095f7"
 ));
 
+/// An in-memory full node with a mempool, block farming, reverts, and reorgs.
+///
+/// Unlike the [`Simulator`](crate::Simulator), transactions submitted with
+/// [`FullNodeSimulator::push_tx`] wait in a mempool until [`FullNodeSimulator::farm_block`] is
+/// called. The query methods return the same response types as the full node RPC in
+/// `chia-sdk-coinset`, so this is a good fit for testing code that talks to a full node. With
+/// the `full-node-simulator-http` feature, it can also be served over HTTP.
+///
+/// The chain starts with a genesis block at height 1 whose timestamp is the current system time.
+/// It contains two prefarm coins, worth 21 million XCH in total, locked to
+/// [`FullNodeSimulator::get_prefarm_puzzle_hash`]. Every farmed block adds a 2 XCH reward coin
+/// for [`FullNodeSimulator::get_farming_ph`] and advances the timestamp by one second.
+///
+/// Spends are validated with the simulator's genesis challenge as the `AGG_SIG_ME` additional
+/// data (see [`FullNodeSimulator::get_aggsig_additional_data`]). This differs from the testnet11
+/// value used by [`sign_transaction`](crate::sign_transaction), so BLS signatures must be made
+/// against this value instead.
+///
+/// # Example
+///
+/// ```
+/// use chia_bls::Signature;
+/// use chia_protocol::{CoinSpend, SpendBundle};
+/// use chia_sdk_test::{FullNodeSimulator, to_program, to_puzzle};
+/// use chia_sdk_types::conditions::{CreateCoin, Memos};
+/// use clvmr::NodePtr;
+///
+/// let mut sim = FullNodeSimulator::new();
+/// assert_eq!(sim.height(), 1);
+///
+/// // The puzzle `1` returns its solution as its conditions, so no signature is needed.
+/// let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+/// let coin = sim.new_coin(puzzle_hash, 1_000);
+///
+/// let solution = to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 900, Memos::None)])?;
+/// let spend_bundle = SpendBundle::new(
+///     vec![CoinSpend::new(coin, puzzle_reveal, solution)],
+///     Signature::default(),
+/// );
+///
+/// // The transaction waits in the mempool until a block is farmed.
+/// assert!(sim.push_tx(spend_bundle).success);
+/// let record = sim.get_coin_record_by_name(coin.coin_id()).coin_record.unwrap();
+/// assert!(!record.spent);
+///
+/// sim.farm_block(1);
+/// let record = sim.get_coin_record_by_name(coin.coin_id()).coin_record.unwrap();
+/// assert!(record.spent);
+/// assert_eq!(record.spent_block_index, sim.height());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct FullNodeSimulator {
     rng: ChaCha8Rng,
@@ -54,10 +105,15 @@ impl Default for FullNodeSimulator {
 }
 
 impl FullNodeSimulator {
+    /// Creates a simulator with the default seed of 1337.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Creates a simulator whose master secret key and random number generator are derived from
+    /// `seed`.
+    ///
+    /// The genesis timestamp still comes from the system clock.
     pub fn with_seed(seed: u64) -> Self {
         Self::with_secret_key_and_rng(
             Self::secret_key_from_seed(seed),
@@ -65,6 +121,10 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Creates a simulator with the given master secret key.
+    ///
+    /// The prefarm coins are locked to the standard puzzle of the synthetic key for the hardened
+    /// wallet key at index 1. The random number generator is seeded with the secret key bytes.
     pub fn with_secret_key(root_secret_key: SecretKey) -> Self {
         let mut seed = [0; 32];
         seed.copy_from_slice(&root_secret_key.to_bytes());
@@ -171,10 +231,18 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Adds an unspent coin to the coin set, confirmed at the current height and timestamp.
+    ///
+    /// The coin isn't part of any block, so it isn't reverted by
+    /// [`FullNodeSimulator::revert_blocks`]. With the `serde` feature,
+    /// `FullNodeSimulator::dump_state` leaves it out and fails if a block spends it.
     pub fn insert_coin(&mut self, coin: Coin) {
         self.insert_coin_record(coin, false, self.state.height, self.state.next_timestamp);
     }
 
+    /// Creates an unspent coin with a random parent coin id and adds it to the coin set.
+    ///
+    /// See [`FullNodeSimulator::insert_coin`].
     pub fn new_coin(&mut self, puzzle_hash: Bytes32, amount: u64) -> Coin {
         let mut parent_coin_info = [0; 32];
         self.rng.fill(&mut parent_coin_info);

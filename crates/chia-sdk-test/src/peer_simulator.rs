@@ -23,6 +23,41 @@ mod ws_connection;
 pub use config::*;
 pub use error::*;
 
+/// A local websocket server that exposes a [`Simulator`] through the Chia wallet peer protocol.
+///
+/// This lets you test code that uses a `chia-sdk-client` [`Peer`]. The server listens on an
+/// ephemeral port on `127.0.0.1` and runs on a Tokio task, so it must be created inside a Tokio
+/// runtime. It stops when this value is dropped. Connections use plain websockets without TLS.
+///
+/// The simulator supports sending transactions, coin and puzzle state requests and
+/// subscriptions, and puzzle solution and children requests. Each accepted transaction creates a
+/// new block, after which connected peers receive a `NewPeakWallet` message and subscribers
+/// receive coin state updates.
+///
+/// [`PeerSimulator`] dereferences to the inner [`Mutex<Simulator>`](Mutex), so you can lock it
+/// to create coins or inspect the state.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_test::PeerSimulator;
+///
+/// # tokio::runtime::Runtime::new()?.block_on(async {
+/// let sim = PeerSimulator::new().await?;
+/// let peer = sim.connect().await?;
+///
+/// let coin = sim.lock().await.new_coin(Bytes32::default(), 1_000);
+///
+/// let response = peer
+///     .request_coin_state(vec![coin.coin_id()], None, sim.config().genesis_challenge, false)
+///     .await?
+///     .unwrap();
+/// assert_eq!(response.coin_states[0].coin, coin);
+/// # Ok::<(), anyhow::Error>(())
+/// # })?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug)]
 pub struct PeerSimulator {
     config: Arc<PeerSimulatorConfig>,
@@ -41,10 +76,21 @@ impl Deref for PeerSimulator {
 }
 
 impl PeerSimulator {
+    /// Starts a peer simulator with the default [`PeerSimulatorConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PeerSimulatorError::Io`] if the listener can't be bound.
     pub async fn new() -> Result<Self, PeerSimulatorError> {
         Self::with_config(PeerSimulatorConfig::default()).await
     }
 
+    /// Starts a peer simulator with the given [`PeerSimulatorConfig`] and a default
+    /// [`Simulator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PeerSimulatorError::Io`] if the listener can't be bound.
     pub async fn with_config(config: PeerSimulatorConfig) -> Result<Self, PeerSimulatorError> {
         tracing::info!("starting simulator");
 
@@ -93,10 +139,18 @@ impl PeerSimulator {
         })
     }
 
+    /// Returns the configuration the simulator was started with.
     pub fn config(&self) -> &PeerSimulatorConfig {
         &self.config
     }
 
+    /// Connects a new [`Peer`] and returns it with the receiver for incoming messages.
+    ///
+    /// The first message is the initial `NewPeakWallet`, which is left in the receiver.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the websocket connection fails.
     pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         tracing::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
@@ -108,6 +162,16 @@ impl PeerSimulator {
         )?)
     }
 
+    /// Connects a new [`Peer`] and returns it with the receiver for incoming messages, after
+    /// waiting for the initial `NewPeakWallet` message and discarding it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the websocket connection fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connection closes before the initial `NewPeakWallet` message arrives.
     pub async fn connect_split(
         &self,
     ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
@@ -119,6 +183,17 @@ impl PeerSimulator {
         Ok((peer, receiver))
     }
 
+    /// Connects a new [`Peer`], discarding all incoming messages on a background task.
+    ///
+    /// Use [`PeerSimulator::connect_split`] if you need to read coin state updates.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the websocket connection fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connection closes before the initial `NewPeakWallet` message arrives.
     pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {
         let (peer, mut receiver) = self.connect_split().await?;
 
@@ -131,6 +206,13 @@ impl PeerSimulator {
         Ok(peer)
     }
 
+    /// Replaces the simulator with a new default [`Simulator`] and clears all subscriptions.
+    ///
+    /// Existing connections stay open.
+    ///
+    /// # Errors
+    ///
+    /// This currently never fails.
     pub async fn reset(&self) -> Result<(), PeerSimulatorError> {
         *self.simulator.lock().await = Simulator::default();
         *self.subscriptions.lock().await = Subscriptions::default();
