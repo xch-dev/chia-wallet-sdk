@@ -1,0 +1,483 @@
+name: UniFFI
+
+# Builds and tests the Go, .NET, and C++ bindings, which are all generated from the
+# `chia-wallet-sdk-uniffi` library.
+on:
+  # Releases run standalone so publishing sees this workflow, not ci.yml
+  push:
+    tags:
+      - "**"
+      # Pushed by the Go release job
+      - "!go/**"
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  UNIFFI_BINDGEN_GO: v0.7.1+v0.31.0
+  UNIFFI_BINDGEN_CS: v0.11.1+v0.31.0
+  UNIFFI_BINDGEN_CPP: v0.10.0+v0.31.0
+  MACOSX_DEPLOYMENT_TARGET: "11.0"
+  # Fat LTO is only worth paying for on artifacts we publish
+  CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
+  # The x86_64 macOS libraries can't be tested on the arm64 runners, so pull requests skip them.
+  # They're still built on main and for releases.
+  BUILD_MACOS_X64: ${{ github.event_name != 'pull_request' }}
+
+jobs:
+  go:
+    name: Go - ${{ matrix.settings.platform }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux_amd64
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            platform: linux_arm64
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
+            target: x86_64-pc-windows-gnu
+            platform: windows_amd64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.target }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Cache uniffi-bindgen-go
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
+
+      - name: Install uniffi-bindgen-go
+        run: |
+          if ! command -v uniffi-bindgen-go > /dev/null; then
+            cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
+          fi
+
+      - name: Build and generate bindings
+        run: ./go/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        working-directory: go
+        run: go test -race -v ./...
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-${{ matrix.settings.platform }}
+          path: go/chiawalletsdk/lib/${{ matrix.settings.platform }}/
+          if-no-files-found: error
+
+      - name: Upload bindings
+        if: matrix.settings.platform == 'linux_amd64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-bindings
+          path: |
+            go/chiawalletsdk/chiawalletsdk.go
+            go/chiawalletsdk/chiawalletsdk.h
+          if-no-files-found: error
+
+  dotnet:
+    name: .NET - ${{ matrix.settings.rid }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rid: linux-x64
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            rid: linux-arm64
+          # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
+          - host: windows-2022
+            target: x86_64-pc-windows-msvc
+            rid: win-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.target }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Cache uniffi-bindgen-cs
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
+
+      - name: Install uniffi-bindgen-cs
+        run: |
+          if ! command -v uniffi-bindgen-cs > /dev/null; then
+            cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
+          fi
+
+      - name: Build and generate bindings
+        run: ./dotnet/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        run: dotnet test dotnet/ChiaWalletSdk.Tests
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-${{ matrix.settings.rid }}
+          path: dotnet/ChiaWalletSdk/runtimes/${{ matrix.settings.rid }}/
+          if-no-files-found: error
+
+      - name: Upload bindings
+        if: matrix.settings.rid == 'linux-x64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-bindings
+          path: dotnet/ChiaWalletSdk/chiawalletsdk.cs
+          if-no-files-found: error
+
+  cpp:
+    name: C++ - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.target }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Cache uniffi-bindgen-cpp
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cpp*
+          key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
+
+      - name: Install uniffi-bindgen-cpp
+        run: |
+          if ! command -v uniffi-bindgen-cpp > /dev/null; then
+            cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
+          fi
+
+      - name: Build and generate bindings
+        run: ./cpp/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        run: |
+          cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build cpp/build --parallel
+          ctest --test-dir cpp/build --output-on-failure
+
+      - name: Upload bindings
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-${{ matrix.settings.target }}
+          path: cpp/generated/
+          if-no-files-found: error
+
+  # The organization can only run a few macOS jobs at once, so every language shares one macOS
+  # job. Go and .NET use the same library build, and C++ reuses its compiled dependencies.
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the targets for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust targets
+        run: |
+          rustup target add aarch64-apple-darwin
+          if [ "$BUILD_MACOS_X64" = true ]; then
+            rustup target add x86_64-apple-darwin
+          fi
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: apple-darwin
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Cache uniffi-bindgen-go
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
+
+      - name: Install uniffi-bindgen-go
+        run: |
+          if ! command -v uniffi-bindgen-go > /dev/null; then
+            cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
+          fi
+
+      - name: Cache uniffi-bindgen-cs
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
+
+      - name: Install uniffi-bindgen-cs
+        run: |
+          if ! command -v uniffi-bindgen-cs > /dev/null; then
+            cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
+          fi
+
+      - name: Cache uniffi-bindgen-cpp
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cpp*
+          key: uniffi-bindgen-cpp-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CPP }}
+
+      - name: Install uniffi-bindgen-cpp
+        run: |
+          if ! command -v uniffi-bindgen-cpp > /dev/null; then
+            cargo install uniffi-bindgen-cpp --git https://github.com/NordSecurity/uniffi-bindgen-cpp --tag "$UNIFFI_BINDGEN_CPP" --locked
+          fi
+
+      - name: Go - build and generate bindings
+        run: ./go/generate.sh aarch64-apple-darwin
+
+      - name: Go - test
+        working-directory: go
+        run: go test -race -v ./...
+
+      - name: .NET - build and generate bindings
+        run: ./dotnet/generate.sh aarch64-apple-darwin
+
+      - name: .NET - test
+        run: dotnet test dotnet/ChiaWalletSdk.Tests
+
+      - name: Build the x86_64 libraries
+        if: env.BUILD_MACOS_X64 == 'true'
+        run: |
+          ./go/generate.sh x86_64-apple-darwin
+          ./dotnet/generate.sh x86_64-apple-darwin
+
+      # Runs after Go and .NET, since the `blocking` build replaces the library they copied
+      - name: C++ - build and generate bindings
+        run: ./cpp/generate.sh aarch64-apple-darwin
+
+      - name: C++ - test
+        run: |
+          cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build cpp/build --parallel
+          ctest --test-dir cpp/build --output-on-failure
+
+      - name: Upload Go library (arm64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-darwin_arm64
+          path: go/chiawalletsdk/lib/darwin_arm64/
+          if-no-files-found: error
+
+      - name: Upload Go library (x86_64)
+        if: env.BUILD_MACOS_X64 == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-darwin_amd64
+          path: go/chiawalletsdk/lib/darwin_amd64/
+          if-no-files-found: error
+
+      - name: Upload .NET library (arm64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-osx-arm64
+          path: dotnet/ChiaWalletSdk/runtimes/osx-arm64/
+          if-no-files-found: error
+
+      - name: Upload .NET library (x86_64)
+        if: env.BUILD_MACOS_X64 == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-osx-x64
+          path: dotnet/ChiaWalletSdk/runtimes/osx-x64/
+          if-no-files-found: error
+
+      - name: Upload C++ bindings
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-aarch64-apple-darwin
+          path: cpp/generated/
+          if-no-files-found: error
+
+  go-release:
+    name: Go - Release
+    runs-on: ubuntu-latest
+    needs: [go, macos]
+    if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Download bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: go-bindings
+          path: go/chiawalletsdk
+
+      - name: Download libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: go-*_*
+          path: go/chiawalletsdk/lib
+
+      - name: Arrange libraries
+        working-directory: go/chiawalletsdk/lib
+        run: |
+          for dir in go-*; do
+            mv "$dir" "${dir#go-}"
+          done
+          ls -R
+
+      # A published tag can't be fixed, so make sure no platform's library is missing
+      - name: Verify libraries
+        working-directory: go/chiawalletsdk/lib
+        run: |
+          for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64; do
+            if [ ! -f "$platform/libchia_wallet_sdk.a" ]; then
+              echo "The module is missing the static library for $platform" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify the module builds
+        working-directory: go
+        run: go vet ./...
+
+      - name: Publish the module
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f go/chiawalletsdk/chiawalletsdk.go go/chiawalletsdk/chiawalletsdk.h go/chiawalletsdk/lib
+          git commit -m "Go module release ${VERSION}"
+          git tag "go/v${VERSION#v}"
+          git push origin "go/v${VERSION#v}"
+
+  dotnet-pack:
+    name: .NET - Pack
+    runs-on: ubuntu-latest
+    needs: [dotnet, macos]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: dotnet-bindings
+          path: dotnet/ChiaWalletSdk
+
+      - name: Download libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dotnet-*-*
+          path: dotnet/ChiaWalletSdk/runtimes
+
+      - name: Arrange libraries
+        working-directory: dotnet/ChiaWalletSdk/runtimes
+        run: |
+          # Each artifact contains the `native` directory for its runtime identifier
+          for dir in dotnet-*; do
+            mv "$dir" "${dir#dotnet-}"
+          done
+          ls -R
+
+      - name: Pack
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          dotnet pack dotnet/ChiaWalletSdk -c Release -o dotnet/dist -p:Version="$VERSION"
+
+      - name: Verify package
+        run: |
+          contents=$(unzip -l dotnet/dist/*.nupkg)
+          rids="linux-x64 linux-arm64 osx-arm64 win-x64"
+          if [ "$BUILD_MACOS_X64" = true ]; then
+            rids="$rids osx-x64"
+          fi
+          for rid in $rids; do
+            if ! grep -qE "runtimes/$rid/native/[^/]+$" <<< "$contents"; then
+              echo "The package is missing the native library for $rid" >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget
+          path: dotnet/dist/*.nupkg
+          if-no-files-found: error
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+        run: dotnet nuget push "dotnet/dist/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

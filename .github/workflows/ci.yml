@@ -47,30 +47,18 @@ jobs:
       attestations: write
     secrets: inherit
 
-  go:
-    name: Go
-    uses: ./.github/workflows/go.yml
+  uniffi:
+    name: UniFFI
+    uses: ./.github/workflows/uniffi.yml
     permissions:
       contents: write
-
-  dotnet:
-    name: .NET
-    uses: ./.github/workflows/dotnet.yml
-    permissions:
-      contents: read
-
-  cpp:
-    name: C++
-    uses: ./.github/workflows/cpp.yml
-    permissions:
-      contents: read
 
   # The only check that branch protection needs to require. A skipped job counts as passing, so
   # this always runs and fails explicitly if anything it depends on didn't succeed.
   required:
     name: Required checks
     if: ${{ always() }}
-    needs: [rust, napi, wasm, pyo3, go, dotnet, cpp]
+    needs: [rust, napi, wasm, pyo3, uniffi]
     runs-on: ubuntu-latest
     steps:
       - name: Check results
