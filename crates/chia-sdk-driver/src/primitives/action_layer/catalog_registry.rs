@@ -14,20 +14,28 @@ use crate::{
 
 use super::{CatalogRegistryConstants, CatalogRegistryInfo, CatalogRegistryState, Slot};
 
+/// The actions queued for the next spend of a [`CatalogRegistry`], and their effects.
 #[derive(Debug, Clone)]
 pub struct CatalogPendingSpendInfo {
+    /// The action spends, in the order they will run.
     pub actions: Vec<Spend>,
+    /// The values of the slots the actions create.
     pub created_slots: Vec<CatalogSlotValue>,
+    /// The values of the slots the actions spend.
     pub spent_slots: Vec<CatalogSlotValue>,
 
+    /// A log entry for each action.
     pub logs: Vec<CatalogActionLog>,
 
+    /// The ephemeral state and registry state after the queued actions have run.
     pub latest_state: (NodePtr, CatalogRegistryState),
 
+    /// The aggregated signature that the spend needs, such as one from a parsed mempool item.
     pub signature: Signature,
 }
 
 impl CatalogPendingSpendInfo {
+    /// Creates an empty pending spend starting from the given state.
     pub fn new(latest_state: CatalogRegistryState) -> Self {
         Self {
             actions: vec![],
@@ -40,17 +48,37 @@ impl CatalogPendingSpendInfo {
     }
 }
 
+/// The `CATalog` registry: an action-layer singleton that registers CATs.
+///
+/// Registered CATs are stored as a sorted linked list of [`Slot`]s keyed by asset id, starting
+/// with the two end slots created at launch (see [`launch_catalog_registry`](crate::launch_catalog_registry)).
+/// Registering a CAT spends a [`PrecommitCoin`](crate::PrecommitCoin), inserts a slot between its
+/// neighbors, and mints an NFT for the CAT through a
+/// [`UniquenessPrelauncher`](crate::UniquenessPrelauncher).
+///
+/// To spend the registry, build actions with [`CatalogRegistry::new_action`] and spend them. Most
+/// actions' `spend` methods call [`CatalogRegistry::insert_action_spend`] and return conditions that
+/// another coin in the bundle should output to secure the action. The
+/// [`DelegatedStateAction`] returns its [`Spend`] instead, which you insert yourself. Finally, call
+/// [`CatalogRegistry::finish_spend`]. While actions are pending, use
+/// [`CatalogRegistry::actual_neigbors`] and [`CatalogRegistry::actual_slot`] to account for
+/// slots created earlier in the same spend.
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct CatalogRegistry {
+    /// The registry singleton coin.
     pub coin: Coin,
+    /// The proof needed to spend the singleton.
     pub proof: Proof,
+    /// The state and constants of the registry.
     pub info: CatalogRegistryInfo,
 
+    /// The actions queued for the next spend.
     pub pending_spend: CatalogPendingSpendInfo,
 }
 
 impl CatalogRegistry {
+    /// Creates a new [`CatalogRegistry`] with no pending actions.
     pub fn new(coin: Coin, proof: Proof, info: CatalogRegistryInfo) -> Self {
         Self {
             coin,
@@ -62,6 +90,14 @@ impl CatalogRegistry {
 }
 
 impl CatalogRegistry {
+    /// Runs one action spend on top of the given state and identifies it.
+    ///
+    /// Returns the new ephemeral and registry state, the action's log, and the values of the slots
+    /// it creates and spends, in that order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::InvalidMerkleProof`] if the action isn't one of the registry's actions.
     #[allow(clippy::type_complexity)]
     pub fn pending_info_delta_from_spend(
         ctx: &mut SpendContext,
@@ -138,6 +174,7 @@ impl CatalogRegistry {
         Ok((new_state_and_ephemeral, log, created_slots, spent_slots))
     }
 
+    /// Parses all of the actions in an action-layer inner solution into a [`CatalogPendingSpendInfo`].
     pub fn pending_info_from_spend(
         ctx: &mut SpendContext,
         inner_solution: NodePtr,
@@ -179,10 +216,15 @@ impl CatalogRegistry {
         })
     }
 
+    /// Sets the signature that will be returned by [`CatalogRegistry::finish_spend`].
     pub fn set_pending_signature(&mut self, signature: Signature) {
         self.pending_spend.signature = signature;
     }
 
+    /// Parses a registry and its actions from a spend of the registry coin.
+    ///
+    /// The returned registry is the spent coin, with its actions in `pending_spend`. Returns
+    /// [`None`] if the coin doesn't have amount 1 or isn't a registry with the given constants.
     pub fn from_spend(
         ctx: &mut SpendContext,
         spend: &CoinSpend,
@@ -222,6 +264,7 @@ impl CatalogRegistry {
         }))
     }
 
+    /// Returns the lineage proof for the child of this registry coin.
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -230,6 +273,9 @@ impl CatalogRegistry {
         }
     }
 
+    /// Parses the registry coin created by a spend of its parent registry coin.
+    ///
+    /// Returns [`None`] if the parent isn't a registry with the given constants.
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
         parent_spend: &CoinSpend,
@@ -263,6 +309,7 @@ impl CatalogRegistry {
         }))
     }
 
+    /// Returns the registry coin created by spending this one, with the given state.
     pub fn child(&self, child_state: CatalogRegistryState) -> Self {
         let new_info = self.info.with_state(child_state);
         let new_coin = Coin::new(self.coin.coin_id(), new_info.puzzle_hash().into(), 1);
@@ -275,6 +322,13 @@ impl CatalogRegistry {
         }
     }
 
+    /// Parses the latest registry from a mempool item and prepares to spend it again.
+    ///
+    /// Finds the first registry spend in the bundle, follows its children through the bundle to the
+    /// latest registry coin, and parses that coin's actions into `pending_spend`. All other spends
+    /// are inserted into `ctx`, and the bundle's aggregated signature becomes the pending signature.
+    /// This lets you add more actions to an unconfirmed registry spend and replace it with
+    /// [`CatalogRegistry::finish_spend`].
     pub fn from_mempool_item(
         ctx: &mut SpendContext,
         mempool_item: SpendBundle,
@@ -335,6 +389,14 @@ impl ActionSingleton for CatalogRegistry {
 }
 
 impl CatalogRegistry {
+    /// Spends the registry with all pending actions.
+    ///
+    /// Returns the child registry and the pending signature, which must be aggregated into the
+    /// final spend bundle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a Merkle proof can't be built for one of the pending actions.
     pub fn finish_spend(self, ctx: &mut SpendContext) -> Result<(Self, Signature), DriverError> {
         let layers = self.info.into_layers();
 
@@ -375,6 +437,7 @@ impl CatalogRegistry {
         Ok((child, self.pending_spend.signature))
     }
 
+    /// Creates one of the registry's actions from its constants.
     pub fn new_action<A>(&self) -> A
     where
         A: SingletonAction<Self>,
@@ -382,6 +445,7 @@ impl CatalogRegistry {
         A::from_constants(&self.info.constants)
     }
 
+    /// Returns the slot that this registry spend creates for `slot_value`.
     pub fn created_slot_value_to_slot(
         &self,
         slot_value: CatalogSlotValue,
@@ -396,6 +460,10 @@ impl CatalogRegistry {
         )
     }
 
+    /// Returns the slots that will be the neighbors of `new_tail_hash` once the pending actions run.
+    ///
+    /// `on_chain_left_slot` and `on_chain_right_slot` are the neighbors on chain. If pending actions
+    /// create closer slots, those are returned instead.
     pub fn actual_neigbors(
         &self,
         new_tail_hash: Bytes32,
@@ -422,6 +490,7 @@ impl CatalogRegistry {
         (left, right)
     }
 
+    /// Returns the latest version of `slot`, taking slots created by pending actions into account.
     pub fn actual_slot(&self, slot: Slot<CatalogSlotValue>) -> Slot<CatalogSlotValue> {
         let mut slot = slot;
         for slot_value in &self.pending_spend.created_slots {
@@ -433,6 +502,9 @@ impl CatalogRegistry {
         slot
     }
 
+    /// Adds an action spend to the pending spend, updating the state, slots, and logs.
+    ///
+    /// Actions call this from their `spend` methods, so you rarely need to call it directly.
     pub fn insert_action_spend(
         &mut self,
         ctx: &mut SpendContext,
