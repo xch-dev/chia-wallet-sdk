@@ -7,6 +7,10 @@ pub enum SecpPublicKey {
     R1(R1PublicKey),
 }
 
+/// A secp256k1 or secp256r1 signature requested by a puzzle.
+///
+/// The `message_hash` is signed directly (it's prehashed), so it is only meaningful
+/// if the puzzle that requested it is trusted. See [`SecpDialect`](super::SecpDialect).
 #[derive(Debug, Clone, Copy)]
 pub struct RequiredSecpSignature {
     pub public_key: SecpPublicKey,

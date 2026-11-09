@@ -5,8 +5,8 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, conditions::CreateCoin};
 
 use crate::{
-    BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
-    RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
+    BURN_PUZZLE_HASH, BagAsset, BagFormat, BagPayment, Cat, DriverError, Nft, ParsedAsset,
+    ParsedMemos, RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,11 @@ pub enum TransferType {
     Burned,
     Offered,
     OfferPreSplit(OfferPreSplitInfo),
+    /// The coin is the root of a revealed bag, so its value is paid out to the bag's payments once it's unrolled.
+    ///
+    /// Since the payments are delayed until someone unrolls the bag, the root is treated as a single output that
+    /// leaves the vault, even if some of the payments go back to it.
+    SecureTheBag(SecureTheBagInfo),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,14 +37,31 @@ pub struct OfferPreSplitInfo {
     pub settlement_amount: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecureTheBagInfo {
+    pub format: BagFormat,
+    /// The payments in the order of the bag, which add up to the amount of the root coin.
+    pub payments: Vec<ParsedBagPayment>,
+}
+
+/// A payment that a bag pays out once it's unrolled.
+///
+/// The payment's puzzle hash is the recipient (the receiver for clawback payments), the same as
+/// [`ParsedMemos::p2_puzzle_hash`] for a child coin.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedBagPayment {
+    pub payment: BagPayment,
+    /// This is either [`TransferType::Burned`] or [`TransferType::Sent`]. Bags aren't nested, their payments don't
+    /// carry fixed conditions, and an offer can't settle a payment before the bag is unrolled.
+    pub transfer_type: TransferType,
+}
+
 pub fn parse_children(
     reveals: &mut Reveals,
-    facts: &mut Facts,
     ctx: &mut SpendContext,
     asset: &ParsedAsset,
     spend: RevealedCoinSpend,
     conditions: &[Condition],
-    is_claw_back: bool,
 ) -> Result<Vec<ParsedChild>, DriverError> {
     // Now, we should be able to assume that the conditions will be output if the transaction is valid.
     let mut children = Vec::new();
@@ -56,30 +78,56 @@ pub fn parse_children(
     };
 
     for condition in conditions {
-        match condition {
-            Condition::AssertPuzzleAnnouncement(condition) => {
-                facts.assert_puzzle_announcement(condition.announcement_id);
-            }
-            Condition::AssertConcurrentSpend(condition) => {
-                facts.assert_spend(condition.coin_id);
-            }
-            // We shouldn't allow a claw back spend to say when the transaction will expire.
-            // Otherwise, it could pretend that it's impossible for the clawback to expire
-            // before the transaction expires, which would be a security vulnerability.
-            Condition::AssertBeforeSecondsAbsolute(condition) if !is_claw_back => {
-                facts.update_actual_expiration_time(condition.seconds);
-            }
-            Condition::ReserveFee(condition) => {
-                facts.add_reserved_fees(condition.amount);
-            }
-            Condition::CreateCoin(condition) => {
-                match &asset {
-                    // All XCH and bulletin children are considered to be XCH.
-                    // However, ephemeral bulletin children are hydrated later based on the spend.
-                    ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
-                        let memos = parse_memos(reveals, ctx, *condition, false);
+        if let Condition::CreateCoin(condition) = condition {
+            match &asset {
+                // All XCH and bulletin children are considered to be XCH.
+                // However, ephemeral bulletin children are hydrated later based on the spend.
+                ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
+                    let memos = parse_memos(reveals, ctx, *condition, false);
+                    let transfer_type = calculate_transfer_type(
+                        reveals,
+                        &memos,
+                        Some(BagAsset::Xch),
+                        condition.amount,
+                    )?;
+
+                    children.push(ParsedChild {
+                        asset: ParsedAsset::Xch(Coin::new(
+                            spend.coin.coin_id(),
+                            condition.puzzle_hash,
+                            condition.amount,
+                        )),
+                        memos,
+                        transfer_type,
+                    });
+                }
+                // For NFTs, even amount children are XCH coins. If the amount is odd, it's the
+                // next NFT singleton coin in the lineage.
+                ParsedAsset::Nft(_) => {
+                    if condition.amount % 2 == 1 {
+                        let Some(nft) =
+                            Nft::parse_child(ctx, spend.coin, spend.puzzle, spend.solution)?
+                        else {
+                            return Err(DriverError::MissingChild);
+                        };
+
+                        let memos = parse_memos(reveals, ctx, *condition, true);
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                            calculate_transfer_type(reveals, &memos, None, condition.amount)?;
+
+                        children.push(ParsedChild {
+                            asset: ParsedAsset::Nft(nft),
+                            memos,
+                            transfer_type,
+                        });
+                    } else {
+                        let memos = parse_memos(reveals, ctx, *condition, false);
+                        let transfer_type = calculate_transfer_type(
+                            reveals,
+                            &memos,
+                            Some(BagAsset::Xch),
+                            condition.amount,
+                        )?;
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -91,73 +139,50 @@ pub fn parse_children(
                             transfer_type,
                         });
                     }
-                    // For NFTs, even amount children are XCH coins. If the amount is odd, it's the
-                    // next NFT singleton coin in the lineage.
-                    ParsedAsset::Nft(_) => {
-                        if condition.amount % 2 == 1 {
-                            let Some(nft) =
-                                Nft::parse_child(ctx, spend.coin, spend.puzzle, spend.solution)?
-                            else {
-                                return Err(DriverError::MissingChild);
-                            };
+                }
+                // CATs never output anything other than CAT children.
+                ParsedAsset::Cat(parent) => {
+                    let cat = cats.pop_front().ok_or(DriverError::MissingChild)?;
 
-                            let memos = parse_memos(reveals, ctx, *condition, true);
-                            let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount)?;
-
-                            children.push(ParsedChild {
-                                asset: ParsedAsset::Nft(nft),
-                                memos,
-                                transfer_type,
-                            });
-                        } else {
-                            let memos = parse_memos(reveals, ctx, *condition, false);
-                            let transfer_type =
-                                calculate_transfer_type(reveals, &memos, condition.amount)?;
-
-                            children.push(ParsedChild {
-                                asset: ParsedAsset::Xch(Coin::new(
-                                    spend.coin.coin_id(),
-                                    condition.puzzle_hash,
-                                    condition.amount,
-                                )),
-                                memos,
-                                transfer_type,
-                            });
-                        }
+                    // This prevents an attack where someone tricks you into spending a CAT, sending it
+                    // back to you, and wrapping it in a revocation layer that they control.
+                    if cat.info.hidden_puzzle_hash != parent.info.hidden_puzzle_hash {
+                        return Err(DriverError::RevocableChild);
                     }
-                    // CATs never output anything other than CAT children.
-                    ParsedAsset::Cat(parent) => {
-                        let cat = cats.pop_front().ok_or(DriverError::MissingChild)?;
 
-                        // This prevents an attack where someone tricks you into spending a CAT, sending it
-                        // back to you, and wrapping it in a revocation layer that they control.
-                        if cat.info.hidden_puzzle_hash != parent.info.hidden_puzzle_hash {
-                            return Err(DriverError::RevocableChild);
-                        }
+                    let memos = parse_memos(
+                        reveals,
+                        ctx,
+                        CreateCoin::new(cat.info.p2_puzzle_hash, condition.amount, condition.memos),
+                        true,
+                    );
 
-                        let memos = parse_memos(
-                            reveals,
-                            ctx,
-                            CreateCoin::new(
-                                cat.info.p2_puzzle_hash,
-                                condition.amount,
-                                condition.memos,
-                            ),
-                            true,
-                        );
-                        let transfer_type =
-                            calculate_transfer_type(reveals, &memos, condition.amount)?;
+                    // The bag must be for the same CAT, including the revocation layer, so this is based on the
+                    // child's info rather than what the bag was revealed with.
+                    let bag_asset = match cat.info.hidden_puzzle_hash {
+                        Some(hidden_puzzle_hash) => BagAsset::RevocableCat {
+                            asset_id: cat.info.asset_id,
+                            hidden_puzzle_hash,
+                        },
+                        None => BagAsset::Cat {
+                            asset_id: cat.info.asset_id,
+                        },
+                    };
 
-                        children.push(ParsedChild {
-                            asset: ParsedAsset::Cat(cat),
-                            memos,
-                            transfer_type,
-                        });
-                    }
+                    let transfer_type = calculate_transfer_type(
+                        reveals,
+                        &memos,
+                        Some(bag_asset),
+                        condition.amount,
+                    )?;
+
+                    children.push(ParsedChild {
+                        asset: ParsedAsset::Cat(cat),
+                        memos,
+                        transfer_type,
+                    });
                 }
             }
-            _ => {}
         }
     }
 
@@ -168,18 +193,54 @@ pub fn parse_children(
     Ok(children)
 }
 
+/// The bag asset is the asset of the child coin, or [`None`] if it can't be a bag (for example an NFT).
 fn calculate_transfer_type(
     reveals: &Reveals,
     memos: &ParsedMemos,
+    bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    // The p2 puzzle hash of a clawback is the receiver's, but the coin can also be clawed back by
+    // the sender, so it can't be treated as anything other than a regular send.
+    if memos.clawback.is_some() {
+        return Ok(TransferType::Sent);
+    }
+
+    // The root hash commits to every payment and to the total amount, so anyone can unroll a coin with the root hash
+    // and that amount to the payments. As with any revocable CAT, the issuer can still revoke the root or its nodes
+    // before then. If the amount is less, the root can't be spent. If it's more, the rest is lost to fees, which isn't
+    // something we want to show as a bag.
+    if let Some(bag_asset) = bag_asset
+        && let Some(bag) = reveals.bag(memos.p2_puzzle_hash, bag_asset)
+        && bag.total_amount() == input_amount
+    {
+        // An offer in this transaction can't settle a payment that's only created once the bag is unrolled, so a
+        // payment to the settlement puzzle is anyone can spend, rather than offered.
+        let payments = bag
+            .payments()
+            .iter()
+            .map(|payment| ParsedBagPayment {
+                payment: *payment,
+                transfer_type: if payment.puzzle_hash == BURN_PUZZLE_HASH {
+                    TransferType::Burned
+                } else {
+                    TransferType::Sent
+                },
+            })
+            .collect();
+
+        return Ok(TransferType::SecureTheBag(SecureTheBagInfo {
+            format: bag.format(),
+            payments,
+        }));
+    }
+
     Ok(if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
-    } else if memos.clawback.is_none()
-        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
-            reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+    } else if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
+        reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
         let reserved_fee: u128 = fixed_conditions

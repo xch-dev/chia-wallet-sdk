@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
 use chia_bls::SecretKey;
-use chia_consensus::{flags::MEMPOOL_MODE, validation_error::ErrorCode};
+use chia_consensus::{
+    flags::{ConsensusFlags, MEMPOOL_MODE},
+    validation_error::ErrorCode,
+};
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
-use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet, indexset};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{
@@ -225,7 +227,7 @@ impl Simulator {
             height: self.data.height,
             timestamp: self.timestamp(),
         };
-        let mut flags = ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+        let mut flags = ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
         if self.config.mempool_mode {
             flags |= MEMPOOL_MODE;
         }

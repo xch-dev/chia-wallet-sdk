@@ -1,0 +1,300 @@
+{
+  "BagPayment": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64",
+      "clawback": "Option<ClawbackV2>"
+    },
+    "methods": {
+      "from_clawback": {
+        "type": "factory",
+        "args": {
+          "clawback": "ClawbackV2"
+        }
+      },
+      "coin_puzzle_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "BagFormat": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "legacy": {
+        "type": "factory",
+        "args": {
+          "leaf_width": "Option<usize>",
+          "sorted": "bool"
+        }
+      },
+      "width": {
+        "args": {
+          "payment_count": "usize"
+        },
+        "return": "usize"
+      },
+      "to_legacy": {
+        "return": "Option<BagFormatLegacy>"
+      }
+    }
+  },
+  "BagFormatLegacy": {
+    "type": "class",
+    "fields": {
+      "leaf_width": "Option<usize>",
+      "sorted": "bool"
+    }
+  },
+  "BagAsset": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory"
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32"
+        }
+      },
+      "revocable_cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Bytes32"
+        }
+      },
+      "asset_id": {
+        "return": "Option<Bytes32>"
+      },
+      "hidden_puzzle_hash": {
+        "return": "Option<Bytes32>"
+      },
+      "puzzle_hash": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "Bytes32"
+      },
+      "cat_info": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "Option<CatInfo>"
+      }
+    }
+  },
+  "BagChild": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "amount": {
+        "return": "u64"
+      },
+      "is_node": {
+        "return": "bool"
+      },
+      "payment": {
+        "return": "Option<BagPayment>"
+      }
+    }
+  },
+  "BagNode": {
+    "type": "class",
+    "remote": true,
+    "fields": {
+      "amount": "u64",
+      "children": "Vec<BagChild>"
+    }
+  },
+  "BagCoin": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin"
+        }
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "cat": "Cat"
+        }
+      },
+      "coin": {
+        "return": "Coin"
+      },
+      "p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "BagCoin"
+      },
+      "to_cat": {
+        "return": "Option<Cat>"
+      }
+    }
+  },
+  "SecureTheBag": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "format": "BagFormat",
+          "asset": "BagAsset",
+          "payments": "Vec<BagPayment>"
+        }
+      },
+      "format": {
+        "return": "BagFormat"
+      },
+      "asset": {
+        "return": "BagAsset"
+      },
+      "root_hash": {
+        "return": "Bytes32"
+      },
+      "root_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "total_amount": {
+        "return": "u64"
+      },
+      "depth": {
+        "return": "usize"
+      },
+      "payments": {
+        "return": "Vec<BagPayment>"
+      },
+      "node_puzzle_hashes": {
+        "return": "Vec<Bytes32>"
+      },
+      "node": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Option<BagNode>"
+      },
+      "parent": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Option<Bytes32>"
+      },
+      "path": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Option<Vec<Bytes32>>"
+      },
+      "amount": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Option<u64>"
+      },
+      "coin_path": {
+        "args": {
+          "start": "BagCoin",
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Vec<BagCoin>"
+      },
+      "node_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Spend"
+      },
+      "spend_node": {
+        "args": {
+          "clvm": "Clvm",
+          "coin": "BagCoin"
+        },
+        "return": "Vec<BagCoin>"
+      },
+      "spend_path": {
+        "args": {
+          "clvm": "Clvm",
+          "start": "BagCoin",
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "BagCoin"
+      },
+      "unroll": {
+        "args": {
+          "clvm": "Clvm",
+          "start": "BagCoin"
+        },
+        "return": "Vec<BagCoin>"
+      }
+    }
+  },
+  "SecuredMint": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16",
+      "p2_puzzle_hash": "Bytes32",
+      "melt_public_key": "Option<PublicKey>"
+    },
+    "methods": {
+      "pre_launcher_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "eve_p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "bag_payment": {
+        "return": "BagPayment"
+      },
+      "output": {
+        "args": {
+          "pre_launcher": "Coin"
+        },
+        "return": "SecuredMintOutput"
+      },
+      "mint": {
+        "args": {
+          "clvm": "Clvm",
+          "pre_launcher": "Coin"
+        },
+        "return": "SecuredMintOutput"
+      },
+      "melt": {
+        "args": {
+          "clvm": "Clvm",
+          "pre_launcher": "Coin"
+        }
+      }
+    }
+  },
+  "SecuredMintOutput": {
+    "type": "class",
+    "fields": {
+      "pre_launcher": "Coin",
+      "launcher": "Coin",
+      "eve_nft": "Nft",
+      "nft": "Nft"
+    }
+  }
+}

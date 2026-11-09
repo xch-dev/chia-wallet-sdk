@@ -4,7 +4,7 @@ use chia_protocol::Bytes32;
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::FromClvm;
 use clvmr::{
-    Allocator, NodePtr,
+    Allocator, ClvmFlags, NodePtr,
     cost::Cost,
     dialect::{Dialect, OperatorSet},
     op_utils::get_args,
@@ -16,6 +16,18 @@ use super::{RequiredSecpSignature, SecpPublicKey};
 const SECP256R1_VERIFY_COST: Cost = 1_850_000;
 const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 
+/// A dialect wrapper that intercepts `secp256k1_verify` and `secp256r1_verify` operators,
+/// records the public key and message hash as a [`RequiredSecpSignature`], and treats the
+/// verification as successful so that the rest of the puzzle can run.
+///
+/// # Security
+///
+/// The collected `message_hash` is an arbitrary 32-byte value computed by the puzzle being run.
+/// Nothing here checks what that hash commits to, so signing it is only as safe as the puzzle
+/// that produced it. Always run the real puzzle for the coin being spent (for example, through
+/// [`RequiredSignature::from_coin_spend`](crate::RequiredSignature::from_coin_spend), which
+/// rejects puzzle reveals that don't match the coin's puzzle hash). Running an untrusted puzzle
+/// with this dialect and signing the result would let it request a signature over any hash.
 #[derive(Debug, Default, Clone)]
 pub struct SecpDialect<T> {
     dialect: T,
@@ -57,6 +69,14 @@ where
 
     fn softfork_extension(&self, ext: u32) -> OperatorSet {
         self.dialect.softfork_extension(ext)
+    }
+
+    fn flags(&self) -> ClvmFlags {
+        self.dialect.flags()
+    }
+
+    fn gc_candidate(&self, allocator: &Allocator, op: NodePtr) -> bool {
+        self.dialect.gc_candidate(allocator, op)
     }
 
     fn op(
@@ -116,7 +136,7 @@ mod tests {
     use chia_secp::K1SecretKey;
     use clvm_traits::{ToClvm, clvm_list, clvm_quote};
     use clvmr::{ChiaDialect, run_program};
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 
     use super::*;
@@ -138,7 +158,7 @@ mod tests {
         )
         .to_clvm(&mut a)?;
 
-        let dialect = ChiaDialect::new(0);
+        let dialect = ChiaDialect::new(ClvmFlags::empty());
         let dialect = SecpDialect::new(&dialect);
 
         let reduction = run_program(&mut a, &dialect, program, NodePtr::NIL, u64::MAX).unwrap();

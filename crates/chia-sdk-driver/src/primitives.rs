@@ -1,5 +1,6 @@
 mod bulletin;
 mod cat;
+mod cat_maker;
 mod clawback;
 mod clawback_v2;
 mod did;
@@ -8,12 +9,14 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
+mod secure_the_bag;
 mod singleton;
 mod streamed_asset;
 mod vault;
 
 pub use bulletin::*;
 pub use cat::*;
+pub use cat_maker::*;
 pub use clawback::*;
 pub use clawback_v2::*;
 pub use did::*;
@@ -22,9 +25,28 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
+pub use secure_the_bag::*;
 pub use singleton::*;
 pub use streamed_asset::*;
 pub use vault::*;
+
+#[cfg(feature = "chip-0021")]
+mod fusion;
+
+#[cfg(feature = "chip-0021")]
+pub use fusion::*;
+
+#[cfg(feature = "chip-0052")]
+mod partial_offer;
+
+#[cfg(feature = "chip-0052")]
+pub use partial_offer::*;
+
+#[cfg(feature = "auction")]
+mod auction;
+
+#[cfg(feature = "auction")]
+pub use auction::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;

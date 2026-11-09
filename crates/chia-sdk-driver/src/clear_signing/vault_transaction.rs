@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use chia_protocol::Bytes32;
-use chia_puzzle_types::cat::CatSolution;
+use chia_protocol::{Bytes, Bytes32, Coin};
+use chia_puzzle_types::{cat::CatSolution, singleton::SingletonArgs};
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
@@ -9,27 +9,47 @@ use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClearSigningAsset, CustodyInfo,
-    DriverError, DropCoin, Facts, Issuance, IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo,
+    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClawbackPath, ClawbackV2,
+    ClearSigningAsset, ControlledVaultReceiver, ControlledVaultRecovery, CustodyInfo, DriverError,
+    DropCoin, Facts, Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo,
     P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, TransferType, VaultMessage, VaultOutput, build_linked_offer,
-    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
-    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend, split_asserted_payments,
+    SpendContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage,
+    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
+    parse_spend, parse_vault_controller_spend, parse_vault_delegated_spend,
+    split_asserted_payments, vault_recovery_delegated_puzzle_hash,
 };
+
+/// The maximum number of vaults in an [`authorization_path`](VaultTransaction::authorization_path), which bounds the
+/// work done to parse a transaction.
+pub const MAX_CONTROLLED_VAULT_DEPTH: usize = 8;
+
+/// The amount of every vault coin, which clear signing requires each vault to be recreated with.
+pub const VAULT_AMOUNT: u64 = 1;
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
 /// as a result of a transaction at a glance. Information that is not verifiable should not be included or displayed.
 /// We can still allow transactions which are not fully verifiable, but a conservative summary should be provided.
 #[derive(Debug, Clone)]
 pub struct VaultTransaction {
+    /// The launcher id of the vault whose transaction it is. That's the vault being signed for, unless it authorizes the
+    /// spend of a controlled vault, in which case it's the vault at the end of the
+    /// [`authorization_path`](Self::authorization_path).
+    pub launcher_id: Bytes32,
+    /// The current custody hash of the vault whose transaction it is, if it's known. It's known for a controlled vault,
+    /// and for the vault being signed for if it's revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). If it's different from the custody hash
+    /// of the [`vault_child`](Self::vault_child), the custody configuration is changing.
+    pub custody_hash: Option<Bytes32>,
     /// If a new vault coin is created (i.e. the vault isn't melted), this will be set.
     /// It's the new inner puzzle hash and amount of the vault singleton. If the puzzle hash is different, the custody
-    /// configuration has changed. If the amount is different, XCH is being added or removed from its value. The hash
-    /// can be validated against a [`MipsMemo`](crate::MipsMemo) so that you know what specifically is happening.
+    /// configuration has changed. The amount is always [`VAULT_AMOUNT`], which clear signing requires. The hash can be
+    /// validated against a [`MipsMemo`](crate::MipsMemo) so that you know what specifically is happening.
     pub vault_child: Option<VaultOutput>,
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
-    /// The spends (and their children) which were authorized by the vault.
+    /// The spends (and their children) which were authorized by the vault. This includes clawback push-throughs that
+    /// the vault asserts, which don't need its authorization, and whose coins aren't necessarily owned by the vault.
     pub spends: Vec<VerifiedSpend>,
     /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
     /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
@@ -54,8 +74,77 @@ pub struct VaultTransaction {
     pub reserved_fee: u64,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
     pub p2_puzzle_hashes: Vec<Bytes32>,
-    /// The delegated puzzle hash that is being signed for.
+    /// The delegated puzzle hash that is being signed for, which is that of the vault being signed for, even if this
+    /// is the transaction of a vault in its [`authorization_path`](Self::authorization_path).
     pub delegated_puzzle_hash: Bytes32,
+    /// If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), these are the
+    /// arbitrary messages being signed, in order. In that case, the delegated spend contains nothing else other than
+    /// recreating the vault, which is [`vault_child`](Self::vault_child). It should be recreated with the vault's
+    /// current custody hash and amount, which [`verify_vault_signed_message`](crate::verify_vault_signed_message)
+    /// requires. That's checked if the [`custody_hash`](Self::custody_hash) is known.
+    pub signed_messages: Vec<Bytes>,
+    /// The vaults that authorize this vault's spend, starting with the vault being signed for. It's empty if this is
+    /// the vault being signed for. Otherwise, the vault being signed for authorizes the spend of a vault that it
+    /// controls, which can in turn authorize the spend of a vault that it controls, down to this vault.
+    ///
+    /// A vault that authorizes the spend of another vault can only recreate itself and send it the message (and for
+    /// message signing, the same message to the controller message coin), which is how Cloud Wallet builds the spends of
+    /// vault controllers. Everything else that the transaction does is done by this vault, so it's the only one whose
+    /// spends are parsed. A controlled vault in the path that authorizes another vault must also be recreated with the
+    /// same custody hash, and so must the vault being signed for if its custody hash is revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). Otherwise its
+    /// [`controller_child`](VaultAuthorization::controller_child) should be shown like a [`vault_child`](Self::vault_child).
+    ///
+    /// A controlled vault's puzzle is checked to be a vault, and its custody hash to be the one that its coin commits
+    /// to, but not that its custody is controlled by the vault that authorizes it. Like the rest of clear signing, this
+    /// assumes that the vaults in the transaction are the user's.
+    pub authorization_path: Vec<VaultAuthorization>,
+    /// The vault being signed for, if its custody hash was revealed with
+    /// [`Reveals::reveal_signing_vault`](crate::Reveals::reveal_signing_vault). The message that's signed should be
+    /// calculated from this, so that the signature can only be used if the custody hash (and coin) are correct.
+    pub signing_vault: Option<SigningVault>,
+}
+
+/// The vault being signed for, with the custody hash and coin that were revealed for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SigningVault {
+    pub custody_hash: Bytes32,
+    /// The singleton puzzle hash for the vault's launcher id and custody hash, which a key member that signs with
+    /// [`calculate_vault_puzzle_message`](crate::calculate_vault_puzzle_message) signs.
+    pub puzzle_hash: Bytes32,
+    /// The vault's coin, if it was revealed, whose id a key member that signs with
+    /// [`calculate_vault_coin_message`](crate::calculate_vault_coin_message) signs. It's checked to have the puzzle
+    /// hash and an amount of [`VAULT_AMOUNT`].
+    pub coin: Option<Coin>,
+}
+
+impl VaultTransaction {
+    /// Whether the vault signs arbitrary messages with a [`vault_message_envelope`](crate::vault_message_envelope)
+    /// rather than doing anything else.
+    ///
+    /// Each vault in the [`authorization_path`](Self::authorization_path) must then use a
+    /// [`vault_controller_envelope`](crate::vault_controller_envelope), which sends a message to
+    /// [`VAULT_CONTROLLER_MESSAGE_COIN_ID`](crate::VAULT_CONTROLLER_MESSAGE_COIN_ID), so that its spend can never be
+    /// valid on chain either.
+    pub fn signs_messages(&self) -> bool {
+        !self.signed_messages.is_empty()
+    }
+}
+
+/// A vault's authorization of the spend of a vault that it controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VaultAuthorization {
+    /// How the vault that authorizes the spend recreates itself.
+    pub controller_child: VaultOutput,
+    /// The controlled vault's coin. If the message is sent to its puzzle hash (for a fast-forwardable singleton member),
+    /// only the puzzle hash is committed to, so the spend can happen on another coin of the vault with a different
+    /// parent. Its amount is always [`VAULT_AMOUNT`] either way.
+    pub coin: Coin,
+    pub launcher_id: Bytes32,
+    /// The controlled vault's current custody hash.
+    pub custody_hash: Bytes32,
+    /// Set if the spend is authorized through the controlled vault's recovery path, which starts a recovery.
+    pub recovery: Option<ControlledVaultRecovery>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,20 +168,248 @@ pub struct VerifiedSpend {
     pub revoked: bool,
 }
 
+/// Parses what a vault's delegated spend does, from the point of view of the vault being signed for.
+///
+/// If the delegated spend authorizes the spend of a revealed controlled vault, the vaults are followed down to the
+/// vault at the end, which is the one whose transaction is returned. The vaults above it only authorize it, so they're
+/// described by [`VaultTransaction::authorization_path`] instead.
 pub fn parse_vault_transaction(
+    reveals: Reveals,
+    ctx: &mut SpendContext,
+    launcher_id: Bytes32,
+    delegated_spend: Spend,
+) -> Result<VaultTransaction, DriverError> {
+    let signed_delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
+
+    // The vault being signed for can only be spent with a signature on its puzzle hash or coin id, so the revealed
+    // custody hash and coin are correct if the message that's signed is calculated from them.
+    let signing_vault = reveals
+        .signing_vault()
+        .map(|revealed| {
+            let puzzle_hash: Bytes32 =
+                SingletonArgs::curry_tree_hash(launcher_id, revealed.custody_hash.into()).into();
+
+            if let Some(coin) = revealed.coin {
+                if coin.puzzle_hash != puzzle_hash {
+                    return Err(DriverError::WrongSigningVaultPuzzleHash);
+                }
+
+                if coin.amount != VAULT_AMOUNT {
+                    return Err(DriverError::InvalidVaultAmount);
+                }
+            }
+
+            Ok(SigningVault {
+                custody_hash: revealed.custody_hash,
+                puzzle_hash,
+                coin: revealed.coin,
+            })
+        })
+        .transpose()?;
+
+    let mut launcher_id = launcher_id;
+    let mut custody_hash = signing_vault.map(|signing_vault| signing_vault.custody_hash);
+    let mut delegated_spend = delegated_spend;
+    let mut authorization_path = Vec::new();
+    let mut is_envelope_path = true;
+
+    // Each vault can only be reached once, so that the chain can't be followed around a cycle forever.
+    let mut visited = HashSet::from([launcher_id]);
+
+    while let Some(parsed) =
+        parse_vault_authorization(&reveals, ctx, custody_hash, delegated_spend)?
+    {
+        if authorization_path.len() >= MAX_CONTROLLED_VAULT_DEPTH {
+            return Err(DriverError::ControlledVaultTooDeep);
+        }
+
+        if !visited.insert(parsed.authorization.launcher_id) {
+            return Err(DriverError::DuplicateControlledVault);
+        }
+
+        launcher_id = parsed.authorization.launcher_id;
+        custody_hash = Some(parsed.authorization.custody_hash);
+        delegated_spend = parsed.delegated_spend;
+        is_envelope_path &= parsed.is_envelope;
+        authorization_path.push(parsed.authorization);
+    }
+
+    let mut transaction = parse_vault(reveals, ctx, launcher_id, custody_hash, delegated_spend)?;
+
+    // A vault that authorizes another vault to sign messages must also send its message to the controller message coin,
+    // so that its spend can never be valid on chain, even if the controlled vault's custody can receive the message some
+    // other way than with a vault message envelope. This is the same check that `verify_controlled_vault_signed_message`
+    // does.
+    if !transaction.signed_messages.is_empty() && !is_envelope_path {
+        return Err(DriverError::InvalidVaultControllerEnvelope);
+    }
+
+    transaction.delegated_puzzle_hash = signed_delegated_puzzle_hash;
+    transaction.authorization_path = authorization_path;
+    transaction.signing_vault = signing_vault;
+
+    Ok(transaction)
+}
+
+/// A vault's authorization of the spend of a controlled vault.
+struct ParsedVaultAuthorization {
+    authorization: VaultAuthorization,
+    /// The controlled vault's delegated spend.
+    delegated_spend: Spend,
+    /// Whether the authorization is a [`vault_controller_envelope`](crate::vault_controller_envelope).
+    is_envelope: bool,
+}
+
+/// Parses a vault's delegated spend as the authorization of a revealed controlled vault's spend, or returns [`None`] if
+/// it doesn't authorize one. The custody hash is known for a controlled vault, and for the vault being signed for if
+/// it's revealed.
+fn parse_vault_authorization(
+    reveals: &Reveals,
+    ctx: &mut SpendContext,
+    custody_hash: Option<Bytes32>,
+    delegated_spend: Spend,
+) -> Result<Option<ParsedVaultAuthorization>, DriverError> {
+    let vault_spend = parse_vault_delegated_spend(&mut Facts::default(), ctx, delegated_spend)?;
+
+    // A message to the controller message coin can never be received, so it only makes the spend invalid on chain,
+    // which a vault that authorizes another vault to sign messages must do. It's only allowed in a controller envelope.
+    let has_controller_marker = vault_spend
+        .messages
+        .iter()
+        .any(|message| message.spent_coin_id == VAULT_CONTROLLER_MESSAGE_COIN_ID);
+
+    let mut authorizes_controlled_vault = vault_spend
+        .messages
+        .iter()
+        .any(|message| reveals.controlled_vault(message.spent_coin_id).is_some());
+
+    for message in &vault_spend.puzzle_messages {
+        authorizes_controlled_vault |= reveals
+            .controlled_vault_by_puzzle_hash(message.puzzle_hash)?
+            .is_some();
+    }
+
+    if !has_controller_marker && !authorizes_controlled_vault {
+        return Ok(None);
+    }
+
+    // A vault that authorizes the spend of a controlled vault can only recreate itself and send that one message, which
+    // is how Cloud Wallet builds the spends of vault controllers. That way, everything a transaction does is done by the
+    // vault at the end of the chain.
+    let conditions = parse_delegated_spend(ctx, delegated_spend)?;
+
+    let Some(controller_spend) = parse_vault_controller_spend(ctx, &conditions)? else {
+        return Err(if has_controller_marker {
+            DriverError::InvalidVaultControllerEnvelope
+        } else {
+            DriverError::InvalidVaultControllerSpend
+        });
+    };
+
+    if controller_spend.vault_child.amount != VAULT_AMOUNT {
+        return Err(DriverError::InvalidVaultAmount);
+    }
+
+    // A controlled vault must also be recreated as it was, since its custody hash is known.
+    if let Some(custody_hash) = custody_hash
+        && controller_spend.vault_child != VaultOutput::new(custody_hash, VAULT_AMOUNT)
+    {
+        return Err(DriverError::VaultControllerChangesVault);
+    }
+
+    // A message to a puzzle hash is sent to a controlled vault whose singleton member is fast-forwardable. It isn't
+    // allowed for any other coin, since any coin with the puzzle hash could receive it, which would let a different
+    // coin than the one that's revealed be spent. A vault's puzzle hash commits to its launcher id and custody hash, so
+    // the controlled vault's delegated spend is authorized the same way on any of its coins.
+    let controlled_vault = *match controller_spend.controlled_vault {
+        ControlledVaultReceiver::CoinId(coin_id) => reveals.controlled_vault(coin_id),
+        ControlledVaultReceiver::PuzzleHash(puzzle_hash) => {
+            reveals.controlled_vault_by_puzzle_hash(puzzle_hash)?
+        }
+    }
+    .ok_or(DriverError::MissingSpend)?;
+
+    // A message authorizes whatever the coin's puzzle does with it, so the controlled vault's coin spend must be
+    // revealed, and its puzzle must be a vault. Otherwise, an asset that the vault owns (such as an NFT, which is also a
+    // singleton) could be revealed as a controlled vault, which would hide that it's being spent.
+    let coin_spend = reveals
+        .coin_spend(controlled_vault.coin.coin_id())
+        .ok_or(DriverError::MissingSpend)?;
+
+    if VaultLayers::parse_puzzle(ctx, coin_spend.puzzle)?.is_none() {
+        return Err(DriverError::InvalidControlledVaultPuzzle);
+    }
+
+    let controlled_delegated_puzzle_hash =
+        tree_hash(ctx, controlled_vault.delegated_spend.puzzle).into();
+
+    // A member of the recovery path is passed the delegated puzzle hash wrapped in the recovery path's delegated puzzle
+    // wrappers, which only restrict what the delegated puzzle can do.
+    let signed_delegated_puzzle_hash = match controlled_vault.recovery {
+        Some(recovery) => vault_recovery_delegated_puzzle_hash(
+            controlled_delegated_puzzle_hash,
+            recovery.left_side_subtree_hash,
+            recovery.recovery_timelock,
+            recovery.version,
+        ),
+        None => controlled_delegated_puzzle_hash,
+    };
+
+    if controller_spend.message.as_ref() != signed_delegated_puzzle_hash.as_ref() {
+        return Err(DriverError::WrongControlledVaultMessage);
+    }
+
+    Ok(Some(ParsedVaultAuthorization {
+        authorization: VaultAuthorization {
+            controller_child: controller_spend.vault_child,
+            coin: controlled_vault.coin,
+            launcher_id: controlled_vault.launcher_id,
+            custody_hash: controlled_vault.custody_hash,
+            recovery: controlled_vault.recovery,
+        },
+        delegated_spend: controlled_vault.delegated_spend,
+        is_envelope: controller_spend.is_envelope,
+    }))
+}
+
+/// Parses the spend of the vault whose transaction it is, which is the vault being signed for, or the vault at the end
+/// of its authorization path. The custody hash is known for a controlled vault, and for the vault being signed for if
+/// it's revealed.
+fn parse_vault(
     mut reveals: Reveals,
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
+    custody_hash: Option<Bytes32>,
     delegated_spend: Spend,
 ) -> Result<VaultTransaction, DriverError> {
     let mut facts = Facts::default();
 
     let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
 
+    // Every vault is assumed to have an amount of 1, which is enforced here so that it stays that way. The vault's
+    // amount isn't otherwise known, since the coin of the vault being signed for isn't given, and a controlled vault
+    // whose message is sent to its puzzle hash could be spent with any of its coins. If the amount could be more than
+    // 1, recreating it with 1 would hide that the rest is spent as a fee.
+    if vault_spend
+        .child
+        .is_some_and(|child| child.amount != VAULT_AMOUNT)
+    {
+        return Err(DriverError::InvalidVaultAmount);
+    }
+
     let mut parsed_spends = HashMap::new();
+    let mut parse_errors = HashMap::new();
 
     for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
-        let parsed_spend = parse_spend(&mut reveals, ctx, &spend)?;
+        // Spends which aren't linked to the vault are ignored, so they shouldn't prevent the
+        // transaction from being parsed. The error is only returned if the spend is linked.
+        let parsed_spend = match parse_spend(&mut reveals, ctx, &spend) {
+            Ok(parsed_spend) => parsed_spend,
+            Err(error) => {
+                parse_errors.insert(spend.coin.coin_id(), error);
+                continue;
+            }
+        };
 
         if let Some(
             CustodyInfo::P2Singleton(P2SingletonInfo {
@@ -112,7 +429,10 @@ pub fn parse_vault_transaction(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
+    // A message to a controlled vault or to the controller message coin would have made this vault part of the
+    // authorization path, so each message here authorizes the spend of a coin.
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
+
     for message in vault_spend.messages {
         messages_by_coin
             .entry(message.spent_coin_id)
@@ -120,16 +440,70 @@ pub fn parse_vault_transaction(
             .push(message);
     }
 
+    // A message to a puzzle hash is only allowed for a controlled vault, since any coin with the puzzle hash could
+    // receive it, which would let a different coin than the one that's revealed be spent.
+    if !vault_spend.puzzle_messages.is_empty() {
+        return Err(DriverError::MissingSpend);
+    }
+
+    // The time bounds decide which clawback spends can be trusted, so they're recorded up front from the spends
+    // that the vault authorizes and that can't be replaced. Any mismatched message fails the transaction below.
+    for coin_id in messages_by_coin.keys() {
+        let Some(ParsedSpend {
+            clawback: None,
+            custody: Some(custody),
+            ..
+        }) = parsed_spends.get(coin_id)
+        else {
+            continue;
+        };
+
+        if !custody.receives_message() {
+            continue;
+        }
+
+        for condition in custody.conditions() {
+            match condition {
+                Condition::AssertSecondsAbsolute(condition) => {
+                    facts.update_actual_earliest_time(condition.seconds);
+                }
+                Condition::AssertBeforeSecondsAbsolute(condition) => {
+                    facts.update_actual_expiration_time(condition.seconds);
+                }
+                _ => {}
+            }
+        }
+    }
+
     let mut verified_spends = Vec::new();
     let mut issuances: Vec<Issuance> = Vec::new();
+
+    // Indices of verified sender path spends whose conditions haven't been recorded, since the expiration time
+    // didn't rule out the other paths yet when they were verified.
+    let mut untrusted_senders = Vec::new();
+
+    // Children of verified spends that are yet to be visited.
+    let mut stack: IndexSet<Bytes32> = IndexSet::new();
 
     for (coin_id, messages) in messages_by_coin {
         let spend = *reveals
             .coin_spend(coin_id)
             .ok_or(DriverError::MissingSpend)?;
-        let parsed_spend = parsed_spends
-            .remove(&coin_id)
-            .ok_or(DriverError::MissingSpend)?;
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            return Err(parse_errors
+                .remove(&coin_id)
+                .unwrap_or(DriverError::MissingSpend));
+        };
+
+        // The sender path could consume the message instead, unless the clawback has expired.
+        if let Some(ClawbackInfo {
+            clawback,
+            path: ClawbackPath::Receiver,
+        }) = parsed_spend.clawback
+            && !is_expired(&facts, &clawback)
+        {
+            return Err(DriverError::UnguaranteedClawbackExpiry);
+        }
 
         let Some(verified_spend) = verify_spend(
             &mut reveals,
@@ -144,50 +518,187 @@ pub fn parse_vault_transaction(
             return Err(DriverError::InvalidLinkedCustody);
         };
 
-        verified_spends.push(verified_spend);
+        push_verified_spend(
+            &facts,
+            &mut verified_spends,
+            &mut untrusted_senders,
+            &mut stack,
+            verified_spend,
+        );
     }
 
-    let mut stack: IndexSet<Bytes32> = verified_spends
-        .iter()
-        .flat_map(|spend| {
-            spend
-                .children
-                .iter()
-                .map(|child| child.asset.coin().coin_id())
-        })
-        .collect();
+    // Coins that were visited before anything asserted their spend, and the number of verified spends when they
+    // were last revisited.
+    let mut unasserted: IndexSet<Bytes32> = IndexSet::new();
+    let mut revisited_count = verified_spends.len();
 
-    while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) {
+    // Once a clawback has expired, anyone can push it through to the receiver without a signature, so the vault
+    // only asserts that the clawback coin is spent. The coin can then only be spent by its receiver (the receiver
+    // path or the push-through path), unless it's clawed back by the sender. The sender path asserts that the
+    // clawback hasn't expired, so if the vault asserts that it has, the clawback is going to the receiver.
+    //
+    // The children of a push-through can assert other spends, including other push-throughs, which is why this
+    // repeats until nothing else qualifies.
+    loop {
+        while let Some(coin_id) = stack.pop() {
+            if !facts.is_spend_asserted(coin_id) {
+                unasserted.insert(coin_id);
+                continue;
+            }
+
+            // Spends without custody stay parsed, since they may be verifiable push-throughs.
+            if parsed_spends
+                .get(&coin_id)
+                .is_none_or(|spend| spend.custody.is_none())
+            {
+                continue;
+            }
+
+            let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+                continue;
+            };
+
+            // Without a vault message, the receiver path could be replaced with the sender path.
+            if let Some(ClawbackInfo {
+                clawback,
+                path: ClawbackPath::Receiver,
+            }) = parsed_spend.clawback
+                && !parsed_spend
+                    .custody
+                    .as_ref()
+                    .is_some_and(CustodyInfo::receives_message)
+                && !is_expired(&facts, &clawback)
+            {
+                continue;
+            }
+
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
+
+            push_verified_spend(
+                &facts,
+                &mut verified_spends,
+                &mut untrusted_senders,
+                &mut stack,
+                verified_spend,
+            );
+        }
+
+        // Spends verified later in the traversal can lower the expiration time, which can make a sender path spend
+        // trusted after the fact, so its conditions are recorded then.
+        let (trusted_senders, still_untrusted): (Vec<usize>, Vec<usize>) = untrusted_senders
+            .into_iter()
+            .partition(|&index| !is_untrusted_sender(&facts, &verified_spends[index]));
+        untrusted_senders = still_untrusted;
+
+        for &index in &trusted_senders {
+            let spend = &verified_spends[index];
+            record_facts(
+                &mut facts,
+                spend.custody.conditions(),
+                spend.clawback,
+                spend.custody.receives_message(),
+            );
+        }
+
+        // A spend can be asserted after the traversal has already visited its coin, so the coins that weren't
+        // asserted are revisited whenever something new is verified or trusted.
+        if (verified_spends.len() > revisited_count || !trusted_senders.is_empty())
+            && !unasserted.is_empty()
+        {
+            revisited_count = verified_spends.len();
+            stack.extend(unasserted.drain(..));
             continue;
         }
 
-        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-            continue;
-        };
+        // The revealed coin spends are iterated in order rather than the parsed spends, which are unordered.
+        let push_throughs: Vec<(Bytes32, ClawbackV2)> = reveals
+            .coin_spends()
+            .filter_map(|spend| {
+                let coin_id = spend.coin.coin_id();
+                match parsed_spends.get(&coin_id)?.clawback {
+                    Some(ClawbackInfo {
+                        clawback,
+                        path: ClawbackPath::PushThrough,
+                    }) if spend.coin.amount == clawback.amount
+                        && facts.is_spend_asserted(coin_id)
+                        && is_expired(&facts, &clawback) =>
+                    {
+                        Some((coin_id, clawback))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
 
-        let spend = *reveals
-            .coin_spend(coin_id)
-            .ok_or(DriverError::MissingSpend)?;
-
-        let Some(verified_spend) = verify_spend(
-            &mut reveals,
-            &mut facts,
-            ctx,
-            spend,
-            parsed_spend,
-            &[],
-            &mut issuances,
-        )?
-        else {
-            continue;
-        };
-
-        for child in &verified_spend.children {
-            stack.insert(child.asset.coin().coin_id());
+        if push_throughs.is_empty() {
+            break;
         }
 
-        verified_spends.push(verified_spend);
+        for (coin_id, clawback) in push_throughs {
+            let mut parsed_spend = parsed_spends
+                .remove(&coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            let spend = *reveals
+                .coin_spend(coin_id)
+                .ok_or(DriverError::MissingSpend)?;
+
+            // The conditions are determined by the clawback rather than by the revealed solution, since the
+            // clawback's puzzle hash commits to them.
+            let push_through_path = ctx.alloc(&clawback.push_through_path())?;
+            let conditions =
+                parse_delegated_spend(ctx, Spend::new(push_through_path, NodePtr::NIL))?;
+            parsed_spend.custody = Some(CustodyInfo::DelegatedConditions(conditions));
+
+            let Some(verified_spend) = verify_spend(
+                &mut reveals,
+                &mut facts,
+                ctx,
+                spend,
+                parsed_spend,
+                &[],
+                &mut issuances,
+            )?
+            else {
+                continue;
+            };
+
+            push_verified_spend(
+                &facts,
+                &mut verified_spends,
+                &mut untrusted_senders,
+                &mut stack,
+                verified_spend,
+            );
+        }
+    }
+
+    // A spend that the transaction asserts is linked even without a vault message, so it can't be
+    // ignored if it couldn't be parsed. The revealed coin spends are iterated in order, so that the
+    // error is deterministic.
+    for spend in reveals.coin_spends() {
+        let coin_id = spend.coin.coin_id();
+
+        if facts.is_spend_asserted(coin_id)
+            && let Some(error) = parse_errors.remove(&coin_id)
+        {
+            return Err(error);
+        }
     }
 
     // If the transaction expires after the required expiration time of the spend,
@@ -248,7 +759,18 @@ pub fn parse_vault_transaction(
         reserved_fee,
     );
 
+    // A vault that signs messages must be recreated as it was, which is also what `verify_vault_signed_message`
+    // requires. This can only be checked if the vault's custody hash is known.
+    if !vault_spend.signed_messages.is_empty()
+        && let Some(custody_hash) = custody_hash
+        && vault_spend.child != Some(VaultOutput::new(custody_hash, VAULT_AMOUNT))
+    {
+        return Err(DriverError::VaultMessageEnvelopeChangesVault);
+    }
+
     Ok(VaultTransaction {
+        launcher_id,
+        custody_hash,
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
@@ -261,7 +783,56 @@ pub fn parse_vault_transaction(
         reserved_fee,
         p2_puzzle_hashes,
         delegated_puzzle_hash,
+        signed_messages: vault_spend.signed_messages,
+        authorization_path: Vec::new(),
+        signing_vault: None,
     })
+}
+
+/// Whether the transaction can only be valid once the clawback has expired, which rules out its sender path.
+fn is_expired(facts: &Facts, clawback: &ClawbackV2) -> bool {
+    facts
+        .actual_earliest_time()
+        .is_some_and(|earliest| earliest >= clawback.seconds)
+}
+
+/// Adds a verified spend, queues its children to be visited, and keeps track of it if it's a sender path spend whose
+/// conditions couldn't be recorded yet.
+fn push_verified_spend(
+    facts: &Facts,
+    verified_spends: &mut Vec<VerifiedSpend>,
+    untrusted_senders: &mut Vec<usize>,
+    stack: &mut IndexSet<Bytes32>,
+    verified_spend: VerifiedSpend,
+) {
+    for child in &verified_spend.children {
+        stack.insert(child.asset.coin().coin_id());
+    }
+
+    if is_untrusted_sender(facts, &verified_spend) {
+        untrusted_senders.push(verified_spends.len());
+    }
+
+    verified_spends.push(verified_spend);
+}
+
+/// Whether the transaction expires before the clawback, which rules out the paths a sender path spend could be
+/// replaced with.
+fn is_sender_trusted(facts: &Facts, clawback: &ClawbackV2) -> bool {
+    facts
+        .actual_expiration_time()
+        .is_some_and(|expiration| expiration <= clawback.seconds)
+}
+
+/// Whether a verified spend takes the sender path, but its conditions couldn't be recorded yet.
+fn is_untrusted_sender(facts: &Facts, spend: &VerifiedSpend) -> bool {
+    matches!(
+        spend.clawback,
+        Some(ClawbackInfo {
+            clawback,
+            path: ClawbackPath::Sender,
+        }) if !is_sender_trusted(facts, &clawback)
+    )
 }
 
 fn verify_spend(
@@ -277,14 +848,10 @@ fn verify_spend(
         return Ok(None);
     };
 
-    let conditions: &[Condition] = match &custody {
-        CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
-        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
-            conditions, ..
-        })
-        | CustodyInfo::DelegatedConditions(conditions) => conditions,
-    };
+    let conditions = custody.conditions();
 
+    // The coin id is committed to by the conditions, and therefore the message. Since the coin id
+    // depends on the fixed conditions, they can't be made to receive the same message.
     if matches!(&custody, CustodyInfo::P2ConditionsOrSingleton(_))
         && !conditions.contains(&Condition::assert_my_coin_id(spend.coin.coin_id()))
     {
@@ -308,7 +875,7 @@ fn verify_spend(
         None
     };
 
-    let issuance = if let Some(run_cat_tail) = run_cat_tail {
+    let mut issuance = if let Some(run_cat_tail) = run_cat_tail {
         let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
         Some(Issuance {
@@ -316,6 +883,7 @@ fn verify_spend(
             asset_id: run_cat_tail.asset_id,
             extra_delta: cat_solution.extra_delta,
             kind: run_cat_tail.kind,
+            verified: false,
         })
     } else {
         None
@@ -333,7 +901,7 @@ fn verify_spend(
             }
 
             custody_matched = true;
-        } else if let Some(issuance) = &issuance
+        } else if let Some(issuance) = &mut issuance
             && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {
@@ -342,6 +910,7 @@ fn verify_spend(
             }
 
             tail_matched = true;
+            issuance.verified = true;
         } else {
             return Err(DriverError::UnmatchedVaultMessage);
         }
@@ -355,15 +924,14 @@ fn verify_spend(
         facts.update_required_expiration_time(time);
     }
 
-    let children = parse_children(
-        reveals,
+    record_facts(
         facts,
-        allocator,
-        &parsed_spend.asset,
-        spend,
         conditions,
-        parsed_spend.required_expiration_time.is_some(),
-    )?;
+        parsed_spend.clawback,
+        custody.receives_message(),
+    );
+
+    let children = parse_children(reveals, allocator, &parsed_spend.asset, spend, conditions)?;
 
     // Issuances are either:
     // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
@@ -379,6 +947,46 @@ fn verify_spend(
         children,
         revoked: parsed_spend.revoked,
     }))
+}
+
+/// Records what a verified spend's conditions guarantee about the transaction.
+///
+/// A vault message is received by a coin rather than a puzzle, so another path of a clawback can consume the message
+/// without outputting the conditions it commits to. A clawback spend can therefore only be trusted once the time
+/// bounds rule out the paths it could be replaced with. The time bounds can't come from clawback spends themselves.
+fn record_facts(
+    facts: &mut Facts,
+    conditions: &[Condition],
+    clawback: Option<ClawbackInfo>,
+    is_message_bound: bool,
+) {
+    let is_trusted = clawback.is_none_or(|info| match info.path {
+        ClawbackPath::Sender => is_sender_trusted(facts, &info.clawback),
+        ClawbackPath::Receiver => is_message_bound && is_expired(facts, &info.clawback),
+        ClawbackPath::PushThrough => false,
+    });
+
+    if !is_trusted {
+        return;
+    }
+
+    for condition in conditions {
+        match condition {
+            Condition::AssertPuzzleAnnouncement(condition) => {
+                facts.assert_puzzle_announcement(condition.announcement_id);
+            }
+            Condition::AssertConcurrentSpend(condition) => {
+                facts.assert_spend(condition.coin_id);
+            }
+            Condition::AssertBeforeSecondsAbsolute(condition) if clawback.is_none() => {
+                facts.update_actual_expiration_time(condition.seconds);
+            }
+            Condition::ReserveFee(condition) => {
+                facts.add_reserved_fees(condition.amount);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -477,6 +1085,11 @@ fn build_asset_flows(
             let amount = u128::from(spend.asset.coin().amount);
             asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
+        }
+
+        // The extra delta comes from the solution, so it can't be relied on unless it was verified.
+        if !issuance.verified {
+            continue;
         }
 
         // The extra delta comes from an untrusted solution, so it can be `i64::MIN`.

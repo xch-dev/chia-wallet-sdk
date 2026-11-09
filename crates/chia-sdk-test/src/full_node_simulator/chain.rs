@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{BlockRecord, Bytes32, SpendBundle};
 use indexmap::{IndexMap, IndexSet};
-use rand::Rng;
+use rand::RngExt;
 
 use crate::{FullNodeSimulatorEvent, SimulatorError};
 

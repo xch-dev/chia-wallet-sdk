@@ -68,6 +68,12 @@ impl DidInfo {
             return Ok(None);
         };
 
+        // The DID layer curries in its own copy of the launcher id, which must match the singleton.
+        // Otherwise, the info wouldn't represent the puzzle that was parsed.
+        if layers.inner_puzzle.launcher_id != layers.launcher_id {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
+
         let p2_puzzle = layers.inner_puzzle.inner_puzzle;
 
         Ok(Some((Self::from_layers(&layers), p2_puzzle)))

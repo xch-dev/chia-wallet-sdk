@@ -7,7 +7,7 @@ use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
 use chia_sha2::Sha256;
 use hex_literal::hex;
 use indexmap::IndexMap;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 mod chain;

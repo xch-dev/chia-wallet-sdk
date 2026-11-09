@@ -49,6 +49,10 @@ impl SpendKind {
     /// payment with the same nonce, their announcements would be identical. A single assertion
     /// would then be satisfied by either coin, and a third party could remove one of the spends
     /// from the bundle and claim the coin for themselves.
+    ///
+    /// This only covers coins created here. Notarized payments from settle actions use the nonce
+    /// they're given, so their uniqueness is checked by [`Spends::apply`](crate::Spends::apply) and
+    /// [`Spends::prepare`](crate::Spends::prepare) instead.
     pub fn create_coin_with_assertion(
         &mut self,
         allocator: &Allocator,

@@ -3,12 +3,11 @@ use std::collections::HashMap;
 use chia_consensus::{
     conditions::ELIGIBLE_FOR_DEDUP,
     consensus_constants::ConsensusConstants,
-    flags::{COMPUTE_FINGERPRINT, MEMPOOL_MODE},
+    flags::{ConsensusFlags, MEMPOOL_MODE},
     validation_error::ErrorCode,
 };
 use chia_protocol::{Bytes32, Coin, SpendBundle};
 use chia_sdk_types::default_constants;
-use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
@@ -70,7 +69,8 @@ impl FullNodeSimulator {
             height: self.state.height,
             timestamp: self.state.peak_timestamp(),
         };
-        let mut flags = ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT;
+        let mut flags =
+            ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD | ConsensusFlags::COMPUTE_FINGERPRINT;
         if self.mempool_mode {
             flags |= MEMPOOL_MODE;
         }

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use chia_consensus::{
     check_time_locks::check_time_locks,
     consensus_constants::ConsensusConstants,
+    flags::ConsensusFlags,
     owned_conditions::{OwnedSpendBundleConditions, OwnedSpendConditions},
     validation_error::ErrorCode,
 };
@@ -43,7 +44,7 @@ pub(crate) struct ValidatedConditions {
 pub(crate) struct ValidationSettings<'a> {
     pub constants: &'a ConsensusConstants,
     pub max_cost: u64,
-    pub flags: u32,
+    pub flags: ConsensusFlags,
 }
 
 pub(crate) fn validate_conditions(
@@ -90,7 +91,15 @@ pub(crate) fn validate_time_locks(
     removal_records: &HashMap<Bytes32, CoinRecord>,
     clock: ValidationClock,
 ) -> Result<(), ErrorCode> {
-    check_time_locks(removal_records, conditions, clock.height, clock.timestamp)
+    // Saturate rather than wrap, so a relative lock that overflows can never be satisfied.
+    check_time_locks(
+        removal_records,
+        conditions,
+        clock.height,
+        clock.timestamp,
+        true,
+    )
+    .map_err(|error| error.error_code())
 }
 
 pub(crate) fn coin_record(

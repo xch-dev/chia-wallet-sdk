@@ -21,13 +21,18 @@ pub fn set_panic_hook() {
 impl Clvm {
     #[wasm_bindgen]
     pub fn alloc(&self, value: &JsValue) -> Result<Program, JsError> {
-        Ok(Program::from_rust(alloc(&self.0, value)?, &WasmContext)?)
+        Ok(Program::from_rust(alloc(&self.0, value, 0)?, &WasmContext)?)
     }
 }
+
+/// Limits how deeply nested arrays can be, so that deep or cyclic arrays
+/// result in an error rather than overflowing the stack.
+const MAX_ALLOC_DEPTH: usize = 512;
 
 fn alloc(
     clvm: &chia_sdk_bindings::Clvm,
     value: &JsValue,
+    depth: usize,
 ) -> Result<chia_sdk_bindings::Program, JsError> {
     if let Some(value) = try_from_js_any(value) {
         return Ok(match value {
@@ -170,10 +175,16 @@ fn alloc(
     } else if let Some(value) = value.dyn_ref::<Uint8Array>() {
         Ok(clvm.atom(value.to_vec().into())?)
     } else if let Some(value) = value.dyn_ref::<Array>() {
+        if depth >= MAX_ALLOC_DEPTH {
+            return Err(JsError::new(&format!(
+                "Array nesting exceeds the maximum depth of {MAX_ALLOC_DEPTH}"
+            )));
+        }
+
         let mut list = Vec::new();
 
         for item in value.iter() {
-            list.push(alloc(clvm, &item)?);
+            list.push(alloc(clvm, &item, depth + 1)?);
         }
 
         Ok(clvm.list(list)?)

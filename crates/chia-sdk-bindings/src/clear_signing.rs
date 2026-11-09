@@ -3,25 +3,17 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_driver::{
-    self as sdk, Bulletin, Cat, ClawbackPath, ClawbackV2, DropCoin, P2ConditionsOrSingleton,
-    SpendContext, VaultOutput, VaultVersion,
+    self as sdk, BagFormat, BagPayment, Bulletin, Cat, ClawbackPath, ClawbackV2,
+    ControlledVaultRecovery, DropCoin, P2ConditionsOrSingleton, SigningVault, SpendContext,
+    VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
 };
-use chia_sdk_types::Condition;
 
-use crate::{AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, Spend};
+use crate::{
+    AsProgram, Clvm, Nft, NotarizedPayment, Payment, Program, SecureTheBag, Spend, Vault,
+    conditions_to_programs,
+};
 
 type SharedContext = Arc<Mutex<SpendContext>>;
-
-fn conditions_to_programs(
-    ctx: &mut SpendContext,
-    clvm: &SharedContext,
-    conditions: &[Condition],
-) -> Result<Vec<Program>> {
-    conditions
-        .iter()
-        .map(|condition| Ok(Program(clvm.clone(), ctx.alloc(condition)?)))
-        .collect()
-}
 
 #[derive(Clone)]
 pub struct Reveals {
@@ -69,8 +61,42 @@ impl Reveals {
         Ok(())
     }
 
+    pub fn reveal_bag(&self, bag: SecureTheBag) -> Result<()> {
+        self.inner.lock().unwrap().reveal_bag(bag.0);
+        Ok(())
+    }
+
     pub fn reveal_vault_nonce(&self, nonce: usize) -> Result<()> {
         self.inner.lock().unwrap().reveal_vault_nonce(nonce);
+        Ok(())
+    }
+
+    pub fn reveal_signing_vault(&self, custody_hash: Bytes32, coin: Option<Coin>) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_signing_vault(custody_hash, coin);
+        Ok(())
+    }
+
+    pub fn reveal_controlled_vault(
+        &self,
+        coin: Coin,
+        launcher_id: Bytes32,
+        custody_hash: Bytes32,
+        delegated_spend: Spend,
+        recovery: Option<ControlledVaultRecovery>,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap()
+            .reveal_controlled_vault(sdk::RevealedControlledVault {
+                coin,
+                launcher_id,
+                custody_hash,
+                delegated_spend: delegated_spend.into(),
+                recovery,
+            })?;
         Ok(())
     }
 }
@@ -88,6 +114,105 @@ pub fn parse_vault_transaction(
         sdk::parse_vault_transaction(reveals, &mut ctx, launcher_id, delegated_spend.into())?;
 
     VaultTransaction::from_sdk(&mut ctx, &clvm.0, transaction)
+}
+
+pub fn vault_message_envelope(clvm: Clvm, vault: Vault, messages: Vec<Bytes>) -> Result<Spend> {
+    let mut ctx = clvm.0.lock().unwrap();
+    let spend = sdk::vault_message_envelope(&mut ctx, &vault.into(), &messages)?;
+
+    Ok(Spend {
+        puzzle: Program(clvm.0.clone(), spend.puzzle),
+        solution: Program(clvm.0.clone(), spend.solution),
+    })
+}
+
+pub fn vault_controller_envelope(
+    clvm: Clvm,
+    controller: Vault,
+    controlled_coin: Coin,
+    delegated_puzzle_hash: Bytes32,
+    fast_forward: bool,
+) -> Result<Spend> {
+    let mut ctx = clvm.0.lock().unwrap();
+    let spend = sdk::vault_controller_envelope(
+        &mut ctx,
+        &controller.into(),
+        controlled_coin,
+        delegated_puzzle_hash,
+        fast_forward,
+    )?;
+
+    Ok(Spend {
+        puzzle: Program(clvm.0.clone(), spend.puzzle),
+        solution: Program(clvm.0.clone(), spend.solution),
+    })
+}
+
+pub fn vault_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_message_coin())
+}
+
+pub fn vault_controller_message_coin() -> Result<Coin> {
+    Ok(sdk::vault_controller_message_coin())
+}
+
+pub fn verify_vault_signed_message(
+    proof: VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>> {
+    Ok(sdk::verify_vault_signed_message(
+        &proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        genesis_challenge,
+        max_cost,
+    )?)
+}
+
+pub fn verify_controlled_vault_signed_message(
+    proof: VaultMessageProof,
+    expected_launcher_id: Bytes32,
+    expected_custody_hash: Bytes32,
+    controllers: Vec<VaultInfo>,
+    genesis_challenge: Bytes32,
+    max_cost: Option<u64>,
+) -> Result<Vec<Bytes>> {
+    Ok(sdk::verify_controlled_vault_signed_message(
+        &proof,
+        expected_launcher_id,
+        expected_custody_hash,
+        &controllers,
+        genesis_challenge,
+        max_cost,
+    )?)
+}
+
+pub trait VaultMessageProofExt: Sized {
+    fn encode(&self) -> Result<Bytes>;
+    fn decode(proof: Bytes) -> Result<Self>;
+    fn encode_string(&self) -> Result<String>;
+    fn decode_string(proof: String) -> Result<Self>;
+}
+
+impl VaultMessageProofExt for VaultMessageProof {
+    fn encode(&self) -> Result<Bytes> {
+        Ok(Self::encode(self)?)
+    }
+
+    fn decode(proof: Bytes) -> Result<Self> {
+        Ok(Self::decode(&proof)?)
+    }
+
+    fn encode_string(&self) -> Result<String> {
+        Ok(Self::encode_string(self)?)
+    }
+
+    fn decode_string(proof: String) -> Result<Self> {
+        Ok(Self::decode_string(&proof)?)
+    }
 }
 
 pub fn calculate_vault_puzzle_message(
@@ -146,6 +271,8 @@ pub fn calculate_vault_start_recovery_message(
 
 #[derive(Clone)]
 pub struct VaultTransaction {
+    pub launcher_id: Bytes32,
+    pub custody_hash: Option<Bytes32>,
     pub vault_child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
     pub spends: Vec<VerifiedSpend>,
@@ -158,15 +285,24 @@ pub struct VaultTransaction {
     pub reserved_fee: u64,
     pub p2_puzzle_hashes: Vec<Bytes32>,
     pub delegated_puzzle_hash: Bytes32,
+    pub signed_messages: Vec<Bytes>,
+    pub authorization_path: Vec<VaultAuthorization>,
+    pub signing_vault: Option<SigningVault>,
 }
 
 impl VaultTransaction {
+    pub fn signs_messages(&self) -> Result<bool> {
+        Ok(!self.signed_messages.is_empty())
+    }
+
     fn from_sdk(
         ctx: &mut SpendContext,
         clvm: &SharedContext,
         value: sdk::VaultTransaction,
     ) -> Result<Self> {
         Ok(Self {
+            launcher_id: value.launcher_id,
+            custody_hash: value.custody_hash,
             vault_child: value.vault_child,
             drop_coins: value.drop_coins,
             spends: value
@@ -201,6 +337,9 @@ impl VaultTransaction {
             reserved_fee: value.reserved_fee,
             p2_puzzle_hashes: value.p2_puzzle_hashes,
             delegated_puzzle_hash: value.delegated_puzzle_hash,
+            signed_messages: value.signed_messages,
+            authorization_path: value.authorization_path,
+            signing_vault: value.signing_vault,
         })
     }
 }
@@ -430,6 +569,7 @@ pub enum TransferType {
     Burned,
     Offered,
     OfferPreSplit(OfferPreSplitInfo),
+    SecureTheBag(SecureTheBagInfo),
 }
 
 impl TransferType {
@@ -447,6 +587,19 @@ impl TransferType {
                 nonce: info.nonce,
                 fixed_conditions: conditions_to_programs(ctx, clvm, &info.fixed_conditions)?,
                 settlement_amount: info.settlement_amount,
+            }),
+            sdk::TransferType::SecureTheBag(info) => Self::SecureTheBag(SecureTheBagInfo {
+                format: info.format,
+                payments: info
+                    .payments
+                    .into_iter()
+                    .map(|payment| {
+                        Ok(ParsedBagPayment {
+                            payment: payment.payment,
+                            transfer_type: Self::from_sdk(ctx, clvm, payment.transfer_type)?,
+                        })
+                    })
+                    .collect::<Result<_>>()?,
             }),
         })
     }
@@ -469,6 +622,13 @@ impl TransferType {
             _ => None,
         })
     }
+
+    pub fn as_secure_the_bag(&self) -> Result<Option<SecureTheBagInfo>> {
+        Ok(match self {
+            Self::SecureTheBag(info) => Some(info.clone()),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -480,11 +640,24 @@ pub struct OfferPreSplitInfo {
 }
 
 #[derive(Clone)]
+pub struct SecureTheBagInfo {
+    pub format: BagFormat,
+    pub payments: Vec<ParsedBagPayment>,
+}
+
+#[derive(Clone)]
+pub struct ParsedBagPayment {
+    pub payment: BagPayment,
+    pub transfer_type: TransferType,
+}
+
+#[derive(Clone)]
 pub struct Issuance {
     pub coin_id: Bytes32,
     pub asset_id: Bytes32,
     pub extra_delta: i64,
     pub kind: IssuanceKind,
+    pub verified: bool,
 }
 
 impl From<sdk::Issuance> for Issuance {
@@ -494,6 +667,7 @@ impl From<sdk::Issuance> for Issuance {
             asset_id: value.asset_id,
             extra_delta: value.extra_delta,
             kind: value.kind.into(),
+            verified: value.verified,
         }
     }
 }

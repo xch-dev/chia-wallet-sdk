@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clvmr::{
-    Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, MEMPOOL_MODE, NodePtr, error::EvalErr,
-    reduction::Reduction, run_program,
+    Allocator, ChiaDialect, ClvmFlags, MEMPOOL_MODE, NodePtr, error::EvalErr, reduction::Reduction,
+    run_program,
 };
 use rue_lir::DebugDialect;
 
@@ -30,7 +30,7 @@ pub fn run_puzzle_with_cost(
     max_cost: u64,
     mempool_mode: bool,
 ) -> Result<Reduction, EvalErr> {
-    let mut flags = ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+    let mut flags = ClvmFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 
     if mempool_mode {
         flags |= MEMPOOL_MODE;

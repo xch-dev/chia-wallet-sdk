@@ -3,7 +3,7 @@ use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::standard::StandardArgs;
 use chia_secp::{K1PublicKey, K1SecretKey, R1PublicKey, R1SecretKey};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 #[derive(Debug, Clone)]

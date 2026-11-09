@@ -1,4 +1,5 @@
 mod augmented_condition;
+mod cat_makers;
 mod everything_with_singleton;
 mod mips;
 mod mods;
@@ -9,8 +10,10 @@ mod p2_one_of_many;
 mod p2_parent;
 mod p2_singleton;
 mod revocation;
+mod secure_the_mint;
 
 pub use augmented_condition::*;
+pub use cat_makers::*;
 pub use everything_with_singleton::*;
 pub use mips::*;
 pub use mods::*;
@@ -21,6 +24,31 @@ pub use p2_one_of_many::*;
 pub use p2_parent::*;
 pub use p2_singleton::*;
 pub use revocation::*;
+pub use secure_the_mint::*;
+
+#[cfg(feature = "chip-0008")]
+mod splitter;
+
+#[cfg(feature = "chip-0008")]
+pub use splitter::*;
+
+#[cfg(feature = "chip-0021")]
+mod fusion;
+
+#[cfg(feature = "chip-0021")]
+pub use fusion::*;
+
+#[cfg(feature = "chip-0052")]
+mod partial_offer;
+
+#[cfg(feature = "chip-0052")]
+pub use partial_offer::*;
+
+#[cfg(feature = "auction")]
+mod auction;
+
+#[cfg(feature = "auction")]
+pub use auction::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;

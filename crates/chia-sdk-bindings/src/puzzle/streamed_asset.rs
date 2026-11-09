@@ -58,10 +58,7 @@ pub trait StreamingPuzzleInfoExt: Sized {
 
 impl StreamingPuzzleInfoExt for StreamingPuzzleInfo {
     fn amount_to_be_paid(&self, my_coin_amount: u64, payment_time: u64) -> Result<u64> {
-        // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
-        // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
-        Ok(my_coin_amount * (payment_time - self.last_payment_time)
-            / (self.end_time - self.last_payment_time))
+        Ok(Self::amount_to_be_paid(self, my_coin_amount, payment_time)?)
     }
 
     fn get_hint(recipient: Bytes32) -> Result<Bytes32> {

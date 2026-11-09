@@ -63,6 +63,10 @@ impl Layer for StreamLayer {
             return Ok(None);
         };
 
+        if puzzle_1st_curry.mod_hash != STREAM_PUZZLE_HASH {
+            return Ok(None);
+        }
+
         let Ok(args1) = StreamPuzzle1stCurryArgs::from_clvm(allocator, puzzle_1st_curry.args)
         else {
             return Ok(None);
@@ -72,8 +76,10 @@ impl Layer for StreamLayer {
             return Ok(None);
         };
 
-        if puzzle_1st_curry.mod_hash != STREAM_PUZZLE_HASH {
-            return Err(DriverError::InvalidModHash);
+        // The puzzle uses SELF_HASH to recreate itself with the remaining amount after a payment.
+        // If it doesn't match the first curry, the remainder would be sent to a different puzzle.
+        if args2.self_hash != puzzle_2nd_curry.mod_hash.into() {
+            return Ok(None);
         }
 
         Ok(Some(Self {

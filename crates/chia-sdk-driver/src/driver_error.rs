@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, num::TryFromIntError};
 
+use chia_protocol::Bytes32;
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::error::EvalErr;
@@ -36,6 +37,36 @@ pub enum DriverError {
 
     #[error("invalid state schedule: must be nonempty and strictly increasing by timestamp")]
     InvalidStateSchedule,
+
+    #[error(
+        "invalid splitter: must have at least one recipient, unique puzzle hashes, nonzero shares, and a total that fits in a u64"
+    )]
+    InvalidSplitter,
+
+    #[error(
+        "invalid fusion: each side must have at least one NFT, and an NFT can only be listed once"
+    )]
+    InvalidFusion,
+
+    #[error("the fusion singleton has an amount of {0}, but it must be odd")]
+    InvalidFusionSingletonAmount(u64),
+
+    #[error("the fusion solution is missing the direction of the swap")]
+    InvalidFusionSolution,
+
+    #[error("an NFT can't be unlocked to the fusion's p2 puzzle or the settlement puzzle")]
+    InvalidFusionTarget,
+
+    #[error("the NFTs don't match the side of the fusion that they're being swapped for")]
+    FusionNftMismatch,
+
+    #[error(
+        "the NFT can't be used in a fusion: it must have an amount of 1 and the default metadata updater"
+    )]
+    UnsupportedFusionNft,
+
+    #[error("the offer can't be taken by this fusion")]
+    FusionOfferMismatch,
 
     #[error("missing child")]
     MissingChild,
@@ -76,6 +107,18 @@ pub enum DriverError {
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
 
+    #[error("m of n requires between 1 and {items} members, but {required} were required")]
+    InvalidMofNRequired { required: usize, items: usize },
+
+    #[error("m of n contains duplicate members")]
+    DuplicateMofNMembers,
+
+    #[error("mips memo is nested too deeply")]
+    MipsMemoTooDeep,
+
+    #[error("mips memo is too large")]
+    MipsMemoTooLarge,
+
     #[error("cannot emit conditions from spend")]
     CannotEmitConditions,
 
@@ -93,6 +136,9 @@ pub enum DriverError {
 
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
+
+    #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
+    DuplicateSettlementPayment,
 
     #[error("the amount does not match the amount of the singleton")]
     SingletonAmountMismatch,
@@ -117,7 +163,6 @@ pub enum DriverError {
     #[error("unsupported compression version")]
     UnsupportedVersion,
 
-    #[cfg(feature = "offer-compression")]
     #[error("streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
@@ -133,9 +178,11 @@ pub enum DriverError {
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
     Decode(#[from] chia_sdk_utils::Bech32Error),
+
+    #[error("requested payment is for an unsupported asset")]
+    UnsupportedRequestedAsset,
 
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,
@@ -145,6 +192,53 @@ pub enum DriverError {
 
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
+
+    #[error("offer uses the old settlement payments puzzle")]
+    OldSettlementPayment,
+
+    #[error("invalid partial offer terms")]
+    InvalidPartialOffer,
+
+    #[error(
+        "partial offer fill is below the minimum, pays out nothing, or exceeds the remaining amount"
+    )]
+    InvalidPartialOfferFill,
+
+    #[error("partial offer has unsupported persistent conditions")]
+    UnsupportedPartialOfferConditions,
+
+    #[error("partial offer coin is not created by the maker's spends")]
+    PartialOfferNotCreated,
+
+    #[error("partial offer coins with the same maker and requested asset can't share a parent")]
+    PartialOfferSiblings,
+
+    #[error("partial offer coin must not be created by a settlement payments coin")]
+    UnsignedPartialOfferCreation,
+
+    #[error("the auction's {name} of {bps} bps exceeds 10,000 bps")]
+    AuctionBpsTooHigh { name: &'static str, bps: u64 },
+
+    #[error("puzzle hash {0} receives more than one payment when the auction ends")]
+    DuplicateAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("puzzle hash {0} can't receive an auction payment, since it's reserved by the auction")]
+    ReservedAuctionPaymentPuzzleHash(Bytes32),
+
+    #[error("the launched singleton doesn't match the auction memo")]
+    AuctionPuzzleHashMismatch,
+
+    #[error("the auction singleton has an amount of {0}, but it must be 1")]
+    InvalidAuctionSingletonAmount(u64),
+
+    #[error("the auction reserve must be an empty coin locked by the auction")]
+    InvalidAuctionReserve,
+
+    #[error("the NFT must be locked by the auction before it's launched")]
+    AuctionNftNotLocked,
+
+    #[error("CAT spends can't be included with an auction that has an XCH reserve")]
+    UnexpectedAuctionCatSpends,
 
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
@@ -166,6 +260,11 @@ pub enum DriverError {
 
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
+
+    #[error(
+        "the transaction is not guaranteed to only be valid after its received clawbacks expire"
+    )]
+    UnguaranteedClawbackExpiry,
 
     #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
@@ -195,4 +294,145 @@ pub enum DriverError {
         "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
     )]
     MissingP2ConditionsOrSingletonAssertion,
+
+    #[error("stream payment time is before the last payment time, or the stream has already ended")]
+    InvalidStreamPaymentTime,
+
+    #[error("a vault message envelope must contain at least one message")]
+    EmptyVaultMessageEnvelope,
+
+    #[error(
+        "a delegated spend that signs vault messages can't contain any other conditions or messages, other than recreating the vault"
+    )]
+    MixedVaultMessageEnvelope,
+
+    #[error("missing vault message proof version")]
+    MissingVaultMessageProofVersion,
+
+    #[error("unsupported vault message proof version {0}")]
+    UnsupportedVaultMessageProofVersion(u8),
+
+    #[error("the vault message proof is for a coin that isn't the expected vault")]
+    WrongVaultPuzzleHash,
+
+    #[error("the vault message proof is for a vault whose custody isn't a top-level MIPS puzzle")]
+    UnsupportedVaultCustody,
+
+    #[error(
+        "a vault that signs messages, or authorizes another vault to, must be recreated with the same custody hash and amount"
+    )]
+    VaultMessageEnvelopeChangesVault,
+
+    #[error(
+        "the vault message proof asserts a height or time, which can't be checked without the chain"
+    )]
+    VaultMessageTimelocked,
+
+    #[error("a vault message can be at most 1024 bytes")]
+    VaultMessageTooLong,
+
+    #[error("the vault message proof is too large for the maximum cost")]
+    VaultMessageProofTooLarge,
+
+    #[error("the vault message proof has too many delegated puzzle wrappers")]
+    TooManyDelegatedPuzzleWrappers,
+
+    #[error(
+        "the vault message proof has a delegated puzzle wrapper that can't be used to sign messages"
+    )]
+    UnsupportedDelegatedPuzzleWrapper,
+
+    #[error("the vault message proof's aggregated signature is invalid")]
+    InvalidVaultMessageSignature,
+
+    #[error(
+        "a controlled vault's coin doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongControlledVaultPuzzleHash,
+
+    #[error(
+        "the message sent to a controlled vault doesn't match the delegated puzzle hash it was revealed with"
+    )]
+    WrongControlledVaultMessage,
+
+    #[error("a controlled vault is authorized more than once in the same transaction")]
+    DuplicateControlledVault,
+
+    #[error("controlled vaults are nested too deeply")]
+    ControlledVaultTooDeep,
+
+    #[error(
+        "the coin of the vault being signed for doesn't have the singleton puzzle hash for its launcher id and custody hash"
+    )]
+    WrongSigningVaultPuzzleHash,
+
+    #[error("a vault must be recreated with an amount of 1")]
+    InvalidVaultAmount,
+
+    #[error(
+        "the puzzle of a controlled vault must be a singleton whose inner puzzle is a top-level MIPS puzzle"
+    )]
+    InvalidControlledVaultPuzzle,
+
+    #[error(
+        "a vault controller's delegated spend can only recreate the controller, send one message to the vault it controls, and send the same message to the controller message coin"
+    )]
+    InvalidVaultControllerEnvelope,
+
+    #[error(
+        "a vault that authorizes another vault's spend can only recreate itself and send that vault one message"
+    )]
+    InvalidVaultControllerSpend,
+
+    #[error(
+        "a controlled vault that authorizes another vault's spend must be recreated with the same custody hash and amount"
+    )]
+    VaultControllerChangesVault,
+
+    #[error(
+        "the vault message proof has a spend of vault controller {0}, whose custody hash wasn't given"
+    )]
+    UnknownVaultController(Bytes32),
+
+    #[error("the vault message proof has too many vault controller spends")]
+    TooManyVaultControllers,
+
+    #[error("the vault message proof spends the same vault more than once")]
+    DuplicateVaultControllerSpend,
+
+    #[error("consensus validation failed: {0}")]
+    Validation(#[from] chia_consensus::validation_error::ValidationErr),
+
+    #[error("a bag must contain at least one payment")]
+    EmptyBag,
+
+    #[error("the bag already has a payment that creates a coin with puzzle hash {0}")]
+    DuplicateBagPayment(Bytes32),
+
+    #[error("a bag payment's clawback must have the same receiver and amount as the payment")]
+    BagClawbackMismatch,
+
+    #[error("invalid bag width {width} for {payments} payments")]
+    InvalidBagWidth { width: usize, payments: usize },
+
+    #[error("puzzle hash {0} is not part of this bag")]
+    UnknownBagNode(Bytes32),
+
+    #[error("the coin isn't on the path to {0} in this bag")]
+    NotBagAncestor(Bytes32),
+
+    #[error("the coin's amount doesn't match the bag")]
+    BagAmountMismatch,
+
+    #[error("a payment has the same puzzle hash as node {0} of the bag")]
+    BagNodeCollision(Bytes32),
+
+    #[error("the coin isn't the pre-launcher of this secured mint")]
+    NotPreLauncher,
+
+    #[error("a pre-launcher must have an amount of 1, but it has {0}")]
+    InvalidPreLauncherAmount(u64),
+
+    #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
+    NoMeltPublicKey,
 }
