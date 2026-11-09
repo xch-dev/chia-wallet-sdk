@@ -34,7 +34,10 @@ pub enum PoolWaitingRoomSolution {
     Absorb(PoolWaitingRoomAbsorbSolution),
     /// Moves to the destination puzzle hash, which the owner must sign.
     Travel {
+        /// The data that the owner signs along with the destination, which is the next pool
+        /// state as a key value list.
         extra_data: NodePtr,
+        /// The inner puzzle hash that the singleton is recreated with.
         destination_puzzle_hash: Bytes32,
     },
 }

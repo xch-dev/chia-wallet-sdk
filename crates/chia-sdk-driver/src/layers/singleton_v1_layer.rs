@@ -20,6 +20,7 @@ pub struct SingletonV1Layer<I> {
 }
 
 impl<I> SingletonV1Layer<I> {
+    /// Creates a new [`SingletonV1Layer`] with the given launcher id and inner puzzle layer.
     pub fn new(launcher_id: Bytes32, inner_puzzle: I) -> Self {
         Self {
             launcher_id,

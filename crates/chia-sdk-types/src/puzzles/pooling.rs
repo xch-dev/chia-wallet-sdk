@@ -19,11 +19,14 @@ use crate::Mod;
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct SingletonV1Args<I> {
+    /// The singleton's launcher id, along with the v1.0 mod hash and the launcher puzzle hash.
     pub singleton_struct: SingletonStruct,
+    /// The inner puzzle, which is a pool member or pool waiting room puzzle for plot NFTs.
     pub inner_puzzle: I,
 }
 
 impl<I> SingletonV1Args<I> {
+    /// Creates the curried arguments of a v1.0 singleton with the given launcher id.
     pub fn new(launcher_id: Bytes32, inner_puzzle: I) -> Self {
         Self {
             singleton_struct: singleton_v1_struct(launcher_id),
@@ -33,6 +36,7 @@ impl<I> SingletonV1Args<I> {
 }
 
 impl SingletonV1Args<TreeHash> {
+    /// The puzzle hash of a v1.0 singleton with the given launcher id and inner puzzle hash.
     pub fn puzzle_hash(launcher_id: Bytes32, inner_puzzle_hash: TreeHash) -> TreeHash {
         Self::new(launcher_id, inner_puzzle_hash).curry_tree_hash()
     }
@@ -62,10 +66,18 @@ pub fn singleton_v1_struct(launcher_id: Bytes32) -> SingletonStruct {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct PoolMemberArgs {
+    /// The puzzle hash that claimed pool rewards are paid to, which is the pool's target puzzle
+    /// hash.
     pub pool_puzzle_hash: Bytes32,
+    /// The puzzle hash of the plot NFT's [`P2SingletonOrDelayedArgs`], which pool rewards are
+    /// farmed to.
     pub p2_singleton_puzzle_hash: Bytes32,
+    /// The owner key, which must sign to leave the pool.
     pub owner_public_key: PublicKey,
+    /// The network's [`pool_reward_prefix`], used to check that a claimed coin is a pool reward.
     pub pool_reward_prefix: Bytes32,
+    /// The inner puzzle hash of the [`PoolWaitingRoomArgs`] that the plot NFT moves to when it
+    /// leaves the pool.
     pub waiting_room_puzzle_hash: Bytes32,
 }
 
@@ -84,7 +96,9 @@ impl Mod for PoolMemberArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PoolMemberAbsorbSolution {
+    /// The amount of the pool reward being claimed.
     pub pool_reward_amount: u64,
+    /// The height that the pool reward was farmed at, which determines its parent coin id.
     pub pool_reward_height: u32,
 }
 
@@ -92,7 +106,9 @@ pub struct PoolMemberAbsorbSolution {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PoolMemberEscapeSolution<T> {
+    /// Data revealed by the spend, which is the plot NFT's next pool state as a key value list.
     pub extra_data: T,
+    /// Always nil, which is how the puzzle tells this spend apart from claiming a reward.
     pub pool_reward_height: (),
 }
 
@@ -103,10 +119,18 @@ pub struct PoolMemberEscapeSolution<T> {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct PoolWaitingRoomArgs {
+    /// The puzzle hash that claimed pool rewards are paid to. When self pooling, this is the
+    /// owner's own puzzle hash.
     pub pool_puzzle_hash: Bytes32,
+    /// The puzzle hash of the plot NFT's [`P2SingletonOrDelayedArgs`], which pool rewards are
+    /// farmed to.
     pub p2_singleton_puzzle_hash: Bytes32,
+    /// The owner key, which must sign to move to another puzzle.
     pub owner_public_key: PublicKey,
+    /// The network's [`pool_reward_prefix`], used to check that a claimed coin is a pool reward.
     pub pool_reward_prefix: Bytes32,
+    /// The number of blocks after this coin is created before the owner can move to another
+    /// puzzle.
     pub relative_lock_height: u32,
 }
 
@@ -124,8 +148,11 @@ impl Mod for PoolWaitingRoomArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PoolWaitingRoomAbsorbSolution {
+    /// Always nil, which is how the puzzle tells this spend apart from moving to another puzzle.
     pub spend_type: (),
+    /// The amount of the pool reward being claimed.
     pub pool_reward_amount: u64,
+    /// The height that the pool reward was farmed at, which determines its parent coin id.
     pub pool_reward_height: u32,
 }
 
@@ -133,8 +160,12 @@ pub struct PoolWaitingRoomAbsorbSolution {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PoolWaitingRoomTravelSolution<T> {
+    /// Any non-nil value, which is how the puzzle tells this spend apart from claiming a reward.
+    /// The reference wallet uses 1.
     pub spend_type: u8,
+    /// Data revealed by the spend, which is the plot NFT's next pool state as a key value list.
     pub extra_data: T,
+    /// The inner puzzle hash that the singleton is recreated with.
     pub destination_puzzle_hash: Bytes32,
 }
 
@@ -143,14 +174,21 @@ pub struct PoolWaitingRoomTravelSolution<T> {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct P2SingletonOrDelayedArgs {
+    /// The mod hash of the v1.0 singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// The launcher id of the plot NFT that can claim coins.
     pub launcher_id: Bytes32,
+    /// The singleton launcher puzzle hash.
     pub launcher_puzzle_hash: Bytes32,
+    /// The number of seconds after a coin is created before it can be swept to the delayed
+    /// puzzle hash.
     pub seconds_delay: u64,
+    /// The puzzle hash that coins can be swept to after the delay, without the singleton.
     pub delayed_puzzle_hash: Bytes32,
 }
 
 impl P2SingletonOrDelayedArgs {
+    /// Creates the curried arguments for the plot NFT with the given launcher id.
     pub fn new(launcher_id: Bytes32, seconds_delay: u64, delayed_puzzle_hash: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_HASH.into(),
@@ -176,7 +214,9 @@ impl Mod for P2SingletonOrDelayedArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct P2SingletonClaimSolution {
+    /// The inner puzzle hash of the singleton spend that claims the coin.
     pub singleton_inner_puzzle_hash: Bytes32,
+    /// The coin id of the coin being claimed.
     pub my_id: Bytes32,
 }
 
@@ -184,7 +224,9 @@ pub struct P2SingletonClaimSolution {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct P2SingletonDelayedSolution {
+    /// The amount of the coin being swept, which is sent to the delayed puzzle hash.
     pub amount: u64,
+    /// Always nil, which is how the puzzle tells this spend apart from a singleton claim.
     pub my_id: (),
 }
 

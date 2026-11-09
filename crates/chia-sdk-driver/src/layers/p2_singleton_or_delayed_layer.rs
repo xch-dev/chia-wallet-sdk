@@ -33,6 +33,7 @@ pub enum P2SingletonOrDelayedSolution {
 }
 
 impl P2SingletonOrDelayedLayer {
+    /// Creates a new [`P2SingletonOrDelayedLayer`] for the plot NFT with the given launcher id.
     pub fn new(launcher_id: Bytes32, seconds_delay: u64, delayed_puzzle_hash: Bytes32) -> Self {
         Self {
             launcher_id,

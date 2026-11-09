@@ -31,7 +31,10 @@ pub enum PoolMemberSolution {
     /// Claims a pool reward, sending it to the pool. Anyone can do this.
     Absorb(PoolMemberAbsorbSolution),
     /// Moves to the waiting room puzzle, which the owner must sign.
-    Escape { extra_data: NodePtr },
+    Escape {
+        /// The data that the owner signs, which is the next pool state as a key value list.
+        extra_data: NodePtr,
+    },
 }
 
 impl PoolMemberLayer {

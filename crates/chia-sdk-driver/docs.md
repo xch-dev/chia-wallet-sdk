@@ -132,7 +132,8 @@ parent's coin spend (such as [`Cat::parse_children`]) and to spend the coin with
   `PartialOffer` is a CHIP-0052 offer which can be filled in parts at a fixed price, and `Fusion`
   is a CHIP-0021 singleton which swaps the NFTs on one side for the NFTs on the other. The
   CHIP-0008 `SplitterLayer` isn't a primitive, but it divides a coin between the recipients of a
-  fixed payout scheme.
+  fixed payout scheme. A `PlotNft` is a v1.0 singleton which farmers use to self pool, join a
+  pool, and leave it through a waiting room, and which claims the pool rewards farmed to it.
 
 # Actions
 
@@ -173,6 +174,9 @@ that can't be verified from the revealed spends is left out.
 - `chip-0052`: Partial offers (CHIP-0052), with `PartialOfferInfo`, `PartialOffer`, and
   `PartialOfferBundle`. With `offer-compression`, they can also be encoded as `partial1...`
   strings with `encode_partial_offer` and `decode_partial_offer`.
+- `pooling`: Plot NFTs for pooling, with the `PlotNft` primitive, `Launcher::mint_plot_nft`, and
+  the `SingletonV1Layer`, `PoolMemberLayer`, `PoolWaitingRoomLayer`, and
+  `P2SingletonOrDelayedLayer`.
 - `action-layer`: The action layer and the apps built on it, such as the `CATalog` and `XCHandles`
   registries and the reward distributor. This also enables `chip-0035`.
 - `auction`: English auctions for NFTs, with the `Auction` primitive and

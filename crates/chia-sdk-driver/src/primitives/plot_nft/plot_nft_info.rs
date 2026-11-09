@@ -26,6 +26,7 @@ pub struct PlotNftInfo {
 }
 
 impl PlotNftInfo {
+    /// Creates a new [`PlotNftInfo`] with the given values.
     pub fn new(
         launcher_id: Bytes32,
         pool_state: PoolState,

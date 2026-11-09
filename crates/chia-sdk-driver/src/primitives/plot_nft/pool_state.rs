@@ -38,7 +38,10 @@ pub enum PoolSingletonState {
 /// [`PoolSingletonState::LeavingPool`] aren't committed to by the puzzle.
 #[derive(Streamable, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PoolState {
+    /// The pool protocol version. [`PoolState::validate`] rejects versions above
+    /// [`POOL_PROTOCOL_VERSION`].
     pub version: u8,
+    /// Whether the plot NFT is self pooling, farming to a pool, or leaving a pool.
     pub state: PoolSingletonState,
     /// The puzzle hash that rewards are paid to. Not to be confused with the p2 puzzle hash, which
     /// is the address that plots farm to.
@@ -54,6 +57,8 @@ pub struct PoolState {
 }
 
 impl PoolState {
+    /// Creates a new [`PoolState`] with the given values, without validating them. Use
+    /// [`PoolState::self_pooling`] or [`PoolState::farming_to_pool`] to create a valid state.
     pub fn new(
         version: u8,
         state: PoolSingletonState,

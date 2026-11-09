@@ -69,6 +69,8 @@
 //!   from CHIP-0037.
 //! * `chip-0052`: Enables partial offers from CHIP-0052, such as `PartialOfferBundle`, which can
 //!   be filled in parts at a fixed price.
+//! * `pooling`: Enables plot NFTs for pooling, with the `PlotNft` primitive, which can self pool,
+//!   join and leave pools, and claim pool rewards.
 //! * `action-layer`: Enables the action layer and the primitives built on it, such as
 //!   `RewardDistributor` and `CatalogRegistry`. This also enables `chip-0035`.
 //! * `auction`: Enables English auctions for NFTs, with the `Auction` primitive. This also enables

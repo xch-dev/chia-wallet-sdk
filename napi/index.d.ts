@@ -5392,6 +5392,7 @@ export declare function parseVaultTransaction(clvm: Clvm, reveals: Reveals, laun
 export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
 
 export declare function payableTradePrices(tradePrices: Array<TradePrice>, royaltyBasisPoints: number): Array<TradePrice>
+
 export declare function poolProtocolVersion(): number
 
 export declare function poolRewardParentId(genesisChallenge: Uint8Array, height: number): Buffer
