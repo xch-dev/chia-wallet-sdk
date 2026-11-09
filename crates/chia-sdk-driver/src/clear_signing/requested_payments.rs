@@ -118,7 +118,7 @@ fn royalty_basis_points(asset_info: &AssetInfo, nonce: Bytes32, payment: &Paymen
 }
 
 /// The revealed requested payments whose puzzle announcements are asserted in the [`Facts`], deduplicated by
-/// announcement id.
+/// announcement id (and for NFTs, by payment, since only one coin of an NFT can exist).
 ///
 /// Requested payments are revealed by settlement spends in the [`Reveals`]. A payment is only included if the
 /// announcement of a settlement coin of its asset (XCH, or a CAT or NFT whose details were revealed) is asserted,
@@ -189,18 +189,17 @@ pub fn parse_asserted_requested_payments(
     }
 
     for (&launcher_id, notarized_payments) in &requested_payments.nfts {
-        for notarized_payment in notarized_payments {
-            let Some(info) = asset_info.nft(launcher_id) else {
-                continue;
-            };
+        let Some(info) = asset_info.nft(launcher_id) else {
+            continue;
+        };
 
-            let hash = tree_hash_notarized_payment(allocator, notarized_payment);
-
-            // The settlement coin's puzzle hash commits to the NFT's current owner, which is whatever the requested
-            // payment was revealed with. Each owner is a different settlement coin, whose announcement is checked
-            // separately.
-            for current_owner in reveals.nft_owners(launcher_id) {
-                let puzzle_hash = NftInfo::new(
+        // The settlement coin's puzzle hash commits to the NFT's current owner, which is whatever the requested
+        // payments were revealed with. Each owner is a different settlement coin, whose announcement is checked
+        // separately.
+        let settlement_puzzle_hashes: Vec<Bytes32> = reveals
+            .nft_owners(launcher_id)
+            .map(|current_owner| {
+                NftInfo::new(
                     launcher_id,
                     info.metadata,
                     info.metadata_updater_puzzle_hash,
@@ -209,10 +208,25 @@ pub fn parse_asserted_requested_payments(
                     info.royalty_basis_points,
                     SETTLEMENT_PAYMENT_HASH.into(),
                 )
-                .puzzle_hash();
-                let announcement_id = announcement_id(puzzle_hash.into(), hash);
+                .puzzle_hash()
+                .into()
+            })
+            .collect();
 
-                let payment = AssertedNotarizedPayment {
+        // Only one coin of the NFT can exist, so the same payment can't be made by more than one of its settlement
+        // coins, and it's only reported once.
+        let mut seen_payments = HashSet::new();
+
+        for notarized_payment in notarized_payments {
+            let hash = tree_hash_notarized_payment(allocator, notarized_payment);
+
+            let is_asserted = settlement_puzzle_hashes.iter().any(|&puzzle_hash| {
+                let announcement_id = announcement_id(puzzle_hash, hash);
+                facts.is_puzzle_announcement_asserted(announcement_id)
+            });
+
+            if is_asserted && seen_payments.insert(hash) {
+                payments.push(AssertedNotarizedPayment {
                     asset: ClearSigningAsset::Nft {
                         launcher_id,
                         metadata: info.metadata,
@@ -221,13 +235,7 @@ pub fn parse_asserted_requested_payments(
                         royalty_basis_points: info.royalty_basis_points,
                     },
                     notarized_payment: notarized_payment.clone(),
-                };
-
-                if facts.is_puzzle_announcement_asserted(announcement_id)
-                    && seen_announcements.insert(announcement_id)
-                {
-                    payments.push(payment);
-                }
+                });
             }
         }
     }

@@ -230,6 +230,21 @@ impl RequestedPayments {
         puzzle: Puzzle,
         solution: NodePtr,
     ) -> Result<(), DriverError> {
+        self.parse_settlement(allocator, asset_info, puzzle, solution)?;
+        Ok(())
+    }
+
+    /// The same as [`RequestedPayments::parse`], but if the settlement coin is an NFT, also
+    /// returns its launcher id and current owner, which its puzzle hash commits to.
+    pub(crate) fn parse_settlement(
+        &mut self,
+        allocator: &Allocator,
+        asset_info: &mut AssetInfo,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Bytes32, Option<Bytes32>)>, DriverError> {
+        let mut nft_owner = None;
+
         let notarized_payments =
             SettlementPaymentsSolution::from_clvm(allocator, solution)?.notarized_payments;
 
@@ -260,6 +275,8 @@ impl RequestedPayments {
                 nft.royalty_basis_points,
             );
             asset_info.insert_nft(nft.launcher_id, info)?;
+
+            nft_owner = Some((nft.launcher_id, nft.current_owner));
         } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)?
             && option.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
@@ -277,7 +294,7 @@ impl RequestedPayments {
             return Err(DriverError::UnsupportedRequestedAsset);
         }
 
-        Ok(())
+        Ok(nft_owner)
     }
 }
 

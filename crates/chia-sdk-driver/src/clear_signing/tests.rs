@@ -3835,6 +3835,16 @@ fn parse_asserted_settlement_payment(
     vault: &TestVault,
     settlement_puzzle: NodePtr,
 ) -> Result<Result<VaultTransaction, DriverError>> {
+    parse_asserted_settlement_payments(ctx, vault, &[settlement_puzzle])
+}
+
+/// Reveals the same requested payment to the vault for each settlement puzzle, and asserts each of their
+/// announcements from the vault.
+fn parse_asserted_settlement_payments(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    settlement_puzzles: &[NodePtr],
+) -> Result<Result<VaultTransaction, DriverError>> {
     let notarized_payment = NotarizedPayment::new(
         Bytes32::new([9; 32]),
         vec![Payment::new(vault.p2_puzzle_hash, 1, Memos::None)],
@@ -3842,25 +3852,32 @@ fn parse_asserted_settlement_payment(
     let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
         notarized_payment.clone(),
     ]))?;
-    let settlement_puzzle_hash: Bytes32 = ctx.tree_hash(settlement_puzzle).into();
+    let payment_hash = tree_hash_notarized_payment(ctx, &notarized_payment);
 
-    let requested_payment = CoinSpend::new(
-        Coin::new(Bytes32::default(), settlement_puzzle_hash, 1),
-        ctx.serialize(&settlement_puzzle)?,
-        ctx.serialize(&settlement_solution)?,
-    );
+    let mut coin_spends = Vec::new();
+    let mut conditions = Conditions::new();
 
-    let announcement_id = announcement_id(
-        settlement_puzzle_hash,
-        tree_hash_notarized_payment(ctx, &notarized_payment),
-    );
-    let delegated_spend = ctx.delegated_spend(
-        Conditions::new()
-            .assert_puzzle_announcement(announcement_id)
-            .create_coin(vault.info.custody_hash.into(), 1, Memos::None),
-    )?;
+    for &settlement_puzzle in settlement_puzzles {
+        let settlement_puzzle_hash: Bytes32 = ctx.tree_hash(settlement_puzzle).into();
 
-    let reveals = Reveals::from_coin_spends(ctx, &[requested_payment])?;
+        // Requested payments are revealed as coin spends with a default parent coin id.
+        coin_spends.push(CoinSpend::new(
+            Coin::new(Bytes32::default(), settlement_puzzle_hash, 1),
+            ctx.serialize(&settlement_puzzle)?,
+            ctx.serialize(&settlement_solution)?,
+        ));
+
+        conditions = conditions
+            .assert_puzzle_announcement(announcement_id(settlement_puzzle_hash, payment_hash));
+    }
+
+    let delegated_spend = ctx.delegated_spend(conditions.create_coin(
+        vault.info.custody_hash.into(),
+        1,
+        Memos::None,
+    ))?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
 
     Ok(parse_vault_transaction(
         reveals,
@@ -3906,6 +3923,41 @@ fn test_clear_signing_asserted_nft_payment_with_owner(
             royalty_basis_points: info.royalty_basis_points,
         }
     );
+    assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_asserted_nft_payment_with_two_owners() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let puzzles = [None, Some(Bytes32::new([8; 32]))]
+        .into_iter()
+        .map(|owner| {
+            NftInfo::new(
+                Bytes32::new([1; 32]),
+                HashedPtr::NIL,
+                NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+                owner,
+                Bytes32::new([2; 32]),
+                300,
+                SETTLEMENT_PAYMENT_HASH.into(),
+            )
+            .into_layers(settlement)
+            .construct_puzzle(&mut ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // The same payment is asserted for settlement coins of the NFT with two different owners. Only one coin of the NFT
+    // can exist, so the payment is only reported once.
+    let tx = parse_asserted_settlement_payments(&mut ctx, &alice, &puzzles)??;
+
+    assert_eq!(tx.asserted_payments.len(), 1);
     assert_eq!(tx.received_payments.len(), 1);
 
     Ok(())

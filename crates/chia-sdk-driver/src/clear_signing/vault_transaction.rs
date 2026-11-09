@@ -750,6 +750,8 @@ fn parse_vault(
     // Children of verified spends that are yet to be visited.
     let mut stack: IndexSet<Bytes32> = IndexSet::new();
 
+    let vault_singleton_struct_hash: Bytes32 = SingletonStruct::new(launcher_id).tree_hash().into();
+
     for (coin_id, messages) in messages_by_coin {
         let spend = *reveals
             .coin_spend(coin_id)
@@ -775,9 +777,11 @@ fn parse_vault(
             &mut facts,
             ctx,
             spend,
-            launcher_id,
             parsed_spend,
-            &messages,
+            VaultMessages {
+                messages: &messages,
+                singleton_struct_hash: vault_singleton_struct_hash,
+            },
             &mut issuances,
         )?
         else {
@@ -847,9 +851,8 @@ fn parse_vault(
                 &mut facts,
                 ctx,
                 spend,
-                launcher_id,
                 parsed_spend,
-                &[],
+                VaultMessages::default(),
                 &mut issuances,
             )?
             else {
@@ -937,9 +940,8 @@ fn parse_vault(
                 &mut facts,
                 ctx,
                 spend,
-                launcher_id,
                 parsed_spend,
-                &[],
+                VaultMessages::default(),
                 &mut issuances,
             )?
             else {
@@ -1103,17 +1105,29 @@ fn is_untrusted_sender(facts: &Facts, spend: &VerifiedSpend) -> bool {
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+/// The messages that a vault sends to a coin, along with the tree hash of the vault's singleton struct.
+///
+/// The messages are sent by the vault whose transaction it is (the controlled vault at the end of the authorization
+/// path, if there is one), so they can only authorize the extra delta of a TAIL that requires a message from it.
+/// Otherwise the coin's p2 puzzle could receive the message instead, and the extra delta would be authorized by another
+/// singleton.
+#[derive(Debug, Default, Clone, Copy)]
+struct VaultMessages<'a> {
+    messages: &'a [VaultMessage],
+    singleton_struct_hash: Bytes32,
+}
+
 fn verify_spend(
     reveals: &mut Reveals,
     facts: &mut Facts,
     allocator: &mut SpendContext,
     spend: RevealedCoinSpend,
-    launcher_id: Bytes32,
     parsed_spend: ParsedSpend,
-    messages: &[VaultMessage],
+    vault_messages: VaultMessages<'_>,
     issuances: &mut Vec<Issuance>,
 ) -> Result<Option<VerifiedSpend>, DriverError> {
+    let messages = vault_messages.messages;
+
     let Some(custody) = parsed_spend.custody else {
         return Ok(None);
     };
@@ -1159,12 +1173,6 @@ fn verify_spend(
         None
     };
 
-    // The messages are sent by the vault whose transaction it is (the controlled vault at the end of the authorization
-    // path, if there is one), so they can only authorize the extra delta of a TAIL that requires a message from it.
-    // Otherwise the coin's p2 puzzle could receive the message instead, and the extra delta would be authorized by
-    // another singleton.
-    let vault_singleton_struct_hash: Bytes32 = SingletonStruct::new(launcher_id).tree_hash().into();
-
     let mut tail_matched = false;
     let mut custody_matched = false;
 
@@ -1182,7 +1190,7 @@ fn verify_spend(
                 singleton_struct_hash,
                 ..
             } = issuance.kind
-            && singleton_struct_hash == vault_singleton_struct_hash
+            && singleton_struct_hash == vault_messages.singleton_struct_hash
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {
             if tail_matched {

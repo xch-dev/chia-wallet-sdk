@@ -5,14 +5,13 @@ use std::{
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::SingletonArgs;
-use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssetInfo, BagAsset, ClawbackV2, DriverError, NftInfo, P2ConditionsOrSingleton, Puzzle,
+    AssetInfo, BagAsset, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle,
     RequestedPayments, SecureTheBag, Spend, VAULT_AMOUNT, VaultVersion,
 };
 
@@ -216,20 +215,16 @@ impl Reveals {
         outer_puzzle: Puzzle,
         inner_settlement_solution: NodePtr,
     ) -> Result<(), DriverError> {
-        self.requested_payments.parse(
+        if let Some((launcher_id, current_owner)) = self.requested_payments.parse_settlement(
             allocator,
             &mut self.asset_info,
             outer_puzzle,
             inner_settlement_solution,
-        )?;
-
-        if let Some((nft, _)) = NftInfo::parse(allocator, outer_puzzle)?
-            && nft.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-        {
+        )? {
             self.nft_owners
-                .entry(nft.launcher_id)
+                .entry(launcher_id)
                 .or_default()
-                .insert(nft.current_owner);
+                .insert(current_owner);
         }
 
         Ok(())
