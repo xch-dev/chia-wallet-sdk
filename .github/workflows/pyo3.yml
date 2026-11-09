@@ -167,17 +167,10 @@ jobs:
           name: wheels-windows-${{ matrix.platform.target }}
           path: pyo3/dist
 
-  # Build each macOS wheel on its own runner in parallel, since GitHub's macOS runners are slow
-  # and the repo is public, so the minutes are free
+  # The organization can only run a few macOS jobs at once, so both wheels are built in one job.
+  # The x86_64 wheels can't be tested on the arm64 runners, so pull requests skip them.
   macos:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      matrix:
-        platform:
-          - runner: macos-latest
-            target: aarch64
-          - runner: macos-latest
-            target: x86_64
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -185,19 +178,32 @@ jobs:
           python-version: 3.x
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.platform.target }}
+          key: apple-darwin
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Build wheels
+      - name: Build wheels (aarch64)
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          target: aarch64
+          args: --release --out dist-aarch64 --find-interpreter
           working-directory: pyo3
-      - name: Upload wheels
+      - name: Build wheels (x86_64)
+        if: github.event_name != 'pull_request'
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist-x86_64 --find-interpreter
+          working-directory: pyo3
+      - name: Upload wheels (aarch64)
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-macos-${{ matrix.platform.target }}
-          path: pyo3/dist
+          name: wheels-macos-aarch64
+          path: pyo3/dist-aarch64
+      - name: Upload wheels (x86_64)
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-macos-x86_64
+          path: pyo3/dist-x86_64
 
   sdist:
     runs-on: ubuntu-24.04
