@@ -449,6 +449,11 @@ pub enum DriverError {
     #[error("vault message did not match any custody auth or TAIL invocation")]
     UnmatchedVaultMessage,
 
+    /// When clear signing, the transaction asserts a requested payment of an option contract,
+    /// which can't be reported as a clear signing asset.
+    #[error("asserted requested payment is for an option contract, which can't be clear signed")]
+    UnsupportedAssertedOptionPayment,
+
     /// A coin spend requires a message from the vault, but none was sent to it.
     #[error("missing message for linked custody puzzle")]
     MissingVaultMessage,

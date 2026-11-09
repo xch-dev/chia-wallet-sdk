@@ -11,6 +11,8 @@ use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 use rstest::rstest;
 
+use super::tests::melt_eve_cat;
+
 use crate::{
     Action, ControlledVaultRecovery, DelegatedPuzzleFeederLayer, Deltas, DriverError, Id,
     IndexWrapperLayer, Layer, ParsedAsset, Puzzle, RevealedControlledVault, Reveals, SigningVault,
@@ -167,6 +169,41 @@ fn test_clear_signing_controlled_vault_requires_reveal(
         assert!(matches!(result, Err(DriverError::MissingSpend)));
     } else {
         assert!(matches!(result, Err(DriverError::InvalidLinkedCustody)));
+    }
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_controlled_vault_issuance(
+    #[values(false, true)] controller_tail: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let controller = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let vault = TestVault::mint_controlled(&mut sim, &mut ctx, 1000, &controller, false)?;
+
+    // The extra delta message is sent by the controlled vault, so only a TAIL of the controlled vault is authorized by
+    // it, even though the controller is the vault being signed for.
+    let tail_launcher_id = if controller_tail {
+        controller.info.launcher_id
+    } else {
+        vault.info.launcher_id
+    };
+
+    let result = melt_eve_cat(&mut sim, &mut ctx, &vault, tail_launcher_id)?;
+
+    let reveals = reveal_controlled_vaults(&mut ctx, &vault, &result)?;
+    let tx = parse_from_top(&mut ctx, &result, reveals);
+
+    if controller_tail {
+        assert!(matches!(tx, Err(DriverError::UnmatchedVaultMessage)));
+    } else {
+        let tx = tx?;
+        assert_eq!(tx.launcher_id, vault.info.launcher_id);
+        assert_eq!(tx.issuances.len(), 1);
+        assert!(tx.issuances[0].verified);
     }
 
     Ok(())

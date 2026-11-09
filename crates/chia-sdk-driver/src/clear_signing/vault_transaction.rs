@@ -1,10 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use chia_protocol::{Bytes, Bytes32, Coin};
-use chia_puzzle_types::{cat::CatSolution, singleton::SingletonArgs};
+use chia_puzzle_types::{
+    cat::CatSolution,
+    singleton::{SingletonArgs, SingletonStruct},
+};
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
-use clvm_utils::tree_hash;
+use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
@@ -69,8 +72,8 @@ pub struct VaultTransaction {
     /// Settlement payments which were both revealed and asserted (with `ASSERT_PUZZLE_ANNOUNCEMENT`) by the vault
     /// or a verified spend whose conditions are trusted, so the transaction is only valid if some settlement coin
     /// makes them. This doesn't say who funds them, which could be the vault's own coins or another party (such as
-    /// the maker of an offer). Payments of option contracts aren't included, and payments of NFTs are only included
-    /// for an NFT without an owner.
+    /// the maker of an offer). NFT payments are matched for each owner that a settlement spend of the NFT is revealed
+    /// with. Asserted payments of option contracts can't be reported, so they're an error.
     pub asserted_payments: Vec<AssertedNotarizedPayment>,
     /// Individual asserted payment outputs whose puzzle hash matches one of the vault's known p2 puzzle hashes.
     pub received_payments: Vec<AssertedPayment>,
@@ -271,9 +274,10 @@ pub struct VerifiedSpend {
 /// clawback), and the message is the tree hash of the quoted conditions it outputs, or its p2 puzzle is itself a
 /// quoted list of conditions. So the spend can't output anything else without failing the whole transaction. A
 /// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) spend must also assert its own coin id. A CAT spend
-/// that runs an everything with singleton TAIL may also receive a message that commits to its extra delta (which is
-/// the only message that a quoted list of conditions can receive), and that marks the [`Issuance`] as
-/// [`verified`](Issuance::verified). Each message must match exactly one of these commitments, and a spend that
+/// that runs an everything with singleton TAIL of this vault (whose singleton struct is the vault's) may also receive a
+/// message that commits to its extra delta (which is the only message that a quoted list of conditions can receive),
+/// and that marks the [`Issuance`] as [`verified`](Issuance::verified). For a controlled vault, that's the controlled
+/// vault's TAIL, since it sends the message. Each message must match exactly one of these commitments, and a spend that
 /// needs a message must receive one, or an error is returned. A coin spent with a clawback's receiver path is only
 /// accepted if the transaction can't be valid before the clawback expires (with `ASSERT_SECONDS_ABSOLUTE` from the
 /// vault, or from a spend that the vault sends a message to that isn't in a clawback), since the sender path could
@@ -296,7 +300,8 @@ pub struct VerifiedSpend {
 ///
 /// *Settlement payments and offers.* Settlement payments are only reported if their puzzle announcement is asserted
 /// by the vault or a verified spend whose conditions are trusted. Coins set aside for a future offer are rolled up
-/// into a [`LinkedOffer`], and must belong to this vault.
+/// into a [`LinkedOffer`], and must belong to this vault. An asserted payment of an option contract is an error, since
+/// it can't be reported.
 ///
 /// *Message signing.* If the delegated spend is a [`vault_message_envelope`](crate::vault_message_envelope), it can't
 /// do anything other than recreate the vault, and the messages are returned in
@@ -333,8 +338,7 @@ pub struct VerifiedSpend {
 ///   If they aren't revealed, the vault being signed for isn't checked to be recreated as it was when it authorizes a
 ///   controlled vault or signs messages.
 /// - The extra delta of an [`Issuance`] that isn't [`verified`](Issuance::verified), which is left out of the
-///   [`AssetFlow`]s. For a verified issuance, only the vault's message is checked, not that the TAIL's singleton is
-///   the vault.
+///   [`AssetFlow`]s.
 /// - What happens to the payments of a Secure the Bag once it's unrolled (a revocable CAT's issuer can still revoke
 ///   the bag), and the human readable memos of a child, which are arbitrary text.
 ///
@@ -348,11 +352,12 @@ pub struct VerifiedSpend {
 /// - [`DriverError::InvalidLinkedCustody`] for a message to a coin whose p2 puzzle isn't recognized.
 /// - [`DriverError::WrongConditions`], [`DriverError::UnmatchedVaultMessage`],
 ///   [`DriverError::DuplicateVaultMessage`], or [`DriverError::MissingVaultMessage`] if the messages don't match the
-///   spends.
+///   spends, including an extra delta message to a CAT whose TAIL is authorized by another singleton.
 /// - [`DriverError::UnguaranteedClawBack`] or [`DriverError::UnguaranteedClawbackExpiry`] if a clawback spend could
 ///   be replaced with another path.
 /// - [`DriverError::RevocableChild`] for a CAT child whose revocation layer differs from its parent's.
 /// - [`DriverError::WrongLinkedOfferLauncherId`] for pre-split offer coins of another vault.
+/// - [`DriverError::UnsupportedAssertedOptionPayment`] for an asserted payment of an option contract.
 /// - [`DriverError::InvalidVaultAmount`] if a vault isn't recreated with [`VAULT_AMOUNT`].
 /// - [`DriverError::MixedVaultMessageEnvelope`] or [`DriverError::VaultMessageEnvelopeChangesVault`] for a vault
 ///   message envelope that does something else.
@@ -770,6 +775,7 @@ fn parse_vault(
             &mut facts,
             ctx,
             spend,
+            launcher_id,
             parsed_spend,
             &messages,
             &mut issuances,
@@ -841,6 +847,7 @@ fn parse_vault(
                 &mut facts,
                 ctx,
                 spend,
+                launcher_id,
                 parsed_spend,
                 &[],
                 &mut issuances,
@@ -930,6 +937,7 @@ fn parse_vault(
                 &mut facts,
                 ctx,
                 spend,
+                launcher_id,
                 parsed_spend,
                 &[],
                 &mut issuances,
@@ -1095,11 +1103,13 @@ fn is_untrusted_sender(facts: &Facts, spend: &VerifiedSpend) -> bool {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify_spend(
     reveals: &mut Reveals,
     facts: &mut Facts,
     allocator: &mut SpendContext,
     spend: RevealedCoinSpend,
+    launcher_id: Bytes32,
     parsed_spend: ParsedSpend,
     messages: &[VaultMessage],
     issuances: &mut Vec<Issuance>,
@@ -1149,6 +1159,12 @@ fn verify_spend(
         None
     };
 
+    // The messages are sent by the vault whose transaction it is (the controlled vault at the end of the authorization
+    // path, if there is one), so they can only authorize the extra delta of a TAIL that requires a message from it.
+    // Otherwise the coin's p2 puzzle could receive the message instead, and the extra delta would be authorized by
+    // another singleton.
+    let vault_singleton_struct_hash: Bytes32 = SingletonStruct::new(launcher_id).tree_hash().into();
+
     let mut tail_matched = false;
     let mut custody_matched = false;
 
@@ -1162,7 +1178,11 @@ fn verify_spend(
 
             custody_matched = true;
         } else if let Some(issuance) = &mut issuance
-            && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
+            && let IssuanceKind::EverythingWithSingleton {
+                singleton_struct_hash,
+                ..
+            } = issuance.kind
+            && singleton_struct_hash == vault_singleton_struct_hash
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {
             if tail_matched {
