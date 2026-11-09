@@ -5,8 +5,8 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-/// Serialized CAT maker for XCH: it returns the inner puzzle hash unchanged, so payments
-/// are made in XCH rather than a CAT.
+/// Serialized CAT maker for XCH: it returns the inner puzzle hash unchanged, so the asset is
+/// XCH rather than a CAT.
 // run '(mod (Inner_Puzzle_Hash) Inner_Puzzle_Hash)' -d
 pub const XCH_CAT_MAKER_PUZZLE: [u8; 1] = hex!(
     "

@@ -15,6 +15,19 @@
 //! kind of key (such as [`BlsMember`] and [`K1Member`]), and restrictions that limit what
 //! a member can do (such as [`Timelock`]).
 //!
+//! Other puzzle families include CAT makers (such as [`DefaultCatMakerArgs`]), which compute the
+//! puzzle hash of an asset from an inner puzzle hash, and the Secure the Mint pre-launcher
+//! ([`SecureTheMintLauncherArgs`]), which commits to an NFT before it's minted. Some families are
+//! behind feature flags:
+//!
+//! - `chip-0008`: The splitter puzzle (`SplitterArgs`).
+//! - `chip-0021`: The NFT fusion puzzles (`FusionSingletonArgs` and `P2FusionArgs`).
+//! - `chip-0035`: The `DataLayer` puzzles (such as `DelegationLayerArgs`).
+//! - `chip-0037`: The EIP-712 puzzles (such as `P2Eip712MessageArgs`).
+//! - `chip-0052`: The partial offer puzzle (`PartialOfferArgs`).
+//! - `action-layer`: The action layer puzzle (`ActionLayerArgs`) and its actions.
+//! - `auction`: The English NFT auction actions (such as `AuctionBidActionArgs`).
+//!
 //! ## Example
 //!
 //! ```rust

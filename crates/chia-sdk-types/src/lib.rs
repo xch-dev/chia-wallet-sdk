@@ -56,11 +56,19 @@
 //!
 //! ## Features
 //!
+//! - `chip-0008`: The splitter puzzle from CHIP-0008 (`SplitterArgs`), which splits a coin
+//!   between recipients according to a fixed payout scheme.
+//! - `chip-0021`: The NFT fusion puzzles from CHIP-0021 (`FusionSingletonArgs` and
+//!   `P2FusionArgs`), which swap one set of NFTs for another.
 //! - `chip-0035`: `DataLayer` puzzles from CHIP-0035, such as `DelegationLayerArgs` and
 //!   `WriterLayerArgs`.
 //! - `chip-0037`: Puzzles for signing spends with Ethereum wallets using EIP-712 messages, from
 //!   CHIP-0037, such as `P2Eip712MessageArgs` and `P2ControllerPuzzleArgs`.
+//! - `chip-0052`: The partial offer puzzle from CHIP-0052 (`PartialOfferArgs`), which lets an
+//!   offer be filled in parts.
 //! - `action-layer`: The action layer puzzle (`ActionLayerArgs`) and related puzzles.
+//! - `auction`: The actions, bid verifiers, and NFT unlocker of English NFT auctions, such as
+//!   `AuctionBidActionArgs`, which run on the action layer. This enables `action-layer`.
 
 #![cfg_attr(not(test), warn(missing_docs))]
 

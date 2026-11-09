@@ -11,10 +11,10 @@ use crate::Mod;
 /// Serialized default CAT maker puzzle, compiled from Rue.
 ///
 /// A CAT maker takes an inner puzzle hash (prepended by the caller to a user-supplied
-/// solution) and returns the full puzzle hash of a CAT with that inner puzzle. Registries
-/// store the hash of a CAT maker in their state so payments can be made in a specific
-/// asset. This one wraps the inner puzzle directly in the CAT layer, with no layers in
-/// between.
+/// solution) and returns the full puzzle hash of a CAT with that inner puzzle. Action layer
+/// registries store the hash of a CAT maker in their state so payments can be made in a specific
+/// asset, and partial offers (CHIP-0052) curry one in to compute the puzzle hash of the offered
+/// asset. This one wraps the inner puzzle directly in the CAT layer, with no layers in between.
 pub const DEFAULT_CAT_MAKER_PUZZLE: [u8; 217] = hex!(
     // Rue
     "

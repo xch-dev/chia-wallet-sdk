@@ -6,6 +6,8 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// The serialized bytecode of the flat bid verifier, compiled from Rue. See
+/// [`AuctionFlatBidVerifierArgs`].
 pub const AUCTION_FLAT_BID_VERIFIER_PUZZLE: [u8; 53] = hex!(
     // Rue
     "
@@ -14,10 +16,13 @@ pub const AUCTION_FLAT_BID_VERIFIER_PUZZLE: [u8; 53] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_FLAT_BID_VERIFIER_PUZZLE`].
 pub const AUCTION_FLAT_BID_VERIFIER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "6f89d267366539c51f4d06455de4f2a461637a3d000483d78c8b317e6cc2078e"
 ));
 
+/// The serialized bytecode of the percent bid verifier, compiled from Rue. See
+/// [`AuctionPercentBidVerifierArgs`].
 pub const AUCTION_PERCENT_BID_VERIFIER_PUZZLE: [u8; 69] = hex!(
     // Rue
     "
@@ -27,20 +32,34 @@ pub const AUCTION_PERCENT_BID_VERIFIER_PUZZLE: [u8; 69] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_PERCENT_BID_VERIFIER_PUZZLE`].
 pub const AUCTION_PERCENT_BID_VERIFIER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "3dd15361ad8955a37f758ec39a8fb081f1025eda62c06996f4bc7a2a5f07ddc0"
 ));
 
 /// Requires the first bid to be at least `minimum`, and each bid after it to be at least
 /// `increment` more than the previous one.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::{Mod, puzzles::AuctionFlatBidVerifierArgs};
+/// // The first bid must be at least 1 XCH, and each bid after it must be 0.1 XCH higher.
+/// let verifier = AuctionFlatBidVerifierArgs::new(1_000_000_000_000, 100_000_000_000);
+/// let verifier_hash = verifier.curry_tree_hash();
+/// # let _ = verifier_hash;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionFlatBidVerifierArgs {
+    /// The minimum amount of the first bid.
     pub minimum: u64,
+    /// The minimum amount that each bid after the first must exceed the previous bid by.
     pub increment: u64,
 }
 
 impl AuctionFlatBidVerifierArgs {
+    /// Creates new [`AuctionFlatBidVerifierArgs`] from the minimum bid and the increment.
     pub fn new(minimum: u64, increment: u64) -> Self {
         Self { minimum, increment }
     }
@@ -61,11 +80,15 @@ impl Mod for AuctionFlatBidVerifierArgs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionPercentBidVerifierArgs {
+    /// The minimum amount of the first bid.
     pub minimum: u64,
+    /// The minimum increase of each bid after the first, in basis points of the previous bid.
     pub increment_bps: u64,
 }
 
 impl AuctionPercentBidVerifierArgs {
+    /// Creates new [`AuctionPercentBidVerifierArgs`] from the minimum bid and the increment in
+    /// basis points.
     pub fn new(minimum: u64, increment_bps: u64) -> Self {
         Self {
             minimum,

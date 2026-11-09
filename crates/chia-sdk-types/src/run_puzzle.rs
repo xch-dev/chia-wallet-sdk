@@ -51,8 +51,10 @@ pub fn run_puzzle(
 /// cost along with the output.
 ///
 /// A `max_cost` of `0` means there is no limit.
-/// Mempool mode is stricter than block validation. It rejects unknown operators (which are
-/// otherwise allowed so that new ones can be added in soft forks) and limits the heap size. The
+/// Mempool mode ([`MEMPOOL_MODE`](clvmr::MEMPOOL_MODE)) is stricter than block validation. It
+/// rejects unknown operators (which are otherwise allowed so that new ones can be added in soft
+/// forks), limits the heap size, and requires integer arguments to operators to be canonical
+/// (without redundant leading zeros), among other limits. The
 /// `ENABLE_KECCAK_OPS_OUTSIDE_GUARD` flag is always set, so the `keccak256` operator can be used
 /// outside of the softfork guard. See [`is_debug_dialect_enabled`] for which dialect is used.
 ///

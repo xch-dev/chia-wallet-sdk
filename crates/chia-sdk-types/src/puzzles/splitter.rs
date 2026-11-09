@@ -24,6 +24,7 @@ pub const SPLITTER_PUZZLE: [u8; 317] = hex!(
     "
 );
 
+/// The tree hash of [`SPLITTER_PUZZLE`].
 pub const SPLITTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     1b08dc6c15f642cb0445c7c68e8df10da090d262c793839b2d62c04e7be6d0a0
@@ -34,36 +35,70 @@ pub const SPLITTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SplitterShare {
+    /// The puzzle hash that this recipient's coin is created with, which is also used as its hint.
     pub puzzle_hash: Bytes32,
+    /// The number of shares this recipient receives, out of the sum of all shares.
     pub share: u64,
 }
 
 impl SplitterShare {
+    /// Creates a new [`SplitterShare`] that pays `share` shares to `puzzle_hash`.
     pub fn new(puzzle_hash: Bytes32, share: u64) -> Self {
         Self { puzzle_hash, share }
     }
 }
 
+/// Curried arguments of [`SPLITTER_PUZZLE`], which splits a coin's amount between recipients
+/// according to a fixed payout scheme, for example to share NFT royalties between recipients.
+///
+/// Anyone can spend a splitter coin, since it can only pay out according to the scheme. Each
+/// recipient receives `my_amount * share / total_shares` (rounded down), except for the last
+/// one, which receives the rest so that the full amount is paid out. Each coin is hinted with its
+/// puzzle hash.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::{Mod, puzzles::{SplitterArgs, SplitterShare}};
+/// // An 80/20 split between two puzzle hashes.
+/// let args = SplitterArgs::new(vec![
+///     SplitterShare::new(Bytes32::new([1; 32]), 80),
+///     SplitterShare::new(Bytes32::new([2; 32]), 20),
+/// ]);
+///
+/// // Coins sent to this puzzle hash can be split by anyone.
+/// let splitter_puzzle_hash = args.curry_tree_hash();
+/// # let _ = splitter_puzzle_hash;
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct SplitterArgs {
+    /// The recipients and their shares, in the order that the coins are created.
     pub payout_scheme: Vec<SplitterShare>,
 }
 
 impl SplitterArgs {
+    /// Creates new [`SplitterArgs`] with the given payout scheme.
     pub fn new(payout_scheme: Vec<SplitterShare>) -> Self {
         Self { payout_scheme }
     }
 }
 
+/// The solution of the [`SplitterArgs`] puzzle.
+///
+/// The spend also creates a coin announcement with an empty message.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SplitterSolution {
+    /// The amount of the coin being split, which the puzzle asserts.
     pub my_amount: u64,
+    /// The sum of the shares in the payout scheme. The spend fails if this doesn't match.
     pub total_shares: u64,
 }
 
 impl SplitterSolution {
+    /// Creates a new [`SplitterSolution`] for a coin with the given amount.
     pub fn new(my_amount: u64, total_shares: u64) -> Self {
         Self {
             my_amount,

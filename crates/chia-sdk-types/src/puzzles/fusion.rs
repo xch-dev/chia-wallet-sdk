@@ -93,6 +93,7 @@ pub const FUSION_SINGLETON_PUZZLE: [u8; 2145] = hex!(
     "
 );
 
+/// The tree hash of [`FUSION_SINGLETON_PUZZLE`].
 pub const FUSION_SINGLETON_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     1d06c31e810fd8ba06c1559e68fc18b641386c2850eafeb71235c56c20961216
@@ -127,6 +128,7 @@ pub const P2_FUSION_PUZZLE: [u8; 659] = hex!(
     "
 );
 
+/// The tree hash of [`P2_FUSION_PUZZLE`].
 pub const P2_FUSION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     78ba7f1159e33a5b30f7985532c33ef94ed8ef4ba117ac0372dae58829588830
@@ -135,20 +137,68 @@ pub const P2_FUSION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 
 /// The fusion singleton swaps the NFTs on one side for those on the other. Only NFTs with the
 /// ownership layer, the default metadata updater, and an amount of 1 can be swapped.
+///
+/// These are the curried arguments of [`FUSION_SINGLETON_PUZZLE`], which is the inner puzzle of a
+/// singleton. Each spend unlocks every NFT on one side, which are held by the [`P2FusionArgs`]
+/// puzzle, and locks every NFT on the other side by sending it to that puzzle. NFTs move through
+/// the settlement payments puzzle in both directions, so a swap can be the other side of an offer.
+/// The singleton recreates itself unchanged, hinted with [`FUSION_HINT`], and can't be spent in
+/// the same block that it was created in.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_puzzle_types::singleton::SingletonArgs;
+/// # use chia_sdk_types::{Mod, puzzles::{FusionSingletonArgs, P2FusionArgs}};
+/// let launcher_id = Bytes32::new([1; 32]);
+/// let fused_nft = Bytes32::new([2; 32]);
+/// let components = vec![Bytes32::new([3; 32]), Bytes32::new([4; 32])];
+///
+/// let args = FusionSingletonArgs::new(launcher_id, vec![fused_nft], components);
+///
+/// // Locked NFTs are held by the p2 fusion puzzle of the same singleton.
+/// assert_eq!(
+///     args.p2_puzzle_hash,
+///     Bytes32::from(P2FusionArgs::new(launcher_id).curry_tree_hash())
+/// );
+///
+/// // The fusion puzzle is the inner puzzle of the singleton.
+/// let inner_puzzle_hash = args.curry_tree_hash();
+/// let puzzle_hash = SingletonArgs::curry_tree_hash(launcher_id, inner_puzzle_hash);
+/// # let _ = puzzle_hash;
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct FusionSingletonArgs {
+    /// The singleton struct of the fusion singleton itself.
     pub singleton_struct: SingletonStruct,
+    /// The puzzle hash of the [`P2FusionArgs`] puzzle for this singleton, which locked NFTs are
+    /// sent to as their p2 puzzle hash.
     pub p2_puzzle_hash: Bytes32,
+    /// The mod hash of the settlement payments puzzle, which NFTs pass through when they're locked
+    /// or unlocked.
     pub offer_mod_hash: Bytes32,
+    /// The mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// The mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// The tree hash of the metadata updater puzzle hash as an atom. Only NFTs with this metadata
+    /// updater can be swapped.
     pub metadata_updater_puzzle_hash_hash: Bytes32,
+    /// The launcher ids of the NFTs on side A, in the order that the solution lists them.
     pub nft_a_launcher_ids: Vec<Bytes32>,
+    /// The launcher ids of the NFTs on side B, in the order that the solution lists them.
     pub nft_b_launcher_ids: Vec<Bytes32>,
 }
 
 impl FusionSingletonArgs {
+    /// Creates the arguments for the fusion singleton with the given launcher id, which swaps the
+    /// NFTs with the launcher ids in `side_a` for those in `side_b`.
+    ///
+    /// The other arguments are the standard values used on mainnet: the singleton and NFT layer
+    /// mod hashes, the settlement payments mod hash, the default metadata updater, and the
+    /// [`P2FusionArgs`] puzzle hash for the launcher id.
     pub fn new(launcher_id: Bytes32, side_a: Vec<Bytes32>, side_b: Vec<Bytes32>) -> Self {
         Self {
             singleton_struct: SingletonStruct::new(launcher_id),
@@ -176,16 +226,25 @@ impl Mod for FusionSingletonArgs {
 
 /// An NFT that's being locked by a swap, which must be in the settlement puzzle. It's identified by
 /// the launcher id in the same position of the curried list.
+///
+/// The fusion singleton asserts that the NFT pays itself to the [`P2FusionArgs`] puzzle hash
+/// with the swap's offer nonce. The NFT's full puzzle hash is derived from these fields, so they
+/// must match the NFT exactly.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct FusionNftToLock {
+    /// The coin id of the NFT. The puzzle doesn't check it when locking.
     pub coin_id: Bytes32,
+    /// The tree hash of the NFT's metadata.
     pub metadata_hash: Bytes32,
+    /// The current owner (usually a DID launcher id) in the NFT's ownership layer, if any.
     pub current_owner: Option<Bytes32>,
+    /// The tree hash of the NFT's transfer program.
     pub transfer_program_hash: Bytes32,
 }
 
 impl FusionNftToLock {
+    /// Creates a new [`FusionNftToLock`] from the NFT's coin id and the values in its layers.
     pub fn new(
         coin_id: Bytes32,
         metadata_hash: Bytes32,
@@ -203,17 +262,28 @@ impl FusionNftToLock {
 
 /// An NFT that's being unlocked by a swap. It's identified by the launcher id in the same position
 /// of the curried list.
+///
+/// The locked NFT is spent with the [`P2FusionArgs`] puzzle, which sends it to the settlement
+/// payments puzzle. The fusion singleton then asserts that it pays itself from there to
+/// `target_p2_puzzle_hash` with the swap's offer nonce.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct FusionNftToUnlock {
+    /// The coin id of the locked NFT, which is held by the [`P2FusionArgs`] puzzle.
     pub coin_id: Bytes32,
+    /// The tree hash of the NFT's metadata.
     pub metadata_hash: Bytes32,
+    /// The current owner (usually a DID launcher id) in the NFT's ownership layer, if any.
     pub current_owner: Option<Bytes32>,
+    /// The tree hash of the NFT's transfer program.
     pub transfer_program_hash: Bytes32,
+    /// The p2 puzzle hash that the NFT is sent to once it's unlocked.
     pub target_p2_puzzle_hash: Bytes32,
 }
 
 impl FusionNftToUnlock {
+    /// Creates a new [`FusionNftToUnlock`] from the locked NFT's coin id, the values in its
+    /// layers, and the p2 puzzle hash to send it to.
     pub fn new(
         coin_id: Bytes32,
         metadata_hash: Bytes32,
@@ -237,24 +307,46 @@ impl FusionNftToUnlock {
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct FusionSingletonSolution {
+    /// The coin id of the fusion singleton coin being spent.
     pub my_id: Bytes32,
+    /// The inner puzzle hash of the fusion singleton, which it's recreated with.
     pub my_inner_puzzle_hash: Bytes32,
+    /// The amount of the fusion singleton coin.
     pub my_amount: u64,
+    /// The NFTs on the side being locked, in the same order as their launcher ids are curried.
+    /// The length must match the number of launcher ids on that side.
     pub nfts_to_lock: Vec<FusionNftToLock>,
+    /// The NFTs on the side being unlocked, in the same order as their launcher ids are curried.
+    /// The length must match the number of launcher ids on that side.
     pub nfts_to_unlock: Vec<FusionNftToUnlock>,
+    /// If `true`, the NFTs on side A are unlocked and those on side B are locked. Otherwise, side
+    /// B is unlocked and side A is locked.
     pub unlock_a: bool,
+    /// The nonce of the settlement payments that every NFT in the swap makes.
     pub offer_nonce: Bytes32,
 }
 
+/// Curried arguments of [`P2_FUSION_PUZZLE`], which holds NFTs that are locked in a fusion
+/// singleton. It's used as the NFT's p2 puzzle, inside the ownership layer.
+///
+/// The NFT can only be spent alongside the fusion singleton with `launcher_id`, which must
+/// announce the NFT's launcher id and the puzzle hash to send it to. The fusion singleton always
+/// sends unlocked NFTs to the settlement payments puzzle. The p2 puzzle doesn't output a transfer
+/// condition, so an NFT keeps its current owner when it's locked or unlocked.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct P2FusionArgs {
+    /// The mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// The launcher id of the fusion singleton that the NFT is locked in.
     pub launcher_id: Bytes32,
+    /// The puzzle hash of the singleton launcher.
     pub launcher_puzzle_hash: Bytes32,
 }
 
 impl P2FusionArgs {
+    /// Creates the arguments for the fusion singleton with the given launcher id, with the
+    /// standard singleton mod and launcher puzzle hashes.
     pub fn new(launcher_id: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -274,14 +366,23 @@ impl Mod for P2FusionArgs {
     }
 }
 
+/// The solution of the [`P2FusionArgs`] puzzle, which unlocks an NFT during a swap.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct P2FusionSolution {
+    /// The inner puzzle hash of the fusion singleton that's being spent.
     pub singleton_inner_puzzle_hash: Bytes32,
+    /// The coin id of the fusion singleton that's being spent, which must announce this unlock.
     pub singleton_coin_id: Bytes32,
+    /// The launcher id of the NFT being unlocked.
     pub nft_launcher_id: Bytes32,
+    /// The singleton inner puzzle hash of the NFT (its state layer), which is used to check the
+    /// NFT's full puzzle hash.
     pub nft_inner_puzzle_hash: Bytes32,
+    /// The amount of the NFT coin.
     pub my_amount: u64,
+    /// The p2 puzzle hash to send the NFT to, which must be the one the fusion singleton announced.
+    /// For the fusion singleton, this is always the settlement payments mod hash.
     pub next_puzzle_hash: Bytes32,
 }
 

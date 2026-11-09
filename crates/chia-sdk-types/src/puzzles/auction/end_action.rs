@@ -10,6 +10,8 @@ use crate::{
     puzzles::{AuctionPayments, AuctionTimings},
 };
 
+/// The serialized bytecode of the auction's end action, compiled from Rue. See
+/// [`AuctionEndActionArgs`].
 pub const AUCTION_END_ACTION_PUZZLE: [u8; 631] = hex!(
     // Rue
     "
@@ -36,26 +38,42 @@ pub const AUCTION_END_ACTION_PUZZLE: [u8; 631] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_END_ACTION_PUZZLE`].
 pub const AUCTION_END_ACTION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "4cdb31b702e6f9e363035aab9e431352a901e6e2c31a76b0552d6434a6741344"
 ));
 
 /// Ends the auction once its timings allow it, paying out the winning bid from the reserve and
 /// authorizing the NFT to be unlocked.
+///
+/// The reserve pays the buyer's premium and the commission, the winning bid minus the commission
+/// to the payout puzzle hash, and the royalty to an ephemeral settlement coin, which the NFT's
+/// transfer asserts. Payments that round to 0 are skipped. The action's solution is passed to the
+/// unlocker after the winning bid, and it creates a coin announcement of `$`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionEndActionArgs<U> {
+    /// The unlocker puzzle, such as [`AuctionNftUnlockerArgs`] curried into its mod, which outputs
+    /// the conditions that the NFT is authorized to output.
+    ///
+    /// [`AuctionNftUnlockerArgs`]: crate::puzzles::AuctionNftUnlockerArgs
     pub unlocker: U,
+    /// When the auction can be ended.
     pub timings: AuctionTimings,
+    /// Where the winning bid is paid out.
     pub payments: AuctionPayments,
+    /// The NFT's royalty in basis points of the winning bid.
     pub royalty_bps: u64,
     /// The inner puzzle hash of the settlement coin created by the reserve, which is wrapped by the
     /// CAT layer for CAT reserves.
     pub settlement_payment_hash: Bytes32,
+    /// The coin id of the locked NFT, which the unlock message is sent to.
     pub nft_coin_id: Bytes32,
 }
 
 impl<U> AuctionEndActionArgs<U> {
+    /// Creates new [`AuctionEndActionArgs`] from the unlocker, timings, payments, royalty,
+    /// settlement payment hash, and NFT coin id.
     pub fn new(
         unlocker: U,
         timings: AuctionTimings,

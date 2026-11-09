@@ -49,29 +49,79 @@ pub const SECURE_THE_MINT_LAUNCHER_PUZZLE: [u8; 842] = hex!(
     "
 );
 
+/// The tree hash of [`SECURE_THE_MINT_LAUNCHER_PUZZLE`].
 pub const SECURE_THE_MINT_LAUNCHER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     0fcdee23d7f33cf08460f1be9c72e0ca2ea42e62ac7fcc4e017f94f7c01adc7c
     "
 ));
 
+/// Curried arguments of [`SECURE_THE_MINT_LAUNCHER_PUZZLE`], which commit to a single NFT before
+/// it's minted.
+///
+/// Secure the mint lets a creator commit to a whole collection up front (for example, as the
+/// payments of a Secure the Bag tree), so that anyone can mint each NFT later without a signature.
+/// The pre-launcher coin can only mint an NFT with exactly these values: the eve NFT has the given
+/// metadata and metadata updater, no owner, the royalty transfer program with the given royalty,
+/// and the given p2 puzzle hash.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
+/// # use chia_sdk_types::{
+/// #     Mod,
+/// #     puzzles::{SECURE_THE_MINT_LAUNCHER_PUZZLE_HASH, SecureTheMintLauncherArgs},
+/// # };
+/// let args = SecureTheMintLauncherArgs::new(
+///     Bytes32::new([1; 32]),
+///     NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+///     Bytes32::new([2; 32]),
+///     300,
+///     Bytes32::new([3; 32]),
+///     None,
+/// );
+///
+/// // Coins with this puzzle hash can only mint this exact NFT.
+/// let pre_launcher_puzzle_hash = args.curry_tree_hash();
+///
+/// assert_eq!(SecureTheMintLauncherArgs::mod_hash(), SECURE_THE_MINT_LAUNCHER_PUZZLE_HASH);
+/// assert_ne!(pre_launcher_puzzle_hash, SECURE_THE_MINT_LAUNCHER_PUZZLE_HASH);
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct SecureTheMintLauncherArgs {
+    /// The mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// The puzzle hash of the singleton launcher.
     pub singleton_launcher_puzzle_hash: Bytes32,
+    /// The mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// The tree hash of the NFT's metadata.
     pub metadata_hash: Bytes32,
+    /// The puzzle hash of the NFT's metadata updater.
     pub metadata_updater_puzzle_hash: Bytes32,
+    /// The mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// The mod hash of the NFT's transfer program, which is curried with the royalty.
     pub nft_ownership_transfer_program_mod_hash: Bytes32,
+    /// The puzzle hash that royalties are paid to.
     pub royalty_puzzle_hash: Bytes32,
+    /// The royalty percentage of each trade, in basis points.
     pub royalty_basis_points: u16,
+    /// The p2 puzzle hash of the eve NFT, inside its ownership layer. This puzzle is run when the
+    /// eve NFT is spent, so it can send the NFT on to its final owner.
     pub p2_puzzle_hash: Bytes32,
+    /// The public key that can sign to melt the pre-launcher coin instead of minting the NFT. If
+    /// this is `None`, the melt path outputs an invalid `AGG_SIG_ME`, so the coin can't be melted.
     pub melt_public_key: Option<PublicKey>,
 }
 
 impl SecureTheMintLauncherArgs {
+    /// Creates the arguments for minting an NFT with the given metadata, royalty, and p2 puzzle
+    /// hash. The other arguments are the standard singleton and NFT mod hashes, with the
+    /// `NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES` transfer program.
     pub fn new(
         metadata_hash: Bytes32,
         metadata_updater_puzzle_hash: Bytes32,
@@ -107,15 +157,24 @@ impl Mod for SecureTheMintLauncherArgs {
     }
 }
 
+/// The solution of the [`SecureTheMintLauncherArgs`] puzzle.
+///
+/// When minting, the pre-launcher coin creates a singleton launcher with an amount of 1 and
+/// asserts the launcher's announcement of the eve NFT. Melting requires an `AGG_SIG_ME` signature
+/// of the message `1` from the melt public key.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SecureTheMintLauncherSolution {
     /// True to mint the NFT, or false to melt the pre-launcher coin.
     pub mint: bool,
+    /// The coin id of the pre-launcher coin, which the launcher id is derived from. It's only
+    /// checked when minting.
     pub my_id: Bytes32,
 }
 
 impl SecureTheMintLauncherSolution {
+    /// Creates a new [`SecureTheMintLauncherSolution`] that mints the NFT if `mint` is `true`, or
+    /// melts the pre-launcher coin otherwise.
     pub fn new(mint: bool, my_id: Bytes32) -> Self {
         Self { mint, my_id }
     }
