@@ -39,7 +39,8 @@ jobs:
         with:
           python-version: 3.x
       # The build runs in a container, so cache the registry (including extracted sources, whose
-      # mtimes cargo checks) and target dir ourselves rather than with rust-cache
+      # mtimes cargo checks) and target dir ourselves rather than with rust-cache. Like rust-cache,
+      # it's keyed on the lockfile and toolchain, so main saves a new one only when they change.
       - name: Restore cargo cache
         id: cargo-cache
         uses: actions/cache/restore@v6
@@ -47,9 +48,8 @@ jobs:
           path: |
             .cargo-registry
             target
-          key: linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-${{ github.sha }}
+          key: linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
-            linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             linux-${{ matrix.platform.target }}-
       # The action downloads maturin inside the container, which sometimes gets an error page from
       # GitHub instead of the release, so the build is retried once
@@ -82,7 +82,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with: *linux-build
       - name: Save cargo cache
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
@@ -112,7 +112,8 @@ jobs:
         with:
           python-version: 3.x
       # The build runs in a container, so cache the registry (including extracted sources, whose
-      # mtimes cargo checks) and target dir ourselves rather than with rust-cache
+      # mtimes cargo checks) and target dir ourselves rather than with rust-cache. Like rust-cache,
+      # it's keyed on the lockfile and toolchain, so main saves a new one only when they change.
       - name: Restore cargo cache
         id: cargo-cache
         uses: actions/cache/restore@v6
@@ -120,9 +121,8 @@ jobs:
           path: |
             .cargo-registry
             target
-          key: musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-${{ github.sha }}
+          key: musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
-            musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             musllinux-${{ matrix.platform.target }}-
       # The action downloads maturin inside the container, which sometimes gets an error page from
       # GitHub instead of the release, so the build is retried once
@@ -141,7 +141,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with: *musllinux-build
       - name: Save cargo cache
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
