@@ -121,9 +121,13 @@ pub fn settlement_announcement(
 /// vectors have no coin behind them.
 #[derive(Debug, Clone)]
 pub struct SettlementGroupCoin {
+    /// The coin's ID.
     pub coin_id: Bytes32,
+    /// The coin's puzzle hash on chain.
     pub puzzle_hash: Bytes32,
+    /// The coin's synthetic secret key.
     pub secret_key: SyntheticSecretKey,
+    /// The coin's asset: `None` for XCH.
     pub wrapper: Option<Wrapper>,
 }
 
@@ -161,10 +165,15 @@ impl SettlementGroupCoin {
 /// spend group creates, such as its change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementRecipient {
+    /// The scan key of the address, `B_scan`.
     pub scan_pk: PublicKey,
+    /// The spend key of the address that is paid, `B_spend` or `B_m`.
     pub spend_pk: PublicKey,
+    /// The asset of the output: `None` for XCH.
     pub wrapper: Option<Wrapper>,
+    /// Whether the output is paid through the settlement coin of the asset.
     pub settled: bool,
+    /// The amount of the output, in the smallest unit of the asset.
     pub amount: u64,
 }
 
@@ -173,7 +182,9 @@ pub struct SettlementRecipient {
 /// offer (for example `(q amount ())`).
 #[derive(Debug, Clone)]
 pub struct OtherPayment {
+    /// The asset of the payment: `None` for XCH.
     pub wrapper: Option<Wrapper>,
+    /// The payment, as the party lists it in its offer.
     pub payment: Payment,
 }
 
@@ -196,10 +207,13 @@ pub struct SettlementNotarizedPayment {
 /// settled), as a coin of the group of asset `wrapper` creates it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementGroupOutput {
+    /// The `k` counter of the output for its scan key.
     pub k: u32,
+    /// The asset of the output: `None` for XCH.
     pub wrapper: Option<Wrapper>,
     /// The bare one-time puzzle hash.
     pub puzzle_hash: Bytes32,
+    /// The amount of the output, in the smallest unit of the asset.
     pub amount: u64,
     /// `wrap(W, puzzle_hash)`: the puzzle hash of the coin created.
     pub wrapped_puzzle_hash: Bytes32,

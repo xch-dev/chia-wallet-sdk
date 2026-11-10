@@ -49,6 +49,7 @@ pub enum Action {
     MeltSingleton(MeltSingletonAction),
     /// See [`Action::fee`].
     Fee(FeeAction),
+    /// See [`Action::silent_payment_send`].
     #[cfg(feature = "chip-0057")]
     SilentPaymentSend(SilentPaymentSendAction),
     /// See [`Action::silent_payment_requested`] and [`Action::silent_payment_settle`].

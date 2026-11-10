@@ -37,7 +37,9 @@ pub enum SettledEntry {
     /// derived from the party's spend group, with the `k` counter of the
     /// address's scan key, when the transaction is prepared.
     SilentPayment {
+        /// The silent payment address that is paid.
         recipient: SilentPaymentAddress,
+        /// The amount of the payment, in the smallest unit of the asset.
         amount: u64,
     },
     /// A requested payment to an address that is not a silent payment address,
@@ -73,11 +75,14 @@ pub struct SilentPaymentSettledAction {
     pub asset: Option<Wrapper>,
     /// The offer's nonce for the party's requested payments.
     pub nonce: Bytes32,
+    /// The requested payment.
     pub entry: SettledEntry,
+    /// The settlement coin that makes the payment.
     pub payer: SettlementPayer,
 }
 
 impl SilentPaymentSettledAction {
+    /// Creates a settled payment of `entry` in `asset` under `nonce`, paid by `payer`.
     pub fn new(
         asset: Option<Wrapper>,
         nonce: Bytes32,

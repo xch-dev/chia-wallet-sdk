@@ -488,6 +488,7 @@ pub enum DriverError {
     )]
     MissingP2ConditionsOrSingletonAssertion,
 
+    /// An error from silent payment key generation or the address codec.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment error: {0}")]
     SilentPayment(#[from] chia_sdk_utils::silent_payments::SilentPaymentError),

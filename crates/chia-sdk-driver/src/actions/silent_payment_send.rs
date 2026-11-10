@@ -39,8 +39,11 @@ pub struct SilentPaymentSendAction {
     /// The asset the output is paid in: [`Id::Xch`], or [`Id::Existing`] with
     /// the asset ID of a CAT that the transaction spends.
     pub id: Id,
+    /// The silent payment address that is paid.
     pub recipient: SilentPaymentAddress,
+    /// The amount of the output, in the smallest unit of the asset.
     pub amount: u64,
+    /// The memos of an XCH output. A CAT output carries only the hint the SDK builds.
     pub memos: Memos,
 }
 

@@ -52,7 +52,9 @@ use crate::{Id, SettlementPayer};
 /// messages without breaking this struct's shape.
 #[derive(Clone, Debug, Default)]
 pub struct TweakData {
+    /// The tweak point of each spend group of the block, `input_hash * A_sum`.
     pub tweak_points: Vec<PublicKey>,
+    /// The coins created in the block, which the scanner matches against.
     pub outputs: Vec<OutputMeta>,
     /// The wrapper list of the block; empty when no CAT coin is spent in it.
     pub wrappers: Vec<Wrapper>,
@@ -94,9 +96,13 @@ impl TweakData {
 /// coin without re-parsing the block.
 #[derive(Clone, Copy, Debug)]
 pub struct OutputMeta {
+    /// The coin's puzzle hash, which the scanner matches against.
     pub puzzle_hash: Bytes32,
+    /// The coin's ID.
     pub coin_id: Bytes32,
+    /// The coin's amount.
     pub amount: u64,
+    /// The ID of the coin's parent.
     pub parent_coin_id: Bytes32,
 }
 
@@ -119,7 +125,9 @@ pub struct DetectedSpCoin {
     pub coin_id: Bytes32,
     /// The bare one-time puzzle hash (the inner puzzle hash of a CAT output).
     pub puzzle_hash: Bytes32,
+    /// The amount of the matched coin.
     pub amount: u64,
+    /// The ID of the matched coin's parent.
     pub parent_coin_id: Bytes32,
     /// The `k` counter at which this output was detected within its spend group.
     pub k: u32,

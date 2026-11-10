@@ -123,9 +123,13 @@ struct EligibleSpend {
 /// ([`tweak_data_from_block_spends`], CHIP-0057 "Output Matching Scope").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpendGroup {
+    /// The IDs of the group's coins, one per eligible spend, in the block's order.
     pub coin_ids: Vec<Bytes32>,
+    /// The tweak point of the group, `input_hash * A_sum`.
     pub tweak_point: PublicKey,
+    /// The wrapper of each coin of `coin_ids` (`None` for an XCH coin).
     pub member_wrappers: Vec<Option<Wrapper>>,
+    /// The coins that count as the group's outputs for light-wallet cut-through.
     pub outputs: Vec<Coin>,
 }
 

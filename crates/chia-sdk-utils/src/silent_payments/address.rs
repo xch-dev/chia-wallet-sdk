@@ -56,7 +56,9 @@ fn fes_to_bytes_strict(groups: &[u8]) -> Result<Vec<u8>, Bech32Error> {
 /// - `Testnet` → `"tspxch"`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SilentPaymentNetwork {
+    /// Mainnet, with the human-readable part `spxch`.
     Mainnet,
+    /// Testnet, with the human-readable part `tspxch`.
     Testnet,
 }
 
@@ -98,8 +100,11 @@ impl SilentPaymentNetwork {
 /// transaction is for, so that comparison is left to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SilentPaymentAddress {
+    /// The scan public key, `B_scan`.
     pub scan_pk: PublicKey,
+    /// The spend public key: `B_spend`, or `B_m` for a labeled address.
     pub spend_pk: PublicKey,
+    /// The network of the address, from its human-readable part.
     pub network: SilentPaymentNetwork,
 }
 
