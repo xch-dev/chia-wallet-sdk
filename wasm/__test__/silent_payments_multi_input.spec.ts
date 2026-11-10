@@ -4,8 +4,8 @@
 //
 // Mirrors
 // napi/__test__/silent_payments_multi_input.spec.ts structurally; the only
-// differences are imports from `../pkg` and the setPanicHook() call at module
-// load per wasm-pack convention.
+// differences are imports from `../pkg/chia_wallet_sdk_wasm.js` and the
+// setPanicHook() call at module load per wasm-pack convention.
 //
 // TweakData is constructed by SilentPayments.tweakDataFromBlockSpends
 // over sim.blockSpends(h) + sim.blockOutputs(h) (the
@@ -29,7 +29,7 @@ import {
   Simulator,
   Spends,
   standardPuzzleHash,
-} from "../pkg";
+} from "../pkg/chia_wallet_sdk_wasm.js";
 
 setPanicHook();
 

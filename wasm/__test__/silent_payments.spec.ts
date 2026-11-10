@@ -3,8 +3,9 @@
 // wasm raw-key SP send + scan-from-tweaks E2E, plus the raw-key contract.
 //
 // Mirrors napi/__test__/silent_payments_e2e.spec.ts
-// structurally; the only differences are imports from `../pkg` and the
-// setPanicHook() call at module load per wasm-pack convention.
+// structurally; the only differences are imports from
+// `../pkg/chia_wallet_sdk_wasm.js` and the setPanicHook() call at module load
+// per wasm-pack convention.
 //
 // TweakData is constructed on the Rust side (via Simulator.tweakDataFromBlock)
 // and crossed the FFI boundary unchanged. This is the first runtime test of
@@ -41,7 +42,7 @@ import {
   Spends,
   standardPuzzleHash,
   toHex,
-} from "../pkg";
+} from "../pkg/chia_wallet_sdk_wasm.js";
 
 setPanicHook();
 
