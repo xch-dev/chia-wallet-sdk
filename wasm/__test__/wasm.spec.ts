@@ -189,7 +189,7 @@ test("vault message proofs can be created and verified without chain access", (t
   mips.spendVault(vault);
   const [coinSpend] = clvm.coinSpends();
   const proof = VaultMessageProof.decodeString(
-    new VaultMessageProof(coinSpend, Signature.infinity()).encodeString(),
+    new VaultMessageProof(coinSpend, Signature.infinity(), []).encodeString(),
   );
 
   t.deepEqual(

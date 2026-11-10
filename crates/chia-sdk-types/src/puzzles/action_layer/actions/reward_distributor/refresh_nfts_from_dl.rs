@@ -9,6 +9,15 @@ use hex_literal::hex;
 
 use crate::{MerkleProof, Mod, puzzles::RewardDistributorEntrySlotValue};
 
+/// Serialized reward distributor refresh action for curated NFT distributors, compiled
+/// from Rue.
+///
+/// When the curated `DataLayer` list changes an NFT's shares, this action updates staked
+/// NFTs to match. For each affected entry, it pays out the entry's pending rewards,
+/// re-creates the entry slot with the current cumulative payout and the adjusted shares,
+/// and for each NFT proves its new shares against the store's root, replaces its deposit
+/// slot, and re-locks the NFT. The action announces `"r"` followed by each refreshed
+/// NFT's launcher id.
 pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE: [u8; 1976] = hex!(
     // Rue
     "
@@ -77,26 +86,42 @@ pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE: [u8; 1976] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     831dc0668f5b8b573c869cfa08dddb91078ad1792ce3276bd531e6eaf4577dff
     "
 ));
 
+/// Curried arguments of the refresh action ([`REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorRefreshNftsFromDlActionArgs {
+    /// Singleton struct of the `DataLayer` store that holds the curated list.
     pub dl_singleton_struct: SingletonStruct,
+    /// Mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// Mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for deposit slots
+    /// ([`RewardDistributorSlotNonce::DEPOSIT`](crate::puzzles::RewardDistributorSlotNonce::DEPOSIT)).
     pub deposit_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that holds staked assets: [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs)
+    /// for the reward distributor singleton, with nonce 1.
     pub my_p2_puzzle_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Maximum number of seconds since the distributor's last update. The action asserts
+    /// that the spend happens before `last_update + max_second_offset`, so entries can't be
+    /// changed with stale reward accounting.
     pub max_second_offset: u64,
+    /// Fixed-point precision of the distributor's cumulative payout and remaining rewards.
     pub precision: u64,
 }
 
 impl RewardDistributorRefreshNftsFromDlActionArgs {
+    /// Creates the arguments with the standard NFT mod hashes.
     pub fn new(
         dl_launcher_id: Bytes32,
         my_p2_puzzle_hash: Bytes32,
@@ -118,63 +143,100 @@ impl RewardDistributorRefreshNftsFromDlActionArgs {
     }
 }
 
+/// Information about one staked NFT being refreshed.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RefreshNftInfo {
+    /// Change in the NFT's shares: `new_nft_shares` minus the shares in its current deposit
+    /// slot.
     pub nft_shares_delta: i64,
+    /// Shares the NFT is worth according to the store.
     pub new_nft_shares: u64,
+    /// Parent coin id of the locked NFT coin.
     pub nft_parent_id: Bytes32,
+    /// Launcher id of the NFT.
     pub nft_launcher_id: Bytes32,
+    /// Tree hash of the NFT's metadata.
     pub nft_metadata_hash: Bytes32,
+    /// Tree hash of the NFT's metadata updater puzzle hash.
     pub nft_metadata_updater_hash_hash: Bytes32,
+    /// Puzzle hash of the NFT's royalty transfer program.
     pub nft_transfer_porgram_hash: Bytes32,
+    /// Current owner (DID launcher id) of the NFT, if any.
     pub nft_owner: Option<Bytes32>,
+    /// Proof that `(nft_launcher_id . new_nft_shares)` is in the store's Merkle root.
     #[clvm(rest)]
     pub nft_inclusion_proof: MerkleProof,
 }
 
+/// Payout owed to an entry, encoded as `(payout_amount . payout_rounding_error)`.
+///
+/// `payout_amount` is `shares * (cumulative_payout - initial_cumulative_payout) / precision`
+/// and `payout_rounding_error` is the remainder, which goes back to the remaining
+/// rewards.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorEntryPayoutInfo {
+    /// Amount paid to the entry's payout puzzle hash.
     pub payout_amount: u64,
+    /// Remainder of the division by the precision.
     #[clvm(rest)]
     pub payout_rounding_error: u128,
 }
 
+/// An entry being refreshed and its NFTs.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SlotAndNfts {
+    /// Current value of the entry's slot.
     pub existing_slot_value: RewardDistributorEntrySlotValue,
+    /// Pending rewards paid to the entry.
     pub entry_payout_info: RewardDistributorEntryPayoutInfo,
+    /// Sum of the NFTs' [`nft_shares_delta`](RefreshNftInfo::nft_shares_delta).
     pub nfts_total_shares_delta: i64,
+    /// NFTs of the entry being refreshed.
     #[clvm(rest)]
     pub nfts: Vec<RefreshNftInfo>,
 }
 
+/// Information used to reconstruct the curated list's `DataLayer` store puzzle.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorDlInfo {
+    /// Tree hash of the store's metadata after the root hash.
     pub dl_metadata_rest_hash: Option<Bytes32>,
+    /// Tree hash of the store's metadata updater puzzle hash.
     pub dl_metadata_updater_hash_hash: Bytes32,
+    /// Puzzle hash of the store's inner puzzle below the NFT state layer (its delegation
+    /// layer).
     #[clvm(rest)]
     pub dl_inner_puzzle_hash: Bytes32,
 }
 
+/// Totals over all refreshed entries.
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRefreshNftsTotals {
+    /// Sum of the entries' payout amounts.
     pub total_entry_payout_amount: u64,
+    /// Sum of the entries' share changes.
     pub total_shares_delta: i128,
+    /// Sum of the entries' payout rounding errors.
     #[clvm(rest)]
     pub total_payout_rounding_error: u128,
 }
 
+/// Solution to the refresh action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRefreshNftsFromDlActionSolution {
+    /// Current Merkle root of the `DataLayer` store.
     pub dl_root_hash: Bytes32,
+    /// Information used to reconstruct the store's puzzle.
     pub dl_info: RewardDistributorDlInfo,
+    /// Totals over all refreshed entries.
     pub totals: RewardDistributorRefreshNftsTotals,
+    /// Entries to refresh and their NFTs.
     #[clvm(rest)]
     pub slots_and_nfts: Vec<SlotAndNfts>,
 }

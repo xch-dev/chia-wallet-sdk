@@ -26,9 +26,13 @@ pub(super) struct SimCoinRecord {
     pub(super) timestamp: u64,
 }
 
+/// The result of [`FullNodeSimulator::push_tx_detailed`](crate::FullNodeSimulator::push_tx_detailed).
 #[derive(Debug)]
 pub struct FullNodeSimulatorPushTxResponse {
+    /// The RPC response. Its status is `SUCCESS` or `FAILED`, and on failure its error is the
+    /// display text of [`FullNodeSimulatorPushTxResponse::error`].
     pub response: PushTxResponse,
+    /// The error that caused the transaction to be rejected, or [`None`] if it was accepted.
     pub error: Option<SimulatorError>,
 }
 
@@ -52,19 +56,37 @@ pub(super) struct ValidatedSpend {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+/// A chain event recorded by the [`FullNodeSimulator`](crate::FullNodeSimulator).
+///
+/// Events are collected until they are taken with
+/// [`FullNodeSimulator::drain_events`](crate::FullNodeSimulator::drain_events).
 pub enum FullNodeSimulatorEvent {
+    /// A block was farmed.
     Block {
+        /// The height of the block.
         height: u32,
+        /// The header hash of the block.
         header_hash: Bytes32,
+        /// The header hash of the block before it.
         previous_header_hash: Bytes32,
+        /// The coins created in the block, including the reward coin.
         additions: Vec<CoinRecord>,
+        /// The coins spent in the block.
         removals: Vec<CoinRecord>,
     },
+    /// Blocks were replaced by [`FullNodeSimulator::reorg_blocks`](crate::FullNodeSimulator::reorg_blocks).
+    ///
+    /// This is recorded after the [`FullNodeSimulatorEvent::Block`] events for the new blocks.
     Reorg {
+        /// The height of the last block kept from the old chain.
         fork_height: u32,
+        /// The header hash of the tip before the reorg.
         old_peak_hash: Bytes32,
+        /// The header hash of the tip after the reorg.
         new_peak_hash: Bytes32,
+        /// The header hashes of the removed blocks, from lowest to highest.
         reverted_header_hashes: Vec<Bytes32>,
+        /// The header hashes of the new blocks, from lowest to highest.
         new_header_hashes: Vec<Bytes32>,
     },
 }

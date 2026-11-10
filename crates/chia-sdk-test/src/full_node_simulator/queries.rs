@@ -12,14 +12,22 @@ use chia_sdk_coinset::{
 use super::{FullNodeSimulator, SIMULATOR_GENESIS_CHALLENGE, SimCoinRecord, ValidatedBundle};
 
 impl FullNodeSimulator {
+    /// Returns the height of the peak block. The genesis block is at height 1.
     pub fn height(&self) -> u32 {
         self.state.height
     }
 
+    /// Returns the header hash of the peak block.
+    ///
+    /// The genesis header hash is all zeros. Later header hashes are random.
     pub fn header_hash(&self) -> Bytes32 {
         self.state.header_hashes.last().copied().unwrap_or_default()
     }
 
+    /// Returns the header hash of the canonical block at `height`, or [`None`] if there is no
+    /// block at that height.
+    ///
+    /// Height 0 returns the genesis header hash, the same as height 1.
     pub fn header_hash_of(&self, height: u32) -> Option<Bytes32> {
         self.state
             .header_hashes
@@ -27,18 +35,29 @@ impl FullNodeSimulator {
             .copied()
     }
 
+    /// Returns the puzzle hash that receives block rewards. This defaults to the
+    /// [`FullNodeSimulator::get_prefarm_puzzle_hash`].
     pub fn get_farming_ph(&self) -> Bytes32 {
         self.farming_puzzle_hash
     }
 
+    /// Returns the master secret key that the prefarm puzzle hash is derived from.
     pub fn get_master_secret_key(&self) -> SecretKey {
         self.master_secret_key.clone()
     }
 
+    /// Returns the puzzle hash of the genesis prefarm coins.
+    ///
+    /// This is the standard puzzle hash of the synthetic key for the hardened wallet key at index
+    /// 1 of [`FullNodeSimulator::get_master_secret_key`].
     pub fn get_prefarm_puzzle_hash(&self) -> Bytes32 {
         self.prefarm_puzzle_hash
     }
 
+    /// Returns the blockchain state, as the `get_blockchain_state` RPC would.
+    ///
+    /// The peak is the current tip, the mempool totals reflect the current mempool, and the node
+    /// always reports itself as synced. Values such as difficulty and space are fixed.
     pub fn get_blockchain_state(&self) -> BlockchainStateResponse {
         let peak = self.state.blocks.get(&self.header_hash()).map_or_else(
             || {
@@ -84,6 +103,8 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the network info. The network name is `simulator0`, the address prefix is `txch`,
+    /// and the genesis challenge is [`FullNodeSimulator::get_aggsig_additional_data`].
     pub fn get_network_info(&self) -> GetNetworkInfoResponse {
         GetNetworkInfoResponse {
             network_name: Some("simulator0".to_string()),
@@ -94,10 +115,16 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the `AGG_SIG_ME` additional data that signatures must be made with.
+    ///
+    /// This is the simulator's genesis challenge, which isn't the testnet11 value used by
+    /// [`sign_transaction`](crate::sign_transaction).
     pub fn get_aggsig_additional_data(&self) -> Bytes32 {
         SIMULATOR_GENESIS_CHALLENGE
     }
 
+    /// Returns the record of the block with the given header hash, including blocks orphaned by
+    /// [`FullNodeSimulator::reorg_blocks`].
     pub fn get_block_record(&self, header_hash: Bytes32) -> GetBlockRecordResponse {
         GetBlockRecordResponse {
             block_record: self
@@ -111,6 +138,7 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the record of the canonical block at `height`.
     pub fn get_block_record_by_height(&self, height: u32) -> GetBlockRecordResponse {
         let block_record = self
             .header_hash_of(height)
@@ -124,6 +152,8 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the records of the canonical blocks from `start` (inclusive) to `end` (exclusive).
+    /// Heights without a block are skipped.
     pub fn get_block_records(&self, start: u32, end: u32) -> GetBlockRecordsResponse {
         let block_records = (start..end)
             .filter_map(|height| self.get_block_record_by_height(height).block_record)
@@ -136,6 +166,11 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the coins created and spent by the block with the given header hash, including
+    /// orphaned blocks.
+    ///
+    /// The coin records reflect the current coin set, not the state at that block. The response
+    /// is unsuccessful if the block doesn't exist.
     pub fn get_additions_and_removals(&self, header_hash: Bytes32) -> AdditionsAndRemovalsResponse {
         let Some(block) = self
             .state
@@ -159,6 +194,7 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the coin spends in the block with the given header hash, including orphaned blocks.
     pub fn get_block_spends(&self, header_hash: Bytes32) -> GetBlockSpendsResponse {
         GetBlockSpendsResponse {
             block_spends: self
@@ -172,6 +208,7 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the record of the coin with the given id, whether or not it's spent.
     pub fn get_coin_record_by_name(&self, name: Bytes32) -> GetCoinRecordResponse {
         GetCoinRecordResponse {
             coin_record: self
@@ -184,6 +221,10 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the records of the coins with the given ids.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_names(
         &self,
         names: &[Bytes32],
@@ -203,6 +244,10 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Returns the records of the coins hinted with `hint`.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_hint(
         &self,
         hint: Bytes32,
@@ -213,6 +258,10 @@ impl FullNodeSimulator {
         self.get_coin_records_by_hints(vec![hint], start_height, end_height, include_spent_coins)
     }
 
+    /// Returns the records of the coins hinted with any of the given hints.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_hints(
         &self,
         hints: Vec<Bytes32>,
@@ -238,6 +287,10 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Returns the records of the coins whose parent coin id is one of `parent_ids`.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_parent_ids(
         &self,
         parent_ids: Vec<Bytes32>,
@@ -258,6 +311,10 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Returns the records of the coins with the given puzzle hash.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_puzzle_hash(
         &self,
         puzzle_hash: Bytes32,
@@ -273,6 +330,10 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Returns the records of the coins with any of the given puzzle hashes.
+    ///
+    /// Only unspent coins are returned unless `include_spent_coins` is `Some(true)`. If given,
+    /// `start_height` (inclusive) and `end_height` (exclusive) filter by confirmed height.
     pub fn get_coin_records_by_puzzle_hashes(
         &self,
         puzzle_hashes: Vec<Bytes32>,
@@ -293,6 +354,9 @@ impl FullNodeSimulator {
         )
     }
 
+    /// Returns the coin spend of a spent coin.
+    ///
+    /// If `height` is given, the spend is only returned if the coin was spent at that height.
     pub fn get_puzzle_and_solution(
         &self,
         coin_id: Bytes32,
@@ -314,6 +378,7 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the mempool item with the given spend bundle id.
     pub fn get_mempool_item_by_tx_id(&self, tx_id: Bytes32) -> GetMempoolItemResponse {
         GetMempoolItemResponse {
             mempool_item: self
@@ -325,6 +390,7 @@ impl FullNodeSimulator {
         }
     }
 
+    /// Returns the mempool items that spend the coin with the given id.
     pub fn get_mempool_items_by_coin_name(&self, coin_name: Bytes32) -> GetMempoolItemsResponse {
         GetMempoolItemsResponse {
             mempool_items: Some(

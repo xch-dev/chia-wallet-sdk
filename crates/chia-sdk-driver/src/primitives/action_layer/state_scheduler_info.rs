@@ -11,14 +11,65 @@ use crate::{
     DriverError, SingletonLayer, StateSchedulerLayer, XchandlesRegistryReceivedMessagePrefix,
 };
 
+/// The information needed to construct the puzzle of a [`StateScheduler`](crate::StateScheduler).
+///
+/// Generation `i` of the scheduler can only be spent once the timestamp `state_schedule[i].0` is
+/// reached. Its spend sends the message
+/// [`XchandlesRegistryReceivedMessagePrefix::update_state`](crate::XchandlesRegistryReceivedMessagePrefix::update_state)
+/// of `state_schedule[i].1` to the receiver singleton and recreates the scheduler as generation `i + 1`.
+/// The last generation recreates the singleton with `final_puzzle_hash` as its inner puzzle hash instead.
+///
+/// The inner puzzle of every generation is computed from the end of the schedule backwards, so the
+/// whole schedule is fixed at launch.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_driver::{CatalogRegistryState, DriverError, StateSchedulerInfo};
+///
+/// let state = |price| CatalogRegistryState {
+///     cat_maker_puzzle_hash: Bytes32::default(),
+///     registration_price: price,
+/// };
+/// let final_puzzle_hash = Bytes32::new([3; 32]);
+///
+/// let info = StateSchedulerInfo::new(
+///     Bytes32::new([1; 32]),
+///     Bytes32::new([2; 32]),
+///     vec![(1_700_000_000, state(100)), (1_800_000_000, state(200))],
+///     0,
+///     final_puzzle_hash,
+/// )?;
+///
+/// // After the last scheduled state, the singleton's inner puzzle hash is the final puzzle hash.
+/// assert_eq!(info.inner_puzzle_hash_for_generation(2), final_puzzle_hash.into());
+///
+/// // Schedules must be non-empty with strictly increasing timestamps.
+/// assert!(matches!(
+///     StateSchedulerInfo::new(
+///         Bytes32::default(),
+///         Bytes32::default(),
+///         vec![(10, state(1)), (10, state(2))],
+///         0,
+///         final_puzzle_hash,
+///     ),
+///     Err(DriverError::InvalidStateSchedule)
+/// ));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSchedulerInfo<S> {
+    /// The launcher id of the scheduler singleton.
     pub launcher_id: Bytes32,
 
+    /// The launcher id of the singleton that receives the state updates.
     pub receiver_singleton_launcher_id: Bytes32,
     /// Nonempty, strictly increasing list of `(unix timestamp, state)` entries.
     pub state_schedule: Vec<(u64, S)>,
+    /// The index of the next entry in `state_schedule` that this coin will send.
     pub generation: usize,
+    /// The inner puzzle hash that the singleton takes on after the last state is sent.
     pub final_puzzle_hash: Bytes32,
 }
 
@@ -26,6 +77,12 @@ impl<S> StateSchedulerInfo<S>
 where
     S: ToTreeHash + Clone,
 {
+    /// Creates a new [`StateSchedulerInfo`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::InvalidStateSchedule`] if `state_schedule` is empty or its timestamps
+    /// aren't strictly increasing.
     pub fn new(
         launcher_id: Bytes32,
         receiver_singleton_launcher_id: Bytes32,
@@ -44,6 +101,7 @@ where
         })
     }
 
+    /// Returns a copy of this info with a different generation.
     #[must_use]
     pub fn with_generation(&self, generation: usize) -> Self {
         Self {
@@ -52,6 +110,11 @@ where
         }
     }
 
+    /// Returns the inner puzzle hash of a single scheduler generation.
+    ///
+    /// That generation sends the message with hash `prefix_and_message_hash`, asserts that the
+    /// timestamp `required_timestamp` has been reached, and recreates the singleton with
+    /// `next_puzzle_hash` as its inner puzzle hash.
     pub fn inner_puzzle_hash_for(
         &self,
         next_puzzle_hash: Bytes32,
@@ -70,6 +133,9 @@ where
         )
     }
 
+    /// Returns the inner puzzle hash of the given generation.
+    ///
+    /// If `generation` is past the end of the schedule, this is `final_puzzle_hash`.
     pub fn inner_puzzle_hash_for_generation(&self, generation: usize) -> TreeHash {
         if generation >= self.state_schedule.len() {
             return self.final_puzzle_hash.into();
@@ -96,10 +162,16 @@ where
         inner_puzzle_hash
     }
 
+    /// Returns the inner puzzle hash of the current generation.
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         self.inner_puzzle_hash_for_generation(self.generation)
     }
 
+    /// Returns the singleton and state scheduler layers of the current generation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `generation` is past the end of the schedule.
     pub fn into_layers(self) -> SingletonLayer<StateSchedulerLayer> {
         let (required_timestamp, new_state) = self.state_schedule[self.generation].clone();
 
@@ -117,6 +189,14 @@ where
         )
     }
 
+    /// Parses the scheduler from a launcher solution whose key-value list is a [`StateSchedulerLauncherHints`].
+    ///
+    /// Returns the generation-0 info along with the `final_puzzle_hash_hints`, or [`None`] if the
+    /// launched amount or puzzle hash doesn't match the hints.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the hints can't be parsed or describe an invalid schedule.
     pub fn from_launcher_solution<H>(
         allocator: &mut Allocator,
         laucher_solution: LauncherSolution<NodePtr>,
@@ -151,6 +231,7 @@ where
         }
     }
 
+    /// Returns the launcher hints for this scheduler, with extra `final_puzzle_hash_hints` appended.
     pub fn to_hints<H>(&self, final_puzzle_hash_hints: H) -> StateSchedulerLauncherHints<S, H> {
         StateSchedulerLauncherHints {
             my_launcher_id: self.launcher_id,
@@ -162,14 +243,21 @@ where
     }
 }
 
-/// Launcher hints retain their previous CLVM structure; schedule values are Unix timestamps.
+/// The key-value list of a state scheduler's launcher solution, used to find and parse the scheduler.
+///
+/// The fields are encoded in curried-argument form. The schedule timestamps are Unix timestamps.
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct StateSchedulerLauncherHints<S, H> {
+    /// The launcher id of the scheduler singleton.
     pub my_launcher_id: Bytes32,
+    /// The launcher id of the singleton that receives the state updates.
     pub receiver_singleton_launcher_id: Bytes32,
+    /// The inner puzzle hash that the singleton takes on after the last state is sent.
     pub final_puzzle_hash: Bytes32,
+    /// The `(unix timestamp, state)` schedule.
     pub state_schedule: Vec<(u64, S)>,
+    /// Extra data appended to the hints, such as information about the final puzzle.
     #[clvm(rest)]
     pub final_puzzle_hash_hints: H,
 }

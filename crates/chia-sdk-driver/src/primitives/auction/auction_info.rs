@@ -42,18 +42,23 @@ pub fn calculate_auction_payment(amount: u64, bps: u64) -> Option<u64> {
 /// auction ends, the NFT is sent to the winning bidder and the winning bid is paid out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuctionInfo {
+    /// The launcher id of the auction singleton.
     pub launcher_id: Bytes32,
+    /// The settings chosen by the seller when the auction was launched.
     pub settings: AuctionSettings,
     /// The coin id of the locked NFT, which is sent to the winning bidder when the auction ends.
     pub nft_coin_id: Bytes32,
     /// The royalty info of the locked NFT, which isn't stored in the launcher memo, so must be
     /// fetched from the NFT on the blockchain.
     pub nft_royalty: RoyaltyInfo,
+    /// The current state of the auction, including the winning bid and whether it has ended.
     pub state: AuctionState,
+    /// The current reserve coin, which holds the amount locked up by the winning bidder.
     pub reserve: AuctionReserve,
 }
 
 impl AuctionInfo {
+    /// Creates a new [`AuctionInfo`] with the given information.
     pub fn new(
         launcher_id: Bytes32,
         settings: AuctionSettings,
@@ -124,6 +129,8 @@ impl AuctionInfo {
         AuctionMemo::new(self.settings, self.nft_coin_id, reserve)
     }
 
+    /// The royalty of the locked NFT in basis points, which is paid out of the reserve when the
+    /// auction ends, on top of the winning bid.
     pub fn royalty_bps(&self) -> u64 {
         self.nft_royalty.basis_points.into()
     }
@@ -147,11 +154,13 @@ impl AuctionInfo {
         )
     }
 
+    /// The puzzle hash of the bid action, which places a bid and refunds the previous bidder.
     pub fn bid_action_hash(&self) -> TreeHash {
         self.bid_action_args(self.settings.bid_verifier.curry_tree_hash())
             .curry_tree_hash()
     }
 
+    /// Allocates the bid action puzzle, whose hash is [`AuctionInfo::bid_action_hash`].
     pub fn construct_bid_action(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let bid_verifier = self.settings.bid_verifier.get_puzzle(ctx)?;
         ctx.curry(self.bid_action_args(bid_verifier))
@@ -161,10 +170,14 @@ impl AuctionInfo {
         AuctionNftUnlockerArgs::new(self.reserve.settlement_puzzle_hash(), self.royalty_bps())
     }
 
+    /// The puzzle hash of the NFT unlocker, which outputs the conditions that the locked NFT must
+    /// output when the auction ends, sending it to the winning bidder (or back to the payout puzzle
+    /// hash if there are no bids). It's curried into the end and cancel actions.
     pub fn nft_unlocker_hash(&self) -> TreeHash {
         self.nft_unlocker_args().curry_tree_hash()
     }
 
+    /// Allocates the NFT unlocker puzzle, whose hash is [`AuctionInfo::nft_unlocker_hash`].
     pub fn construct_nft_unlocker(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(self.nft_unlocker_args())
     }
@@ -180,11 +193,14 @@ impl AuctionInfo {
         )
     }
 
+    /// The puzzle hash of the end action, which ends the auction once its timings allow it, pays
+    /// out the winning bid from the reserve, and authorizes the NFT to be unlocked.
     pub fn end_action_hash(&self) -> TreeHash {
         self.end_action_args(self.nft_unlocker_hash())
             .curry_tree_hash()
     }
 
+    /// Allocates the end action puzzle, whose hash is [`AuctionInfo::end_action_hash`].
     pub fn construct_end_action(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let unlocker = self.construct_nft_unlocker(ctx)?;
         ctx.curry(self.end_action_args(unlocker))
@@ -198,11 +214,14 @@ impl AuctionInfo {
         )
     }
 
+    /// The puzzle hash of the cancel action, which cancels the auction before the first bid if it's
+    /// authorized by a coin with the payout puzzle hash.
     pub fn cancel_action_hash(&self) -> TreeHash {
         self.cancel_action_args(self.nft_unlocker_hash())
             .curry_tree_hash()
     }
 
+    /// Allocates the cancel action puzzle, whose hash is [`AuctionInfo::cancel_action_hash`].
     pub fn construct_cancel_action(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let unlocker = self.construct_nft_unlocker(ctx)?;
         ctx.curry(self.cancel_action_args(unlocker))
@@ -218,6 +237,8 @@ impl AuctionInfo {
         ]
     }
 
+    /// The merkle tree of the [`action_hashes`](AuctionInfo::action_hashes), whose root is curried
+    /// into the action layer.
     pub fn merkle_tree(&self) -> MerkleTree {
         MerkleTree::new(&self.action_hashes())
     }

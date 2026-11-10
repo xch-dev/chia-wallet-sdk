@@ -10,15 +10,26 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::bps_of;
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
     RewardDistributorWithdrawIncentivesActionLog, SingletonAction, Slot, Spend, SpendContext,
 };
 
+/// The reward distributor action that withdraws part of the incentives committed with a
+/// [`RewardDistributorCommitIncentivesAction`](crate::RewardDistributorCommitIncentivesAction).
+///
+/// It spends the commitment slot and removes [`withdrawal_share_bps`](Self::withdrawal_share_bps)
+/// basis points of the committed rewards from the epoch's reward slot. The commitment's clawback
+/// puzzle hash must approve the withdrawal with a message.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorWithdrawIncentivesAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::withdrawal_share_bps`](crate::RewardDistributorConstants::withdrawal_share_bps).
     pub withdrawal_share_bps: u64,
 }
 
@@ -38,6 +49,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorWithdrawIncentivesA
 }
 
 impl RewardDistributorWithdrawIncentivesAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         withdrawal_share_bps: u64,
@@ -61,6 +73,15 @@ impl RewardDistributorWithdrawIncentivesAction {
         ctx.curry(Self::new_args(self.launcher_id, self.withdrawal_share_bps))
     }
 
+    /// Parses an action solution into a [`RewardDistributorWithdrawIncentivesActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action, and
+    /// `withdrawal_share_bps` is the distributor's withdrawal share.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed, or if the withdrawal share doesn't fit in
+    /// a [`u64`], which is only possible if `withdrawal_share_bps` is over 10,000.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -68,7 +89,7 @@ impl RewardDistributorWithdrawIncentivesAction {
         withdrawal_share_bps: u64,
     ) -> Result<RewardDistributorWithdrawIncentivesActionLog, DriverError> {
         let params = ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
-        let withdrawal_share = params.committed_value * withdrawal_share_bps / 10000;
+        let withdrawal_share = bps_of(params.committed_value, withdrawal_share_bps)?;
 
         Ok(RewardDistributorWithdrawIncentivesActionLog {
             spent_reward_slot: RewardDistributorRewardSlotValue {
@@ -92,6 +113,17 @@ impl RewardDistributorWithdrawIncentivesAction {
         })
     }
 
+    /// Withdraws the commitment in `commitment_slot` in the pending spend of `distributor`,
+    /// spending it and the epoch's `reward_slot`.
+    ///
+    /// Returns the conditions that must be output by the commitment's clawback puzzle (a
+    /// `SEND_MESSAGE` with mode 18 and an `ASSERT_CONCURRENT_PUZZLE` for the commitment slot),
+    /// and the withdrawn amount.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created, or if the withdrawal share doesn't
+    /// fit in a [`u64`], which is only possible if `withdrawal_share_bps` is over 10,000.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -102,9 +134,10 @@ impl RewardDistributorWithdrawIncentivesAction {
         // last u64 = withdrawn amount
         let commitment_slot = distributor.actual_commitment_slot_value(commitment_slot);
         let reward_slot = distributor.actual_reward_slot_value(reward_slot);
-        let withdrawal_share = commitment_slot.info.value.rewards
-            * distributor.info.constants.withdrawal_share_bps
-            / 10000;
+        let withdrawal_share = bps_of(
+            commitment_slot.info.value.rewards,
+            distributor.info.constants.withdrawal_share_bps,
+        )?;
 
         // calculate message that the withdrawer needs to send
         let withdraw_incentives_conditions = Conditions::new()

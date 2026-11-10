@@ -5,9 +5,13 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-/// The p2 curried [`Layer`] allows for .
+/// The p2 curried [`Layer`] commits to the hash of a puzzle, which is revealed when spending.
+///
+/// The solution contains the puzzle and its solution. The spend fails unless the tree hash of
+/// the puzzle matches the curried puzzle hash, in which case the puzzle is run with the solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2CurriedLayer {
+    /// The tree hash of the puzzle that must be revealed to spend the coin.
     pub puzzle_hash: Bytes32,
 }
 

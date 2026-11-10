@@ -13,9 +13,27 @@ const TESTNET11_GENESIS_CHALLENGE: Bytes32 = Bytes32::new(hex!(
     "37a90eb5185a9c4439a91ddc98bbadce7b4feba060d50116a067de66bf236615"
 ));
 
-/// Used to compute the default constants used by Chia's mainnet network, with a custom
+/// Builds the consensus constants used by Chia's mainnet network, with a custom
 /// [`genesis_challenge`](ConsensusConstants::genesis_challenge) and
 /// [`agg_sig_me_additional_data`](ConsensusConstants::agg_sig_me_additional_data).
+///
+/// The additional data for the other `AGG_SIG_*` conditions is derived from `agg_sig_me`, as the
+/// SHA-256 hash of `agg_sig_me` followed by the condition's opcode byte. This is useful for
+/// simulators and custom networks, which need their own genesis challenge so that signatures
+/// can't be replayed on mainnet.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::{MAINNET_CONSTANTS, default_constants};
+/// let genesis_challenge = Bytes32::new([7; 32]);
+/// let constants = default_constants(genesis_challenge, genesis_challenge);
+///
+/// assert_eq!(constants.genesis_challenge, genesis_challenge);
+/// assert_eq!(constants.agg_sig_me_additional_data, genesis_challenge);
+/// assert_eq!(constants.max_block_cost_clvm, MAINNET_CONSTANTS.max_block_cost_clvm);
+/// ```
 pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> ConsensusConstants {
     ConsensusConstants {
         slot_blocks_target: 32,
@@ -89,6 +107,19 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
 
 /// The consensus constants used on Chia's mainnet network. Mainnet should be used for
 /// production applications.
+///
+/// On mainnet, the [`agg_sig_me_additional_data`](ConsensusConstants::agg_sig_me_additional_data)
+/// is the same as the genesis challenge.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_sdk_types::MAINNET_CONSTANTS;
+/// assert_eq!(
+///     MAINNET_CONSTANTS.agg_sig_me_additional_data,
+///     MAINNET_CONSTANTS.genesis_challenge
+/// );
+/// ```
 pub static MAINNET_CONSTANTS: LazyLock<ConsensusConstants> =
     LazyLock::new(|| default_constants(MAINNET_GENESIS_CHALLENGE, MAINNET_GENESIS_CHALLENGE));
 

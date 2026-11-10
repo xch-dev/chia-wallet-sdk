@@ -1,7 +1,11 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
-use chia_sdk_types::{Condition, Mod, conditions::CreateCoin, run_puzzle};
+use chia_sdk_types::{
+    Condition, Mod,
+    conditions::{CreateCoin, TransferNft},
+    run_puzzle,
+};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -11,6 +15,9 @@ use crate::{
     SingletonInfo, SingletonLayer, Spend, run_metadata_updater,
 };
 
+/// The layers of a standard NFT puzzle, from outermost to innermost: a [`SingletonLayer`],
+/// [`NftStateLayer`] (with metadata `M`), [`NftOwnershipLayer`] (with a [`RoyaltyTransferLayer`]),
+/// and the p2 puzzle `I`.
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
@@ -48,7 +55,8 @@ pub struct NftInfo {
     /// however this may change in the future.
     pub royalty_puzzle_hash: Bytes32,
 
-    /// The royalty percentage to be paid out to the owner in offers involving this NFT.
+    /// The royalty percentage to be paid out to the [`royalty_puzzle_hash`](NftInfo::royalty_puzzle_hash)
+    /// in offers involving this NFT.
     /// This is represented as hundredths of a percent, so 300 is 3%.
     pub royalty_basis_points: u16,
 
@@ -58,6 +66,7 @@ pub struct NftInfo {
 }
 
 impl NftInfo {
+    /// Creates a new [`NftInfo`] from its fields.
     pub fn new(
         launcher_id: Bytes32,
         metadata: HashedPtr,
@@ -104,6 +113,9 @@ impl NftInfo {
         Ok(Some((Self::from_layers(&layers), p2_puzzle)))
     }
 
+    /// Extracts the [`NftInfo`] from parsed [`StandardNftLayers`], hashing the p2 puzzle.
+    ///
+    /// Unlike [`NftInfo::parse`], this doesn't check that the launcher ids of the layers match.
     pub fn from_layers<I>(layers: &StandardNftLayers<HashedPtr, I>) -> Self
     where
         I: ToTreeHash,
@@ -132,6 +144,7 @@ impl NftInfo {
         }
     }
 
+    /// Constructs the [`StandardNftLayers`] for this NFT around the given p2 puzzle.
     #[must_use]
     pub fn into_layers<I>(self, p2_puzzle: I) -> StandardNftLayers<HashedPtr, I> {
         SingletonLayer::new(
@@ -157,11 +170,24 @@ impl NftInfo {
     /// This will automatically run the transfer program or metadata updater, if
     /// they are revealed in the p2 spend's output conditions. This way the returned
     /// [`NftInfo`] will have the correct owner (if present) and metadata.
+    ///
+    /// Returns the child info along with the odd-amount `CREATE_COIN` condition that created it.
+    /// If there are several such conditions, the last one is used. Returns
+    /// [`DriverError::MissingChild`] if there are none.
     pub fn child_from_p2_spend(
         &self,
         allocator: &mut Allocator,
         spend: Spend,
     ) -> Result<(Self, CreateCoin<NodePtr>), DriverError> {
+        self.child_and_transfer_from_p2_spend(allocator, spend)
+            .map(|(info, create_coin, _)| (info, create_coin))
+    }
+
+    pub(crate) fn child_and_transfer_from_p2_spend(
+        &self,
+        allocator: &mut Allocator,
+        spend: Spend,
+    ) -> Result<(Self, CreateCoin<NodePtr>, Option<TransferNft>), DriverError> {
         let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
@@ -190,7 +216,7 @@ impl NftInfo {
 
         let mut info = *self;
 
-        if let Some(new_owner) = new_owner {
+        if let Some(new_owner) = &new_owner {
             info.current_owner = new_owner.launcher_id;
         }
 
@@ -208,7 +234,7 @@ impl NftInfo {
 
         info.p2_puzzle_hash = create_coin.puzzle_hash;
 
-        Ok((info, create_coin))
+        Ok((info, create_coin, new_owner))
     }
 }
 

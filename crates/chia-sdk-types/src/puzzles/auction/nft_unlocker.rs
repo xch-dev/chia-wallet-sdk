@@ -7,6 +7,8 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::AuctionBid};
 
+/// The serialized bytecode of the auction's NFT unlocker, compiled from Rue. See
+/// [`AuctionNftUnlockerArgs`].
 pub const AUCTION_NFT_UNLOCKER_PUZZLE: [u8; 132] = hex!(
     // Rue
     "
@@ -18,22 +20,29 @@ pub const AUCTION_NFT_UNLOCKER_PUZZLE: [u8; 132] = hex!(
     "
 );
 
+/// The tree hash of [`AUCTION_NFT_UNLOCKER_PUZZLE`].
 pub const AUCTION_NFT_UNLOCKER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "bd7340be78fe28c227bf948fd8e8d322f798ecd0b3c43fa150582ee4b119a830"
 ));
 
 /// Outputs the conditions that the locked NFT must output when the auction ends, which send it to
 /// the winning bidder (or back to the payout puzzle hash if there are no bids).
+///
+/// The NFT is always transferred so that its owner is cleared. The trade price (the winning bid
+/// paid through the settlement puzzle) is only included if the royalty on the winning bid rounds
+/// to more than 0, since the settlement puzzle can't make a payment of 0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct AuctionNftUnlockerArgs {
     /// The full puzzle hash of the settlement payments puzzle for the reserve's asset, which is used
     /// as the trade price puzzle hash of the NFT transfer.
     pub settlement_puzzle_hash: Bytes32,
+    /// The NFT's royalty in basis points, which determines whether a trade price is included.
     pub royalty_bps: u64,
 }
 
 impl AuctionNftUnlockerArgs {
+    /// Creates new [`AuctionNftUnlockerArgs`] from the settlement puzzle hash and the royalty.
     pub fn new(settlement_puzzle_hash: Bytes32, royalty_bps: u64) -> Self {
         Self {
             settlement_puzzle_hash,
@@ -57,11 +66,14 @@ impl Mod for AuctionNftUnlockerArgs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct AuctionNftUnlockerSolution {
+    /// The winning bid, whose puzzle hash receives the NFT.
     pub winning_bid: AuctionBid,
+    /// The amount of the NFT coin, which the NFT asserts.
     pub nft_amount: u64,
 }
 
 impl AuctionNftUnlockerSolution {
+    /// Creates a new [`AuctionNftUnlockerSolution`] from the winning bid and the NFT's amount.
     pub fn new(winning_bid: AuctionBid, nft_amount: u64) -> Self {
         Self {
             winning_bid,

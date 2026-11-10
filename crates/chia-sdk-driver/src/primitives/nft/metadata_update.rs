@@ -10,20 +10,33 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Spend, SpendContext};
 
+/// An update that prepends a URI to an NFT's [`NftMetadata`](chia_puzzle_types::nft::NftMetadata)
+/// using the default metadata updater puzzle.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetadataUpdate {
+    /// Which list of URIs to add to.
     pub kind: UriKind,
+    /// The URI to prepend to the list.
     pub uri: String,
 }
 
+/// The kind of URI in an NFT's [`NftMetadata`](chia_puzzle_types::nft::NftMetadata).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UriKind {
+    /// A URI pointing to the NFT's data, such as an image.
     Data,
+    /// A URI pointing to the NFT's off-chain metadata JSON.
     Metadata,
+    /// A URI pointing to the NFT's license.
     License,
 }
 
 impl MetadataUpdate {
+    /// Creates a spend of the default metadata updater puzzle that applies this update.
+    ///
+    /// The result can be passed to [`Nft::transfer_with_metadata`](crate::Nft::transfer_with_metadata)
+    /// or used in an `UPDATE_NFT_METADATA` condition. It only works for NFTs that use the default
+    /// metadata updater.
     pub fn spend(&self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
         let solution = ctx.alloc(&match self.kind {
             UriKind::Data => ("u", &self.uri),
@@ -34,6 +47,11 @@ impl MetadataUpdate {
     }
 }
 
+/// Runs an NFT metadata updater puzzle and returns the new metadata and updater puzzle hash.
+///
+/// This mirrors what the [`NftStateLayer`](crate::NftStateLayer) does when it sees an
+/// `UPDATE_NFT_METADATA` condition. Returns [`DriverError::MetadataUpdaterPuzzleHashMismatch`]
+/// if `updater_puzzle_reveal` doesn't hash to `current_metadata_updater_puzzle_hash`.
 pub fn run_metadata_updater<M>(
     allocator: &mut Allocator,
     current_metadata: &M,

@@ -22,7 +22,7 @@ members = [
     "wasm",
     "pyo3",
     "pyo3/stub-generator",
-    "patches/chia-pos2"
+    "uniffi",
 ]
 
 [workspace.package]
@@ -72,6 +72,9 @@ implicit_hasher = "allow"
 workspace = true
 
 [features]
+chip-0008 = ["chia-sdk-driver/chip-0008", "chia-sdk-types/chip-0008"]
+chip-0021 = ["chia-sdk-driver/chip-0021", "chia-sdk-types/chip-0021"]
+pooling = ["chia-sdk-driver/pooling", "chia-sdk-types/pooling"]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-driver/chip-0037", "chia-sdk-types/chip-0037"]
 chip-0057 = ["chia-sdk-driver/chip-0057", "chia-sdk-test/chip-0057", "chia-sdk-types/chip-0057", "chia-sdk-utils/chip-0057"]
@@ -126,18 +129,18 @@ chia-sdk-daemon = { version = "0.37.1", path = "./crates/chia-sdk-daemon" }
 chia-sdk-bindings = { version = "0.37.1", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.37.1", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.37.1", path = "./crates/chia-sdk-bindings/bindy-macro" }
-chia-ssl = "0.52.1"
-chia-protocol = "0.52.1"
-chia-consensus = "0.52.1"
-chia-traits = "0.52.1"
-chia-bls = "0.52.1"
-chia-secp = "0.52.1"
-chia-puzzle-types = "0.52.1"
-clvm-traits = "0.52.1"
-clvm-utils = "0.52.1"
-chia-sha2 = "0.52.1"
-chia_streamable_macro = "0.52.1"
-chia-serde = "0.52.1"
+chia-ssl = "0.53.0"
+chia-protocol = "0.53.0"
+chia-consensus = "0.53.0"
+chia-traits = "0.53.0"
+chia-bls = "0.53.0"
+chia-secp = "0.53.0"
+chia-puzzle-types = "0.53.0"
+clvm-traits = "0.53.0"
+clvm-utils = "0.53.0"
+chia-sha2 = "0.53.0"
+chia_streamable_macro = "0.53.0"
+chia-serde = "0.53.0"
 chia-puzzles = "0.20.3"
 clvmr = "0.21.0"
 thiserror = "2.0.17"
@@ -188,6 +191,7 @@ js-sys = "0.3.77"
 parking_lot = "0.12.5"
 chialisp = "0.6.0"
 pyo3-async-runtimes = "0.29"
+uniffi = "0.31.2"
 indoc = "2.0.6"
 console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
@@ -203,10 +207,11 @@ zeroize = "1.8.1"
 name = "silent_payment"
 required-features = ["chip-0057"]
 
-# chia-protocol depends on chia-pos2, which compiles C++ that can't target WASM.
-[patch.crates-io]
-chia-pos2 = { path = "./patches/chia-pos2" }
-
 [profile.release]
 lto = true
 strip = "symbols"
+
+# UniFFI reads its interface metadata from the compiled library, so the symbol table must be kept.
+[profile.release-uniffi]
+inherits = "release"
+strip = "debuginfo"

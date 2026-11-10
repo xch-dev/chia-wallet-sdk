@@ -8,6 +8,9 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 /// The Oracle [`Layer`] enables anyone to spend a coin provided they pay an XCH fee to an address.
 /// It's typically used with [`DelegationLayer`](crate::DelegationLayer).
+///
+/// The puzzle is the quoted conditions `CREATE_COIN` of the fee to the oracle puzzle hash and
+/// `CREATE_PUZZLE_ANNOUNCEMENT` of `$`, so it isn't curried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OracleLayer {
     /// The puzzle hash corresponding to the address the fee should be paid to.
@@ -79,6 +82,7 @@ impl Layer for OracleLayer {
 }
 
 impl OracleLayer {
+    /// Creates a [`Spend`] of the oracle puzzle, which needs no solution.
     pub fn spend(self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
         let puzzle = self.construct_puzzle(ctx)?;
         let solution = self.construct_solution(ctx, ())?;

@@ -15,6 +15,7 @@ pub struct SettlementSpend {
 }
 
 impl SettlementSpend {
+    /// Creates a spend with no notarized payments.
     pub fn new() -> Self {
         Self::default()
     }
@@ -27,6 +28,15 @@ impl SettlementSpend {
         }
 
         self.notarized_payments.push(notarized_payment);
+    }
+
+    /// The total amount of the coins created by the notarized payments.
+    pub fn payment_amount(&self) -> u128 {
+        self.notarized_payments
+            .iter()
+            .flat_map(|notarized_payment| &notarized_payment.payments)
+            .map(|payment| u128::from(payment.amount))
+            .sum()
     }
 
     /// The notarized payments for the settlement payments puzzle's solution.

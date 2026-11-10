@@ -27,6 +27,7 @@ impl<A> FungibleSpends<A>
 where
     A: FungibleAsset,
 {
+    /// Creates an empty set of spends.
     pub fn new() -> Self {
         Self::default()
     }
@@ -47,15 +48,22 @@ where
         ctx: &mut SpendContext,
         output: &Output,
     ) -> Result<usize, DriverError> {
-        if let Some(index) = self
-            .items
-            .iter()
-            .position(|item| item.kind.is_allowed(output, &item.asset.constraints()))
-        {
+        if let Some(index) = self.allowed_source(output, |_| true) {
             return Ok(index);
         }
 
         self.intermediate_source(ctx)
+    }
+
+    /// The first spend of the given kind that can create the output.
+    fn allowed_source(
+        &self,
+        output: &Output,
+        predicate: impl Fn(&SpendKind) -> bool,
+    ) -> Option<usize> {
+        self.items.iter().position(|item| {
+            predicate(&item.kind) && item.kind.is_allowed(output, &item.asset.constraints())
+        })
     }
 
     /// Finds a settlement spend that can make every payment in the notarized payment, or creates an
@@ -315,44 +323,112 @@ where
         Ok((index, launcher))
     }
 
-    /// Creates a change coin for the remaining amount, if there is any.
+    /// Creates change coins for the remaining amount, if there is any.
+    ///
+    /// Settlement coins return what they have left after their payments, and the rest of the
+    /// change is created by a conditions spend. For example, when taking an offer with a fee, the
+    /// offered amount is still paid (and asserted) by the settlement coins, and the change of the
+    /// taker's own coins is created by one of them, rather than by a settlement coin. So unless
+    /// both have something left over, there's a single change coin. If no settlement coin can
+    /// create its part of the change (because it would duplicate one of its outputs), it's
+    /// included in the change of the conditions spend instead.
     ///
     /// Returns [`DriverError::InsufficientFunds`] if the selected coins and delta inputs don't
     /// cover the delta outputs, since the transaction would be invalid. Returns
-    /// [`DriverError::AmountOverflow`] if the change doesn't fit in a single coin.
+    /// [`DriverError::AmountOverflow`] if the total change doesn't fit in a [`u64`].
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
         delta: &Delta,
         change_puzzle_hash: Bytes32,
-    ) -> Result<Option<A>, DriverError> {
+    ) -> Result<Vec<A>, DriverError> {
         let change = (self.selected_amount() + delta.input)
             .checked_sub(delta.output)
             .ok_or(DriverError::InsufficientFunds)?;
         let change = coin_amount(change)?;
 
-        if change == 0 {
-            return Ok(None);
+        let settlement_change = if self.items.iter().any(|item| item.kind.is_conditions()) {
+            let amount = coin_amount(self.settlement_surplus().min(u128::from(change)))?;
+
+            if amount > 0
+                && self
+                    .allowed_source(
+                        &Output::new(change_puzzle_hash, amount),
+                        SpendKind::is_settlement,
+                    )
+                    .is_some()
+            {
+                amount
+            } else {
+                0
+            }
+        } else {
+            change
+        };
+
+        let mut children = Vec::new();
+
+        for (amount, settlement) in [
+            (settlement_change, true),
+            (change - settlement_change, false),
+        ] {
+            if amount == 0 {
+                continue;
+            }
+
+            let output = Output::new(change_puzzle_hash, amount);
+            let source = self.change_source(ctx, &output, settlement)?;
+            let item = &mut self.items[source];
+
+            let parent_coin = item.asset.coin();
+            let create_coin = CreateCoin::new(
+                change_puzzle_hash,
+                amount,
+                item.asset.child_memos(ctx, change_puzzle_hash)?,
+            );
+            item.kind.create_coin_with_assertion(
+                ctx,
+                parent_coin,
+                &mut self.payment_assertions,
+                create_coin,
+            );
+
+            children.push(item.asset.make_child(change_puzzle_hash, amount));
         }
 
-        let output = Output::new(change_puzzle_hash, change);
-        let source = self.output_source(ctx, &output)?;
-        let item = &mut self.items[source];
+        Ok(children)
+    }
 
-        let parent_coin = item.asset.coin();
-        let create_coin = CreateCoin::new(
-            change_puzzle_hash,
-            change,
-            item.asset.child_memos(ctx, change_puzzle_hash)?,
-        );
-        item.kind.create_coin_with_assertion(
-            ctx,
-            parent_coin,
-            &mut self.payment_assertions,
-            create_coin,
-        );
+    /// How much more the settlement coins (including intermediate settlement coins) are worth than
+    /// the payments they make, or zero if they pay out more than they're worth.
+    fn settlement_surplus(&self) -> u128 {
+        let mut amount = 0;
+        let mut payments = 0;
 
-        Ok(Some(item.asset.make_child(change_puzzle_hash, change)))
+        for item in &self.items {
+            if let SpendKind::Settlement(spend) = &item.kind {
+                amount += u128::from(item.asset.amount());
+                payments += spend.payment_amount();
+            }
+        }
+
+        amount.saturating_sub(payments)
+    }
+
+    /// Like [`FungibleSpends::output_source`], but prefers a spend of the given kind (settlement or
+    /// conditions), since the change is split between them by [`FungibleSpends::create_change`].
+    fn change_source(
+        &mut self,
+        ctx: &mut SpendContext,
+        output: &Output,
+        settlement: bool,
+    ) -> Result<usize, DriverError> {
+        if let Some(index) = self.allowed_source(output, |kind| kind.is_settlement() == settlement)
+        {
+            return Ok(index);
+        }
+
+        self.output_source(ctx, output)
     }
 }
 
@@ -368,6 +444,7 @@ impl<A> Default for FungibleSpends<A> {
 /// The spend of a single coin of a fungible asset.
 #[derive(Debug, Clone)]
 pub struct FungibleSpend<T> {
+    /// The coin being spent.
     pub asset: T,
     /// What the coin's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,

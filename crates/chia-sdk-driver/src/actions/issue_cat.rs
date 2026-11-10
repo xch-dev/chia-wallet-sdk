@@ -21,13 +21,16 @@ pub enum TailIssuance {
 /// [`Action::single_issue_cat`](crate::Action::single_issue_cat).
 #[derive(Debug, Clone, Copy)]
 pub struct IssueCatAction {
+    /// The TAIL to issue the CAT with, which determines its asset id.
     pub issuance: TailIssuance,
     /// The hidden puzzle hash of the revocation layer, or `None` for a CAT that can't be revoked.
     pub hidden_puzzle_hash: Option<Bytes32>,
+    /// The amount to issue, which is taken from the XCH in the transaction.
     pub amount: u64,
 }
 
 impl IssueCatAction {
+    /// Creates the action. See [`Action::issue_cat`](crate::Action::issue_cat).
     pub fn new(issuance: TailIssuance, hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
         Self {
             issuance,

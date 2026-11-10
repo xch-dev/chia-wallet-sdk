@@ -3,6 +3,12 @@ use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonArgs};
 use clvm_utils::TreeHash;
 
 /// A generic singleton primitive, which can be extended with the [`SingletonInfo`] trait.
+///
+/// A singleton is a coin with a unique, trackable identity (its launcher id) that is enforced by
+/// the [`SingletonLayer`](crate::SingletonLayer). Each spend must recreate exactly one odd-amount
+/// child with the same launcher id. Concrete singletons are type aliases over this struct, such as
+/// [`Did`](crate::Did), [`Nft`](crate::Nft), [`Vault`](crate::Vault), and
+/// [`OptionContract`](crate::OptionContract).
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Singleton<I> {
@@ -26,11 +32,12 @@ impl<I> Singleton<I>
 where
     I: SingletonInfo,
 {
+    /// Creates a new [`Singleton`] from its coin, proof, and outer puzzle info.
     pub fn new(coin: Coin, proof: Proof, info: I) -> Self {
         Self { coin, proof, info }
     }
 
-    /// Creates a [`LineageProof`] for which would be valid for any children created by this [`Singleton`].
+    /// Creates a [`LineageProof`] which would be valid for any children created by this [`Singleton`].
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -50,18 +57,19 @@ where
         N: SingletonInfo,
     {
         Singleton::new(
-            Coin::new(
-                self.coin.coin_id(),
-                SingletonArgs::curry_tree_hash(info.launcher_id(), info.inner_puzzle_hash()).into(),
-                amount,
-            ),
+            Coin::new(self.coin.coin_id(), info.puzzle_hash().into(), amount),
             Proof::Lineage(self.child_lineage_proof()),
             info,
         )
     }
 }
 
+/// Information needed to construct the puzzle hash of a [`Singleton`].
+///
+/// Implementors describe everything inside the [`SingletonLayer`](crate::SingletonLayer),
+/// which is identified by the launcher id.
 pub trait SingletonInfo {
+    /// The coin id of the launcher coin that created the singleton, which uniquely identifies it.
     fn launcher_id(&self) -> Bytes32;
 
     /// Calculates the inner puzzle hash of the singleton.
@@ -69,7 +77,7 @@ pub trait SingletonInfo {
     /// This does not include the [`SingletonLayer`](crate::SingletonLayer).
     fn inner_puzzle_hash(&self) -> TreeHash;
 
-    /// Calculates the full puzzle hash of the the outer [`SingletonLayer`](crate::SingletonLayer).
+    /// Calculates the full puzzle hash of the outer [`SingletonLayer`](crate::SingletonLayer).
     fn puzzle_hash(&self) -> TreeHash {
         SingletonArgs::curry_tree_hash(self.launcher_id(), self.inner_puzzle_hash())
     }

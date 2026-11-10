@@ -9,6 +9,20 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::CompactLineageProof};
 
+/// Serialized slot puzzle, compiled from Rue.
+///
+/// A slot is a 0-amount coin created by a controller singleton to store a value that the
+/// singleton can read in a later spend. Reading the value means spending the slot, so it
+/// can only be read once; the singleton re-creates it if the value should persist. The
+/// slot can only be spent by asserting that its parent is a coin of the controller
+/// singleton and receiving a puzzle-to-puzzle message from the controller singleton.
+///
+/// Slots don't guarantee uniqueness by themselves: an app can omit a slot to pretend a
+/// value doesn't exist. Apps that need uniqueness, such as `CATalog` and `XCHandles`,
+/// arrange slots in a sorted doubly linked list.
+///
+/// The puzzle is curried twice: [`Slot1stCurryArgs`], then [`Slot2ndCurryArgs`]. The
+/// solution is [`SlotSolution`].
 pub const SLOT_PUZZLE: [u8; 311] = hex!(
     // Rue
     "
@@ -25,21 +39,28 @@ pub const SLOT_PUZZLE: [u8; 311] = hex!(
     "
 );
 
+/// Tree hash of [`SLOT_PUZZLE`].
 pub const SLOT_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     8ab9f3b57a65d7f7a0810f79f7bc1e96bda680d16dd6f51d51e868e13fc7bbb3
     "
 ));
 
+/// Information about the controller singleton curried into a slot, encoded as
+/// `(singleton_mod_hash . singleton_struct_hash)`.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PackedSingletonStruct {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Tree hash of the controller singleton's [`SingletonStruct`].
     #[clvm(rest)]
     pub singleton_struct_hash: Bytes32,
 }
 
 impl PackedSingletonStruct {
+    /// Creates the packed struct for the singleton with the given launcher id, using the
+    /// singleton top layer v1.1 mod hash.
     pub fn new(launcher_id: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -47,14 +68,50 @@ impl PackedSingletonStruct {
         }
     }
 }
+/// First curry of the slot puzzle ([`SLOT_PUZZLE`]).
+///
+/// Controller puzzles are curried with the hash of this first curry, so they only need
+/// the value hash to compute a full slot puzzle hash.
+///
+/// # Example
+///
+/// ```rust
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_types::{
+///     Mod,
+///     puzzles::{CatalogSlotValue, Slot1stCurryArgs, Slot2ndCurryArgs},
+/// };
+/// use clvm_utils::{CurriedProgram, ToTreeHash};
+///
+/// let launcher_id = Bytes32::new([1; 32]);
+///
+/// // CATalog uses nonce 0 for its slots.
+/// let first_curry_hash = Slot1stCurryArgs::new(launcher_id, 0).curry_tree_hash();
+///
+/// let value = CatalogSlotValue::initial_left_end();
+/// let slot_puzzle_hash = CurriedProgram {
+///     program: first_curry_hash,
+///     args: Slot2ndCurryArgs {
+///         value_hash: value.tree_hash().into(),
+///     },
+/// }
+/// .tree_hash();
+/// # let _ = slot_puzzle_hash;
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct Slot1stCurryArgs {
+    /// Singleton that controls the slot.
     pub controller_singleton_info: PackedSingletonStruct,
+    /// Slot type. Different nonces keep slots of the same controller that hold different
+    /// kinds of values (for example the [`RewardDistributorSlotNonce`](crate::puzzles::RewardDistributorSlotNonce)
+    /// variants) from being confused with each other.
     pub nonce: u64,
 }
 
 impl Slot1stCurryArgs {
+    /// Creates the arguments for a slot controlled by the singleton with the given launcher
+    /// id.
     pub fn new(launcher_id: Bytes32, nonce: u64) -> Self {
         Self {
             controller_singleton_info: PackedSingletonStruct::new(launcher_id),
@@ -63,16 +120,22 @@ impl Slot1stCurryArgs {
     }
 }
 
+/// Second curry of the slot puzzle, which commits to the stored value.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct Slot2ndCurryArgs {
+    /// Tree hash of the value stored in the slot.
     pub value_hash: Bytes32,
 }
 
+/// Solution to the slot puzzle.
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SlotSolution {
+    /// Proof of the slot's parent, which must be a coin of the controller singleton.
     pub lineage_proof: CompactLineageProof,
+    /// Inner puzzle hash of the controller singleton coin that spends the slot and sends it a
+    /// message.
     #[clvm(rest)]
     pub spender_inner_puzzle_hash: Bytes32,
 }

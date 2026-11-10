@@ -5,6 +5,30 @@ use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
+/// A [`NodePtr`] along with its precomputed tree hash.
+///
+/// This is useful for values like NFT metadata, which are needed both as CLVM (to construct the
+/// puzzle) and as a hash (to calculate the puzzle hash), without rehashing them each time.
+///
+/// Equality and ordering only compare the tree hash, so two pointers to equal values are equal.
+/// The pointer is only valid in the [`Allocator`] it was created in.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_driver::{HashedPtr, SpendContext};
+/// use clvm_utils::tree_hash;
+///
+/// let mut ctx = SpendContext::new();
+///
+/// let hashed = ctx.alloc_hashed(&"hello")?;
+/// assert_eq!(hashed.tree_hash(), tree_hash(&ctx, hashed.ptr()));
+///
+/// // Values are compared by their tree hash
+/// let ptr = ctx.alloc(&"hello")?;
+/// assert_eq!(HashedPtr::from_ptr(&ctx, ptr), hashed);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Clone, Copy, Eq)]
 pub struct HashedPtr {
     ptr: NodePtr,
@@ -12,6 +36,7 @@ pub struct HashedPtr {
 }
 
 impl HashedPtr {
+    /// The nil atom, along with its tree hash.
     pub const NIL: Self = Self {
         ptr: NodePtr::NIL,
         tree_hash: TreeHash::new(hex!(
@@ -19,18 +44,25 @@ impl HashedPtr {
         )),
     };
 
+    /// Creates a [`HashedPtr`] from a pointer and a tree hash, which isn't checked.
+    ///
+    /// The tree hash must be the hash of the value that the pointer refers to, otherwise the
+    /// puzzle hashes calculated from it will be wrong. Use [`HashedPtr::from_ptr`] to calculate it.
     pub fn new(ptr: NodePtr, tree_hash: TreeHash) -> Self {
         Self { ptr, tree_hash }
     }
 
+    /// Creates a [`HashedPtr`] by calculating the tree hash of the value in the allocator.
     pub fn from_ptr(allocator: &Allocator, ptr: NodePtr) -> Self {
         Self::new(ptr, tree_hash(allocator, ptr))
     }
 
+    /// The pointer to the value.
     pub fn ptr(&self) -> NodePtr {
         self.ptr
     }
 
+    /// The tree hash of the value.
     pub fn tree_hash(&self) -> TreeHash {
         self.tree_hash
     }

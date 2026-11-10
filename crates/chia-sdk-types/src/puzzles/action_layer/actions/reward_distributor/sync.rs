@@ -6,6 +6,14 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor sync action, compiled from Rue.
+///
+/// Distributes the current epoch's rewards up to `update_time`, which must be after the
+/// last update and no later than the epoch's end. The cumulative payout per share grows
+/// by `remaining_rewards * (update_time - last_update) / (active_shares * (epoch_end - last_update))`
+/// (or 0 without active shares), and the remaining rewards decrease accordingly. The
+/// action asserts that `update_time` has passed and announces `"s"` followed by the tree
+/// hash of `(update_time . epoch_end)`.
 pub const REWARD_DISTRIBUTOR_SYNC_PUZZLE: [u8; 249] = hex!(
     // Rue
     "
@@ -20,24 +28,30 @@ pub const REWARD_DISTRIBUTOR_SYNC_PUZZLE: [u8; 249] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_SYNC_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     1a4d3e443be05a124980741db509657d5b49a0405d9646179e8a498ae2fe4343
     "
 ));
 
+/// Marker for [`REWARD_DISTRIBUTOR_SYNC_PUZZLE`], which takes no curried arguments.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RewardDistributorSyncActionArgs {}
 
 impl RewardDistributorSyncActionArgs {
+    /// Returns the action's puzzle hash, which is just [`REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH`]
+    /// since nothing is curried.
     pub fn curry_tree_hash() -> TreeHash {
         REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH
     }
 }
 
+/// Solution to the sync action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(transparent)]
 pub struct RewardDistributorSyncActionSolution {
+    /// Timestamp to sync to.
     pub update_time: u64,
 }
 

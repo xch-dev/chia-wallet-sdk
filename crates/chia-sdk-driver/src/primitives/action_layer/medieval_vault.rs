@@ -20,9 +20,75 @@ use crate::{
 
 use super::{MedievalVaultHint, MedievalVaultInfo};
 
+/// An m-of-n BLS multisig singleton.
+///
+/// Any `m` of the vault's public keys can sign a delegated puzzle, which the vault runs to produce
+/// its conditions. With [`MedievalVault::delegated_puzzle_for_flexible_send_message`] it can send
+/// messages to other singletons, so it can act as the authorizing vault of an action-layer app
+/// (for example, as a registry's price singleton).
+///
+/// Signatures use `AGG_SIG_UNSAFE` over the delegated puzzle hash, so a delegated puzzle must make
+/// itself non-replayable. [`MedievalVault::spend`] and the `delegated_puzzle_for_*` helpers do this
+/// with [`MedievalVault::delegated_conditions`].
+///
+/// # Example
+///
+/// Launch a 1-of-2 vault, then rekey it to 2-of-2:
+///
+/// ```
+/// use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+/// use chia_sdk_driver::{Launcher, MedievalVault, MedievalVaultHint, SpendContext};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{TESTNET11_CONSTANTS, puzzles::P2MOfNDelegateDirectArgs};
+///
+/// let mut sim = Simulator::new();
+/// let ctx = &mut SpendContext::new();
+///
+/// let alice = sim.bls(0);
+/// let bob = sim.bls(0);
+/// let keys = vec![alice.pk, bob.pk];
+///
+/// // Create and spend a launcher.
+/// let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+/// let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+/// let launcher_id = launcher.coin().coin_id();
+/// launcher.spend(
+///     ctx,
+///     P2MOfNDelegateDirectArgs::curry_tree_hash(1, keys.clone()).into(),
+///     MedievalVaultHint {
+///         my_launcher_id: launcher_id,
+///         m: 1,
+///         public_key_list: keys.clone(),
+///     },
+/// )?;
+/// let launcher_spend = ctx.take().remove(0);
+/// sim.spend_coins(vec![launcher_spend.clone()], &[])?;
+///
+/// let vault = MedievalVault::from_parent_spend(ctx, &launcher_spend)?.expect("vault");
+/// assert_eq!(vault.info.m, 1);
+///
+/// // Alice alone can rekey the vault to 2-of-2.
+/// let conditions = MedievalVault::rekey_create_coin_unsafe(ctx, launcher_id, 2, keys.clone())?;
+/// vault.clone().spend(
+///     ctx,
+///     &[alice.pk],
+///     conditions,
+///     TESTNET11_CONSTANTS.genesis_challenge,
+/// )?;
+/// let vault_spend = ctx.take().remove(0);
+/// sim.spend_coins(vec![vault_spend.clone()], &[alice.sk])?;
+///
+/// let new_vault = MedievalVault::from_parent_spend(ctx, &vault_spend)?.expect("vault");
+/// assert_eq!(new_vault, vault.child(2, keys));
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub type MedievalVault = Singleton<MedievalVaultInfo>;
 
 impl MedievalVault {
+    /// Parses the eve vault created by a singleton launcher spend.
+    ///
+    /// Returns [`None`] if the coin isn't a launcher, the launcher solution doesn't contain a
+    /// [`MedievalVaultHint`], or the hint doesn't match the launched puzzle hash and amount.
     pub fn from_launcher_spend(
         ctx: &mut SpendContext,
         launcher_spend: &CoinSpend,
@@ -62,6 +128,9 @@ impl MedievalVault {
         )))
     }
 
+    /// Returns the vault coin created by spending this vault with the given new multisig configuration.
+    ///
+    /// Pass the current `m` and keys if the configuration doesn't change.
     pub fn child(&self, new_m: usize, new_public_key_list: Vec<PublicKey>) -> Self {
         let child_proof = Proof::Lineage(LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -84,6 +153,11 @@ impl MedievalVault {
         }
     }
 
+    /// Parses the vault created by the spend of its parent, which may be a launcher or a vault.
+    ///
+    /// The new multisig configuration is read from a [`MedievalVaultHint`] in the memos of the first
+    /// `CREATE_COIN` condition. If the memos don't contain one, the configuration is assumed to be
+    /// unchanged. Returns [`None`] if the parent isn't a vault.
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
         parent_spend: &CoinSpend,
@@ -151,6 +225,10 @@ impl MedievalVault {
         )))
     }
 
+    /// Makes `conditions` non-replayable by asserting the coin id and committing to the network.
+    ///
+    /// Adds `ASSERT_MY_COIN_ID` for `coin_id` unless the conditions already assert the coin id or
+    /// parent id, and always adds a `REMARK` containing `genesis_challenge`.
     pub fn delegated_conditions(
         conditions: Conditions,
         coin_id: Bytes32,
@@ -159,6 +237,11 @@ impl MedievalVault {
         MOfNLayer::ensure_non_replayable(conditions, coin_id, genesis_challenge)
     }
 
+    /// Spends the vault with an arbitrary delegated puzzle and solution, signed by `used_pubkeys`.
+    ///
+    /// This is unsafe because the signatures can be replayed across coin generations and networks
+    /// unless the delegated puzzle prevents it, for example with [`MedievalVault::delegated_conditions`].
+    /// The required `AGG_SIG_UNSAFE` signatures aren't created here.
     // Mark this as unsafe since the transaction may be replayable
     //  across coin generations and networks if delegated puzzle is not
     //  properly secured.
@@ -196,6 +279,13 @@ impl MedievalVault {
         Ok(())
     }
 
+    /// Spends the vault with `conditions`, signed by `used_pubkeys`.
+    ///
+    /// The conditions are made non-replayable with [`MedievalVault::delegated_conditions`] and
+    /// quoted into the delegated puzzle. `used_pubkeys` must contain at least `m` of the vault's keys,
+    /// and each of them must sign the delegated puzzle hash with `AGG_SIG_UNSAFE`.
+    ///
+    /// The conditions are responsible for recreating the vault.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -213,6 +303,12 @@ impl MedievalVault {
         self.spend_sunsafe(ctx, used_pubkeys, delegated_puzzle, NodePtr::NIL)
     }
 
+    /// Returns a `CREATE_COIN` condition that recreates the vault with a new multisig configuration.
+    ///
+    /// The condition's memos are the new [`MedievalVaultHint`], so the new configuration can be
+    /// parsed by [`MedievalVault::from_parent_spend`]. It's unsafe on its own because it isn't made
+    /// non-replayable; use it with [`MedievalVault::spend`] or
+    /// [`MedievalVault::delegated_puzzle_for_rekey`].
     pub fn rekey_create_coin_unsafe(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -229,6 +325,9 @@ impl MedievalVault {
         ))
     }
 
+    /// Returns a non-replayable delegated puzzle that rekeys the vault with coin id `coin_id`.
+    ///
+    /// The signers sign the tree hash of this puzzle.
     pub fn delegated_puzzle_for_rekey(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -247,6 +346,17 @@ impl MedievalVault {
         )))
     }
 
+    /// Returns a delegated puzzle that sends a message to another singleton and recreates the vault unchanged.
+    ///
+    /// The puzzle is the state scheduler layer wrapped around the quoted, non-replayable recreate
+    /// conditions. It sends `prefix_and_message` (mode `0x12`) to the singleton with launcher id
+    /// `receiver_launcher_id`. Its delegated solution is a
+    /// [`StateSchedulerLayerSolution`](chia_sdk_types::puzzles::StateSchedulerLayerSolution) with
+    /// the receiver's current inner puzzle hash.
+    ///
+    /// For example, sending [`XchandlesRegistryReceivedMessagePrefix::update_state`](crate::XchandlesRegistryReceivedMessagePrefix::update_state)
+    /// to a registry approves a [`DelegatedStateAction`](crate::DelegatedStateAction) when the vault
+    /// is the registry's price singleton.
     pub fn delegated_puzzle_for_flexible_send_message<M>(
         ctx: &mut SpendContext,
         prefix_and_message: M,

@@ -25,9 +25,11 @@ use crate::{
 /// remaining amount, until it's fully filled or clawed back by the maker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartialOffer {
+    /// The offer coin.
     pub coin: Coin,
     /// The lineage proof of the coin, if the offered asset is a CAT.
     pub lineage_proof: Option<LineageProof>,
+    /// The terms of the partial offer.
     pub info: PartialOfferInfo,
 }
 
@@ -39,7 +41,9 @@ pub struct PartialOfferFill {
     /// settlement coin, and requests the payment to the maker. It's taken like any other offer,
     /// which asserts both the payment and the payout from the taker's signed spends.
     pub offer: Offer,
+    /// The amount of the requested asset that is paid to the maker.
     pub requested_amount: u64,
+    /// The amount of the offered asset that is released to the taker.
     pub offered_amount: u64,
     /// The fee that the taker must leave in the transaction, which the partial offer coin reserves.
     pub required_fee: u64,
@@ -66,6 +70,7 @@ impl PartialOfferFill {
 }
 
 impl PartialOffer {
+    /// Creates a new [`PartialOffer`] with the given coin, lineage proof, and terms.
     pub fn new(coin: Coin, lineage_proof: Option<LineageProof>, info: PartialOfferInfo) -> Self {
         Self {
             coin,

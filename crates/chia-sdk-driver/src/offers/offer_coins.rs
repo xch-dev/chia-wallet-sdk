@@ -1,32 +1,57 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, SettlementPaymentsSolution},
+};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::{Condition, conditions::TradePrice, run_puzzle};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Layer, Nft, NftAssetInfo,
     OLD_SETTLEMENT_PAYMENT_HASH, OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle,
-    Spends,
+    RequestedPayments, SettlementLayer, Spends,
 };
 
+/// The coins offered by the maker of an offer.
+///
+/// These are the settlement coins created by the maker's spends (coins with the settlement
+/// payments puzzle as their p2 puzzle), which the taker can spend to receive the offered assets.
+/// They can be added to [`Spends`] to take the offer.
 #[derive(Debug, Default, Clone)]
 pub struct OfferCoins {
+    /// The offered XCH settlement coins.
     pub xch: Vec<Coin>,
+    /// The offered CAT settlement coins, keyed by asset id.
     pub cats: IndexMap<Bytes32, Vec<Cat>>,
+    /// The offered NFTs, keyed by launcher id.
     pub nfts: IndexMap<Bytes32, Nft>,
+    /// The offered option contracts, keyed by launcher id.
     pub options: IndexMap<Bytes32, OptionContract>,
+    /// The fee paid by the maker's spends. When parsed from spends, this is the total of their
+    /// `RESERVE_FEE` conditions.
     pub fee: u64,
+    /// The trade prices each offered NFT revealed when it was spent into settlement.
+    pub nft_trade_prices: IndexMap<Bytes32, Vec<TradePrice>>,
+    /// Royalties paid up front for requested NFTs, in the only form an NFT's royalty assertion
+    /// accepts.
+    pub prepaid_royalties: RequestedPayments,
 }
 
 impl OfferCoins {
+    /// Creates an empty [`OfferCoins`].
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Collects the settlement coins from the [`Outputs`] of the maker's spends, along with the fee.
+    ///
+    /// The outputs don't include the spends, so [`nft_trade_prices`](Self::nft_trade_prices) and
+    /// [`prepaid_royalties`](Self::prepaid_royalties) are left empty.
     pub fn from_outputs(outputs: &Outputs) -> Self {
         let mut coins = Self::default();
 
@@ -65,6 +90,7 @@ impl OfferCoins {
         coins
     }
 
+    /// The total amounts of the offered XCH and CATs.
     pub fn amounts(&self) -> OfferAmounts {
         OfferAmounts {
             xch: self.xch.iter().map(|c| u128::from(c.amount)).sum(),
@@ -81,6 +107,7 @@ impl OfferCoins {
         }
     }
 
+    /// Returns every offered coin, of any asset.
     pub fn flatten(&self) -> Vec<Coin> {
         let mut coins = self.xch.clone();
 
@@ -101,6 +128,12 @@ impl OfferCoins {
         coins
     }
 
+    /// Adds the coins, fee, NFT trade prices, and prepaid royalties from another [`OfferCoins`], for
+    /// example when combining offers.
+    ///
+    /// Returns [`DriverError::ConflictingOfferInputs`] if a coin, NFT, or option contract is in
+    /// both, [`DriverError::IncompatibleAssetInfo`] if revocable and non-revocable CATs with the
+    /// same asset id are combined, or [`DriverError::FeeOverflow`] if the total fee overflows.
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
         for coin in other.xch {
             if self.xch.iter().any(|c| c.coin_id() == coin.coin_id()) {
@@ -140,6 +173,9 @@ impl OfferCoins {
             }
         }
 
+        self.nft_trade_prices.extend(other.nft_trade_prices);
+        self.prepaid_royalties.extend(other.prepaid_royalties);
+
         for (launcher_id, option) in other.options {
             if self.options.insert(launcher_id, option).is_some() {
                 return Err(DriverError::ConflictingOfferInputs);
@@ -155,6 +191,13 @@ impl OfferCoins {
     }
 
     /// Adds the settlement coins that the spend creates, which aren't spent in the same bundle.
+    ///
+    /// The asset info of the CATs, NFTs, and option contracts that are created is added to the
+    /// [`AssetInfo`], and the `RESERVE_FEE` conditions are added to the fee. The trade prices that
+    /// an offered NFT reveals are added to [`nft_trade_prices`](Self::nft_trade_prices), and if the
+    /// spend is of an XCH or CAT settlement coin, the notarized payments in its solution that look
+    /// like royalties (a single payment, hinted to its own puzzle hash) are added to
+    /// [`prepaid_royalties`](Self::prepaid_royalties).
     ///
     /// Fails with [`DriverError::OldSettlementPayment`] if the spend creates a coin with the old
     /// settlement payments puzzle, since the offer would be insecure.
@@ -184,17 +227,24 @@ impl OfferCoins {
             }
         }
 
-        let nft = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?;
+        let nft =
+            Nft::parse_child_with_transfer(allocator, parent_coin, parent_puzzle, parent_solution)?;
 
-        if let Some(nft) = nft {
+        if let Some((nft, _)) = &nft {
             check_not_old_settlement(nft.info.p2_puzzle_hash)?;
         }
 
-        if let Some(nft) = nft
+        if let Some((nft, transfer)) = nft
             && !spent_coin_ids.contains(&nft.coin.coin_id())
             && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
             self.nfts.insert(nft.info.launcher_id, nft);
+            self.nft_trade_prices.insert(
+                nft.info.launcher_id,
+                transfer
+                    .map(|transfer| transfer.trade_prices)
+                    .unwrap_or_default(),
+            );
 
             let info = NftAssetInfo::new(
                 nft.info.metadata,
@@ -223,6 +273,20 @@ impl OfferCoins {
                 option.info.underlying_delegated_puzzle_hash,
             );
             asset_info.insert_option(option.info.launcher_id, info)?;
+        }
+
+        // Prepaid royalties are informational, so unparseable settlement solutions are ignored
+        if let Some((asset_id, settlement_solution)) =
+            settlement_spend(allocator, parent_coin, parent_puzzle, parent_solution)?
+            && let Ok(solution) =
+                SettlementPaymentsSolution::from_clvm(allocator, settlement_solution)
+        {
+            self.prepaid_royalties.fungible_mut(asset_id).extend(
+                solution
+                    .notarized_payments
+                    .into_iter()
+                    .filter(|notarized_payment| is_royalty_payment(allocator, notarized_payment)),
+            );
         }
 
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
@@ -265,6 +329,37 @@ fn check_not_old_settlement(p2_puzzle_hash: Bytes32) -> Result<(), DriverError> 
     }
 
     Ok(())
+}
+
+fn is_royalty_payment(allocator: &Allocator, notarized_payment: &NotarizedPayment) -> bool {
+    let [payment] = notarized_payment.payments.as_slice() else {
+        return false;
+    };
+
+    let Memos::Some(memos) = payment.memos else {
+        return false;
+    };
+
+    <(Bytes32, ())>::from_clvm(allocator, memos).is_ok_and(|(memo, ())| memo == payment.puzzle_hash)
+}
+
+fn settlement_spend(
+    allocator: &Allocator,
+    coin: Coin,
+    puzzle: Puzzle,
+    solution: NodePtr,
+) -> Result<Option<(Option<Bytes32>, NodePtr)>, DriverError> {
+    if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
+        return Ok(Some((None, solution)));
+    }
+
+    let Some(cat) = Cat::parse(allocator, coin, puzzle, solution)? else {
+        return Ok(None);
+    };
+
+    Ok(SettlementLayer::parse_puzzle(allocator, cat.p2_puzzle)?
+        .is_some()
+        .then_some((Some(cat.cat.info.asset_id), cat.p2_solution)))
 }
 
 impl AddAsset for OfferCoins {

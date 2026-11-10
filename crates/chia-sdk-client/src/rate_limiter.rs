@@ -7,6 +7,36 @@ use chia_protocol::{Message, ProtocolMessageTypes};
 
 use crate::RateLimits;
 
+/// Tracks the messages sent or received in the current period, and checks them against
+/// [`RateLimits`].
+///
+/// It's modeled after the rate limiter that full nodes use. [`Peer`](crate::Peer) uses one to limit its
+/// outgoing messages, so that the full node doesn't disconnect it for spamming.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Message, ProtocolMessageTypes};
+/// use chia_sdk_client::{RateLimit, RateLimiter, V2_RATE_LIMITS};
+///
+/// let mut rate_limits = V2_RATE_LIMITS.clone();
+/// rate_limits
+///     .tx
+///     .insert(ProtocolMessageTypes::SendTransaction, RateLimit::new(2.0, 1024.0, None));
+///
+/// // A period this long never resets, which keeps the example deterministic.
+/// let mut limiter = RateLimiter::new(false, u64::MAX, 1.0, rate_limits);
+/// let message = Message {
+///     msg_type: ProtocolMessageTypes::SendTransaction,
+///     id: None,
+///     data: vec![0; 100].into(),
+/// };
+///
+/// // Only two of these messages are allowed per period.
+/// assert!(limiter.handle_message(&message));
+/// assert!(limiter.handle_message(&message));
+/// assert!(!limiter.handle_message(&message));
+/// ```
 #[derive(Debug, Clone)]
 pub struct RateLimiter {
     incoming: bool,
@@ -21,6 +51,18 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
+    /// Creates a rate limiter.
+    ///
+    /// * `incoming` is whether it's used for received messages. If so, messages that exceed
+    ///   the limits are still counted, otherwise they aren't since they won't be sent.
+    /// * `reset_seconds` is the length of each period. The counts are reset whenever the
+    ///   current Unix time enters a new multiple of it.
+    /// * `limit_factor` is the fraction of each limit that's allowed.
+    /// * `rate_limits` are the limits to check against.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `reset_seconds` is `0`.
     pub fn new(
         incoming: bool,
         reset_seconds: u64,
@@ -40,6 +82,14 @@ impl RateLimiter {
         }
     }
 
+    /// Records a message and returns whether it's within the rate limits.
+    ///
+    /// A message that's rejected doesn't count towards the limits unless the limiter is for
+    /// incoming messages.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the message data is larger than [`u32::MAX`] bytes.
     pub fn handle_message(&mut self, message: &Message) -> bool {
         let size: u32 = message.data.len().try_into().expect("Message too large");
         let size = f64::from(size);

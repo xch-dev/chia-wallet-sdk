@@ -309,6 +309,15 @@
       },
       "requested_royalty_amounts": {
         "return": "OfferAmounts"
+      },
+      "requested_royalty_payments": {
+        "return": "RequestedPayments"
+      },
+      "requested_nft_trade_prices": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "Vec<TradePrice>"
       }
     }
   },
@@ -340,6 +349,14 @@
     "args": {
       "trade_price_amounts": "OfferAmounts",
       "asset_info": "AssetInfo"
+    },
+    "return": "Vec<TradePrice>"
+  },
+  "payable_trade_prices": {
+    "type": "function",
+    "args": {
+      "trade_prices": "Vec<TradePrice>",
+      "royalty_basis_points": "u16"
     },
     "return": "Vec<TradePrice>"
   },

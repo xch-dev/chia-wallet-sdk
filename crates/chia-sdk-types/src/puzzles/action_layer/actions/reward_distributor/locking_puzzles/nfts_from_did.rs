@@ -9,6 +9,13 @@ use hex_literal::hex;
 
 use crate::{Mod, puzzles::CompactLineageProof};
 
+/// Serialized reward distributor lock puzzle for staking NFTs of a collection minted by a
+/// DID, compiled from Rue.
+///
+/// For each NFT, it uses a launcher proof to check that the NFT was minted by the
+/// collection's DID, verifies that the NFT is paid to the distributor's p2 puzzle hash
+/// through a settlement payment, and creates a deposit slot. Each NFT is worth one
+/// share.
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 1049] = hex!(
     // Rue
     "
@@ -48,24 +55,35 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE: [u8; 1049] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     65a9dd0fed6d55f59a7a4adb6f33474fc69f43afa1565e465ed7512038f24c0a
     "
 ));
 
+/// Curried arguments of [`REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE`].
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorNftsFromDidLockingPuzzleArgs {
+    /// Singleton struct of the DID that minted the collection.
     pub did_singleton_struct: SingletonStruct,
+    /// Mod hash of the NFT state layer.
     pub nft_state_layer_mod_hash: Bytes32,
+    /// Mod hash of the NFT ownership layer.
     pub nft_ownership_layer_mod_hash: Bytes32,
+    /// Mod hash of the settlement payments puzzle.
     pub offer_mod_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for deposit slots
+    /// ([`RewardDistributorSlotNonce::DEPOSIT`](crate::puzzles::RewardDistributorSlotNonce::DEPOSIT)).
     pub deposit_slot_1st_curry_hash: Bytes32,
+    /// Puzzle hash that holds staked assets: [`P2DelegatedBySingletonLayerArgs`](crate::puzzles::P2DelegatedBySingletonLayerArgs)
+    /// for the reward distributor singleton, with nonce 1.
     pub my_p2_puzzle_hash: Bytes32,
 }
 
 impl RewardDistributorNftsFromDidLockingPuzzleArgs {
+    /// Creates the arguments with the standard NFT and settlement payments mod hashes.
     pub fn new(
         did_launcher_id: Bytes32,
         my_p2_puzzle_hash: Bytes32,
@@ -82,37 +100,58 @@ impl RewardDistributorNftsFromDidLockingPuzzleArgs {
     }
 }
 
+/// A coin between the DID and an NFT's launcher, encoded as `(full_puzzle_hash . amount)`.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct IntermediaryCoinProof {
+    /// Puzzle hash of the coin.
     pub full_puzzle_hash: Bytes32,
+    /// Amount of the coin.
     #[clvm(rest)]
     pub amount: u64,
 }
 
+/// Proof that an NFT launcher descends from a DID coin.
+///
+/// The launcher id is computed by starting from the DID coin's id and deriving each
+/// child's coin id from the intermediary coins, from the last one (the DID coin's child)
+/// to the first one (the launcher).
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct NftLauncherProof {
+    /// Proof of the DID coin that created the first intermediary coin: its parent coin id,
+    /// inner puzzle hash, and amount.
     pub did_proof: CompactLineageProof,
+    /// Coins from the NFT launcher (first) back to the DID coin's child (last).
     #[clvm(rest)]
     pub intermediary_coin_proofs: Vec<IntermediaryCoinProof>,
 }
 
+/// Information about an NFT staked with [`REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE`].
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct StakeNftFromDidInfo {
+    /// Tree hash of the NFT's metadata.
     pub nft_metadata_hash: Bytes32,
+    /// Tree hash of the NFT's metadata updater puzzle hash.
     pub nft_metadata_updater_hash_hash: Bytes32,
+    /// Current owner (DID launcher id) of the NFT, if any.
     pub nft_owner: Option<Bytes32>,
+    /// Puzzle hash of the NFT's royalty transfer program.
     pub nft_transfer_porgram_hash: Bytes32,
+    /// Proof that the NFT was minted by the collection's DID.
     #[clvm(rest)]
     pub nft_launcher_proof: NftLauncherProof,
 }
 
+/// Solution to [`REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE`], after the ephemeral
+/// state and custody puzzle hash.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorNftsFromDidLockingPuzzleSolution {
+    /// Coin id of the reward distributor singleton coin being spent.
     pub my_id: Bytes32,
+    /// NFTs being staked.
     #[clvm(rest)]
     pub nft_infos: Vec<StakeNftFromDidInfo>,
 }

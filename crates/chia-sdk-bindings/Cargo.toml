@@ -30,13 +30,20 @@ pyo3 = [
     "bindy/pyo3",
     "chia-sdk-test/full-node-simulator-http",
 ]
+uniffi = [
+    "dep:chia-sdk-client",
+    "dep:chia-ssl",
+    "dep:tokio",
+    "bindy/uniffi",
+    "chia-sdk-test/full-node-simulator-http",
+]
 
 [dependencies]
 chia-sdk-utils = { workspace = true, features = ["chip-0057"] }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0035", "chip-0037", "chip-0052", "auction", "chip-0057"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling", "chip-0057"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true, features = ["serde", "chip-0057"] }
-chia-sdk-types = { workspace = true, features = ["chip-0035", "chip-0037", "chip-0052", "auction", "chip-0057"] }
+chia-sdk-types = { workspace = true, features = ["chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling", "chip-0057"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }

@@ -69,6 +69,7 @@
         }
       },
       "disable_settlement_assertions": {},
+      "return_unplaced_conditions": {},
       "selected_xch_amount": {
         "return": "u128"
       },
@@ -116,6 +117,9 @@
     "methods": {
       "pending_spends": {
         "return": "Vec<PendingSpend>"
+      },
+      "unplaced_conditions": {
+        "return": "Vec<Program>"
       },
       "insert": {
         "args": {

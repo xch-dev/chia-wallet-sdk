@@ -20,9 +20,18 @@ use crate::{
 
 use super::{XchandlesExtendActionLog, run_pricing_output};
 
+/// The `XCHandles` action that extends the registration of a handle.
+///
+/// Anyone can extend a handle by paying the price computed by the registry's pricing puzzle,
+/// through a settlement payment to the payout puzzle hash. The handle slot is recreated with a
+/// later expiration.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExtendAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
+    /// The puzzle hash that receives the registry's payments.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -42,6 +51,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesExtendAction {
 }
 
 impl XchandlesExtendAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         payout_puzzle_hash: Bytes32,
@@ -61,6 +71,14 @@ impl XchandlesExtendAction {
         ctx.curry(Self::new_args(self.launcher_id, self.payout_puzzle_hash))
     }
 
+    /// Parses an action solution into an [`XchandlesExtendActionLog`].
+    ///
+    /// The pricing puzzle in the solution is run to compute the price and the registration
+    /// time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the pricing puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -104,6 +122,20 @@ impl XchandlesExtendAction {
         })
     }
 
+    /// Extends `handle` by `num_periods` registration periods in the pending spend of `registry`.
+    ///
+    /// The price is computed with the factor pricing puzzle
+    /// ([`XchandlesFactorPricingPuzzleArgs`]) curried with `base_handle_price` and
+    /// `registration_period`, and paid in the CAT with asset id `payment_asset_id`. `buy_time`
+    /// is the timestamp used by the pricing puzzle.
+    ///
+    /// Returns a condition that asserts the registry's extend announcement, and the
+    /// [`NotarizedPayment`] that must be paid to the registry's payout puzzle hash through the
+    /// settlement payments puzzle, for example in an offer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,

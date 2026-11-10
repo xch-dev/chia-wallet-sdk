@@ -13,17 +13,28 @@ use crate::{DriverError, Spend, SpendContext};
 
 use super::mips_spend::MipsSpend;
 
+/// An M of N MIPS puzzle, which requires `required` of its `items` to be spent.
+///
+/// The most efficient puzzle is chosen automatically: a 1 of N puzzle if one item is required,
+/// an N of N puzzle if all items are required, and an M of N puzzle otherwise.
 #[derive(Debug, Clone)]
 pub struct MofN {
+    /// The number of items that must be spent.
     pub required: usize,
+    /// The MIPS puzzle hashes of the items (see [`mips_puzzle_hash`](crate::mips_puzzle_hash)),
+    /// which are typically not top level.
     pub items: Vec<TreeHash>,
 }
 
 impl MofN {
+    /// Creates a new [`MofN`].
     pub fn new(required: usize, items: Vec<TreeHash>) -> Self {
         Self { required, items }
     }
 
+    /// Calculates the hash of the M of N puzzle, before the MIPS wrappers are applied.
+    ///
+    /// Use this as the inner puzzle hash in [`mips_puzzle_hash`](crate::mips_puzzle_hash).
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         if self.required == 1 {
             let merkle_tree = self.merkle_tree();
@@ -49,6 +60,11 @@ impl MofN {
         Ok(())
     }
 
+    /// Constructs the spend of the M of N puzzle, spending the first `required` distinct items
+    /// that have a member spend in the [`MipsSpend`].
+    ///
+    /// `delegated_puzzle_wrappers` is the stack of wrappers that will be applied around the
+    /// delegated puzzle.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,

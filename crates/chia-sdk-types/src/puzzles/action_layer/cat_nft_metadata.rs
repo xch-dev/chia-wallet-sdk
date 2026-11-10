@@ -3,18 +3,61 @@ use std::fmt::Debug;
 use chia_protocol::Bytes32;
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 
+/// On-chain metadata of a `CATalog` registration NFT, which describes a CAT.
+///
+/// It is encoded as a CLVM list of `(key . value)` pairs. Parsing starts from
+/// [`CatNftMetadata::default`] and overwrites the fields whose keys are present, ignoring
+/// unknown keys. When serializing, the description is omitted if empty, the precision
+/// if it is 3, the hidden puzzle hash if `None`, and the metadata and license entries if
+/// their URI lists are empty.
+///
+/// # Example
+///
+/// ```rust
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_types::puzzles::CatNftMetadata;
+/// use clvm_traits::{FromClvm, ToClvm};
+/// use clvmr::Allocator;
+///
+/// let metadata = CatNftMetadata {
+///     ticker: "SBX".to_string(),
+///     name: "Spacebucks".to_string(),
+///     description: "Space money".to_string(),
+///     image_uris: vec!["https://example.com/sbx.png".to_string()],
+///     image_hash: Bytes32::new([1; 32]),
+///     ..Default::default()
+/// };
+///
+/// let mut allocator = Allocator::new();
+/// let ptr = metadata.to_clvm(&mut allocator)?;
+/// assert_eq!(CatNftMetadata::from_clvm(&allocator, ptr)?, metadata);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatNftMetadata {
+    /// Ticker symbol (key `t`). Defaults to `???`.
     pub ticker: String,
+    /// Display name (key `n`). Defaults to `Unknown CAT`.
     pub name: String,
+    /// Description (key `d`). Defaults to `(no description provided)`.
     pub description: String,
+    /// Number of decimal places (key `p`). Defaults to 3.
     pub precision: u8,
+    /// Hidden puzzle hash of the revocation layer, for revocable CATs (key `hph`).
     pub hidden_puzzle_hash: Option<Bytes32>,
+    /// Image URIs (key `u`).
     pub image_uris: Vec<String>,
+    /// Hash of the image (key `h`).
     pub image_hash: Bytes32,
+    /// Off-chain metadata URIs (key `mu`).
     pub metadata_uris: Vec<String>,
+    /// Hash of the off-chain metadata (key `mh`). Only serialized when
+    /// [`metadata_uris`](Self::metadata_uris) is non-empty.
     pub metadata_hash: Option<Bytes32>,
+    /// License URIs (key `lu`).
     pub license_uris: Vec<String>,
+    /// Hash of the license (key `lh`). Only serialized when
+    /// [`license_uris`](Self::license_uris) is non-empty.
     pub license_hash: Option<Bytes32>,
 }
 
@@ -37,6 +80,8 @@ impl Default for CatNftMetadata {
 }
 
 impl CatNftMetadata {
+    /// Prints the metadata to stdout, one field per line, with each line starting with
+    /// `prefix`.
     pub fn pretty_print(&self, prefix: &str) {
         println!("{}Ticker: {}", prefix, self.ticker);
         println!("{}Name: {}", prefix, self.name);

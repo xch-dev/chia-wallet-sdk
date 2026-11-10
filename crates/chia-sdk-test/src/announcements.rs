@@ -10,19 +10,48 @@ use chia_sdk_types::{
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 
+/// The announcements created and asserted by a single coin spend.
+///
+/// This is returned by [`announcements_for_spend`].
 #[derive(Debug, Default, Clone)]
 pub struct Announcements {
+    /// The messages of `CREATE_COIN_ANNOUNCEMENT` conditions.
     pub created_coin: Vec<Bytes>,
+    /// The announcement ids of `ASSERT_COIN_ANNOUNCEMENT` conditions.
     pub asserted_coin: Vec<Bytes32>,
+    /// The messages of `CREATE_PUZZLE_ANNOUNCEMENT` conditions.
     pub created_puzzle: Vec<Bytes>,
+    /// The announcement ids of `ASSERT_PUZZLE_ANNOUNCEMENT` conditions.
     pub asserted_puzzle: Vec<Bytes32>,
 }
 
-/// Print the announcements that are created and asserted by a list of coin spends.
+/// Prints how the announcements created and asserted by a list of coin spends match up.
+///
+/// For each spend, this prints which spend created each announcement it asserts, and each
+/// announcement it creates that appears not to be asserted. Announcement ids and messages are
+/// shortened to the hex of their first 4 bytes. This is useful for finding why a spend bundle
+/// fails with an announcement error.
 ///
 /// # Panics
 ///
-/// Panics if the announcements cannot be extracted from the coin spends.
+/// Panics if a spend can't be run with [`announcements_for_spend`], or if any announcement is
+/// reported as asserted but not created, or created but not asserted.
+///
+/// # Example
+///
+/// ```should_panic
+/// use chia_protocol::{Bytes32, Coin, CoinSpend};
+/// use chia_sdk_test::{debug_announcements, to_program, to_puzzle};
+/// use chia_sdk_types::conditions::AssertCoinAnnouncement;
+///
+/// let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+/// let coin = Coin::new([1; 32].into(), puzzle_hash, 1);
+///
+/// // No spend creates this announcement, so this prints the problem and panics.
+/// let solution = to_program([AssertCoinAnnouncement::new(Bytes32::new([2; 32]))])?;
+/// debug_announcements(&[CoinSpend::new(coin, puzzle_reveal, solution)]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn debug_announcements(coin_spends: &[CoinSpend]) {
     let all_announcements: Vec<Announcements> = coin_spends
         .iter()
@@ -76,11 +105,10 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
         }
 
         for created_coin in &announcements.created_coin {
-            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
-                a.asserted_coin.iter().any(|&id| {
-                    id == announcement_id(coin_spends[i].coin.coin_id(), created_coin.clone())
-                })
-            });
+            let id = announcement_id(coin_spends[i].coin.coin_id(), created_coin.clone());
+            let asserted = all_announcements
+                .iter()
+                .any(|a| a.asserted_coin.contains(&id));
 
             if !asserted {
                 println!(
@@ -92,11 +120,10 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
         }
 
         for created_puzzle in &announcements.created_puzzle {
-            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
-                a.asserted_puzzle.iter().any(|&id| {
-                    id == announcement_id(coin_spends[i].coin.puzzle_hash, created_puzzle.clone())
-                })
-            });
+            let id = announcement_id(coin_spends[i].coin.puzzle_hash, created_puzzle.clone());
+            let asserted = all_announcements
+                .iter()
+                .any(|a| a.asserted_puzzle.contains(&id));
 
             if !asserted {
                 println!(
@@ -114,6 +141,30 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
     );
 }
 
+/// Runs a coin spend and collects the announcements it creates and asserts.
+///
+/// Conditions other than coin and puzzle announcements are ignored.
+///
+/// # Errors
+///
+/// Returns an error if the puzzle fails to run with the solution, or if its output isn't a list.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Coin, CoinSpend};
+/// use chia_sdk_test::{announcements_for_spend, to_program, to_puzzle};
+/// use chia_sdk_types::conditions::CreatePuzzleAnnouncement;
+///
+/// let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+/// let coin = Coin::new([0; 32].into(), puzzle_hash, 1);
+/// let solution = to_program([CreatePuzzleAnnouncement::new(b"hi".to_vec().into())])?;
+///
+/// let announcements = announcements_for_spend(&CoinSpend::new(coin, puzzle_reveal, solution))?;
+/// assert_eq!(announcements.created_puzzle, vec![b"hi".to_vec().into()]);
+/// assert!(announcements.created_coin.is_empty());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announcements> {
     let mut announcements = Announcements::default();
 
@@ -140,4 +191,49 @@ pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announc
     }
 
     Ok(announcements)
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::Coin;
+
+    use crate::{to_program, to_puzzle};
+
+    use super::*;
+
+    #[test]
+    fn test_announcements_asserted_by_another_spend() -> anyhow::Result<()> {
+        let (creator_puzzle_hash, creator_puzzle) = to_puzzle(1)?;
+        let (asserter_puzzle_hash, asserter_puzzle) = to_puzzle(2)?;
+        assert_ne!(creator_puzzle_hash, asserter_puzzle_hash);
+
+        let creator = Coin::new(Bytes32::new([1; 32]), creator_puzzle_hash, 1);
+        let asserter = Coin::new(Bytes32::new([2; 32]), asserter_puzzle_hash, 1);
+
+        let message = Bytes::from(b"hello".to_vec());
+
+        let creator_solution = to_program((
+            CreateCoinAnnouncement::new(message.clone()),
+            (CreatePuzzleAnnouncement::new(message.clone()), ()),
+        ))?;
+
+        // The asserting puzzle is `2`, so the solution is `(conditions)`.
+        let asserter_solution = to_program([(
+            AssertCoinAnnouncement::new(announcement_id(creator.coin_id(), message.clone())),
+            (
+                AssertPuzzleAnnouncement::new(announcement_id(
+                    creator.puzzle_hash,
+                    message.clone(),
+                )),
+                (),
+            ),
+        )])?;
+
+        debug_announcements(&[
+            CoinSpend::new(creator, creator_puzzle, creator_solution),
+            CoinSpend::new(asserter, asserter_puzzle, asserter_solution),
+        ]);
+
+        Ok(())
+    }
 }

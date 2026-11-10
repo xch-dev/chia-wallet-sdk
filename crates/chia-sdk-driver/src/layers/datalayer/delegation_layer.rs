@@ -8,8 +8,11 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[allow(clippy::doc_markdown)]
-/// The Delegation [`Layer`] is used to enable DataLayer delegation capabilities
+/// The Delegation [`Layer`] is used to enable DataLayer delegation capabilities.
 /// For more information, see CHIP-0035.
+///
+/// The owner puzzle can spend the store freely. Other puzzles can spend it if their hash is in the
+/// merkle tree of delegated puzzles, and the solution includes a merkle proof for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelegationLayer {
     /// Launcher ID of the singleton outer layer. Used as the default hint when recreating this layer.
@@ -21,6 +24,7 @@ pub struct DelegationLayer {
 }
 
 impl DelegationLayer {
+    /// Creates a [`DelegationLayer`] from its curried values.
     pub fn new(launcher_id: Bytes32, owner_puzzle_hash: Bytes32, merkle_root: Bytes32) -> Self {
         Self {
             launcher_id,

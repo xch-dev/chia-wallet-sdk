@@ -1,17 +1,10 @@
 name: Node.js
 on:
+  # Releases run standalone so trusted publishing sees this workflow, not ci.yml
   push:
-    branches:
-      - main
     tags:
       - "**"
-  pull_request:
-    branches:
-      - "**"
-
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 env:
   DEBUG: napi:*
@@ -33,13 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          # Build both macOS targets on a single runner (macOS minutes are the most expensive)
-          - host: blacksmith-6vcpu-macos-latest
-            target: apple-darwin
-            build: |
-              pnpm build:macos-x64
-              pnpm build:macos-arm64
-              pnpm universal
+          # macOS is built in its own job below
           - host: windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
@@ -81,7 +68,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.settings.target == 'apple-darwin' && 'x86_64-apple-darwin,aarch64-apple-darwin' || matrix.settings.target }}
+          targets: ${{ matrix.settings.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -116,15 +103,14 @@ jobs:
           path: napi/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
 
-  test-macOS-binding:
-    name: Test bindings on macOS
-    needs:
-      - build
+  # The organization can only run a few macOS jobs at once, so both macOS targets are built,
+  # combined into the universal binary, and tested in a single job
+  macos:
+    name: macOS - node@24
     defaults:
       run:
         working-directory: ./napi
-    # Test every Node version in one job, since macOS minutes are the most expensive
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -139,14 +125,49 @@ jobs:
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
 
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: apple-darwin
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Install dependencies
         run: pnpm install
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
+      - name: Build (arm64)
+        run: pnpm build:macos-arm64
+
+      - name: Build (x64)
+        run: pnpm build:macos-x64
+
+      - name: Upload artifact (arm64)
+        uses: actions/upload-artifact@v7
         with:
-          name: bindings-apple-darwin
-          path: napi
+          name: bindings-aarch64-apple-darwin
+          path: napi/${{ env.APP_NAME }}.darwin-arm64.node
+          if-no-files-found: error
+
+      - name: Upload artifact (x64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: bindings-x86_64-apple-darwin
+          path: napi/${{ env.APP_NAME }}.darwin-x64.node
+          if-no-files-found: error
+
+      - name: Create universal binary
+        run: pnpm universal
+
+      - name: Upload universal binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: bindings-universal-apple-darwin
+          path: napi/${{ env.APP_NAME }}.darwin-universal.node
+          if-no-files-found: error
 
       - name: List packages
         run: ls -R .
@@ -330,7 +351,7 @@ jobs:
       contents: read
       id-token: write
     needs:
-      - test-macOS-binding
+      - macos
       - test-windows-binding
       - test-linux-x64-gnu-binding
       - test-linux-aarch64-gnu-binding

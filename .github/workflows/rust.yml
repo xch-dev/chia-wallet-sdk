@@ -1,18 +1,10 @@
 name: Rust
 on:
+  # Releases run standalone so trusted publishing sees this workflow, not ci.yml
   push:
-    branches:
-      - main
     tags:
       - "**"
-
-  pull_request:
-    branches:
-      - "**"
-
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
@@ -49,6 +41,15 @@ jobs:
 
       - name: Unused dependencies
         run: cargo machete
+
+      # Fails on missing docs and broken intra-doc links, with and without optional features
+      - name: Docs
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          set -e
+          cargo doc --no-deps --workspace --exclude chia-wallet-sdk-napi --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli --all-features
+          cargo doc --no-deps --workspace --exclude chia-wallet-sdk-napi --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli
 
   check-crates:
     runs-on: ubuntu-24.04
@@ -88,6 +89,7 @@ jobs:
           cargo check -p chia-sdk-bindings -F napi
           cargo check -p chia-sdk-bindings -F wasm
           cargo check -p chia-sdk-bindings -F pyo3
+          cargo check -p chia-sdk-bindings -F uniffi
 
   test:
     runs-on: ubuntu-24.04
@@ -103,7 +105,11 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run tests
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-wallet-sdk-uniffi --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+
+      # The step above runs doctests with all features, this runs them without optional features
+      - name: Run doctests without optional features
+        run: cargo test --release --doc --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --exclude pyo3-stub-generator --exclude chia-sdk-cli
 
   publish:
     if: startsWith(github.event.ref, 'refs/tags')

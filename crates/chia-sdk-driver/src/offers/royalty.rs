@@ -3,18 +3,21 @@ use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::conditions::TradePrice;
 
-use crate::{
-    AssetInfo, CatInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount,
-};
+use crate::{AssetInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext, coin_amount};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The royalty of an NFT, which must be paid when it's traded in an offer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoyaltyInfo {
+    /// The launcher id of the NFT, which is used as the nonce of the royalty payment.
     pub launcher_id: Bytes32,
+    /// The puzzle hash that receives the royalty.
     pub puzzle_hash: Bytes32,
+    /// The royalty percentage in basis points, so a value of 300 means 3%.
     pub basis_points: u16,
 }
 
 impl RoyaltyInfo {
+    /// Creates a [`RoyaltyInfo`].
     pub fn new(launcher_id: Bytes32, puzzle_hash: Bytes32, basis_points: u16) -> Self {
         Self {
             launcher_id,
@@ -23,6 +26,8 @@ impl RoyaltyInfo {
         }
     }
 
+    /// Creates the notarized payment of the royalty amount, with the launcher id as the nonce and a
+    /// hint of the royalty puzzle hash.
     pub fn payment(
         &self,
         ctx: &mut SpendContext,
@@ -36,6 +41,9 @@ impl RoyaltyInfo {
     }
 }
 
+/// Calculates the trade price of each royalty NFT, by splitting the amounts evenly between them.
+///
+/// This is empty if there are no royalty NFTs.
 pub fn calculate_trade_price_amounts(
     amounts: &OfferAmounts,
     royalty_nft_count: usize,
@@ -57,6 +65,12 @@ pub fn calculate_trade_price_amounts(
     }
 }
 
+/// Converts trade price amounts into [`TradePrice`] values for transferring royalty NFTs, with
+/// the settlement puzzle hash of each asset. Assets with a zero amount are skipped.
+///
+/// An NFT can't be taken if the royalty of one of its trade prices rounds down to zero, so use
+/// [`payable_trade_prices`] to filter the result for each NFT.
+///
 /// Fails with [`DriverError::AmountOverflow`] if a trade price doesn't fit in a [`u64`], or
 /// [`DriverError::MissingAssetInfo`] if a CAT has no asset info.
 pub fn calculate_trade_prices(
@@ -77,23 +91,31 @@ pub fn calculate_trade_prices(
             continue;
         }
 
-        let info = asset_info
-            .cat(asset_id)
-            .ok_or(DriverError::MissingAssetInfo)?;
-        let puzzle_hash = CatInfo::new(
-            asset_id,
-            info.hidden_puzzle_hash,
-            SETTLEMENT_PAYMENT_HASH.into(),
-        )
-        .puzzle_hash()
-        .into();
-
-        trade_prices.push(TradePrice::new(coin_amount(amount)?, puzzle_hash));
+        trade_prices.push(TradePrice::new(
+            coin_amount(amount)?,
+            asset_info.settlement_puzzle_hash(Some(asset_id))?,
+        ));
     }
 
     Ok(trade_prices)
 }
 
+/// Returns the trade prices an NFT can reveal while still being possible to take, leaving out
+/// any whose royalty rounds down to zero.
+pub fn payable_trade_prices(
+    trade_prices: &[TradePrice],
+    royalty_basis_points: u16,
+) -> Vec<TradePrice> {
+    trade_prices
+        .iter()
+        .filter(|trade_price| calculate_nft_royalty(trade_price.amount, royalty_basis_points) > 0)
+        .copied()
+        .collect()
+}
+
+/// Calculates the royalty payment of each NFT for each asset of the trade price. Payments with a
+/// zero amount are skipped.
+///
 /// Fails with [`DriverError::AmountOverflow`] if a trade price or royalty payment doesn't fit in
 /// a [`u64`].
 pub fn calculate_royalty_payments(
@@ -157,65 +179,25 @@ pub fn calculate_nft_trade_price(amount: u128, royalty_nft_count: usize) -> u128
     amount.checked_div(royalty_nft_count as u128).unwrap_or(0)
 }
 
+/// Calculates the royalty of an NFT for the trade price, rounded down.
+///
 /// Royalties above 100% are representable on chain, so the royalty can exceed the trade price.
 pub fn calculate_nft_royalty(trade_price: u64, royalty_basis_points: u16) -> u128 {
     u128::from(trade_price) * u128::from(royalty_basis_points) / 10_000
 }
 
-#[cfg(test)]
-mod tests {
-    use chia_bls::Signature;
-    use chia_protocol::SpendBundle;
-    use chia_puzzle_types::Memos;
-    use indexmap::indexmap;
-
-    use crate::{Offer, OfferCoins};
-
-    use super::*;
-
-    #[test]
-    fn test_missing_asset_info_is_an_error() {
-        let mut ctx = SpendContext::new();
-
-        let launcher_id = Bytes32::new([1; 32]);
-        let asset_id = Bytes32::new([2; 32]);
-        let notarized_payment = NotarizedPayment::new(
-            Bytes32::default(),
-            vec![Payment::new(Bytes32::default(), 1, Memos::None)],
-        );
-
-        let mut requested_payments = RequestedPayments::new();
-        requested_payments
-            .nfts
-            .insert(launcher_id, vec![notarized_payment.clone()]);
-
-        let offer = Offer::new(
-            SpendBundle::new(vec![], Signature::default()),
-            OfferCoins::new(),
-            requested_payments,
-            AssetInfo::new(),
-        );
-        assert!(matches!(
-            offer.offered_royalties(),
-            Err(DriverError::MissingAssetInfo)
-        ));
-
-        let mut requested_payments = RequestedPayments::new();
-        requested_payments
-            .cats
-            .insert(asset_id, vec![notarized_payment]);
-        assert!(matches!(
-            requested_payments.assertions(&mut ctx, &AssetInfo::new()),
-            Err(DriverError::MissingAssetInfo)
-        ));
-
-        let amounts = OfferAmounts {
-            xch: 0,
-            cats: indexmap! { asset_id => 100 },
-        };
-        assert!(matches!(
-            calculate_trade_prices(&amounts, &AssetInfo::new()),
-            Err(DriverError::MissingAssetInfo)
-        ));
+pub(crate) fn calculate_min_trade_price(royalty: u64, royalty_basis_points: u16) -> Option<u64> {
+    if royalty_basis_points == 0 {
+        return None;
     }
+
+    let trade_price =
+        u64::try_from((u128::from(royalty) * 10_000).div_ceil(u128::from(royalty_basis_points)))
+            .ok()?;
+
+    (calculate_nft_royalty(trade_price, royalty_basis_points) == u128::from(royalty))
+        .then_some(trade_price)
 }
+
+#[cfg(test)]
+mod tests;

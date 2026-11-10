@@ -116,7 +116,7 @@ fn member_case(
                 if fast_forward {
                     ParsedMember::SingletonWithMode(SingletonMemberWithMode::new(
                         LAUNCHER_ID,
-                        0b010_010,
+                        VAULT_FAST_FORWARD_MESSAGE_MODE,
                     ))
                 } else {
                     ParsedMember::Singleton(SingletonMember::new(LAUNCHER_ID))

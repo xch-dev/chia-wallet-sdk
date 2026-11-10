@@ -9,11 +9,63 @@ use super::{
     GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
 };
 
+/// A client for the Chia full node RPC API.
+///
+/// Implementors only need to provide [`base_url`](Self::base_url) and
+/// [`make_post_request`](Self::make_post_request). Every other method is a provided wrapper
+/// that sends a JSON body to the endpoint of the same name and parses the response.
+///
+/// The implementations in this crate are [`CoinsetClient`](crate::CoinsetClient) for the
+/// [coinset.org](https://coinset.org) API, `FullNodeClient` for a full node's own RPC server
+/// (with a TLS feature enabled), and [`MockRpcClient`](crate::MockRpcClient) for tests.
+///
+/// The `Result` returned by each method only reports transport and parsing errors. Errors
+/// reported by the node are returned in the response's `success` and `error` fields.
+///
+/// # Example
+///
+/// Any client can be used through this trait, so code can be written once and tested
+/// against a [`MockRpcClient`](crate::MockRpcClient):
+///
+/// ```
+/// use chia_protocol::Bytes32;
+/// use chia_sdk_coinset::{ChiaRpcClient, MockRpcClient};
+///
+/// async fn unspent_balance<C: ChiaRpcClient>(
+///     client: &C,
+///     puzzle_hash: Bytes32,
+/// ) -> Result<Option<u64>, C::Error> {
+///     let response = client
+///         .get_coin_records_by_puzzle_hash(puzzle_hash, None, None, Some(false), None)
+///         .await?;
+///
+///     Ok(response
+///         .coin_records
+///         .map(|records| records.iter().map(|record| record.coin.amount).sum()))
+/// }
+///
+/// # #[tokio::main(flavor = "current_thread")]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut client = MockRpcClient::new();
+/// client.mock_response(
+///     "http://api.example.com/get_coin_records_by_puzzle_hash",
+///     r#"{"coin_records": [], "success": true}"#,
+/// );
+///
+/// assert_eq!(unspent_balance(&client, Bytes32::default()).await?, Some(0));
+/// # Ok(())
+/// # }
+/// ```
 pub trait ChiaRpcClient {
+    /// The error returned when a request can't be sent or its response can't be parsed.
     type Error;
 
+    /// The URL that endpoint names are appended to, without a trailing slash.
     fn base_url(&self) -> &str;
 
+    /// Sends `body` as JSON in a POST request to the endpoint, and parses the JSON response.
+    ///
+    /// The provided implementations send requests to `{base_url}/{endpoint}`.
     fn make_post_request<R, B>(
         &self,
         endpoint: &str,
@@ -23,12 +75,16 @@ pub trait ChiaRpcClient {
         B: Serialize + Send,
         R: DeserializeOwned + Send;
 
+    /// Calls `get_blockchain_state`, which returns the current peak, sync status, mempool
+    /// statistics, and other information about the node's view of the blockchain.
     fn get_blockchain_state(
         &self,
     ) -> impl Future<Output = Result<BlockchainStateResponse, Self::Error>> {
         self.make_post_request("get_blockchain_state", serde_json::json!({}))
     }
 
+    /// Calls `get_additions_and_removals`, which returns the coins created and spent in the
+    /// block with the given header hash.
     fn get_additions_and_removals(
         &self,
         header_hash: Bytes32,
@@ -41,6 +97,7 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_block`, which returns the full block with the given header hash.
     fn get_block(
         &self,
         header_hash: Bytes32,
@@ -53,6 +110,7 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_block_record`, which returns the block record with the given header hash.
     fn get_block_record(
         &self,
         header_hash: Bytes32,
@@ -65,6 +123,8 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_block_record_by_height`, which returns the block record at the given height
+    /// in the node's current chain.
     fn get_block_record_by_height(
         &self,
         height: u32,
@@ -77,6 +137,8 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_block_records`, which returns the block records from height `start`
+    /// (inclusive) to `end` (exclusive).
     fn get_block_records(
         &self,
         start: u32,
@@ -91,6 +153,10 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_blocks`, which returns the full blocks from height `start` (inclusive) to
+    /// `end` (exclusive).
+    ///
+    /// The `exclude_header_hash` and `exclude_reorged` flags are passed through to the node.
     fn get_blocks(
         &self,
         start: u32,
@@ -109,6 +175,8 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_block_spends`, which returns the coin spends in the block with the given
+    /// header hash.
     fn get_block_spends(
         &self,
         header_hash: Bytes32,
@@ -121,6 +189,7 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_coin_record_by_name`, which returns the coin record for the given coin id.
     fn get_coin_record_by_name(
         &self,
         name: Bytes32,
@@ -133,6 +202,15 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_coin_records_by_hint`, which returns the coin records for the given hint.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_hint(
         &self,
         hint: Bytes32,
@@ -153,6 +231,15 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_hint", body)
     }
 
+    /// Calls `get_coin_records_by_hints`, which returns the coin records for any of the given hints.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_hints(
         &self,
         hints: Vec<Bytes32>,
@@ -173,6 +260,15 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_hints", body)
     }
 
+    /// Calls `get_coin_records_by_names`, which returns the coin records for the given coin ids.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_names(
         &self,
         names: Vec<Bytes32>,
@@ -193,6 +289,15 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_names", body)
     }
 
+    /// Calls `get_coin_records_by_parent_ids`, which returns the coin records for any of the given parent coin ids.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_parent_ids(
         &self,
         parent_ids: Vec<Bytes32>,
@@ -213,6 +318,15 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_parent_ids", body)
     }
 
+    /// Calls `get_coin_records_by_puzzle_hash`, which returns the coin records for the given puzzle hash.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_puzzle_hash(
         &self,
         puzzle_hash: Bytes32,
@@ -233,6 +347,15 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_puzzle_hash", body)
     }
 
+    /// Calls `get_coin_records_by_puzzle_hashes`, which returns the coin records for any of the given puzzle hashes.
+    ///
+    /// The optional `start_height` and `end_height` limit the results to coins confirmed in that
+    /// range, and `include_spent_coins` controls whether spent coins are returned. The node
+    /// uses its defaults for any of these that are [`None`].
+    ///
+    /// If coinset.org truncates the response, pass its
+    /// [`next_cursor`](crate::GetCoinRecordsResponse::next_cursor) as `cursor` to get the
+    /// next page. The cursor is only sent if it's [`Some`].
     fn get_coin_records_by_puzzle_hashes(
         &self,
         puzzle_hashes: Vec<Bytes32>,
@@ -253,6 +376,10 @@ pub trait ChiaRpcClient {
         self.make_post_request("get_coin_records_by_puzzle_hashes", body)
     }
 
+    /// Calls `get_puzzle_and_solution`, which returns the coin spend for the given coin id.
+    ///
+    /// The `height` is the height the coin was spent at, and is sent as `null` if it's [`None`].
+    /// A Chia full node requires it, but other servers may not.
     fn get_puzzle_and_solution(
         &self,
         coin_id: Bytes32,
@@ -267,6 +394,11 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `push_tx`, which submits a spend bundle to the node's mempool.
+    ///
+    /// A response with `success` set to `true` means the node accepted the transaction, and
+    /// its `status` reports how the node handled it. It doesn't mean the transaction has been
+    /// confirmed in a block.
     fn push_tx(
         &self,
         spend_bundle: SpendBundle,
@@ -292,12 +424,16 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_network_info`, which returns the network name, address prefix, and genesis
+    /// challenge of the node.
     fn get_network_info(
         &self,
     ) -> impl Future<Output = Result<GetNetworkInfoResponse, Self::Error>> {
         self.make_post_request("get_network_info", serde_json::json!({}))
     }
 
+    /// Calls `get_mempool_item_by_tx_id`, which returns the mempool item for the spend bundle
+    /// with the given transaction id (the spend bundle's hash).
     fn get_mempool_item_by_tx_id(
         &self,
         tx_id: Bytes32,
@@ -310,6 +446,8 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_mempool_items_by_coin_name`, which returns the mempool items that spend the
+    /// coin with the given id.
     fn get_mempool_items_by_coin_name(
         &self,
         coin_name: Bytes32,

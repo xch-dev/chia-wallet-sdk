@@ -15,6 +15,9 @@ categories = { workspace = true }
 workspace = true
 
 [features]
+chip-0008 = []
+chip-0021 = []
+pooling = []
 chip-0035 = []
 chip-0037 = ["dep:sha3"]
 chip-0057 = ["dep:num-bigint", "dep:zeroize"]

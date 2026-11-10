@@ -254,14 +254,22 @@ impl FullNodeSimulator {
         bytes.into()
     }
 
+    /// Returns all events recorded since the last call, and clears them.
     pub fn drain_events(&mut self) -> Vec<FullNodeSimulatorEvent> {
         std::mem::take(&mut self.events)
     }
 
+    /// Sets the puzzle hash that receives the reward coin of each farmed block.
     pub fn set_farming_ph(&mut self, puzzle_hash: Bytes32) {
         self.farming_puzzle_hash = puzzle_hash;
     }
 
+    /// Farms `blocks` blocks (at least one, even if `blocks` is 0) and returns their records.
+    ///
+    /// Each block includes every mempool transaction that is still valid and doesn't conflict
+    /// with one already in the block, plus a reward coin for
+    /// [`FullNodeSimulator::get_farming_ph`]. Included transactions are removed from the mempool.
+    /// A [`FullNodeSimulatorEvent::Block`] event is recorded for each block.
     pub fn farm_block(&mut self, blocks: u32) -> Vec<BlockRecord> {
         let count = blocks.max(1);
         let mut records = Vec::new();
@@ -271,6 +279,12 @@ impl FullNodeSimulator {
         records
     }
 
+    /// Removes up to `blocks` blocks from the tip of the chain and returns their header hashes,
+    /// from lowest to highest.
+    ///
+    /// The transactions in the removed blocks are added back to the mempool if they are still
+    /// valid. The removed blocks are discarded, and no event is recorded. Note that this can also
+    /// remove the genesis block.
     pub fn revert_blocks(&mut self, blocks: u32) -> Vec<Bytes32> {
         let reverted = self.revert_canonical_blocks(blocks);
         self.requeue_transactions(reverted.iter().flat_map(|block| block.transactions.clone()));
@@ -280,6 +294,37 @@ impl FullNodeSimulator {
             .collect()
     }
 
+    /// Replaces the top `num_of_blocks_to_rev` blocks with new blocks, and adds
+    /// `num_of_new_blocks` more on top. Returns the records of all new blocks.
+    ///
+    /// The removed blocks can still be looked up by header hash, but their transactions are not
+    /// added back to the mempool. The new blocks are farmed from the current mempool, after which
+    /// any mempool transactions that are no longer valid are dropped. A
+    /// [`FullNodeSimulatorEvent::Reorg`] event is recorded after the block events.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_sdk_test::{FullNodeSimulator, FullNodeSimulatorEvent};
+    ///
+    /// let mut sim = FullNodeSimulator::new();
+    /// sim.farm_block(3);
+    /// let old_peak = sim.header_hash();
+    /// sim.drain_events();
+    ///
+    /// // Replace the top 2 blocks and add 1 more.
+    /// let new_blocks = sim.reorg_blocks(2, 1);
+    /// assert_eq!(new_blocks.len(), 3);
+    /// assert_eq!(sim.height(), 5);
+    ///
+    /// let events = sim.drain_events();
+    /// let Some(FullNodeSimulatorEvent::Reorg { fork_height, old_peak_hash, .. }) = events.last()
+    /// else {
+    ///     panic!("expected a reorg event");
+    /// };
+    /// assert_eq!(*fork_height, 2);
+    /// assert_eq!(*old_peak_hash, old_peak);
+    /// ```
     pub fn reorg_blocks(
         &mut self,
         num_of_blocks_to_rev: u32,

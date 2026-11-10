@@ -25,6 +25,8 @@ pub struct IntermediateLauncher {
 
 impl IntermediateLauncher {
     /// Create a new intermediate launcher with the given index. This makes the puzzle hash, and therefore coin id, unique.
+    ///
+    /// The intermediate coin has an amount of 0 and the launcher coin it creates has an amount of 1.
     pub fn new(parent_coin_id: Bytes32, mint_number: usize, mint_total: usize) -> Self {
         let intermediate_puzzle_hash =
             NftIntermediateLauncherArgs::curry_tree_hash(mint_number, mint_total).into();
@@ -56,6 +58,10 @@ impl IntermediateLauncher {
     }
 
     /// Spends the intermediate coin to create the launcher coin.
+    ///
+    /// The intermediate spend is added to the [`SpendContext`]. The returned [`Launcher`] carries the
+    /// conditions that the parent coin must output: creating the intermediate coin and asserting its
+    /// announcement. These are returned from [`Launcher::spend`] once you spend the launcher.
     pub fn create(self, ctx: &mut SpendContext) -> Result<Launcher, DriverError> {
         let mut parent = Conditions::new();
 

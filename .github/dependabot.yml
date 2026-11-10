@@ -8,6 +8,13 @@ updates:
       cargo-deps:
         patterns:
           - "*"
+    ignore:
+      # Must match the versions used by clvmr and clvm-traits, so these are
+      # bumped alongside them rather than independently.
+      - dependency-name: "num-bigint"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "getrandom"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: "npm"
     directories:

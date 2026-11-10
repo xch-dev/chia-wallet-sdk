@@ -6,12 +6,19 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The singleton member [`Layer`] is a vault member that is authorized by a singleton.
+///
+/// It outputs a `RECEIVE_MESSAGE` condition, so the singleton must send the delegated puzzle hash
+/// as a message to the coin being spent. The solution contains the singleton's current inner
+/// puzzle hash and amount, which are used to calculate its full puzzle hash.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SingletonMemberLayer {
+    /// The launcher id of the singleton that authorizes the spend.
     pub launcher_id: Bytes32,
 }
 
 impl SingletonMemberLayer {
+    /// Creates a [`SingletonMemberLayer`] for the singleton with the launcher id.
     pub fn new(launcher_id: Bytes32) -> Self {
         Self { launcher_id }
     }

@@ -9,14 +9,18 @@ use crate::{
 /// [`Id::New`](crate::Id::New) with the index of this action.
 #[derive(Debug, Clone, Copy)]
 pub struct CreateDidAction {
+    /// The hash of the DID's recovery list, or `None` for no recovery.
     pub recovery_list_hash: Option<Bytes32>,
+    /// The number of verifications required to recover the DID.
     pub num_verifications_required: u64,
+    /// The DID's metadata.
     pub metadata: HashedPtr,
     /// The amount of the DID coin, which must be odd.
     pub amount: u64,
 }
 
 impl CreateDidAction {
+    /// Creates the action. See [`Action::create_did`](crate::Action::create_did).
     pub fn new(
         recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,

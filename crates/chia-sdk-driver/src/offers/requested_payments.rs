@@ -14,19 +14,31 @@ use crate::{
     SpendContext,
 };
 
+/// The payments that the maker of an offer requests in return.
+///
+/// Each payment is a [`NotarizedPayment`], which the taker makes by spending a settlement coin of
+/// the asset. The maker's spends assert the puzzle announcements of these payments (see
+/// [`RequestedPayments::assertions`]), so the offer can only be taken if they are made. The nonce
+/// of a notarized payment is usually [`Offer::nonce`](crate::Offer::nonce) of the offered coins.
 #[derive(Debug, Default, Clone)]
 pub struct RequestedPayments {
+    /// The requested XCH payments.
     pub xch: Vec<NotarizedPayment>,
+    /// The requested CAT payments, keyed by asset id.
     pub cats: IndexMap<Bytes32, Vec<NotarizedPayment>>,
+    /// The requested NFT payments, keyed by launcher id.
     pub nfts: IndexMap<Bytes32, Vec<NotarizedPayment>>,
+    /// The requested option contract payments, keyed by launcher id.
     pub options: IndexMap<Bytes32, Vec<NotarizedPayment>>,
 }
 
 impl RequestedPayments {
+    /// Creates an empty [`RequestedPayments`].
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// The total requested amounts of XCH and each CAT.
     pub fn amounts(&self) -> OfferAmounts {
         fn total(nps: &[NotarizedPayment]) -> u128 {
             nps.iter()
@@ -44,6 +56,32 @@ impl RequestedPayments {
         }
     }
 
+    /// The payments of a CAT, or of XCH if `asset_id` is `None`.
+    pub fn fungible_mut(&mut self, asset_id: Option<Bytes32>) -> &mut Vec<NotarizedPayment> {
+        match asset_id {
+            Some(asset_id) => self.cats.entry(asset_id).or_default(),
+            None => &mut self.xch,
+        }
+    }
+
+    /// Each XCH and CAT payment, along with its CAT asset id, which is `None` for XCH.
+    pub fn fungible(&self) -> impl Iterator<Item = (Option<Bytes32>, &NotarizedPayment)> {
+        let xch = self.xch.iter().map(|payment| (None, payment));
+
+        let cats = self.cats.iter().flat_map(|(&asset_id, payments)| {
+            payments
+                .iter()
+                .map(move |payment| (Some(asset_id), payment))
+        });
+
+        xch.chain(cats)
+    }
+
+    /// The `ASSERT_PUZZLE_ANNOUNCEMENT` conditions that the maker's spends must output, so that the
+    /// offer can only be taken if the requested payments are made.
+    ///
+    /// Returns [`DriverError::MissingAssetInfo`] if a requested CAT, NFT, or option contract has no
+    /// asset info, since the puzzle hash of its settlement coin can't be calculated.
     pub fn assertions(
         &self,
         ctx: &mut SpendContext,
@@ -59,17 +97,7 @@ impl RequestedPayments {
         }
 
         for (&asset_id, notarized_payments) in &self.cats {
-            let info = asset_info
-                .cat(asset_id)
-                .ok_or(DriverError::MissingAssetInfo)?;
-
-            let puzzle_hash = CatInfo::new(
-                asset_id,
-                info.hidden_puzzle_hash,
-                SETTLEMENT_PAYMENT_HASH.into(),
-            )
-            .puzzle_hash()
-            .into();
+            let puzzle_hash = asset_info.settlement_puzzle_hash(Some(asset_id))?;
 
             for notarized_payment in notarized_payments {
                 assertions.push(payment_assertion(
@@ -129,6 +157,8 @@ impl RequestedPayments {
         Ok(assertions)
     }
 
+    /// The settle actions that make the requested payments, for the taker to apply with
+    /// [`Spends::apply`](crate::Spends::apply).
     pub fn actions(&self) -> Vec<Action> {
         let mut actions = Vec::new();
 
@@ -166,6 +196,7 @@ impl RequestedPayments {
         actions
     }
 
+    /// Adds the payments from another [`RequestedPayments`], for example when combining offers.
     pub fn extend(&mut self, other: Self) {
         for payment in other.xch {
             self.xch.push(payment);
@@ -187,6 +218,11 @@ impl RequestedPayments {
         }
     }
 
+    /// Parses the notarized payments of a settlement coin spend from an offer, and adds them.
+    ///
+    /// The asset info of requested CATs, NFTs, and option contracts is added to the [`AssetInfo`].
+    /// Returns [`DriverError::UnsupportedRequestedAsset`] if the puzzle isn't the settlement
+    /// payments puzzle, or a CAT, NFT, or option contract with it as the p2 puzzle.
     pub fn parse(
         &mut self,
         allocator: &Allocator,
@@ -194,6 +230,21 @@ impl RequestedPayments {
         puzzle: Puzzle,
         solution: NodePtr,
     ) -> Result<(), DriverError> {
+        self.parse_settlement(allocator, asset_info, puzzle, solution)?;
+        Ok(())
+    }
+
+    /// The same as [`RequestedPayments::parse`], but if the settlement coin is an NFT, also
+    /// returns its launcher id and current owner, which its puzzle hash commits to.
+    pub(crate) fn parse_settlement(
+        &mut self,
+        allocator: &Allocator,
+        asset_info: &mut AssetInfo,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Bytes32, Option<Bytes32>)>, DriverError> {
+        let mut nft_owner = None;
+
         let notarized_payments =
             SettlementPaymentsSolution::from_clvm(allocator, solution)?.notarized_payments;
 
@@ -224,6 +275,8 @@ impl RequestedPayments {
                 nft.royalty_basis_points,
             );
             asset_info.insert_nft(nft.launcher_id, info)?;
+
+            nft_owner = Some((nft.launcher_id, nft.current_owner));
         } else if let Some((option, _)) = OptionInfo::parse(allocator, puzzle)?
             && option.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
         {
@@ -241,7 +294,7 @@ impl RequestedPayments {
             return Err(DriverError::UnsupportedRequestedAsset);
         }
 
-        Ok(())
+        Ok(nft_owner)
     }
 }
 

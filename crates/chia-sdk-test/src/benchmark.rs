@@ -9,14 +9,45 @@ use prettytable::{Table, row};
 
 use crate::Simulator;
 
+/// Collects the CLVM cost of spends, grouped by label, and prints summary statistics.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::CoinSpend;
+/// use chia_sdk_test::{Benchmark, Simulator, to_program, to_puzzle};
+/// use chia_sdk_types::conditions::{CreateCoin, Memos};
+/// use clvmr::{Allocator, NodePtr};
+///
+/// let mut ctx = Allocator::new();
+/// let mut sim = Simulator::new();
+/// let mut benchmark = Benchmark::new("Identity puzzle".to_string());
+///
+/// let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+///
+/// for _ in 0..3 {
+///     let coin = sim.new_coin(puzzle_hash, 1);
+///     let solution = to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None)])?;
+///     let coin_spend = CoinSpend::new(coin, puzzle_reveal.clone(), solution);
+///     benchmark.add_spends(&mut ctx, &mut sim, vec![coin_spend], "spend", &[])?;
+/// }
+///
+/// assert_eq!(benchmark.data["spend"].len(), 3);
+/// benchmark.print_summary(None);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct Benchmark {
+    /// The title shown at the top of the summary table.
     pub title: String,
+    /// The labels in the order they were first added, which is the row order of the summary.
     pub data_keys: Vec<String>,
+    /// The recorded costs for each label.
     pub data: HashMap<String, Vec<u64>>,
 }
 
 impl Benchmark {
+    /// Creates an empty benchmark with the given title.
     pub fn new(title: String) -> Self {
         Self {
             title,
@@ -25,6 +56,17 @@ impl Benchmark {
         }
     }
 
+    /// Records the cost of a set of coin spends under the label `key`, then spends them in the
+    /// simulator with the given secret keys.
+    ///
+    /// The cost is the total cost of the spend bundle conditions (CLVM execution plus conditions),
+    /// calculated with `ctx` at the simulator's current height. The cost is recorded before the
+    /// spend is submitted, even if the spend then fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the conditions can't be calculated, or if
+    /// [`Simulator::spend_coins`] fails.
     pub fn add_spends(
         &mut self,
         ctx: &mut Allocator,
@@ -52,6 +94,13 @@ impl Benchmark {
         Ok(())
     }
 
+    /// Prints a table with the average, count, minimum, maximum, and median cost for each label.
+    ///
+    /// If `filename` is given, the table is also written to that file, replacing its contents.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file can't be created or written.
     #[allow(clippy::cast_precision_loss)]
     pub fn print_summary(&self, filename: Option<&str>) {
         let mut table = Table::new();

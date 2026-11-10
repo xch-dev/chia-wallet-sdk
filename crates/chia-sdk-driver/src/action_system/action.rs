@@ -97,6 +97,38 @@ impl Action {
 
     /// Creates a DID from an XCH coin, with the given amount. Unless it's sent elsewhere, the DID is
     /// sent to the change puzzle hash.
+    ///
+    /// The DID can be referred to as [`Id::New`] with the index of this action, and is returned in
+    /// [`Outputs::dids`](crate::Outputs::dids) under that id.
+    ///
+    /// ```
+    /// use chia_sdk_driver::{Action, HashedPtr, Id, Relation, SpendContext, Spends};
+    /// use chia_sdk_test::Simulator;
+    /// use indexmap::indexmap;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let mut ctx = SpendContext::new();
+    /// let alice = sim.bls(1);
+    ///
+    /// let mut spends = Spends::new(alice.puzzle_hash);
+    /// spends.add(alice.coin);
+    ///
+    /// let actions = [Action::create_did(None, 1, HashedPtr::NIL, 1)];
+    /// let deltas = spends.apply(&mut ctx, &actions)?;
+    /// let outputs = spends.finish_with_keys(
+    ///     &mut ctx,
+    ///     &deltas,
+    ///     Relation::None,
+    ///     &indexmap! { alice.puzzle_hash => alice.pk },
+    /// )?;
+    ///
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// let did = outputs.dids[&Id::New(0)];
+    /// assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
+    /// assert!(sim.coin_state(did.coin.coin_id()).is_some());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn create_did(
         recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
@@ -134,6 +166,54 @@ impl Action {
 
     /// Mints an NFT from an XCH coin, with the given amount. Unless it's sent elsewhere, the NFT is
     /// sent to the change puzzle hash.
+    ///
+    /// The NFT can be referred to as [`Id::New`] with the index of this action, for example to send
+    /// it in the same transaction, and is returned in [`Outputs::nfts`](crate::Outputs::nfts).
+    ///
+    /// ```
+    /// use chia_protocol::Bytes32;
+    /// use chia_puzzle_types::Memos;
+    /// use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
+    /// use chia_sdk_driver::{Action, HashedPtr, Id, Relation, SpendContext, Spends};
+    /// use chia_sdk_test::Simulator;
+    /// use indexmap::indexmap;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let mut ctx = SpendContext::new();
+    /// let alice = sim.bls(1);
+    /// let bob_puzzle_hash = Bytes32::new([1; 32]);
+    ///
+    /// let mut spends = Spends::new(alice.puzzle_hash);
+    /// spends.add(alice.coin);
+    ///
+    /// // Mint an NFT with a 3% royalty to Alice, and send it straight to Bob.
+    /// let hint = ctx.hint(bob_puzzle_hash)?;
+    /// let actions = [
+    ///     Action::mint_nft(
+    ///         HashedPtr::NIL,
+    ///         NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+    ///         alice.puzzle_hash,
+    ///         300,
+    ///         1,
+    ///     ),
+    ///     Action::send(Id::New(0), bob_puzzle_hash, 1, hint),
+    /// ];
+    /// let deltas = spends.apply(&mut ctx, &actions)?;
+    /// let outputs = spends.finish_with_keys(
+    ///     &mut ctx,
+    ///     &deltas,
+    ///     Relation::None,
+    ///     &indexmap! { alice.puzzle_hash => alice.pk },
+    /// )?;
+    ///
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// let nft = outputs.nfts[&Id::New(0)];
+    /// assert_eq!(nft.info.p2_puzzle_hash, bob_puzzle_hash);
+    /// assert_eq!(nft.info.royalty_basis_points, 300);
+    /// assert!(sim.coin_state(nft.coin.coin_id()).is_some());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn mint_nft(
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
@@ -285,7 +365,41 @@ impl Action {
     }
 
     /// Issues a CAT with a single issuance TAIL, which is derived from the coin that issues it, so
-    /// no more of the CAT can ever be issued.
+    /// no more of the CAT can ever be issued. The issued amount is taken from the XCH in the
+    /// transaction, and unless it's sent elsewhere, the CAT is sent to the change puzzle hash.
+    /// Since the asset id isn't known in advance, refer to it as [`Id::New`] with the index of
+    /// this action.
+    ///
+    /// ```
+    /// use chia_sdk_driver::{Action, Id, Relation, SpendContext, Spends};
+    /// use chia_sdk_test::Simulator;
+    /// use indexmap::indexmap;
+    ///
+    /// let mut sim = Simulator::new();
+    /// let mut ctx = SpendContext::new();
+    /// let alice = sim.bls(1_000);
+    ///
+    /// let mut spends = Spends::new(alice.puzzle_hash);
+    /// spends.add(alice.coin);
+    ///
+    /// let actions = [Action::single_issue_cat(None, 1_000)];
+    /// let deltas = spends.apply(&mut ctx, &actions)?;
+    /// let outputs = spends.finish_with_keys(
+    ///     &mut ctx,
+    ///     &deltas,
+    ///     Relation::None,
+    ///     &indexmap! { alice.puzzle_hash => alice.pk },
+    /// )?;
+    ///
+    /// sim.spend_coins(ctx.take(), &[alice.sk])?;
+    ///
+    /// // The new CAT is keyed by the index of the action that issued it.
+    /// let cat = outputs.cats[&Id::New(0)][0];
+    /// assert_eq!(cat.coin.amount, 1_000);
+    /// assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
+    /// assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn single_issue_cat(hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
         Self::IssueCat(IssueCatAction::new(
             TailIssuance::Single,

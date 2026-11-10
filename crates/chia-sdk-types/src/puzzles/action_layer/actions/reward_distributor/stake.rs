@@ -7,6 +7,16 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor stake action, compiled from Rue.
+///
+/// Locks assets with the distributor's lock puzzle and adds their shares to an entry. If
+/// the entry already exists, its slot is spent, its unclaimed rewards are forfeited back
+/// to the remaining rewards, and the entry's custody puzzle hash must send a
+/// puzzle-to-puzzle message of `"s"` followed by the tree hash of the forfeited amount
+/// (scaled by the precision). The entry slot is re-created with the current cumulative
+/// payout and the new total shares. The action increments the ephemeral state (used as a
+/// nonce by the lock puzzles), announces `"t"` followed by the new entry slot value's
+/// hash, and must run before `last_update + max_second_offset`.
 pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE: [u8; 790] = hex!(
     // Rue
     "
@@ -38,27 +48,44 @@ pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE: [u8; 790] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_STAKE_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     7ab8fcfb1a028a6f2ba8973b6fc80eca8e189654eb5ff3d1fc5fccd0757dd38d
     "
 ));
 
+/// Curried arguments of the stake action ([`REWARD_DISTRIBUTOR_STAKE_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorStakeActionArgs<LP> {
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Maximum number of seconds since the distributor's last update. The action asserts
+    /// that the spend happens before `last_update + max_second_offset`, so entries can't be
+    /// changed with stale reward accounting.
     pub max_second_offset: u64,
+    /// Puzzle that verifies the assets being locked, for example a curried
+    /// [`RewardDistributorCatLockingPuzzleArgs`](crate::puzzles::RewardDistributorCatLockingPuzzleArgs).
+    /// It is run as `(ephemeral_state custody_puzzle_hash . solution)` and returns
+    /// `(shares . conditions)`.
     pub lock_puzzle: LP,
 }
 
+/// Solution to the stake action.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorStakeActionSolution<LPS> {
+    /// Solution passed to the lock puzzle, after the ephemeral state and custody puzzle hash.
     pub lock_puzzle_solution: LPS,
+    /// Counter of the entry's existing slot, or -1 if the entry is new.
     pub existing_slot_counter: i128,
+    /// Custody puzzle hash of the entry, which receives rewards and unstaked assets.
     pub entry_custody_puzzle_hash: Bytes32,
+    /// Cumulative payout recorded in the entry's existing slot, or 0 if the entry is new.
     pub existing_slot_cumulative_payout: u128,
+    /// Shares of the entry's existing slot, or 0 if the entry is new.
     #[clvm(rest)]
     pub existing_slot_shares: u64,
 }
@@ -73,16 +100,23 @@ impl<LP> Mod for RewardDistributorStakeActionArgs<LP> {
     }
 }
 
+/// Serialized nonce wrapper puzzle: `(a INNER_PUZZLE inner_solution)`, with an unused
+/// curried nonce. Wrapping a puzzle with different nonces gives different puzzle hashes
+/// that behave the same way.
 // run '(mod (NONCE INNER_PUZZLE . inner_solution) (a INNER_PUZZLE inner_solution))' -d
 pub const NONCE_WRAPPER_PUZZLE: [u8; 7] = hex!("ff02ff05ff0780");
+/// Tree hash of [`NONCE_WRAPPER_PUZZLE`].
 pub const NONCE_WRAPPER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "847d971ef523417d555ea9854b1612837155d34d453298defcd310774305f657"
 ));
 
+/// Curried arguments of the nonce wrapper ([`NONCE_WRAPPER_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct NonceWrapperArgs<N, I> {
+    /// Value that only changes the puzzle hash.
     pub nonce: N,
+    /// Puzzle that is run with the wrapper's solution.
     pub inner_puzzle: I,
 }
 

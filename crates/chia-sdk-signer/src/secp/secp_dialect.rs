@@ -28,6 +28,42 @@ const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 /// [`RequiredSignature::from_coin_spend`](crate::RequiredSignature::from_coin_spend), which
 /// rejects puzzle reveals that don't match the coin's puzzle hash). Running an untrusted puzzle
 /// with this dialect and signing the result would let it request a signature over any hash.
+///
+/// An operator call is only intercepted if its public key and message hash parse correctly.
+/// Otherwise, the result of the wrapped dialect is returned unchanged.
+///
+/// # Example
+///
+/// ```
+/// use chia_protocol::{Bytes, Bytes32};
+/// use chia_sdk_signer::{SecpDialect, SecpPublicKey};
+/// use chia_secp::K1SecretKey;
+/// use clvm_traits::{ToClvm, clvm_list, clvm_quote};
+/// use clvmr::{Allocator, ChiaDialect, ClvmFlags, NodePtr, run_program};
+///
+/// let mut allocator = Allocator::new();
+/// let public_key = K1SecretKey::from_bytes(&[1; 32])?.public_key();
+///
+/// // (secp256k1_verify (q . public_key) (q . message_hash) (q . placeholder))
+/// let secp256k1_verify = Bytes::new(vec![0x13, 0xd6, 0x1f, 0x00]);
+/// let program = clvm_list!(
+///     secp256k1_verify,
+///     clvm_quote!(public_key),
+///     clvm_quote!(Bytes32::new([42; 32])),
+///     clvm_quote!(Bytes::new(vec![0; 64]))
+/// )
+/// .to_clvm(&mut allocator)?;
+///
+/// let dialect = ChiaDialect::new(ClvmFlags::empty());
+/// let dialect = SecpDialect::new(&dialect);
+/// run_program(&mut allocator, &dialect, program, NodePtr::NIL, u64::MAX)?;
+///
+/// let collected = dialect.collect();
+/// assert_eq!(collected.len(), 1);
+/// assert_eq!(collected[0].public_key, SecpPublicKey::K1(public_key));
+/// assert_eq!(collected[0].message_hash, [42; 32]);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Default, Clone)]
 pub struct SecpDialect<T> {
     dialect: T,
@@ -35,6 +71,9 @@ pub struct SecpDialect<T> {
 }
 
 impl<T> SecpDialect<T> {
+    /// Wraps a dialect, such as a reference to a [`ChiaDialect`](clvmr::ChiaDialect).
+    ///
+    /// [`Dialect`] is only implemented for `SecpDialect<&T>`, so pass a reference.
     pub fn new(dialect: T) -> Self {
         Self {
             dialect,
@@ -42,6 +81,8 @@ impl<T> SecpDialect<T> {
         }
     }
 
+    /// Consumes the dialect and returns the signatures collected while running programs with it,
+    /// in the order the verify operators were called.
     pub fn collect(self) -> Vec<RequiredSecpSignature> {
         self.collected_ops.into_inner()
     }

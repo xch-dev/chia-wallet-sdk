@@ -11,6 +11,13 @@ use crate::{
     RewardDistributorSyncActionLog, SingletonAction, Spend, SpendContext,
 };
 
+/// The reward distributor action that distributes the current epoch's rewards up to a given
+/// timestamp.
+///
+/// Anyone can run it to move the distributor's last update time forward, which updates the
+/// cumulative payout for the time that passed.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorSyncAction {}
 
@@ -31,6 +38,13 @@ impl RewardDistributorSyncAction {
         ctx.alloc_mod::<RewardDistributorSyncActionArgs>()
     }
 
+    /// Parses an action solution into a [`RewardDistributorSyncActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -44,6 +58,14 @@ impl RewardDistributorSyncAction {
         })
     }
 
+    /// Adds a sync to `update_time` to the pending spend of `distributor`.
+    ///
+    /// Returns a condition that asserts the distributor's sync announcement for `update_time`
+    /// and the current epoch end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the action spend can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

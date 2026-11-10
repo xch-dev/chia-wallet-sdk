@@ -16,18 +16,21 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 /// a [`P2Eip712MessageLayer`](super::P2Eip712MessageLayer) coin).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2ControllerPuzzleLayer {
+    /// The puzzle hash of the controller coin, which must send the message that authorizes the
+    /// spend.
     pub controller_puzzle_hash: Bytes32,
 }
 
 impl P2ControllerPuzzleLayer {
+    /// Creates a [`P2ControllerPuzzleLayer`] controlled by the puzzle hash.
     pub fn new(controller_puzzle_hash: Bytes32) -> Self {
         Self {
             controller_puzzle_hash,
         }
     }
 
-    /// Spend a coin locked by this layer with a `delegated_spend` previously
-    /// authorised by the controller coin.
+    /// Creates a [`Spend`] that runs the delegated spend. The controller coin must send the tree
+    /// hash of the delegated puzzle as a message to this coin in the same transaction.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,

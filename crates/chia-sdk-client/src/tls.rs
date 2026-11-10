@@ -7,7 +7,34 @@ use tokio_tungstenite::Connector;
 
 use crate::ClientError;
 
-/// Loads an SSL certificate, or creates it if it doesn't exist already.
+/// Loads a TLS certificate and private key from PEM files, or generates new ones if they
+/// can't be read.
+///
+/// If either file can't be read, a new certificate signed by the Chia CA is generated with
+/// [`ChiaCertificate::generate`] and written to both paths, replacing any existing file.
+/// The contents of existing files aren't validated.
+///
+/// The certificate is used to build a [`Connector`](tokio_tungstenite::Connector) with
+/// `create_native_tls_connector` or `create_rustls_connector`.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_client::load_ssl_cert;
+///
+/// let dir = std::env::temp_dir().join(format!("chia-sdk-client-doctest-{}", std::process::id()));
+/// std::fs::create_dir_all(&dir)?;
+/// let cert_path = dir.join("wallet.crt");
+/// let key_path = dir.join("wallet.key");
+/// let (cert_path, key_path) = (cert_path.to_str().unwrap(), key_path.to_str().unwrap());
+///
+/// // The first call generates a certificate, and later calls load the same one.
+/// let generated = load_ssl_cert(cert_path, key_path)?;
+/// let loaded = load_ssl_cert(cert_path, key_path)?;
+/// assert_eq!(generated.cert_pem, loaded.cert_pem);
+/// # std::fs::remove_dir_all(&dir)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate, ClientError> {
     fs::read_to_string(cert_path)
         .and_then(|cert| {
@@ -24,7 +51,21 @@ pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate,
         })
 }
 
-/// Creates a native-tls connector from a certificate.
+/// Creates a `native-tls` [`Connector`] that authenticates with the given client certificate.
+///
+/// The peer's certificate isn't verified, since full nodes use self-signed certificates.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_client::create_native_tls_connector;
+/// use chia_ssl::ChiaCertificate;
+///
+/// let cert = ChiaCertificate::generate()?;
+/// let connector = create_native_tls_connector(&cert)?;
+/// # let _ = connector;
+/// # Ok::<(), chia_sdk_client::ClientError>(())
+/// ```
 #[cfg(feature = "native-tls")]
 pub fn create_native_tls_connector(cert: &ChiaCertificate) -> Result<Connector, ClientError> {
     use native_tls::{Identity, TlsConnector};
@@ -38,7 +79,22 @@ pub fn create_native_tls_connector(cert: &ChiaCertificate) -> Result<Connector, 
     Ok(Connector::NativeTls(tls_connector))
 }
 
-/// Creates a rustls connector from a certificate.
+/// Creates a `rustls` [`Connector`] that authenticates with the given client certificate.
+///
+/// The peer's certificate chain isn't verified, since full nodes use self-signed
+/// certificates, but the handshake signatures are still checked.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_client::create_rustls_connector;
+/// use chia_ssl::ChiaCertificate;
+///
+/// let cert = ChiaCertificate::generate()?;
+/// let connector = create_rustls_connector(&cert)?;
+/// # let _ = connector;
+/// # Ok::<(), chia_sdk_client::ClientError>(())
+/// ```
 #[cfg(feature = "rustls")]
 pub fn create_rustls_connector(cert: &ChiaCertificate) -> Result<Connector, ClientError> {
     use std::sync::Arc;

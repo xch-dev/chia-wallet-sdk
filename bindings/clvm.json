@@ -168,6 +168,14 @@
         },
         "return": "LaunchedAuction"
       },
+      "launch_fusion": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "side_a": "Vec<Bytes32>",
+          "side_b": "Vec<Bytes32>"
+        },
+        "return": "LaunchedFusion"
+      },
       "mint_datastore": {
         "args": {
           "parent_coin_id": "Bytes32",
@@ -219,6 +227,16 @@
           "memos": "Program"
         },
         "return": "VaultMint"
+      },
+      "mint_plot_nft": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "pool_state": "PoolState",
+          "seconds_delay": "u64",
+          "delayed_puzzle_hash": "Bytes32",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "PlotNftMint"
       },
       "create_bulletin": {
         "args": {

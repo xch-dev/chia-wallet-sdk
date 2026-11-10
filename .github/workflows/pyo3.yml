@@ -6,18 +6,12 @@
 name: Python
 
 on:
+  # Releases run standalone so trusted publishing sees this workflow, not ci.yml
   push:
-    branches:
-      - main
-      - master
     tags:
-      - "*"
-  pull_request:
+      - "**"
+  workflow_call:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -31,6 +25,8 @@ jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
+      # A flaky download in one build shouldn't cancel the others
+      fail-fast: false
       matrix:
         platform:
           - runner: ubuntu-24.04
@@ -55,9 +51,13 @@ jobs:
           restore-keys: |
             linux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             linux-${{ matrix.platform.target }}-
+      # The action downloads maturin inside the container, which sometimes gets an error page from
+      # GitHub instead of the release, so the build is retried once
       - name: Build wheels
+        id: build
+        continue-on-error: true
         uses: PyO3/maturin-action@v1
-        with:
+        with: &linux-build
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           manylinux: manylinux_2_28
@@ -77,6 +77,10 @@ jobs:
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
+      - name: Retry building wheels
+        if: ${{ steps.build.outcome == 'failure' }}
+        uses: PyO3/maturin-action@v1
+        with: *linux-build
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: actions/cache/save@v6
@@ -94,6 +98,8 @@ jobs:
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
+      # A flaky download in one build shouldn't cancel the others
+      fail-fast: false
       matrix:
         platform:
           - runner: ubuntu-24.04
@@ -118,14 +124,22 @@ jobs:
           restore-keys: |
             musllinux-${{ matrix.platform.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}-
             musllinux-${{ matrix.platform.target }}-
+      # The action downloads maturin inside the container, which sometimes gets an error page from
+      # GitHub instead of the release, so the build is retried once
       - name: Build wheels
+        id: build
+        continue-on-error: true
         uses: PyO3/maturin-action@v1
-        with:
+        with: &musllinux-build
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           manylinux: musllinux_1_2
           working-directory: pyo3
           docker-options: -v ${{ github.workspace }}/.cargo-registry:/root/.cargo/registry
+      - name: Retry building wheels
+        if: ${{ steps.build.outcome == 'failure' }}
+        uses: PyO3/maturin-action@v1
+        with: *musllinux-build
       - name: Save cargo cache
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: actions/cache/save@v6
@@ -173,9 +187,10 @@ jobs:
           name: wheels-windows-${{ matrix.platform.target }}
           path: pyo3/dist
 
-  # Build both macOS wheels on a single runner, since macOS minutes are the most expensive
+  # The organization can only run a few macOS jobs at once, so both wheels are built in one job.
+  # The x86_64 wheels can't be tested on the arm64 runners, so pull requests skip them.
   macos:
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -183,24 +198,32 @@ jobs:
           python-version: 3.x
       - uses: Swatinem/rust-cache@v2
         with:
+          key: apple-darwin
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build wheels (aarch64)
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out dist --find-interpreter
+          args: --release --out dist-aarch64 --find-interpreter
           working-directory: pyo3
       - name: Build wheels (x86_64)
+        if: github.event_name != 'pull_request'
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist --find-interpreter
+          args: --release --out dist-x86_64 --find-interpreter
           working-directory: pyo3
-      - name: Upload wheels
+      - name: Upload wheels (aarch64)
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-macos
-          path: pyo3/dist
+          name: wheels-macos-aarch64
+          path: pyo3/dist-aarch64
+      - name: Upload wheels (x86_64)
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-macos-x86_64
+          path: pyo3/dist-x86_64
 
   sdist:
     runs-on: ubuntu-24.04

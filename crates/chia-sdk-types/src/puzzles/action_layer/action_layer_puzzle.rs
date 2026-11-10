@@ -7,6 +7,9 @@ use hex_literal::hex;
 
 use crate::{MerkleProof, Mod};
 
+/// Serialized action layer puzzle, compiled from Rue.
+///
+/// Use [`ActionLayerArgs`] to curry it.
 pub const ACTION_LAYER_PUZZLE: [u8; 630] = hex!(
     // Rue
     "
@@ -33,21 +36,77 @@ pub const ACTION_LAYER_PUZZLE: [u8; 630] = hex!(
     "
 );
 
+/// Tree hash of [`ACTION_LAYER_PUZZLE`].
 pub const ACTION_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     afa03f2903f9e4a293523237799074b13ab2361f250df10de5df884b0b09a22b
     "
 ));
 
+/// Curried arguments of the action layer, the inner puzzle of an action-based singleton.
+///
+/// Each spend runs one or more action puzzles whose hashes are leaves of
+/// [`merkle_root`](Self::merkle_root). Every action receives
+/// `(ephemeral_state . state)` plus its own solution and returns
+/// `((new_ephemeral_state . new_state) . conditions)`. The persistent state is threaded
+/// from one action to the next, and the ephemeral state starts as nil in every spend.
+/// After the last action, the [`finalizer`](Self::finalizer) receives the Merkle root,
+/// the initial state, and the final state and conditions, and outputs the spend's
+/// conditions. It is normally what re-creates the singleton with the new state.
+///
+/// The solution is [`RawActionLayerSolution`].
+///
+/// # Example
+///
+/// Compute the full puzzle hash of an action layer singleton with the default
+/// finalizer and a single delegated state action:
+///
+/// ```rust
+/// use chia_protocol::Bytes32;
+/// use chia_puzzle_types::singleton::SingletonArgs;
+/// use chia_sdk_types::{
+///     MerkleTree,
+///     puzzles::{ActionLayerArgs, DefaultFinalizer2ndCurryArgs, DelegatedStateActionArgs},
+/// };
+/// use clvm_utils::ToTreeHash;
+///
+/// let launcher_id = Bytes32::new([1; 32]);
+/// let price_singleton_launcher_id = Bytes32::new([2; 32]);
+///
+/// // The Merkle root commits to the set of actions the singleton can run.
+/// let action_puzzle_hashes: Vec<Bytes32> =
+///     vec![DelegatedStateActionArgs::curry_tree_hash(price_singleton_launcher_id).into()];
+/// let merkle_root = MerkleTree::new(&action_puzzle_hashes).root();
+///
+/// // Any value that can be serialized to CLVM can be the state.
+/// let state = (Bytes32::new([3; 32]), 100_u64);
+///
+/// let inner_puzzle_hash = ActionLayerArgs::curry_tree_hash(
+///     DefaultFinalizer2ndCurryArgs::curry_tree_hash(launcher_id),
+///     merkle_root,
+///     state.tree_hash(),
+/// );
+/// let puzzle_hash = SingletonArgs::curry_tree_hash(launcher_id, inner_puzzle_hash);
+/// # let _ = puzzle_hash;
+/// ```
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct ActionLayerArgs<F, S> {
+    /// Finalizer puzzle, run once after all actions to produce the final conditions.
+    ///
+    /// It is usually a curried [`DefaultFinalizer1stCurryArgs`](crate::puzzles::DefaultFinalizer1stCurryArgs)
+    /// or [`ReserveFinalizer1stCurryArgs`](crate::puzzles::ReserveFinalizer1stCurryArgs) program.
     pub finalizer: F,
+    /// Merkle root of the tree whose leaves are the tree hashes of the allowed action puzzles.
+    ///
+    /// Build it with [`MerkleTree`](crate::MerkleTree).
     pub merkle_root: Bytes32,
+    /// Persistent state, passed to the first action of each spend.
     pub state: S,
 }
 
 impl<F, S> ActionLayerArgs<F, S> {
+    /// Creates the curried arguments from their parts.
     pub fn new(finalizer: F, merkle_root: Bytes32, state: S) -> Self {
         Self {
             finalizer,
@@ -58,6 +117,10 @@ impl<F, S> ActionLayerArgs<F, S> {
 }
 
 impl ActionLayerArgs<TreeHash, TreeHash> {
+    /// Computes the curried action layer puzzle hash from the finalizer puzzle hash, the
+    /// Merkle root of the action puzzle hashes, and the tree hash of the state.
+    ///
+    /// See the [type-level example](ActionLayerArgs#example).
     pub fn curry_tree_hash(
         finalizer: TreeHash,
         merkle_root: Bytes32,
@@ -71,12 +134,28 @@ impl ActionLayerArgs<TreeHash, TreeHash> {
     }
 }
 
+/// Solution to the action layer puzzle ([`ActionLayerArgs`]).
+///
+/// The action layer prepends each selected selector to a list as it verifies it, so the
+/// actions run in the reverse order of
+/// [`selectors_and_proofs`](Self::selectors_and_proofs), while
+/// [`solutions`](Self::solutions) is consumed in execution order.
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RawActionLayerSolution<P, S, F> {
+    /// Reveals of the action puzzles used in this spend, each listed once even if it runs
+    /// several times.
     pub puzzles: Vec<P>,
+    /// For each action run, a CLVM path into [`puzzles`](Self::puzzles) that selects the
+    /// action puzzle (`2` for the first, `5` for the second, `11` for the third, and so on),
+    /// and a proof that the puzzle's hash is in the Merkle root.
+    ///
+    /// The proof may be `None` if the same selector already appeared earlier in this list
+    /// with a proof.
     pub selectors_and_proofs: Vec<(u32, Option<MerkleProof>)>,
+    /// Solution for each action, in execution order.
     pub solutions: Vec<S>,
+    /// Extra solution passed to the finalizer (for example a [`ReserveFinalizerSolution`](crate::puzzles::ReserveFinalizerSolution)).
     #[clvm(rest)]
     pub finalizer_solution: F,
 }

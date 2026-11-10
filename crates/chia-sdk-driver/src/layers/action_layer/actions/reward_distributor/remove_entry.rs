@@ -19,11 +19,22 @@ use crate::{
     SpendContext,
 };
 
+/// The reward distributor action that removes an entry and pays out its remaining rewards, in a
+/// [`RewardDistributorType::Managed`](crate::RewardDistributorType::Managed) distributor.
+///
+/// The manager singleton must approve the removal with a message.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a distributor's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorRemoveEntryAction {
+    /// The launcher id of the reward distributor.
     pub launcher_id: Bytes32,
+    /// The launcher id of the manager singleton, or all zeros if the distributor isn't
+    /// managed.
     pub manager_launcher_id: Bytes32,
+    /// See [`RewardDistributorConstants::max_seconds_offset`](crate::RewardDistributorConstants::max_seconds_offset).
     pub max_seconds_offset: u64,
+    /// See [`RewardDistributorConstants::precision`](crate::RewardDistributorConstants::precision).
     pub precision: u64,
 }
 
@@ -56,6 +67,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorRemoveEntryAction {
 }
 
 impl RewardDistributorRemoveEntryAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         manager_launcher_id: Bytes32,
@@ -86,6 +98,17 @@ impl RewardDistributorRemoveEntryAction {
         ))
     }
 
+    /// Removes the entry in `entry_slot` in the pending spend of `distributor`, and spends the
+    /// slot.
+    ///
+    /// `manager_singleton_inner_puzzle_hash` is the manager singleton's current inner puzzle
+    /// hash. Returns the conditions that the manager singleton must output (a `SEND_MESSAGE`
+    /// with mode 18 and an `ASSERT_CONCURRENT_PUZZLE` for the entry slot), and the amount paid
+    /// out to the entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -133,6 +156,13 @@ impl RewardDistributorRemoveEntryAction {
         Ok((remove_entry_conditions, entry_payout_amount))
     }
 
+    /// Parses an action solution into a [`RewardDistributorRemoveEntryActionLog`].
+    ///
+    /// `changes` is the distributor state before and after the action.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,

@@ -20,10 +20,19 @@ use crate::{
 
 use super::{XchandlesPrecommitValueLog, XchandlesRefundActionLog, run_pricing_output};
 
+/// The `XCHandles` action that refunds a [`PrecommitCoin`] that can't be used for a registration.
+///
+/// The precommit coin is spent in refund mode, which sends it back to its refund puzzle hash.
+/// The action may also spend and recreate the slot of the precommitted handle.
+///
+/// Use [`SingletonAction::from_constants`] to create it from a registry's constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRefundAction {
+    /// The launcher id of the `XCHandles` registry.
     pub launcher_id: Bytes32,
+    /// The relative block height of the registry's precommit coins.
     pub relative_block_height: u32,
+    /// The puzzle hash that receives the registry's payments.
     pub payout_puzzle_hash: Bytes32,
 }
 
@@ -49,6 +58,7 @@ impl SingletonAction<XchandlesRegistry> for XchandlesRefundAction {
 }
 
 impl XchandlesRefundAction {
+    /// Creates the curried arguments of the action puzzle.
     pub fn new_args(
         launcher_id: Bytes32,
         relative_block_height: u32,
@@ -77,6 +87,14 @@ impl XchandlesRefundAction {
         ))
     }
 
+    /// Parses an action solution into an [`XchandlesRefundActionLog`].
+    ///
+    /// The precommitted pricing puzzle in the solution is run to compute the price and the
+    /// registration time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solution can't be parsed or the pricing puzzle fails.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -122,6 +140,17 @@ impl XchandlesRefundAction {
         })
     }
 
+    /// Refunds `precommit_coin` in the pending spend of `registry`.
+    ///
+    /// `precommited_pricing_puzzle_reveal` and `precommited_pricing_puzzle_solution` are the
+    /// pricing puzzle and solution the precommit coin committed to. If `slot` is provided, it's
+    /// spent and recreated as part of the action.
+    ///
+    /// Returns a condition that asserts the registry's refund announcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the spends can't be created.
     pub fn spend(
         self,
         ctx: &mut SpendContext,

@@ -33,8 +33,24 @@ type Sink = SplitSink<WebSocket, tungstenite::Message>;
 type Stream = SplitStream<WebSocket>;
 type Response<T, E> = std::result::Result<T, E>;
 
+/// Options for a [`Peer`] connection.
+///
+/// # Example
+///
+/// ```
+/// use chia_sdk_client::PeerOptions;
+///
+/// assert_eq!(PeerOptions::default().rate_limit_factor, 0.6);
+///
+/// // Use up to 90% of the full node's rate limits.
+/// let options = PeerOptions { rate_limit_factor: 0.9 };
+/// # let _ = options;
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
+    /// The fraction of the full node's rate limits ([`V2_RATE_LIMITS`]) that outgoing messages
+    /// are allowed to use. Defaults to `0.6`, which leaves room so the full node doesn't
+    /// disconnect the wallet for sending too many messages.
     pub rate_limit_factor: f64,
 }
 
@@ -46,6 +62,70 @@ impl Default for PeerOptions {
     }
 }
 
+/// A connection to a Chia full node using the wallet protocol over a websocket.
+///
+/// A background task reads incoming messages. Responses to requests made with methods
+/// like [`Peer::request_coin_state`] are returned from those methods, and every other message
+/// (such as `CoinStateUpdate` or `NewPeakWallet`) is sent to the [`mpsc::Receiver`] that's
+/// returned when the peer is created.
+///
+/// Keep reading from that receiver, or drop it. If 32 messages are waiting in it, the
+/// background task stops processing messages, including responses, until there's room.
+///
+/// Outgoing messages are rate limited according to [`PeerOptions::rate_limit_factor`]. If a
+/// message would exceed the limits, sending it waits until the next rate limit period.
+///
+/// Requests don't have a timeout, so wrap them in [`tokio::time::timeout`] if needed.
+///
+/// [`Peer`] is cheap to clone, and clones share the same connection. The background task is
+/// stopped when the last clone is dropped.
+///
+/// # Example
+///
+/// This example is `no_run` because it connects to a live testnet11 peer.
+///
+/// ```no_run
+/// # #[cfg(feature = "rustls")]
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use chia_protocol::{Bytes32, CoinStateFilters};
+/// use chia_sdk_client::{Peer, PeerOptions, connect_peer, create_rustls_connector, load_ssl_cert};
+/// use chia_sdk_types::TESTNET11_CONSTANTS;
+///
+/// let cert = load_ssl_cert("wallet.crt", "wallet.key")?;
+/// let connector = create_rustls_connector(&cert)?;
+///
+/// // Performs the wallet protocol handshake after connecting.
+/// let (peer, mut receiver) = connect_peer(
+///     "testnet11".to_string(),
+///     connector,
+///     "127.0.0.1:58444".parse()?,
+///     PeerOptions::default(),
+/// )
+/// .await?;
+///
+/// let puzzle_hash = Bytes32::new([0; 32]);
+/// let response = peer
+///     .request_puzzle_state(
+///         vec![puzzle_hash],
+///         None,
+///         TESTNET11_CONSTANTS.genesis_challenge,
+///         CoinStateFilters::new(true, true, true, 0),
+///         true,
+///     )
+///     .await?;
+///
+/// match response {
+///     Ok(state) => println!("Found {} coins", state.coin_states.len()),
+///     Err(rejection) => println!("Rejected: {:?}", rejection.reason),
+/// }
+///
+/// // Since `subscribe_when_finished` was true, updates are sent to the receiver.
+/// while let Some(message) = receiver.recv().await {
+///     println!("Received {:?}", message.msg_type);
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct Peer(Arc<PeerInner>);
 
@@ -59,7 +139,11 @@ struct PeerInner {
 }
 
 impl Peer {
-    /// Connects to a peer using its IP address and port.
+    /// Opens a websocket connection to a peer at `wss://{socket_addr}/ws`.
+    ///
+    /// This doesn't perform the wallet protocol handshake, so most callers should use
+    /// [`connect_peer`](crate::connect_peer) instead, or send a
+    /// [`Handshake`](chia_protocol::Handshake) before making requests.
     #[cfg(any(feature = "native-tls", feature = "rustls"))]
     pub async fn connect(
         socket_addr: SocketAddr,
@@ -69,8 +153,10 @@ impl Peer {
         Self::connect_full_uri(&format!("wss://{socket_addr}/ws"), connector, options).await
     }
 
-    /// Connects to a peer using its full websocket URI.
-    /// For example, `wss://127.0.0.1:8444/ws`.
+    /// Opens a websocket connection to a peer using its full websocket URI, for example
+    /// `wss://127.0.0.1:8444/ws`.
+    ///
+    /// Like [`Peer::connect`], this doesn't perform the wallet protocol handshake.
     #[cfg(any(feature = "native-tls", feature = "rustls"))]
     pub async fn connect_full_uri(
         uri: &str,
@@ -83,8 +169,15 @@ impl Peer {
         Self::from_websocket(ws, options)
     }
 
-    /// Creates a peer from an existing websocket connection.
-    /// The connection must be secured with TLS, so that the certificate can be hashed in a peer id.
+    /// Creates a peer from an existing websocket connection, and returns it with the receiver
+    /// for messages that aren't responses to requests.
+    ///
+    /// The underlying stream can be plain TCP, or TLS from an enabled TLS feature. Otherwise,
+    /// [`ClientError::UnsupportedTls`] is returned. Full nodes only accept TLS connections.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called outside of a Tokio runtime, since it spawns the background task.
     pub fn from_websocket(
         ws: WebSocket,
         options: PeerOptions,
@@ -133,11 +226,15 @@ impl Peer {
         Ok((peer, receiver))
     }
 
-    /// The IP address and port of the peer connection.
+    /// The IP address and port of the peer.
     pub fn socket_addr(&self) -> SocketAddr {
         self.0.socket_addr
     }
 
+    /// Submits a spend bundle to the peer's mempool with `SendTransaction`.
+    ///
+    /// The [`TransactionAck`] says whether the transaction was accepted, and the error if
+    /// it wasn't. Acceptance doesn't mean that the transaction has been confirmed.
     pub async fn send_transaction(
         &self,
         spend_bundle: SpendBundle,
@@ -146,6 +243,17 @@ impl Peer {
             .await
     }
 
+    /// Requests the state of coins with the given puzzle hashes with `RequestPuzzleState`.
+    ///
+    /// Only coins that changed after `previous_height` are returned, or all coins if it's
+    /// [`None`]. The `header_hash` must be the header hash of the block at `previous_height`,
+    /// or the genesis challenge if it's [`None`], so the peer can detect reorgs. The `filters`
+    /// choose which coins are included.
+    ///
+    /// Large results are split into pages. If the response's `is_finished` is `false`, request
+    /// the next page with the response's `height` and `header_hash`. If
+    /// `subscribe_when_finished` is `true`, the peer subscribes to updates for the puzzle
+    /// hashes once the last page is sent, and sends them to the receiver.
     pub async fn request_puzzle_state(
         &self,
         puzzle_hashes: Vec<Bytes32>,
@@ -164,6 +272,12 @@ impl Peer {
         .await
     }
 
+    /// Requests the state of the given coins with `RequestCoinState`.
+    ///
+    /// Only coins that changed after `previous_height` are returned, or all of them if it's
+    /// [`None`]. The `header_hash` must be the header hash of the block at `previous_height`,
+    /// or the genesis challenge if it's [`None`]. If `subscribe` is `true`, the peer also
+    /// sends updates for the coins to the receiver.
     pub async fn request_coin_state(
         &self,
         coin_ids: Vec<Bytes32>,
@@ -180,6 +294,11 @@ impl Peer {
         .await
     }
 
+    /// Subscribes to updates for coins with the given puzzle hashes with `RegisterForPhUpdates`,
+    /// and returns the state of those coins that changed since `min_height`.
+    ///
+    /// Later updates are sent to the receiver as `CoinStateUpdate` messages. Prefer
+    /// [`Peer::request_puzzle_state`], which supports paging.
     pub async fn register_for_ph_updates(
         &self,
         puzzle_hashes: Vec<Bytes32>,
@@ -189,6 +308,10 @@ impl Peer {
             .await
     }
 
+    /// Subscribes to updates for the given coins with `RegisterForCoinUpdates`, and returns
+    /// the state of those coins that changed since `min_height`.
+    ///
+    /// Later updates are sent to the receiver as `CoinStateUpdate` messages.
     pub async fn register_for_coin_updates(
         &self,
         coin_ids: Vec<Bytes32>,
@@ -198,6 +321,8 @@ impl Peer {
             .await
     }
 
+    /// Unsubscribes from updates for the given puzzle hashes, or from all puzzle hashes if
+    /// `puzzle_hashes` is [`None`].
     pub async fn remove_puzzle_subscriptions(
         &self,
         puzzle_hashes: Option<Vec<Bytes32>>,
@@ -206,6 +331,8 @@ impl Peer {
             .await
     }
 
+    /// Unsubscribes from updates for the given coins, or from all coins if `coin_ids` is
+    /// [`None`].
     pub async fn remove_coin_subscriptions(
         &self,
         coin_ids: Option<Vec<Bytes32>>,
@@ -214,6 +341,8 @@ impl Peer {
             .await
     }
 
+    /// Requests the spend bundle with the given transaction id from the peer's mempool with
+    /// `RequestTransaction`.
     pub async fn request_transaction(
         &self,
         transaction_id: Bytes32,
@@ -222,6 +351,10 @@ impl Peer {
             .await
     }
 
+    /// Requests the puzzle reveal and solution of a spent coin with `RequestPuzzleSolution`.
+    ///
+    /// The `height` must be the height of the block that spent the coin, otherwise the request
+    /// is rejected.
     pub async fn request_puzzle_and_solution(
         &self,
         coin_id: Bytes32,
@@ -238,15 +371,19 @@ impl Peer {
         }
     }
 
+    /// Requests the state of the coins created by spending the given coin with
+    /// `RequestChildren`.
     pub async fn request_children(&self, coin_id: Bytes32) -> Result<RespondChildren, ClientError> {
         self.request_infallible(RequestChildren::new(coin_id)).await
     }
 
+    /// Requests the addresses of other full nodes that the peer knows about with
+    /// `RequestPeers`.
     pub async fn request_peers(&self) -> Result<RespondPeers, ClientError> {
         self.request_infallible(RequestPeers::new()).await
     }
 
-    /// Sends a message to the peer, but does not expect any response.
+    /// Sends a message to the peer without a request id, and doesn't wait for a response.
     pub async fn send<T>(&self, body: T) -> Result<(), ClientError>
     where
         T: Streamable + ChiaProtocolMessage,
@@ -261,7 +398,10 @@ impl Peer {
         Ok(())
     }
 
-    /// Sends a message to the peer and expects a message that's either a response or a rejection.
+    /// Sends a request to the peer and waits for a response of type `T` or a rejection of
+    /// type `E`.
+    ///
+    /// Returns [`ClientError::InvalidResponse`] if the peer responds with any other message type.
     pub async fn request_fallible<T, E, B>(&self, body: B) -> Result<Response<T, E>, ClientError>
     where
         T: Streamable + ChiaProtocolMessage,
@@ -282,7 +422,9 @@ impl Peer {
         }
     }
 
-    /// Sends a message to the peer and expects a specific response message.
+    /// Sends a request to the peer and waits for a response of type `T`.
+    ///
+    /// Returns [`ClientError::InvalidResponse`] if the peer responds with any other message type.
     pub async fn request_infallible<T, B>(&self, body: B) -> Result<T, ClientError>
     where
         T: Streamable + ChiaProtocolMessage,
@@ -298,7 +440,9 @@ impl Peer {
         Ok(T::from_bytes(&message.data)?)
     }
 
-    /// Sends a message to the peer and expects any arbitrary protocol message without parsing it.
+    /// Sends a request to the peer and returns the response message without parsing it.
+    ///
+    /// The request is assigned an unused request id, and the response is matched to it by id.
     pub async fn request_raw<T>(&self, body: T) -> Result<Message, ClientError>
     where
         T: Streamable + ChiaProtocolMessage,
@@ -339,6 +483,9 @@ impl Peer {
         }
     }
 
+    /// Closes the websocket connection.
+    ///
+    /// This affects every clone of the peer, and messages can't be sent afterwards.
     pub async fn close(&self) -> Result<(), ClientError> {
         self.0.sink.lock().await.close().await?;
         Ok(())

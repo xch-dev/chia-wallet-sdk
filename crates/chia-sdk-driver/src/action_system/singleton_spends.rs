@@ -32,6 +32,7 @@ impl<A> SingletonSpends<A>
 where
     A: SingletonAsset,
 {
+    /// Creates a lineage with a single spend of the singleton.
     pub fn new(asset: A, ephemeral: bool) -> Self {
         Self {
             lineage: vec![SingletonSpend::new(asset)],
@@ -207,6 +208,7 @@ pub struct SingletonSpend<A>
 where
     A: SingletonAsset,
 {
+    /// The singleton coin being spent.
     pub asset: A,
     /// What the singleton's p2 puzzle will output, which depends on whether it's a settlement coin.
     pub kind: SpendKind,
@@ -606,8 +608,11 @@ pub enum SingletonDestination {
 /// The changes that actions have made to a DID's child.
 #[derive(Debug, Clone)]
 pub struct ChildDidInfo {
+    /// The child's recovery list hash.
     pub recovery_list_hash: Option<Bytes32>,
+    /// The child's number of verifications required for recovery.
     pub num_verifications_required: u64,
+    /// The child's metadata.
     pub metadata: HashedPtr,
     /// Where the DID is sent, or `None` to send it to the change puzzle hash.
     pub destination: Option<SingletonDestination>,

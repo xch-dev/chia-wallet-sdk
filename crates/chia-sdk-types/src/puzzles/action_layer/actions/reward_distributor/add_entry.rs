@@ -7,6 +7,13 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+/// Serialized reward distributor add entry action, used by managed distributors.
+///
+/// Adds an entry with a positive number of shares, which starts earning rewards at the
+/// current cumulative payout. The manager singleton must send a puzzle-to-puzzle message
+/// of `"a"` followed by the tree hash of `(payout_puzzle_hash . shares)`. The action
+/// increases the active shares and creates an entry slot hinted to the payout puzzle
+/// hash.
 pub const REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE: [u8; 533] = hex!(
     // Rue
     "
@@ -30,26 +37,40 @@ pub const REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE: [u8; 533] = hex!(
     "
 );
 
+/// Tree hash of [`REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE`].
 pub const REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
     9a25633bc5b34abc08bf75b62ad5d44caa37270065161c1800189aabe2ae45ec
     "
 ));
 
+/// Curried arguments of the add entry action ([`REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE`]).
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct RewardDistributorAddEntryActionArgs {
+    /// Mod hash of the singleton top layer.
     pub singleton_mod_hash: Bytes32,
+    /// Tree hash of the manager singleton's [`SingletonStruct`](chia_puzzle_types::singleton::SingletonStruct).
     pub manager_singleton_struct_hash: Bytes32,
+    /// Hash of the slot puzzle after its first curry for entry slots
+    /// ([`RewardDistributorSlotNonce::ENTRY`](crate::puzzles::RewardDistributorSlotNonce::ENTRY)).
     pub entry_slot_1st_curry_hash: Bytes32,
+    /// Maximum number of seconds since the distributor's last update. The action asserts
+    /// that the spend happens before `last_update + max_second_offset`, so entries can't be
+    /// changed with stale reward accounting.
     pub max_second_offset: u64,
 }
 
+/// Solution to the add entry action.
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorAddEntryActionSolution {
+    /// Puzzle hash that receives the new entry's rewards.
     pub entry_payout_puzzle_hash: Bytes32,
+    /// Number of shares of the new entry. Must be positive.
     pub entry_shares: u64,
+    /// Inner puzzle hash of the manager singleton's coin, used to verify the message's
+    /// sender.
     #[clvm(rest)]
     pub manager_singleton_inner_puzzle_hash: Bytes32,
 }

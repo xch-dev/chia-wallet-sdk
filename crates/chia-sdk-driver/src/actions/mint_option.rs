@@ -19,6 +19,7 @@ pub struct MintOptionAction {
     pub seconds: u64,
     /// The asset locked in the option, which can be XCH, a CAT, or an NFT.
     pub underlying_id: Id,
+    /// The amount of the underlying asset to lock. For an NFT, this must be the NFT's amount.
     pub underlying_amount: u64,
     /// What must be paid to the creator to exercise the option.
     pub strike_type: OptionType,
@@ -27,6 +28,7 @@ pub struct MintOptionAction {
 }
 
 impl MintOptionAction {
+    /// Creates the action. See [`Action::mint_option`](crate::Action::mint_option).
     pub fn new(
         creator_puzzle_hash: Bytes32,
         seconds: u64,

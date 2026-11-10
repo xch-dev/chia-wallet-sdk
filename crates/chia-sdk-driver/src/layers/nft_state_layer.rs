@@ -21,6 +21,7 @@ pub struct NftStateLayer<M, I> {
 }
 
 impl<M, I> NftStateLayer<M, I> {
+    /// Creates an [`NftStateLayer`] from its metadata, metadata updater, and inner puzzle.
     pub fn new(metadata: M, metadata_updater_puzzle_hash: Bytes32, inner_puzzle: I) -> Self {
         Self {
             metadata,
@@ -29,6 +30,7 @@ impl<M, I> NftStateLayer<M, I> {
         }
     }
 
+    /// Replaces the metadata, which can change its type.
     pub fn with_metadata<N>(self, metadata: N) -> NftStateLayer<N, I> {
         NftStateLayer {
             metadata,

@@ -3,18 +3,47 @@ use std::fmt::Debug;
 use chia_protocol::Bytes32;
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 
-/// Canonical Handle NFT on-chain metadata.
+/// Canonical on-chain metadata of an `XCHandles` handle NFT.
 ///
-/// Contains only `dn`, `u`/`h`, `mu`/`mh`, and `lu`/`lh`. The default value
-/// serializes as exact CLVM nil and parses nil successfully.
+/// It is encoded as a CLVM list of `(key . value)` pairs containing only `dn`, `u`/`h`,
+/// `mu`/`mh`, and `lu`/`lh`, in that order. Empty URI lists and `None` values are
+/// omitted, so the default value serializes as exactly CLVM nil and parsing nil returns
+/// the default. Unknown keys are ignored when parsing.
+///
+/// # Example
+///
+/// ```rust
+/// use chia_sdk_types::puzzles::HandleNftMetadata;
+/// use clvm_traits::{FromClvm, ToClvm};
+/// use clvmr::{Allocator, serde::node_to_bytes};
+///
+/// let mut allocator = Allocator::new();
+/// let ptr = HandleNftMetadata::default().to_clvm(&mut allocator)?;
+/// assert_eq!(node_to_bytes(&allocator, ptr)?, [0x80]);
+///
+/// let metadata = HandleNftMetadata {
+///     display_name: Some("alice".to_string()),
+///     ..Default::default()
+/// };
+/// let ptr = metadata.to_clvm(&mut allocator)?;
+/// assert_eq!(HandleNftMetadata::from_clvm(&allocator, ptr)?, metadata);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct HandleNftMetadata {
+    /// Display name of the handle (key `dn`).
     pub display_name: Option<String>,
+    /// Image URIs (key `u`).
     pub image_uris: Vec<String>,
+    /// Hash of the image (key `h`).
     pub image_hash: Option<Bytes32>,
+    /// Off-chain metadata URIs (key `mu`).
     pub metadata_uris: Vec<String>,
+    /// Hash of the off-chain metadata (key `mh`).
     pub metadata_hash: Option<Bytes32>,
+    /// License URIs (key `lu`).
     pub license_uris: Vec<String>,
+    /// Hash of the license (key `lh`).
     pub license_hash: Option<Bytes32>,
 }
 
