@@ -28,7 +28,7 @@ use clvmr::NodePtr;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
-use crate::{Id, SettlementPayer};
+use crate::{DriverError, Id, SettlementPayer};
 
 /// Transport-agnostic input to the silent-payment scanner.
 ///
@@ -182,8 +182,13 @@ impl DetectedSpCoin {
     /// This is the only step of receiving a silent payment that needs the spend
     /// secret key. The coin is locked to the standard puzzle, so it is spent
     /// with the synthetic key of the result (`derive_synthetic()`).
-    #[must_use]
-    pub fn onetime_sk(&self, spend_sk: &SecretKey) -> SecretKey {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
+    /// below the group order `r`. The tweak of a detection returned by
+    /// `scan_from_tweaks` always is.
+    pub fn onetime_sk(&self, spend_sk: &SecretKey) -> Result<SecretKey, DriverError> {
         derive_onetime_sk(spend_sk, &self.tweak)
     }
 }
@@ -266,6 +271,30 @@ mod tests {
             result.is_err(),
             "PublicKey::from_bytes(&[0xff; 48]) must reject"
         );
+    }
+
+    /// A detection built by hand can carry a tweak that is not below `r`;
+    /// `onetime_sk` reports it instead of panicking.
+    #[test]
+    fn detection_onetime_sk_rejects_scalar_not_below_r() {
+        use super::DetectedSpCoin;
+        use chia_sdk_types::silent_payments::ScalarField;
+
+        let detection = DetectedSpCoin {
+            coin_id: [1u8; 32].into(),
+            puzzle_hash: [2u8; 32].into(),
+            amount: 42,
+            parent_coin_id: [3u8; 32].into(),
+            k: 0,
+            label: None,
+            tweak: ScalarField::from_bytes_raw([0xff; 32]),
+            wrapper: None,
+        };
+        let spend_sk = chia_bls::SecretKey::from_seed(&[7u8; 32]);
+        assert!(matches!(
+            detection.onetime_sk(&spend_sk),
+            Err(crate::DriverError::SilentPaymentScalarOutOfRange)
+        ));
     }
 
     /// `Debug` on a detection shows the coin but not the tweak.

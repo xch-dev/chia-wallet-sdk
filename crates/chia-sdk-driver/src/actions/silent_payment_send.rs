@@ -421,7 +421,7 @@ mod silent_payment_tests {
         let alice_sks = vec![alice.sk.clone()];
         let aggregated_sender_sk = aggregate_sender_sks(&alice_sks)?;
         let agg_pk = aggregated_sender_sk.public_key();
-        let input_hash = compute_input_hash(&[alice.coin.coin_id()], &agg_pk);
+        let input_hash = compute_input_hash(&[alice.coin.coin_id()], &agg_pk)?;
         let expected_ph = derive_one_time_puzzle_hash(
             &scan_pk,
             &spend_pk,
@@ -602,7 +602,7 @@ mod silent_payment_tests {
         let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
         let agg_pk = aggregated_sender_sk.public_key();
         let coin_ids = vec![alice.coin.coin_id(), bob.coin.coin_id()];
-        let input_hash = compute_input_hash(&coin_ids, &agg_pk);
+        let input_hash = compute_input_hash(&coin_ids, &agg_pk)?;
         let expected_ph = derive_one_time_puzzle_hash(
             &scan_pk,
             &spend_pk,

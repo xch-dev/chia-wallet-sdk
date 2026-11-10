@@ -231,7 +231,11 @@ fn scan_group(
             break;
         }
 
-        let candidate_pk = derive_onetime_pk(spend_pk, &output_tweak);
+        // A tweak from `derive_output_tweak` is always below `r`; one that is
+        // not ends the scan of this group like a zero tweak.
+        let Ok(candidate_pk) = derive_onetime_pk(spend_pk, &output_tweak) else {
+            break;
+        };
         let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
 
         // The unlabeled candidate, bare and under every wrapper at once.
@@ -400,7 +404,7 @@ mod tests {
         // The detection carries t_0; the one-time key needs the spend key.
         assert_eq!(detection.tweak.to_bytes(), TV1_T0, "TV1 t_0 mismatch");
         assert_eq!(
-            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).unwrap().to_bytes(),
             TV1_ONETIME_SK,
             "TV1 onetime_sk mismatch"
         );
@@ -440,7 +444,7 @@ mod tests {
         assert!(detection.label.is_none());
         assert_eq!(detection.puzzle_hash, Bytes32::from(TV4_PUZZLE_HASH));
         assert_eq!(
-            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).unwrap().to_bytes(),
             TV4_ONETIME_SK,
             "TV4 onetime_sk mismatch"
         );
@@ -546,7 +550,7 @@ mod tests {
             ScalarField::from_bytes_raw(TV3_T0).add(&ScalarField::from_bytes_raw(TV3_LABEL_SCALAR));
         assert_eq!(detection.tweak.to_bytes(), expected_tweak.to_bytes());
         assert_eq!(
-            detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+            detection.onetime_sk(&sk(TV1_SPEND_SK)).unwrap().to_bytes(),
             TV3_LABELED_ONETIME_SK,
             "TV3 labeled onetime_sk mismatch"
         );
@@ -568,9 +572,9 @@ mod tests {
         // own protocol primitives.
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
         let t1 = derive_output_tweak(&shared_secret, 1);
-        let expected_onetime_pk = derive_onetime_pk(&b_spend_pub, &t1);
+        let expected_onetime_pk = derive_onetime_pk(&b_spend_pub, &t1).unwrap();
         let expected_ph_k1 = puzzle_hash_for_pk(&expected_onetime_pk);
-        let expected_secret_k1 = derive_onetime_sk(&b_spend, &t1);
+        let expected_secret_k1 = derive_onetime_sk(&b_spend, &t1).unwrap();
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -608,7 +612,7 @@ mod tests {
         assert!(sorted[1].label.is_none());
         assert_eq!(sorted[1].puzzle_hash, expected_ph_k1);
         assert_eq!(
-            sorted[1].onetime_sk(&b_spend).to_bytes(),
+            sorted[1].onetime_sk(&b_spend).unwrap().to_bytes(),
             expected_secret_k1.to_bytes(),
             "k=1 onetime_sk must equal (b_spend + t_1) mod r"
         );
@@ -630,7 +634,7 @@ mod tests {
         // Build the labeled puzzle_hash at k=1: candidate_pk_at_k1 + label_pk(m=1).
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
         let t1 = derive_output_tweak(&shared_secret, 1);
-        let candidate_pk_k1 = derive_onetime_pk(&b_spend_pub, &t1);
+        let candidate_pk_k1 = derive_onetime_pk(&b_spend_pub, &t1).unwrap();
         let (_, label_pk_m1) = generate_label(&b_scan, 1);
         let labeled_pk_k1 = candidate_pk_k1 + &label_pk_m1;
         let labeled_hash_k1 = puzzle_hash_for_pk(&labeled_pk_k1);
@@ -737,7 +741,7 @@ mod tests {
         let outputs: Vec<OutputMeta> = (0..N_FORGED)
             .map(|k| {
                 let tweak = derive_output_tweak(&shared_secret, k);
-                let onetime_pk = derive_onetime_pk(&b_spend_pub, &tweak);
+                let onetime_pk = derive_onetime_pk(&b_spend_pub, &tweak).unwrap();
                 let ph = puzzle_hash_for_pk(&onetime_pk);
                 OutputMeta {
                     puzzle_hash: ph,
@@ -820,10 +824,13 @@ mod tests {
         // Outputs at k = 0, 1 and 2.
         let outputs: Vec<OutputMeta> = (0..3u8)
             .map(|k| OutputMeta {
-                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
-                    &b_spend_pub,
-                    &derive_output_tweak(&shared_secret, u32::from(k)),
-                )),
+                puzzle_hash: puzzle_hash_for_pk(
+                    &derive_onetime_pk(
+                        &b_spend_pub,
+                        &derive_output_tweak(&shared_secret, u32::from(k)),
+                    )
+                    .unwrap(),
+                ),
                 coin_id: [k; 32].into(),
                 amount: 1,
                 parent_coin_id: [0u8; 32].into(),
@@ -925,7 +932,8 @@ mod tests {
         let b_spend = sk(TV1_SPEND_SK);
         let expected = [TV1_ONETIME_SK, TV3_LABELED_ONETIME_SK];
         for ((tweak, puzzle_hash), expected_sk) in handed_over.into_iter().zip(expected) {
-            let onetime_sk = derive_onetime_sk(&b_spend, &ScalarField::from_bytes_unsigned(tweak));
+            let onetime_sk =
+                derive_onetime_sk(&b_spend, &ScalarField::from_bytes_unsigned(tweak)).unwrap();
             assert_eq!(onetime_sk.to_bytes(), expected_sk);
             assert_eq!(puzzle_hash_for_pk(&onetime_sk.public_key()), puzzle_hash);
         }
@@ -962,10 +970,9 @@ mod tests {
         // Any output the invalid point would "pay" must not be reported: build
         // the puzzle hash a scanner would derive from it if it did not check.
         let leaked_secret = compute_shared_secret_from_tweak(&sk(TV1_SCAN_SK), &off_subgroup);
-        let leaked_ph = puzzle_hash_for_pk(&derive_onetime_pk(
-            &pk(TV1_SPEND_PK),
-            &derive_output_tweak(&leaked_secret, 0),
-        ));
+        let leaked_ph = puzzle_hash_for_pk(
+            &derive_onetime_pk(&pk(TV1_SPEND_PK), &derive_output_tweak(&leaked_secret, 0)).unwrap(),
+        );
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -1002,10 +1009,9 @@ mod tests {
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
-        let ph_k1 = puzzle_hash_for_pk(&derive_onetime_pk(
-            &b_spend_pub,
-            &derive_output_tweak(&shared_secret, 1),
-        ));
+        let ph_k1 = puzzle_hash_for_pk(
+            &derive_onetime_pk(&b_spend_pub, &derive_output_tweak(&shared_secret, 1)).unwrap(),
+        );
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -1088,7 +1094,7 @@ mod tests {
             assert_eq!(detection.k, 0);
             assert_eq!(detection.label, Some(1));
             assert_eq!(
-                detection.onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+                detection.onetime_sk(&sk(TV1_SPEND_SK)).unwrap().to_bytes(),
                 TV3_LABELED_ONETIME_SK
             );
         }
@@ -1137,7 +1143,10 @@ mod tests {
             assert_eq!(detections[0].label, Some(0));
             assert_eq!(detections[0].puzzle_hash, Bytes32::from(TV7_PUZZLE_HASH));
             assert_eq!(
-                detections[0].onetime_sk(&sk(TV1_SPEND_SK)).to_bytes(),
+                detections[0]
+                    .onetime_sk(&sk(TV1_SPEND_SK))
+                    .unwrap()
+                    .to_bytes(),
                 TV7_ONETIME_SK
             );
         }
@@ -1173,10 +1182,9 @@ mod tests {
         let data = tv7_data();
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &data.tweak_points[0]);
 
-        let unlabeled = puzzle_hash_for_pk(&derive_onetime_pk(
-            &b_spend_pub,
-            &derive_output_tweak(&shared_secret, 0),
-        ));
+        let unlabeled = puzzle_hash_for_pk(
+            &derive_onetime_pk(&b_spend_pub, &derive_output_tweak(&shared_secret, 0)).unwrap(),
+        );
         assert_eq!(unlabeled, Bytes32::from(TV7_UNLABELED_CANDIDATE));
 
         let outputs = index_outputs(&data.outputs);
@@ -1223,10 +1231,10 @@ mod tests {
         // Outputs at every index from 0 through K_max (one more than allowed).
         let outputs: Vec<OutputMeta> = (0..=K_MAX)
             .map(|k| OutputMeta {
-                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
-                    &b_spend_pub,
-                    &derive_output_tweak(&shared_secret, k),
-                )),
+                puzzle_hash: puzzle_hash_for_pk(
+                    &derive_onetime_pk(&b_spend_pub, &derive_output_tweak(&shared_secret, k))
+                        .unwrap(),
+                ),
                 coin_id: Bytes32::from([0u8; 32]),
                 amount: u64::from(k),
                 parent_coin_id: [0u8; 32].into(),
@@ -1264,10 +1272,10 @@ mod tests {
             .iter()
             .zip(0u32..)
             .map(|(&amount, k)| OutputMeta {
-                puzzle_hash: puzzle_hash_for_pk(&derive_onetime_pk(
-                    &b_spend_pub,
-                    &derive_output_tweak(&shared_secret, k),
-                )),
+                puzzle_hash: puzzle_hash_for_pk(
+                    &derive_onetime_pk(&b_spend_pub, &derive_output_tweak(&shared_secret, k))
+                        .unwrap(),
+                ),
                 coin_id: [u8::try_from(k).unwrap(); 32].into(),
                 amount,
                 parent_coin_id: [0u8; 32].into(),
@@ -1329,10 +1337,13 @@ mod tests {
         }
 
         fn candidate(&self, k: u32) -> Bytes32 {
-            puzzle_hash_for_pk(&derive_onetime_pk(
-                &self.b_spend_pub,
-                &derive_output_tweak(&self.shared_secret, k),
-            ))
+            puzzle_hash_for_pk(
+                &derive_onetime_pk(
+                    &self.b_spend_pub,
+                    &derive_output_tweak(&self.shared_secret, k),
+                )
+                .unwrap(),
+            )
         }
 
         fn scan(
@@ -1536,7 +1547,8 @@ mod tests {
         labels.register(&tv1.b_scan, 1);
         let (label_scalar, label_pk) = generate_label(&tv1.b_scan, 1);
         let t0 = derive_output_tweak(&tv1.shared_secret, 0);
-        let labeled = puzzle_hash_for_pk(&(derive_onetime_pk(&tv1.b_spend_pub, &t0) + &label_pk));
+        let labeled =
+            puzzle_hash_for_pk(&(derive_onetime_pk(&tv1.b_spend_pub, &t0).unwrap() + &label_pk));
 
         let found = tv1.scan(
             vec![meta(w2().wrap(labeled), 1)],
@@ -1600,7 +1612,7 @@ mod tests {
         );
         // The one-time key controls the bare puzzle hash.
         assert_eq!(
-            puzzle_hash_for_pk(&found[0].onetime_sk(&sk(TV1_SPEND_SK)).public_key()),
+            puzzle_hash_for_pk(&found[0].onetime_sk(&sk(TV1_SPEND_SK)).unwrap().public_key()),
             p
         );
     }

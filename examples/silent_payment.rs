@@ -104,7 +104,7 @@ fn main() -> Result<()> {
     //    is spent with the synthetic key of the one-time key, leaving
     //    (amount - 1) and a 1-mojo fee.
     for d in &detections {
-        let synthetic_secret = d.onetime_sk(recipient.spend_sk()).derive_synthetic();
+        let synthetic_secret = d.onetime_sk(recipient.spend_sk())?.derive_synthetic();
         let conditions = Conditions::new()
             .create_coin(sender.puzzle_hash, d.amount - 1, Memos::None)
             .reserve_fee(1);
@@ -185,7 +185,7 @@ fn main() -> Result<()> {
 
     // Stage 9: spend the detected multi-input coin.
     for d in &detections_multi {
-        let synthetic_secret = d.onetime_sk(recipient.spend_sk()).derive_synthetic();
+        let synthetic_secret = d.onetime_sk(recipient.spend_sk())?.derive_synthetic();
         let conditions = Conditions::new()
             .create_coin(sender_a.puzzle_hash, d.amount - 1, Memos::None)
             .reserve_fee(1);

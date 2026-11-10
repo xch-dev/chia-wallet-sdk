@@ -138,7 +138,10 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
 
     // Spend the detected coin. Scanning used only the scan secret key and the
     // spend public key; the spend secret key is first needed here.
-    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(recipient.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -251,7 +254,10 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     assert_eq!(detected.amount, 1000);
 
     // Spend the detected coin.
-    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(recipient.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(a.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -377,7 +383,10 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     // Follow-on spend (labeled): the detection's tweak already includes the
     // label scalar, so the one-time key is derived exactly as in the unlabeled
     // case.
-    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(recipient.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -801,7 +810,10 @@ fn test_simulator_e2e_change_address() -> Result<()> {
     assert_eq!(detected.label, Some(0), "change is reported as label 0");
     assert_eq!(detected.amount, 250);
 
-    let synthetic_secret = detected.onetime_sk(wallet.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(wallet.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let conditions = Conditions::new()
         .create_coin(sender.puzzle_hash, detected.amount - 1, Memos::None)
         .reserve_fee(1);
@@ -921,7 +933,7 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
 
     // The one-time puzzle hash of k = 0, from the CAT coin's own ID and key:
     // the CAT coin spent alone is a single-input spend group.
-    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk);
+    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk).unwrap();
     let p = derive_one_time_puzzle_hash(
         recipient.scan_pk(),
         recipient.spend_pk(),
@@ -984,7 +996,10 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
     );
 
     // Spend the detected CAT coin with the one-time key, through its CAT layer.
-    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(recipient.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let onetime_p2 = StandardLayer::new(synthetic_secret.public_key());
     let back = ctx.hint(sender.puzzle_hash)?;
     let inner = onetime_p2.spend_with_conditions(
@@ -1113,7 +1128,10 @@ fn spend_detected_cat(
     destination: Bytes32,
 ) -> Result<()> {
     assert_eq!(detected.coin(), paid.coin);
-    let synthetic_secret = detected.onetime_sk(recipient.spend_sk()).derive_synthetic();
+    let synthetic_secret = detected
+        .onetime_sk(recipient.spend_sk())
+        .unwrap()
+        .derive_synthetic();
     let onetime_p2 = StandardLayer::new(synthetic_secret.public_key());
     assert_eq!(
         Bytes32::from(StandardArgs::curry_tree_hash(synthetic_secret.public_key())),
@@ -1166,7 +1184,7 @@ fn test_simulator_e2e_cat_payment() -> Result<()> {
     sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
 
     // p over [the CAT coin's ID] and its key.
-    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk);
+    let input_hash = compute_input_hash(&[cat.coin.coin_id()], &sender.pk).unwrap();
     let p = derive_one_time_puzzle_hash(
         recipient.scan_pk(),
         recipient.spend_pk(),
@@ -1295,7 +1313,7 @@ fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<
     // One key sum and one input hash over both coins, whatever their asset.
     let coin_ids = [a.coin.coin_id(), cat.coin.coin_id()];
     let a_sum = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone()])?;
-    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key()).unwrap();
     let p: [Bytes32; 2] = [
         derive_one_time_puzzle_hash(
             recipient.scan_pk(),
@@ -1387,6 +1405,7 @@ fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<
     )?;
     let synthetic_secret = xch_detection
         .onetime_sk(recipient.spend_sk())
+        .unwrap()
         .derive_synthetic();
     StandardLayer::new(synthetic_secret.public_key()).spend(
         &mut ctx,
@@ -1485,7 +1504,7 @@ fn test_two_cat_coins_of_one_asset_group_with_the_first() -> Result<()> {
         recipient.scan_pk(),
         recipient.spend_pk(),
         &a_sum,
-        &compute_input_hash(&group, &a_sum.public_key()),
+        &compute_input_hash(&group, &a_sum.public_key()).unwrap(),
         0,
     )?;
     let all_three = [a.coin.coin_id(), c1.coin.coin_id(), c2.coin.coin_id()];
@@ -1494,7 +1513,7 @@ fn test_two_cat_coins_of_one_asset_group_with_the_first() -> Result<()> {
         recipient.scan_pk(),
         recipient.spend_pk(),
         &a_sum_3,
-        &compute_input_hash(&all_three, &a_sum_3.public_key()),
+        &compute_input_hash(&all_three, &a_sum_3.public_key()).unwrap(),
         0,
     )?;
     assert_ne!(p, p_all_three);
@@ -1575,7 +1594,7 @@ fn test_cat_only_group_of_two_assets() -> Result<()> {
     // One term per coin, even though both coins have the same key.
     let coin_ids = [cat1.coin.coin_id(), cat2.coin.coin_id()];
     let a_sum = aggregate_sender_sks(&[b.sk.clone(), b.sk.clone()])?;
-    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key()).unwrap();
     let p0 = derive_one_time_puzzle_hash(
         recipient.scan_pk(),
         recipient.spend_pk(),
@@ -1694,7 +1713,7 @@ fn test_revocable_cat_holder_path_payment() -> Result<()> {
         recipient.scan_pk(),
         recipient.spend_pk(),
         &sender.sk,
-        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk),
+        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk).unwrap(),
         0,
     )?;
     assert_eq!(
@@ -1751,7 +1770,7 @@ fn test_cat_change_is_a_standard_cat_change() -> Result<()> {
         recipient.scan_pk(),
         recipient.spend_pk(),
         &sender.sk,
-        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk),
+        &compute_input_hash(&[cat.coin.coin_id()], &sender.pk).unwrap(),
         0,
     )?;
     assert_eq!(
@@ -2275,7 +2294,7 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
     // The parties' one-time puzzle hashes, with the protocol functions.
     let coin_ids = [a.coin.coin_id(), b.coin.coin_id()];
     let a_sum = aggregate_sender_sks(&[a.sk.clone(), b.sk.clone()])?;
-    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key()).unwrap();
     let maker_p = [
         derive_one_time_puzzle_hash(maker.scan_pk(), maker.spend_pk(), &a_sum, &input_hash, 0)?,
         derive_one_time_puzzle_hash(
@@ -2286,7 +2305,7 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
             1,
         )?,
     ];
-    let taker_input_hash = compute_input_hash(&[taker_cat.coin.coin_id()], &taker.pk);
+    let taker_input_hash = compute_input_hash(&[taker_cat.coin.coin_id()], &taker.pk).unwrap();
     let taker_p = [
         derive_one_time_puzzle_hash(
             taker_keys.scan_pk(),
@@ -2610,6 +2629,7 @@ fn check_taker_paid_silently(block: &mut OfferBlock, xch_amount: u64) -> Result<
     // Both are spent with their one-time keys.
     let synthetic_secret = payment
         .onetime_sk(block.taker_keys.spend_sk())
+        .unwrap()
         .derive_synthetic();
     StandardLayer::new(synthetic_secret.public_key()).spend(
         &mut block.ctx,

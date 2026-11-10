@@ -777,7 +777,7 @@ mod tests {
         // is PRESENT and byte-invariant across runs regardless of emission index.
         let mut legit_a_sum = pk_a;
         legit_a_sum += &pk_b;
-        let legit_input_hash = compute_input_hash(&[id_a, id_b], &legit_a_sum);
+        let legit_input_hash = compute_input_hash(&[id_a, id_b], &legit_a_sum).unwrap();
         let mut legit_point = legit_a_sum;
         legit_point.scalar_multiply(&legit_input_hash.to_bytes());
         let legit = legit_point.to_bytes();
@@ -884,7 +884,7 @@ mod tests {
         let mut a_sum = pk_dup;
         a_sum += &pk_dup;
         a_sum += &pk_solo;
-        let input_hash = compute_input_hash(&[id_dup1, id_dup2, id_solo], &a_sum);
+        let input_hash = compute_input_hash(&[id_dup1, id_dup2, id_solo], &a_sum).unwrap();
         let mut expected_point = a_sum;
         expected_point.scalar_multiply(&input_hash.to_bytes());
         let expected = expected_point.to_bytes();
@@ -929,7 +929,7 @@ mod tests {
 
         // Hand-compute the single-input send's Pass-1 singleton tweak_point.
         let single_a_sum = pk_send;
-        let single_input_hash = compute_input_hash(&[id_send], &single_a_sum);
+        let single_input_hash = compute_input_hash(&[id_send], &single_a_sum).unwrap();
         let mut single_point = single_a_sum;
         single_point.scalar_multiply(&single_input_hash.to_bytes());
         let expected_single = single_point.to_bytes();
@@ -1005,7 +1005,7 @@ mod tests {
         );
         for (pk, id) in [(pk_a, id_a), (pk_b, id_b)] {
             let expected =
-                tweak_point_from_input_hash(&pk, &compute_input_hash(&[id], &pk)).unwrap();
+                tweak_point_from_input_hash(&pk, &compute_input_hash(&[id], &pk).unwrap()).unwrap();
             assert!(td.tweak_points.contains(&expected));
         }
     }
@@ -1056,7 +1056,7 @@ mod tests {
                     a_sum += key;
                 }
                 let coin_ids: Vec<Bytes32> = group.iter().map(|(_, id)| *id).collect();
-                tweak_point_from_input_hash(&a_sum, &compute_input_hash(&coin_ids, &a_sum))
+                tweak_point_from_input_hash(&a_sum, &compute_input_hash(&coin_ids, &a_sum).unwrap())
                     .unwrap()
                     .to_bytes()
             })

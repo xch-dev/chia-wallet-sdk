@@ -114,7 +114,7 @@ fn send(
     k: u32,
 ) -> Sent {
     let a_sum = aggregate_sender_sks(sender_sks).unwrap();
-    let input_hash = compute_input_hash(coin_ids, &a_sum.public_key());
+    let input_hash = compute_input_hash(coin_ids, &a_sum.public_key()).unwrap();
 
     let mut ecdh_point = *scan_pk;
     ecdh_point.scalar_multiply(&a_sum.to_bytes());
@@ -122,7 +122,7 @@ fn send(
 
     let shared_secret = sha256(&ecdh_point.to_bytes());
     let tweak = derive_output_tweak(&shared_secret, k);
-    let onetime_pk = derive_onetime_pk(spend_pk, &tweak);
+    let onetime_pk = derive_onetime_pk(spend_pk, &tweak).unwrap();
     let puzzle_hash = puzzle_hash_for_pk(&onetime_pk);
 
     assert_eq!(
@@ -262,7 +262,7 @@ fn tv1_single_output_payment() {
     assert_eq!(detections[0].k, 0);
     assert_eq!(detections[0].label, None);
 
-    let onetime_sk = detections[0].onetime_sk(keys.spend_sk());
+    let onetime_sk = detections[0].onetime_sk(keys.spend_sk()).unwrap();
     assert_eq!(
         onetime_sk.to_bytes(),
         hex!("3c399c61ae130724903b3b650e936ff042b7646764289a33519e17100a89db37")
@@ -463,7 +463,7 @@ fn tv3_labeled_payment() {
     // Label detection: the base one-time key (B_spend, not B_m) does not match
     // the output; adding the label public key does.
     let tweak = ScalarField::from_bytes_raw(t_0);
-    let unlabeled_pk = derive_onetime_pk(keys.spend_pk(), &tweak);
+    let unlabeled_pk = derive_onetime_pk(keys.spend_pk(), &tweak).unwrap();
     assert_ne!(puzzle_hash_for_pk(&unlabeled_pk), sent.puzzle_hash);
     assert_eq!(
         puzzle_hash_for_pk(&(unlabeled_pk + &label_pk)),
@@ -483,12 +483,12 @@ fn tv3_labeled_payment() {
     assert_eq!(detections[0].label, Some(1));
 
     // Labeled spending key derivation.
-    let base_sk = derive_onetime_sk(keys.spend_sk(), &tweak);
+    let base_sk = derive_onetime_sk(keys.spend_sk(), &tweak).unwrap();
     assert_eq!(
         base_sk.to_bytes(),
         hex!("10021d8ab756b398cb4c4732864c264981e39a898e1ff4ea487b8f39f1bb6e77")
     );
-    let labeled_sk = detections[0].onetime_sk(keys.spend_sk());
+    let labeled_sk = detections[0].onetime_sk(keys.spend_sk()).unwrap();
     assert_eq!(
         labeled_sk.to_bytes(),
         hex!("58fc619583ff32e8e6e5cbe8587f4e1a395a04d538b132e5787d634cb64852dc")
@@ -527,16 +527,22 @@ fn tv4_multi_input_payment() {
     for coin_ids in [[coin_id_0, coin_id_1], [coin_id_1, coin_id_0]] {
         let coin_ids = coin_ids.map(Bytes32::from);
         assert_eq!(
-            compute_input_hash(&coin_ids, &pk(a_sum_pk)).to_bytes(),
+            compute_input_hash(&coin_ids, &pk(a_sum_pk))
+                .unwrap()
+                .to_bytes(),
             input_hash
         );
     }
     assert_eq!(
-        compute_input_hash(&[coin_id_1.into()], &pk(a_sum_pk)).to_bytes(),
+        compute_input_hash(&[coin_id_1.into()], &pk(a_sum_pk))
+            .unwrap()
+            .to_bytes(),
         input_hash
     );
     assert_ne!(
-        compute_input_hash(&[coin_id_0.into()], &pk(a_sum_pk)).to_bytes(),
+        compute_input_hash(&[coin_id_0.into()], &pk(a_sum_pk))
+            .unwrap()
+            .to_bytes(),
         input_hash
     );
 
@@ -590,7 +596,7 @@ fn tv4_multi_input_payment() {
         None,
     );
     assert_eq!(detections.len(), 1);
-    let onetime_sk = detections[0].onetime_sk(keys.spend_sk());
+    let onetime_sk = detections[0].onetime_sk(keys.spend_sk()).unwrap();
     assert_eq!(
         onetime_sk.to_bytes(),
         hex!("6ccc3e13145fd561e438d1bb82954cebb63cfa9577ea15404987aa8e0f309399")
@@ -672,7 +678,9 @@ fn tv6_two_outputs_to_one_recipient() {
     );
     let onetime_sk_1 = hex!("3b24defe2c06602f0881c526911c87905c90153d58b9c70ac207db36c0d1891f");
     assert_eq!(
-        derive_onetime_sk(keys.spend_sk(), &ScalarField::from_bytes_raw(t_1)).to_bytes(),
+        derive_onetime_sk(keys.spend_sk(), &ScalarField::from_bytes_raw(t_1))
+            .unwrap()
+            .to_bytes(),
         onetime_sk_1
     );
 
@@ -689,7 +697,10 @@ fn tv6_two_outputs_to_one_recipient() {
     let found: Vec<(u32, Bytes32)> = detections.iter().map(|d| (d.k, d.puzzle_hash)).collect();
     assert_eq!(found, vec![(0, first.puzzle_hash), (1, second.puzzle_hash)]);
     assert_eq!(
-        detections[1].onetime_sk(keys.spend_sk()).to_bytes(),
+        detections[1]
+            .onetime_sk(keys.spend_sk())
+            .unwrap()
+            .to_bytes(),
         onetime_sk_1
     );
     assert!(!found.iter().any(|(_, ph)| *ph == third.puzzle_hash));
@@ -774,10 +785,9 @@ fn tv7_change_output() {
 
     // Verification: the unlabeled candidate at k = 0 is a different puzzle
     // hash, which is not on chain.
-    let unlabeled = puzzle_hash_for_pk(&derive_onetime_pk(
-        keys.spend_pk(),
-        &ScalarField::from_bytes_raw(sent.tweak),
-    ));
+    let unlabeled = puzzle_hash_for_pk(
+        &derive_onetime_pk(keys.spend_pk(), &ScalarField::from_bytes_raw(sent.tweak)).unwrap(),
+    );
     assert_eq!(
         unlabeled,
         Bytes32::from(hex!(
@@ -795,7 +805,7 @@ fn tv7_change_output() {
     );
     assert_eq!(detections.len(), 1);
     assert_eq!(detections[0].label, Some(0));
-    let onetime_sk = detections[0].onetime_sk(keys.spend_sk());
+    let onetime_sk = detections[0].onetime_sk(keys.spend_sk()).unwrap();
     assert_eq!(
         onetime_sk.to_bytes(),
         hex!("254f5ce70b4870c4a9b2811bb36b0e79910a88b839a1c6771ab2d222cb0fd42a")

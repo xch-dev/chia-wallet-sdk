@@ -323,7 +323,7 @@ pub fn derive_settlement_outputs(
     }
 
     let a_sum = aggregate_sender_sks(&sender_sks)?;
-    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+    let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key())?;
 
     let mut counters: HashMap<[u8; 48], u32> = HashMap::new();
     let mut settlement_outputs = Vec::new();
@@ -572,7 +572,7 @@ mod tests {
                 .unwrap();
 
         let a_sum = aggregate_sender_sks(&sks).unwrap();
-        let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key());
+        let input_hash = compute_input_hash(&coin_ids, &a_sum.public_key()).unwrap();
         let p = |r: &SettlementRecipient, k| {
             derive_one_time_puzzle_hash(&r.scan_pk, &r.spend_pk, &a_sum, &input_hash, k).unwrap()
         };

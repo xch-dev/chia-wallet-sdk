@@ -1039,7 +1039,7 @@ fn sp_finish_branch(
     let aggregated_sender_sk = aggregate_sender_sks(&sender_sks)?;
     let agg_pk = aggregated_sender_sk.public_key();
 
-    let input_hash = compute_input_hash(&group_coin_ids, &agg_pk);
+    let input_hash = compute_input_hash(&group_coin_ids, &agg_pk)?;
     if input_hash.is_zero() {
         return Err(DriverError::SilentPaymentZeroInputHash);
     }

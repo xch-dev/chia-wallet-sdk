@@ -75,13 +75,19 @@ pub fn derive_output_tweak(shared_secret: &[u8; 32], k: u32) -> ScalarField {
 ///
 /// The `tweak` is treated as a 32-byte BLS-style secret key by
 /// `chia_bls::SecretKey::from_bytes` — this is exactly the canonical encoding
-/// `ScalarField::as_bytes` produces, so the round-trip is byte-clean. The
-/// `ScalarField::from_bytes_unsigned` boundary guarantees `tweak.as_bytes() < r`.
-#[must_use]
-pub fn derive_onetime_pk(spend_pk: &PublicKey, tweak: &ScalarField) -> PublicKey {
-    let tweak_secret = SecretKey::from_bytes(tweak.as_bytes())
-        .expect("ScalarField::from_bytes_unsigned guarantees value < r");
-    spend_pk + &tweak_secret.public_key()
+/// `ScalarField::as_bytes` produces, so the round-trip is byte-clean.
+///
+/// # Errors
+///
+/// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
+/// below the group order `r`. A tweak from [`derive_output_tweak`] or
+/// `ScalarField::from_bytes_unsigned` always is; one built with
+/// `ScalarField::from_bytes_raw` may not be.
+pub fn derive_onetime_pk(
+    spend_pk: &PublicKey,
+    tweak: &ScalarField,
+) -> Result<PublicKey, DriverError> {
+    Ok(spend_pk + &tweak_secret_key(tweak)?.public_key())
 }
 
 /// Derive the one-time secret key for an output: `onetime_sk = (spend_sk + tweak) mod r`.
@@ -89,11 +95,21 @@ pub fn derive_onetime_pk(spend_pk: &PublicKey, tweak: &ScalarField) -> PublicKey
 /// `tweak` is the combined tweak of a detection: `t_k`, plus the label scalar
 /// for a labeled output (CHIP-0057 "Spending"). The addition is `chia-bls`'s
 /// own constant-time secret-key addition.
-#[must_use]
-pub fn derive_onetime_sk(spend_sk: &SecretKey, tweak: &ScalarField) -> SecretKey {
-    let tweak_sk = SecretKey::from_bytes(tweak.as_bytes())
-        .expect("ScalarField::from_bytes_unsigned guarantees value < r");
-    spend_sk + &tweak_sk
+///
+/// # Errors
+///
+/// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
+/// below the group order `r` (see [`derive_onetime_pk`]).
+pub fn derive_onetime_sk(
+    spend_sk: &SecretKey,
+    tweak: &ScalarField,
+) -> Result<SecretKey, DriverError> {
+    Ok(spend_sk + &tweak_secret_key(tweak)?)
+}
+
+/// `tweak` as a `chia-bls` secret key, which accepts only values below `r`.
+fn tweak_secret_key(tweak: &ScalarField) -> Result<SecretKey, DriverError> {
+    SecretKey::from_bytes(tweak.as_bytes()).map_err(|_| DriverError::SilentPaymentScalarOutOfRange)
 }
 
 /// Compute the standard p2 puzzle hash for a one-time public key.
@@ -177,13 +193,10 @@ fn is_zero_key(sk: &SecretKey) -> bool {
 /// reconstructing the same group from the `ASSERT_CONCURRENT_SPEND` cycle that
 /// `Relation::AssertConcurrent` emits on multi-input bundles.
 ///
-/// # Panics
-/// Panics if `coin_ids` is empty. This is an internal invariant, not a
-/// reachable failure mode: every in-crate caller (`Spends::finish_with_keys`
-/// via the chip-0057 SP finish branch, and `tweak_data_from_block_spends`)
-/// passes a non-empty XCH-input set, and the bindings facade rejects empty
-/// input with `DriverError::SilentPaymentNoXchInputs` before delegating here —
-/// so this panic is never reachable across the FFI boundary.
+/// # Errors
+///
+/// Returns [`DriverError::SilentPaymentNoXchInputs`] if `coin_ids` is empty: a
+/// spend group has at least one coin.
 ///
 /// Privacy warning: the `input_hash` scalar is a deterministic public function
 /// of the spent coin ids + aggregated sender PK; both are visible on chain
@@ -191,14 +204,14 @@ fn is_zero_key(sk: &SecretKey) -> bool {
 /// by anyone observing the transaction. The privacy property of silent
 /// payments derives from the recipient's scan key, NOT from this scalar's
 /// secrecy.
-#[must_use]
-pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey) -> ScalarField {
-    assert!(
-        !coin_ids.is_empty(),
-        "compute_input_hash requires at least one coin id"
-    );
-
-    let coin_id_min = coin_ids.iter().min().expect("non-empty checked above");
+pub fn compute_input_hash(
+    coin_ids: &[Bytes32],
+    aggregated_sender_pk: &PublicKey,
+) -> Result<ScalarField, DriverError> {
+    let coin_id_min = coin_ids
+        .iter()
+        .min()
+        .ok_or(DriverError::SilentPaymentNoXchInputs)?;
     let pk_bytes = aggregated_sender_pk.to_bytes();
 
     let mut data = [0u8; 80];
@@ -206,7 +219,7 @@ pub fn compute_input_hash(coin_ids: &[Bytes32], aggregated_sender_pk: &PublicKey
     data[32..].copy_from_slice(&pk_bytes);
 
     let hash = tagged_hash(CHIA_SP_INPUTS, &data);
-    ScalarField::from_bytes_unsigned(hash)
+    Ok(ScalarField::from_bytes_unsigned(hash))
 }
 
 /// Compute the tweak point of a spend group: `T = input_hash * A_sum`
@@ -231,10 +244,10 @@ pub fn compute_tweak_point(
     coin_ids: &[Bytes32],
     aggregated_sender_pk: &PublicKey,
 ) -> Option<PublicKey> {
-    if coin_ids.is_empty() || aggregated_sender_pk.is_inf() {
+    if aggregated_sender_pk.is_inf() {
         return None;
     }
-    let input_hash = compute_input_hash(coin_ids, aggregated_sender_pk);
+    let input_hash = compute_input_hash(coin_ids, aggregated_sender_pk).ok()?;
     tweak_point_from_input_hash(aggregated_sender_pk, &input_hash)
 }
 
@@ -350,7 +363,7 @@ fn one_time_puzzle_hash_from_tweak(
     if t_k.is_zero() {
         return Err(DriverError::SilentPaymentZeroTweak);
     }
-    let onetime_pk = derive_onetime_pk(spend_pk, t_k);
+    let onetime_pk = derive_onetime_pk(spend_pk, t_k)?;
     Ok(puzzle_hash_for_pk(&onetime_pk))
 }
 
@@ -358,6 +371,7 @@ fn one_time_puzzle_hash_from_tweak(
 mod tests {
     use super::*;
     use chia_bls::SecretKey;
+    use chia_sdk_types::silent_payments::GROUP_ORDER;
     use hex_literal::hex;
 
     // ─── TV1 pinned bytes (CHIP-0057 test vector 1) ──────────────────────
@@ -488,7 +502,7 @@ mod tests {
         let pk = PublicKey::from_bytes(&TV1_A_SUM).expect("TV1 A_sum is a valid BLS PK");
         let coin_ids = vec![Bytes32::new(TV1_COIN_ID)];
 
-        let result = compute_input_hash(&coin_ids, &pk);
+        let result = compute_input_hash(&coin_ids, &pk).unwrap();
 
         assert_eq!(
             *result.as_bytes(),
@@ -508,8 +522,8 @@ mod tests {
         let coin_b: Bytes32 = [0x02u8; 32].into();
         assert!(coin_a < coin_b);
 
-        let with_a_only = compute_input_hash(&[coin_a], &pk);
-        let with_both_b_first = compute_input_hash(&[coin_b, coin_a], &pk);
+        let with_a_only = compute_input_hash(&[coin_a], &pk).unwrap();
+        let with_both_b_first = compute_input_hash(&[coin_b, coin_a], &pk).unwrap();
 
         assert_eq!(
             with_a_only.to_bytes(),
@@ -526,8 +540,8 @@ mod tests {
         let coin_a: Bytes32 = [0x01u8; 32].into();
         let coin_b: Bytes32 = [0x02u8; 32].into();
 
-        let ab = compute_input_hash(&[coin_a, coin_b], &pk);
-        let ba = compute_input_hash(&[coin_b, coin_a], &pk);
+        let ab = compute_input_hash(&[coin_a, coin_b], &pk).unwrap();
+        let ba = compute_input_hash(&[coin_b, coin_a], &pk).unwrap();
 
         assert_eq!(
             ab.to_bytes(),
@@ -582,7 +596,7 @@ mod tests {
         tweak_point.scalar_multiply(input_hash.as_bytes());
         let expected_shared_secret = compute_shared_secret_from_tweak(&b_scan, &tweak_point);
         let expected_tweak = derive_output_tweak(&expected_shared_secret, 1);
-        let expected_onetime_pk = derive_onetime_pk(&b_spend_pub, &expected_tweak);
+        let expected_onetime_pk = derive_onetime_pk(&b_spend_pub, &expected_tweak).unwrap();
         let expected_ph = puzzle_hash_for_pk(&expected_onetime_pk);
 
         // Sender-side derivation under test:
@@ -601,8 +615,6 @@ mod tests {
 
     /// `r - sk`, the additive inverse of a secret key mod r.
     fn negate(sk: &SecretKey) -> SecretKey {
-        use chia_sdk_types::silent_payments::GROUP_ORDER;
-
         let bytes = sk.to_bytes();
         let mut out = [0u8; 32];
         let mut borrow = 0u16;
@@ -776,6 +788,47 @@ mod tests {
                 .unwrap()
                 .to_bytes(),
             TV1_TWEAK_POINT
+        );
+    }
+
+    /// An empty coin list is an error, not a panic: a spend group has at
+    /// least one coin.
+    #[test]
+    fn compute_input_hash_rejects_empty_coin_ids() {
+        let pk = PublicKey::from_bytes(&TV1_A_SUM).unwrap();
+        assert!(matches!(
+            compute_input_hash(&[], &pk),
+            Err(DriverError::SilentPaymentNoXchInputs)
+        ));
+    }
+
+    /// `ScalarField::from_bytes_raw` does not reduce, so it can hold a value
+    /// that is not below `r`. The one-time key derivations refuse it instead
+    /// of panicking, and accept the largest valid scalar, `r - 1`.
+    #[test]
+    fn onetime_keys_reject_scalar_not_below_r() {
+        let b_spend = SecretKey::from_bytes(&TV1_SCAN_SK).unwrap();
+        let b_spend_pub = b_spend.public_key();
+
+        for bytes in [GROUP_ORDER, [0xff; 32]] {
+            let tweak = ScalarField::from_bytes_raw(bytes);
+            assert!(matches!(
+                derive_onetime_pk(&b_spend_pub, &tweak),
+                Err(DriverError::SilentPaymentScalarOutOfRange)
+            ));
+            assert!(matches!(
+                derive_onetime_sk(&b_spend, &tweak),
+                Err(DriverError::SilentPaymentScalarOutOfRange)
+            ));
+        }
+
+        let mut r_minus_1 = GROUP_ORDER;
+        r_minus_1[31] -= 1;
+        let tweak = ScalarField::from_bytes_raw(r_minus_1);
+        let onetime_sk = derive_onetime_sk(&b_spend, &tweak).unwrap();
+        assert_eq!(
+            onetime_sk.public_key(),
+            derive_onetime_pk(&b_spend_pub, &tweak).unwrap()
         );
     }
 }

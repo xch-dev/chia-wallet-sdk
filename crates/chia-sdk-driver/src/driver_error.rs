@@ -526,6 +526,13 @@ pub enum DriverError {
     #[error("silent payment output tweak is zero")]
     SilentPaymentZeroTweak,
 
+    /// A silent-payment scalar, such as an output tweak, is not below the
+    /// group order `r`. Scalars the SDK derives are always reduced; one built
+    /// from raw bytes may not be.
+    #[cfg(feature = "chip-0057")]
+    #[error("silent payment scalar is not below the group order")]
+    SilentPaymentScalarOutOfRange,
+
     /// More than `K_max` (2,400) silent-payment outputs were requested for a
     /// single scan key in one transaction. Scanners stop iterating a spend
     /// group at that index, so further outputs would never be found.

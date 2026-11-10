@@ -225,7 +225,7 @@ fn payment_as_sent(payment: &Value) {
         Bytes32::new(bytes(payment, "coin_id_l")),
         "{name}: coin_id_l"
     );
-    let input_hash = compute_input_hash(&coin_ids, &a_sum_pk);
+    let input_hash = compute_input_hash(&coin_ids, &a_sum_pk).unwrap();
     assert_eq!(
         input_hash.to_bytes(),
         bytes::<32>(payment, "input_hash"),
@@ -276,7 +276,7 @@ fn payment_as_sent(payment: &Value) {
         // t_k, P_k and the puzzle hash.
         let t_k = derive_output_tweak(&shared_secret, k);
         assert_eq!(t_k.to_bytes(), bytes::<32>(output, "t_k"), "{at}: t_k");
-        let onetime_pk = derive_onetime_pk(&address_spend_pk, &t_k);
+        let onetime_pk = derive_onetime_pk(&address_spend_pk, &t_k).unwrap();
         assert_eq!(onetime_pk, pk(output, "onetime_pk"), "{at}: onetime_pk");
         let puzzle_hash = Bytes32::new(bytes(output, "puzzle_hash"));
         assert_eq!(
@@ -303,7 +303,7 @@ fn payment_as_sent(payment: &Value) {
             bytes::<32>(output, "spend_tweak"),
             "{at}: spend_tweak"
         );
-        let onetime_secret = derive_onetime_sk(&b_spend, &spend_tweak);
+        let onetime_secret = derive_onetime_sk(&b_spend, &spend_tweak).unwrap();
         assert_eq!(
             onetime_secret.to_bytes(),
             bytes::<32>(output, "onetime_sk"),
@@ -524,7 +524,7 @@ fn payment_as_scanned(payment: &Value) {
             );
 
             // The spend secret key is needed only for this last step.
-            let onetime_secret = detection.onetime_sk(&b_spend);
+            let onetime_secret = detection.onetime_sk(&b_spend).unwrap();
             assert_eq!(
                 onetime_secret.to_bytes(),
                 bytes::<32>(output, "onetime_sk"),
@@ -633,7 +633,8 @@ fn negative_controls(payment: &Value, data: &TweakData) {
             &compute_shared_secret_from_tweak(&sk(recipient, "scan_sk"), &core),
             0,
         );
-        let candidate = puzzle_hash_for_pk(&derive_onetime_pk(&pk(recipient, "spend_pk"), &t_0));
+        let candidate =
+            puzzle_hash_for_pk(&derive_onetime_pk(&pk(recipient, "spend_pk"), &t_0).unwrap());
         assert_eq!(
             candidate,
             Bytes32::new(bytes(controls, "core_only_puzzle_hash")),
@@ -792,7 +793,7 @@ fn vector_9_cat_output_found_only_under_the_wrapper_list() {
     assert_eq!(d.coin_id, Bytes32::from([9u8; 32]));
     assert_eq!(d.tweak.to_bytes(), bytes::<32>(output, "spend_tweak"));
     assert_eq!(
-        d.onetime_sk(&b_spend).to_bytes(),
+        d.onetime_sk(&b_spend).unwrap().to_bytes(),
         bytes::<32>(output, "onetime_sk")
     );
 

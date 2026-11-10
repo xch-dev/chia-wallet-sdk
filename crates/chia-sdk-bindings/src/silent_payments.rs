@@ -438,7 +438,10 @@ impl DetectedSpCoin {
     /// The one-time secret key of the coin: `(spend_sk + tweak) mod r`. The
     /// coin is spent with the synthetic key of the result.
     pub fn onetime_sk(&self, spend_sk: SecretKey) -> Result<SecretKey> {
-        Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &self.tweak.0))
+        Ok(chia_sdk_driver::derive_onetime_sk(
+            &spend_sk,
+            &self.tweak.0,
+        )?)
     }
 }
 
@@ -691,7 +694,7 @@ impl SilentPayments {
     /// `(spend_sk + tweak) mod r`. This is the only step of receiving a silent
     /// payment that needs the spend secret key.
     pub fn derive_onetime_sk(spend_sk: SecretKey, tweak: ScalarField) -> Result<SecretKey> {
-        Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &tweak.0))
+        Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &tweak.0)?)
     }
 
     /// The one-time puzzle hash of the sender's `k`-th output to a scan key.
@@ -717,10 +720,7 @@ impl SilentPayments {
         coin_ids: Vec<Bytes32>,
         aggregated_sender_pk: PublicKey,
     ) -> Result<ScalarField> {
-        if coin_ids.is_empty() {
-            return Err(chia_sdk_driver::DriverError::SilentPaymentNoXchInputs.into());
-        }
-        Ok(chia_sdk_driver::compute_input_hash(&coin_ids, &aggregated_sender_pk).into())
+        Ok(chia_sdk_driver::compute_input_hash(&coin_ids, &aggregated_sender_pk)?.into())
     }
 
     /// The tweak point of a spend group, `T = input_hash * A_sum` (CHIP-0057
@@ -885,12 +885,12 @@ mod tests {
     /// An empty `coin_ids` list passed to the FFI-reachable
     /// `compute_input_hash` facade returns `Err` (a typed
     /// `DriverError::SilentPaymentNoXchInputs`) instead of panicking across the
-    /// FFI boundary. The test process must NOT abort — `is_err()` is the proof
-    /// that the guard intercepts the empty slice before the driver `assert!`.
+    /// FFI boundary.
     #[test]
     fn empty_input_returns_err_not_panic() {
-        // `PublicKey::default()` is the identity point; the guard fires before
-        // the aggregated PK is ever read, so any value is fine here.
+        // `PublicKey::default()` is the identity point; the driver rejects the
+        // empty list before the aggregated PK is ever read, so any value is
+        // fine here.
         let result = SilentPayments::compute_input_hash(Vec::new(), PublicKey::default());
 
         // Pin the error to SilentPaymentNoXchInputs, both by variant and by its
