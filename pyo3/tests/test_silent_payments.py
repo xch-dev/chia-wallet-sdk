@@ -964,4 +964,6 @@ def test_outputs_publish_silent_payment_requests():
 
     asset_info = outputs.silent_payment_asset_info()
     assert asset_info.cat_asset_ids() == [asset_id]
-    assert asset_info.cat_hidden_puzzle_hash(asset_id) is None
+    cat_info = asset_info.cat(asset_id)
+    assert cat_info is not None
+    assert cat_info.hidden_puzzle_hash is None
