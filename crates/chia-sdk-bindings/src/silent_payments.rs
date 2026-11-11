@@ -399,7 +399,7 @@ impl From<ScalarField> for chia_sdk_types::silent_payments::ScalarField {
     }
 }
 
-// ─── DetectedSpCoin (return type of scan_from_tweaks) ────────────────────
+// ─── DetectedSilentPaymentCoin (return type of scan_from_tweaks) ────────────────────
 
 /// A detected silent-payment coin. Produced from the scan secret key and the
 /// spend public key alone: it carries the combined tweak
@@ -411,7 +411,7 @@ impl From<ScalarField> for chia_sdk_types::silent_payments::ScalarField {
 /// for XCH. `coin()` is the coin as it is on chain, with puzzle hash
 /// `wrap(wrapper, puzzle_hash)`.
 #[derive(Clone)]
-pub struct DetectedSpCoin {
+pub struct DetectedSilentPaymentCoin {
     pub coin_id: Bytes32,
     pub puzzle_hash: Bytes32,
     pub amount: u64,
@@ -422,7 +422,7 @@ pub struct DetectedSpCoin {
     pub wrapper: Option<SilentPaymentWrapper>,
 }
 
-impl DetectedSpCoin {
+impl DetectedSilentPaymentCoin {
     /// The detected output coin as it is on chain: for a CAT output its puzzle
     /// hash is the wrapped one, `wrap(wrapper, puzzle_hash)`; for XCH it is
     /// the bare one-time puzzle hash.
@@ -445,8 +445,8 @@ impl DetectedSpCoin {
     }
 }
 
-impl From<chia_sdk_driver::DetectedSpCoin> for DetectedSpCoin {
-    fn from(value: chia_sdk_driver::DetectedSpCoin) -> Self {
+impl From<chia_sdk_driver::DetectedSilentPaymentCoin> for DetectedSilentPaymentCoin {
+    fn from(value: chia_sdk_driver::DetectedSilentPaymentCoin) -> Self {
         Self {
             coin_id: value.coin_id,
             puzzle_hash: value.puzzle_hash,
@@ -657,7 +657,7 @@ impl SilentPayments {
     /// Needs only the scan secret key and the spend public key, so it can run
     /// on a watch-only device. Each detection carries the combined tweak; the
     /// holder of the spend secret key turns it into the one-time key with
-    /// `DetectedSpCoin.onetime_sk` or `SilentPayments.derive_onetime_sk`.
+    /// `DetectedSilentPaymentCoin.onetime_sk` or `SilentPayments.derive_onetime_sk`.
     ///
     /// Privacy warning: anyone with the scan secret key sees every payment to
     /// the wallet.
@@ -667,7 +667,7 @@ impl SilentPayments {
         data: TweakData,
         labels: LabelRegistry,
         k_max: u32,
-    ) -> Result<Vec<DetectedSpCoin>> {
+    ) -> Result<Vec<DetectedSilentPaymentCoin>> {
         let driver_data: chia_sdk_driver::TweakData = data.into();
         let driver_labels: chia_sdk_utils::silent_payments::LabelRegistry = labels.into();
         let detections = chia_sdk_driver::scan_from_tweaks(

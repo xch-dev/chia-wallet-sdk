@@ -14,9 +14,10 @@ use chia_bls::{DerivableKey, PublicKey, SecretKey};
 use chia_protocol::Bytes32;
 use chia_puzzle_types::DeriveSynthetic;
 use chia_sdk_driver::silent_payments::{
-    DetectedSpCoin, K_MAX_DEFAULT, OutputMeta, TweakData, aggregate_sender_sks, compute_input_hash,
-    compute_shared_secret_from_tweak, derive_one_time_puzzle_hash, derive_onetime_pk,
-    derive_onetime_sk, derive_output_tweak, puzzle_hash_for_pk, scan_from_tweaks,
+    DetectedSilentPaymentCoin, K_MAX_DEFAULT, OutputMeta, TweakData, aggregate_sender_sks,
+    compute_input_hash, compute_shared_secret_from_tweak, derive_one_time_puzzle_hash,
+    derive_onetime_pk, derive_onetime_sk, derive_output_tweak, puzzle_hash_for_pk,
+    scan_from_tweaks,
 };
 use chia_sdk_types::silent_payments::ScalarField;
 use chia_sdk_utils::Address;
@@ -161,7 +162,7 @@ fn scan(
     tweak_points: Vec<PublicKey>,
     outputs: Vec<OutputMeta>,
     labels: Option<&LabelRegistry>,
-) -> Vec<DetectedSpCoin> {
+) -> Vec<DetectedSilentPaymentCoin> {
     scan_from_tweaks(
         keys.scan_sk(),
         keys.spend_pk(),

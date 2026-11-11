@@ -9,13 +9,13 @@
 //! - [`OutputMeta`] is the metadata for one candidate coin — the puzzle hash
 //!   the scanner matches against, plus the bookkeeping fields the wallet needs
 //!   to act on a detected coin without re-parsing the block.
-//! - [`DetectedSpCoin`] is the scanner's output — one entry per detected coin,
+//! - [`DetectedSilentPaymentCoin`] is the scanner's output — one entry per detected coin,
 //!   carrying the coin and the tweak from which the holder of the spend secret
 //!   key derives the one-time key.
 //!
 //! The Extension to CATs of CHIP-0057 adds the block's wrapper list to
 //! [`TweakData`] ([`TweakData::wrappers`]) and the wrapper under which a coin
-//! matched to [`DetectedSpCoin`] ([`DetectedSpCoin::wrapper`]). XCH is the
+//! matched to [`DetectedSilentPaymentCoin`] ([`DetectedSilentPaymentCoin::wrapper`]). XCH is the
 //! `None` case of the same fields.
 
 use std::fmt;
@@ -92,7 +92,7 @@ impl TweakData {
 /// silent-payment coin.
 ///
 /// `puzzle_hash` is the field the scanner matches against; the remaining fields
-/// flow through to the returned [`DetectedSpCoin`] so the wallet can act on the
+/// flow through to the returned [`DetectedSilentPaymentCoin`] so the wallet can act on the
 /// coin without re-parsing the block.
 #[derive(Clone, Copy, Debug)]
 pub struct OutputMeta {
@@ -112,15 +112,15 @@ pub struct OutputMeta {
 /// alone, so it does not contain a spendable key. It carries the output coin,
 /// the index `k`, the label (if any), and the combined tweak that the holder of
 /// the spend secret key needs to derive the one-time key (CHIP-0057,
-/// "Spending"). Use [`DetectedSpCoin::onetime_sk`] for that step.
+/// "Spending"). Use [`DetectedSilentPaymentCoin::onetime_sk`] for that step.
 ///
 /// `puzzle_hash` is the BARE one-time puzzle hash, the tree hash of the
 /// standard puzzle of the one-time key. A coin that matched under a wrapper
 /// (a CAT output, CHIP-0057 "Matching Outputs under Wrappers") has puzzle hash
-/// `wrap(wrapper, puzzle_hash)`; [`DetectedSpCoin::coin`] returns that coin.
+/// `wrap(wrapper, puzzle_hash)`; [`DetectedSilentPaymentCoin::coin`] returns that coin.
 /// For an XCH output (`wrapper` is `None`) the two are equal.
 #[derive(Clone)]
-pub struct DetectedSpCoin {
+pub struct DetectedSilentPaymentCoin {
     /// The ID of the matched coin.
     pub coin_id: Bytes32,
     /// The bare one-time puzzle hash (the inner puzzle hash of a CAT output).
@@ -148,9 +148,9 @@ pub struct DetectedSpCoin {
 
 /// The tweak is not printed: together with the recipient's address it links
 /// the coin to the recipient.
-impl fmt::Debug for DetectedSpCoin {
+impl fmt::Debug for DetectedSilentPaymentCoin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DetectedSpCoin")
+        f.debug_struct("DetectedSilentPaymentCoin")
             .field("coin_id", &self.coin_id)
             .field("puzzle_hash", &self.puzzle_hash)
             .field("amount", &self.amount)
@@ -163,7 +163,7 @@ impl fmt::Debug for DetectedSpCoin {
     }
 }
 
-impl DetectedSpCoin {
+impl DetectedSilentPaymentCoin {
     /// The detected output coin, as it is on chain: its puzzle hash is
     /// `wrap(wrapper, puzzle_hash)`, the bare one-time puzzle hash for an XCH
     /// output.
@@ -277,10 +277,10 @@ mod tests {
     /// `onetime_sk` reports it instead of panicking.
     #[test]
     fn detection_onetime_sk_rejects_scalar_not_below_r() {
-        use super::DetectedSpCoin;
+        use super::DetectedSilentPaymentCoin;
         use chia_sdk_types::silent_payments::ScalarField;
 
-        let detection = DetectedSpCoin {
+        let detection = DetectedSilentPaymentCoin {
             coin_id: [1u8; 32].into(),
             puzzle_hash: [2u8; 32].into(),
             amount: 42,
@@ -300,10 +300,10 @@ mod tests {
     /// `Debug` on a detection shows the coin but not the tweak.
     #[test]
     fn detection_debug_redacts_the_tweak() {
-        use super::DetectedSpCoin;
+        use super::DetectedSilentPaymentCoin;
         use chia_sdk_types::silent_payments::ScalarField;
 
-        let detection = DetectedSpCoin {
+        let detection = DetectedSilentPaymentCoin {
             coin_id: [1u8; 32].into(),
             puzzle_hash: [2u8; 32].into(),
             amount: 42,
@@ -314,7 +314,7 @@ mod tests {
             wrapper: None,
         };
         // A CAT detection: the wrapper is printed, the tweak is not.
-        let cat_detection = DetectedSpCoin {
+        let cat_detection = DetectedSilentPaymentCoin {
             wrapper: Some(super::Wrapper::revocable(
                 [0x44u8; 32].into(),
                 [0x55u8; 32].into(),
@@ -341,7 +341,7 @@ mod tests {
     /// the matched coin's.
     #[test]
     fn detected_coin_is_the_wrapped_coin() {
-        use super::{DetectedSpCoin, Wrapper};
+        use super::{DetectedSilentPaymentCoin, Wrapper};
         use chia_protocol::{Bytes32, Coin};
         use chia_sdk_types::silent_payments::ScalarField;
 
@@ -349,7 +349,7 @@ mod tests {
         let parent: Bytes32 = [3u8; 32].into();
         let w = Wrapper::cat([0x33u8; 32].into());
         let wrapped = Coin::new(parent, w.wrap(bare), 42);
-        let detection = DetectedSpCoin {
+        let detection = DetectedSilentPaymentCoin {
             coin_id: wrapped.coin_id(),
             puzzle_hash: bare,
             amount: 42,
@@ -361,7 +361,7 @@ mod tests {
         };
         assert_eq!(detection.coin(), wrapped);
         assert_eq!(detection.coin().coin_id(), detection.coin_id);
-        let xch = DetectedSpCoin {
+        let xch = DetectedSilentPaymentCoin {
             wrapper: None,
             ..detection
         };

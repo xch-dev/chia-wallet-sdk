@@ -58,7 +58,7 @@
 //! [`Wrapper`] of its asset. [`tweak_data_from_block_spends`] gives the block's
 //! wrapper list in [`TweakData::wrappers`] (every exact `cat_v2` spend adds its
 //! wrapper, [`coin_wrapper`]), [`scan_from_tweaks`] tests every candidate bare
-//! and under every wrapper of that list, and a [`DetectedSpCoin`] keeps the
+//! and under every wrapper of that list, and a [`DetectedSilentPaymentCoin`] keeps the
 //! bare one-time puzzle hash with the wrapper under which it matched.
 //!
 //! # Payments through settlement coins
@@ -120,5 +120,5 @@ mod send_keys;
 pub(crate) use send_keys::SilentPaymentSecretKeys;
 pub use send_keys::{SyntheticPublicKey, SyntheticSecretKey};
 mod types;
-pub use types::{DetectedSpCoin, OutputMeta, TweakData};
+pub use types::{DetectedSilentPaymentCoin, OutputMeta, TweakData};
 pub(crate) use types::{SettledOtherPayment, SilentPaymentPending, SilentPaymentSource};

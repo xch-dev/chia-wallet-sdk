@@ -4,7 +4,7 @@
 //! Spend Group") on top of tweak points ("Tweak Points"): given a [`TweakData`]
 //! (one tweak point per spend group, plus the candidate outputs), iterate
 //! `k = 0, 1, 2, ...` per spend group, derive the candidate one-time puzzle
-//! hashes, and emit a [`DetectedSpCoin`] for every output coin that matches.
+//! hashes, and emit a [`DetectedSilentPaymentCoin`] for every output coin that matches.
 //!
 //! The scanner needs the scan secret key and the spend public key only.
 //!
@@ -36,7 +36,7 @@ use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::{
     compute_shared_secret_from_tweak, derive_onetime_pk, derive_output_tweak, puzzle_hash_for_pk,
 };
-use super::types::{DetectedSpCoin, OutputMeta, TweakData};
+use super::types::{DetectedSilentPaymentCoin, OutputMeta, TweakData};
 
 /// The per-spend-group iteration cap of the scanner: `K_max` of CHIP-0057
 /// "Kmax: Maximum Outputs Per Spend Group" (2,400), as a `usize`.
@@ -53,7 +53,7 @@ pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 /// spend secret key, so it can run on a watch-only device. Each detection
 /// carries the combined tweak `(t_k + label_scalar) mod r`; the holder of the
 /// spend secret key turns it into the one-time key with
-/// [`DetectedSpCoin::onetime_sk`] (or [`super::derive_onetime_sk`]).
+/// [`DetectedSilentPaymentCoin::onetime_sk`] (or [`super::derive_onetime_sk`]).
 ///
 /// For each tweak point `T`, one ECDH is performed (`scan_sk * T`, hashed to
 /// the shared secret) and `k = 0, 1, 2, ...` is iterated up to `k_max`. At each
@@ -78,8 +78,8 @@ pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 /// Each candidate one-time puzzle hash `h` is tested bare and under every
 /// wrapper `W` of `data.wrappers`, as `wrap(W, h)` (CHIP-0057 "Matching
 /// Outputs under Wrappers"): every coin that matches under any of them is
-/// reported with that wrapper in [`DetectedSpCoin::wrapper`] and the bare `h`
-/// in [`DetectedSpCoin::puzzle_hash`], bare matches first, then the wrappers in
+/// reported with that wrapper in [`DetectedSilentPaymentCoin::wrapper`] and the bare `h`
+/// in [`DetectedSilentPaymentCoin::puzzle_hash`], bare matches first, then the wrappers in
 /// list order; a wrapper repeated in the list is tested once. With an empty
 /// list the scan is the bare scan.
 ///
@@ -95,7 +95,7 @@ pub fn scan_from_tweaks(
     data: &TweakData,
     labels: Option<&LabelRegistry>,
     k_max: usize,
-) -> Vec<DetectedSpCoin> {
+) -> Vec<DetectedSilentPaymentCoin> {
     let outputs = index_outputs(&data.outputs);
     let labels = label_set(scan_sk, labels);
     let forms = wrapper_forms(&data.wrappers);
@@ -200,7 +200,7 @@ fn scan_group(
     labels: &[(u32, PublicKey)],
     forms: &[Option<Wrapper>],
     k_bound: u32,
-    detected: &mut Vec<DetectedSpCoin>,
+    detected: &mut Vec<DetectedSilentPaymentCoin>,
 ) {
     // Record a detection for every matched coin: its own coin ID, the bare
     // candidate puzzle hash, and the wrapper under which it matched.
@@ -210,7 +210,7 @@ fn scan_group(
                       label: Option<u32>,
                       tweak: &ScalarField| {
         for (coin, wrapper) in matched {
-            detected.push(DetectedSpCoin {
+            detected.push(DetectedSilentPaymentCoin {
                 coin_id: coin.coin_id,
                 puzzle_hash: base,
                 amount: coin.amount,
@@ -292,7 +292,7 @@ pub trait SilentPaymentScan {
         tweak_data: &TweakData,
         labels: Option<&LabelRegistry>,
         k_max: usize,
-    ) -> Vec<DetectedSpCoin>;
+    ) -> Vec<DetectedSilentPaymentCoin>;
 }
 
 impl SilentPaymentScan for SilentPaymentKeys {
@@ -301,7 +301,7 @@ impl SilentPaymentScan for SilentPaymentKeys {
         tweak_data: &TweakData,
         labels: Option<&LabelRegistry>,
         k_max: usize,
-    ) -> Vec<DetectedSpCoin> {
+    ) -> Vec<DetectedSilentPaymentCoin> {
         scan_from_tweaks(self.scan_sk(), self.spend_pk(), tweak_data, labels, k_max)
     }
 }
@@ -1351,7 +1351,7 @@ mod tests {
             outputs: Vec<OutputMeta>,
             wrappers: Vec<Wrapper>,
             labels: Option<&LabelRegistry>,
-        ) -> Vec<DetectedSpCoin> {
+        ) -> Vec<DetectedSilentPaymentCoin> {
             let data = TweakData::with_wrappers(vec![self.tp], outputs, wrappers);
             scan_from_tweaks(
                 &self.b_scan,
@@ -1374,7 +1374,7 @@ mod tests {
 
     /// Everything a detection reports, the tweak as bytes.
     fn summary(
-        d: &DetectedSpCoin,
+        d: &DetectedSilentPaymentCoin,
     ) -> (
         u32,
         Option<u32>,

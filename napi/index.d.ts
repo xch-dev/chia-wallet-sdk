@@ -1782,8 +1782,8 @@ export declare class DepositSlot {
   set value(value: RewardDistributorDepositSlotValue)
 }
 
-export declare class DetectedSpCoin {
-  clone(): DetectedSpCoin
+export declare class DetectedSilentPaymentCoin {
+  clone(): DetectedSilentPaymentCoin
   coin(): Coin
   onetimeSk(spendSk: SecretKey): SecretKey
   constructor(coinId: Uint8Array, puzzleHash: Uint8Array, amount: bigint, parentCoinId: Uint8Array, k: number, label: number | undefined | null, tweak: ScalarField, wrapper?: SilentPaymentWrapper | undefined | null)
@@ -4587,7 +4587,7 @@ export declare class SilentPaymentRegisteredSecretKey {
 export declare class SilentPayments {
   clone(): SilentPayments
   static kMax(): number
-  static scanFromTweaks(scanSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSpCoin>
+  static scanFromTweaks(scanSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSilentPaymentCoin>
   static generateLabel(scanSk: SecretKey, m: number): SilentPaymentLabel
   static deriveOnetimeSk(spendSk: SecretKey, tweak: ScalarField): SecretKey
   static deriveOneTimePuzzleHash(scanPk: PublicKey, spendPk: PublicKey, aggregatedSenderSk: SecretKey, inputHash: ScalarField, k: number): Buffer

@@ -509,7 +509,10 @@ fn register_keys(
 /// transaction and the recipient's detections.
 fn multi_input_with_identical_sends(
     identical_sends: usize,
-) -> Result<(usize, Vec<chia_sdk_driver::silent_payments::DetectedSpCoin>)> {
+) -> Result<(
+    usize,
+    Vec<chia_sdk_driver::silent_payments::DetectedSilentPaymentCoin>,
+)> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
     let a = sim.bls(600);
@@ -1123,7 +1126,7 @@ fn spend_detected_cat(
     sim: &mut Simulator,
     ctx: &mut SpendContext,
     paid: Cat,
-    detected: &chia_sdk_driver::silent_payments::DetectedSpCoin,
+    detected: &chia_sdk_driver::silent_payments::DetectedSilentPaymentCoin,
     recipient: &SilentPaymentKeys,
     destination: Bytes32,
 ) -> Result<()> {
@@ -1248,7 +1251,7 @@ fn scan_block(
     recipient: &SilentPaymentKeys,
 ) -> (
     chia_sdk_driver::silent_payments::TweakData,
-    Vec<chia_sdk_driver::silent_payments::DetectedSpCoin>,
+    Vec<chia_sdk_driver::silent_payments::DetectedSilentPaymentCoin>,
 ) {
     let tweak_data = tweak_data_from_simulator_block(sim, height);
     let detections = scan_from_tweaks(
@@ -2508,7 +2511,7 @@ fn scan_one_point(
     keys: &SilentPaymentKeys,
     point: chia_bls::PublicKey,
     tweak_data: &chia_sdk_driver::silent_payments::TweakData,
-) -> Vec<chia_sdk_driver::silent_payments::DetectedSpCoin> {
+) -> Vec<chia_sdk_driver::silent_payments::DetectedSilentPaymentCoin> {
     let one = chia_sdk_driver::silent_payments::TweakData::with_wrappers(
         vec![point],
         tweak_data.outputs.clone(),

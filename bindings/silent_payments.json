@@ -155,7 +155,7 @@
       }
     }
   },
-  "DetectedSpCoin": {
+  "DetectedSilentPaymentCoin": {
     "type": "class",
     "new": true,
     "fields": {
@@ -295,7 +295,7 @@
           "labels": "LabelRegistry",
           "k_max": "u32"
         },
-        "return": "Vec<DetectedSpCoin>"
+        "return": "Vec<DetectedSilentPaymentCoin>"
       },
       "generate_label": {
         "type": "static",
