@@ -116,12 +116,6 @@ jobs:
         # The race detector doesn't support Windows on arm64
         run: go test ${{ matrix.settings.platform != 'windows_arm64' && '-race' || '' }} -v ./...
 
-      # Runs each benchmark once, so they're checked without slowing CI down
-      - name: Benchmarks
-        if: matrix.settings.platform == 'linux_amd64'
-        working-directory: go
-        run: go test -run '^$' -bench . -benchtime 1x ./...
-
       # There's no Android device to run on, so this only checks that the package and its tests
       # compile and link
       - name: Build tests

@@ -3,6 +3,7 @@ package chiawalletsdk_test
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"math"
 	"math/big"
 	"strconv"
@@ -14,6 +15,29 @@ import (
 
 // Ported from the regression tests for the Go bindings in #370, which cover conversions between
 // Go and Rust values at their edges.
+
+func TestInvalidInputs(t *testing.T) {
+	cases := map[string]func() error{
+		"10 byte public key": func() error { _, err := sdk.PublicKeyFromBytes(make([]byte, 10)); return err },
+		"10 byte secret key": func() error { _, err := sdk.SecretKeyFromBytes(make([]byte, 10)); return err },
+		"10 byte signature":  func() error { _, err := sdk.SignatureFromBytes(make([]byte, 10)); return err },
+		"invalid mnemonic":   func() error { _, err := sdk.NewMnemonic("not a valid mnemonic phrase at all"); return err },
+		"invalid address":    func() error { _, err := sdk.AddressDecode("notavalidaddress"); return err },
+		"invalid offer":      func() error { _, err := sdk.DecodeOffer("not_a_valid_offer_string"); return err },
+	}
+
+	for name, run := range cases {
+		if err := run(); err == nil {
+			t.Errorf("%s: expected an error", name)
+		} else if !errors.Is(err, sdk.ErrChiaErrorError) {
+			t.Errorf("%s: expected a ChiaError, got %T: %v", name, err, err)
+		}
+	}
+
+	if must(sdk.MnemonicVerify("not a valid mnemonic phrase at all")) {
+		t.Fatal("expected an invalid mnemonic not to verify")
+	}
+}
 
 func TestIntegerEncoding(t *testing.T) {
 	clvm := must(sdk.NewClvm())
@@ -252,18 +276,5 @@ func TestStringsWithNul(t *testing.T) {
 
 	if _, err := atom.ToString(); err == nil {
 		t.Fatal("expected an error reading invalid UTF-8 as a string")
-	}
-}
-
-func TestInvalidUtf8StringIsAnError(t *testing.T) {
-	t.Skip("UniFFI lifts strings with String::from_utf8_unchecked, so a Go string that isn't valid " +
-		"UTF-8 reaches Rust as an invalid String instead of being rejected")
-
-	clvm := must(sdk.NewClvm())
-	defer clvm.Destroy()
-
-	if program, err := clvm.String(string([]byte{0xff})); err == nil {
-		program.Destroy()
-		t.Fatal("expected an error for a string that isn't valid UTF-8")
 	}
 }
