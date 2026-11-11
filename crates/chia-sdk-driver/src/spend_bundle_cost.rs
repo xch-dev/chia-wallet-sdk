@@ -17,6 +17,29 @@ use crate::DriverError;
 ///
 /// The coin spends must form a complete, valid spend bundle, since cross-spend conditions such as
 /// announcements are checked. The aggregated signature isn't checked.
+///
+/// # Example
+///
+/// ```
+/// use chia_puzzle_types::Memos;
+/// use chia_sdk_driver::{SpendContext, StandardLayer, minimum_fee, spend_bundle_cost};
+/// use chia_sdk_test::Simulator;
+/// use chia_sdk_types::{Conditions, MAINNET_CONSTANTS};
+///
+/// let mut sim = Simulator::new();
+/// let mut ctx = SpendContext::new();
+/// let alice = sim.bls(1);
+///
+/// StandardLayer::new(alice.pk).spend(
+///     &mut ctx,
+///     alice.coin,
+///     Conditions::new().create_coin(alice.puzzle_hash, alice.coin.amount, Memos::None),
+/// )?;
+///
+/// let cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, None)?;
+/// assert_eq!(minimum_fee(cost), cost * 5);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn spend_bundle_cost(
     coin_spends: &[CoinSpend],
     constants: &ConsensusConstants,
