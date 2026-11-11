@@ -5,8 +5,9 @@ use std::future::Future;
 use super::{
     AdditionsAndRemovalsResponse, BlockchainStateResponse, GetBlockRecordByHeightResponse,
     GetBlockRecordResponse, GetBlockRecordsResponse, GetBlockResponse, GetBlockSpendsResponse,
-    GetBlocksResponse, GetCoinRecordResponse, GetCoinRecordsResponse, GetMempoolItemResponse,
-    GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
+    GetBlocksResponse, GetCoinRecordResponse, GetCoinRecordsResponse, GetFeeEstimateResponse,
+    GetMempoolItemResponse, GetMempoolItemsResponse, GetNetworkInfoResponse,
+    GetPuzzleAndSolutionResponse, PushTxResponse,
 };
 
 /// A client for the Chia full node RPC API.
@@ -446,6 +447,49 @@ pub trait ChiaRpcClient {
         )
     }
 
+    /// Calls `get_fee_estimate`, which estimates the fee, in mojos, that a transaction with the
+    /// given `cost` needs to pay to be included in a block within each of the `target_times`, in
+    /// seconds.
+    ///
+    /// These estimates come from the node's view of the mempool and recent blocks. They don't
+    /// account for a minimum fee that farmers enforce, so use them as the market rate passed to
+    /// `chia_sdk_driver::recommended_fee` rather than as the fee itself.
+    fn get_fee_estimate(
+        &self,
+        cost: u64,
+        target_times: Vec<u64>,
+    ) -> impl Future<Output = Result<GetFeeEstimateResponse, Self::Error>> {
+        self.make_post_request(
+            "get_fee_estimate",
+            serde_json::json!({
+                "cost": cost,
+                "target_times": target_times,
+            }),
+        )
+    }
+
+    /// Calls `get_fee_estimate` for a single `target_time`, in seconds, and returns the estimated
+    /// fee rate in mojos per cost, or `None` if the request failed or returned no estimate.
+    fn get_fee_per_cost(
+        &self,
+        cost: u64,
+        target_time: u64,
+    ) -> impl Future<Output = Result<Option<f64>, Self::Error>> {
+        async move {
+            let response = self.get_fee_estimate(cost, vec![target_time]).await?;
+
+            if !response.success || cost == 0 {
+                return Ok(None);
+            }
+
+            #[allow(clippy::cast_precision_loss)]
+            Ok(response
+                .estimates
+                .first()
+                .map(|&fee| fee as f64 / cost as f64))
+        }
+    }
+
     /// Calls `get_mempool_items_by_coin_name`, which returns the mempool items that spend the
     /// coin with the given id.
     fn get_mempool_items_by_coin_name(
@@ -493,6 +537,61 @@ mod tests {
         assert_eq!(peak.height, 6_515_821);
         assert_eq!(peak.deficit, 15);
         assert!(!peak.overflow);
+    }
+
+    // A response from coinset.org's mainnet API on 2026-11-04.
+    const FEE_ESTIMATE_RESPONSE: &str = r#"{"current_fee_rate": 0.3736876890037907, "estimates": [18684384, 2287367, 0], "fee_rate_last_block": 0.0, "fees_last_block": 0, "full_node_synced": true, "last_block_cost": 0, "last_peak_timestamp": 1793832071, "last_tx_block_height": 9528849, "mempool_fees": 432937515, "mempool_max_size": 110000000000, "mempool_size": 107948508652, "node_time_utc": 1793832123, "num_spends": 43, "peak_height": 9528854, "success": true, "target_times": [60, 300, 3600]}"#;
+
+    #[tokio::test]
+    async fn test_get_fee_estimate() {
+        let mut client = MockRpcClient::new();
+        client.mock_response(
+            "http://api.example.com/get_fee_estimate",
+            FEE_ESTIMATE_RESPONSE,
+        );
+
+        let response = client
+            .get_fee_estimate(50_000_000, vec![60, 300, 3600])
+            .await
+            .unwrap();
+        assert!(response.success);
+        assert_eq!(response.estimates, vec![18_684_384, 2_287_367, 0]);
+        assert_eq!(response.target_times, vec![60, 300, 3600]);
+        assert_eq!(response.mempool_size, Some(107_948_508_652));
+        assert_eq!(response.mempool_max_size, Some(110_000_000_000));
+        assert_eq!(response.last_tx_block_height, Some(9_528_849));
+        assert_eq!(response.full_node_synced, Some(true));
+
+        assert_eq!(
+            client.get_requests(),
+            vec![(
+                "http://api.example.com/get_fee_estimate".to_string(),
+                serde_json::json!({ "cost": 50_000_000, "target_times": [60, 300, 3600] })
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_per_cost() {
+        let mut client = MockRpcClient::new();
+        client.mock_response(
+            "http://api.example.com/get_fee_estimate",
+            FEE_ESTIMATE_RESPONSE,
+        );
+
+        let rate = client.get_fee_per_cost(50_000_000, 60).await.unwrap();
+        assert_eq!(rate, Some(18_684_384.0 / 50_000_000.0));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_per_cost_error() {
+        let mut client = MockRpcClient::new();
+        client.mock_response(
+            "http://api.example.com/get_fee_estimate",
+            r#"{"error": "cost must be > 0", "success": false}"#,
+        );
+
+        assert_eq!(client.get_fee_per_cost(50_000_000, 60).await.unwrap(), None);
     }
 
     #[tokio::test]

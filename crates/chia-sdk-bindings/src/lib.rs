@@ -90,9 +90,9 @@ pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
     GetBlockResponse, GetBlockSpendsResponse, GetBlocksResponse, GetCoinRecordResponse,
-    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
-    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
-    PushTxResponse, SyncState,
+    GetCoinRecordsResponse, GetFeeEstimateResponse, GetMempoolItemResponse,
+    GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem,
+    MempoolMinFees, PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
     AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, BagAsset,
