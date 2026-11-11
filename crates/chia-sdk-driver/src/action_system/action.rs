@@ -8,14 +8,16 @@ use hex_literal::hex;
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
     MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
-    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
-    UpdateNftAction,
+    SettleAction, SilentPaymentAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
+    UpdateDidAction, UpdateNftAction,
 };
 #[cfg(feature = "chip-0057")]
 use crate::{
     SettledEntry, SettlementPayer, SilentPaymentSendAction, SilentPaymentSettledAction,
     silent_payments::Wrapper,
 };
+#[cfg(feature = "chip-0057")]
+use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 /// The puzzle hash that coins are sent to by [`Action::burn`]. There's no known puzzle with this
 /// hash, so the coins can never be spent.
@@ -49,12 +51,10 @@ pub enum Action {
     MeltSingleton(MeltSingletonAction),
     /// See [`Action::fee`].
     Fee(FeeAction),
-    /// See [`Action::silent_payment_send`].
-    #[cfg(feature = "chip-0057")]
-    SilentPaymentSend(SilentPaymentSendAction),
-    /// See [`Action::silent_payment_requested`] and [`Action::silent_payment_settle`].
-    #[cfg(feature = "chip-0057")]
-    SilentPaymentSettled(SilentPaymentSettledAction),
+    /// A CHIP-0057 silent payment action. The variant always exists; the actions are created
+    /// with the `chip-0057` feature (`Action::silent_payment_send` and the settlement
+    /// constructors).
+    SilentPayment(SilentPaymentAction),
 }
 
 impl Action {
@@ -453,12 +453,10 @@ impl Action {
 
     /// Sends a CHIP-0057 silent payment of XCH to the address. See [`SilentPaymentSendAction`].
     #[cfg(feature = "chip-0057")]
-    pub fn silent_payment_send(
-        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
-        amount: u64,
-        memos: Memos,
-    ) -> Self {
-        Self::SilentPaymentSend(SilentPaymentSendAction::new(recipient, amount, memos))
+    pub fn silent_payment_send(recipient: SilentPaymentAddress, amount: u64, memos: Memos) -> Self {
+        Self::SilentPayment(SilentPaymentAction::Send(SilentPaymentSendAction::new(
+            recipient, amount, memos,
+        )))
     }
 
     /// Sends a CHIP-0057 silent payment in the asset `id` (XCH, or a CAT the transaction spends)
@@ -473,12 +471,10 @@ impl Action {
     /// transaction ([`DriverError::SilentPaymentNewCatUnsupported`]). For XCH this is
     /// [`Action::silent_payment_send`] with no memos.
     #[cfg(feature = "chip-0057")]
-    pub fn silent_payment_send_asset(
-        id: Id,
-        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
-        amount: u64,
-    ) -> Self {
-        Self::SilentPaymentSend(SilentPaymentSendAction::new_asset(id, recipient, amount))
+    pub fn silent_payment_send_asset(id: Id, recipient: SilentPaymentAddress, amount: u64) -> Self {
+        Self::SilentPayment(SilentPaymentAction::Send(
+            SilentPaymentSendAction::new_asset(id, recipient, amount),
+        ))
     }
 
     /// Requests a CHIP-0057 silent payment in an offer the transaction makes: the maker is paid
@@ -502,15 +498,17 @@ impl Action {
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_requested(
         asset: Option<Wrapper>,
-        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
+        recipient: SilentPaymentAddress,
         amount: u64,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPaymentSettled(SilentPaymentSettledAction::new(
-            asset,
-            nonce,
-            SettledEntry::SilentPayment { recipient, amount },
-            SettlementPayer::Counterparty,
+        Self::SilentPayment(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                asset,
+                nonce,
+                SettledEntry::SilentPayment { recipient, amount },
+                SettlementPayer::Counterparty,
+            ),
         ))
     }
 
@@ -526,11 +524,13 @@ impl Action {
         payment: Payment,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPaymentSettled(SilentPaymentSettledAction::new(
-            asset,
-            nonce,
-            SettledEntry::Other(payment),
-            SettlementPayer::Counterparty,
+        Self::SilentPayment(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                asset,
+                nonce,
+                SettledEntry::Other(payment),
+                SettlementPayer::Counterparty,
+            ),
         ))
     }
 
@@ -548,15 +548,17 @@ impl Action {
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_settle(
         asset: Option<Wrapper>,
-        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
+        recipient: SilentPaymentAddress,
         amount: u64,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPaymentSettled(SilentPaymentSettledAction::new(
-            asset,
-            nonce,
-            SettledEntry::SilentPayment { recipient, amount },
-            SettlementPayer::SpentSettlementCoin,
+        Self::SilentPayment(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                asset,
+                nonce,
+                SettledEntry::SilentPayment { recipient, amount },
+                SettlementPayer::SpentSettlementCoin,
+            ),
         ))
     }
 
@@ -571,11 +573,13 @@ impl Action {
         payment: Payment,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPaymentSettled(SilentPaymentSettledAction::new(
-            asset,
-            nonce,
-            SettledEntry::Other(payment),
-            SettlementPayer::SpentSettlementCoin,
+        Self::SilentPayment(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                asset,
+                nonce,
+                SettledEntry::Other(payment),
+                SettlementPayer::SpentSettlementCoin,
+            ),
         ))
     }
 }
@@ -609,10 +613,7 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.calculate_delta(deltas, index),
             Action::MeltSingleton(action) => action.calculate_delta(deltas, index),
             Action::Fee(action) => action.calculate_delta(deltas, index),
-            #[cfg(feature = "chip-0057")]
-            Action::SilentPaymentSend(action) => action.calculate_delta(deltas, index),
-            #[cfg(feature = "chip-0057")]
-            Action::SilentPaymentSettled(action) => action.calculate_delta(deltas, index),
+            Action::SilentPayment(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -634,10 +635,7 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.spend(ctx, spends, index),
             Action::MeltSingleton(action) => action.spend(ctx, spends, index),
             Action::Fee(action) => action.spend(ctx, spends, index),
-            #[cfg(feature = "chip-0057")]
-            Action::SilentPaymentSend(action) => action.spend(ctx, spends, index),
-            #[cfg(feature = "chip-0057")]
-            Action::SilentPaymentSettled(action) => action.spend(ctx, spends, index),
+            Action::SilentPayment(action) => action.spend(ctx, spends, index),
         }
     }
 }

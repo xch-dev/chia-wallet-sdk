@@ -34,8 +34,8 @@ use chia_sdk_driver::silent_payments::{
 };
 use chia_sdk_driver::{
     Action, AssetInfo, Cat, CatAssetInfo, CatSpend, DriverError, FungibleSpend, HashedPtr, Id,
-    Offer, Relation, RequestedPayments, SilentPaymentSendAction, SpendContext, SpendWithConditions,
-    Spends, StandardLayer,
+    Offer, Relation, RequestedPayments, SilentPaymentAction, SilentPaymentSendAction, SpendContext,
+    SpendWithConditions, Spends, StandardLayer,
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator, sign_transaction};
@@ -2142,12 +2142,12 @@ fn test_caller_memos_on_a_cat_output_are_rejected() -> Result<()> {
     for memos in [hint, short] {
         let mut spends = Spends::new(sender.puzzle_hash);
         spends.add(cat);
-        let action = Action::SilentPaymentSend(SilentPaymentSendAction {
+        let action = Action::SilentPayment(SilentPaymentAction::Send(SilentPaymentSendAction {
             id,
             recipient: address.clone(),
             amount: 100,
             memos,
-        });
+        }));
         let result = spends.apply(&mut ctx, &[action]);
         assert!(
             matches!(result, Err(DriverError::SilentPaymentCatMemos)),
