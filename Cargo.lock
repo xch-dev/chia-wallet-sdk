@@ -817,6 +817,7 @@ dependencies = [
  "chia-sha2 0.53.0",
  "chia-traits 0.53.0",
  "chia_streamable_macro 0.53.0",
+ "chialisp",
  "clvm-traits 0.53.0",
  "clvm-utils",
  "clvmr",

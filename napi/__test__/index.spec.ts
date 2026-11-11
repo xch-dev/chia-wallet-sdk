@@ -287,8 +287,8 @@ test("mint and spend nft", (t) => {
     ),
   );
 
-  t.is(spendBundleCost(coinSpends, 9_500_000), 61_437_425n);
-  t.is(spendBundleCost(coinSpends), 66_418_338n);
+  t.is(spendBundleCost(coinSpends, true, 9_500_000), 61_437_425n);
+  t.is(spendBundleCost(coinSpends, true), 66_418_338n);
 });
 
 test("create and parse condition", (t) => {

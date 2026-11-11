@@ -1,44 +1,65 @@
 use chia_bls::Signature;
-use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
+use chia_consensus::{
+    consensus_constants::ConsensusConstants, owned_conditions::OwnedSpendBundleConditions,
+    spendbundle_conditions::get_conditions_from_spendbundle,
+};
 use chia_protocol::{CoinSpend, SpendBundle};
-use chia_sdk_types::MAINNET_CONSTANTS;
 use clvmr::Allocator;
 
 use crate::DriverError;
 
-/// Calculates the cost the mempool charges for a spend bundle, using the consensus rules in effect
-/// at `height`, which is the previous transaction block height when the bundle enters the mempool.
+/// Calculates the cost the mempool charges for a spend bundle, using the consensus rules of the
+/// network described by `constants` (such as mainnet or testnet11) in effect at `height`, which is
+/// the previous transaction block height when the bundle enters the mempool.
 ///
-/// Heights are compared against mainnet's fork heights. When `height` is `None`, the higher of the
-/// costs before and after the 3.0 hard fork is returned, so that a fee derived from it is never too
-/// low on either side of the fork.
+/// When `height` is `None`, the higher of the costs before and after the 3.0 hard fork is returned,
+/// so that a fee derived from it is never too low on either side of the fork.
 ///
 /// The coin spends must form a complete, valid spend bundle, since cross-spend conditions such as
 /// announcements are checked. The aggregated signature isn't checked.
 pub fn spend_bundle_cost(
     coin_spends: &[CoinSpend],
+    constants: &ConsensusConstants,
     height: Option<u32>,
 ) -> Result<u64, DriverError> {
-    let spend_bundle = SpendBundle::new(coin_spends.to_vec(), Signature::default());
-
-    let cost_at = |height: u32| -> Result<u64, DriverError> {
-        let mut allocator = Allocator::new();
-        let conditions = get_conditions_from_spendbundle(
-            &mut allocator,
-            &spend_bundle,
-            MAINNET_CONSTANTS.max_block_cost_clvm,
-            height,
-            &MAINNET_CONSTANTS,
-        )?;
-        Ok(conditions.cost)
-    };
-
     if let Some(height) = height {
-        return cost_at(height);
+        return Ok(spend_bundle_conditions(coin_spends, constants, height)?.cost);
     }
 
-    let fork_height = MAINNET_CONSTANTS.hard_fork2_height;
-    Ok(cost_at(fork_height - 1)?.max(cost_at(fork_height)?))
+    let fork_height = constants.hard_fork2_height;
+    let after = spend_bundle_conditions(coin_spends, constants, fork_height)?.cost;
+
+    let Some(before_height) = fork_height.checked_sub(1) else {
+        return Ok(after);
+    };
+
+    let before = spend_bundle_conditions(coin_spends, constants, before_height)?.cost;
+
+    Ok(before.max(after))
+}
+
+/// Runs a spend bundle the way the mempool does, including its limit of half a block's cost for a
+/// single transaction, and returns its conditions, including its
+/// [`cost`](OwnedSpendBundleConditions::cost) and the total amounts it removes and adds, whose
+/// difference is the fee the mempool sees. See [`spend_bundle_cost`] for the arguments.
+pub fn spend_bundle_conditions(
+    coin_spends: &[CoinSpend],
+    constants: &ConsensusConstants,
+    height: u32,
+) -> Result<OwnedSpendBundleConditions, DriverError> {
+    let spend_bundle = SpendBundle::new(coin_spends.to_vec(), Signature::default());
+    let mut allocator = Allocator::new();
+
+    // The mempool limits a single transaction to half of a block's cost.
+    let conditions = get_conditions_from_spendbundle(
+        &mut allocator,
+        &spend_bundle,
+        constants.max_block_cost_clvm / 2,
+        height,
+        constants,
+    )?;
+
+    Ok(OwnedSpendBundleConditions::from(&allocator, conditions))
 }
 
 /// The minimum fee rate, in mojos per cost, at which a transaction is both included in blocks by
@@ -72,11 +93,14 @@ pub fn recommended_fee(cost: u64, market_fee_per_cost: Option<f64>) -> u64 {
 }
 
 #[cfg(test)]
+mod mempool_tests;
+
+#[cfg(test)]
 mod tests {
     use chia_protocol::Bytes32;
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
+    use chia_sdk_types::{Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 
     use crate::{SpendContext, StandardLayer};
 
@@ -101,7 +125,11 @@ mod tests {
     #[test]
     fn test_cost_before_fork() -> anyhow::Result<()> {
         let coin_spends = send_spends(2)?;
-        let cost = spend_bundle_cost(&coin_spends, Some(MAINNET_CONSTANTS.hard_fork2_height - 1))?;
+        let cost = spend_bundle_cost(
+            &coin_spends,
+            &MAINNET_CONSTANTS,
+            Some(MAINNET_CONSTANTS.hard_fork2_height - 1),
+        )?;
         assert!(cost > 0);
         Ok(())
     }
@@ -110,8 +138,8 @@ mod tests {
     fn test_cost_changes_at_fork() -> anyhow::Result<()> {
         let coin_spends = send_spends(2)?;
         let fork_height = MAINNET_CONSTANTS.hard_fork2_height;
-        let before = spend_bundle_cost(&coin_spends, Some(fork_height - 1))?;
-        let after = spend_bundle_cost(&coin_spends, Some(fork_height))?;
+        let before = spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, Some(fork_height - 1))?;
+        let after = spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, Some(fork_height))?;
         assert_ne!(before, after);
         Ok(())
     }
@@ -121,10 +149,42 @@ mod tests {
         for outputs in [1, 10] {
             let coin_spends = send_spends(outputs)?;
             let fork_height = MAINNET_CONSTANTS.hard_fork2_height;
-            let before = spend_bundle_cost(&coin_spends, Some(fork_height - 1))?;
-            let after = spend_bundle_cost(&coin_spends, Some(fork_height))?;
-            assert_eq!(spend_bundle_cost(&coin_spends, None)?, before.max(after));
+            let before =
+                spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, Some(fork_height - 1))?;
+            let after = spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, Some(fork_height))?;
+            assert_eq!(
+                spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, None)?,
+                before.max(after)
+            );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_constants_choose_the_fork_height() -> anyhow::Result<()> {
+        let coin_spends = send_spends(2)?;
+        let mainnet_after = spend_bundle_cost(
+            &coin_spends,
+            &MAINNET_CONSTANTS,
+            Some(MAINNET_CONSTANTS.hard_fork2_height),
+        )?;
+
+        let mut constants = TESTNET11_CONSTANTS.clone();
+        constants.hard_fork2_height = 100;
+        assert_eq!(
+            spend_bundle_cost(&coin_spends, &constants, Some(100))?,
+            mainnet_after
+        );
+        assert_ne!(
+            spend_bundle_cost(&coin_spends, &constants, Some(99))?,
+            mainnet_after
+        );
+
+        constants.hard_fork2_height = 0;
+        assert_eq!(
+            spend_bundle_cost(&coin_spends, &constants, None)?,
+            mainnet_after
+        );
         Ok(())
     }
 
@@ -136,7 +196,7 @@ mod tests {
         let conditions = Conditions::new().assert_coin_announcement(Bytes32::default());
         StandardLayer::new(alice.pk).spend(&mut ctx, alice.coin, conditions)?;
 
-        assert!(spend_bundle_cost(&ctx.take(), None).is_err());
+        assert!(spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, None).is_err());
         Ok(())
     }
 

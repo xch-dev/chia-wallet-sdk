@@ -14,7 +14,7 @@ use chia_sdk_driver::{
     SpendContext, StandardLayer, spend_bundle_cost,
 };
 use chia_sdk_test::{Simulator, SimulatorConfig};
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{Conditions, MAINNET_CONSTANTS};
 use rand::{RngExt, SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha8Rng;
 
@@ -393,7 +393,7 @@ pub fn simulate(
         let children = bag.spend_node(&mut ctx, coin)?;
         let coin_spends = ctx.take();
 
-        let cost = spend_bundle_cost(&coin_spends, None)?;
+        let cost = spend_bundle_cost(&coin_spends, &MAINNET_CONSTANTS, None)?;
         ensure!(cost <= NODE_COST_BUDGET, "node spend costs {cost}");
         costs.push(cost);
 
