@@ -17,14 +17,14 @@ import test from "ava";
 import {
   Action,
   Clvm,
+  Id,
   LabelRegistry,
   Mnemonic,
   Relation,
   setPanicHook,
   SilentPaymentKeys,
   SilentPaymentNetwork,
-  SilentPaymentRegisteredKey,
-  SilentPaymentRegisteredSecretKey,
+  SilentPaymentSecretKey,
   SilentPayments,
   Simulator,
   Spends,
@@ -58,7 +58,7 @@ test("wasm: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
   // cycle binding ties them together so the receiver scanner can re-group
   // them as a strongly connected component of ASSERT_CONCURRENT_SPEND edges.
   //
-  // withSilentPaymentKeys synthesizes the registered RAW key via
+  // prepareWithSilentPaymentKeys synthesizes the RAW key via
   // deriveSynthetic internally, so each coin must live at its SYNTHETIC puzzle
   // hash for the raw-key registration to round-trip through the runtime guard.
   const sender1 = sim.bls(500n);
@@ -78,27 +78,21 @@ test("wasm: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
   spends.addXch(sender2Coin);
 
   const actions = [
-    Action.silentPaymentSend(recipientAddress, 700n, undefined),
+    Action.silentPaymentSend(Id.xch(), recipientAddress, 700n, undefined),
   ];
 
   // Register RAW keys — the facade synthesizes deriveSynthetic(...) internally.
-  spends.withSilentPaymentKeys(
-    [
-      new SilentPaymentRegisteredKey(sender1Ph, sender1.pk),
-      new SilentPaymentRegisteredKey(sender2Ph, sender2.pk),
-    ],
-    [
-      new SilentPaymentRegisteredSecretKey(sender1Ph, sender1.sk),
-      new SilentPaymentRegisteredSecretKey(sender2Ph, sender2.sk),
-    ],
-  );
+  const silentPaymentKeys = [
+      new SilentPaymentSecretKey(sender1Ph, sender1.sk),
+      new SilentPaymentSecretKey(sender2Ph, sender2.sk),
+    ];
 
   const deltas = spends.apply(actions);
 
   // Pass Relation.AssertConcurrent so the driver-side gate
   // (two or more spent XCH coins) is satisfied. Without it,
   // DriverError::SilentPaymentRequiresInputBinding fires inside prepare().
-  const finished = spends.prepare(deltas, Relation.AssertConcurrent);
+  const finished = spends.prepareWithSilentPaymentKeys(deltas, Relation.AssertConcurrent, silentPaymentKeys);
 
   // Each coin is curried over its SYNTHETIC key; spend + sign with the
   // synthetic key pair.
@@ -139,7 +133,7 @@ test("wasm: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
     "additive model: 2 Pass-1 singletons + 1 Pass-2 SCC aggregate",
   );
 
-  const labels = new LabelRegistry();
+  const labels = new LabelRegistry(recipient.scanSk());
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
     recipient.spendPk(),

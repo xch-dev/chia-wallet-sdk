@@ -12,7 +12,7 @@ where the labeled path is already byte-pinned against the CHIP-0057 test vectors
 This is the first runtime test of `Vec<chia_bls::PublicKey>` marshaling on
 `TweakData.tweak_points` across the pyo3 FFI.
 
-`with_silent_payment_keys` accepts RAW
+`prepare_with_silent_payment_keys` accepts RAW
 PublicKey/SecretKey and synthesizes the synthetic key internally via
 `derive_synthetic` (default hidden puzzle). The happy paths build sender coins
 at the SYNTHETIC puzzle hash so a raw-key registration round-trips;
@@ -43,8 +43,7 @@ from chia_wallet_sdk import (
     SilentPaymentKeys,
     SilentPaymentNetwork,
     SilentPaymentOtherPayment,
-    SilentPaymentRegisteredKey,
-    SilentPaymentRegisteredSecretKey,
+    SilentPaymentSecretKey,
     SilentPayments,
     SilentPaymentSettlementRecipient,
     SilentPaymentWrapper,
@@ -166,7 +165,7 @@ def test_identity_key_address_is_rejected():
     spends = Spends(clvm, sender.puzzle_hash)
     spends.add_xch(sender.coin)
     with pytest.raises(BaseException, match="identity element"):
-        spends.apply([Action.silent_payment_send(bad, 100, None)])
+        spends.apply([Action.silent_payment_send(Id.xch(), bad, 100, None)])
 
 
 def test_decode_returns_the_network():
@@ -326,7 +325,7 @@ def test_unlabeled_e2e():
     # Sender: fresh BLS pair from simulator (used only for its key pair).
     sender = sim.bls(1_000)
 
-    # with_silent_payment_keys synthesizes the registered RAW key via
+    # prepare_with_silent_payment_keys synthesizes the RAW key via
     # derive_synthetic internally, so the sender coin must live at the SYNTHETIC
     # puzzle hash for the raw-key registration to round-trip through the runtime guard.
     sender_synthetic_pk = sender.pk.derive_synthetic()
@@ -335,25 +334,21 @@ def test_unlabeled_e2e():
     sender_coin = sim.new_coin(sender_ph, 1_000)
     height_before = sim.height()
 
-    # Build the SP send via the dedicated Action.silent_payment_send +
-    # with_silent_payment_keys path.
+    # Build the send with Action.silent_payment_send; the keys are passed to
+    # prepare_with_silent_payment_keys.
     spends = Spends(clvm, sender_ph)
     spends.add_xch(sender_coin)
 
     actions = [
-        Action.silent_payment_send(recipient_address, 100, None)
+        Action.silent_payment_send(Id.xch(), recipient_address, 100, None)
     ]
 
-    # Register RAW SP keys (wrapper-class form — bindy doesn't
-    # marshal Vec<(K,V)> directly). The facade synthesizes derive_synthetic(...)
-    # internally.
-    spends.with_silent_payment_keys(
-        [SilentPaymentRegisteredKey(sender_ph, sender.pk)],
-        [SilentPaymentRegisteredSecretKey(sender_ph, sender.sk)],
-    )
+    # RAW keys (wrapper-class form — bindy doesn't marshal Vec<(K,V)>
+    # directly). The facade synthesizes derive_synthetic(...) internally.
+    silent_payment_keys = [SilentPaymentSecretKey(sender_ph, sender.sk)]
 
     deltas = spends.apply(actions)
-    finished = spends.prepare(deltas, None)
+    finished = spends.prepare_with_silent_payment_keys(deltas, None, silent_payment_keys)
 
     # Standard-puzzle-spend the sender's XCH input. The coin is curried over the
     # SYNTHETIC key, so spend + sign with the synthetic key pair.
@@ -381,7 +376,7 @@ def test_unlabeled_e2e():
         assert len(tp.to_bytes()) == 48, "each tweak_point round-trips as 48 bytes"
 
     # Scan.
-    labels = LabelRegistry()
+    labels = LabelRegistry(recipient.scan_sk())
     detections = SilentPayments.scan_from_tweaks(
         recipient.scan_sk(),
         recipient.spend_pk(),
@@ -441,7 +436,7 @@ def test_multi_input_e2e():
     `sim.block_spends(h) + sim.block_outputs(h)`.
 
     Exercises the full binding surface end-to-end: the `Relation`
-    enum, the `Spends.prepare(deltas, relation)`
+    enum, the `Spends.prepare_with_silent_payment_keys(deltas, relation, silent_payment_keys)`
     signature, the `SilentPayments.tweak_data_from_block_spends`
     static method, and the `Simulator.block_spends` /
     `Simulator.block_outputs` facade additions.
@@ -458,7 +453,7 @@ def test_multi_input_e2e():
     # cycle binding ties them together so the receiver scanner can re-group
     # them as a strongly connected component of ASSERT_CONCURRENT_SPEND edges.
     #
-    # with_silent_payment_keys synthesizes the registered RAW key via
+    # prepare_with_silent_payment_keys synthesizes the RAW key via
     # derive_synthetic internally, so each coin must live at its SYNTHETIC
     # puzzle hash for the raw-key registration to round-trip through the runtime guard.
     sender1 = sim.bls(500)
@@ -478,27 +473,21 @@ def test_multi_input_e2e():
     spends.add_xch(sender2_coin)
 
     actions = [
-        Action.silent_payment_send(recipient_address, 700, None)
+        Action.silent_payment_send(Id.xch(), recipient_address, 700, None)
     ]
 
     # Register RAW keys — the facade synthesizes derive_synthetic(...) internally.
-    spends.with_silent_payment_keys(
-        [
-            SilentPaymentRegisteredKey(sender1_ph, sender1.pk),
-            SilentPaymentRegisteredKey(sender2_ph, sender2.pk),
-        ],
-        [
-            SilentPaymentRegisteredSecretKey(sender1_ph, sender1.sk),
-            SilentPaymentRegisteredSecretKey(sender2_ph, sender2.sk),
-        ],
-    )
+    silent_payment_keys = [
+            SilentPaymentSecretKey(sender1_ph, sender1.sk),
+            SilentPaymentSecretKey(sender2_ph, sender2.sk),
+        ]
 
     deltas = spends.apply(actions)
 
     # Pass Relation.AssertConcurrent so the driver-side gate
     # (two or more spent XCH coins) is satisfied. Without it,
     # DriverError::SilentPaymentRequiresInputBinding fires inside prepare().
-    finished = spends.prepare(deltas, Relation.AssertConcurrent)
+    finished = spends.prepare_with_silent_payment_keys(deltas, Relation.AssertConcurrent, silent_payment_keys)
 
     # Each coin is curried over its SYNTHETIC key; spend + sign with the
     # synthetic key pair.
@@ -533,7 +522,7 @@ def test_multi_input_e2e():
         len(tweak_data.tweak_points) == 3
     ), "additive model: 2 Pass-1 singletons + 1 Pass-2 SCC aggregate"
 
-    labels = LabelRegistry()
+    labels = LabelRegistry(recipient.scan_sk())
     detections = SilentPayments.scan_from_tweaks(
         recipient.scan_sk(),
         recipient.spend_pk(),
@@ -570,20 +559,17 @@ def test_raw_key_not_synthetic_errors():
     spends.add_xch(sender.coin)
 
     actions = [
-        Action.silent_payment_send(recipient_address, 100, None)
+        Action.silent_payment_send(Id.xch(), recipient_address, 100, None)
     ]
 
-    spends.with_silent_payment_keys(
-        [SilentPaymentRegisteredKey(sender.puzzle_hash, sender.pk)],
-        [SilentPaymentRegisteredSecretKey(sender.puzzle_hash, sender.sk)],
-    )
+    silent_payment_keys = [SilentPaymentSecretKey(sender.puzzle_hash, sender.sk)]
 
     deltas = spends.apply(actions)
 
     # the runtime guard fires inside prepare() — the typed SilentPaymentKeyNotSynthetic
     # error crosses the FFI boundary as a raised exception.
     with pytest.raises(BaseException, match="key not synthetic"):
-        spends.prepare(deltas, None)
+        spends.prepare_with_silent_payment_keys(deltas, None, silent_payment_keys)
 
     # No spend bundle was produced on the failed path.
     assert len(clvm.coin_spends()) == 0, "no coin spends produced on the failed path"
@@ -648,7 +634,7 @@ def test_vector_9_cat_payment_through_bindings():
 
     data = TweakData.with_wrappers(tweak_points, outputs, wrappers)
     detections = SilentPayments.scan_from_tweaks(
-        keys.scan_sk(), keys.spend_pk(), data, LabelRegistry(), K_MAX_DEFAULT
+        keys.scan_sk(), keys.spend_pk(), data, LabelRegistry(keys.scan_sk()), K_MAX_DEFAULT
     )
     assert len(detections) == 1
     detection = detections[0]
@@ -682,7 +668,7 @@ def test_vector_9_cat_payment_through_bindings():
     bare = TweakData(tweak_points, outputs)
     assert (
         SilentPayments.scan_from_tweaks(
-            keys.scan_sk(), keys.spend_pk(), bare, LabelRegistry(), K_MAX_DEFAULT
+            keys.scan_sk(), keys.spend_pk(), bare, LabelRegistry(keys.scan_sk()), K_MAX_DEFAULT
         )
         == []
     )
@@ -841,7 +827,7 @@ def spend_pending(clvm, finished, synthetic_pk):
 
 
 def test_cat_silent_payment_e2e_through_bindings():
-    """A CAT silent payment sent with Action.silent_payment_send_asset is found under its wrapper."""
+    """A CAT silent payment sent with Action.silent_payment_send is found under its wrapper."""
     sim = Simulator()
     recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
     address = recipient.unlabeled_address(SilentPaymentNetwork.Testnet)
@@ -863,14 +849,11 @@ def test_cat_silent_payment_e2e_through_bindings():
     height = sim.height()
     spends = Spends(clvm, sender_ph)
     spends.add_cat(cat)
-    spends.with_silent_payment_keys(
-        [SilentPaymentRegisteredKey(sender_ph, sender.pk)],
-        [SilentPaymentRegisteredSecretKey(sender_ph, sender.sk)],
-    )
+    silent_payment_keys = [SilentPaymentSecretKey(sender_ph, sender.sk)]
     deltas = spends.apply(
-        [Action.silent_payment_send_asset(Id.existing(asset_id), address, 600)]
+        [Action.silent_payment_send(Id.existing(asset_id), address, 600, None)]
     )
-    sent = spend_pending(clvm, spends.prepare(deltas, None), synthetic_pk)
+    sent = spend_pending(clvm, spends.prepare_with_silent_payment_keys(deltas, None, silent_payment_keys), synthetic_pk)
     sim.spend_coins(clvm.coin_spends(), [synthetic_sk])
 
     # The change is a standard CAT of the sender.
@@ -882,7 +865,7 @@ def test_cat_silent_payment_e2e_through_bindings():
     tweak_data = sim.tweak_data_from_block(height)
     assert [w.asset_id for w in tweak_data.wrappers] == [asset_id]
     detections = SilentPayments.scan_from_tweaks(
-        recipient.scan_sk(), recipient.spend_pk(), tweak_data, LabelRegistry(), K_MAX_DEFAULT
+        recipient.scan_sk(), recipient.spend_pk(), tweak_data, LabelRegistry(recipient.scan_sk()), K_MAX_DEFAULT
     )
     assert len(detections) == 1
     detection = detections[0]
@@ -902,7 +885,7 @@ def test_cat_silent_payment_e2e_through_bindings():
     bare = TweakData(tweak_data.tweak_points, tweak_data.outputs)
     assert (
         SilentPayments.scan_from_tweaks(
-            recipient.scan_sk(), recipient.spend_pk(), bare, LabelRegistry(), K_MAX_DEFAULT
+            recipient.scan_sk(), recipient.spend_pk(), bare, LabelRegistry(recipient.scan_sk()), K_MAX_DEFAULT
         )
         == []
     )
@@ -922,17 +905,14 @@ def test_outputs_publish_silent_payment_requests():
 
     spends = Spends(clvm, maker_ph)
     spends.add_xch(xch_coin)
-    spends.with_silent_payment_keys(
-        [SilentPaymentRegisteredKey(maker_ph, sender.pk)],
-        [SilentPaymentRegisteredSecretKey(maker_ph, sender.sk)],
-    )
+    silent_payment_keys = [SilentPaymentSecretKey(maker_ph, sender.sk)]
     deltas = spends.apply(
         [
             Action.send(Id.xch(), Constants.settlement_payment_hash(), 1_000, None),
-            Action.silent_payment_requested(wrapper, address, 700, nonce),
+            Action.silent_payment_requested(Id.existing(asset_id), address, 700, nonce),
         ]
     )
-    outputs = spend_pending(clvm, spends.prepare(deltas, None), synthetic_pk)
+    outputs = spend_pending(clvm, spends.prepare_with_silent_payment_keys(deltas, None, silent_payment_keys), synthetic_pk)
 
     requests = outputs.silent_payment_requests()
     assert requests.xch() == []
@@ -967,3 +947,23 @@ def test_outputs_publish_silent_payment_requests():
     cat_info = asset_info.cat(asset_id)
     assert cat_info is not None
     assert cat_info.hidden_puzzle_hash is None
+
+
+def test_label_registry_is_bound_to_its_scan_key():
+    """A registry refuses another scan key, and the scanner refuses a foreign registry."""
+    keys = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    other = keys.spend_sk()
+
+    labels = LabelRegistry(keys.scan_sk())
+    assert labels.scan_pk().to_bytes() == keys.scan_pk().to_bytes()
+    labels.register(keys.scan_sk(), 1)
+    labels.register(keys.scan_sk(), 1)
+    assert labels.len() == 1
+    with pytest.raises(BaseException, match="another scan key"):
+        labels.register(other, 2)
+
+    data = TweakData([], [])
+    with pytest.raises(BaseException, match="another scan key"):
+        SilentPayments.scan_from_tweaks(
+            keys.scan_sk(), keys.spend_pk(), data, LabelRegistry(other), K_MAX_DEFAULT
+        )

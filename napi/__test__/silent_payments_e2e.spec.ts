@@ -7,7 +7,7 @@
 // test of Vec<chia_bls::PublicKey> marshaling on TweakData.tweakPoints across
 // napi.
 //
-// withSilentPaymentKeys accepts RAW
+// prepareWithSilentPaymentKeys accepts RAW
 // PublicKey/SecretKey and synthesizes the synthetic key internally via
 // derive_synthetic (default hidden puzzle). The happy path below builds the
 // sender coin at the SYNTHETIC puzzle hash so a raw-key registration
@@ -23,12 +23,12 @@ import test from "ava";
 import {
   Action,
   Clvm,
+  Id,
   LabelRegistry,
   Mnemonic,
   SilentPaymentKeys,
   SilentPaymentNetwork,
-  SilentPaymentRegisteredKey,
-  SilentPaymentRegisteredSecretKey,
+  SilentPaymentSecretKey,
   SilentPayments,
   Simulator,
   Spends,
@@ -54,7 +54,7 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const sender = sim.bls(1_000n);
   const heightBefore = sim.height();
 
-  // withSilentPaymentKeys synthesizes the registered RAW key via
+  // prepareWithSilentPaymentKeys synthesizes the RAW key via
   // derive_synthetic internally. For the raw-key registration to round-trip
   // through the runtime guard, the sender coin must live at the SYNTHETIC puzzle hash
   // (curry_tree_hash(derive_synthetic(sender.pk))), NOT the raw puzzle hash.
@@ -63,26 +63,21 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const senderPh = standardPuzzleHash(senderSyntheticPk);
   const senderCoin = sim.newCoin(senderPh, 1_000n);
 
-  // Build the SP send via the dedicated Action.silentPaymentSend +
-  // withSilentPaymentKeys path.
+  // Build the send with Action.silentPaymentSend; the keys are passed to
+  // prepareWithSilentPaymentKeys.
   const spends = new Spends(clvm, senderPh);
   spends.addXch(senderCoin);
 
   const actions = [
-    Action.silentPaymentSend(recipientAddress, 100n, undefined),
+    Action.silentPaymentSend(Id.xch(), recipientAddress, 100n, undefined),
   ];
 
-  // Register RAW SP keys BEFORE apply (with_silent_payment_keys must precede
-  // finish-time SP processing inside prepare()). Wrapper-class form per
-  // bindy doesn't marshal Vec<(K,V)> directly. The facade
+  // RAW keys, in wrapper-class form (bindy doesn't marshal Vec<(K,V)>). The facade
   // synthesizes derive_synthetic(sender.pk/sk) internally.
-  spends.withSilentPaymentKeys(
-    [new SilentPaymentRegisteredKey(senderPh, sender.pk)],
-    [new SilentPaymentRegisteredSecretKey(senderPh, sender.sk)],
-  );
+  const silentPaymentKeys = [new SilentPaymentSecretKey(senderPh, sender.sk)];
 
   const deltas = spends.apply(actions);
-  const finished = spends.prepare(deltas);
+  const finished = spends.prepareWithSilentPaymentKeys(deltas, undefined, silentPaymentKeys);
 
   // Standard-puzzle-spend the sender's XCH input. The coin is curried over the
   // SYNTHETIC key, so spend with the synthetic key and sign with the synthetic
@@ -121,7 +116,7 @@ test("napi: raw-key SP send + scan-from-tweaks E2E", (t) => {
 
   // Scan — Vec<PublicKey> marshaling check fires here on
   // tweakData.tweakPoints access inside the scanner.
-  const labels = new LabelRegistry();
+  const labels = new LabelRegistry(recipient.scanSk());
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
     recipient.spendPk(),
@@ -194,13 +189,10 @@ test("napi: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   spends.addXch(sender.coin);
 
   const actions = [
-    Action.silentPaymentSend(recipientAddress, 100n, undefined),
+    Action.silentPaymentSend(Id.xch(), recipientAddress, 100n, undefined),
   ];
 
-  spends.withSilentPaymentKeys(
-    [new SilentPaymentRegisteredKey(sender.puzzleHash, sender.pk)],
-    [new SilentPaymentRegisteredSecretKey(sender.puzzleHash, sender.sk)],
-  );
+  const silentPaymentKeys = [new SilentPaymentSecretKey(sender.puzzleHash, sender.sk)];
 
   const deltas = spends.apply(actions);
 
@@ -209,7 +201,7 @@ test("napi: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   // produced.
   t.throws(
     () => {
-      spends.prepare(deltas);
+      spends.prepareWithSilentPaymentKeys(deltas, undefined, silentPaymentKeys);
     },
     { message: /key not synthetic/i },
     "raw key against a raw-curried coin must surface the typed error",

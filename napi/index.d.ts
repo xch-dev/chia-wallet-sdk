@@ -13,12 +13,11 @@ export declare class Action {
   clone(): Action
   static send(id: Id, puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Action
   static burn(id: Id, amount: bigint, memos?: Program | undefined | null): Action
-  static silentPaymentSend(recipient: SilentPaymentAddress, amount: bigint, memos?: Program | undefined | null): Action
-  static silentPaymentSendAsset(id: Id, recipient: SilentPaymentAddress, amount: bigint): Action
-  static silentPaymentRequested(asset: SilentPaymentWrapper | undefined | null, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
-  static silentPaymentRequestedOther(asset: SilentPaymentWrapper | undefined | null, payment: Payment, nonce: Uint8Array): Action
-  static silentPaymentSettle(asset: SilentPaymentWrapper | undefined | null, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
-  static silentPaymentSettleOther(asset: SilentPaymentWrapper | undefined | null, payment: Payment, nonce: Uint8Array): Action
+  static silentPaymentSend(id: Id, recipient: SilentPaymentAddress, amount: bigint, memos?: Program | undefined | null): Action
+  static silentPaymentRequested(id: Id, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
+  static silentPaymentRequestedOther(id: Id, payment: Payment, nonce: Uint8Array): Action
+  static silentPaymentSettle(id: Id, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
+  static silentPaymentSettleOther(id: Id, payment: Payment, nonce: Uint8Array): Action
   static settle(id: Id, notarizedPayment: NotarizedPayment): Action
   static settleRoyalty(clvm: Clvm, id: Id, launcherId: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyAmount: bigint): Action
   static createDid(metadata: Program, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, amount: bigint): Action
@@ -2361,8 +2360,9 @@ export declare class K1Signature {
 
 export declare class LabelRegistry {
   clone(): LabelRegistry
-  constructor()
+  constructor(scanSk: SecretKey)
   register(scanSk: SecretKey, m: number): void
+  scanPk(): PublicKey
   forward(m: number): PublicKey | null
   lookup(labelPk: PublicKey): number | null
   len(): number
@@ -4566,24 +4566,6 @@ export declare class SilentPaymentOtherPayment {
   set payment(value: Uint8Array)
 }
 
-export declare class SilentPaymentRegisteredKey {
-  clone(): SilentPaymentRegisteredKey
-  constructor(p2PuzzleHash: Uint8Array, publicKey: PublicKey)
-  get p2PuzzleHash(): Buffer
-  set p2PuzzleHash(value: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-}
-
-export declare class SilentPaymentRegisteredSecretKey {
-  clone(): SilentPaymentRegisteredSecretKey
-  constructor(p2PuzzleHash: Uint8Array, secretKey: SecretKey)
-  get p2PuzzleHash(): Buffer
-  set p2PuzzleHash(value: Uint8Array)
-  get secretKey(): SecretKey
-  set secretKey(value: SecretKey)
-}
-
 export declare class SilentPayments {
   clone(): SilentPayments
   static kMax(): number
@@ -4596,6 +4578,15 @@ export declare class SilentPayments {
   static aggregateSenderSks(sks: Array<SecretKey>): SecretKey
   static tweakDataFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): TweakData
   static deriveSettlementOutputs(group: Array<SilentPaymentGroupCoin>, recipients: Array<SilentPaymentSettlementRecipient>, otherPayments: Array<SilentPaymentOtherPayment>, nonce: Uint8Array): SilentPaymentSettlement
+}
+
+export declare class SilentPaymentSecretKey {
+  clone(): SilentPaymentSecretKey
+  constructor(p2PuzzleHash: Uint8Array, secretKey: SecretKey)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get secretKey(): SecretKey
+  set secretKey(value: SecretKey)
 }
 
 export declare class SilentPaymentSettlement {
@@ -4728,7 +4719,8 @@ export declare class Spends {
   selectedCatAmount(assetId: Uint8Array): bigint
   apply(actions: Array<Action>): Deltas
   prepare(deltas: Deltas, relation?: Relation | undefined | null): FinishedSpends
-  withSilentPaymentKeys(syntheticPks: Array<SilentPaymentRegisteredKey>, secretKeys: Array<SilentPaymentRegisteredSecretKey>): void
+  setSilentPaymentRequestedAssetInfo(assetInfo: AssetInfo): void
+  prepareWithSilentPaymentKeys(deltas: Deltas, relation: Relation | undefined | null, secretKeys: Array<SilentPaymentSecretKey>): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {

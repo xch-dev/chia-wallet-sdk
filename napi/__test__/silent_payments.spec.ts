@@ -14,6 +14,7 @@ import {
   Action,
   Clvm,
   fromHex,
+  Id,
   Mnemonic,
   PublicKey,
   ScalarField,
@@ -70,7 +71,7 @@ test("Action.silentPaymentSend composes from a SilentPaymentAddress", (t) => {
   // destination wrapper. We don't execute the spend here; just confirm
   // construction succeeds without throwing, which proves the bindy descriptor
   // wiring for silent_payment_send is intact end-to-end.
-  const action = Action.silentPaymentSend(address, 1000n, undefined);
+  const action = Action.silentPaymentSend(Id.xch(), address, 1000n, undefined);
   t.truthy(action);
 });
 
@@ -179,7 +180,7 @@ test("identity-key address is rejected by encode and by the send action", (t) =>
   const spends = new Spends(clvm, sender.puzzleHash);
   spends.addXch(sender.coin);
   t.throws(
-    () => spends.apply([Action.silentPaymentSend(bad, 100n, undefined)]),
+    () => spends.apply([Action.silentPaymentSend(Id.xch(), bad, 100n, undefined)]),
     { message: /identity element/ },
   );
 });

@@ -12,7 +12,7 @@
 // `Vec<chia_bls::PublicKey>` marshaling on TweakData.tweakPoints across the
 // wasm-bindgen FFI.
 //
-// withSilentPaymentKeys accepts RAW
+// prepareWithSilentPaymentKeys accepts RAW
 // PublicKey/SecretKey and synthesizes the synthetic key internally via
 // deriveSynthetic (default hidden puzzle). The happy path builds the sender
 // coin at the SYNTHETIC puzzle hash so a raw-key registration round-trips; the
@@ -29,14 +29,14 @@ import {
   Action,
   Clvm,
   fromHex,
+  Id,
   LabelRegistry,
   Mnemonic,
   PublicKey,
   setPanicHook,
   SilentPaymentKeys,
   SilentPaymentNetwork,
-  SilentPaymentRegisteredKey,
-  SilentPaymentRegisteredSecretKey,
+  SilentPaymentSecretKey,
   SilentPayments,
   Simulator,
   Spends,
@@ -63,7 +63,7 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   // Sender: fresh BLS pair from simulator (used only for its key pair).
   const sender = sim.bls(1_000n);
 
-  // withSilentPaymentKeys synthesizes the registered RAW key via
+  // prepareWithSilentPaymentKeys synthesizes the RAW key via
   // deriveSynthetic internally, so the sender coin must live at the SYNTHETIC
   // puzzle hash for the raw-key registration to round-trip through the runtime guard.
   const senderSyntheticPk = sender.pk.deriveSynthetic();
@@ -72,25 +72,22 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
   const senderCoin = sim.newCoin(senderPh, 1_000n);
   const heightBefore = sim.height();
 
-  // Build the SP send via the dedicated Action.silentPaymentSend +
-  // withSilentPaymentKeys path.
+  // Build the send with Action.silentPaymentSend; the keys are passed to
+  // prepareWithSilentPaymentKeys.
   const spends = new Spends(clvm, senderPh);
   spends.addXch(senderCoin);
 
   const actions = [
-    Action.silentPaymentSend(recipientAddress, 100n, undefined),
+    Action.silentPaymentSend(Id.xch(), recipientAddress, 100n, undefined),
   ];
 
   // Register RAW SP keys (wrapper-class form — bindy doesn't
   // marshal Vec<(K,V)> directly across wasm-bindgen either). The facade
   // synthesizes deriveSynthetic(sender.pk/sk) internally.
-  spends.withSilentPaymentKeys(
-    [new SilentPaymentRegisteredKey(senderPh, sender.pk)],
-    [new SilentPaymentRegisteredSecretKey(senderPh, sender.sk)],
-  );
+  const silentPaymentKeys = [new SilentPaymentSecretKey(senderPh, sender.sk)];
 
   const deltas = spends.apply(actions);
-  const finished = spends.prepare(deltas);
+  const finished = spends.prepareWithSilentPaymentKeys(deltas, undefined, silentPaymentKeys);
 
   // Standard-puzzle-spend the sender's XCH input. The coin is curried over the
   // SYNTHETIC key, so spend + sign with the synthetic key pair.
@@ -128,7 +125,7 @@ test("wasm: raw-key SP send + scan-from-tweaks E2E", (t) => {
 
   // Scan — Vec<PublicKey> marshaling check fires here on
   // tweakData.tweakPoints access inside the scanner.
-  const labels = new LabelRegistry();
+  const labels = new LabelRegistry(recipient.scanSk());
   const detections = SilentPayments.scanFromTweaks(
     recipient.scanSk(),
     recipient.spendPk(),
@@ -202,13 +199,10 @@ test("wasm: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   spends.addXch(sender.coin);
 
   const actions = [
-    Action.silentPaymentSend(recipientAddress, 100n, undefined),
+    Action.silentPaymentSend(Id.xch(), recipientAddress, 100n, undefined),
   ];
 
-  spends.withSilentPaymentKeys(
-    [new SilentPaymentRegisteredKey(sender.puzzleHash, sender.pk)],
-    [new SilentPaymentRegisteredSecretKey(sender.puzzleHash, sender.sk)],
-  );
+  const silentPaymentKeys = [new SilentPaymentSecretKey(sender.puzzleHash, sender.sk)];
 
   const deltas = spends.apply(actions);
 
@@ -217,7 +211,7 @@ test("wasm: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
   // is produced.
   t.throws(
     () => {
-      spends.prepare(deltas);
+      spends.prepareWithSilentPaymentKeys(deltas, undefined, silentPaymentKeys);
     },
     { message: /key not synthetic/i },
     "raw key against a raw-curried coin must surface the typed error",
