@@ -202,15 +202,7 @@
       "public_key": "PublicKey"
     }
   },
-  "SilentPaymentRegisteredKey": {
-    "type": "class",
-    "new": true,
-    "fields": {
-      "p2_puzzle_hash": "Bytes32",
-      "public_key": "PublicKey"
-    }
-  },
-  "SilentPaymentRegisteredSecretKey": {
+  "SilentPaymentSecretKey": {
     "type": "class",
     "new": true,
     "fields": {

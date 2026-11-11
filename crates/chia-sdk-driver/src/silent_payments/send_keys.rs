@@ -1,23 +1,13 @@
-//! The `SyntheticSecretKey` / `SyntheticPublicKey` newtypes that the
-//! silent-payment send path uses to prove a key is the synthetic key (the one
-//! curried into `StandardArgs::synthetic_key`).
-//!
-//! The finish-time derivation pipeline (aggregate SKs, compute `input_hash`,
-//! derive one-time puzzle hash, emit `CreateCoin`) lives in the chip-0057 SP
-//! branch of [`crate::Spends::finish_with_keys`] via the private
-//! `sp_finish_branch` helper in `action_system/spends.rs`, which also enforces
-//! the multi-input atomic binding via [`crate::Relation::AssertConcurrent`].
+//! The `SyntheticSecretKey` / `SyntheticPublicKey` newtypes: keys that are the synthetic key
+//! curried into the standard puzzle, which is what the silent payment send path aggregates.
 
 use std::fmt;
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_puzzle_types::DeriveSynthetic;
-use indexmap::IndexMap;
-
-use chia_protocol::Bytes32;
 
 /// A `chia_bls::SecretKey` proven (by construction via [`SyntheticSecretKey::from_raw`]
-/// or by the `sp_finish_branch` runtime check) to be the SYNTHETIC secret key —
+/// or by the check when the transaction is prepared) to be the SYNTHETIC secret key —
 /// the one whose public key is curried into `StandardArgs::synthetic_key`. The
 /// CHIP-0057 send path aggregates these verbatim; passing a raw wallet SK lands
 /// funds at an undetectable one-time puzzle hash, so the type exists to make that
@@ -45,8 +35,8 @@ impl SyntheticSecretKey {
     }
 
     /// Escape hatch: wrap a key the caller asserts is already synthetic. NOT
-    /// validated here — the runtime check in `sp_finish_branch`
-    /// (`curry_tree_hash(pk) == coin p2_puzzle_hash` + `sk.public_key() == pk`)
+    /// validated here — the check when the transaction is prepared
+    /// (`curry_tree_hash(sk.public_key()) == coin p2_puzzle_hash`)
     /// is the universal backstop that rejects a mis-wrapped key before signing.
     #[must_use]
     pub fn from_synthetic_unchecked(synthetic: SecretKey) -> Self {
@@ -72,23 +62,8 @@ impl SyntheticSecretKey {
     }
 }
 
-/// The synthetic secret keys registered on [`crate::Spends`] for a silent
-/// payment, by p2 puzzle hash.
-///
-/// [`crate::Spends`] derives `Debug`, and `chia_bls::SecretKey`'s `Debug`
-/// prints the key, so the map is wrapped in a type whose `Debug` shows only how
-/// many keys it holds.
-#[derive(Clone, Default)]
-pub(crate) struct SilentPaymentSecretKeys(pub(crate) IndexMap<Bytes32, SecretKey>);
-
-impl fmt::Debug for SilentPaymentSecretKeys {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SilentPaymentSecretKeys(<{} redacted>)", self.0.len())
-    }
-}
-
 /// A `chia_bls::PublicKey` proven (by construction via [`SyntheticPublicKey::from_raw`]
-/// or by the `sp_finish_branch` runtime check) to be the SYNTHETIC public key —
+/// or by the check when the transaction is prepared) to be the SYNTHETIC public key —
 /// the one curried into `StandardArgs::synthetic_key`. The CHIP-0057 send path
 /// uses these verbatim; passing a raw wallet PK lands funds at an undetectable
 /// one-time puzzle hash, so the type exists to make that a compile error.
@@ -105,7 +80,7 @@ impl SyntheticPublicKey {
     }
 
     /// Escape hatch: wrap a key the caller asserts is already synthetic. NOT
-    /// validated here — the runtime check in `sp_finish_branch`
+    /// validated here — the check when the transaction is prepared
     /// (`curry_tree_hash(pk) == coin p2_puzzle_hash`) is the universal backstop
     /// that rejects a mis-wrapped key before signing.
     #[must_use]
@@ -188,36 +163,19 @@ mod tests {
         Ok(())
     }
 
-    /// No type on the send path prints a secret key through `Debug`: neither
-    /// the `SyntheticSecretKey` newtype, nor a `Spends` that has keys
-    /// registered, in the plain or the pretty form.
+    /// `Debug` on the newtype does not print the key.
     #[test]
-    fn secret_keys_are_not_printed_by_debug() {
+    fn secret_key_is_not_printed_by_debug() {
         let mut sim = Simulator::new();
         let alice = sim.bls(1);
-        let secret_hex = hex::encode(alice.sk.to_bytes());
-        // chia-bls 0.52 redacts `SecretKey` in `Debug` itself; before that it
-        // printed the key, so the wrappers below must not rely on it.
-
         let key = SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone());
         assert_eq!(format!("{key:?}"), "SyntheticSecretKey(<redacted>)");
-
-        let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add(alice.coin);
-        spends.with_silent_payment_keys(
-            indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) },
-            indexmap! { alice.puzzle_hash => key },
-        );
-        for rendered in [format!("{spends:?}"), format!("{spends:#?}")] {
-            assert!(rendered.contains("SilentPaymentSecretKeys(<1 redacted>)"));
-            assert!(!rendered.contains(&secret_hex));
-        }
     }
 
-    /// The registered secret keys are consumed by the derivation: the prepared
-    /// `Spends` no longer holds them.
+    /// `Spends` never holds a secret key: a transaction with a silent payment
+    /// cannot be prepared without passing the keys.
     #[test]
-    fn secret_keys_are_dropped_once_the_outputs_are_derived() -> Result<()> {
+    fn prepare_without_keys_is_refused() -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
         let alice = sim.bls(5);
@@ -233,16 +191,11 @@ mod tests {
             &mut ctx,
             &[Action::silent_payment_send(recipient, 1, Memos::None)],
         )?;
-        spends.with_silent_payment_keys(
-            indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) },
-            indexmap! {
-                alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
-            },
-        );
-        assert!(spends.silent_payment_synthetic_sks.is_some());
-
-        let prepared = spends.prepare(&mut ctx, &deltas, Relation::None)?;
-        assert!(prepared.silent_payment_synthetic_sks.is_none());
+        let result = spends.prepare(&mut ctx, &deltas, Relation::None);
+        assert!(matches!(
+            result,
+            Err(DriverError::SilentPaymentKeysNotRegistered)
+        ));
         Ok(())
     }
 
@@ -252,8 +205,6 @@ mod tests {
     /// single-input aggregation (which would silently corrupt the puzzle hash).
     /// Multi-party flows are not currently supported.
     ///
-    /// Uses `Action::silent_payment_send`, registers keys via
-    /// `with_silent_payment_keys`, and finishes via `finish_with_keys`.
     #[test]
     fn multi_party_hard_errors() -> Result<()> {
         let mut sim = Simulator::new();
@@ -275,7 +226,6 @@ mod tests {
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
         // The `sim.bls()` fixture coins are curried over the RAW pk, so the
         // registered SP key IS the raw key — wrap via `from_synthetic_unchecked`.
-        let synthetic_public_map = indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
         };
@@ -294,10 +244,15 @@ mod tests {
         )?;
 
         // synthetic_secret_map contains ONLY Alice — Bob is missing.
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result =
-            spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::AssertConcurrent,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentMultiPartyUnsupported)),
@@ -315,7 +270,7 @@ mod tests {
     /// The SK-coverage check is NOT triggered: both Alice's and Bob's SKs are
     /// registered, so under `Relation::AssertConcurrent` the call would
     /// succeed. The input-binding gate is sequenced ahead of the SK-coverage
-    /// check inside `sp_finish_branch` so a misconfigured multi-input send
+    /// check so a misconfigured multi-input send
     /// fails fast rather than producing detectable-but-unbound output coins.
     #[test]
     fn multi_input_requires_assert_concurrent_relation() -> Result<()> {
@@ -340,10 +295,6 @@ mod tests {
             alice.puzzle_hash => alice.pk,
             bob.puzzle_hash => bob.pk,
         };
-        let synthetic_public_map = indexmap! {
-            alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk),
-            bob.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(bob.pk),
-        };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
             bob.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(bob.sk.clone()),
@@ -362,9 +313,15 @@ mod tests {
             )],
         )?;
 
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentRequiresInputBinding)),
@@ -378,7 +335,7 @@ mod tests {
     /// `Relation::None` — the gate short-circuits because the spent XCH coin
     /// count < 2. Single-input SP sends do not require input binding.
     ///
-    /// The success path exercises `sp_finish_branch` end-to-end (gates pass;
+    /// The success path runs the derivation end-to-end (gates pass;
     /// derivation pipeline runs).
     #[test]
     fn single_input_accepts_relation_none() -> Result<()> {
@@ -398,7 +355,6 @@ mod tests {
         // `pk_map` stays raw for `finish_with_keys`; the SP newtype maps wrap
         // the raw fixture key via `from_synthetic_unchecked`.
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let synthetic_public_map = indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
         };
@@ -415,9 +371,15 @@ mod tests {
             )],
         )?;
 
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             result.is_ok(),
@@ -458,10 +420,6 @@ mod tests {
         // pk is `derive_synthetic(alice.pk)`, but the coin is curried over the
         // raw `alice.pk`, so `curry_tree_hash(registered_pk) != ph`.
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let synthetic_public_map = indexmap! {
-            alice.puzzle_hash =>
-                SyntheticPublicKey::from_synthetic_unchecked(alice.pk.derive_synthetic()),
-        };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash =>
                 SyntheticSecretKey::from_synthetic_unchecked(alice.sk.derive_synthetic()),
@@ -479,9 +437,15 @@ mod tests {
             )],
         )?;
 
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentKeyNotSynthetic)),
@@ -491,13 +455,9 @@ mod tests {
         Ok(())
     }
 
-    /// Synthetic-key check, second arm — sk/pk map consistency: a registered pk
-    /// that DOES match the coin (`curry_tree_hash(pk) == ph`) but whose paired sk
-    /// has a different public key (`sk.public_key() != pk`) MUST fail typed
-    /// before signing. Catches a wallet that registers mismatched halves of the
-    /// pk/sk maps.
+    /// A secret key that is not the key of the coin fails before signing.
     #[test]
-    fn sk_pk_mismatch_fails_not_synthetic() -> Result<()> {
+    fn unrelated_secret_key_fails_not_synthetic() -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -511,15 +471,8 @@ mod tests {
             SilentPaymentNetwork::Mainnet,
         );
 
-        // pk matches the coin (raw `alice.pk`, curried as `alice.puzzle_hash`),
-        // but the registered sk is an unrelated key, so `sk.public_key() != pk`.
-        // The byte pattern is small (well under the BLS group order) so
-        // `SecretKey::from_bytes` succeeds.
         let other_sk = SecretKey::from_bytes(&[0x01u8; 32])?;
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let synthetic_public_map = indexmap! {
-            alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk),
-        };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(other_sk),
         };
@@ -536,13 +489,19 @@ mod tests {
             )],
         )?;
 
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentKeyNotSynthetic)),
-            "expected SilentPaymentKeyNotSynthetic for sk.public_key() != pk, got {result:?}"
+            "expected SilentPaymentKeyNotSynthetic for an unrelated key, got {result:?}"
         );
 
         Ok(())
@@ -571,12 +530,8 @@ mod tests {
 
         // The caller used `from_synthetic_unchecked` to assert a key is
         // synthetic when it is not (it double-synthesizes a key the coin
-        // curried raw). The sp_finish_branch check catches the mis-assertion.
+        // curried raw). The check at prepare time catches the mis-assertion.
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let synthetic_public_map = indexmap! {
-            alice.puzzle_hash =>
-                SyntheticPublicKey::from_synthetic_unchecked(alice.pk.derive_synthetic()),
-        };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash =>
                 SyntheticSecretKey::from_synthetic_unchecked(alice.sk.derive_synthetic()),
@@ -594,13 +549,19 @@ mod tests {
             )],
         )?;
 
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        );
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentKeyNotSynthetic)),
-            "from_synthetic_unchecked of a wrong key must be backstopped by sp_finish_branch, got {result:?}"
+            "from_synthetic_unchecked of a wrong key must be backstopped, got {result:?}"
         );
 
         Ok(())

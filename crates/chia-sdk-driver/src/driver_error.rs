@@ -582,10 +582,12 @@ pub enum DriverError {
     #[error("silent payment spend group changed after the outputs were derived")]
     SilentPaymentInputSetChanged,
 
-    /// `Spends::with_silent_payment_keys` was not called before finish, so no
-    /// silent-payment secret keys are registered for the spent inputs.
+    /// A transaction with silent payment actions was prepared without the
+    /// secret keys of its spend group. Use
+    /// `Spends::prepare_with_silent_payment_keys` or
+    /// `Spends::finish_with_silent_payment_keys`.
     #[cfg(feature = "chip-0057")]
-    #[error("silent payment keys not registered")]
+    #[error("silent payment secret keys were not provided")]
     SilentPaymentKeysNotRegistered,
 
     /// A registered silent-payment key is not the synthetic key for its coin.

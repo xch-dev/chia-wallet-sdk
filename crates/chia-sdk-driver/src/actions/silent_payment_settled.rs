@@ -161,7 +161,8 @@ impl SpendAction for SilentPaymentSettledAction {
             }
             SettledEntry::Other(payment) => {
                 spends
-                    .silent_payment_settled_others
+                    .silent_payments
+                    .settled_others
                     .push(SettledOtherPayment {
                         asset: self.asset,
                         nonce: self.nonce,
@@ -252,8 +253,8 @@ mod tests {
             nonce,
         ));
         spends.apply(&mut ctx, &actions)?;
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
-        let last = spends.silent_payments_pending.last().unwrap();
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
+        let last = spends.silent_payments.pending.last().unwrap();
         assert_eq!(last.k, K_MAX - 1);
         assert_eq!(
             last.source,
@@ -277,7 +278,7 @@ mod tests {
                 "expected SilentPaymentTooManyOutputs, got {result:?}"
             );
         }
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
         Ok(())
     }
 }

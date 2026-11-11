@@ -482,38 +482,11 @@ pub struct SilentPaymentLabel {
 #[derive(Clone)]
 pub struct SilentPayments;
 
-// ─── SP key registration wrappers (Spends::with_silent_payment_keys) ─────
-//
-// bindy does not natively marshal `Vec<(K, V)>` tuple types across the FFI
-// boundary, so the two registration maps that `Spends::with_silent_payment_keys`
-// consumes are surfaced as `Vec<SilentPaymentRegisteredKey>` and
-// `Vec<SilentPaymentRegisteredSecretKey>` respectively. The facade converts to
-// `IndexMap<Bytes32, _>` internally before delegating to the driver.
-
-/// One `(p2_puzzle_hash, raw public_key)` entry used to register the chip-0057
-/// silent-payment key bundle on `Spends` before `prepare`.
-///
-/// `public_key` is the RAW wallet public key; `Spends::with_silent_payment_keys`
-/// synthesizes the synthetic key internally via the default hidden puzzle (see
-/// that method's docs for the custom-hidden / synthetic-key fail-loud contract).
+/// One `(p2_puzzle_hash, secret_key)` entry of the keys passed to
+/// `Spends.prepare_with_silent_payment_keys`. `secret_key` is the raw wallet
+/// secret key; the synthetic key is derived with the default hidden puzzle.
 #[derive(Clone)]
-pub struct SilentPaymentRegisteredKey {
-    pub p2_puzzle_hash: Bytes32,
-    pub public_key: PublicKey,
-}
-
-/// One `(p2_puzzle_hash, raw secret_key)` entry used to register the chip-0057
-/// silent-payment key bundle on `Spends` before `prepare`.
-///
-/// `secret_key` is the RAW wallet secret key; `Spends::with_silent_payment_keys`
-/// synthesizes the synthetic key internally via the default hidden puzzle (see
-/// that method's docs for the custom-hidden / synthetic-key fail-loud contract).
-///
-/// Privacy warning: `secret_key` carries sensitive secret-key material —
-/// wallets must treat the wrapping vec like the SKs themselves (zeroize on
-/// drop, do not log).
-#[derive(Clone)]
-pub struct SilentPaymentRegisteredSecretKey {
+pub struct SilentPaymentSecretKey {
     pub p2_puzzle_hash: Bytes32,
     pub secret_key: SecretKey,
 }
@@ -530,7 +503,7 @@ pub struct SilentPaymentRegisteredSecretKey {
 /// (the standard puzzle hash for XCH, `wrap(W, standard puzzle hash)` for a
 /// CAT coin), its SYNTHETIC secret key and its asset (`None` for XCH).
 ///
-/// Unlike `SilentPaymentRegisteredSecretKey`, which takes the raw wallet key,
+/// Unlike `SilentPaymentSecretKey`, which takes the raw wallet key,
 /// `secret_key` is the synthetic key, the one whose public key is curried into
 /// the coin's standard puzzle. `derive_settlement_outputs` checks that the key
 /// belongs to the coin, `wrap(wrapper, curry_tree_hash(secret_key.public_key()))

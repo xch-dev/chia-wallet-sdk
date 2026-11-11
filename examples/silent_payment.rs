@@ -61,13 +61,16 @@ fn main() -> Result<()> {
     // raw key and we wrap via `from_synthetic_unchecked`. Wallets sending from
     // standard-spend coins synthesize via `SyntheticSecretKey::from_raw`.
     let pks = indexmap! { sender.puzzle_hash => sender.pk };
-    spends.with_silent_payment_keys(
-        indexmap! { sender.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender.pk) },
-        indexmap! {
-            sender.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
-        },
-    );
-    spends.finish_with_keys(ctx, &deltas, Relation::None, &pks)?;
+    let silent_payment_keys: indexmap::IndexMap<_, _> = indexmap! {
+        sender.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
+    };
+    spends.finish_with_silent_payment_keys(
+        ctx,
+        &deltas,
+        Relation::None,
+        &pks,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
     println!("Stage 2/5 — Sent 100 mojos unlabeled + 200 mojos labeled(m=1) in one tx.");
 
@@ -145,19 +148,19 @@ fn main() -> Result<()> {
         sender_a.puzzle_hash => sender_a.pk,
         sender_b.puzzle_hash => sender_b.pk,
     };
-    spends_multi.with_silent_payment_keys(
-        indexmap! {
-            sender_a.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender_a.pk),
-            sender_b.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender_b.pk),
-        },
-        indexmap! {
-            sender_a.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender_a.sk.clone()),
-            sender_b.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender_b.sk.clone()),
-        },
-    );
+    let silent_payment_keys: indexmap::IndexMap<_, _> = indexmap! {
+        sender_a.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender_a.sk.clone()),
+        sender_b.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender_b.sk.clone()),
+    };
     // Relation::AssertConcurrent is mandatory for multi-input SP sends —
     // without it, finish_with_keys returns SilentPaymentRequiresInputBinding.
-    spends_multi.finish_with_keys(ctx, &deltas_multi, Relation::AssertConcurrent, &multi_pks)?;
+    spends_multi.finish_with_silent_payment_keys(
+        ctx,
+        &deltas_multi,
+        Relation::AssertConcurrent,
+        &multi_pks,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), &[sender_a.sk.clone(), sender_b.sk.clone()])?;
     println!(
         "Stage 6/9 — Sent 700 mojos via multi-input SP send (2 coins, Relation::AssertConcurrent)."

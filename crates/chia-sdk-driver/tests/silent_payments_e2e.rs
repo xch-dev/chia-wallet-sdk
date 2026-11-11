@@ -27,8 +27,8 @@ use chia_puzzle_types::{DeriveSynthetic, Memos};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_driver::silent_payments::{
     K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementGroupCoin, SettlementRecipient,
-    SyntheticPublicKey, SyntheticSecretKey, Wrapper, aggregate_sender_sks, compute_input_hash,
-    compute_tweak_point, derive_one_time_puzzle_hash, derive_settlement_outputs, scan_from_tweaks,
+    SyntheticSecretKey, Wrapper, aggregate_sender_sks, compute_input_hash, compute_tweak_point,
+    derive_one_time_puzzle_hash, derive_settlement_outputs, scan_from_tweaks,
     settlement_announcement, settlement_puzzle_hash, spend_groups_from_block_spends,
     tweak_data_from_block_spends,
 };
@@ -98,14 +98,17 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
     // raw `sim.bls()` fixture key via `from_synthetic_unchecked` (the coin is
     // curried over the raw pk, so the registered key IS the raw key).
     let pk_map = indexmap! { sender.puzzle_hash => sender.pk };
-    let synthetic_public_map = indexmap! {
-        sender.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender.pk),
-    };
     let synthetic_secret_map = indexmap! {
         sender.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
     };
-    spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    let silent_payment_keys = synthetic_secret_map;
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
 
     // Farm: spend_coins farms a block internally.
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
@@ -216,19 +219,21 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
         a.puzzle_hash => a.pk,
         b.puzzle_hash => b.pk,
     };
-    let synthetic_public_map = indexmap! {
-        a.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(a.pk),
-        b.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(b.pk),
-    };
     let synthetic_secret_map = indexmap! {
         a.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(a.sk.clone()),
         b.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(b.sk.clone()),
     };
-    spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+    let silent_payment_keys = synthetic_secret_map;
 
     // MUST be AssertConcurrent when 2+ XCH coins are spent — otherwise the
     // runtime gate errors with SilentPaymentRequiresInputBinding.
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
 
     // Farm: sign with BOTH senders' SKs.
     sim.spend_coins(ctx.take(), &[a.sk.clone(), b.sk.clone()])?;
@@ -309,9 +314,14 @@ fn test_did_or_nft_in_the_bundle_is_rejected() -> Result<()> {
                 Action::silent_payment_send(address.clone(), 100, Memos::None),
             ],
         )?;
-        let pk_map = register_keys(&mut spends, &[&a, &b]);
-        let result =
-            spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+        let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::AssertConcurrent,
+            &pk_map,
+            &silent_payment_keys,
+        );
         assert!(
             matches!(result, Err(DriverError::SilentPaymentIneligibleAssetBundle)),
             "{singleton_action:?} with a silent payment must be rejected, got {result:?}"
@@ -353,14 +363,17 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     // raw `sim.bls()` fixture key via `from_synthetic_unchecked` (the coin is
     // curried over the raw pk, so the registered key IS the raw key).
     let pk_map = indexmap! { sender.puzzle_hash => sender.pk };
-    let synthetic_public_map = indexmap! {
-        sender.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender.pk),
-    };
     let synthetic_secret_map = indexmap! {
         sender.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
     };
-    spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    let silent_payment_keys = synthetic_secret_map;
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
 
     // Register m=1 in the recipient's LabelRegistry so the scanner can detect it.
@@ -438,14 +451,17 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     // raw `sim.bls()` fixture key via `from_synthetic_unchecked` (the coin is
     // curried over the raw pk, so the registered key IS the raw key).
     let pk_map = indexmap! { sender.puzzle_hash => sender.pk };
-    let synthetic_public_map = indexmap! {
-        sender.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(sender.pk),
-    };
     let synthetic_secret_map = indexmap! {
         sender.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(sender.sk.clone()),
     };
-    spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    let silent_payment_keys = synthetic_secret_map;
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
 
     // Registering m=0 is allowed and redundant; it must not change how the
@@ -473,23 +489,17 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     Ok(())
 }
 
-/// Registers the raw `sim.bls()` keys of the senders as the silent payment keys
-/// (the fixture coins are curried over the raw key) and returns the public key
-/// map for `finish_with_keys`.
-fn register_keys(
-    spends: &mut Spends,
+/// The raw `sim.bls()` keys of the senders (the fixture coins are curried over
+/// the raw key): the public key map for spending the coins and the secret key
+/// map for the silent payment derivation.
+fn sender_keys(
     senders: &[&BlsPairWithCoin],
-) -> indexmap::IndexMap<chia_protocol::Bytes32, chia_bls::PublicKey> {
-    spends.with_silent_payment_keys(
-        senders
-            .iter()
-            .map(|s| {
-                (
-                    s.puzzle_hash,
-                    SyntheticPublicKey::from_synthetic_unchecked(s.pk),
-                )
-            })
-            .collect(),
+) -> (
+    indexmap::IndexMap<chia_protocol::Bytes32, chia_bls::PublicKey>,
+    indexmap::IndexMap<chia_protocol::Bytes32, SyntheticSecretKey>,
+) {
+    (
+        senders.iter().map(|s| (s.puzzle_hash, s.pk)).collect(),
         senders
             .iter()
             .map(|s| {
@@ -499,8 +509,7 @@ fn register_keys(
                 )
             })
             .collect(),
-    );
-    senders.iter().map(|s| (s.puzzle_hash, s.pk)).collect()
+    )
 }
 
 /// Two XCH inputs, `identical_sends` ordinary sends of the same amount to the
@@ -532,8 +541,14 @@ fn multi_input_with_identical_sends(
 
     let ephemeral = spends.xch.items.iter().filter(|i| i.ephemeral).count();
 
-    let pk_map = register_keys(&mut spends, &[&a, &b]);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), &[a.sk.clone(), b.sk.clone()])?;
 
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
@@ -601,8 +616,14 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
     )?;
     assert_eq!(spends.xch.items.len(), 1, "no intermediate coin yet");
 
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     assert_eq!(
         coin_spends.len(),
@@ -665,8 +686,14 @@ fn test_single_input_with_intermediate_coin_requires_binding() -> Result<()> {
         "the second identical send needs an intermediate coin"
     );
 
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentRequiresInputBinding)),
         "expected SilentPaymentRequiresInputBinding, got {result:?}"
@@ -696,8 +723,14 @@ fn test_intermediate_coin_without_key_errors() -> Result<()> {
         true,
     ));
 
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    );
     assert!(
         matches!(
             result,
@@ -755,19 +788,19 @@ fn test_zero_key_sum_makes_the_sender_fail() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send(address, 1000, Memos::None)],
     )?;
-    spends.with_silent_payment_keys(
-        indexmap! {
-            ph1 => SyntheticPublicKey::from_synthetic_unchecked(pk1),
-            ph2 => SyntheticPublicKey::from_synthetic_unchecked(pk2),
-        },
-        indexmap! {
-            ph1 => SyntheticSecretKey::from_synthetic_unchecked(sk1),
-            ph2 => SyntheticSecretKey::from_synthetic_unchecked(sk2),
-        },
-    );
+    let silent_payment_keys: indexmap::IndexMap<_, _> = indexmap! {
+        ph1 => SyntheticSecretKey::from_synthetic_unchecked(sk1),
+        ph2 => SyntheticSecretKey::from_synthetic_unchecked(sk2),
+    };
     let pk_map = indexmap! { ph1 => pk1, ph2 => pk2 };
 
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentZeroKeySum)),
         "expected SilentPaymentZeroKeySum, got {result:?}"
@@ -796,8 +829,14 @@ fn test_simulator_e2e_change_address() -> Result<()> {
             Memos::None,
         )],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
 
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
@@ -860,8 +899,14 @@ fn test_one_way_assertion_does_not_join_the_group() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send(address, 1000, Memos::None)],
     )?;
-    let pk_map = register_keys(&mut spends, &[&a, &b]);
-    spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
 
     // The third party's spend, in the same block.
     StandardLayer::new(third_party.pk).spend(
@@ -1180,9 +1225,14 @@ fn test_simulator_e2e_cat_payment() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send_asset(id, address, 1_000)],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
 
@@ -1297,9 +1347,14 @@ fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<
         vec![xch_action, cat_action]
     };
     let deltas = spends.apply(&mut ctx, &actions)?;
-    let pk_map = register_keys(&mut spends, &[&a, &b]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), &[a.sk.clone(), b.sk.clone()])?;
 
@@ -1481,9 +1536,14 @@ fn test_two_cat_coins_of_one_asset_group_with_the_first() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send_asset(id, address, 1_000)],
     )?;
-    let pk_map = register_keys(&mut spends, &[&a, &b]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), &[a.sk.clone(), b.sk.clone()])?;
 
@@ -1579,9 +1639,14 @@ fn test_cat_only_group_of_two_assets() -> Result<()> {
             Action::silent_payment_send_asset(id2, address, 500),
         ],
     )?;
-    let pk_map = register_keys(&mut spends, &[&b]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&b]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&b.sk))?;
 
@@ -1706,9 +1771,14 @@ fn test_revocable_cat_holder_path_payment() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send_asset(id, address, 1_000)],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
 
@@ -1763,9 +1833,14 @@ fn test_cat_change_is_a_standard_cat_change() -> Result<()> {
         &mut ctx,
         &[Action::silent_payment_send_asset(id, address, 600)],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     sim.spend_coins(coin_spends.clone(), std::slice::from_ref(&sender.sk))?;
 
@@ -1831,8 +1906,14 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
             1_000,
         )],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     assert_eq!(outputs.cats[&id].len(), 1);
     ctx.take();
 
@@ -1880,8 +1961,14 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
         &[Action::silent_payment_send(address, 1_000, Memos::None)],
     )?;
     spends.xch.items[0].kind = SpendKind::settlement();
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &pk_map,
+        &silent_payment_keys,
+    );
     let Err(error) = result else {
         panic!("an empty group must fail");
     };
@@ -1916,8 +2003,14 @@ fn test_cat_issued_in_the_same_transaction_is_rejected() -> Result<()> {
             Action::silent_payment_send(address.clone(), 100, Memos::None),
         ],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentNewCatUnsupported)),
         "got {result:?}"
@@ -1972,8 +2065,14 @@ fn test_issuer_path_revocable_cat_is_rejected() -> Result<()> {
             Memos::None,
         )],
     )?;
-    let pk_map = register_keys(&mut spends, &[&issuer]);
-    let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+    let (pk_map, silent_payment_keys) = sender_keys(&[&issuer]);
+    let result = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentIssuerPathSpend)),
         "got {result:?}"
@@ -2236,9 +2335,14 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
             .extend(requested.assertions(&mut ctx, &asset_info)?);
     }
     let deltas = spends.apply(&mut ctx, &actions)?;
-    let pk_map = register_keys(&mut spends, &[&a, &b]);
-    let maker_outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
+    let maker_outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let maker_coin_spends = ctx.take();
     if case.maker_silent {
         requested = maker_outputs.silent_payment_requests.clone();
@@ -2287,9 +2391,14 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
         ));
     }
     let deltas = spends.apply(&mut ctx, &actions)?;
-    let taker_pk_map = register_keys(&mut spends, &[&taker]);
-    let taker_outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &taker_pk_map)?;
+    let (taker_pk_map, silent_payment_keys) = sender_keys(&[&taker]);
+    let taker_outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &taker_pk_map,
+        &silent_payment_keys,
+    )?;
     let taker_coin_spends = ctx.take();
     let signature = sign_transaction(&taker_coin_spends, std::slice::from_ref(&taker.sk))?;
     sim.new_transaction(offer.take(SpendBundle::new(taker_coin_spends.clone(), signature)))?;
@@ -2895,9 +3004,14 @@ fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
         spends.add(sender.coin);
         spends.add(settlement_coin);
         let deltas = spends.apply(&mut ctx, &actions)?;
-        let pk_map = register_keys(&mut spends, &[&sender]);
-        let result =
-            spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map);
+        let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+        let result = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::AssertConcurrent,
+            &pk_map,
+            &silent_payment_keys,
+        );
         assert_eq!(expected, "mismatch");
         assert!(
             matches!(result, Err(DriverError::SilentPaymentSettlementMismatch)),
@@ -2937,9 +3051,14 @@ fn test_settlement_paths_agree_on_an_asset_with_other_payments_only() -> Result<
             Action::silent_payment_requested_other(Some(w), other_payment.clone(), nonce),
         ],
     )?;
-    let pk_map = register_keys(&mut spends, &[&sender]);
-    let outputs =
-        spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+    let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
+    let outputs = spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::AssertConcurrent,
+        &pk_map,
+        &silent_payment_keys,
+    )?;
     let coin_spends = ctx.take();
     let asserted = puzzle_announcement_assertions(&coin_spends, &[sender.coin.coin_id()])?;
 

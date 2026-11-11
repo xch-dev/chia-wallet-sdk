@@ -137,16 +137,10 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
 //   compute_input_hash    → tagged_hash binding the spent coin set + aggregated PK
 //   derive_one_time_puzzle_hash  → sender-side analog of the receiver's scan loop
 //
-// Callers MUST pass synthetic SKs (the ones whose PKs are curried into
-// `StandardArgs::synthetic_key`). Two layered guards enforce this:
-//   (a) the `SyntheticSecretKey` / `SyntheticPublicKey` newtypes at the
-//       `Spends::with_silent_payment_keys` boundary make passing a raw key a
-//       compile error; and
-//   (b) the `sp_finish_branch` runtime guard returns
-//       `DriverError::SilentPaymentKeyNotSynthetic` before signing when a
-//       registered key does not curry to the spent coin's `p2_puzzle_hash` —
-//       the universal backstop covering the newtype's `from_synthetic_unchecked`
-//       escape hatch and every FFI caller.
+// Callers must pass synthetic secret keys. The `SyntheticSecretKey` newtype
+// makes passing a raw key a compile error, and the derivation returns
+// `DriverError::SilentPaymentKeyNotSynthetic` when a key does not curry to its
+// coin's `p2_puzzle_hash`.
 // The Spends-level multi-party / coverage gates check key PRESENCE only; they
 // do not validate synthetic-ness.
 

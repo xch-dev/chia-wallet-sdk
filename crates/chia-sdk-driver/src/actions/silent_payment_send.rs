@@ -105,7 +105,8 @@ impl SpendAction for SilentPaymentSendAction {
 /// anything is changed.
 pub(crate) fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, DriverError> {
     let k = spends
-        .silent_payment_counters
+        .silent_payments
+        .counters
         .get(&scan_pk.to_bytes())
         .copied()
         .unwrap_or(0);
@@ -128,9 +129,10 @@ pub(crate) fn record_pending(
     memos: Memos,
 ) {
     spends
-        .silent_payment_counters
+        .silent_payments
+        .counters
         .insert(recipient.scan_pk.to_bytes(), k + 1);
-    spends.silent_payments_pending.push(SilentPaymentPending {
+    spends.silent_payments.pending.push(SilentPaymentPending {
         scan_pk: recipient.scan_pk,
         spend_pk: recipient.spend_pk,
         source,
@@ -296,19 +298,18 @@ mod silent_payment_tests {
     use crate::{
         Action, DriverError, Relation, SpendContext, Spends,
         silent_payments::{
-            SyntheticPublicKey, SyntheticSecretKey, aggregate_sender_sks, compute_input_hash,
+            SyntheticSecretKey, aggregate_sender_sks, compute_input_hash,
             derive_one_time_puzzle_hash,
         },
     };
 
     // ====================================================================
     // Acceptance tests for the silent-payment send path. Each drives
-    // `Action::silent_payment_send(..)` through `with_silent_payment_keys` +
-    // `finish_with_keys`.
+    // `Action::silent_payment_send(..)` through `finish_with_silent_payment_keys`.
     // ====================================================================
 
     /// Apply-time state: after `spends.apply(&[Action::silent_payment_send(...)])`,
-    /// the action records one entry on `spends.silent_payments_pending` with the
+    /// the action records one entry on `spends.silent_payments.pending` with the
     /// matching fields. ECDH and `CreateCoin` emission are NOT inspected here.
     #[test]
     fn action_state_machine() -> Result<()> {
@@ -339,12 +340,12 @@ mod silent_payment_tests {
         )?;
 
         assert_eq!(
-            spends.silent_payments_pending.len(),
+            spends.silent_payments.pending.len(),
             1,
             "exactly one pending entry after one Action::silent_payment_send(...)"
         );
 
-        let pending = &spends.silent_payments_pending[0];
+        let pending = &spends.silent_payments.pending[0];
         assert_eq!(pending.scan_pk, expected_scan_pk);
         assert_eq!(pending.spend_pk, expected_spend_pk);
         assert_eq!(pending.amount, 1);
@@ -357,7 +358,7 @@ mod silent_payment_tests {
         // Counter recorded for this scan_pk:
         let scan_pk_bytes: [u8; 48] = expected_scan_pk.to_bytes();
         assert_eq!(
-            spends.silent_payment_counters.get(&scan_pk_bytes).copied(),
+            spends.silent_payments.counters.get(&scan_pk_bytes).copied(),
             Some(1),
             "counter was incremented past the recorded k value"
         );
@@ -406,13 +407,18 @@ mod silent_payment_tests {
         // the raw fixture key via `from_synthetic_unchecked` (coin curried over
         // the raw pk).
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let synthetic_public_map = indexmap! { alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk) };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
         };
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let outputs = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map)?;
+        let outputs = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &pk_map,
+            &silent_payment_keys,
+        )?;
 
         // Independently compute the expected one-time puzzle hash via the
         // free functions (Vec intermediate to satisfy clippy on slice
@@ -448,7 +454,7 @@ mod silent_payment_tests {
 
     /// Two `Action::silent_payment_send` calls with the same SP recipient in one
     /// `Spends` produce outputs at k=0 and k=1 respectively. The counter on
-    /// `spends.silent_payment_counters` increments per `scan_pk`.
+    /// `spends.silent_payments.counters` increments per `scan_pk`.
     #[test]
     fn multi_output_same_scan_pk_increments_k() -> Result<()> {
         let mut sim = Simulator::new();
@@ -478,21 +484,21 @@ mod silent_payment_tests {
             ],
         )?;
 
-        assert_eq!(spends.silent_payments_pending.len(), 2);
+        assert_eq!(spends.silent_payments.pending.len(), 2);
         assert_eq!(
-            spends.silent_payments_pending[0].k, 0,
+            spends.silent_payments.pending[0].k, 0,
             "first output to recipient is k=0"
         );
         assert_eq!(
-            spends.silent_payments_pending[1].k, 1,
+            spends.silent_payments.pending[1].k, 1,
             "second output to same scan_pk is k=1"
         );
-        assert_eq!(spends.silent_payments_pending[0].amount, 1);
-        assert_eq!(spends.silent_payments_pending[1].amount, 2);
+        assert_eq!(spends.silent_payments.pending[0].amount, 1);
+        assert_eq!(spends.silent_payments.pending[1].amount, 2);
 
         let scan_pk_bytes: [u8; 48] = scan_pk.to_bytes();
         assert_eq!(
-            spends.silent_payment_counters.get(&scan_pk_bytes).copied(),
+            spends.silent_payments.counters.get(&scan_pk_bytes).copied(),
             Some(2),
             "counter incremented past k=1"
         );
@@ -532,13 +538,13 @@ mod silent_payment_tests {
             ],
         )?;
 
-        assert_eq!(spends.silent_payments_pending.len(), 2);
+        assert_eq!(spends.silent_payments.pending.len(), 2);
         assert_eq!(
-            spends.silent_payments_pending[0].k, 0,
+            spends.silent_payments.pending[0].k, 0,
             "recipient_a's first output is k=0"
         );
         assert_eq!(
-            spends.silent_payments_pending[1].k, 0,
+            spends.silent_payments.pending[1].k, 0,
             "recipient_b's first output is k=0 (independent counter)"
         );
 
@@ -582,18 +588,19 @@ mod silent_payment_tests {
             alice.puzzle_hash => alice.pk,
             bob.puzzle_hash => bob.pk,
         };
-        let synthetic_public_map = indexmap! {
-            alice.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(alice.pk),
-            bob.puzzle_hash => SyntheticPublicKey::from_synthetic_unchecked(bob.pk),
-        };
         let synthetic_secret_map = indexmap! {
             alice.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(alice.sk.clone()),
             bob.puzzle_hash => SyntheticSecretKey::from_synthetic_unchecked(bob.sk.clone()),
         };
-        spends.with_silent_payment_keys(synthetic_public_map, synthetic_secret_map);
+        let silent_payment_keys = synthetic_secret_map;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &deltas, Relation::AssertConcurrent, &pk_map)?;
+        let outputs = spends.finish_with_silent_payment_keys(
+            &mut ctx,
+            &deltas,
+            Relation::AssertConcurrent,
+            &pk_map,
+            &silent_payment_keys,
+        )?;
 
         // Independent reconstruction of the expected puzzle hash via the
         // free functions — exactly the path the scanner would follow once the
@@ -664,7 +671,7 @@ mod silent_payment_tests {
         // No side effects: pending list still empty (apply failed before
         // the SilentPaymentPending push).
         assert!(
-            spends.silent_payments_pending.is_empty(),
+            spends.silent_payments.pending.is_empty(),
             "guard must fire BEFORE pushing SilentPaymentPending"
         );
 
@@ -706,7 +713,7 @@ mod silent_payment_tests {
             result.is_ok(),
             "1-byte sentinel + 32-byte payload must pass: {result:?}"
         );
-        assert_eq!(spends.silent_payments_pending.len(), 1);
+        assert_eq!(spends.silent_payments.pending.len(), 1);
 
         Ok(())
     }
@@ -734,7 +741,7 @@ mod silent_payment_tests {
         );
 
         assert!(result.is_ok(), "Memos::None must pass: {result:?}");
-        assert_eq!(spends.silent_payments_pending.len(), 1);
+        assert_eq!(spends.silent_payments.pending.len(), 1);
 
         Ok(())
     }
@@ -767,7 +774,7 @@ mod silent_payment_tests {
             matches!(result, Err(DriverError::SilentPaymentParentNotEligible)),
             "expected SilentPaymentParentNotEligible, got {result:?}"
         );
-        assert!(spends.silent_payments_pending.is_empty());
+        assert!(spends.silent_payments.pending.is_empty());
         Ok(())
     }
 
@@ -798,9 +805,9 @@ mod silent_payment_tests {
             &mut ctx,
             &[Action::silent_payment_send(recipient, 1, Memos::None)],
         )?;
-        assert_eq!(spends.silent_payments_pending.len(), 1);
+        assert_eq!(spends.silent_payments.pending.len(), 1);
         assert_eq!(
-            spends.silent_payments_pending[0].parent_coin,
+            spends.silent_payments.pending[0].parent_coin,
             Some(alice.coin)
         );
         Ok(())
@@ -842,8 +849,8 @@ mod silent_payment_tests {
             })
             .collect();
         spends.apply(&mut ctx, &actions)?;
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
-        assert_eq!(spends.silent_payments_pending.last().unwrap().k, K_MAX - 1);
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
+        assert_eq!(spends.silent_payments.pending.last().unwrap().k, K_MAX - 1);
 
         // One more to the same scan key fails, with either label.
         for address in [&unlabeled, &labeled] {
@@ -856,14 +863,14 @@ mod silent_payment_tests {
                 "expected SilentPaymentTooManyOutputs, got {result:?}"
             );
         }
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
 
         // Another scan key has its own limit.
         spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(other, 1, Memos::None)],
         )?;
-        assert_eq!(spends.silent_payments_pending.last().unwrap().k, 0);
+        assert_eq!(spends.silent_payments.pending.last().unwrap().k, 0);
         Ok(())
     }
 
@@ -918,8 +925,8 @@ mod silent_payment_tests {
             })
             .collect();
         spends.apply(&mut ctx, &actions)?;
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
-        for (i, pending) in spends.silent_payments_pending.iter().enumerate() {
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
+        for (i, pending) in spends.silent_payments.pending.iter().enumerate() {
             assert_eq!(pending.k as usize, i, "one k sequence across the assets");
             if i % 2 == 0 {
                 assert!(matches!(pending.source, SilentPaymentSource::Xch(_)));
@@ -938,10 +945,10 @@ mod silent_payment_tests {
                 "expected SilentPaymentTooManyOutputs, got {result:?}"
             );
         }
-        assert_eq!(spends.silent_payments_pending.len(), K_MAX as usize);
+        assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
 
         spends.apply(&mut ctx, &[Action::silent_payment_send_asset(id, other, 1)])?;
-        assert_eq!(spends.silent_payments_pending.last().unwrap().k, 0);
+        assert_eq!(spends.silent_payments.pending.last().unwrap().k, 0);
         Ok(())
     }
 
@@ -981,7 +988,7 @@ mod silent_payment_tests {
                 ),
                 "expected IdentityPublicKey, got {result:?}"
             );
-            assert!(spends.silent_payments_pending.is_empty());
+            assert!(spends.silent_payments.pending.is_empty());
         }
         Ok(())
     }
@@ -1033,8 +1040,7 @@ mod silent_payment_tests {
     // Finish-time key-registration acceptance test.
     // ====================================================================
 
-    /// An SP send applied without a prior `with_silent_payment_keys` call
-    /// returns `Err(DriverError::SilentPaymentKeysNotRegistered)` at finish time.
+    /// A silent payment send finished without the secret keys returns `Err(DriverError::SilentPaymentKeysNotRegistered)` at finish time.
     #[test]
     fn silent_payment_keys_not_registered_errors_at_finish() -> Result<()> {
         let mut sim = Simulator::new();
@@ -1055,8 +1061,6 @@ mod silent_payment_tests {
             &[Action::silent_payment_send(recipient, 1, Memos::None)],
         )?;
 
-        // DELIBERATELY DO NOT CALL with_silent_payment_keys.
-
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
         let result = spends.finish_with_keys(
             &mut ctx,
@@ -1067,7 +1071,7 @@ mod silent_payment_tests {
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentKeysNotRegistered)),
-            "expected SilentPaymentKeysNotRegistered when finish runs without with_silent_payment_keys, got: {result:?}"
+            "expected SilentPaymentKeysNotRegistered when finish runs without the secret keys, got: {result:?}"
         );
         Ok(())
     }

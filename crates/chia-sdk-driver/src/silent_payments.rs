@@ -117,8 +117,9 @@ pub use settlement::{
     settlement_announcement, settlement_assertion, settlement_puzzle_hash,
 };
 mod send_keys;
-pub(crate) use send_keys::SilentPaymentSecretKeys;
 pub use send_keys::{SyntheticPublicKey, SyntheticSecretKey};
+mod state;
+pub use state::SilentPaymentState;
 mod types;
 pub use types::{DetectedSilentPaymentCoin, OutputMeta, TweakData};
 pub(crate) use types::{SettledOtherPayment, SilentPaymentPending, SilentPaymentSource};

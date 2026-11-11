@@ -95,11 +95,13 @@
         },
         "return": "FinishedSpends"
       },
-      "with_silent_payment_keys": {
+      "prepare_with_silent_payment_keys": {
         "args": {
-          "synthetic_pks": "Vec<SilentPaymentRegisteredKey>",
-          "secret_keys": "Vec<SilentPaymentRegisteredSecretKey>"
-        }
+          "deltas": "Deltas",
+          "relation": "Option<Relation>",
+          "secret_keys": "Vec<SilentPaymentSecretKey>"
+        },
+        "return": "FinishedSpends"
       }
     }
   },
