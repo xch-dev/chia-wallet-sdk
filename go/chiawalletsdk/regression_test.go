@@ -61,25 +61,32 @@ func TestIntegerEncoding(t *testing.T) {
 		{strconv.FormatInt(math.MaxInt64, 10), "7fffffffffffffff"},
 		{strconv.FormatUint(math.MaxUint64, 10), "00ffffffffffffffff"},
 	} {
-		for _, program := range []*sdk.Program{
-			must(clvm.Int(c.value)),
-			must(clvm.Alloc(sdk.ClvmTypeInt{Value: c.value})),
+		for _, p := range []struct {
+			via     string
+			program *sdk.Program
+		}{
+			{"Clvm.Int", must(clvm.Int(c.value))},
+			{"Clvm.Alloc", must(clvm.Alloc(sdk.ClvmTypeInt{Value: c.value}))},
 		} {
-			if value := must(program.ToInt()); value == nil || *value != c.value {
-				t.Fatalf("expected %s, got %v", c.value, value)
+			if value := must(p.program.ToInt()); value == nil || *value != c.value {
+				t.Fatalf("%s: expected %s, got %v", p.via, c.value, deref(value))
 			}
 
-			if atom := must(program.ToAtom()); atom == nil || hex.EncodeToString(*atom) != c.atom {
-				t.Fatalf("expected %s to encode as %q, got %v", c.value, c.atom, atom)
+			if atom := must(p.program.ToAtom()); atom == nil || hex.EncodeToString(*atom) != c.atom {
+				t.Fatalf("%s: expected %s to encode as %q, got %v", p.via, c.value, c.atom, atom)
 			}
 
-			program.Destroy()
+			p.program.Destroy()
 		}
 	}
 
 	for _, invalid := range []string{"", "1.5", "0x10", " 1"} {
+		if _, err := clvm.Int(invalid); err == nil {
+			t.Fatalf("Clvm.Int: expected an error for %q", invalid)
+		}
+
 		if _, err := clvm.Alloc(sdk.ClvmTypeInt{Value: invalid}); err == nil {
-			t.Fatalf("expected an error for %q", invalid)
+			t.Fatalf("Clvm.Alloc: expected an error for %q", invalid)
 		}
 	}
 }
@@ -163,7 +170,7 @@ func TestOptionalNumericValues(t *testing.T) {
 
 	number := must(clvm.BoundCheckedNumber(42))
 	if value := must(number.ToBoundCheckedNumber()); value == nil || *value != 42 {
-		t.Fatalf("expected 42, got %v", value)
+		t.Fatalf("expected 42, got %v", deref(value))
 	}
 
 	memo := must(sdk.WrapperMemoPreventConditionOpcode(clvm, 60, true))
@@ -179,7 +186,7 @@ func TestOptionalNumericValues(t *testing.T) {
 	defer (*parsed).Destroy()
 
 	if opcode := must((*parsed).AsPreventConditionOpcode()); opcode == nil || *opcode != 60 {
-		t.Fatalf("expected opcode 60, got %v", opcode)
+		t.Fatalf("expected opcode 60, got %v", deref(opcode))
 	}
 }
 
@@ -244,7 +251,7 @@ func TestStringsWithNul(t *testing.T) {
 		program := must(clvm.String(value))
 
 		if got := must(program.ToString()); got == nil || *got != value {
-			t.Fatalf("expected %q, got %v", value, got)
+			t.Fatalf("expected %q, got %v", value, deref(got))
 		}
 
 		if atom := must(program.ToAtom()); atom == nil || string(*atom) != value {
@@ -261,7 +268,7 @@ func TestStringsWithNul(t *testing.T) {
 
 		metadata := must(sdk.NewHandleNftMetadata(&value, []string{value}, nil, nil, nil, nil, nil))
 		if name := metadata.DisplayName(); name == nil || *name != value {
-			t.Fatalf("expected the display name %q, got %v", value, name)
+			t.Fatalf("expected the display name %q, got %v", value, deref(name))
 		}
 
 		if uris := metadata.ImageUris(); len(uris) != 1 || uris[0] != value {

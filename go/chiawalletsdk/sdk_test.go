@@ -28,6 +28,22 @@ func fromHex(value string) []byte {
 	return must(hex.DecodeString(value))
 }
 
+// seed returns a 32 byte seed whose first byte is the given value.
+func seed(first byte) []byte {
+	value := make([]byte, 32)
+	value[0] = first
+	return value
+}
+
+// deref returns the value a pointer points to, or nil, so failure messages show values rather
+// than addresses.
+func deref[T any](value *T) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 func TestCoinId(t *testing.T) {
 	coin := must(sdk.NewCoin(
 		fromHex("4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),

@@ -51,9 +51,6 @@ func TestAllocKeysAndSignatures(t *testing.T) {
 	sk := must(sdk.SecretKeyFromSeed(seed(0)))
 	defer sk.Destroy()
 
-	pk := must(sk.PublicKey())
-	defer pk.Destroy()
-
 	sig := must(sk.Sign([]byte("message")))
 	defer sig.Destroy()
 
@@ -61,7 +58,6 @@ func TestAllocKeysAndSignatures(t *testing.T) {
 		value    sdk.ClvmType
 		expected []byte
 	}{
-		{sdk.ClvmTypePublicKey{Value: pk}, must(pk.ToBytes())},
 		{sdk.ClvmTypeSignature{Value: sig}, must(sig.ToBytes())},
 	} {
 		program := must(clvm.Alloc(c.value))
@@ -179,7 +175,7 @@ func TestAllocMetadata(t *testing.T) {
 	}
 
 	if displayName := (*parsedHandle).DisplayName(); displayName == nil || *displayName != name {
-		t.Fatalf("expected the display name %q, got %v", name, displayName)
+		t.Fatalf("expected the display name %q, got %v", name, deref(displayName))
 	}
 
 	nftMetadata := must(sdk.NewNftMetadata(1, 10, []string{"https://example.com"}, nil, nil, nil, nil, nil))

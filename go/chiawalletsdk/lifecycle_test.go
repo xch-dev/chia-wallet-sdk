@@ -2,6 +2,7 @@ package chiawalletsdk_test
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,17 +14,14 @@ import (
 // objects they own: destroying them, using them after they're destroyed, and sharing them
 // between goroutines.
 
-// seed returns a 32 byte seed whose first byte is the given value.
-func seed(first byte) []byte {
-	value := make([]byte, 32)
-	value[0] = first
-	return value
-}
-
 func TestDestroyIsIdempotent(t *testing.T) {
 	sk := must(sdk.SecretKeyFromSeed(seed(0)))
 	sk.Destroy()
 	sk.Destroy()
+
+	if !recoverDestroyed(func() { _, _ = sk.ToBytes() }) {
+		t.Fatal("expected the key to stay destroyed")
+	}
 
 	var wg sync.WaitGroup
 	coin := must(sdk.NewCoin(make([]byte, 32), make([]byte, 32), 100))
@@ -37,6 +35,10 @@ func TestDestroyIsIdempotent(t *testing.T) {
 	}
 
 	wg.Wait()
+
+	if !recoverDestroyed(func() { _, _ = sdk.NewCoinSpend(coin, nil, nil) }) {
+		t.Fatal("expected the coin to stay destroyed")
+	}
 }
 
 // recoverDestroyed runs the function, and reports whether it panicked because an object it used
@@ -163,12 +165,12 @@ func TestConcurrentMethodCalls(t *testing.T) {
 	expectedHash := must(program.TreeHash())
 
 	var wg sync.WaitGroup
-	for range 16 {
+	for i := range 16 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			for range 50 {
+			for j := range 50 {
 				clone := sk.Clone()
 				value, err := clone.ToBytes()
 				clone.Destroy()
@@ -195,12 +197,20 @@ func TestConcurrentMethodCalls(t *testing.T) {
 				}
 				spend.Destroy()
 
-				nilProgram, err := clvm.Nil()
+				// Allocates on the shared Clvm, unlike Clvm.Nil
+				number := strconv.Itoa(i*50 + j)
+				allocated, err := clvm.Int(number)
 				if err != nil {
 					t.Error(err)
 					return
 				}
-				nilProgram.Destroy()
+
+				got, err := allocated.ToInt()
+				allocated.Destroy()
+				if err != nil || got == nil || *got != number {
+					t.Errorf("expected %s, got %v, %v", number, deref(got), err)
+					return
+				}
 			}
 		}()
 	}
