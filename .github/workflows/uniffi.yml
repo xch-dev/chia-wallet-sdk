@@ -10,6 +10,9 @@ on:
       # Pushed by the Go release job
       - "!go/**"
   workflow_call:
+  # Rehearses a release: runs every release step except publishing, and uploads the Go module zip
+  # and the NuGet package as artifacts
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,8 +23,10 @@ env:
   UNIFFI_BINDGEN_CS: v0.11.1+v0.31.0
   UNIFFI_BINDGEN_CPP: v0.10.0+v0.31.0
   MACOSX_DEPLOYMENT_TARGET: "11.0"
-  # Fat LTO is only worth paying for on artifacts we publish
-  CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
+  # Fat LTO is only worth paying for on artifacts we publish, or rehearse publishing
+  CARGO_PROFILE_RELEASE_LTO: ${{ (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && 'true' || 'false' }}
+  # Releases are published from tag pushes. Manual runs do everything else.
+  PUBLISH: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
   # The x86_64 macOS libraries can't be tested on the arm64 runners, so pull requests skip them.
   # They're still built on main and for releases.
   BUILD_MACOS_X64: ${{ github.event_name != 'pull_request' }}
@@ -444,8 +449,9 @@ jobs:
   go-release:
     name: Go - Release
     runs-on: ubuntu-latest
-    needs: [go, macos]
-    if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+    # Waits for the NuGet package too, so the module isn't published if the package can't be
+    needs: [go, macos, dotnet-pack]
+    if: (startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
@@ -487,20 +493,50 @@ jobs:
             fi
           done
 
-      - name: Verify the module builds
-        working-directory: go
-        run: go vet ./...
+      # Manual runs from a branch use the crate version, since there's no release tag
+      - name: Determine the version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          fi
+          echo "VERSION=v$VERSION" >> "$GITHUB_ENV"
 
-      - name: Publish the module
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Commit the module
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f go/chiawalletsdk/chiawalletsdk.go go/chiawalletsdk/chiawalletsdk.h go/chiawalletsdk/lib
           git commit -m "Go module release ${VERSION}"
-          git tag "go/v${VERSION#v}"
-          git push origin "go/v${VERSION#v}"
+          git tag "go/${VERSION}"
+
+      # Tests what users will download: only the files committed to the tag, outside this checkout
+      - name: Test the release from a clean checkout
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/release" "go/${VERSION}"
+          cd "$RUNNER_TEMP/release/go"
+          go vet ./...
+          go test -race ./...
+
+      # The module proxy rejects modules over 500 MiB, and every tag carries a static library for
+      # each platform
+      - name: Create the module zip
+        run: |
+          go -C .github/go-modzip run . "$RUNNER_TEMP/release/go" github.com/xch-dev/chia-wallet-sdk/go "$VERSION" "$RUNNER_TEMP/go-module.zip"
+
+      - name: Upload the module zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-module
+          path: ${{ runner.temp }}/go-module.zip
+          if-no-files-found: error
+          # Already compressed
+          compression-level: 0
+
+      - name: Publish the module
+        if: env.PUBLISH == 'true'
+        run: git push origin "go/${VERSION}"
 
   dotnet-pack:
     name: .NET - Pack
@@ -566,15 +602,42 @@ jobs:
           path: dotnet/dist/*.nupkg
           if-no-files-found: error
 
+      # The package is published after the Go module, so check that nuget.org's trusted publishing
+      # policy accepts this workflow before either is published. The short-lived key is discarded.
+      - name: Check NuGet trusted publishing
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        uses: NuGet/login@v1
+        with:
+          user: Rigidity
+
+  # Runs after the Go module is published. A failed NuGet push can be retried by re-running this
+  # job, but a Go tag can't be changed once it's pushed, so it goes first.
+  dotnet-publish:
+    name: .NET - Publish
+    runs-on: ubuntu-latest
+    needs: [dotnet-pack, go-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget
+          path: dist
+
       # Trusted publishing exchanges the workflow's OIDC token for a short-lived API key. The
       # nuget.org policy names this workflow file, which is why releases run it standalone.
       - name: Log in to NuGet
         id: nuget-login
-        if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
         uses: NuGet/login@v1
         with:
           user: Rigidity
 
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
-        run: dotnet nuget push "dotnet/dist/*.nupkg" --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "dist/*.nupkg" --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
