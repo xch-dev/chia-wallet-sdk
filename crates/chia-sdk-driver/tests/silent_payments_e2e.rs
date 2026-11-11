@@ -133,7 +133,8 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1, "expected exactly 1 detection");
     let detected = &detections[0];
     assert!(detected.label.is_none(), "unlabeled -> label must be None");
@@ -248,7 +249,8 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         detections.len(),
@@ -380,8 +382,8 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     sim.spend_coins(ctx.take(), std::slice::from_ref(&sender.sk))?;
 
     // Register m=1 in the recipient's LabelRegistry so the scanner can detect it.
-    let mut labels = LabelRegistry::new();
-    labels.register(recipient.scan_sk(), 1);
+    let mut labels = LabelRegistry::new(recipient.scan_sk());
+    labels.register(recipient.scan_sk(), 1).unwrap();
 
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
@@ -390,7 +392,8 @@ fn test_simulator_e2e_labeled() -> Result<()> {
         &tweak_data,
         Some(&labels),
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1, "expected exactly 1 labeled detection");
     let detected = &detections[0];
     assert_eq!(detected.label, Some(1), "labeled at m=1");
@@ -470,8 +473,8 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
 
     // Registering m=0 is allowed and redundant; it must not change how the
     // unlabeled payment below is reported.
-    let mut labels = LabelRegistry::new();
-    labels.register(recipient.scan_sk(), 0);
+    let mut labels = LabelRegistry::new(recipient.scan_sk());
+    labels.register(recipient.scan_sk(), 0).unwrap();
 
     let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
     let detections = scan_from_tweaks(
@@ -480,7 +483,8 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
         &tweak_data,
         Some(&labels),
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
 
     assert_eq!(detections.len(), 1, "self-send should detect exactly once");
     let detected = &detections[0];
@@ -567,7 +571,8 @@ fn multi_input_with_identical_sends(
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     Ok((ephemeral, detections))
 }
 
@@ -648,7 +653,8 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1);
     assert_eq!(detections[0].amount, 100);
 
@@ -663,7 +669,8 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
             &single,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
         assert!(detections.is_empty());
     }
     Ok(())
@@ -866,7 +873,8 @@ fn test_simulator_e2e_change_address() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1);
     let detected = &detections[0];
     assert_eq!(detected.label, Some(0), "change is reported as label 0");
@@ -960,7 +968,8 @@ fn test_one_way_assertion_does_not_join_the_group() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1);
     assert_eq!(detections[0].amount, 1000);
     Ok(())
@@ -1038,7 +1047,8 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1, "expected exactly 1 detection");
     let detected = &detections[0];
     assert_eq!(detected.k, 0);
@@ -1064,6 +1074,7 @@ fn test_simulator_cat_payment_detected_under_wrapper() -> Result<()> {
             None,
             K_MAX_DEFAULT
         )
+        .unwrap()
         .is_empty(),
         "a CAT output is found only under its wrapper"
     );
@@ -1295,7 +1306,8 @@ fn test_simulator_e2e_cat_payment() -> Result<()> {
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(detections.len(), 1, "expected exactly 1 detection");
     let detected = &detections[0];
     assert_eq!(detected.k, 0);
@@ -1335,7 +1347,8 @@ fn scan_block(
         &tweak_data,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     (tweak_data, detections)
 }
 
@@ -1474,7 +1487,8 @@ fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<
         &one_point,
         None,
         K_MAX_DEFAULT,
-    );
+    )
+    .unwrap();
     assert_eq!(found.len(), 2, "one tweak point finds both outputs");
 
     // Both are spent with their one-time keys.
@@ -2190,12 +2204,14 @@ fn test_caller_memos_on_a_cat_output_are_rejected() -> Result<()> {
     for memos in [hint, short] {
         let mut spends = Spends::new(sender.puzzle_hash);
         spends.add(cat);
-        let action = Action::SilentPayment(SilentPaymentAction::Send(SilentPaymentSendAction {
-            id,
-            recipient: address.clone(),
-            amount: 100,
-            memos,
-        }));
+        let action = Action::SilentPayment(Box::new(SilentPaymentAction::Send(
+            SilentPaymentSendAction {
+                id,
+                recipient: address.clone(),
+                amount: 100,
+                memos,
+            },
+        )));
         let result = spends.apply(&mut ctx, &[action]);
         assert!(
             matches!(result, Err(DriverError::SilentPaymentCatMemos)),
@@ -2652,6 +2668,7 @@ fn check_maker_paid_silently(block: &mut OfferBlock) -> Result<()> {
             None,
             K_MAX_DEFAULT,
         )
+        .unwrap()
         .is_empty()
     );
 
@@ -2682,7 +2699,7 @@ fn scan_one_point(
         tweak_data.outputs.clone(),
         tweak_data.wrappers.clone(),
     );
-    scan_from_tweaks(keys.scan_sk(), keys.spend_pk(), &one, None, K_MAX_DEFAULT)
+    scan_from_tweaks(keys.scan_sk(), keys.spend_pk(), &one, None, K_MAX_DEFAULT).unwrap()
 }
 
 /// The notarized payments in the solution of the settlement coin `coin_id`
@@ -3237,6 +3254,7 @@ fn test_maker_group_outputs_include_the_settlement_child() -> Result<()> {
             None,
             K_MAX_DEFAULT,
         )
+        .unwrap()
     };
     let found = scan(&group.outputs);
     assert_eq!(found.len(), 2, "the CAT payment and the change");

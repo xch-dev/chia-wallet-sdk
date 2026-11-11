@@ -475,16 +475,17 @@ fn payment_as_scanned(payment: &Value) {
 
         // The recipient's registered labels. The change label m = 0 is
         // always scanned for and is not registered.
-        let mut labels = LabelRegistry::new();
+        let mut labels = LabelRegistry::new(&b_scan);
         for (_, output) in &mine {
             if let Some(m) = label(&output["recipient"])
                 && m != 0
             {
-                labels.register(&b_scan, m);
+                labels.register(&b_scan, m).unwrap();
             }
         }
 
-        let detections = scan_from_tweaks(&b_scan, &spend_pk, &data, Some(&labels), K_MAX_DEFAULT);
+        let detections =
+            scan_from_tweaks(&b_scan, &spend_pk, &data, Some(&labels), K_MAX_DEFAULT).unwrap();
         assert_eq!(
             detections.len(),
             mine.len(),
@@ -565,16 +566,18 @@ fn detections_by_recipients(payment: &Value, data: &TweakData) -> usize {
                 .filter(|o| text(&o["recipient"], "scan_sk") == recipient_scan_sk)
                 .collect();
             let b_scan = sk(&mine[0]["recipient"], "scan_sk");
-            let mut labels = LabelRegistry::new();
+            let mut labels = LabelRegistry::new(&b_scan);
             for output in &mine {
                 if let Some(m) = label(&output["recipient"])
                     && m != 0
                 {
-                    labels.register(&b_scan, m);
+                    labels.register(&b_scan, m).unwrap();
                 }
             }
             let spend_pk = pk(&mine[0]["recipient"], "spend_pk");
-            scan_from_tweaks(&b_scan, &spend_pk, data, Some(&labels), K_MAX_DEFAULT).len()
+            scan_from_tweaks(&b_scan, &spend_pk, data, Some(&labels), K_MAX_DEFAULT)
+                .unwrap()
+                .len()
         })
         .sum()
 }
@@ -771,7 +774,7 @@ fn vector_9_cat_output_found_only_under_the_wrapper_list() {
     let spend_pk = pk(recipient, "spend_pk");
 
     let data = TweakData::with_wrappers(vec![pk(v9, "tweak_point")], vec![meta], vec![w]);
-    let detections = scan_from_tweaks(&b_scan, &spend_pk, &data, None, K_MAX_DEFAULT);
+    let detections = scan_from_tweaks(&b_scan, &spend_pk, &data, None, K_MAX_DEFAULT).unwrap();
     assert_eq!(detections.len(), 1);
     let d = &detections[0];
     assert_eq!(d.k, 0);
@@ -799,7 +802,11 @@ fn vector_9_cat_output_found_only_under_the_wrapper_list() {
 
     // Without the wrapper list only the bare candidate is tested: missed.
     let bare_only = TweakData::new(data.tweak_points.clone(), data.outputs.clone());
-    assert!(scan_from_tweaks(&b_scan, &spend_pk, &bare_only, None, K_MAX_DEFAULT).is_empty());
+    assert!(
+        scan_from_tweaks(&b_scan, &spend_pk, &bare_only, None, K_MAX_DEFAULT)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 // ─── Settlement payments ────────────────────────────────────────────────────

@@ -48,6 +48,11 @@ pub enum SilentPaymentError {
     #[error("label index 0 is reserved for change outputs and cannot be exposed")]
     ReservedChangeLabel,
 
+    /// A [`super::LabelRegistry`] was used with a scan key other than the one
+    /// it was created for.
+    #[error("label registry belongs to another scan key")]
+    LabelRegistryKeyMismatch,
+
     /// bech32 / bech32m parse, checksum, or character error. Wraps the
     /// existing `chia_sdk_utils::Bech32Error` so the error message stays
     /// uniform with the standard-address path.

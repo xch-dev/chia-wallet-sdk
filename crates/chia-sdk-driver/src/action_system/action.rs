@@ -51,7 +51,7 @@ pub enum Action {
     /// A CHIP-0057 silent payment action. The variant always exists; the actions are created
     /// with the `chip-0057` feature (`Action::silent_payment_send` and the settlement
     /// constructors).
-    SilentPayment(SilentPaymentAction),
+    SilentPayment(Box<SilentPaymentAction>),
 }
 
 impl Action {
@@ -463,8 +463,8 @@ impl Action {
         amount: u64,
         memos: Memos,
     ) -> Self {
-        Self::SilentPayment(SilentPaymentAction::Send(SilentPaymentSendAction::new(
-            id, recipient, amount, memos,
+        Self::SilentPayment(Box::new(SilentPaymentAction::Send(
+            SilentPaymentSendAction::new(id, recipient, amount, memos),
         )))
     }
 
@@ -491,14 +491,14 @@ impl Action {
         amount: u64,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPayment(SilentPaymentAction::Settled(
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
             SilentPaymentSettledAction::new(
                 id,
                 nonce,
                 SettledEntry::SilentPayment { recipient, amount },
                 SettlementPayer::Counterparty,
             ),
-        ))
+        )))
     }
 
     /// A requested payment of the maker to an address that is not a silent payment address. It
@@ -506,14 +506,14 @@ impl Action {
     /// asset, so that one announcement covers them (CHIP-0057 `DeriveSettlementOutputs`).
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_requested_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
-        Self::SilentPayment(SilentPaymentAction::Settled(
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
             SilentPaymentSettledAction::new(
                 id,
                 nonce,
                 SettledEntry::Other(payment),
                 SettlementPayer::Counterparty,
             ),
-        ))
+        )))
     }
 
     /// Takes a CHIP-0057 silent payment out of an offer the transaction takes: the taker is paid
@@ -531,14 +531,14 @@ impl Action {
         amount: u64,
         nonce: Bytes32,
     ) -> Self {
-        Self::SilentPayment(SilentPaymentAction::Settled(
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
             SilentPaymentSettledAction::new(
                 id,
                 nonce,
                 SettledEntry::SilentPayment { recipient, amount },
                 SettlementPayer::SpentSettlementCoin,
             ),
-        ))
+        )))
     }
 
     /// A payment of the taker to an address that is not a silent payment address, made by the
@@ -546,14 +546,14 @@ impl Action {
     /// payments in that asset (CHIP-0057 `DeriveSettlementOutputs`).
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_settle_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
-        Self::SilentPayment(SilentPaymentAction::Settled(
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
             SilentPaymentSettledAction::new(
                 id,
                 nonce,
                 SettledEntry::Other(payment),
                 SettlementPayer::SpentSettlementCoin,
             ),
-        ))
+        )))
     }
 }
 

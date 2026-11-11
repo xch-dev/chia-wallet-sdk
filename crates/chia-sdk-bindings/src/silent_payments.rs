@@ -172,16 +172,28 @@ impl SilentPaymentKeys {
 pub struct LabelRegistry(Arc<Mutex<chia_sdk_utils::silent_payments::LabelRegistry>>);
 
 impl LabelRegistry {
-    pub fn new() -> Result<Self> {
+    /// An empty registry for the scan secret key `scan_sk`. Only the scan
+    /// public key is kept.
+    pub fn new(scan_sk: SecretKey) -> Result<Self> {
         Ok(Self(Arc::new(Mutex::new(
-            chia_sdk_utils::silent_payments::LabelRegistry::new(),
+            chia_sdk_utils::silent_payments::LabelRegistry::new(&scan_sk),
         ))))
     }
 
-    /// Register label index `m` against scan secret key `scan_sk`.
+    /// Register label index `m`. `scan_sk` must be the key the registry was
+    /// created for.
     pub fn register(&self, scan_sk: SecretKey, m: u32) -> Result<()> {
-        self.0.lock().unwrap().register(&scan_sk, m);
+        self.0
+            .lock()
+            .unwrap()
+            .register(&scan_sk, m)
+            .map_err(chia_sdk_driver::DriverError::from)?;
         Ok(())
+    }
+
+    /// The scan public key the registry belongs to.
+    pub fn scan_pk(&self) -> Result<PublicKey> {
+        Ok(*self.0.lock().unwrap().scan_pk())
     }
 
     pub fn forward(&self, m: u32) -> Result<Option<PublicKey>> {
@@ -649,7 +661,7 @@ impl SilentPayments {
             &driver_data,
             Some(&driver_labels),
             k_max as usize,
-        );
+        )?;
         Ok(detections.into_iter().map(Into::into).collect())
     }
 

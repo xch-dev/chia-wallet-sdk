@@ -29,8 +29,10 @@ use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
 use chia_sdk_types::silent_payments::{K_MAX, ScalarField};
 use chia_sdk_utils::silent_payments::{
-    CHANGE_LABEL, LabelRegistry, SilentPaymentKeys, generate_label,
+    CHANGE_LABEL, LabelRegistry, SilentPaymentError, SilentPaymentKeys, generate_label,
 };
+
+use crate::DriverError;
 
 use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::{
@@ -88,14 +90,23 @@ pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 /// or a peer chooses the tweak points and the wrapper list) should bound that
 /// work itself. The list is never truncated here: a dropped wrapper is a
 /// missed payment.
-#[must_use]
+///
+/// # Errors
+///
+/// `labels` must be a registry of `scan_sk`; a registry created for another
+/// scan key would never match, so it is refused with
+/// [`SilentPaymentError::LabelRegistryKeyMismatch`].
 pub fn scan_from_tweaks(
     scan_sk: &SecretKey,
     spend_pk: &PublicKey,
     data: &TweakData,
     labels: Option<&LabelRegistry>,
     k_max: usize,
-) -> Vec<DetectedSilentPaymentCoin> {
+) -> Result<Vec<DetectedSilentPaymentCoin>, DriverError> {
+    if labels.is_some_and(|registry| *registry.scan_pk() != scan_sk.public_key()) {
+        return Err(SilentPaymentError::LabelRegistryKeyMismatch.into());
+    }
+
     let outputs = index_outputs(&data.outputs);
     let labels = label_set(scan_sk, labels);
     let forms = wrapper_forms(&data.wrappers);
@@ -125,7 +136,7 @@ pub fn scan_from_tweaks(
         );
     }
 
-    detected
+    Ok(detected)
 }
 
 /// The forms under which each candidate is tested: bare (`None`) first, then
@@ -292,7 +303,7 @@ pub trait SilentPaymentScan {
         tweak_data: &TweakData,
         labels: Option<&LabelRegistry>,
         k_max: usize,
-    ) -> Vec<DetectedSilentPaymentCoin>;
+    ) -> Result<Vec<DetectedSilentPaymentCoin>, DriverError>;
 }
 
 impl SilentPaymentScan for SilentPaymentKeys {
@@ -301,7 +312,7 @@ impl SilentPaymentScan for SilentPaymentKeys {
         tweak_data: &TweakData,
         labels: Option<&LabelRegistry>,
         k_max: usize,
-    ) -> Vec<DetectedSilentPaymentCoin> {
+    ) -> Result<Vec<DetectedSilentPaymentCoin>, DriverError> {
         scan_from_tweaks(self.scan_sk(), self.spend_pk(), tweak_data, labels, k_max)
     }
 }
@@ -392,7 +403,8 @@ mod tests {
             &data,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
 
         assert_eq!(detections.len(), 1, "expected exactly 1 TV1 detection");
         let detection = &detections[0];
@@ -436,7 +448,8 @@ mod tests {
             &data,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
 
         assert_eq!(detections.len(), 1, "expected exactly 1 TV4 detection");
         let detection = &detections[0];
@@ -495,7 +508,8 @@ mod tests {
             &data,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
 
         assert!(
             detections.is_empty(),
@@ -513,8 +527,8 @@ mod tests {
     /// labeled key-derivation chain.
     #[test]
     fn tv3_scan_detects_labeled_k0() {
-        let mut labels = LabelRegistry::new();
-        labels.register(&sk(TV1_SCAN_SK), 1);
+        let mut labels = LabelRegistry::new(&sk(TV1_SCAN_SK));
+        labels.register(&sk(TV1_SCAN_SK), 1).unwrap();
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -533,7 +547,8 @@ mod tests {
             &data,
             Some(&labels),
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             detections.len(),
@@ -601,7 +616,8 @@ mod tests {
             ],
         };
 
-        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+        let detections =
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT).unwrap();
 
         assert_eq!(detections.len(), 2, "expected k=0 + k=1 detection");
         let mut sorted = detections.clone();
@@ -628,8 +644,8 @@ mod tests {
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
 
-        let mut labels = LabelRegistry::new();
-        labels.register(&b_scan, 1);
+        let mut labels = LabelRegistry::new(&b_scan);
+        labels.register(&b_scan, 1).unwrap();
 
         // Build the labeled puzzle_hash at k=1: candidate_pk_at_k1 + label_pk(m=1).
         let shared_secret = compute_shared_secret_from_tweak(&b_scan, &tp);
@@ -664,7 +680,7 @@ mod tests {
         };
 
         let detections =
-            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT).unwrap();
 
         assert_eq!(
             detections.len(),
@@ -689,8 +705,8 @@ mod tests {
         let b_spend_pub = pk(TV1_SPEND_PK);
         let tp = tweak_point_from(TV1_A_SUM, TV1_INPUT_HASH);
 
-        let mut labels = LabelRegistry::new();
-        labels.register(&b_scan, 1);
+        let mut labels = LabelRegistry::new(&b_scan);
+        labels.register(&b_scan, 1).unwrap();
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -704,7 +720,7 @@ mod tests {
         };
 
         let detections =
-            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT).unwrap();
 
         assert_eq!(
             detections.len(),
@@ -758,7 +774,7 @@ mod tests {
             outputs,
         };
 
-        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_TEST);
+        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_TEST).unwrap();
 
         assert!(
             detections.len() <= K_MAX_TEST,
@@ -794,10 +810,11 @@ mod tests {
             &data,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
 
         let keys = SilentPaymentKeys::from_secret_keys(sk(TV1_SCAN_SK), sk(TV1_SPEND_SK));
-        let method_result = keys.scan(&data, None, K_MAX_DEFAULT);
+        let method_result = keys.scan(&data, None, K_MAX_DEFAULT).unwrap();
 
         assert_eq!(free_fn_result.len(), method_result.len());
         assert_eq!(free_fn_result.len(), 1, "TV1 sanity");
@@ -886,8 +903,8 @@ mod tests {
     /// "Spending": the signer needs only `b_spend`).
     #[test]
     fn watch_only_detection_is_completed_by_the_spend_key() {
-        let mut labels = LabelRegistry::new();
-        labels.register(&sk(TV1_SCAN_SK), 1);
+        let mut labels = LabelRegistry::new(&sk(TV1_SCAN_SK));
+        labels.register(&sk(TV1_SCAN_SK), 1).unwrap();
 
         let data = TweakData {
             wrappers: Vec::new(),
@@ -918,7 +935,8 @@ mod tests {
             &data,
             Some(&labels),
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
         assert_eq!(detections.len(), 2);
         let handed_over: Vec<([u8; 32], Bytes32)> = detections
             .iter()
@@ -994,7 +1012,8 @@ mod tests {
             &data,
             None,
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
         assert_eq!(detections.len(), 1);
         assert_eq!(detections[0].puzzle_hash, Bytes32::from(TV1_PUZZLE_HASH));
     }
@@ -1044,7 +1063,8 @@ mod tests {
             ],
         };
 
-        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+        let detections =
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT).unwrap();
 
         let found: Vec<(Bytes32, u64, u32)> = detections
             .iter()
@@ -1066,8 +1086,8 @@ mod tests {
     /// puzzle hash is reported under that label.
     #[test]
     fn all_coins_sharing_a_labeled_puzzle_hash_are_reported() {
-        let mut labels = LabelRegistry::new();
-        labels.register(&sk(TV1_SCAN_SK), 1);
+        let mut labels = LabelRegistry::new(&sk(TV1_SCAN_SK));
+        labels.register(&sk(TV1_SCAN_SK), 1).unwrap();
 
         let coin = |id: u8, amount: u64| OutputMeta {
             puzzle_hash: TV3_PUZZLE_HASH.into(),
@@ -1087,7 +1107,8 @@ mod tests {
             &data,
             Some(&labels),
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
         assert_eq!(detections.len(), 3);
         for (detection, amount) in detections.iter().zip([10, 20, 30]) {
             assert_eq!(detection.amount, amount);
@@ -1130,14 +1151,15 @@ mod tests {
     /// and reported as label 0 without the caller registering anything.
     #[test]
     fn tv7_change_output_is_found_without_registering_labels() {
-        for labels in [None, Some(&LabelRegistry::new())] {
+        for labels in [None, Some(&LabelRegistry::new(&sk(TV1_SCAN_SK)))] {
             let detections = scan_from_tweaks(
                 &sk(TV1_SCAN_SK),
                 &pk(TV1_SPEND_PK),
                 &tv7_data(),
                 labels,
                 K_MAX_DEFAULT,
-            );
+            )
+            .unwrap();
             assert_eq!(detections.len(), 1);
             assert_eq!(detections[0].k, 0);
             assert_eq!(detections[0].label, Some(0));
@@ -1156,9 +1178,9 @@ mod tests {
     /// nothing: the output is reported once, as label 0.
     #[test]
     fn tv7_change_output_with_registered_labels() {
-        let mut labels = LabelRegistry::new();
-        labels.register(&sk(TV1_SCAN_SK), 1);
-        labels.register(&sk(TV1_SCAN_SK), 0);
+        let mut labels = LabelRegistry::new(&sk(TV1_SCAN_SK));
+        labels.register(&sk(TV1_SCAN_SK), 1).unwrap();
+        labels.register(&sk(TV1_SCAN_SK), 0).unwrap();
 
         let detections = scan_from_tweaks(
             &sk(TV1_SCAN_SK),
@@ -1166,7 +1188,8 @@ mod tests {
             &tv7_data(),
             Some(&labels),
             K_MAX_DEFAULT,
-        );
+        )
+        .unwrap();
         assert_eq!(detections.len(), 1);
         assert_eq!(detections[0].label, Some(0));
     }
@@ -1212,9 +1235,9 @@ mod tests {
         };
         assert_eq!(order(None), vec![0]);
 
-        let mut labels = LabelRegistry::new();
+        let mut labels = LabelRegistry::new(&b_scan);
         for m in [5, 0, 2] {
-            labels.register(&b_scan, m);
+            labels.register(&b_scan, m).unwrap();
         }
         assert_eq!(order(Some(&labels)), vec![0, 2, 5]);
     }
@@ -1247,7 +1270,7 @@ mod tests {
         };
 
         for k_max in [K_MAX_DEFAULT, K_MAX_DEFAULT + 1, usize::MAX] {
-            let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, k_max);
+            let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, k_max).unwrap();
             assert_eq!(detections.len(), K_MAX as usize);
             assert_eq!(detections.last().unwrap().k, K_MAX - 1);
         }
@@ -1287,7 +1310,8 @@ mod tests {
             outputs,
         };
 
-        let detections = scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT);
+        let detections =
+            scan_from_tweaks(&b_scan, &b_spend_pub, &data, None, K_MAX_DEFAULT).unwrap();
         assert_eq!(
             detections
                 .iter()
@@ -1360,6 +1384,7 @@ mod tests {
                 labels,
                 K_MAX_DEFAULT,
             )
+            .unwrap()
         }
     }
 
@@ -1400,8 +1425,8 @@ mod tests {
     fn test_empty_wrapper_list_equals_bare_scan() {
         let b_scan = sk(TV1_SCAN_SK);
         let b_spend_pub = pk(TV1_SPEND_PK);
-        let mut labels = LabelRegistry::new();
-        labels.register(&b_scan, 1);
+        let mut labels = LabelRegistry::new(&b_scan);
+        labels.register(&b_scan, 1).unwrap();
 
         let cases = [
             (
@@ -1417,13 +1442,15 @@ mod tests {
             let bare = TweakData::new(vec![tp], vec![output]);
             assert!(bare.wrappers.is_empty());
             let bare_detections =
-                scan_from_tweaks(&b_scan, &b_spend_pub, &bare, Some(&labels), K_MAX_DEFAULT);
+                scan_from_tweaks(&b_scan, &b_spend_pub, &bare, Some(&labels), K_MAX_DEFAULT)
+                    .unwrap();
             assert_eq!(bare_detections.len(), 1);
 
             for wrappers in [vec![], vec![w()], vec![w(), w2()]] {
                 let data = TweakData::with_wrappers(vec![tp], vec![output], wrappers);
                 let detections =
-                    scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT);
+                    scan_from_tweaks(&b_scan, &b_spend_pub, &data, Some(&labels), K_MAX_DEFAULT)
+                        .unwrap();
                 assert_eq!(
                     detections.iter().map(summary).collect::<Vec<_>>(),
                     bare_detections.iter().map(summary).collect::<Vec<_>>()
@@ -1543,8 +1570,8 @@ mod tests {
     #[test]
     fn test_labeled_cat_output_found_under_wrapper() {
         let tv1 = Tv1::new();
-        let mut labels = LabelRegistry::new();
-        labels.register(&tv1.b_scan, 1);
+        let mut labels = LabelRegistry::new(&tv1.b_scan);
+        labels.register(&tv1.b_scan, 1).unwrap();
         let (label_scalar, label_pk) = generate_label(&tv1.b_scan, 1);
         let t0 = derive_output_tweak(&tv1.shared_secret, 0);
         let labeled =
@@ -1578,7 +1605,9 @@ mod tests {
             empty.tweak_points.is_empty() && empty.outputs.is_empty() && empty.wrappers.is_empty()
         );
         assert!(
-            scan_from_tweaks(&tv1.b_scan, &tv1.b_spend_pub, &empty, None, K_MAX_DEFAULT).is_empty()
+            scan_from_tweaks(&tv1.b_scan, &tv1.b_spend_pub, &empty, None, K_MAX_DEFAULT)
+                .unwrap()
+                .is_empty()
         );
         let no_points =
             TweakData::with_wrappers(vec![], vec![meta(w().wrap(tv1.candidate(0)), 1)], vec![w()]);
@@ -1590,6 +1619,7 @@ mod tests {
                 None,
                 K_MAX_DEFAULT
             )
+            .unwrap()
             .is_empty()
         );
     }
@@ -1615,5 +1645,26 @@ mod tests {
             puzzle_hash_for_pk(&found[0].onetime_sk(&sk(TV1_SPEND_SK)).unwrap().public_key()),
             p
         );
+    }
+
+    /// A registry created for another scan key is refused: its labels would
+    /// never match.
+    #[test]
+    fn registry_of_another_scan_key_is_refused() {
+        let mut labels = LabelRegistry::new(&sk(TV1_SPEND_SK));
+        labels.register(&sk(TV1_SPEND_SK), 1).unwrap();
+        let result = scan_from_tweaks(
+            &sk(TV1_SCAN_SK),
+            &pk(TV1_SPEND_PK),
+            &TweakData::default(),
+            Some(&labels),
+            K_MAX_DEFAULT,
+        );
+        assert!(matches!(
+            result,
+            Err(DriverError::SilentPayment(
+                SilentPaymentError::LabelRegistryKeyMismatch
+            ))
+        ));
     }
 }

@@ -174,6 +174,7 @@ fn scan(
         labels,
         K_MAX_DEFAULT,
     )
+    .unwrap()
 }
 
 // ─── Key derivation tables ──────────────────────────────────────────────────
@@ -471,8 +472,8 @@ fn tv3_labeled_payment() {
         sent.puzzle_hash
     );
 
-    let mut labels = LabelRegistry::new();
-    labels.register(keys.scan_sk(), 1);
+    let mut labels = LabelRegistry::new(keys.scan_sk());
+    labels.register(keys.scan_sk(), 1).unwrap();
     let detections = scan(
         &keys,
         vec![tweak_point(&pk(A_0), input_hash)],

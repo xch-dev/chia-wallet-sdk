@@ -22,6 +22,8 @@ use std::collections::{BTreeMap, HashMap};
 use chia_bls::{PublicKey, SecretKey};
 use chia_sdk_types::silent_payments::{CHIA_SP_LABEL, ScalarField, tagged_hash};
 
+use super::SilentPaymentError;
+
 /// The label index reserved for the wallet's own change outputs (CHIP-0057
 /// "Change Detection"). An address with this label must never be handed out.
 pub const CHANGE_LABEL: u32 = 0;
@@ -47,36 +49,52 @@ pub(crate) fn generate_label(scan_sk: &SecretKey, m: u32) -> (ScalarField, Publi
     (label_scalar, label_sk.public_key())
 }
 
-/// A bidirectional registry of `label_index ↔ label_pk` mappings.
+/// The labels a wallet scans for under one scan key, as a bidirectional
+/// `label_index ↔ label_pk` map.
 ///
-/// Used by the scanner to attribute a labeled detection back to its label index
-/// (`lookup` is called inside the k-iteration loop).
-///
-/// Storage: two `HashMap` entries per registered label. For the realistic
-/// upper bound of a few hundred labels per wallet, total memory is well under
-/// 100 KB.
-#[derive(Clone, Debug, Default)]
+/// The registry is bound to its scan key: it stores the scan public key,
+/// [`LabelRegistry::register`] refuses any other key, and the scanner refuses a
+/// registry of another scan key. It holds no secret.
+#[derive(Clone, Debug)]
 pub struct LabelRegistry {
+    scan_pk: PublicKey,
     forward: BTreeMap<u32, PublicKey>,
     reverse: HashMap<[u8; 48], u32>,
 }
 
 impl LabelRegistry {
-    /// Construct an empty registry.
+    /// An empty registry for the scan secret key `scan_sk`.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(scan_sk: &SecretKey) -> Self {
+        Self {
+            scan_pk: scan_sk.public_key(),
+            forward: BTreeMap::new(),
+            reverse: HashMap::new(),
+        }
     }
 
-    /// Register label `m` against scan secret key `scan_sk`.
+    /// The scan public key the registry belongs to.
+    #[must_use]
+    pub fn scan_pk(&self) -> &PublicKey {
+        &self.scan_pk
+    }
+
+    /// Register label `m`. `scan_sk` must be the scan secret key the registry
+    /// was created for ([`SilentPaymentError::LabelRegistryKeyMismatch`]
+    /// otherwise).
     ///
     /// `m = 0` is accepted but has no effect on scanning: the scanner always
     /// checks the change label.
-    pub fn register(&mut self, scan_sk: &SecretKey, m: u32) {
+    pub fn register(&mut self, scan_sk: &SecretKey, m: u32) -> Result<(), SilentPaymentError> {
+        if scan_sk.public_key() != self.scan_pk {
+            return Err(SilentPaymentError::LabelRegistryKeyMismatch);
+        }
         let (_scalar, label_pk) = generate_label(scan_sk, m);
-        let bytes = label_pk.to_bytes();
-        self.forward.insert(m, label_pk);
-        self.reverse.insert(bytes, m);
+        if let Some(previous) = self.forward.insert(m, label_pk) {
+            self.reverse.remove(&previous.to_bytes());
+        }
+        self.reverse.insert(label_pk.to_bytes(), m);
+        Ok(())
     }
 
     /// Look up the label public key for a registered label index.
@@ -189,8 +207,8 @@ mod tests {
     #[test]
     fn registry_round_trip() {
         let scan_sk = sk(TV1_B_SCAN);
-        let mut reg = LabelRegistry::new();
-        reg.register(&scan_sk, 1);
+        let mut reg = LabelRegistry::new(&scan_sk);
+        reg.register(&scan_sk, 1).unwrap();
         let label_pk = *reg.forward(1).expect("registered");
         assert_eq!(reg.lookup(&label_pk), Some(1));
         assert_eq!(reg.len(), 1);
@@ -200,10 +218,10 @@ mod tests {
     #[test]
     fn registry_three_labels() {
         let scan_sk = sk(TV1_B_SCAN);
-        let mut reg = LabelRegistry::new();
-        reg.register(&scan_sk, 1);
-        reg.register(&scan_sk, 2);
-        reg.register(&scan_sk, 3);
+        let mut reg = LabelRegistry::new(&scan_sk);
+        reg.register(&scan_sk, 1).unwrap();
+        reg.register(&scan_sk, 2).unwrap();
+        reg.register(&scan_sk, 3).unwrap();
         assert_eq!(reg.len(), 3);
         for m in [1u32, 2, 3] {
             let pk = *reg.forward(m).expect("registered");
@@ -214,8 +232,8 @@ mod tests {
     #[test]
     fn registry_lookup_missing() {
         let scan_sk = sk(TV1_B_SCAN);
-        let mut reg = LabelRegistry::new();
-        reg.register(&scan_sk, 1);
+        let mut reg = LabelRegistry::new(&scan_sk);
+        reg.register(&scan_sk, 1).unwrap();
         // A different label index produces a different label_pk by the
         // discrete-log assumption; use generate_label to construct it.
         let (_, other_label_pk) = generate_label(&scan_sk, 999);
@@ -224,7 +242,7 @@ mod tests {
 
     #[test]
     fn registry_forward_missing() {
-        let reg = LabelRegistry::new();
+        let reg = LabelRegistry::new(&sk(TV1_B_SCAN));
         assert_eq!(reg.forward(42), None);
         assert!(reg.is_empty());
         assert_eq!(reg.len(), 0);
@@ -233,9 +251,9 @@ mod tests {
     #[test]
     fn registry_iterates_in_ascending_label_order() {
         let scan_sk = sk(TV1_B_SCAN);
-        let mut reg = LabelRegistry::new();
+        let mut reg = LabelRegistry::new(&scan_sk);
         for m in [7u32, 2, 100, 1, 0] {
-            reg.register(&scan_sk, m);
+            reg.register(&scan_sk, m).unwrap();
         }
         let order: Vec<u32> = reg.iter().map(|(m, _)| m).collect();
         assert_eq!(order, vec![0, 1, 2, 7, 100]);
@@ -278,5 +296,28 @@ mod tests {
             keys.labeled_address(SilentPaymentNetwork::Mainnet, CHANGE_LABEL),
             Err(SilentPaymentError::ReservedChangeLabel)
         );
+    }
+
+    /// The registry is bound to its scan key: another key is refused, and
+    /// registering a label again leaves one entry in each direction.
+    #[test]
+    fn registry_is_bound_to_its_scan_key() {
+        let scan_sk = sk(TV1_B_SCAN);
+        let other_sk = sk(TV1_B_SPEND);
+        let mut reg = LabelRegistry::new(&scan_sk);
+        assert_eq!(*reg.scan_pk(), scan_sk.public_key());
+
+        assert_eq!(
+            reg.register(&other_sk, 1),
+            Err(SilentPaymentError::LabelRegistryKeyMismatch)
+        );
+        assert!(reg.is_empty());
+
+        reg.register(&scan_sk, 1).unwrap();
+        reg.register(&scan_sk, 1).unwrap();
+        assert_eq!(reg.len(), 1);
+        assert_eq!(reg.reverse.len(), 1);
+        let (_, other_label_pk) = generate_label(&other_sk, 1);
+        assert_eq!(reg.lookup(&other_label_pk), None);
     }
 }

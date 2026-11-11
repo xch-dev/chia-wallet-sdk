@@ -6,7 +6,7 @@ use chia_bls::{PublicKey, SecretKey};
 use chia_sdk_types::silent_payments::{SCAN_PATH, SPEND_PATH};
 
 use super::{
-    SilentPaymentAddress, SilentPaymentError, SilentPaymentNetwork,
+    LabelRegistry, SilentPaymentAddress, SilentPaymentError, SilentPaymentNetwork,
     labels::{CHANGE_LABEL, generate_label},
 };
 
@@ -149,6 +149,19 @@ impl SilentPaymentKeys {
     #[must_use]
     pub fn change_address(&self, network: SilentPaymentNetwork) -> SilentPaymentAddress {
         self.address_for_label(network, CHANGE_LABEL)
+    }
+
+    /// A [`LabelRegistry`] of this wallet's scan key with the labels `labels`
+    /// registered, for the scanner.
+    #[must_use]
+    pub fn label_registry(&self, labels: impl IntoIterator<Item = u32>) -> LabelRegistry {
+        let mut registry = LabelRegistry::new(&self.scan_sk);
+        for m in labels {
+            registry
+                .register(&self.scan_sk, m)
+                .expect("the registry was created for this scan key");
+        }
+        registry
     }
 
     fn address_for_label(&self, network: SilentPaymentNetwork, m: u32) -> SilentPaymentAddress {

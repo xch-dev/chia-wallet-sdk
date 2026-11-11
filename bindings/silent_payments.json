@@ -76,13 +76,19 @@
     "type": "class",
     "methods": {
       "new": {
-        "type": "constructor"
+        "type": "constructor",
+        "args": {
+          "scan_sk": "SecretKey"
+        }
       },
       "register": {
         "args": {
           "scan_sk": "SecretKey",
           "m": "u32"
         }
+      },
+      "scan_pk": {
+        "return": "PublicKey"
       },
       "forward": {
         "args": {

@@ -85,11 +85,10 @@ fn main() -> Result<()> {
         tweak_data.outputs.len(),
     );
 
-    // 4. Scan: register m=1 in a fresh LabelRegistry so the scanner can attribute
-    //    the labeled output. Unlabeled detection always works regardless of registry.
-    let mut labels = LabelRegistry::new();
-    labels.register(recipient.scan_sk(), 1);
-    let detections = recipient.scan(&tweak_data, Some(&labels), K_MAX_DEFAULT);
+    // 4. Scan with label m=1 registered, so the scanner can attribute the labeled
+    //    output.
+    let labels = recipient.label_registry([1]);
+    let detections = recipient.scan(&tweak_data, Some(&labels), K_MAX_DEFAULT)?;
     println!(
         "Stage 4/5 — Scanned: detected {} output(s).",
         detections.len()
@@ -185,7 +184,7 @@ fn main() -> Result<()> {
     );
 
     // Stage 8: scan and detect.
-    let detections_multi = recipient.scan(&tweak_data_multi, None, K_MAX_DEFAULT);
+    let detections_multi = recipient.scan(&tweak_data_multi, None, K_MAX_DEFAULT)?;
     println!(
         "Stage 8/9 — Multi-input scan: detected {} output(s).",
         detections_multi.len()
