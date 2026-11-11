@@ -550,9 +550,8 @@ pub enum DriverError {
 
     /// A silent-payment send whose transaction spends two or more XCH coins
     /// (counting intermediate coins that are created and spent inside it) must
-    /// pass `Relation::AssertConcurrent` to `Spends::prepare` /
-    /// `Spends::finish_with_keys`, so that scanners can reconstruct the spend
-    /// group. A transaction that spends a single coin accepts any `Relation`.
+    /// be prepared with `Relation::AssertConcurrent`, so that scanners can
+    /// reconstruct the spend group. A transaction that spends a single coin accepts any `Relation`.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment requires input binding")]
     SilentPaymentRequiresInputBinding,

@@ -1,26 +1,5 @@
-//! Silent-payments protocol primitives — the building blocks the scanner and
-//! the send-side action share.
-//!
-//! Protocol primitives (low-level — operate on a single shared secret / scalar):
-//!
-//! - [`compute_shared_secret_from_tweak`] — wallet-side ECDH: `SHA256(scan_sk * tweak_point)`.
-//! - [`derive_output_tweak`] — per-output tweak scalar: `tagged_hash(CHIA_SP_SHARED_SECRET, shared_secret ‖ ser32(k)) mod r`.
-//! - [`derive_onetime_pk`] — `spend_pk + tweak * G`.
-//! - [`derive_onetime_sk`] — `(spend_sk + tweak) mod r`.
-//! - [`puzzle_hash_for_pk`] — `StandardArgs::curry_tree_hash(pk.derive_synthetic())`.
-//!
-//! Send-side compositions (high-level — fold the primitives into the values the
-//! send action and `Spends::finish_with_keys` need):
-//!
-//! - [`aggregate_sender_sks`] — `Σ sk_i mod r` over the wallet's synthetic SKs.
-//! - [`compute_input_hash`] — `tagged_hash(CHIA_SP_INPUTS, coin_id_min ‖ serialize(A_sum)) mod r`.
-//! - [`compute_tweak_point`] — the tweak point of a spend group: `input_hash * A_sum`.
-//! - [`derive_one_time_puzzle_hash`] — the sender's analog of the receiver's scan loop:
-//!   `aggregated_sender_sk * input_hash * scan_pk → shared_secret → t_k → onetime_pk → puzzle_hash`.
-//!
-//! Every scalar that comes out of `tagged_hash` flows through
-//! [`chia_sdk_types::silent_payments::ScalarField::from_bytes_unsigned`] — the
-//! type-system boundary that prevents the signed-vs-unsigned mixing hazard.
+//! The protocol primitives the scanner and the send path share (CHIP-0057 "Sending", "Scanning
+//! a Spend Group", "Tweak Points").
 
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::Bytes32;
@@ -128,21 +107,7 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
     StandardArgs::curry_tree_hash(synthetic).into()
 }
 
-// Send-side compositions.
-//
-// The 3 functions below compose the protocol primitives above into the values
-// the send-side action and `Spends::finish_with_keys` need:
-//
-//   aggregate_sender_sks  → Σ synthetic_sk_i mod r
-//   compute_input_hash    → tagged_hash binding the spent coin set + aggregated PK
-//   derive_one_time_puzzle_hash  → sender-side analog of the receiver's scan loop
-//
-// Callers must pass synthetic secret keys. The `SyntheticSecretKey` newtype
-// makes passing a raw key a compile error, and the derivation returns
-// `DriverError::SilentPaymentKeyNotSynthetic` when a key does not curry to its
-// coin's `p2_puzzle_hash`.
-// The Spends-level multi-party / coverage gates check key PRESENCE only; they
-// do not validate synthetic-ness.
+// Send side. Callers pass synthetic secret keys; see `SyntheticSecretKey`.
 
 /// Aggregate synthetic sender secret keys via mod-r addition: `a_sum = Σ sk_i mod r`,
 /// with one term per coin of the spend group.
@@ -177,9 +142,7 @@ fn is_zero_key(sk: &SecretKey) -> bool {
 ///
 /// `coin_ids` is the slice of spent-coin ids forming the spend group; the
 /// lexicographically-smallest 32-byte id is selected internally.
-/// `aggregated_sender_pk` is the 48-byte compressed serialization of
-/// `Σ synthetic_sk_i * G`, computed at finish time by
-/// `Spends::finish_with_keys` (chip-0057 SP branch).
+/// `aggregated_sender_pk` is `Σ synthetic_sk_i * G`.
 ///
 /// Returns a [`ScalarField`] reduced unsigned mod-r. The scalar is used both
 /// (a) by the sender to derive each output's per-output tweak (via

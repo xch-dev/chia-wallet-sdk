@@ -1,23 +1,11 @@
-//! Silent payments through settlement coins (CHIP-0057 "Payments through
-//! Settlement Coins").
+//! Silent payments through settlement coins (CHIP-0057 "Payments through Settlement Coins").
 //!
-//! In an offer, a party's requested payment is created by a settlement coin,
-//! not by a coin of the party. The party derives the one-time puzzle hash of
-//! such a payment from its own spend group, exactly as for an output its own
-//! coins create, and one coin of its group asserts the settlement coin's
-//! puzzle announcement of the notarized payment that lists it.
-//!
-//! [`derive_settlement_outputs`] is the CHIP's procedure `DeriveSettlementOutputs`,
-//! a pure function of the party's spend group, recipient entries, other
-//! requested payments and nonce. The action system derives the same values
-//! from a transaction with [`crate::Action::silent_payment_requested`] and
+//! [`derive_settlement_outputs`] is the CHIP's `DeriveSettlementOutputs` as a pure function. The
+//! action system derives the same values with [`crate::Action::silent_payment_requested`] and
 //! [`crate::Action::silent_payment_settle`], using the helpers of this module.
 //!
-//! The encoding of a settled payment is fixed by the CHIP: an XCH payment is
-//! `(p amount ())`, with an empty memo list (`Memos::Some(NodePtr::NIL)`), and
-//! a CAT payment `(p amount (p))`, hinted with the bare one-time puzzle hash.
-//! `(p amount)` (`Memos::None`) has another tree hash, and so another
-//! announcement, and is never produced here.
+//! An XCH payment is encoded `(p amount ())` and a CAT payment `(p amount (p))`. `(p amount)`
+//! has another tree hash, and so another announcement, and is never produced here.
 
 use std::collections::HashMap;
 
@@ -288,8 +276,7 @@ pub fn derive_settlement_outputs(
     }
     // Each key must be the synthetic key of its coin: curried into the
     // standard puzzle and wrapped in the coin's wrapper, it gives the coin's
-    // puzzle hash. `Spends::finish_with_keys` makes the same check on a
-    // registered key against the p2 puzzle hash of a coin it spends.
+    // puzzle hash.
     if !group.iter().all(SettlementGroupCoin::key_belongs_to_coin) {
         return Err(DriverError::SilentPaymentKeyNotSynthetic);
     }

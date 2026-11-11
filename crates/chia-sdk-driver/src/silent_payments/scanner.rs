@@ -1,27 +1,5 @@
-//! Transport-agnostic silent-payment scanner.
-//!
-//! Implements the `ScanForSilentPayment` procedure of CHIP-0057 ("Scanning a
-//! Spend Group") on top of tweak points ("Tweak Points"): given a [`TweakData`]
-//! (one tweak point per spend group, plus the candidate outputs), iterate
-//! `k = 0, 1, 2, ...` per spend group, derive the candidate one-time puzzle
-//! hashes, and emit a [`DetectedSilentPaymentCoin`] for every output coin that matches.
-//!
-//! The scanner needs the scan secret key and the spend public key only.
-//!
-//! Rules taken from the CHIP:
-//!
-//! - a tweak point that is the identity element, or is outside the prime-order
-//!   subgroup, is skipped ("Tweak Points", "Edge Cases");
-//! - at each `k` the unlabeled candidate is checked first, then the change
-//!   label `m = 0`, then the registered labels; the first match decides, and
-//!   every coin with the matched puzzle hash is recorded;
-//! - each candidate is tested bare and under every wrapper of the block's
-//!   wrapper list at once ([`TweakData::wrappers`], CHIP-0057 "Matching
-//!   Outputs under Wrappers"): every coin it matches under any wrapper is
-//!   recorded with that wrapper, and no later candidate is tried at that `k`;
-//!   with an empty list every candidate is tested bare only;
-//! - the group is abandoned at the first `k` with no match, at a zero tweak, or
-//!   when `k` reaches `K_max` ("Kmax: Maximum Outputs Per Spend Group").
+//! The scanner: CHIP-0057 `ScanForSilentPayment` ("Scanning a Spend Group") over tweak points.
+//! It needs the scan secret key and the spend public key only.
 
 use std::collections::{HashMap, HashSet};
 

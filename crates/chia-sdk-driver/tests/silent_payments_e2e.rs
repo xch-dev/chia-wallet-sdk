@@ -1240,7 +1240,7 @@ fn spend_detected_cat(
 }
 
 /// Plan 15-02 tracer: one CAT coin pays a silent payment through the action
-/// system with `Action::silent_payment_send_asset`.
+/// system with `Action::silent_payment_send`.
 ///
 /// The CAT coin spent alone is a single-input spend group. Its standard puzzle
 /// creates `CREATE_COIN(p, amount, (p))`, `p` derived from that coin's ID and

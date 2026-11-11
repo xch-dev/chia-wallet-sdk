@@ -1,80 +1,23 @@
-//! Builds a CHIP-0057 [`TweakData`] from the coin spends and additions of a
-//! block.
+//! Builds a [`TweakData`] from the coin spends and additions of a block (CHIP-0057 "Scanning a
+//! Block", "Tweak Points", "Wrapper List of a Block"). The caller decompresses the block
+//! generator; nothing here depends on `chia-consensus`.
 //!
-//! Given a block's `Vec<CoinSpend>` (removals with puzzle reveals and
-//! solutions) and `Vec<Coin>` (additions), this forms the block's spend groups
-//! as in the `ScanBlock` procedure of CHIP-0057 ("Scanning a Block") and emits
-//! one tweak point `T = input_hash * A_sum` per group ("Tweak Points"), one
-//! [`OutputMeta`] per addition, and the block's wrapper list. Decompressing the
-//! block generator is the caller's responsibility; the function takes the
-//! spends as they come out of it, so it is a pure function with no
-//! `chia-consensus` dependency.
-//!
-//! ## Spend groups
-//!
-//! - **Eligible spends.** Each [`CoinSpend`] goes through
-//!   [`eligible_spend_from_nodes`](super::eligible_spend_from_nodes), the CHIP's closed list of eligible spends
-//!   ("Eligible CAT Spends"): the standard puzzle, bare, inside `cat_v2`, or
-//!   inside `cat_v2` and the CHIP-0038 revocation layer spent on the holder's
-//!   path, each matched exactly (module hash, curried arguments and the tree
-//!   hash of the whole layer). Its key is the synthetic public key of the
-//!   standard puzzle, whatever its asset ("Spend Groups across Assets"). Any
-//!   other spend (a DID, an NFT, a settlement coin, a CAT inside a CAT, a
-//!   revocable CAT spent through the issuer's hidden path, a puzzle that only
-//!   looks like one of these layers) is ignored from then on: it contributes
-//!   no key, no coin id, and no edge.
-//! - **Pass 1 — single-input groups.** Every eligible spend on its own is a
-//!   spend group.
-//! - **Pass 2 — multi-input groups.** Every eligible spend is run to extract
-//!   its conditions; the full puzzle reveal is run, as consensus does, so a CAT
-//!   spend's `ASSERT_CONCURRENT_SPEND`, passed through by the CAT layer (and
-//!   the revocation layer), is seen. Each `ASSERT_CONCURRENT_SPEND` condition
-//!   naming another
-//!   eligible spend of the block is a directed edge, and every strongly
-//!   connected component of two or more spends is a spend group. Strongly
-//!   connected components, not weakly connected ones, are used: a third party
-//!   that asserts a coin of a group without being asserted back has an edge
-//!   into the group but is not part of it, so it cannot change the group's
-//!   `A_sum`.
-//!
-//! The two passes overlap: a coin of a multi-input group also forms a
-//! single-input group.
-//!
-//! ## Tweak points
-//!
-//! For each group, `A_sum` is the sum of the synthetic keys (one term per
-//! coin) and `input_hash` is computed from the smallest coin id and `A_sum`.
-//! Groups whose `A_sum` is the identity element, or whose `input_hash` is
-//! zero, yield no tweak point ("Edge Cases"). Byte-identical tweak points are
-//! emitted once.
-//!
-//! Tweak points are emitted in a stable order: the single-input groups in
-//! `coin_spends` order, then the multi-input groups in the order the strongly
-//! connected components are found.
-//!
-//! ## Wrapper list
-//!
-//! Every coin spend whose puzzle reveal is exactly `cat_v2` adds its wrapper
-//! ([`coin_wrapper_from_node`](super::coin_wrapper_from_node)), eligible or not: a settlement coin of an
-//! offer, a revocable CAT spent through the issuer's hidden path and any other
-//! CAT spend all count ("Wrapper List of a Block"). The distinct wrappers are
-//! given in the CHIP's order ([`sort_wrappers`]); a block in which no CAT coin
-//! is spent has an empty list.
-//!
-//! ## Outputs
-//!
-//! `outputs` is every addition of the block (CHIP-0057 "Output Matching
-//! Scope"), whatever its asset.
-//!
-//! ## Group outputs (cut-through)
-//!
-//! [`spend_groups_from_block_spends`] gives each spend group with the coins
-//! that count as its outputs for a light-wallet server (CHIP-0057 Appendix A,
-//! "Light Client Support"): the children of its coins, and the children of
-//! every spend whose puzzle announcement a coin of the group asserts, so that a
-//! payment through a settlement coin of an offer stays with the party that
-//! asserted it. [`tweak_data_from_block_spends`] computes its tweak points from
-//! the same groups; its `outputs` stay every addition of the block.
+//! - **Eligible spends** are recognized by exact layer matching
+//!   ([`eligible_spend_from_nodes`](super::eligible_spend_from_nodes)); any other spend
+//!   contributes no key, no coin id and no edge.
+//! - **Pass 1:** every eligible spend on its own is a spend group.
+//! - **Pass 2:** every eligible spend is run in full, as consensus does. Each
+//!   `ASSERT_CONCURRENT_SPEND` naming another eligible spend is a directed edge, and every
+//!   strongly connected component of two or more spends is a spend group. A coin that asserts a
+//!   group without being asserted back is therefore not part of it.
+//! - **Tweak points** are emitted once each, the single-input groups in `coin_spends` order, then
+//!   the multi-input groups. A group whose key sum is the identity or whose input hash is zero
+//!   yields none.
+//! - **Wrapper list:** every exact `cat_v2` spend adds its wrapper, eligible or not, in the
+//!   CHIP's order ([`sort_wrappers`]).
+//! - **Outputs** are every addition of the block. [`spend_groups_from_block_spends`] also gives
+//!   each group's own outputs for a light-wallet server (CHIP-0057 Appendix A): the children of
+//!   its coins and of every spend whose puzzle announcement a coin of the group asserts.
 
 use std::collections::{HashMap, HashSet};
 

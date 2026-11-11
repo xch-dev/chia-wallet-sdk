@@ -1,22 +1,5 @@
-//! Wire-protocol types for the silent-payment scanner.
-//!
-//! These three structs are the transport-agnostic surface a wallet sees:
-//!
-//! - [`TweakData`] is the scanner's input — pre-computed per-spend-group tweak
-//!   points + candidate output metadata. Constructed by an indexer adapter (a
-//!   a future transport protocol, the simulator helper, etc.) but
-//!   carries no transport fields.
-//! - [`OutputMeta`] is the metadata for one candidate coin — the puzzle hash
-//!   the scanner matches against, plus the bookkeeping fields the wallet needs
-//!   to act on a detected coin without re-parsing the block.
-//! - [`DetectedSilentPaymentCoin`] is the scanner's output — one entry per detected coin,
-//!   carrying the coin and the tweak from which the holder of the spend secret
-//!   key derives the one-time key.
-//!
-//! The Extension to CATs of CHIP-0057 adds the block's wrapper list to
-//! [`TweakData`] ([`TweakData::wrappers`]) and the wrapper under which a coin
-//! matched to [`DetectedSilentPaymentCoin`] ([`DetectedSilentPaymentCoin::wrapper`]). XCH is the
-//! `None` case of the same fields.
+//! The scanner's input ([`TweakData`], [`OutputMeta`]) and output
+//! ([`DetectedSilentPaymentCoin`]), and the outputs recorded on `Spends` until it is prepared.
 
 use std::fmt;
 
@@ -193,14 +176,8 @@ impl DetectedSilentPaymentCoin {
     }
 }
 
-/// Per-output deterministic state recorded at apply time, consumed at finish
-/// time by the chip-0057 SP branch of [`crate::Spends::finish_with_keys`] to
-/// compute the recipient's one-time puzzle hash and emit the on-chain
-/// `CreateCoin`.
-///
-/// The struct is `pub(crate)` — external callers never construct it directly;
-/// they go through [`crate::Action::silent_payment_send`] or
-/// [`crate::Action::silent_payment_send_asset`].
+/// A silent payment output recorded when its action is applied. Its one-time puzzle hash is
+/// derived when the transaction is prepared.
 #[derive(Debug, Clone)]
 pub(crate) struct SilentPaymentPending {
     pub scan_pk: PublicKey,
@@ -221,7 +198,7 @@ pub(crate) struct SilentPaymentPending {
 /// listed after the silent payments of its asset in the party's notarized
 /// payment ([`crate::Action::silent_payment_requested_other`],
 /// [`crate::Action::silent_payment_settle_other`]). Recorded at apply time,
-/// consumed by [`crate::Spends::prepare`].
+/// consumed when the transaction is prepared.
 #[derive(Debug, Clone)]
 pub(crate) struct SettledOtherPayment {
     pub asset: Option<Wrapper>,
@@ -234,8 +211,8 @@ pub(crate) struct SettledOtherPayment {
 /// The spend that creates a silent payment output, recorded at apply time.
 ///
 /// The index is the position of the spend in its asset's items, which only
-/// grow while actions are applied, so it stays valid until
-/// [`crate::Spends::prepare`] emits the output.
+/// grow while actions are applied, so it stays valid until the output is
+/// emitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SilentPaymentSource {
     /// An XCH output, created by `spends.xch.items[index]`.

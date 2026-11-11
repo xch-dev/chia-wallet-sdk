@@ -1,44 +1,10 @@
-//! Wrappers and eligible spends of the Extension to CATs (CHIP-0057
-//! "Extension to CATs": "Wrappers", "Eligible CAT Spends", "Wrapper List of a
-//! Block").
+//! Wrappers and eligible spends (CHIP-0057 "Wrappers", "Eligible CAT Spends", "Wrapper List of
+//! a Block").
 //!
-//! A [`Wrapper`] `W = (asset_id, hidden_ph)` names the layers around the
-//! standard puzzle of a CAT coin: the `cat_v2` layer with its asset ID and, for
-//! a revocable CAT (CHIP-0038), the revocation layer with its hidden puzzle
-//! hash. An XCH coin has no wrapper (`None`). [`Wrapper::wrap`] is the CHIP's
-//! `wrap(W, h)`, computed from tree hashes alone by [`CatInfo::puzzle_hash`],
-//! the SDK's own computation of a CAT's puzzle hash.
-//!
-//! [`eligible_spend`] is the CHIP's procedure `eligible_spend`, which replaces
-//! the procedure of Recognizing an Eligible Spend: it returns the pair `(A, W)`
-//! of the spend's key and its wrapper for exactly three shapes of puzzle, the
-//! CHIP's closed list:
-//!
-//! 1. the standard puzzle, bare: `(A, None)`;
-//! 2. `cat_v2` around the standard puzzle: `(A, (asset_id, None))`;
-//! 3. `cat_v2` around the CHIP-0038 revocation layer, spent on the holder's
-//!    path, the revealed holder puzzle being the standard puzzle:
-//!    `(A, (asset_id, hidden_ph))`.
-//!
-//! `A` is always the synthetic public key of the standard puzzle. Every other
-//! spend (a CAT inside a CAT, a CAT around an offer's settlement coin, a
-//! revocable CAT spent through the issuer's hidden path, a DID, an NFT, ...)
-//! is not eligible.
-//!
-//! Matching is exact at every layer, as the CHIP requires: the module's tree
-//! hash, the exact curried arguments (typed uncurry, 32-byte atoms, exact
-//! arity) and the tree hash of the whole layer. A puzzle that only looks like
-//! one of these layers contributes no key to a spend group. The SDK's
-//! [`crate::CatLayer`] and [`crate::RevocationLayer`] parsers are not used
-//! here: they check the module hash and the shape of the arguments only, and
-//! return an error where this procedure returns `None`.
-//!
-//! [`coin_wrapper`] gives the wrapper every exact `cat_v2` spend adds to its
-//! block's wrapper list, whether or not the spend is eligible, and
-//! [`sort_wrappers`] puts a wrapper list in the CHIP's order.
-//!
-//! Nothing here panics or unwraps on block data: every failed step returns
-//! `None`.
+//! [`eligible_spend`] is the CHIP's procedure of that name. Matching is exact at every layer:
+//! the module's tree hash, the curried arguments and the tree hash of the whole layer. The SDK's
+//! [`crate::CatLayer`] and [`crate::RevocationLayer`] parsers are not used, since they check the
+//! module hash and the shape of the arguments only. Nothing here panics on block data.
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, CoinSpend};
