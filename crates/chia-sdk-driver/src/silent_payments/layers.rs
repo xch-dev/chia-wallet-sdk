@@ -925,7 +925,7 @@ mod tests {
         .to_clvm(&mut a)
         .unwrap();
         let cat_mod = node_from_bytes(&mut a, &chia_puzzles::CAT_PUZZLE).unwrap();
-        let mut cat_of = |a: &mut Allocator, inner: NodePtr| {
+        let cat_of = |a: &mut Allocator, inner: NodePtr| {
             CurriedProgram {
                 program: cat_mod,
                 args: CatArgs::new(asset_id, inner),
@@ -966,11 +966,11 @@ mod tests {
         let mut eligible = 0;
         let mut wrapped = 0;
         for (puzzle, solution) in cases {
-            let (wrapper, spend) = classify_spend(&a, puzzle, solution);
-            assert_eq!(wrapper, coin_wrapper_from_node(&a, puzzle));
+            let (list_wrapper, spend) = classify_spend(&a, puzzle, solution);
+            assert_eq!(list_wrapper, coin_wrapper_from_node(&a, puzzle));
             assert_eq!(spend, eligible_spend_from_nodes(&a, puzzle, solution));
             eligible += usize::from(spend.is_some());
-            wrapped += usize::from(wrapper.is_some());
+            wrapped += usize::from(list_wrapper.is_some());
         }
         assert_eq!(eligible, 3);
         assert_eq!(wrapped, 6);
