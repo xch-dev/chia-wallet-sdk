@@ -13,7 +13,7 @@
 //! ## Spend groups
 //!
 //! - **Eligible spends.** Each [`CoinSpend`] goes through
-//!   [`eligible_spend_from_nodes`], the CHIP's closed list of eligible spends
+//!   [`eligible_spend_from_nodes`](super::eligible_spend_from_nodes), the CHIP's closed list of eligible spends
 //!   ("Eligible CAT Spends"): the standard puzzle, bare, inside `cat_v2`, or
 //!   inside `cat_v2` and the CHIP-0038 revocation layer spent on the holder's
 //!   path, each matched exactly (module hash, curried arguments and the tree
@@ -55,7 +55,7 @@
 //! ## Wrapper list
 //!
 //! Every coin spend whose puzzle reveal is exactly `cat_v2` adds its wrapper
-//! ([`coin_wrapper_from_node`]), eligible or not: a settlement coin of an
+//! ([`coin_wrapper_from_node`](super::coin_wrapper_from_node)), eligible or not: a settlement coin of an
 //! offer, a revocable CAT spent through the issuer's hidden path and any other
 //! CAT spend all count ("Wrapper List of a Block"). The distinct wrappers are
 //! given in the CHIP's order ([`sort_wrappers`]); a block in which no CAT coin
@@ -87,8 +87,7 @@ use indexmap::IndexMap;
 
 use crate::DriverError;
 use crate::silent_payments::{
-    OutputMeta, TweakData, Wrapper, coin_wrapper_from_node, compute_tweak_point,
-    eligible_spend_from_nodes, sort_wrappers,
+    OutputMeta, TweakData, Wrapper, compute_tweak_point, layers::classify_spend, sort_wrappers,
 };
 
 /// Eligible-spend row carried between stages.
@@ -231,18 +230,17 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         let Ok(puzzle_ptr) = spend.puzzle_reveal.to_clvm(&mut allocator) else {
             continue;
         };
-        if let Some(wrapper) = coin_wrapper_from_node(&allocator, puzzle_ptr) {
-            wrappers.push(wrapper);
-        }
         // A solution that does not deserialize is read as nil, as in
         // `eligible_spend`: only the revocable shape reads it.
         let solution_ptr = spend
             .solution
             .to_clvm(&mut allocator)
             .unwrap_or(NodePtr::NIL);
-        let Some((synthetic_pk, wrapper)) =
-            eligible_spend_from_nodes(&allocator, puzzle_ptr, solution_ptr)
-        else {
+        let (list_wrapper, eligible) = classify_spend(&allocator, puzzle_ptr, solution_ptr);
+        if let Some(wrapper) = list_wrapper {
+            wrappers.push(wrapper);
+        }
+        let Some((synthetic_pk, wrapper)) = eligible else {
             other_spends.push((spend_index, puzzle_ptr, solution_ptr));
             continue;
         };

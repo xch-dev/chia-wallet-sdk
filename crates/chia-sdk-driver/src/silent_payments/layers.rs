@@ -169,32 +169,51 @@ pub fn eligible_spend_from_nodes(
     puzzle: NodePtr,
     solution: NodePtr,
 ) -> Option<(PublicKey, Option<Wrapper>)> {
+    classify_spend(a, puzzle, solution).1
+}
+
+/// [`coin_wrapper_from_node`] and [`eligible_spend_from_nodes`] of one spend,
+/// matching the CAT layer and the revocation layer once for both.
+pub(crate) fn classify_spend(
+    a: &Allocator,
+    puzzle: NodePtr,
+    solution: NodePtr,
+) -> (Option<Wrapper>, Option<(PublicKey, Option<Wrapper>)>) {
     // (1) The bare standard puzzle.
     if let Some(key) = standard_puzzle_key(a, puzzle) {
-        return Some((key, None));
+        return (None, Some((key, None)));
     }
     // (2) Exactly cat_v2.
-    let (asset_id, inner) = match_cat(a, puzzle)?;
+    let Some((asset_id, inner)) = match_cat(a, puzzle) else {
+        return (None, None);
+    };
     // (3) cat_v2 around the standard puzzle.
     if let Some(key) = standard_puzzle_key(a, inner) {
-        return Some((key, Some(Wrapper::cat(asset_id))));
+        let wrapper = Wrapper::cat(asset_id);
+        return (Some(wrapper), Some((key, Some(wrapper))));
     }
     // (4, 5) Exactly the revocation layer.
-    let (hidden_puzzle_hash, inner_puzzle_hash) = match_revocation(a, inner)?;
-    // (6) The holder-path shape of the solution.
-    let (hidden_flag, revealed) = holder_path(a, solution)?;
-    // (7) nil is the EMPTY atom only: a pair or any non-empty atom (one zero
-    // byte included) is the issuer's hidden path.
-    if !is_nil(a, hidden_flag) {
-        return None;
-    }
-    // (8) The revealed puzzle is the one the layer committed to.
-    if Bytes32::from(tree_hash(a, revealed)) != inner_puzzle_hash {
-        return None;
-    }
-    // (9) The revealed puzzle is the standard puzzle; (10) otherwise none.
-    let key = standard_puzzle_key(a, revealed)?;
-    Some((key, Some(Wrapper::revocable(asset_id, hidden_puzzle_hash))))
+    let Some((hidden_puzzle_hash, inner_puzzle_hash)) = match_revocation(a, inner) else {
+        return (Some(Wrapper::cat(asset_id)), None);
+    };
+    let wrapper = Wrapper::revocable(asset_id, hidden_puzzle_hash);
+    let eligible = || {
+        // (6) The holder-path shape of the solution.
+        let (hidden_flag, revealed) = holder_path(a, solution)?;
+        // (7) nil is the EMPTY atom only: a pair or any non-empty atom (one zero
+        // byte included) is the issuer's hidden path.
+        if !is_nil(a, hidden_flag) {
+            return None;
+        }
+        // (8) The revealed puzzle is the one the layer committed to.
+        if Bytes32::from(tree_hash(a, revealed)) != inner_puzzle_hash {
+            return None;
+        }
+        // (9) The revealed puzzle is the standard puzzle; (10) otherwise none.
+        let key = standard_puzzle_key(a, revealed)?;
+        Some((key, Some(wrapper)))
+    };
+    (Some(wrapper), eligible())
 }
 
 /// The wrapper a coin spend adds to its block's wrapper list, or `None` when
@@ -918,5 +937,83 @@ mod tests {
         );
         assert_eq!(eligible_spend(&spend), None);
         assert_eq!(coin_wrapper(&spend), None);
+    }
+
+    /// `classify_spend` gives exactly `coin_wrapper_from_node` and the
+    /// eligible spend of the CHIP's steps, for every shape of spend.
+    #[test]
+    fn classify_spend_agrees_with_the_separate_matchers() {
+        use chia_puzzle_types::standard::StandardArgs;
+        use clvm_traits::ToClvm;
+
+        let mut a = Allocator::new();
+        let key = chia_bls::SecretKey::from_seed(&[7u8; 32]).public_key();
+        let asset_id = Bytes32::new([0x33; 32]);
+        let hidden = Bytes32::new([0x44; 32]);
+
+        let standard = CurriedProgram {
+            program: node_from_bytes(&mut a, &chia_puzzles::P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE)
+                .unwrap(),
+            args: StandardArgs::new(key),
+        }
+        .to_clvm(&mut a)
+        .unwrap();
+        let cat_mod = node_from_bytes(&mut a, &chia_puzzles::CAT_PUZZLE).unwrap();
+        let mut cat_of = |a: &mut Allocator, inner: NodePtr| {
+            CurriedProgram {
+                program: cat_mod,
+                args: CatArgs::new(asset_id, inner),
+            }
+            .to_clvm(a)
+            .unwrap()
+        };
+        let revocation_mod = node_from_bytes(&mut a, &chia_puzzles::REVOCATION_LAYER).unwrap();
+        let revocation = CurriedProgram {
+            program: revocation_mod,
+            args: RevocationArgs::new(hidden, tree_hash(&a, standard).into()),
+        }
+        .to_clvm(&mut a)
+        .unwrap();
+        let settlement = node_from_bytes(&mut a, &chia_puzzles::SETTLEMENT_PAYMENT).unwrap();
+
+        let plain_cat = cat_of(&mut a, standard);
+        let revocable_cat = cat_of(&mut a, revocation);
+        let settlement_cat = cat_of(&mut a, settlement);
+        let cat_in_cat = cat_of(&mut a, plain_cat);
+
+        // The holder-path solution: ((nil revealed . rest) ...).
+        let holder = ((NodePtr::NIL, (standard, ())), ())
+            .to_clvm(&mut a)
+            .unwrap();
+        let issuer = ((1, (standard, ())), ()).to_clvm(&mut a).unwrap();
+
+        let cases = [
+            (standard, NodePtr::NIL),
+            (settlement, NodePtr::NIL),
+            (plain_cat, NodePtr::NIL),
+            (settlement_cat, NodePtr::NIL),
+            (cat_in_cat, NodePtr::NIL),
+            (revocable_cat, holder),
+            (revocable_cat, issuer),
+            (revocable_cat, NodePtr::NIL),
+        ];
+        let mut eligible = 0;
+        let mut wrapped = 0;
+        for (puzzle, solution) in cases {
+            let (wrapper, spend) = classify_spend(&a, puzzle, solution);
+            assert_eq!(wrapper, coin_wrapper_from_node(&a, puzzle));
+            assert_eq!(spend, eligible_spend_from_nodes(&a, puzzle, solution));
+            eligible += usize::from(spend.is_some());
+            wrapped += usize::from(wrapper.is_some());
+        }
+        assert_eq!(eligible, 3);
+        assert_eq!(wrapped, 6);
+        assert_eq!(
+            classify_spend(&a, revocable_cat, holder),
+            (
+                Some(Wrapper::revocable(asset_id, hidden)),
+                Some((key, Some(Wrapper::revocable(asset_id, hidden))))
+            )
+        );
     }
 }
