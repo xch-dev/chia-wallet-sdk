@@ -1,8 +1,10 @@
+mod dry_run;
 mod members;
 mod memos;
 mod restrictions;
 mod spend;
 
+pub use dry_run::*;
 pub use members::*;
 pub use memos::*;
 pub use restrictions::*;

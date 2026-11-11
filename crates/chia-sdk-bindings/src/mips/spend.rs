@@ -27,7 +27,7 @@ use clvmr::NodePtr;
 
 use crate::{K1PublicKey, K1Signature, Program, R1PublicKey, R1Signature, Spend};
 
-use super::{MemberConfig, Vault, convert_restrictions};
+use super::{MemberConfig, Vault, VaultDryRun, convert_restrictions};
 
 #[derive(Clone)]
 pub struct MipsSpend {
@@ -45,6 +45,17 @@ impl MipsSpend {
         Ok(Spend {
             puzzle: Program(self.clvm.clone(), spend.puzzle),
             solution: Program(self.clvm.clone(), spend.solution),
+        })
+    }
+
+    pub fn dry_run(&self, vault: Vault) -> Result<VaultDryRun> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let vault = sdk::Vault::from(vault);
+        let mips_spend = self.spend.lock().unwrap();
+        let dry_run = sdk::VaultDryRun::new(&mut ctx, &vault, &mips_spend)?;
+        Ok(VaultDryRun {
+            clvm: self.clvm.clone(),
+            dry_run,
         })
     }
 

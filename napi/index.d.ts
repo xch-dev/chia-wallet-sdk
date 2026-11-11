@@ -2170,6 +2170,29 @@ export declare class GetCoinRecordsResponse {
   set nextCursor(value: string | undefined | null)
 }
 
+export declare class GetFeeEstimateResponse {
+  clone(): GetFeeEstimateResponse
+  constructor(estimates: Array<bigint>, targetTimes: Array<bigint>, currentFeeRate: number | undefined | null, mempoolSize: bigint | undefined | null, mempoolMaxSize: bigint | undefined | null, fullNodeSynced: boolean | undefined | null, lastTxBlockHeight: number | undefined | null, error: string | undefined | null, success: boolean)
+  get estimates(): Array<bigint>
+  set estimates(value: Array<bigint>)
+  get targetTimes(): Array<bigint>
+  set targetTimes(value: Array<bigint>)
+  get currentFeeRate(): number | null
+  set currentFeeRate(value: number | undefined | null)
+  get mempoolSize(): bigint | null
+  set mempoolSize(value: bigint | undefined | null)
+  get mempoolMaxSize(): bigint | null
+  set mempoolMaxSize(value: bigint | undefined | null)
+  get fullNodeSynced(): boolean | null
+  set fullNodeSynced(value: boolean | undefined | null)
+  get lastTxBlockHeight(): number | null
+  set lastTxBlockHeight(value: number | undefined | null)
+  get error(): string | null
+  set error(value: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+
 export declare class GetMempoolItemResponse {
   clone(): GetMempoolItemResponse
   constructor(mempoolItem: MempoolItem | undefined | null, error: string | undefined | null, success: boolean)
@@ -2527,6 +2550,7 @@ export declare class MipsSpend {
   clone(): MipsSpend
   spend(custodyHash: Uint8Array): Spend
   spendVault(vault: Vault): void
+  dryRun(vault: Vault): VaultDryRun
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   eip712Member(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: K1PublicKey, signedHash: Uint8Array, signature: K1Signature): void
@@ -4300,6 +4324,8 @@ export declare class RpcClient {
   getNetworkInfo(): Promise<GetNetworkInfoResponse>
   getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
   getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
+  getFeeEstimate(cost: bigint, targetTimes: Array<bigint>): Promise<GetFeeEstimateResponse>
+  getFeePerCost(cost: bigint, targetTime: bigint): Promise<number | null>
 }
 
 export declare class RunCatTail {
@@ -4743,6 +4769,13 @@ export declare class VaultAuthorization {
   set custodyHash(value: Uint8Array)
   get recovery(): ControlledVaultRecovery | null
   set recovery(value: ControlledVaultRecovery | undefined | null)
+}
+
+export declare class VaultDryRun {
+  clone(): VaultDryRun
+  vault(): Vault
+  costMargin(): bigint
+  spend(delegatedSpend: Spend): void
 }
 
 export declare class VaultInfo {
@@ -5440,7 +5473,7 @@ export declare function singletonMemberHash(config: MemberConfig, launcherId: Ui
 
 export declare function singletonStructHash(launcherId: Uint8Array): Buffer
 
-export declare function spendBundleCost(coinSpends: Array<CoinSpend>, height?: number | undefined | null): bigint
+export declare function spendBundleCost(coinSpends: Array<CoinSpend>, mainnet: boolean, height?: number | undefined | null): bigint
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 

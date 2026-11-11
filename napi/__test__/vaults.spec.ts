@@ -14,14 +14,17 @@ import {
   K1SecretKey,
   K1Signature,
   MemberConfig,
+  minimumFee,
   mOfNHash,
   passkeyMemberHash,
   preventVaultSideEffectsRestriction,
+  r1MemberHash,
   R1Pair,
   sha256,
   Simulator,
   singletonMemberHash,
   Spend,
+  spendBundleCost,
   timelockRestriction,
   treeHashPair,
   Vault,
@@ -633,6 +636,56 @@ test("singleton recreation restriction prevents recovery initiation from changin
 
 test("recovery initiation succeeds with singleton recreation restriction", (t) => {
   t.notThrows(() => initiateVaultRecovery(true, 1n));
+});
+
+test("vault dry run costs the same as the signed spend", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const config = new MemberConfig().withTopLevel(true);
+  const vault = mintVault(sim, clvm, r1MemberHash(config, r1.pk, false));
+
+  // Before anyone signs, price the spend with a stand-in vault. The member's signature is a placeholder.
+  const placeholder = r1.sk.signPrehashed(new Uint8Array(32));
+  const template = clvm.mipsSpend(
+    vault.coin,
+    clvm.delegatedSpend([]),
+  );
+  template.r1Member(config, r1.pk, placeholder, false);
+  const dryRun = template.dryRun(vault);
+  const standIn = dryRun.vault();
+
+  dryRun.spend(
+    clvm.delegatedSpend([
+      clvm.createCoin(standIn.info.custodyHash, standIn.coin.amount, null),
+    ]),
+  );
+  const estimatedCost = spendBundleCost(clvm.coinSpends(), true);
+  const fee = minimumFee(estimatedCost) + dryRun.costMargin();
+
+  // The real spend, signed by the member, costs exactly the same.
+  const delegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+  ]);
+  const signature = r1.sk.signPrehashed(
+    sha256(
+      Uint8Array.from([
+        ...delegatedSpend.puzzle.treeHash(),
+        ...vault.coin.coinId(),
+      ]),
+    ),
+  );
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.r1Member(config, r1.pk, signature, false);
+  mips.spendVault(vault);
+
+  const coinSpends = clvm.coinSpends();
+  t.is(spendBundleCost(coinSpends, true), estimatedCost);
+  t.is(dryRun.costMargin(), 0n);
+  t.true(fee >= minimumFee(estimatedCost));
+
+  sim.spendCoins(coinSpends, []);
 });
 
 function initiateVaultRecovery(
