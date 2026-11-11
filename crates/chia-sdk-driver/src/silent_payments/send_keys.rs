@@ -111,7 +111,7 @@ mod tests {
     use indexmap::indexmap;
 
     use super::{SyntheticPublicKey, SyntheticSecretKey};
-    use crate::{Action, DriverError, Relation, SpendContext, Spends};
+    use crate::{Action, DriverError, Id, Relation, SpendContext, Spends};
 
     /// Byte-equality contract: the newtype `from_raw` constructors MUST route
     /// through the exact `chia_puzzle_types::DeriveSynthetic` path
@@ -189,7 +189,12 @@ mod tests {
         spends.add(alice.coin);
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
         let result = spends.prepare(&mut ctx, &deltas, Relation::None);
         assert!(matches!(
@@ -237,6 +242,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,
@@ -307,6 +313,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,
@@ -365,6 +372,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,
@@ -431,6 +439,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,
@@ -483,6 +492,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,
@@ -543,6 +553,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 recipient.clone(),
                 1,
                 Memos::None,

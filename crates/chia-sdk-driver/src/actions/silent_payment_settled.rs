@@ -48,31 +48,31 @@ pub enum SettledEntry {
     Other(Payment),
 }
 
-/// CHIP-0057 silent payment through a settlement coin (chip-0057-gated),
-/// created by [`Action::silent_payment_requested`](crate::Action::silent_payment_requested),
+/// A CHIP-0057 payment through a settlement coin, created by
+/// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested),
 /// [`Action::silent_payment_requested_other`](crate::Action::silent_payment_requested_other),
 /// [`Action::silent_payment_settle`](crate::Action::silent_payment_settle) and
 /// [`Action::silent_payment_settle_other`](crate::Action::silent_payment_settle_other).
 ///
-/// When the transaction is prepared, the party's settled entries are grouped
-/// per asset (`asset`, `None` for XCH) in order of first appearance: the
-/// asset's silent payments in the order of the actions, then its other
-/// payments, as one notarized payment `(nonce . payments)`. An XCH silent
-/// payment is listed as `(p amount ())` and a CAT one as `(p amount (p))`. A
-/// coin of the party's spend group asserts the settlement coin's puzzle
-/// announcement of that notarized payment, as a required condition: it does not
-/// depend on [`crate::ConditionConfig::disable_settlement_assertions`].
+/// When the transaction is prepared, the party's entries are grouped per asset
+/// into one notarized payment each (CHIP-0057 `DeriveSettlementOutputs`), and a
+/// coin of the party's spend group asserts its announcement as a required
+/// condition.
 ///
-/// Every entry of a party carries the same `nonce`, the offer's nonce for its
-/// requested payments, and the entries of one asset have one payer
-/// ([`DriverError::SilentPaymentSettlementMismatch`] otherwise). A silent
-/// payment takes the next `k` of its scan key, shared with every other silent
-/// payment output of the transaction, and counts towards `K_MAX`.
+/// Every entry of a party carries the same `nonce`, and the entries of one
+/// asset have one payer ([`DriverError::SilentPaymentSettlementMismatch`]
+/// otherwise). A silent payment takes the next `k` of its scan key, shared with
+/// every other silent payment output of the transaction.
 #[derive(Debug, Clone)]
 pub struct SilentPaymentSettledAction {
-    /// The asset of the payment: `None` for XCH, or the CAT's wrapper (with
-    /// the hidden puzzle hash of a revocable CAT).
-    pub asset: Option<Wrapper>,
+    /// The asset of the payment: [`Id::Xch`], or [`Id::Existing`] with the
+    /// asset ID of a CAT.
+    ///
+    /// The hidden puzzle hash of a revocable CAT is taken from the settlement
+    /// coin the transaction spends ([`SettlementPayer::SpentSettlementCoin`]),
+    /// or from [`crate::SilentPaymentState::requested_asset_info`]
+    /// ([`SettlementPayer::Counterparty`]).
+    pub id: Id,
     /// The offer's nonce for the party's requested payments.
     pub nonce: Bytes32,
     /// The requested payment.
@@ -82,25 +82,14 @@ pub struct SilentPaymentSettledAction {
 }
 
 impl SilentPaymentSettledAction {
-    /// Creates a settled payment of `entry` in `asset` under `nonce`, paid by `payer`.
-    pub fn new(
-        asset: Option<Wrapper>,
-        nonce: Bytes32,
-        entry: SettledEntry,
-        payer: SettlementPayer,
-    ) -> Self {
+    /// Creates a settled payment of `entry` in the asset `id` under `nonce`, paid by `payer`.
+    pub fn new(id: Id, nonce: Bytes32, entry: SettledEntry, payer: SettlementPayer) -> Self {
         Self {
-            asset,
+            id,
             nonce,
             entry,
             payer,
         }
-    }
-
-    /// The asset's id in the action system: [`Id::Xch`] or
-    /// [`Id::Existing`] with the CAT's asset ID.
-    pub fn id(&self) -> Id {
-        self.asset.map_or(Id::Xch, |w| Id::Existing(w.asset_id))
     }
 
     /// The amount of the entry.
@@ -118,8 +107,8 @@ impl SpendAction for SilentPaymentSettledAction {
         // party's own value. One made by a settlement coin the transaction
         // spends is paid out of that asset, as `SettleAction` counts it.
         if self.payer == SettlementPayer::SpentSettlementCoin {
-            *deltas.update(self.id()) += Delta::new(0, self.amount());
-            deltas.set_needed(self.id());
+            *deltas.update(self.id) += Delta::new(0, self.amount());
+            deltas.set_needed(self.id);
         }
     }
 
@@ -133,11 +122,25 @@ impl SpendAction for SilentPaymentSettledAction {
             recipient.validate()?;
         }
 
-        let (settlement_index, parent_coin) = match self.payer {
-            SettlementPayer::Counterparty => (None, None),
+        let (asset, settlement_index, parent_coin) = match self.payer {
+            SettlementPayer::Counterparty => {
+                let asset = match self.id {
+                    Id::Xch => None,
+                    Id::Existing(asset_id) => Some(Wrapper {
+                        asset_id,
+                        hidden_puzzle_hash: spends
+                            .silent_payments
+                            .requested_asset_info
+                            .cat(asset_id)
+                            .and_then(|info| info.hidden_puzzle_hash),
+                    }),
+                    Id::New(_) => return Err(DriverError::SilentPaymentNewCatUnsupported),
+                };
+                (asset, None, None)
+            }
             SettlementPayer::SpentSettlementCoin => {
-                let (index, coin) = settlement_source(spends, self.asset.as_ref())?;
-                (Some(index), Some(coin))
+                let (asset, index, coin) = settlement_source(spends, self.id)?;
+                (asset, Some(index), Some(coin))
             }
         };
 
@@ -149,7 +152,7 @@ impl SpendAction for SilentPaymentSettledAction {
                     recipient,
                     k,
                     SilentPaymentSource::Settled {
-                        asset: self.asset,
+                        asset,
                         nonce: self.nonce,
                         payer: self.payer,
                         settlement_index,
@@ -164,7 +167,7 @@ impl SpendAction for SilentPaymentSettledAction {
                     .silent_payments
                     .settled_others
                     .push(SettledOtherPayment {
-                        asset: self.asset,
+                        asset,
                         nonce: self.nonce,
                         payer: self.payer,
                         settlement_index,
@@ -177,32 +180,34 @@ impl SpendAction for SilentPaymentSettledAction {
     }
 }
 
-/// The first settlement coin of the asset (`None` for XCH) that the transaction spends, as its
-/// position in the asset's items and its coin. For a CAT the settlement coin's hidden puzzle hash
-/// must be the wrapper's, so a revocable CAT is settled by a revocable settlement coin.
+/// The first settlement coin of the asset that the transaction spends: the asset as a wrapper
+/// (`None` for XCH, with the coin's hidden puzzle hash for a revocable CAT), the coin's position
+/// in the asset's items and the coin.
 fn settlement_source(
     spends: &Spends,
-    asset: Option<&Wrapper>,
-) -> Result<(usize, Coin), DriverError> {
-    let found = match asset {
-        None => spends
+    id: Id,
+) -> Result<(Option<Wrapper>, usize, Coin), DriverError> {
+    let found = match id {
+        Id::Xch => spends
             .xch
             .items
             .iter()
             .position(|item| item.kind.is_settlement())
-            .map(|index| (index, spends.xch.items[index].asset.coin())),
-        Some(wrapper) => spends
-            .cats
-            .get(&Id::Existing(wrapper.asset_id))
-            .and_then(|cat| {
-                cat.items
-                    .iter()
-                    .position(|item| {
-                        item.kind.is_settlement()
-                            && item.asset.info.hidden_puzzle_hash == wrapper.hidden_puzzle_hash
-                    })
-                    .map(|index| (index, cat.items[index].asset.coin))
-            }),
+            .map(|index| (None, index, spends.xch.items[index].asset.coin())),
+        Id::Existing(_) => spends.cats.get(&id).and_then(|cat| {
+            cat.items
+                .iter()
+                .position(|item| item.kind.is_settlement())
+                .map(|index| {
+                    let cat = &cat.items[index].asset;
+                    let wrapper = Wrapper {
+                        asset_id: cat.info.asset_id,
+                        hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
+                    };
+                    (Some(wrapper), index, cat.coin)
+                })
+        }),
+        Id::New(_) => return Err(DriverError::SilentPaymentNewCatUnsupported),
     };
     found.ok_or(DriverError::SilentPaymentSettlementCoinMissing)
 }
@@ -218,7 +223,7 @@ mod tests {
     use chia_sdk_utils::silent_payments::{SilentPaymentAddress, SilentPaymentNetwork};
 
     use crate::{
-        Action, DriverError, SettlementPayer, SpendContext, Spends,
+        Action, DriverError, Id, SettlementPayer, SpendContext, Spends,
         silent_payments::{SilentPaymentSource, Wrapper},
     };
 
@@ -244,10 +249,10 @@ mod tests {
 
         // K_MAX - 1 outputs of the group and one settled payment are accepted.
         let mut actions: Vec<Action> = (1..K_MAX)
-            .map(|_| Action::silent_payment_send(recipient.clone(), 1, Memos::None))
+            .map(|_| Action::silent_payment_send(Id::Xch, recipient.clone(), 1, Memos::None))
             .collect();
         actions.push(Action::silent_payment_requested(
-            Some(w),
+            Id::Existing(w.asset_id),
             recipient.clone(),
             1,
             nonce,
@@ -269,8 +274,8 @@ mod tests {
 
         // One more output to the same scan key fails, settled or not.
         for action in [
-            Action::silent_payment_requested(None, recipient.clone(), 1, nonce),
-            Action::silent_payment_send(recipient.clone(), 1, Memos::None),
+            Action::silent_payment_requested(Id::Xch, recipient.clone(), 1, nonce),
+            Action::silent_payment_send(Id::Xch, recipient.clone(), 1, Memos::None),
         ] {
             let result = spends.apply(&mut ctx, &[action]);
             assert!(
@@ -279,6 +284,80 @@ mod tests {
             );
         }
         assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
+        Ok(())
+    }
+
+    /// The assets are named by `Id`. The hidden puzzle hash of a revocable CAT
+    /// comes from the settlement coin the transaction spends (the taker), or
+    /// from the requested asset info (the maker).
+    #[test]
+    fn test_revocable_cat_hidden_puzzle_hash_sources() -> Result<()> {
+        use chia_protocol::Coin;
+        use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+
+        use crate::{Cat, CatAssetInfo, CatInfo};
+
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+        let alice = sim.bls(10);
+        let recipient = SilentPaymentAddress::new(
+            SecretKey::from_bytes(&[0x42u8; 32])?.public_key(),
+            SecretKey::from_bytes(&[0x43u8; 32])?.public_key(),
+            SilentPaymentNetwork::Mainnet,
+        );
+        let asset_id = Bytes32::new([0x33; 32]);
+        let hidden = Bytes32::new([7; 32]);
+        let nonce = Bytes32::new([0x55; 32]);
+        let source = |spends: &Spends| spends.silent_payments.pending.last().unwrap().source;
+
+        // The taker: from the revocable settlement coin.
+        let info = CatInfo::new(asset_id, Some(hidden), SETTLEMENT_PAYMENT_HASH.into());
+        let settlement = Cat::new(
+            Coin::new(Bytes32::new([0x11; 32]), info.puzzle_hash().into(), 1_000),
+            None,
+            info,
+        );
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(alice.coin);
+        spends.add(settlement);
+        spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_settle(
+                Id::Existing(asset_id),
+                recipient.clone(),
+                100,
+                nonce,
+            )],
+        )?;
+        assert!(matches!(
+            source(&spends),
+            SilentPaymentSource::Settled { asset: Some(w), .. } if w == Wrapper::revocable(asset_id, hidden)
+        ));
+
+        // The maker: not revocable unless the requested asset info says so.
+        for expected in [Wrapper::cat(asset_id), Wrapper::revocable(asset_id, hidden)] {
+            let mut spends = Spends::new(alice.puzzle_hash);
+            spends.add(alice.coin);
+            if let Some(hidden) = expected.hidden_puzzle_hash {
+                spends
+                    .silent_payments
+                    .requested_asset_info
+                    .insert_cat(asset_id, CatAssetInfo::new(Some(hidden)))?;
+            }
+            spends.apply(
+                &mut ctx,
+                &[Action::silent_payment_requested(
+                    Id::Existing(asset_id),
+                    recipient.clone(),
+                    100,
+                    nonce,
+                )],
+            )?;
+            assert!(matches!(
+                source(&spends),
+                SilentPaymentSource::Settled { asset: Some(w), .. } if w == expected
+            ));
+        }
         Ok(())
     }
 }

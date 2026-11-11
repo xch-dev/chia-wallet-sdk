@@ -17,8 +17,7 @@ use indexmap::IndexMap;
 
 use crate::{
     AsProgram, AsPtr, AssetInfo, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Payment,
-    Program, RequestedPayments, SilentPaymentAddress, SilentPaymentSecretKey, SilentPaymentWrapper,
-    Spend,
+    Program, RequestedPayments, SilentPaymentAddress, SilentPaymentSecretKey, Spend,
 };
 
 /// Mirrors [`sdk::Relation`], but `None` is renamed since it's a reserved word in Python.
@@ -262,6 +261,17 @@ impl Spends {
         })
     }
 
+    /// The hidden puzzle hash of each revocable CAT the transaction requests
+    /// with `Action.silent_payment_requested`. Call it before `apply`.
+    pub fn set_silent_payment_requested_asset_info(&self, asset_info: AssetInfo) -> Result<()> {
+        self.spends
+            .lock()
+            .unwrap()
+            .silent_payments
+            .requested_asset_info = asset_info.to_sdk();
+        Ok(())
+    }
+
     fn prepare_with(
         &self,
         prepare: impl FnOnce(sdk::Spends, &mut SpendContext) -> Result<sdk::Spends<sdk::Finished>>,
@@ -458,52 +468,40 @@ impl Action {
         )))
     }
 
+    /// A CHIP-0057 silent payment in the asset `id`: `Id.xch()`, or a CAT the
+    /// transaction spends (`Id.existing(asset_id)`). A CAT output is hinted
+    /// with its one-time puzzle hash, so `memos` must be omitted for it.
     pub fn silent_payment_send(
-        recipient: crate::SilentPaymentAddress,
+        id: Id,
+        recipient: SilentPaymentAddress,
         amount: u64,
         memos: Option<Program>,
     ) -> Result<Self> {
-        let driver_addr: chia_sdk_utils::silent_payments::SilentPaymentAddress = recipient.into();
         Ok(Self(sdk::Action::silent_payment_send(
-            driver_addr,
+            id.0,
+            recipient.into(),
             amount,
             memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
         )))
     }
 
-    /// A CHIP-0057 silent payment in the asset `id`: XCH, or a CAT the
-    /// transaction spends (`Id.existing(asset_id)`). A CAT output is the bare
-    /// one-time puzzle hash under the asset's CAT layer (and revocation layer),
-    /// hinted with that puzzle hash; the recipient's `k` counter is shared
-    /// across the assets of the transaction. Caller memos are not accepted.
-    pub fn silent_payment_send_asset(
-        id: Id,
-        recipient: SilentPaymentAddress,
-        amount: u64,
-    ) -> Result<Self> {
-        Ok(Self(sdk::Action::silent_payment_send_asset(
-            id.0,
-            recipient.into(),
-            amount,
-        )))
-    }
-
     /// The maker of an offer requests a CHIP-0057 silent payment of `amount`
-    /// in `asset` (`None` for XCH) at its silent payment address, paid by the
+    /// in the asset `id` at its silent payment address, paid by the
     /// counterparty's settlement coin. `nonce` is the offer's nonce of the
-    /// maker's requested payments (for example `Offer.nonce` of the coins it
-    /// offers). The notarized payment is published in
+    /// maker's requested payments. A requested CAT is taken to be not
+    /// revocable unless `Spends.set_silent_payment_requested_asset_info` gave
+    /// its hidden puzzle hash. The notarized payment is published in
     /// `Outputs.silent_payment_requests`; one coin of the maker's spend group
     /// asserts its announcement, so the maker must not add the
     /// `RequestedPayments.assertions` of those payments again.
     pub fn silent_payment_requested(
-        asset: Option<SilentPaymentWrapper>,
+        id: Id,
         recipient: SilentPaymentAddress,
         amount: u64,
         nonce: Bytes32,
     ) -> Result<Self> {
         Ok(Self(sdk::Action::silent_payment_requested(
-            asset.map(Into::into),
+            id.0,
             recipient.into(),
             amount,
             nonce,
@@ -511,32 +509,31 @@ impl Action {
     }
 
     /// A requested payment of the maker to an address that is not a silent
-    /// payment address. In an asset in which the maker also requests a silent
-    /// payment it is listed after the silent payments under the same
-    /// announcement; an asset with other payments only gets its own.
+    /// payment address, listed after the maker's silent payments in that
+    /// asset.
     pub fn silent_payment_requested_other(
-        asset: Option<SilentPaymentWrapper>,
+        id: Id,
         payment: Payment,
         nonce: Bytes32,
     ) -> Result<Self> {
         Ok(Self(sdk::Action::silent_payment_requested_other(
-            asset.map(Into::into),
+            id.0,
             payment.into(),
             nonce,
         )))
     }
 
-    /// The taker of an offer is paid `amount` of `asset` at its silent payment
-    /// address by a settlement coin of that asset the transaction spends.
-    /// `nonce` is the taker's nonce of its requested payments.
+    /// The taker of an offer is paid `amount` of the asset `id` at its silent
+    /// payment address by a settlement coin of that asset the transaction
+    /// spends. `nonce` is the taker's nonce of its requested payments.
     pub fn silent_payment_settle(
-        asset: Option<SilentPaymentWrapper>,
+        id: Id,
         recipient: SilentPaymentAddress,
         amount: u64,
         nonce: Bytes32,
     ) -> Result<Self> {
         Ok(Self(sdk::Action::silent_payment_settle(
-            asset.map(Into::into),
+            id.0,
             recipient.into(),
             amount,
             nonce,
@@ -545,14 +542,10 @@ impl Action {
 
     /// A payment of the taker to an address that is not a silent payment
     /// address, made by the settlement coin of its asset the transaction
-    /// spends; listed after the taker's silent payments in that asset, if any.
-    pub fn silent_payment_settle_other(
-        asset: Option<SilentPaymentWrapper>,
-        payment: Payment,
-        nonce: Bytes32,
-    ) -> Result<Self> {
+    /// spends; listed after the taker's silent payments in that asset.
+    pub fn silent_payment_settle_other(id: Id, payment: Payment, nonce: Bytes32) -> Result<Self> {
         Ok(Self(sdk::Action::silent_payment_settle_other(
-            asset.map(Into::into),
+            id.0,
             payment.into(),
             nonce,
         )))

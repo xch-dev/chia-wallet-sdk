@@ -18,14 +18,19 @@ use super::{
     settlement_assertion,
 };
 use crate::{
-    Asset, CatAssetInfo, Deltas, DriverError, Finished, Id, Outputs, Relation, SettlementPayer,
-    SpendContext, SpendKind, SpendPosition, Spends, Unfinished,
+    Asset, AssetInfo, CatAssetInfo, Deltas, DriverError, Finished, Id, Outputs, Relation,
+    SettlementPayer, SpendContext, SpendKind, SpendPosition, Spends, Unfinished,
 };
 
 /// The CHIP-0057 silent payments applied to [`Spends`]: the `k` counter of each scan key and the
 /// outputs that are derived when the transaction is prepared. It holds no secret key.
 #[derive(Debug, Clone, Default)]
 pub struct SilentPaymentState {
+    /// The hidden puzzle hash of each revocable CAT the transaction requests with
+    /// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested), which names
+    /// its assets by [`Id`]. A requested CAT that is not listed is taken to be not revocable. Set
+    /// it before the actions are applied.
+    pub requested_asset_info: AssetInfo,
     /// The next `k` of each scan key, by its compressed public key.
     pub(crate) counters: HashMap<[u8; 48], u32>,
     pub(crate) pending: Vec<SilentPaymentPending>,

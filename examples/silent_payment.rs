@@ -51,8 +51,8 @@ fn main() -> Result<()> {
     let deltas = spends.apply(
         ctx,
         &[
-            Action::silent_payment_send(unlabeled_addr, 100, Memos::None),
-            Action::silent_payment_send(labeled_addr, 200, Memos::None),
+            Action::silent_payment_send(Id::Xch, unlabeled_addr, 100, Memos::None),
+            Action::silent_payment_send(Id::Xch, labeled_addr, 200, Memos::None),
         ],
     )?;
     // `pks` stays raw for `finish_with_keys` (used to spend the coin). The SP
@@ -138,7 +138,12 @@ fn main() -> Result<()> {
     let multi_addr = recipient.unlabeled_address(SilentPaymentNetwork::Mainnet);
     let deltas_multi = spends_multi.apply(
         ctx,
-        &[Action::silent_payment_send(multi_addr, 700, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            multi_addr,
+            700,
+            Memos::None,
+        )],
     )?;
 
     // `multi_pks` stays raw for `finish_with_keys`; the SP key maps wrap the

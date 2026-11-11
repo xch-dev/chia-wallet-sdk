@@ -89,6 +89,7 @@ fn test_simulator_e2e_unlabeled() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             recipient_address,
             100,
             Memos::None,
@@ -205,6 +206,7 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             recipient_address,
             1000,
             Memos::None,
@@ -311,7 +313,7 @@ fn test_did_or_nft_in_the_bundle_is_rejected() -> Result<()> {
             &mut ctx,
             &[
                 singleton_action.clone(),
-                Action::silent_payment_send(address.clone(), 100, Memos::None),
+                Action::silent_payment_send(Id::Xch, address.clone(), 100, Memos::None),
             ],
         )?;
         let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
@@ -354,6 +356,7 @@ fn test_simulator_e2e_labeled() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             recipient_address,
             200,
             Memos::None,
@@ -442,6 +445,7 @@ fn test_simulator_e2e_m0_self_change() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             recipient_address,
             300,
             Memos::None,
@@ -536,7 +540,12 @@ fn multi_input_with_identical_sends(
 
     let other: chia_protocol::Bytes32 = [0x77u8; 32].into();
     let mut actions = vec![Action::send(Id::Xch, other, 10, Memos::None); identical_sends];
-    actions.push(Action::silent_payment_send(address, 1000, Memos::None));
+    actions.push(Action::silent_payment_send(
+        Id::Xch,
+        address,
+        1000,
+        Memos::None,
+    ));
     let deltas = spends.apply(&mut ctx, &actions)?;
 
     let ephemeral = spends.xch.items.iter().filter(|i| i.ephemeral).count();
@@ -611,7 +620,7 @@ fn test_intermediate_coin_created_for_change_is_detected() -> Result<()> {
         &mut ctx,
         &[
             Action::send(Id::Xch, sender.puzzle_hash, 450, Memos::None),
-            Action::silent_payment_send(address, 100, Memos::None),
+            Action::silent_payment_send(Id::Xch, address, 100, Memos::None),
         ],
     )?;
     assert_eq!(spends.xch.items.len(), 1, "no intermediate coin yet");
@@ -677,7 +686,7 @@ fn test_single_input_with_intermediate_coin_requires_binding() -> Result<()> {
         &[
             Action::send(Id::Xch, other, 10, Memos::None),
             Action::send(Id::Xch, other, 10, Memos::None),
-            Action::silent_payment_send(address, 100, Memos::None),
+            Action::silent_payment_send(Id::Xch, address, 100, Memos::None),
         ],
     )?;
     assert_eq!(
@@ -713,7 +722,12 @@ fn test_intermediate_coin_without_key_errors() -> Result<()> {
     spends.add(sender.coin);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address, 100, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address,
+            100,
+            Memos::None,
+        )],
     )?;
 
     // An intermediate coin locked to a puzzle hash the sender registered no key for.
@@ -786,7 +800,12 @@ fn test_zero_key_sum_makes_the_sender_fail() -> Result<()> {
     spends.add(coin2);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address, 1000, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address,
+            1000,
+            Memos::None,
+        )],
     )?;
     let silent_payment_keys: indexmap::IndexMap<_, _> = indexmap! {
         ph1 => SyntheticSecretKey::from_synthetic_unchecked(sk1),
@@ -824,6 +843,7 @@ fn test_simulator_e2e_change_address() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             change_address,
             250,
             Memos::None,
@@ -897,7 +917,12 @@ fn test_one_way_assertion_does_not_join_the_group() -> Result<()> {
     spends.add(b.coin);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address, 1000, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address,
+            1000,
+            Memos::None,
+        )],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
     spends.finish_with_silent_payment_keys(
@@ -1223,7 +1248,7 @@ fn test_simulator_e2e_cat_payment() -> Result<()> {
     spends.add(cat);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address, 1_000)],
+        &[Action::silent_payment_send(id, address, 1_000, Memos::None)],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
     let outputs = spends.finish_with_silent_payment_keys(
@@ -1339,8 +1364,8 @@ fn xch_and_cat_payment(cat_action_first: bool, cat_added_first: bool) -> Result<
         spends.add(a.coin);
         spends.add(cat);
     }
-    let cat_action = Action::silent_payment_send_asset(id, address.clone(), 1_000);
-    let xch_action = Action::silent_payment_send(address, 2_000, Memos::None);
+    let cat_action = Action::silent_payment_send(id, address.clone(), 1_000, Memos::None);
+    let xch_action = Action::silent_payment_send(Id::Xch, address, 2_000, Memos::None);
     let actions = if cat_action_first {
         vec![cat_action, xch_action]
     } else {
@@ -1534,7 +1559,7 @@ fn test_two_cat_coins_of_one_asset_group_with_the_first() -> Result<()> {
     spends.add(c2);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address, 1_000)],
+        &[Action::silent_payment_send(id, address, 1_000, Memos::None)],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&a, &b]);
     let outputs = spends.finish_with_silent_payment_keys(
@@ -1635,8 +1660,8 @@ fn test_cat_only_group_of_two_assets() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[
-            Action::silent_payment_send_asset(id1, address.clone(), 1_000),
-            Action::silent_payment_send_asset(id2, address, 500),
+            Action::silent_payment_send(id1, address.clone(), 1_000, Memos::None),
+            Action::silent_payment_send(id2, address, 500, Memos::None),
         ],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&b]);
@@ -1769,7 +1794,7 @@ fn test_revocable_cat_holder_path_payment() -> Result<()> {
     spends.add(cat);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address, 1_000)],
+        &[Action::silent_payment_send(id, address, 1_000, Memos::None)],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
     let outputs = spends.finish_with_silent_payment_keys(
@@ -1831,7 +1856,7 @@ fn test_cat_change_is_a_standard_cat_change() -> Result<()> {
     spends.add(cat);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address, 600)],
+        &[Action::silent_payment_send(id, address, 600, Memos::None)],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
     let outputs = spends.finish_with_silent_payment_keys(
@@ -1900,10 +1925,11 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
     spends.add(cat);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(
+        &[Action::silent_payment_send(
             id,
             address.clone(),
             1_000,
+            Memos::None,
         )],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
@@ -1921,7 +1947,12 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
     let mut spends = Spends::new(sender.puzzle_hash);
     let result = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address.clone(),
+            1,
+            Memos::None,
+        )],
     );
     assert!(
         matches!(result, Err(DriverError::NoSourceForOutput)),
@@ -1929,7 +1960,12 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
     );
     let result = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address.clone(), 1)],
+        &[Action::silent_payment_send(
+            id,
+            address.clone(),
+            1,
+            Memos::None,
+        )],
     );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentAssetNotInGroup)),
@@ -1945,7 +1981,12 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
     ));
     let result = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address.clone(),
+            1,
+            Memos::None,
+        )],
     );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentParentNotEligible)),
@@ -1958,7 +1999,12 @@ fn test_cat_only_single_coin_group_is_accepted_and_empty_group_fails() -> Result
     spends.add(xch);
     let deltas = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send(address, 1_000, Memos::None)],
+        &[Action::silent_payment_send(
+            Id::Xch,
+            address,
+            1_000,
+            Memos::None,
+        )],
     )?;
     spends.xch.items[0].kind = SpendKind::settlement();
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
@@ -2000,7 +2046,7 @@ fn test_cat_issued_in_the_same_transaction_is_rejected() -> Result<()> {
         &mut ctx,
         &[
             Action::single_issue_cat(None, 1),
-            Action::silent_payment_send(address.clone(), 100, Memos::None),
+            Action::silent_payment_send(Id::Xch, address.clone(), 100, Memos::None),
         ],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);
@@ -2023,7 +2069,7 @@ fn test_cat_issued_in_the_same_transaction_is_rejected() -> Result<()> {
         &mut ctx,
         &[
             Action::single_issue_cat(None, 100),
-            Action::silent_payment_send_asset(Id::New(0), address, 100),
+            Action::silent_payment_send(Id::New(0), address, 100, Memos::None),
         ],
     );
     assert!(
@@ -2060,6 +2106,7 @@ fn test_issuer_path_revocable_cat_is_rejected() -> Result<()> {
     let deltas = spends.apply(
         &mut ctx,
         &[Action::silent_payment_send(
+            Id::Xch,
             address.clone(),
             100,
             Memos::None,
@@ -2083,7 +2130,7 @@ fn test_issuer_path_revocable_cat_is_rejected() -> Result<()> {
     spends.add_for_revocation(cat)?;
     let result = spends.apply(
         &mut ctx,
-        &[Action::silent_payment_send_asset(id, address, 100)],
+        &[Action::silent_payment_send(id, address, 100, Memos::None)],
     );
     assert!(
         matches!(result, Err(DriverError::SilentPaymentIssuerPathSpend)),
@@ -2113,10 +2160,11 @@ fn test_output_in_an_asset_outside_the_group_is_rejected() -> Result<()> {
     for mut spends in [xch_only, other_cat] {
         let result = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send_asset(
+            &[Action::silent_payment_send(
                 elsewhere,
                 address.clone(),
                 100,
+                Memos::None,
             )],
         );
         assert!(
@@ -2175,8 +2223,8 @@ fn test_xch_memo_hint_guard_still_applies() -> Result<()> {
     let result = spends.apply(
         &mut ctx,
         &[
-            Action::silent_payment_send_asset(id, address.clone(), 100),
-            Action::silent_payment_send(address, 100, hint),
+            Action::silent_payment_send(id, address.clone(), 100, Memos::None),
+            Action::silent_payment_send(Id::Xch, address, 100, hint),
         ],
     );
     assert!(
@@ -2308,13 +2356,20 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
     let mut requested = RequestedPayments::new();
     let mut asset_info = AssetInfo::new();
     if case.maker_silent {
+        // A requested CAT is named by its id; the hidden puzzle hash of a
+        // revocable one is given in the requested asset info.
+        spends
+            .silent_payments
+            .requested_asset_info
+            .insert_cat(w.asset_id, CatAssetInfo::new(case.hidden))?;
         actions.push(Action::silent_payment_requested(
-            Some(w),
+            Id::Existing(w.asset_id),
             maker.unlabeled_address(SilentPaymentNetwork::Testnet),
             1_000,
             maker_nonce,
         ));
         actions.push(Action::silent_payment_send(
+            Id::Xch,
             maker.change_address(SilentPaymentNetwork::Testnet),
             200,
             Memos::None,
@@ -2372,22 +2427,23 @@ fn offer_block(case: OfferCase) -> Result<OfferBlock> {
     if let Some((q, amount)) = case.taker_other {
         xch_amount -= amount;
         actions.push(Action::silent_payment_settle_other(
-            None,
+            Id::Xch,
             Payment::new(q, amount, Memos::Some(clvmr::NodePtr::NIL)),
             taker_nonce,
         ));
     }
     if case.taker_silent {
         actions.push(Action::silent_payment_settle(
-            None,
+            Id::Xch,
             taker_keys.unlabeled_address(SilentPaymentNetwork::Testnet),
             xch_amount,
             taker_nonce,
         ));
-        actions.push(Action::silent_payment_send_asset(
+        actions.push(Action::silent_payment_send(
             id,
             taker_keys.change_address(SilentPaymentNetwork::Testnet),
             500,
+            Memos::None,
         ));
     }
     let deltas = spends.apply(&mut ctx, &actions)?;
@@ -2890,9 +2946,8 @@ fn test_maker_requests_a_revocable_cat_silently() -> Result<()> {
 }
 
 /// `Action::silent_payment_settle` needs a settlement coin of the payment's
-/// asset in the transaction (the taker's case): without one, or with only a
-/// settlement coin of a CAT without the requested hidden puzzle hash, it fails
-/// with `SilentPaymentSettlementCoinMissing`.
+/// asset in the transaction (the taker's case): without one it fails with
+/// `SilentPaymentSettlementCoinMissing`.
 #[test]
 fn test_settle_without_a_settlement_coin_fails() -> Result<()> {
     let (mut sim, mut ctx, sender, recipient) = setup_e2e()?;
@@ -2904,7 +2959,7 @@ fn test_settle_without_a_settlement_coin_fails() -> Result<()> {
     // Only an XCH coin of the standard puzzle.
     let mut spends = Spends::new(sender.puzzle_hash);
     spends.add(sender.coin);
-    for asset in [None, Some(Wrapper::cat(asset_id))] {
+    for asset in [Id::Xch, Id::Existing(asset_id)] {
         let result = spends.apply(
             &mut ctx,
             &[Action::silent_payment_settle(
@@ -2920,8 +2975,7 @@ fn test_settle_without_a_settlement_coin_fails() -> Result<()> {
         );
     }
 
-    // A settlement coin of the CAT that is not revocable does not settle the
-    // revocable CAT; it does settle the plain one.
+    // With a settlement coin of the CAT, the payment is taken from it.
     let info = chia_sdk_driver::CatInfo::new(asset_id, None, SETTLEMENT_PAYMENT_HASH.into());
     let settlement = Cat::new(
         Coin::new(Bytes32::new([0x11; 32]), info.puzzle_hash().into(), 1_000),
@@ -2929,23 +2983,10 @@ fn test_settle_without_a_settlement_coin_fails() -> Result<()> {
         info,
     );
     spends.add(settlement);
-    let result = spends.apply(
-        &mut ctx,
-        &[Action::silent_payment_settle(
-            Some(Wrapper::revocable(asset_id, Bytes32::new([7; 32]))),
-            address.clone(),
-            100,
-            nonce,
-        )],
-    );
-    assert!(
-        matches!(result, Err(DriverError::SilentPaymentSettlementCoinMissing)),
-        "expected SilentPaymentSettlementCoinMissing, got {result:?}"
-    );
     spends.apply(
         &mut ctx,
         &[Action::silent_payment_settle(
-            Some(Wrapper::cat(asset_id)),
+            Id::Existing(asset_id),
             address,
             100,
             nonce,
@@ -2979,22 +3020,27 @@ fn test_settled_entries_with_two_nonces_fail() -> Result<()> {
     let cases: Vec<(Vec<Action>, &str)> = vec![
         (
             vec![
-                Action::silent_payment_requested(Some(w), address.clone(), 100, nonce),
-                Action::silent_payment_requested(None, address.clone(), 100, other_nonce),
+                Action::silent_payment_requested(
+                    Id::Existing(w.asset_id),
+                    address.clone(),
+                    100,
+                    nonce,
+                ),
+                Action::silent_payment_requested(Id::Xch, address.clone(), 100, other_nonce),
             ],
             "mismatch",
         ),
         (
             vec![
-                Action::silent_payment_requested(None, address.clone(), 100, nonce),
-                Action::silent_payment_settle(None, address.clone(), 100, nonce),
+                Action::silent_payment_requested(Id::Xch, address.clone(), 100, nonce),
+                Action::silent_payment_settle(Id::Xch, address.clone(), 100, nonce),
             ],
             "mismatch",
         ),
         (
             vec![
-                Action::silent_payment_requested(None, address.clone(), 100, nonce),
-                Action::silent_payment_requested_other(None, other_payment, other_nonce),
+                Action::silent_payment_requested(Id::Xch, address.clone(), 100, nonce),
+                Action::silent_payment_requested_other(Id::Xch, other_payment, other_nonce),
             ],
             "mismatch",
         ),
@@ -3047,8 +3093,12 @@ fn test_settlement_paths_agree_on_an_asset_with_other_payments_only() -> Result<
     let deltas = spends.apply(
         &mut ctx,
         &[
-            Action::silent_payment_requested(None, address.clone(), 100, nonce),
-            Action::silent_payment_requested_other(Some(w), other_payment.clone(), nonce),
+            Action::silent_payment_requested(Id::Xch, address.clone(), 100, nonce),
+            Action::silent_payment_requested_other(
+                Id::Existing(w.asset_id),
+                other_payment.clone(),
+                nonce,
+            ),
         ],
     )?;
     let (pk_map, silent_payment_keys) = sender_keys(&[&sender]);

@@ -9,31 +9,20 @@ use crate::{
     silent_payments::{SilentPaymentPending, SilentPaymentSource},
 };
 
-/// CHIP-0057 silent-payment send action (chip-0057-gated), created by
-/// [`Action::silent_payment_send`](crate::Action::silent_payment_send) for XCH
-/// and [`Action::silent_payment_send_asset`](crate::Action::silent_payment_send_asset)
-/// for a CAT.
+/// A CHIP-0057 silent payment send, created by
+/// [`Action::silent_payment_send`](crate::Action::silent_payment_send).
 ///
-/// The output is paid in the asset `id` and is created by a coin of that
-/// asset in the spend group (CHIP-0057 "Outputs in CATs"): for XCH a coin
-/// spent with the standard puzzle, for a CAT the first spend of that asset,
-/// which is the CAT coin the `ASSERT_CONCURRENT_SPEND` cycle binds. A CAT
-/// output is the bare one-time puzzle hash under the asset's CAT layer (and
-/// revocation layer, for a revocable CAT on the holder's path), hinted with
-/// that puzzle hash; caller memos are refused for it. One `k` counter per scan
-/// key runs across every asset.
+/// The output is created by a coin of the asset `id` in the spend group: for
+/// XCH a coin spent with the standard puzzle, for a CAT the first spend of
+/// that asset (CHIP-0057 "Outputs in CATs"). One `k` counter per scan key runs
+/// across every asset, up to `K_MAX` outputs.
 ///
-/// The recipient's keys are validated when the action is applied
-/// ([`SilentPaymentAddress::validate`]), and at most `K_MAX` (2,400) outputs
-/// can be sent to one scan key in a transaction, counted over every asset. The
-/// address's network is not checked: CHIP-0057 says a sender should reject an
-/// address for another network, but only the caller knows which network the
-/// transaction is for, so it should compare `recipient.network` itself.
+/// The recipient's keys are validated when the action is applied. The
+/// address's network is not checked, since only the caller knows which network
+/// the transaction is for.
 ///
-/// Privacy warning: `memos` of an XCH output are published on-chain in
-/// plaintext and visible to anyone holding the recipient's scan key. A 32-byte
-/// first memo is rejected at apply time
-/// (`DriverError::SilentPaymentMemoHintForbidden`).
+/// Privacy warning: `memos` of an XCH output are published on chain. A 32-byte
+/// first memo is rejected (`DriverError::SilentPaymentMemoHintForbidden`).
 #[derive(Debug, Clone)]
 pub struct SilentPaymentSendAction {
     /// The asset the output is paid in: [`Id::Xch`], or [`Id::Existing`] with
@@ -43,29 +32,20 @@ pub struct SilentPaymentSendAction {
     pub recipient: SilentPaymentAddress,
     /// The amount of the output, in the smallest unit of the asset.
     pub amount: u64,
-    /// The memos of an XCH output. A CAT output carries only the hint the SDK builds.
+    /// The memos of an XCH output. A CAT output carries only the hint the SDK
+    /// builds, so this must be [`Memos::None`] for it.
     pub memos: Memos,
 }
 
 impl SilentPaymentSendAction {
-    /// An XCH output.
-    pub fn new(recipient: SilentPaymentAddress, amount: u64, memos: Memos) -> Self {
-        Self {
-            id: Id::Xch,
-            recipient,
-            amount,
-            memos,
-        }
-    }
-
-    /// An output in the asset `id`. For a CAT the memo list is the SDK-built
-    /// hint, so there are no caller memos.
-    pub fn new_asset(id: Id, recipient: SilentPaymentAddress, amount: u64) -> Self {
+    /// An output of `amount` in the asset `id`. `memos` must be
+    /// [`Memos::None`] for a CAT.
+    pub fn new(id: Id, recipient: SilentPaymentAddress, amount: u64, memos: Memos) -> Self {
         Self {
             id,
             recipient,
             amount,
-            memos: Memos::None,
+            memos,
         }
     }
 }
@@ -296,7 +276,7 @@ mod silent_payment_tests {
     use indexmap::indexmap;
 
     use crate::{
-        Action, DriverError, Relation, SpendContext, Spends,
+        Action, DriverError, Id, Relation, SpendContext, Spends,
         silent_payments::{
             SyntheticSecretKey, aggregate_sender_sks, compute_input_hash,
             derive_one_time_puzzle_hash,
@@ -305,10 +285,10 @@ mod silent_payment_tests {
 
     // ====================================================================
     // Acceptance tests for the silent-payment send path. Each drives
-    // `Action::silent_payment_send(..)` through `finish_with_silent_payment_keys`.
+    // `Action::silent_payment_send(Id::Xch, ..)` through `finish_with_silent_payment_keys`.
     // ====================================================================
 
-    /// Apply-time state: after `spends.apply(&[Action::silent_payment_send(...)])`,
+    /// Apply-time state: after `spends.apply(&[Action::silent_payment_send(Id::Xch, ...)])`,
     /// the action records one entry on `spends.silent_payments.pending` with the
     /// matching fields. ECDH and `CreateCoin` emission are NOT inspected here.
     #[test]
@@ -336,13 +316,18 @@ mod silent_payment_tests {
 
         let _deltas = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
 
         assert_eq!(
             spends.silent_payments.pending.len(),
             1,
-            "exactly one pending entry after one Action::silent_payment_send(...)"
+            "exactly one pending entry after one Action::silent_payment_send(Id::Xch, ...)"
         );
 
         let pending = &spends.silent_payments.pending[0];
@@ -400,7 +385,12 @@ mod silent_payment_tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
 
         // `pk_map` stays raw for `finish_with_keys`; the SP newtype maps wrap
@@ -479,8 +469,8 @@ mod silent_payment_tests {
         let _deltas = spends.apply(
             &mut ctx,
             &[
-                Action::silent_payment_send(recipient.clone(), 1, Memos::None),
-                Action::silent_payment_send(recipient, 2, Memos::None),
+                Action::silent_payment_send(Id::Xch, recipient.clone(), 1, Memos::None),
+                Action::silent_payment_send(Id::Xch, recipient, 2, Memos::None),
             ],
         )?;
 
@@ -533,8 +523,8 @@ mod silent_payment_tests {
         let _deltas = spends.apply(
             &mut ctx,
             &[
-                Action::silent_payment_send(recipient_a, 1, Memos::None),
-                Action::silent_payment_send(recipient_b, 2, Memos::None),
+                Action::silent_payment_send(Id::Xch, recipient_a, 1, Memos::None),
+                Action::silent_payment_send(Id::Xch, recipient_b, 2, Memos::None),
             ],
         )?;
 
@@ -578,7 +568,12 @@ mod silent_payment_tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
 
         // `pk_map` stays raw for `finish_with_keys`; the SP newtype maps wrap
@@ -660,7 +655,12 @@ mod silent_payment_tests {
 
         let result = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, bad_memos)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                bad_memos,
+            )],
         );
 
         assert!(
@@ -706,7 +706,12 @@ mod silent_payment_tests {
 
         let result = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, safe_memos)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                safe_memos,
+            )],
         );
 
         assert!(
@@ -737,7 +742,12 @@ mod silent_payment_tests {
 
         let result = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         );
 
         assert!(result.is_ok(), "Memos::None must pass: {result:?}");
@@ -768,7 +778,12 @@ mod silent_payment_tests {
 
         let result = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         );
         assert!(
             matches!(result, Err(DriverError::SilentPaymentParentNotEligible)),
@@ -803,7 +818,12 @@ mod silent_payment_tests {
 
         spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
         assert_eq!(spends.silent_payments.pending.len(), 1);
         assert_eq!(
@@ -845,7 +865,7 @@ mod silent_payment_tests {
         let actions: Vec<Action> = (0..K_MAX)
             .map(|i| {
                 let address = if i % 2 == 0 { &unlabeled } else { &labeled };
-                Action::silent_payment_send(address.clone(), 1, Memos::None)
+                Action::silent_payment_send(Id::Xch, address.clone(), 1, Memos::None)
             })
             .collect();
         spends.apply(&mut ctx, &actions)?;
@@ -856,7 +876,12 @@ mod silent_payment_tests {
         for address in [&unlabeled, &labeled] {
             let result = spends.apply(
                 &mut ctx,
-                &[Action::silent_payment_send(address.clone(), 1, Memos::None)],
+                &[Action::silent_payment_send(
+                    Id::Xch,
+                    address.clone(),
+                    1,
+                    Memos::None,
+                )],
             );
             assert!(
                 matches!(result, Err(DriverError::SilentPaymentTooManyOutputs)),
@@ -868,7 +893,7 @@ mod silent_payment_tests {
         // Another scan key has its own limit.
         spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(other, 1, Memos::None)],
+            &[Action::silent_payment_send(Id::Xch, other, 1, Memos::None)],
         )?;
         assert_eq!(spends.silent_payments.pending.last().unwrap().k, 0);
         Ok(())
@@ -918,9 +943,9 @@ mod silent_payment_tests {
         let actions: Vec<Action> = (0..K_MAX)
             .map(|i| {
                 if i % 2 == 0 {
-                    Action::silent_payment_send(recipient.clone(), 1, Memos::None)
+                    Action::silent_payment_send(Id::Xch, recipient.clone(), 1, Memos::None)
                 } else {
-                    Action::silent_payment_send_asset(id, recipient.clone(), 1)
+                    Action::silent_payment_send(id, recipient.clone(), 1, Memos::None)
                 }
             })
             .collect();
@@ -936,8 +961,8 @@ mod silent_payment_tests {
         }
 
         for action in [
-            Action::silent_payment_send(recipient.clone(), 1, Memos::None),
-            Action::silent_payment_send_asset(id, recipient.clone(), 1),
+            Action::silent_payment_send(Id::Xch, recipient.clone(), 1, Memos::None),
+            Action::silent_payment_send(id, recipient.clone(), 1, Memos::None),
         ] {
             let result = spends.apply(&mut ctx, &[action]);
             assert!(
@@ -947,7 +972,10 @@ mod silent_payment_tests {
         }
         assert_eq!(spends.silent_payments.pending.len(), K_MAX as usize);
 
-        spends.apply(&mut ctx, &[Action::silent_payment_send_asset(id, other, 1)])?;
+        spends.apply(
+            &mut ctx,
+            &[Action::silent_payment_send(id, other, 1, Memos::None)],
+        )?;
         assert_eq!(spends.silent_payments.pending.last().unwrap().k, 0);
         Ok(())
     }
@@ -977,7 +1005,12 @@ mod silent_payment_tests {
 
             let result = spends.apply(
                 &mut ctx,
-                &[Action::silent_payment_send(recipient, 1, Memos::None)],
+                &[Action::silent_payment_send(
+                    Id::Xch,
+                    recipient,
+                    1,
+                    Memos::None,
+                )],
             );
             assert!(
                 matches!(
@@ -1019,6 +1052,7 @@ mod silent_payment_tests {
         let result = spends.apply(
             &mut ctx,
             &[Action::silent_payment_send(
+                Id::Xch,
                 SilentPaymentAddress::new(bad, good, SilentPaymentNetwork::Mainnet),
                 1,
                 Memos::None,
@@ -1058,7 +1092,12 @@ mod silent_payment_tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::silent_payment_send(recipient, 1, Memos::None)],
+            &[Action::silent_payment_send(
+                Id::Xch,
+                recipient,
+                1,
+                Memos::None,
+            )],
         )?;
 
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
