@@ -13,16 +13,10 @@ use chia_sha2::Sha256;
 
 use crate::DriverError;
 
-/// Compute the wallet-side ECDH shared secret for a pre-computed tweak point.
+/// The scanner's shared secret for a tweak point: `SHA256(serialize(scan_sk * tweak_point))`.
 ///
-/// `shared_secret = SHA256(serialize(scan_sk * tweak_point))`.
-///
-/// The 48-byte compressed G1 serialization of the point is hashed with
-/// SHA-256 (CHIP-0057 "Scanning a Spend Group" and "Tweak Points").
-///
-/// `tweak_point` must be a non-identity element of the prime-order subgroup.
-/// [`super::scan_from_tweaks`] checks this before calling; this function is
-/// the inner primitive and does not check again.
+/// `tweak_point` must be a non-identity element of the prime-order subgroup;
+/// [`super::scan_from_tweaks`] checks this before calling.
 #[must_use]
 pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &PublicKey) -> [u8; 32] {
     // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
@@ -34,13 +28,8 @@ pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &Publi
     h.finalize()
 }
 
-/// Derive the per-output tweak scalar `t_k` for output index `k` within a
-/// spend group.
-///
-/// `t_k = ScalarField::from_bytes_unsigned(tagged_hash(CHIA_SP_SHARED_SECRET, shared_secret ‖ ser32(k)))`
-///
-/// `ser32(k)` is big-endian (CHIP-0057 "Definitions"). Test Vector 6 pins
-/// `k = 1`, which a little-endian encoding would get wrong.
+/// The output tweak `t_k` of output index `k`:
+/// `int(tagged_hash("Chia_SP/SharedSecret", shared_secret || ser32(k))) mod r`.
 #[must_use]
 pub fn derive_output_tweak(shared_secret: &[u8; 32], k: u32) -> ScalarField {
     let mut data = [0u8; 36];
@@ -50,17 +39,12 @@ pub fn derive_output_tweak(shared_secret: &[u8; 32], k: u32) -> ScalarField {
     ScalarField::from_bytes_unsigned(hash)
 }
 
-/// Derive the one-time public key for an output: `onetime_pk = spend_pk + tweak * G`.
-///
-/// The `tweak` is treated as a 32-byte BLS-style secret key by
-/// `chia_bls::SecretKey::from_bytes` — this is exactly the canonical encoding
-/// `ScalarField::as_bytes` produces, so the round-trip is byte-clean.
+/// The one-time public key of an output: `spend_pk + tweak * G`.
 ///
 /// # Errors
 ///
 /// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
-/// below the group order `r`. A tweak from [`derive_output_tweak`] or
-/// `ScalarField::from_bytes_unsigned` always is; one built with
+/// below the group order `r`, which a tweak built with
 /// `ScalarField::from_bytes_raw` may not be.
 pub fn derive_onetime_pk(
     spend_pk: &PublicKey,
@@ -69,11 +53,8 @@ pub fn derive_onetime_pk(
     Ok(spend_pk + &tweak_secret_key(tweak)?.public_key())
 }
 
-/// Derive the one-time secret key for an output: `onetime_sk = (spend_sk + tweak) mod r`.
-///
-/// `tweak` is the combined tweak of a detection: `t_k`, plus the label scalar
-/// for a labeled output (CHIP-0057 "Spending"). The addition is `chia-bls`'s
-/// own constant-time secret-key addition.
+/// The one-time secret key of an output: `(spend_sk + tweak) mod r`, where
+/// `tweak` is the combined tweak of a detection (CHIP-0057 "Spending").
 ///
 /// # Errors
 ///
@@ -91,16 +72,8 @@ fn tweak_secret_key(tweak: &ScalarField) -> Result<SecretKey, DriverError> {
     SecretKey::from_bytes(tweak.as_bytes()).map_err(|_| DriverError::SilentPaymentScalarOutOfRange)
 }
 
-/// Compute the standard p2 puzzle hash for a one-time public key.
-///
-/// Reuses `chia_puzzle_types::DeriveSynthetic` + `StandardArgs::curry_tree_hash`,
-/// matching the standard-layer construction.
-///
-/// `pk.derive_synthetic()` routes through `chia_puzzle_types::derive_synthetic`'s
-/// SIGNED reducer, which is correct here — that offset is a Chia-consensus-pinned
-/// signed reduction, not a silent-payments construction. The silent-payments
-/// `ScalarField` boundary applies only to the output tweak, never the
-/// standard-puzzle synthetic offset.
+/// The standard puzzle hash of a one-time public key. The synthetic offset
+/// uses the signed interpretation of the hash, as Chia's standard puzzle does.
 #[must_use]
 pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
     let synthetic = pk.derive_synthetic();
@@ -109,18 +82,13 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
 
 // Send side. Callers pass synthetic secret keys; see `SyntheticSecretKey`.
 
-/// Aggregate synthetic sender secret keys via mod-r addition: `a_sum = Σ sk_i mod r`,
-/// with one term per coin of the spend group.
-///
-/// The keys are added with `chia-bls`'s own constant-time secret-key addition,
-/// and the sum stays a [`SecretKey`].
+/// The sum of the synthetic secret keys of a spend group, mod `r`, with one
+/// term per coin.
 ///
 /// # Errors
 ///
-/// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero (which
-/// includes the empty slice). CHIP-0057 ("Sending", "Edge Cases") requires the
-/// sender to fail in that case: ECDH with a zero key yields the identity point,
-/// and with it a shared secret that anyone can compute.
+/// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero, which
+/// includes the empty slice (CHIP-0057 "Edge Cases").
 pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<SecretKey, DriverError> {
     let mut sum = SecretKey::from_bytes(&[0u8; 32]).expect("zero is a valid chia-bls scalar");
     for sk in sks {
@@ -138,29 +106,13 @@ fn is_zero_key(sk: &SecretKey) -> bool {
     ScalarField::from_bytes_raw(sk.to_bytes()).is_zero()
 }
 
-/// Compute the per-spend-group input-hash scalar.
-///
-/// `coin_ids` is the slice of spent-coin ids forming the spend group; the
-/// lexicographically-smallest 32-byte id is selected internally.
-/// `aggregated_sender_pk` is `Σ synthetic_sk_i * G`.
-///
-/// Returns a [`ScalarField`] reduced unsigned mod-r. The scalar is used both
-/// (a) by the sender to derive each output's per-output tweak (via
-/// [`derive_output_tweak`] downstream of the ECDH path); and (b) by the receiver
-/// reconstructing the same group from the `ASSERT_CONCURRENT_SPEND` cycle that
-/// `Relation::AssertConcurrent` emits on multi-input bundles.
+/// The input hash of a spend group:
+/// `int(tagged_hash("Chia_SP/Inputs", coin_id_L || serialize(A_sum))) mod r`,
+/// where `coin_id_L` is the smallest of `coin_ids`.
 ///
 /// # Errors
 ///
-/// Returns [`DriverError::SilentPaymentNoXchInputs`] if `coin_ids` is empty: a
-/// spend group has at least one coin.
-///
-/// Privacy warning: the `input_hash` scalar is a deterministic public function
-/// of the spent coin ids + aggregated sender PK; both are visible on chain
-/// after the send. The scalar itself is not sensitive, but it can be re-derived
-/// by anyone observing the transaction. The privacy property of silent
-/// payments derives from the recipient's scan key, NOT from this scalar's
-/// secrecy.
+/// Returns [`DriverError::SilentPaymentNoXchInputs`] if `coin_ids` is empty.
 pub fn compute_input_hash(
     coin_ids: &[Bytes32],
     aggregated_sender_pk: &PublicKey,
@@ -179,23 +131,12 @@ pub fn compute_input_hash(
     Ok(ScalarField::from_bytes_unsigned(hash))
 }
 
-/// Compute the tweak point of a spend group: `T = input_hash * A_sum`
-/// (CHIP-0057 "Tweak Points").
+/// The tweak point of a spend group: `T = input_hash * A_sum` (CHIP-0057
+/// "Tweak Points"), from the coin ids of the group and the sum of its
+/// synthetic public keys.
 ///
-/// The tweak point is everything a scanner needs from the inputs of a spend
-/// group: its shared secret is `SHA256(serialize(b_scan * T))`. This is the
-/// function a full node or indexing server uses to produce tweak points for
-/// light clients, and what [`super::tweak_data_from_block_spends`] computes for
-/// every spend group of a block.
-///
-/// `coin_ids` are the coin ids of all coins of the group (the smallest one is
-/// selected) and `aggregated_sender_pk` is `A_sum`, the sum of their synthetic
-/// public keys with one term per coin.
-///
-/// Returns `None` for a group that is left out of a block's tweak points: one
-/// whose `A_sum` is the identity element, or whose `input_hash` is zero. It
-/// also returns `None` for an empty `coin_ids`, since a group has at least one
-/// coin.
+/// Returns `None` for a group that yields no tweak point: `A_sum` is the
+/// identity element, `input_hash` is zero, or `coin_ids` is empty.
 #[must_use]
 pub fn compute_tweak_point(
     coin_ids: &[Bytes32],
@@ -226,29 +167,10 @@ pub(super) fn tweak_point_from_input_hash(
     Some(tweak_point)
 }
 
-/// Derive the on-chain standard-p2 puzzle hash for the recipient's k-th output
-/// in this spend group.
-///
-/// `scan_pk` is the recipient's scan public key (from their silent-payment
-/// address). `spend_pk` is the recipient's spend public key (for unlabeled
-/// sends it equals the address's `spend_pk` field; for labeled sends the
-/// caller passes the address's already-tweaked spend PK, which differs from
-/// the unlabeled by `+ label_pk(m)`).
-///
-/// `aggregated_sender_sk` is the sum-mod-r of the sender's synthetic SKs for
-/// every coin of the spend group ([`aggregate_sender_sks`]). `input_hash`
-/// is the per-spend-group input-hash ([`compute_input_hash`]). `k` is the
-/// per-recipient counter on `Spends` — 0 for the first output to `scan_pk`,
-/// 1 for the second, etc.
-///
-/// Privacy warning: this function emits a puzzle hash that, when used in a
-/// `CreateCoin` condition, lands an output at a fresh one-time address on
-/// chain. The address is unlinkable to the recipient's published `spxch1...`
-/// address without the scan secret key. However, any memos attached to the
-/// corresponding `CreateCoin` condition are visible on chain and to anyone
-/// with the scan key — the action-layer memo-hint guard prevents the standard
-/// wallet from promoting a 32-byte first memo to a `puzzle_hash` hint and
-/// defeating the privacy gain.
+/// The puzzle hash of the sender's `k`-th output to `scan_pk` in a spend group
+/// (CHIP-0057 `SendSilentPayment`). `spend_pk` is the second key of the
+/// recipient's address, `aggregated_sender_sk` is [`aggregate_sender_sks`] of
+/// the group and `input_hash` is its [`compute_input_hash`].
 ///
 /// # Errors
 ///

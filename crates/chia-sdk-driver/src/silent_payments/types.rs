@@ -13,26 +13,12 @@ use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
 use crate::{DriverError, Id, SettlementPayer};
 
-/// Transport-agnostic input to the silent-payment scanner.
+/// The scanner's input for one block: its tweak points, the coins created in
+/// it and its wrapper list (CHIP-0057 "Tweak Points", "Wrapper List of a
+/// Block"). It has no transport fields.
 ///
-/// `tweak_points` are the pre-computed per-spend-group ECDH multipliers
-/// `tweak_point[i] = input_hash[i] * A_sum[i]` (the indexer or sender computes
-/// these on the send/index side; the scanner consumes them as-is).
-/// `outputs` are the candidate coin metadata to scan against — typically all
-/// outputs in a single block, but the primitive does not care about block
-/// boundaries.
-///
-/// `wrappers` is the wrapper list of the block (CHIP-0057 "Wrapper List of a
-/// Block"): the distinct wrappers of every CAT coin spent in it. The scanner
-/// tests every candidate one-time puzzle hash bare and under every wrapper of
-/// the list ("Matching Outputs under Wrappers"). An empty list means bare
-/// candidates only, which is the whole scan of a block in which no CAT coin is
-/// spent; a CAT output is then missed. [`TweakData::new`] leaves the list
-/// empty, and [`TweakData::with_wrappers`] sets it.
-///
-/// No transport fields: no `height`, no `block_hash`, no JSON envelope. A
-/// future transport client constructs `TweakData` from its wire
-/// messages without breaking this struct's shape.
+/// With an empty wrapper list candidates are tested bare only, so a CAT
+/// output is missed.
 #[derive(Clone, Debug, Default)]
 pub struct TweakData {
     /// The tweak point of each spend group of the block, `input_hash * A_sum`.
@@ -53,11 +39,8 @@ impl TweakData {
         }
     }
 
-    /// Tweak data with the block's wrapper list.
-    ///
-    /// The list is kept as given. The scanner tests every entry, so its order
-    /// does not change which coins are found; [`super::tweak_data_from_block_spends`]
-    /// gives it in the CHIP's order ([`super::sort_wrappers`]).
+    /// Tweak data with the block's wrapper list. Its order does not change
+    /// which coins are found.
     pub fn with_wrappers(
         tweak_points: Vec<PublicKey>,
         outputs: Vec<OutputMeta>,
@@ -71,12 +54,7 @@ impl TweakData {
     }
 }
 
-/// Coin metadata the scanner needs to identify and report a detected
-/// silent-payment coin.
-///
-/// `puzzle_hash` is the field the scanner matches against; the remaining fields
-/// flow through to the returned [`DetectedSilentPaymentCoin`] so the wallet can act on the
-/// coin without re-parsing the block.
+/// A coin created in the block, as the scanner needs it.
 #[derive(Clone, Copy, Debug)]
 pub struct OutputMeta {
     /// The coin's puzzle hash, which the scanner matches against.
@@ -89,19 +67,14 @@ pub struct OutputMeta {
     pub parent_coin_id: Bytes32,
 }
 
-/// A silent-payment coin detected by `scan_from_tweaks`.
+/// A silent payment coin found by [`super::scan_from_tweaks`].
 ///
-/// A detection is produced from the scan secret key and the spend public key
-/// alone, so it does not contain a spendable key. It carries the output coin,
-/// the index `k`, the label (if any), and the combined tweak that the holder of
-/// the spend secret key needs to derive the one-time key (CHIP-0057,
-/// "Spending"). Use [`DetectedSilentPaymentCoin::onetime_sk`] for that step.
-///
-/// `puzzle_hash` is the BARE one-time puzzle hash, the tree hash of the
-/// standard puzzle of the one-time key. A coin that matched under a wrapper
-/// (a CAT output, CHIP-0057 "Matching Outputs under Wrappers") has puzzle hash
-/// `wrap(wrapper, puzzle_hash)`; [`DetectedSilentPaymentCoin::coin`] returns that coin.
-/// For an XCH output (`wrapper` is `None`) the two are equal.
+/// It holds no spendable key: the holder of the spend secret key derives the
+/// one-time key from `tweak` with [`DetectedSilentPaymentCoin::onetime_sk`]
+/// (CHIP-0057 "Spending"). `puzzle_hash` is the bare one-time puzzle hash; a
+/// coin that matched under a wrapper has puzzle hash
+/// `wrap(wrapper, puzzle_hash)`, and [`DetectedSilentPaymentCoin::coin`]
+/// returns that coin.
 #[derive(Clone)]
 pub struct DetectedSilentPaymentCoin {
     /// The ID of the matched coin.

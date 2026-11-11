@@ -26,48 +26,21 @@ use super::types::{DetectedSilentPaymentCoin, OutputMeta, TweakData};
 /// larger value is capped, since a scanner stops when `k` reaches `K_max`.
 pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 
-/// Scan tweak points and candidate outputs for silent payments addressed to
-/// this wallet (CHIP-0057 `ScanForSilentPayment`, driven by tweak points).
+/// Scan the spend groups of `data` for outputs paid to `(scan_sk, spend_pk)`
+/// (CHIP-0057 `ScanForSilentPayment`).
 ///
-/// Scanning needs only the scan secret key and the spend public key, never the
-/// spend secret key, so it can run on a watch-only device. Each detection
-/// carries the combined tweak `(t_k + label_scalar) mod r`; the holder of the
-/// spend secret key turns it into the one-time key with
-/// [`DetectedSilentPaymentCoin::onetime_sk`] (or [`super::derive_onetime_sk`]).
+/// At each `k` the unlabeled candidate is checked first, then the change label
+/// `m = 0` (always, reported as `Some(0)`), then the labels of `labels` in
+/// ascending order. Each candidate is tested bare and under every wrapper of
+/// `data.wrappers`, and every coin with a matching puzzle hash is reported. A
+/// group is abandoned at the first `k` with no match, and at `k_max` (pass
+/// [`K_MAX_DEFAULT`]; larger values are capped to `K_max`).
 ///
-/// For each tweak point `T`, one ECDH is performed (`scan_sk * T`, hashed to
-/// the shared secret) and `k = 0, 1, 2, ...` is iterated up to `k_max`. At each
-/// `k` the unlabeled candidate is checked first, then the change label `m = 0`
-/// (always, whether or not it is in `labels`; a match is reported as
-/// `Some(0)`), then each label in `labels` in ascending order. The group is
-/// abandoned at the first `k` where nothing matches. Every coin
-/// with a matching puzzle hash is reported, since several output coins can
-/// share one one-time puzzle hash (CHIP-0057 "Outputs Sharing a Puzzle Hash").
-///
-/// `k_max` is the iteration cap per spend group; pass [`K_MAX_DEFAULT`]. Values
-/// above `K_max` are capped to it.
-///
-/// Tweak points are taken from another party, so each one is checked to be a
-/// non-identity element of the prime-order subgroup before it is multiplied by
-/// the scan key (CHIP-0057 "Tweak Points"); points that fail are skipped.
-/// Outputs are matched against all of `data.outputs` (CHIP-0057 "Output
-/// Matching Scope").
-///
-/// # CAT outputs
-///
-/// Each candidate one-time puzzle hash `h` is tested bare and under every
-/// wrapper `W` of `data.wrappers`, as `wrap(W, h)` (CHIP-0057 "Matching
-/// Outputs under Wrappers"): every coin that matches under any of them is
-/// reported with that wrapper in [`DetectedSilentPaymentCoin::wrapper`] and the bare `h`
-/// in [`DetectedSilentPaymentCoin::puzzle_hash`], bare matches first, then the wrappers in
-/// list order; a wrapper repeated in the list is tested once. With an empty
-/// list the scan is the bare scan.
-///
-/// The work per tweak point is about `k x (1 + labels) x (1 + wrappers)` hash
-/// computations. A caller that takes [`TweakData`] from another party (a server
-/// or a peer chooses the tweak points and the wrapper list) should bound that
-/// work itself. The list is never truncated here: a dropped wrapper is a
-/// missed payment.
+/// A tweak point that is the identity element or outside the prime-order
+/// subgroup is skipped. The work per tweak point is about
+/// `k x (1 + labels) x (1 + wrappers)` hashes, so a caller that takes
+/// [`TweakData`] from another party should bound it; the wrapper list is never
+/// truncated here.
 ///
 /// # Errors
 ///
