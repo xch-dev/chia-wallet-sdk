@@ -5,6 +5,7 @@
 package main
 
 import (
+	stdzip "archive/zip"
 	"fmt"
 	"os"
 
@@ -34,10 +35,24 @@ func run(dir, path, version, out string) error {
 		return err
 	}
 
-	info, err := f.Stat()
+	zipped, err := f.Stat()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s@%s is %.1f MiB zipped (limit %d MiB)\n", path, version, float64(info.Size())/(1<<20), zip.MaxZipFile>>20)
+
+	// The proxy's limit applies to both the zip and its extracted files
+	r, err := stdzip.OpenReader(out)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	var extracted uint64
+	for _, file := range r.File {
+		extracted += file.UncompressedSize64
+	}
+
+	fmt.Printf("%s@%s is %.1f MiB zipped and %.1f MiB extracted (limit %d MiB)\n",
+		path, version, float64(zipped.Size())/(1<<20), float64(extracted)/(1<<20), zip.MaxZipFile>>20)
 	return nil
 }

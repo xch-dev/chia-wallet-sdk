@@ -496,7 +496,10 @@ jobs:
       # Manual runs from a branch use the crate version, since there's no release tag
       - name: Determine the version
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          if [[ "$GITHUB_REF" == refs/tags/go/* ]]; then
+            echo "Run the release from the release tag or a branch, not from the Go module's tag" >&2
+            exit 1
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
