@@ -181,6 +181,13 @@ impl VerifiedInternalCustodyOperation {
     pub fn effects(&self) -> &InternalCustodyOperationEffects {
         &self.effects
     }
+    /// Payment facts, present only for payment/absorption/no-op operations.
+    pub fn payment(&self) -> Option<&InternalCustodyPayment> {
+        match &self.effects {
+            InternalCustodyOperationEffects::Payment(payment) => Some(payment),
+            _ => None,
+        }
+    }
     /// Frozen participant subset (empty for unsigned completion).
     pub fn selected_signers(&self) -> &[PublicKey] {
         &self.selected_signers
@@ -331,13 +338,16 @@ pub fn parse_internal_custody_operation(
             let (expected, _) = match_fee_form(
                 |fee| {
                     policy
-                        .start_rekey_spend_with_state(
+                        .start_rekey_spend(
                             ctx,
                             first.coin,
                             raw.lineage_proof,
-                            state,
+                            new_policy,
                             signers,
-                            fee,
+                            crate::InternalCustodyRekeyOptions {
+                                timelock_multiple: state.timelock_multiple,
+                                fee_announcement: fee,
+                            },
                         )
                         .map(|s| vec![s])
                 },

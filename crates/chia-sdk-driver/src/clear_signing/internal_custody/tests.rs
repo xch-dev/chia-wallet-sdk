@@ -1,3 +1,4 @@
+use super::lifecycle_tests::{payment_options, verify_payment};
 use super::*;
 use chia_bls::{aggregate, verify};
 use chia_puzzle_types::standard::StandardSolution;
@@ -44,8 +45,8 @@ fn parse(
     spend: &CoinSpend,
     keys: &[PublicKey],
     constants: &AggSigConstants,
-) -> Result<VerifiedInternalCustodyPayment, DriverError> {
-    parse_internal_custody_payment(
+) -> Result<VerifiedInternalCustodyOperation, DriverError> {
+    verify_payment(
         &mut ctx(),
         policy,
         std::slice::from_ref(spend),
@@ -61,7 +62,7 @@ fn key(index: usize) -> SecretKey {
 fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
     let (policy, spend, keys, constants) = fixture();
     let verified = parse(&policy, &spend, &keys, &constants)?;
-    let facts = verified.payment();
+    let facts = verified.payment().unwrap();
     assert_eq!(facts.pending_payment.map(|p| p.coin).unwrap().amount, 40);
     assert_eq!(
         facts.input_coin.amount - facts.pending_payment.map(|p| p.coin).unwrap().amount,
@@ -76,11 +77,11 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
     );
     let expected = &vector["contexts"][0];
     assert_eq!(
-        verified.required_signature().public_key.to_bytes(),
+        verified.required_signature().unwrap().public_key.to_bytes(),
         bytes::<48>(&expected["public_key"])
     );
     assert_eq!(
-        verified.required_signature().message(),
+        verified.required_signature().unwrap().message(),
         hex::decode(expected["message"].as_str().unwrap())?
     );
     let ctx = &mut ctx();
@@ -90,15 +91,15 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
         ctx,
         spend.coin,
         solution.lineage_proof,
-        Some(crate::InternalCustodyWithdrawal {
+        payment_options(Some(crate::InternalCustodyWithdrawal {
             amount: facts.outgoing_amount(),
             destination: facts.pending_payment.unwrap().destination,
-        }),
+        })),
         &keys,
         &[],
     )?;
     assert_eq!(vec![spend.clone()], rebuilt);
-    let layer = policy.inner_layer(ctx)?;
+    let layer = policy.inner_layer();
     let puzzle = layer.construct_puzzle(ctx)?;
     assert_eq!(
         InternalCustodyLayer::parse_puzzle(ctx, Puzzle::parse(ctx, puzzle))?,
@@ -115,17 +116,17 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
         assert!(!verify(
             &partial,
             &secret.public_key(),
-            verified.required_signature().message()
+            verified.required_signature().unwrap().message()
         ));
         signatures.push(partial);
     }
     assert_eq!(signatures.len(), 2);
     assert!(verified.sign_partial(&key(42)).is_err());
-    signatures.push(verified.offset_share()?);
+    signatures.push(verified.offset_share()?.unwrap());
     assert!(verify(
         &aggregate(&signatures),
-        &verified.required_signature().public_key,
-        verified.required_signature().message()
+        &verified.required_signature().unwrap().public_key,
+        verified.required_signature().unwrap().message()
     ));
     Ok(())
 }
@@ -188,12 +189,9 @@ fn rejects_bad_subsets_programs_and_resource_limits() {
     assert!(parse(&policy, &spend, &reversed, &constants).is_ok());
     assert!(parse(&policy, &spend, &[keys[0], keys[0]], &constants).is_err());
     assert!(parse(&policy, &spend, &[keys[0]], &constants).is_err());
+    assert!(verify_payment(&mut ctx(), &policy, &[], &keys, &constants, 500_000_000).is_err());
     assert!(
-        parse_internal_custody_payment(&mut ctx(), &policy, &[], &keys, &constants, 500_000_000)
-            .is_err()
-    );
-    assert!(
-        parse_internal_custody_payment(
+        verify_payment(
             &mut ctx(),
             &policy,
             &[spend.clone(), spend.clone()],
@@ -204,7 +202,7 @@ fn rejects_bad_subsets_programs_and_resource_limits() {
         .is_err()
     );
     assert!(
-        parse_internal_custody_payment(
+        verify_payment(
             &mut ctx(),
             &policy,
             std::slice::from_ref(&spend),
@@ -230,15 +228,15 @@ fn rejects_bad_subsets_programs_and_resource_limits() {
     }
 }
 #[test]
-fn legacy_policy_and_proof_bounds_fail_closed() {
+fn reference_policy_and_proof_bounds_fail_closed() {
     let (policy, _, _, _) = fixture();
-    let raw = policy.to_legacy_bytes();
+    let raw = policy.to_reference_bytes();
     for end in 0..raw.len() {
-        assert!(InternalCustodyPolicy::from_legacy_bytes(&raw[..end]).is_err());
+        assert!(InternalCustodyPolicy::from_reference_bytes(&raw[..end]).is_err());
     }
     let mut extra = raw;
     extra.push(0);
-    assert!(InternalCustodyPolicy::from_legacy_bytes(&extra).is_err());
+    assert!(InternalCustodyPolicy::from_reference_bytes(&extra).is_err());
     assert!(
         InternalCustodyPolicy::new(
             policy.info(),
@@ -256,7 +254,7 @@ fn legacy_policy_and_proof_bounds_fail_closed() {
 fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow::Result<()> {
     let (policy, spend, keys, constants) = fixture();
     let verified = parse(&policy, &spend, &keys, &constants)?;
-    let facts = verified.payment();
+    let facts = verified.payment().unwrap();
     let ctx = &mut ctx();
     let completion = policy.completion_spend(
         ctx,
@@ -321,16 +319,15 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
             ctx,
             spend.coin,
             original.lineage_proof,
-            (outgoing > 0).then_some(crate::InternalCustodyWithdrawal {
+            payment_options((outgoing > 0).then_some(crate::InternalCustodyWithdrawal {
                 amount: outgoing,
                 destination,
-            }),
+            })),
             &keys,
             &deposits,
         )?;
-        let verified =
-            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
-        let facts = verified.payment();
+        let verified = verify_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
+        let facts = verified.payment().unwrap();
         assert_eq!(facts.incoming_amount, 204);
         assert_eq!(facts.outgoing_amount(), outgoing);
         assert_eq!(facts.deposit_count, 2);
@@ -340,34 +337,17 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
             outgoing == 0
         );
         assert!(
-            parse_internal_custody_payment(
-                ctx,
-                &policy,
-                &spends[..2],
-                &keys,
-                &constants,
-                500_000_000
-            )
-            .is_err()
+            verify_payment(ctx, &policy, &spends[..2], &keys, &constants, 500_000_000).is_err()
         );
         let mut wrong = spends.clone();
         wrong[1].coin.amount += 2;
-        assert!(
-            parse_internal_custody_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000)
-                .is_err()
-        );
+        assert!(verify_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000).is_err());
         let mut wrong = spends.clone();
         wrong[1].solution = vec![0x80].into();
-        assert!(
-            parse_internal_custody_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000)
-                .is_err()
-        );
+        assert!(verify_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000).is_err());
         let mut wrong = spends.clone();
         wrong.push(spends[1].clone());
-        assert!(
-            parse_internal_custody_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000)
-                .is_err()
-        );
+        assert!(verify_payment(ctx, &policy, &wrong, &keys, &constants, 500_000_000).is_err());
     }
     for bad in [
         vec![deposits[0]],
@@ -377,13 +357,27 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
     ] {
         assert!(
             policy
-                .payment_spends(ctx, spend.coin, original.lineage_proof, None, &keys, &bad)
+                .payment_spends(
+                    ctx,
+                    spend.coin,
+                    original.lineage_proof,
+                    payment_options(None),
+                    &keys,
+                    &bad
+                )
                 .is_err()
         );
     }
     assert!(
         policy
-            .payment_spends(ctx, spend.coin, original.lineage_proof, None, &keys, &[])
+            .payment_spends(
+                ctx,
+                spend.coin,
+                original.lineage_proof,
+                payment_options(None),
+                &keys,
+                &[]
+            )
             .is_ok()
     );
     assert!(
@@ -392,10 +386,10 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
                 ctx,
                 spend.coin,
                 original.lineage_proof,
-                Some(crate::InternalCustodyWithdrawal {
+                payment_options(Some(crate::InternalCustodyWithdrawal {
                     amount: 0,
                     destination: [9; 32].into()
-                }),
+                })),
                 &keys,
                 &deposits
             )
@@ -431,16 +425,21 @@ fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> 
             amount: outgoing,
             destination: [9; 32].into(),
         });
-        let spends =
-            policy.payment_spends(ctx, original.coin, lineage, withdrawal, &keys, &deposits)?;
-        let verified =
-            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
-        let facts = *verified.payment();
+        let spends = policy.payment_spends(
+            ctx,
+            original.coin,
+            lineage,
+            payment_options(withdrawal),
+            &keys,
+            &deposits,
+        )?;
+        let verified = verify_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
+        let facts = *verified.payment().unwrap();
         let mut shares = Vec::new();
         for secret in (0..3).map(key).filter(|k| keys.contains(&k.public_key())) {
             shares.push(verified.sign_partial(&secret)?);
         }
-        shares.push(verified.offset_share()?);
+        shares.push(verified.offset_share()?.unwrap());
         let signature = aggregate(&shares);
         assert!(
             sim.new_transaction(SpendBundle::new(vec![spends[0].clone()], signature.clone()))
@@ -516,7 +515,14 @@ fn execution_budget_cannot_become_unlimited() -> anyhow::Result<()> {
         Coin::new([2; 32].into(), hash, 2),
     ];
     deposits.sort_by_key(Coin::coin_id);
-    let spends = policy.payment_spends(ctx, original.coin, lineage, None, &keys, &deposits)?;
+    let spends = policy.payment_spends(
+        ctx,
+        original.coin,
+        lineage,
+        payment_options(None),
+        &keys,
+        &deposits,
+    )?;
     let mut costs = Vec::new();
     for spend in &spends {
         let puzzle = canonical_program(ctx, spend.puzzle_reveal.as_ref())?;
@@ -536,20 +542,16 @@ fn execution_budget_cannot_become_unlimited() -> anyhow::Result<()> {
     // Exhaustion before another deposit and before the singleton must both fail.
     for budget in [0, costs[1], costs[1] + costs[2], total - 1] {
         assert!(
-            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, budget)
-                .is_err(),
+            verify_payment(ctx, &policy, &spends, &keys, &constants, budget).is_err(),
             "budget {budget}"
         );
     }
     for budget in [total, total + 1] {
         assert!(
-            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, budget)
-                .is_ok(),
+            verify_payment(ctx, &policy, &spends, &keys, &constants, budget).is_ok(),
             "budget {budget}"
         );
     }
-    assert!(
-        parse_internal_custody_payment(ctx, &policy, &[original], &keys, &constants, 0).is_err()
-    );
+    assert!(verify_payment(ctx, &policy, &[original], &keys, &constants, 0).is_err());
     Ok(())
 }

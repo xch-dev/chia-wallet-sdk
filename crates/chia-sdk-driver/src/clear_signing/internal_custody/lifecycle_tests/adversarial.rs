@@ -122,10 +122,10 @@ fn recovery_and_lock_authorizations_cannot_be_used_for_payments() -> anyhow::Res
                 ctx,
                 input[0].coin,
                 proof,
-                Some(InternalCustodyWithdrawal {
+                payment_options(Some(InternalCustodyWithdrawal {
                     amount: 20,
                     destination: bytes(&data()["destination"])
-                }),
+                })),
                 &selected,
                 &[]
             )
@@ -183,7 +183,10 @@ fn recovery_and_lock_authorizations_cannot_be_used_for_payments() -> anyhow::Res
                 proof,
                 &target,
                 &keys(operation("normal-rekey")),
-                false
+                crate::InternalCustodyRekeyOptions {
+                    timelock_multiple: 1,
+                    fee_announcement: false
+                }
             )
             .is_err()
         );
@@ -293,17 +296,23 @@ fn payment_arithmetic_checks_final_outputs_instead_of_the_intermediate_total() -
     let v = operation("overflow-intermediate");
     let input = spends(v);
     let selected = keys(v);
-    let verified =
-        parse_internal_custody_payment(ctx, &old, &input, &selected, &constants(), 500_000_000)?;
-    assert_eq!(verified.payment().input_coin.amount, u64::MAX - 2);
-    assert_eq!(verified.payment().incoming_amount, 4);
-    assert_eq!(verified.payment().outgoing_amount(), 4);
-    assert_eq!(verified.payment().vault_child.amount, u64::MAX - 2);
+    let verified = verify_payment(ctx, &old, &input, &selected, &constants(), 500_000_000)?;
+    assert_eq!(verified.payment().unwrap().input_coin.amount, u64::MAX - 2);
+    assert_eq!(verified.payment().unwrap().incoming_amount, 4);
+    assert_eq!(verified.payment().unwrap().outgoing_amount(), 4);
+    assert_eq!(verified.payment().unwrap().vault_child.amount, u64::MAX - 2);
     let proof = proof(ctx, &input[0]);
     // The intermediate sum is legal, but an out-of-range final output is not.
     assert!(
-        old.payment_spends(ctx, input[0].coin, proof, None, &selected, &[input[1].coin])
-            .is_err()
+        old.payment_spends(
+            ctx,
+            input[0].coin,
+            proof,
+            payment_options(None),
+            &selected,
+            &[input[1].coin]
+        )
+        .is_err()
     );
     let remaining = crate::internal_custody_remaining_amount;
     assert_eq!(remaining(u64::MAX - 2, 4, 2)?, u64::MAX);
@@ -318,10 +327,10 @@ fn payment_arithmetic_checks_final_outputs_instead_of_the_intermediate_total() -
                 101
             ),
             proof,
-            Some(InternalCustodyWithdrawal {
+            payment_options(Some(InternalCustodyWithdrawal {
                 amount: 106,
                 destination: bytes(&data()["destination"])
-            }),
+            })),
             &selected,
             &[input[1].coin]
         )
@@ -398,13 +407,16 @@ fn explicit_attempt_delay_must_cover_the_selected_subset_minimum() {
     let slow = keys(operation("slow-rekey"));
     for multiple in [0, 1] {
         assert!(
-            old.start_rekey_spend_with_state(
+            old.start_rekey_spend(
                 ctx,
                 input[0].coin,
                 proof,
-                rekey_state(&old, new.info().puzzle_root, multiple),
+                &new,
                 &slow,
-                false
+                crate::InternalCustodyRekeyOptions {
+                    timelock_multiple: multiple,
+                    fee_announcement: false
+                }
             )
             .is_err()
         );

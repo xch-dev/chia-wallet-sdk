@@ -118,10 +118,10 @@ fn connected_rekeys_cancel_or_finish_then_use_replacement_policy() -> anyhow::Re
             ctx,
             replacement,
             proof,
-            Some(InternalCustodyWithdrawal {
+            payment_options(Some(InternalCustodyWithdrawal {
                 amount: 20,
                 destination: bytes(&data()["destination"]),
-            }),
+            })),
             &selected,
             &[],
         )?;
@@ -150,7 +150,7 @@ fn launch_absorb_lock_resume_and_pay_at_the_higher_security_level() -> anyhow::R
         template.keys().to_vec(),
         template.thresholds(),
     )?;
-    let inner = p.inner_layer(ctx)?.construct_puzzle(ctx)?;
+    let inner = p.inner_layer().construct_puzzle(ctx)?;
     let (conditions, eve) = launcher.spend(ctx, ctx.tree_hash(inner).into(), ())?;
     let deposit_ph = P2SingletonArgs::new(p.info().launcher_id)
         .curry_tree_hash()
@@ -169,16 +169,15 @@ fn launch_absorb_lock_resume_and_pay_at_the_higher_security_level() -> anyhow::R
         ctx,
         eve,
         proof,
-        None,
+        payment_options(None),
         selected,
         &[Coin::new(funding.coin_id(), deposit_ph, 900)],
     )?;
-    let verified =
-        parse_internal_custody_payment(ctx, &p, &absorb, selected, &constants(), 500_000_000)?;
-    let funded = verified.payment().vault_child;
+    let verified = verify_payment(ctx, &p, &absorb, selected, &constants(), 500_000_000)?;
+    let funded = verified.payment().unwrap().vault_child;
     sim.new_transaction(SpendBundle::new(
         absorb,
-        sign_required(verified.required_signature(), selected),
+        sign_required(verified.required_signature().unwrap(), selected),
     ))?;
     assert_eq!(funded.amount, 1001);
     let proof = child_proof(ctx, &p, eve)?;
@@ -253,10 +252,24 @@ fn launch_absorb_lock_resume_and_pay_at_the_higher_security_level() -> anyhow::R
         destination: bytes(&data()["destination"]),
     });
     assert!(
-        next.payment_spends(ctx, locked, proof, withdrawal, selected, &[])
-            .is_err()
+        next.payment_spends(
+            ctx,
+            locked,
+            proof,
+            payment_options(withdrawal),
+            selected,
+            &[]
+        )
+        .is_err()
     );
-    let payment = next.payment_spends(ctx, locked, proof, withdrawal, next.keys(), &[])?;
+    let payment = next.payment_spends(
+        ctx,
+        locked,
+        proof,
+        payment_options(withdrawal),
+        next.keys(),
+        &[],
+    )?;
     let sig = sign_payment(ctx, &next, &payment, next.keys())?;
     sim.new_transaction(SpendBundle::new(payment, sig))?;
     Ok(())
@@ -303,19 +316,18 @@ fn rekey_completion_uses_the_latest_singleton_and_original_pending_lineage() -> 
         ctx,
         vault_child,
         original_lineage,
-        Some(InternalCustodyWithdrawal {
+        payment_options(Some(InternalCustodyWithdrawal {
             amount: 20,
             destination: bytes(&data()["destination"]),
-        }),
+        })),
         &selected,
         &[],
     )?;
-    let verified =
-        parse_internal_custody_payment(ctx, &old, &payment, &selected, &constants(), 500_000_000)?;
-    let latest = verified.payment().vault_child;
+    let verified = verify_payment(ctx, &old, &payment, &selected, &constants(), 500_000_000)?;
+    let latest = verified.payment().unwrap().vault_child;
     sim.new_transaction(SpendBundle::new(
         payment,
-        sign_required(verified.required_signature(), &selected),
+        sign_required(verified.required_signature().unwrap(), &selected),
     ))?;
     let latest_lineage = child_proof(ctx, &old, vault_child)?;
     let Proof::Lineage(pending_lineage) = original_lineage else {

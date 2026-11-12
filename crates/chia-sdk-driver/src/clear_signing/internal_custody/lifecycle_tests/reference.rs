@@ -50,17 +50,16 @@ fn build(
         }
         "rekey" => {
             let proof = proof(ctx, first);
-            vec![old.start_rekey_spend_with_state(
+            vec![old.start_rekey_spend(
                 ctx,
                 first.coin,
                 proof,
-                rekey_state(
-                    old,
-                    new.info().puzzle_root,
-                    u8::try_from(v["multiple"].as_u64().unwrap()).unwrap(),
-                ),
+                new,
                 &signers,
-                fee,
+                crate::InternalCustodyRekeyOptions {
+                    timelock_multiple: u8::try_from(v["multiple"].as_u64().unwrap()).unwrap(),
+                    fee_announcement: fee,
+                },
             )?]
         }
         "rekey-cancel" => vec![old.rekey_clawback_spend(
@@ -108,23 +107,27 @@ fn build(
 fn python_policy_roots_proofs_and_streamable_bytes() -> anyhow::Result<()> {
     for which in ["policy", "new_policy", "next_policy"] {
         let old = policy(which);
-        assert_eq!(old.to_legacy_bytes(), unhex(&data()[which]));
+        assert_eq!(old.to_reference_bytes(), unhex(&data()[which]));
         let mut keys = old.keys().to_vec();
         keys.reverse();
         let derived =
             InternalCustodyPolicy::derive(&mut ctx(), old.info(), keys, old.thresholds())?;
-        assert_eq!(derived.to_legacy_bytes(), old.to_legacy_bytes(), "{which}");
+        assert_eq!(
+            derived.to_reference_bytes(),
+            old.to_reference_bytes(),
+            "{which}"
+        );
         old.verify_definition(&mut ctx())?;
     }
     for raw in data()["policy_matrix"].as_array().unwrap() {
-        let reference = InternalCustodyPolicy::from_legacy_bytes(&unhex(raw))?;
+        let reference = InternalCustodyPolicy::from_reference_bytes(&unhex(raw))?;
         let derived = InternalCustodyPolicy::derive(
             &mut ctx(),
             reference.info(),
             reference.keys().to_vec(),
             reference.thresholds(),
         )?;
-        assert_eq!(derived.to_legacy_bytes(), unhex(raw));
+        assert_eq!(derived.to_reference_bytes(), unhex(raw));
     }
     Ok(())
 }
@@ -172,13 +175,9 @@ fn python_spends_conditions_costs_and_signature_contexts() -> anyhow::Result<()>
             .map(|e| e["cost"].as_u64().unwrap())
             .sum();
         let signature = if v["kind"] == "payment" {
-            let verified =
-                parse_internal_custody_payment(ctx, &old, &input, &signers, &constants, budget)?;
-            assert!(
-                parse_internal_custody_payment(ctx, &old, &input, &signers, &constants, budget - 1)
-                    .is_err()
-            );
-            Some(verified.required_signature().clone())
+            let verified = verify_payment(ctx, &old, &input, &signers, &constants, budget)?;
+            assert!(verify_payment(ctx, &old, &input, &signers, &constants, budget - 1).is_err());
+            verified.required_signature().cloned()
         } else {
             let verified = parse_internal_custody_operation(
                 ctx,
@@ -269,8 +268,8 @@ fn python_higher_threshold_recoveries_match_bytes_signatures_and_consensus() -> 
     use chia_sdk_test::Simulator;
     let ctx = &mut ctx();
     for family in data()["recovery_matrix"].as_array().unwrap() {
-        let old = InternalCustodyPolicy::from_legacy_bytes(&unhex(&family["policy"]))?;
-        let new = InternalCustodyPolicy::from_legacy_bytes(&unhex(&family["new_policy"]))?;
+        let old = InternalCustodyPolicy::from_reference_bytes(&unhex(&family["policy"]))?;
+        let new = InternalCustodyPolicy::from_reference_bytes(&unhex(&family["new_policy"]))?;
         for v in family["operations"].as_array().unwrap() {
             let input = spends(v);
             let selected = keys(v);
@@ -424,7 +423,7 @@ fn singleton_solution_for_test(
     let node = canonical_program(ctx, spend.solution.as_ref())?;
     let solution = SingletonSolution::from_clvm(&**ctx, node)?;
     // Round trip every payment solution through the public layer interface.
-    let layer = policy("policy").inner_layer(ctx)?;
+    let layer = policy("policy").inner_layer();
     let parsed = InternalCustodyLayer::parse_solution(
         ctx,
         SingletonSolution::<NodePtr>::from_clvm(&**ctx, node)?.inner_solution,

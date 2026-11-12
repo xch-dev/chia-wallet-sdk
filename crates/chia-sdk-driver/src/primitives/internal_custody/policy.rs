@@ -14,7 +14,7 @@ const MAX_POLICY_KEYS: usize = 16;
 const MAX_POLICY_PROOFS: usize = 1024;
 const MAX_MERKLE_DEPTH: usize = 32;
 
-/// Public parameters curried into a legacy custody singleton. Supplying these
+/// Public parameters curried into a custody singleton. Supplying these
 /// parameters does not establish their origin. The verifier checks them against
 /// the exact spend; applications own any separate policy recognition/authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct InternalCustodyInfo {
     /// Additional penalty in seconds for slower rekey paths.
     pub slow_rekey: u64,
 }
-/// Signing threshold metadata from the public legacy derivation.
+/// Signing threshold metadata from the public reference derivation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyThresholds {
     /// Number of keys in the normal payment signing subset.
@@ -120,7 +120,7 @@ impl InternalCustodyPolicy {
             .curry_tree_hash()
             .into(),
         };
-        if policy.to_legacy_bytes().len() > MAX_POLICY_BYTES {
+        if policy.to_reference_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
         Ok(policy)
@@ -147,7 +147,7 @@ impl InternalCustodyPolicy {
     /// by Chia-Network/internal-custody. This is public configuration data, not
     /// a signing request. The optional next-root field is metadata and is not
     /// used to authorize a payment under the current root.
-    pub fn from_legacy_bytes(raw: &[u8]) -> Result<Self, DriverError> {
+    pub fn from_reference_bytes(raw: &[u8]) -> Result<Self, DriverError> {
         if raw.len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
@@ -198,7 +198,7 @@ impl InternalCustodyPolicy {
         Ok(())
     }
     /// Encode the exact Python streamable `RootDerivation` format.
-    pub fn to_legacy_bytes(&self) -> Vec<u8> {
+    pub fn to_reference_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(self.info.launcher_id.as_ref());
         out.extend_from_slice(self.info.puzzle_root.as_ref());

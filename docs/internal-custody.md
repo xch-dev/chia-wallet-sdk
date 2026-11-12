@@ -18,7 +18,7 @@ cancellable payment coins.
 - `InternalCustodyLayer` implements normal `Layer` construction/parsing and
   composes with `SingletonLayer`. Recognizing a puzzle does not authorize it.
 - `InternalCustodyPolicy::derive` builds the Python-compatible threshold ladder,
-  roots and ordered Merkle proofs. `from_legacy_bytes` / `to_legacy_bytes` round
+  roots and ordered Merkle proofs. `from_reference_bytes` / `to_reference_bytes` round
   trip Python's public `RootDerivation` streamable format. `new` accepts bounded
   typed data. `verify_definition` independently derives the root and next-level
   commitment from the keys, thresholds and immutable parameters.
@@ -30,14 +30,13 @@ cancellable payment coins.
   absorption alone, payment completion/clawback, ordinary rekeys, slower recovery,
   rekey cancellation/completion, and security-level increases. Construction is
   independent of transport, chain discovery, signing and broadcasting.
-- `parse_internal_custody_payment` returns an immutable
-  `VerifiedInternalCustodyPayment`. `parse_internal_custody_operation` handles the
-  full lifecycle, including payments, and returns `VerifiedInternalCustodyOperation` with
-  typed effects and an optional exact signature requirement. Both require an
-  explicit network domain and a positive shared CLVM cost budget. The payment
-  interface is a thin typed adapter over the single operation verifier. Effects
-  expose the signed destination context even for absorb-only/no-op spends, the
-  recreated singleton, and actual rekey initiation/completion delays.
+- `parse_internal_custody_operation` verifies every supported operation, including
+  payments, and returns immutable `VerifiedInternalCustodyOperation` effects and
+  an optional exact signature requirement. It requires an explicit network
+  domain and a positive shared CLVM cost budget. Use the `Payment` request for
+  withdrawals, absorption and no-op spends; `payment()` returns their facts.
+  Effects expose the signed destination context even for absorb-only/no-op
+  spends, the recreated singleton, and actual rekey initiation/completion delays.
   `offset_share()` computes the public synthetic-offset signature share locally;
   raw-key locks and unsigned completions have no offset share.
 - `RequiredBlsSignature::sign_partial` / `verify_partial` use the condition's
@@ -55,7 +54,7 @@ Custody launcher puzzle or service.
 | Operation | Python reference | SDK construction |
 | --- | --- | --- |
 | Policy/root/proofs | `calculate_puzzle_root` | `derive` |
-| Payment / absorb + payment / absorb only | `get_withdrawal_spend_info` | `payment_spends`, `payment_spends_with_options` |
+| Payment / absorb + payment / absorb only | `get_withdrawal_spend_info` | `payment_spends` |
 | Payment cancellation | `get_ach_clawback_spend_info` | `payment_clawback_spend` |
 | Payment completion | `get_ach_clawforward_spend_bundle` | `completion_spend` |
 | Ordinary / slow rekey | `get_rekey_spend_info` | `start_rekey_spend` |
@@ -67,8 +66,12 @@ The normal subset has `required` keys. A subset of `k` keys authorizes a minimum
 multiple of `1 + required - k`, down to `minimum`. An attempt may commit to that
 minimum or any larger positive `u8` multiple. Its initiation delay is
 `rekey_increment * committed_multiple`, plus `slow_rekey` when that multiple
-exceeds one. `start_rekey_spend` chooses Python's minimum-delay form;
-`start_rekey_spend_with_state` accepts an explicit root and multiple.
+exceeds one. `start_rekey_spend` takes a replacement policy and explicit
+`InternalCustodyRekeyOptions { timelock_multiple, fee_announcement }`. To match
+Python's minimum-delay form, choose `1 + required - signers.len()`; callers can
+also explicitly choose any longer supported delay. Construction checks that the
+replacement policy preserves the immutable configuration; clear signing also
+independently derives the target definition against its root.
 Completion independently waits `rekey_clawback`. Cancellation binds the pending
 attempt's exact state, while the selected subset's authorized minimum must not
 exceed the committed multiple. A normal quorum can therefore veto a slower
@@ -85,8 +88,9 @@ arithmetic uses a wider intermediate and checks the final coin against `u64`,
 allowing absorption plus withdrawal even when their intermediate balance exceeds
 one coin's range. Deposit totals and withdrawals must be even, preserving the singleton's odd value. An
 absorb-only operation can retain a nonzero unused destination context, and a
-zero-value no-op is supported, matching Python. The simpler `payment_spends`
-wrapper uses zero context when no withdrawal is specified.
+zero-value no-op is supported, matching Python. `payment_spends` always takes
+explicit `InternalCustodyPaymentOptions`: choose `Withdraw` or `Absorb` with its
+signed destination context and specify the fee-announcement form.
 
 The CLI's optional extra `[CREATE_COIN_ANNOUNCEMENT, ""]` is explicitly supported
 by payment, payment-clawback, rekey and rekey-clawback builders/verifiers. It binds
@@ -193,3 +197,25 @@ cargo test -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --locked
 cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 ```
+
+## Migration of the in-development API
+
+These interfaces are new in this PR. Superseded names and wrappers are removed,
+with no deprecated aliases:
+
+| Previous interface | Current interface |
+| --- | --- |
+| `from_legacy_bytes` / `to_legacy_bytes` | `from_reference_bytes` / `to_reference_bytes`; identical reference `RootDerivation` bytes |
+| `parse_internal_custody_payment` | `parse_internal_custody_operation` with `InternalCustodyOperationRequest::Payment { signers }` |
+| `VerifiedInternalCustodyPayment` | `VerifiedInternalCustodyOperation`; `payment()` and `required_signature()` return `Option` because the type covers all operations |
+| `verify_synthetic_offset` | Removed; `offset_share()` derives the public share locally and returns `Result<Option<Signature>, DriverError>` |
+| Defaulting `payment_spends` and `payment_spends_with_options` | One `payment_spends` accepting explicit `InternalCustodyPaymentOptions`; use `Absorb { destination_context }` instead of an optional withdrawal |
+| Defaulting `start_rekey_spend` and `start_rekey_spend_with_state` | One `start_rekey_spend` accepting the replacement policy and explicit `InternalCustodyRekeyOptions` |
+| `inner_layer(ctx)?` | `inner_layer()`, returning the typed layer directly with no allocation or error |
+
+For the signer caller, change the stored verified type, use the `Payment` request
+with the existing selected subset, and extract the payment and signature with
+`payment()` / `required_signature()`. Remove the supplied synthetic-offset
+validation; the SDK no longer needs that hint. If assembling an aggregate
+signature, include the locally generated `offset_share()` when present.
+The caller's request JSON and app-facing review types remain its own interfaces.

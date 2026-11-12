@@ -27,8 +27,7 @@ pub(super) fn reconstruct_payment(
     else {
         return Err(InternalCustodyError::UnsupportedOperation.into());
     };
-    if layer.launcher_id != policy.info().launcher_id
-        || layer.inner_puzzle != policy.inner_layer(ctx)?
+    if layer.launcher_id != policy.info().launcher_id || layer.inner_puzzle != policy.inner_layer()
     {
         return Err(InternalCustodyError::InvalidPolicy.into());
     }
@@ -57,7 +56,7 @@ pub(super) fn reconstruct_payment(
     // Require an exact reconstruction of one of these two explicit forms.
     let (expected, fee_announcement) = match_fee_form(
         |fee_announcement| {
-            policy.payment_spends_with_options(
+            policy.payment_spends(
                 ctx,
                 spend.coin,
                 singleton.lineage_proof,

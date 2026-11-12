@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate public legacy vectors using the independent internal-custody checkout.
+"""Regenerate public reference vectors using the independent internal-custody checkout.
 Run in its Python environment, passing --reference and --output. No node, network,
 private production keys, or Rust implementation is used. Fixed public seeds only.
 """

@@ -95,11 +95,9 @@ impl InternalCustodyPolicy {
         }
         Ok(())
     }
-    /// Start a normal rekey or slower recovery using its authorized subset.
-    /// The new policy must preserve the launcher's immutable puzzle state.
-    /// This convenience form chooses the subset's minimum delay and checks the
-    /// replacement policy metadata; `start_rekey_spend_with_state` accepts a raw
-    /// target root and an explicit longer delay for offline reconstruction.
+    /// Propose a replacement policy with an explicit initiation delay and fee form.
+    /// The target must preserve the singleton's immutable configuration. The
+    /// selected subset authorizes its minimum delay or any longer positive delay.
     pub fn start_rekey_spend(
         &self,
         ctx: &mut SpendContext,
@@ -107,38 +105,23 @@ impl InternalCustodyPolicy {
         proof: Proof,
         new_policy: &Self,
         signers: &[PublicKey],
-        fee_announcement: bool,
+        options: super::InternalCustodyRekeyOptions,
     ) -> Result<CoinSpend, DriverError> {
         self.check_update(new_policy)?;
         let state = InternalCustodyRekeyState {
             new_root: new_policy.info().puzzle_root,
             old_root: self.info().puzzle_root,
-            timelock_multiple: self.minimum_rekey_multiple(signers)?,
+            timelock_multiple: options.timelock_multiple,
         };
-        self.start_rekey_spend_with_state(ctx, coin, proof, state, signers, fee_announcement)
-    }
-    /// Start a rekey with an explicit committed root and delay multiple. The
-    /// selected subset authorizes its minimum delay or any longer positive delay.
-    /// This low-level constructor does not establish the target key definition;
-    /// clear signing independently verifies that definition against the root.
-    pub fn start_rekey_spend_with_state(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        proof: Proof,
-        state: InternalCustodyRekeyState,
-        signers: &[PublicKey],
-        fee_announcement: bool,
-    ) -> Result<CoinSpend, DriverError> {
         let minimum = self.rekey_authorization_multiple(state, signers)?;
         let pending = self.pending_rekey_puzzle(ctx, state)?;
         // Python order: rekey coin, extra conditions, singleton continuation.
         let mut conditions =
             Conditions::new().create_coin(ctx.tree_hash(pending).into(), 0, Memos::None);
-        if fee_announcement {
+        if options.fee_announcement {
             conditions = conditions.create_coin_announcement(Bytes::default());
         }
-        let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
+        let inner = self.inner_layer().construct_puzzle(ctx)?;
         conditions = conditions.create_coin(ctx.tree_hash(inner).into(), coin.amount, Memos::None);
         let context = ctx.alloc(&state)?;
         let (filter, filter_proof, filter_solution) = self.authorize_conditions(
@@ -317,7 +300,7 @@ impl InternalCustodyPolicy {
             timelock_multiple: 0,
         };
         let auth = self.authorization(ctx, signers, super::authorization::AuthKind::Lock)?;
-        let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
+        let inner = self.inner_layer().construct_puzzle(ctx)?;
         let inner_hash: Bytes32 = ctx.tree_hash(inner).into();
         let leaf_solution = ctx.alloc(&clvm_list!(state.old_root, (inner_hash, coin.amount)))?;
         let context = ctx.alloc(&clvm_list!(state.new_root, state.old_root, 0u8))?;

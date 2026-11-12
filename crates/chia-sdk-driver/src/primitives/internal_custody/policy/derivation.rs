@@ -84,7 +84,7 @@ impl InternalCustodyPolicy {
         policy.info.puzzle_root = tree.root();
         append_proofs(&mut policy.filter_proofs, &filters, &tree);
         // Respect the same total-byte bound used by the interchange decoder.
-        if policy.to_legacy_bytes().len() > MAX_POLICY_BYTES {
+        if policy.to_reference_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
         Ok(policy)

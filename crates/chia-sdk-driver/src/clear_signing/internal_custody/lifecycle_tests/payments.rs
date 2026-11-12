@@ -13,9 +13,9 @@ fn connected_payment_clawback_refund_absorption_and_completion_race() -> anyhow:
     sim.insert_coin(initial[0].coin);
     sim.create_block();
     sim.pass_time(1000);
-    let facts =
-        *parse_internal_custody_payment(ctx, &p, &initial, &selected, &constants(), 500_000_000)?
-            .payment();
+    let facts = *verify_payment(ctx, &p, &initial, &selected, &constants(), 500_000_000)?
+        .payment()
+        .unwrap();
     sim.new_transaction(SpendBundle::new(initial.clone(), signature(v)))?;
     let pending = facts.pending_payment.unwrap();
     let complete = p.completion_spend(ctx, pending.coin, pending.destination)?;
@@ -64,12 +64,19 @@ fn connected_payment_clawback_refund_absorption_and_completion_race() -> anyhow:
     );
     let proof = child_proof(ctx, &p, initial[0].coin)?;
     sim.pass_time(p.info().withdrawal_timelock);
-    let absorb = p.payment_spends(ctx, facts.vault_child, proof, None, &selected, &[refund])?;
+    let absorb = p.payment_spends(
+        ctx,
+        facts.vault_child,
+        proof,
+        payment_options(None),
+        &selected,
+        &[refund],
+    )?;
     let sig = sign_payment(ctx, &p, &absorb, &selected)?;
-    let final_coin =
-        parse_internal_custody_payment(ctx, &p, &absorb, &selected, &constants(), 500_000_000)?
-            .payment()
-            .vault_child;
+    let final_coin = verify_payment(ctx, &p, &absorb, &selected, &constants(), 500_000_000)?
+        .payment()
+        .unwrap()
+        .vault_child;
     sim.new_transaction(SpendBundle::new(absorb, sig))?;
     assert_eq!(final_coin.amount, initial[0].coin.amount);
     assert!(
@@ -90,9 +97,9 @@ fn pending_payment_keeps_original_policy_after_the_singleton_rekeys() -> anyhow:
     let v = operation("payment");
     let input = spends(v);
     let selected = keys(v);
-    let facts =
-        *parse_internal_custody_payment(ctx, &old, &input, &selected, &constants(), 500_000_000)?
-            .payment();
+    let facts = *verify_payment(ctx, &old, &input, &selected, &constants(), 500_000_000)?
+        .payment()
+        .unwrap();
     let mut sim = Simulator::new();
     sim.insert_coin(input[0].coin);
     sim.create_block();
@@ -100,7 +107,17 @@ fn pending_payment_keeps_original_policy_after_the_singleton_rekeys() -> anyhow:
     sim.new_transaction(SpendBundle::new(input.clone(), signature(v)))?;
     sim.pass_time(1000);
     let lineage = child_proof(ctx, &old, input[0].coin)?;
-    let rekey = old.start_rekey_spend(ctx, facts.vault_child, lineage, &new, &selected, false)?;
+    let rekey = old.start_rekey_spend(
+        ctx,
+        facts.vault_child,
+        lineage,
+        &new,
+        &selected,
+        crate::InternalCustodyRekeyOptions {
+            timelock_multiple: 1,
+            fee_announcement: false,
+        },
+    )?;
     let verified = parse_internal_custody_operation(
         ctx,
         &old,

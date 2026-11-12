@@ -25,7 +25,7 @@ fn ctx() -> SpendContext {
     clvmr::Allocator::new_limited(64 * 1024 * 1024).into()
 }
 pub(super) fn policy(which: &str) -> InternalCustodyPolicy {
-    InternalCustodyPolicy::from_legacy_bytes(&unhex(&data()[which])).unwrap()
+    InternalCustodyPolicy::from_reference_bytes(&unhex(&data()[which])).unwrap()
 }
 fn coin(v: &Value) -> Coin {
     Coin::new(
@@ -148,15 +148,15 @@ fn sign_payment(
     input: &[CoinSpend],
     keys: &[PublicKey],
 ) -> anyhow::Result<Signature> {
-    let verified = parse_internal_custody_payment(ctx, p, input, keys, &constants(), 500_000_000)?;
-    Ok(sign_required(verified.required_signature(), keys))
+    let verified = verify_payment(ctx, p, input, keys, &constants(), 500_000_000)?;
+    Ok(sign_required(verified.required_signature().unwrap(), keys))
 }
 fn child_proof(
     ctx: &mut SpendContext,
     p: &InternalCustodyPolicy,
     parent: Coin,
 ) -> anyhow::Result<Proof> {
-    let inner = p.inner_layer(ctx)?.construct_puzzle(ctx)?;
+    let inner = p.inner_layer().construct_puzzle(ctx)?;
     Ok(Proof::Lineage(chia_puzzle_types::LineageProof {
         parent_parent_coin_info: parent.parent_coin_info,
         parent_inner_puzzle_hash: ctx.tree_hash(inner).into(),
@@ -173,5 +173,36 @@ fn rekey_state(
         old_root: old.info().puzzle_root,
         new_root,
         timelock_multiple,
+    }
+}
+
+pub(super) fn verify_payment(
+    ctx: &mut SpendContext,
+    policy: &InternalCustodyPolicy,
+    spends: &[CoinSpend],
+    signers: &[PublicKey],
+    constants: &AggSigConstants,
+    max_cost: u64,
+) -> Result<VerifiedInternalCustodyOperation, DriverError> {
+    parse_internal_custody_operation(
+        ctx,
+        policy,
+        spends,
+        InternalCustodyOperationRequest::Payment { signers },
+        constants,
+        max_cost,
+    )
+}
+pub(super) fn payment_options(
+    withdrawal: Option<InternalCustodyWithdrawal>,
+) -> InternalCustodyPaymentOptions {
+    InternalCustodyPaymentOptions {
+        action: withdrawal.map_or(
+            InternalCustodyPaymentAction::Absorb {
+                destination_context: Bytes32::default(),
+            },
+            InternalCustodyPaymentAction::Withdraw,
+        ),
+        fee_announcement: false,
     }
 }

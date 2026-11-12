@@ -14,7 +14,7 @@ impl SingletonInfo for InternalCustodyPolicy {
         self.info().launcher_id
     }
     fn inner_puzzle_hash(&self) -> TreeHash {
-        self.layer().tree_hash()
+        self.inner_layer().tree_hash()
     }
 }
 
@@ -23,12 +23,13 @@ impl SingletonInfo for &InternalCustodyPolicy {
         self.info().launcher_id
     }
     fn inner_puzzle_hash(&self) -> TreeHash {
-        self.layer().tree_hash()
+        self.inner_layer().tree_hash()
     }
 }
 
 impl InternalCustodyPolicy {
-    pub(super) fn layer(&self) -> InternalCustodyLayer {
+    /// Return the immutable typed inner layer without allocating CLVM nodes.
+    pub fn inner_layer(&self) -> InternalCustodyLayer {
         let info = self.info();
         InternalCustodyLayer {
             puzzle_root: info.puzzle_root,
@@ -54,23 +55,17 @@ impl InternalCustody {
         deposits: &[Coin],
     ) -> Result<Vec<CoinSpend>, DriverError> {
         self.info
-            .payment_spends_with_options(ctx, self.coin, self.proof, options, signers, deposits)
+            .payment_spends(ctx, self.coin, self.proof, options, signers, deposits)
     }
-    /// Propose a replacement policy with the subset's minimum initiation delay.
+    /// Propose a replacement policy with an explicit initiation delay.
     pub fn start_rekey_spend(
         &self,
         ctx: &mut SpendContext,
         new_policy: &InternalCustodyPolicy,
         signers: &[PublicKey],
-        fee_announcement: bool,
+        options: super::InternalCustodyRekeyOptions,
     ) -> Result<CoinSpend, DriverError> {
-        self.info.start_rekey_spend(
-            ctx,
-            self.coin,
-            self.proof,
-            new_policy,
-            signers,
-            fee_announcement,
-        )
+        self.info
+            .start_rekey_spend(ctx, self.coin, self.proof, new_policy, signers, options)
     }
 }

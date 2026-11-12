@@ -1,7 +1,6 @@
 use crate::{
-    DriverError, InternalCustodyError, InternalCustodyLayer, InternalCustodyPaymentAction,
-    InternalCustodyPaymentOptions, InternalCustodyPolicy, InternalCustodyWithdrawal, Layer,
-    P2SingletonLayer, SpendContext,
+    DriverError, InternalCustodyError, InternalCustodyPaymentAction, InternalCustodyPaymentOptions,
+    InternalCustodyPolicy, Layer, P2SingletonLayer, SpendContext,
 };
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
@@ -25,16 +24,9 @@ use clvmr::NodePtr;
 pub(super) const DEFAULT_INNER: (u8, (u8, (u8, ()))) = clvm_list!(2, 2, 5);
 
 impl InternalCustodyPolicy {
-    /// Construct the committed inner custody layer.
-    pub fn inner_layer(
-        &self,
-        _ctx: &mut SpendContext,
-    ) -> Result<InternalCustodyLayer, DriverError> {
-        Ok(self.layer())
-    }
     /// Construct the full singleton puzzle for this policy.
     pub fn singleton_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let inner_puzzle = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
+        let inner_puzzle = self.inner_layer().construct_puzzle(ctx)?;
         ctx.curry(SingletonArgs {
             singleton_struct: SingletonStruct::new(self.info().launcher_id),
             inner_puzzle,
@@ -119,44 +111,10 @@ impl InternalCustodyPolicy {
             ctx.serialize(&solution)?,
         ))
     }
-    /// Construct an authorized withdrawal, deposit absorption, or both. The first
-    /// spend is the singleton; remaining inputs are p2-singleton deposits in caller order. No fee inputs or
-    /// arbitrary delegated conditions are permitted here.
-    /// Deposit totals must be even to preserve the singleton's odd amount.
-    /// Pass no withdrawal for claim-only; it creates no pending payment.
-    /// This convenience form chooses a zero absorb context and no fee announcement.
-    /// Use `payment_spends_with_options` to preserve an explicit reference context.
-    /// Callers must check current input availability and relative-time eligibility.
-    pub fn payment_spends(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        proof: Proof,
-        withdrawal: Option<InternalCustodyWithdrawal>,
-        signers: &[PublicKey],
-        deposits: &[Coin],
-    ) -> Result<Vec<CoinSpend>, DriverError> {
-        self.payment_spends_with_options(
-            ctx,
-            coin,
-            proof,
-            InternalCustodyPaymentOptions {
-                action: withdrawal.map_or(
-                    InternalCustodyPaymentAction::Absorb {
-                        destination_context: Bytes32::default(),
-                    },
-                    InternalCustodyPaymentAction::Withdraw,
-                ),
-                fee_announcement: false,
-            },
-            signers,
-            deposits,
-        )
-    }
     /// Construct the exact supported Python payment form, preserving deposit
     /// order and absorb-only context. The only extra condition permitted is the
     /// reference CLI's empty fee announcement; no fee inputs are included.
-    pub fn payment_spends_with_options(
+    pub fn payment_spends(
         &self,
         ctx: &mut SpendContext,
         coin: Coin,
@@ -179,7 +137,7 @@ impl InternalCustodyPolicy {
         if !amount.is_multiple_of(2) || coin.amount.is_multiple_of(2) {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
-        let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
+        let inner = self.inner_layer().construct_puzzle(ctx)?;
         let pending = self.pending_payment_puzzle(ctx, destination)?;
         let mut conditions =
             Conditions::new().create_coin(ctx.tree_hash(inner).into(), remaining, Memos::None);

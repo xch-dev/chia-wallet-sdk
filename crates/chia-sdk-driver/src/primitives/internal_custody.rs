@@ -1,4 +1,4 @@
-//! Construction and public policy data for the legacy prefarm custody puzzles.
+//! Construction and public policy data for the prefarm custody puzzles.
 mod authorization;
 mod clawback;
 mod rekey;
@@ -9,7 +9,7 @@ mod singleton;
 pub use policy::*;
 pub use singleton::InternalCustody;
 
-/// Invalid or unsupported legacy custody data. Clear-signing parsers accept only
+/// Invalid or unsupported custody data. Clear-signing parsers accept only
 /// explicitly modeled operations, never a generic delegated spend fallback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum InternalCustodyError {
@@ -43,7 +43,7 @@ pub(crate) use payment::internal_custody_remaining_amount;
 pub const MAX_INTERNAL_CUSTODY_INPUTS: usize = 64;
 
 /// An outgoing payment to create alongside the vault continuation.
-/// Use `None` in `InternalCustodyPolicy::payment_spends` for claim-only absorption.
+/// Use `InternalCustodyPaymentAction::Absorb` for claim-only absorption.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyWithdrawal {
     /// Positive, even payment amount in mojos.
@@ -60,7 +60,7 @@ pub enum InternalCustodyPaymentAction {
     /// Recreate the singleton without an outgoing coin. The context is signed
     /// but is not a recipient when no payment output exists.
     Absorb {
-        /// Legacy signed destination context.
+        /// Signed destination context.
         destination_context: chia_protocol::Bytes32,
     },
 }
@@ -70,5 +70,14 @@ pub struct InternalCustodyPaymentOptions {
     /// Reviewed fund movement.
     pub action: InternalCustodyPaymentAction,
     /// Append the CLI's empty `CREATE_COIN_ANNOUNCEMENT` for external fee funding.
+    pub fee_announcement: bool,
+}
+
+/// Explicit initiation delay and reference fee-announcement form for a rekey.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InternalCustodyRekeyOptions {
+    /// Positive committed multiple, at least `1 + required - signers.len()`.
+    pub timelock_multiple: u8,
+    /// Create the empty announcement used to bind an independent fee sponsor.
     pub fee_announcement: bool,
 }
