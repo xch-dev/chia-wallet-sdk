@@ -46,6 +46,8 @@
 //! # let _ = P2CurriedSolution::new(TreeHash::new([2; 32]), ());
 //! ```
 
+mod internal_custody;
+pub use internal_custody::*;
 mod augmented_condition;
 mod cat_makers;
 mod everything_with_singleton;

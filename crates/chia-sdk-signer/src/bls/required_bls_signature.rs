@@ -158,6 +158,36 @@ impl RequiredBlsSignature {
         }
     }
 
+    /// Sign one share of this condition using its aggregate public key as the
+    /// augmentation context. This is not ordinary individual-key signing. The
+    /// caller must authorize the participant and the complete transaction first.
+    pub fn sign_partial(
+        &self,
+        secret_key: &chia_bls::SecretKey,
+    ) -> Result<chia_bls::Signature, crate::SignerError> {
+        if self.public_key.is_inf() || secret_key.public_key().is_inf() {
+            return Err(crate::SignerError::InfinityPublicKey);
+        }
+        let mut augmented = self.public_key.to_bytes().to_vec();
+        augmented.extend(self.message());
+        Ok(chia_bls::sign_raw(secret_key, augmented))
+    }
+
+    /// Verify a participant's share in this condition's common augmentation
+    /// context. Ordinary `verify(participant, message)` uses a different context.
+    pub fn verify_partial(&self, participant: &PublicKey, signature: &chia_bls::Signature) -> bool {
+        if self.public_key.is_inf()
+            || participant.is_inf()
+            || signature == &chia_bls::Signature::default()
+        {
+            return false;
+        }
+        let mut augmented = self.public_key.to_bytes().to_vec();
+        augmented.extend(self.message());
+        chia_bls::hash_to_g2(&augmented).pair(participant)
+            == signature.pair(&PublicKey::generator())
+    }
+
     /// Computes the message that needs to be signed, which is the
     /// [`raw_message`](Self::raw_message), followed by the [`appended_info`](Self::appended_info),
     /// followed by the [`domain_string`](Self::domain_string) if there is one.
@@ -336,5 +366,45 @@ mod tests {
             AggSigConstants::new(c.agg_sig_me_additional_data),
             AggSigConstants::from(c)
         );
+    }
+}
+
+#[cfg(test)]
+mod partial_tests {
+    use super::*;
+    use chia_bls::{SecretKey, Signature, aggregate, verify};
+
+    #[test]
+    fn shares_use_the_condition_augmentation_key() -> anyhow::Result<()> {
+        let first = SecretKey::from_seed(&[1; 32]);
+        let second = SecretKey::from_seed(&[2; 32]);
+        let required = RequiredBlsSignature {
+            public_key: first.public_key() + &second.public_key(),
+            raw_message: vec![1, 2, 3].into(),
+            appended_info: vec![4],
+            domain_string: Some([5; 32].into()),
+        };
+        let a = required.sign_partial(&first)?;
+        let b = required.sign_partial(&second)?;
+        assert!(required.verify_partial(&first.public_key(), &a));
+        assert!(required.verify_partial(&second.public_key(), &b));
+        assert!(!required.verify_partial(&second.public_key(), &a));
+        assert!(!verify(&a, &first.public_key(), required.message()));
+        assert!(verify(
+            &aggregate([a.clone(), b]),
+            &required.public_key,
+            required.message()
+        ));
+        let mut different = required.clone();
+        different.raw_message = vec![9].into();
+        assert!(!different.verify_partial(&first.public_key(), &a));
+        different = required.clone();
+        different.public_key = first.public_key();
+        assert!(!different.verify_partial(&first.public_key(), &a));
+        assert!(!required.verify_partial(&PublicKey::default(), &a));
+        assert!(!required.verify_partial(&first.public_key(), &Signature::default()));
+        different.public_key = PublicKey::default();
+        assert!(different.sign_partial(&first).is_err());
+        Ok(())
     }
 }

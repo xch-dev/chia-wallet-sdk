@@ -10,6 +10,8 @@
 //! the parent coin spend (for example, with [`Cat::parse_children`] or [`Nft::parse_child`]), which
 //! is how wallets discover and sync coins.
 
+mod internal_custody;
+pub use internal_custody::*;
 mod bulletin;
 mod cat;
 mod cat_maker;

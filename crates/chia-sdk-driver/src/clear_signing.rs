@@ -17,6 +17,8 @@
 //! Anything that can't be verified is left out, and anything linked to the vault that can't be verified is an error.
 //! See [`parse_vault_transaction`] for exactly what is and isn't guaranteed.
 
+mod internal_custody;
+pub use internal_custody::*;
 mod children;
 mod delegated_spend;
 mod facts;
