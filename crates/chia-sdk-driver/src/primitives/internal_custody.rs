@@ -76,7 +76,7 @@ pub struct InternalCustodyPaymentOptions {
 /// Explicit initiation delay and reference fee-announcement form for a rekey.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyRekeyOptions {
-    /// Positive committed multiple, at least `1 + required - signers.len()`.
+    /// Committed multiple from 1 through 255, at least `1 + required - signers.len()`.
     pub timelock_multiple: u8,
     /// Create the empty announcement used to bind an independent fee sponsor.
     pub fee_announcement: bool,

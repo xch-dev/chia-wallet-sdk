@@ -1,8 +1,8 @@
 use super::{
-    Coin, CoinSpend, DriverError, FromClvm, InternalCustodyError, InternalCustodyLayer,
-    InternalCustodyPayment, InternalCustodyPaymentArguments, InternalCustodyPendingPayment,
-    InternalCustodyPolicy, InternalCustodySpendSolution, Layer, NodePtr, PublicKey, Puzzle,
-    SingletonLayer, SingletonSolution, SpendContext, match_fee_form,
+    Coin, CoinSpend, DriverError, FromClvm, InternalCustodyError, InternalCustodyPayment,
+    InternalCustodyPaymentArguments, InternalCustodyPendingPayment, InternalCustodyPolicy,
+    InternalCustodySpendSolution, NodePtr, PublicKey, SingletonSolution, SpendContext,
+    match_fee_form,
 };
 
 pub(super) fn reconstruct_payment(
@@ -10,27 +10,10 @@ pub(super) fn reconstruct_payment(
     policy: &InternalCustodyPolicy,
     spends: &[CoinSpend],
     signers: &[PublicKey],
-    decoded: (NodePtr, NodePtr),
-) -> Result<(Vec<CoinSpend>, InternalCustodyPayment), DriverError> {
-    let Some(spend) = spends
-        .first()
-        .filter(|_| spends.len() <= crate::MAX_INTERNAL_CUSTODY_INPUTS)
-    else {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    };
-    let (puzzle, solution) = decoded;
-    if ctx.tree_hash(puzzle) != spend.coin.puzzle_hash.into() {
-        return Err(DriverError::WrongPuzzleHash);
-    }
-    let Some(layer) =
-        SingletonLayer::<InternalCustodyLayer>::parse_puzzle(ctx, Puzzle::parse(ctx, puzzle))?
-    else {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    };
-    if layer.launcher_id != policy.info().launcher_id || layer.inner_puzzle != policy.inner_layer()
-    {
-        return Err(InternalCustodyError::InvalidPolicy.into());
-    }
+    solution: NodePtr,
+) -> Result<InternalCustodyPayment, DriverError> {
+    // The operation verifier has already bounded and decoded this nonempty set.
+    let spend = &spends[0];
     let singleton = SingletonSolution::<
         InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>,
     >::from_clvm(&**ctx, solution)?;
@@ -54,7 +37,7 @@ pub(super) fn reconstruct_payment(
     };
     // The reference CLI's sole extra condition is an empty fee announcement.
     // Require an exact reconstruction of one of these two explicit forms.
-    let (expected, fee_announcement) = match_fee_form(
+    let fee_announcement = match_fee_form(
         |fee_announcement| {
             policy.payment_spends(
                 ctx,
@@ -74,15 +57,16 @@ pub(super) fn reconstruct_payment(
     let pending_puzzle = policy.pending_payment_puzzle(ctx, action.destination)?;
     let payment = InternalCustodyPayment {
         input_coin: spend.coin,
-        vault_child: Coin::new(
-            spend.coin.coin_id(),
-            spend.coin.puzzle_hash,
-            crate::internal_custody_remaining_amount(
-                spend.coin.amount,
-                action.incoming,
-                action.outgoing,
-            )?,
-        ),
+        vault_child: crate::Singleton::new(spend.coin, singleton.lineage_proof, policy)
+            .child_with(
+                policy,
+                crate::internal_custody_remaining_amount(
+                    spend.coin.amount,
+                    action.incoming,
+                    action.outgoing,
+                )?,
+            )
+            .coin,
         signed_destination_context: action.destination,
         incoming_amount: action.incoming,
         fee_announcement,
@@ -98,7 +82,7 @@ pub(super) fn reconstruct_payment(
         }),
         launcher_id: info.launcher_id,
         clawback_seconds: info.payment_clawback,
-        withdrawal_seconds: info.withdrawal_timelock,
+        withdrawal_seconds: 0,
     };
-    Ok((expected, payment))
+    Ok(payment)
 }

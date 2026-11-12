@@ -15,17 +15,32 @@ use clvm_traits::clvm_list;
 use clvmr::NodePtr;
 use std::{collections::HashSet, num::NonZeroU8};
 
+/// A recovery multiple is strictly greater than the standard multiple of one.
+#[derive(Clone, Copy)]
+pub(super) struct RecoveryMultiple(NonZeroU8);
+impl RecoveryMultiple {
+    fn new(value: u8) -> Result<Self, crate::DriverError> {
+        if value <= 1 {
+            return Err(InternalCustodyError::InvalidSigningSet.into());
+        }
+        Ok(Self(NonZeroU8::new(value).expect("greater than one")))
+    }
+    fn get(self) -> u8 {
+        self.0.get()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum ConditionsAuthorization {
     Standard,
-    Recovery(NonZeroU8),
+    Recovery(RecoveryMultiple),
 }
 impl ConditionsAuthorization {
     pub fn rekey(multiple: u8) -> Result<Self, crate::DriverError> {
         match multiple {
             0 => Err(InternalCustodyError::InvalidSigningSet.into()),
             1 => Ok(Self::Standard),
-            m => Ok(Self::Recovery(NonZeroU8::new(m).expect("positive"))),
+            m => Ok(Self::Recovery(RecoveryMultiple::new(m)?)),
         }
     }
 }
@@ -33,15 +48,6 @@ impl ConditionsAuthorization {
 pub(super) enum AuthKind {
     Lock,
     Conditions(ConditionsAuthorization),
-}
-impl AuthKind {
-    fn multiple(self) -> u8 {
-        match self {
-            Self::Lock => 0,
-            Self::Conditions(ConditionsAuthorization::Standard) => 1,
-            Self::Conditions(ConditionsAuthorization::Recovery(m)) => m.get(),
-        }
-    }
 }
 
 pub(super) struct Authorization {
@@ -73,30 +79,37 @@ impl InternalCustodyPolicy {
         }
         Ok(key)
     }
-    pub(crate) fn authorization_filter(
+    pub(super) fn authorization_filter(
         &self,
         ctx: &mut SpendContext,
         root: Bytes32,
-        multiple: u8,
+        kind: AuthKind,
     ) -> Result<NodePtr, crate::DriverError> {
         let rekey = InternalCustodyRekeyFilter {
             puzzle_hash: self.drop_puzzle_hashes.rekey,
-            allowed_timelock: u64::from(multiple),
+            allowed_timelock: match kind {
+                AuthKind::Lock => 0,
+                AuthKind::Conditions(ConditionsAuthorization::Standard) => 1,
+                AuthKind::Conditions(ConditionsAuthorization::Recovery(m)) => u64::from(m.get()),
+            },
         };
-        let filter = if multiple == 1 {
-            ctx.curry(InternalCustodyRekeyAndPaymentArgs {
-                config: InternalCustodyFilterConfig {
-                    rekey,
-                    payment: InternalCustodyPaymentFilter {
-                        puzzle_hash: self.drop_puzzle_hashes.payment,
-                        clawback_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
-                            .curry_tree_hash()
-                            .into(),
+        let filter = match kind {
+            AuthKind::Conditions(ConditionsAuthorization::Standard) => {
+                ctx.curry(InternalCustodyRekeyAndPaymentArgs {
+                    config: InternalCustodyFilterConfig {
+                        rekey,
+                        payment: InternalCustodyPaymentFilter {
+                            puzzle_hash: self.drop_puzzle_hashes.payment,
+                            clawback_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
+                                .curry_tree_hash()
+                                .into(),
+                        },
                     },
-                },
-            })?
-        } else {
-            ctx.curry(InternalCustodyOnlyRekeyArgs { config: rekey })?
+                })?
+            }
+            AuthKind::Lock | AuthKind::Conditions(ConditionsAuthorization::Recovery(_)) => {
+                ctx.curry(InternalCustodyOnlyRekeyArgs { config: rekey })?
+            }
         };
         ctx.curry(InternalCustodyFilterArgs {
             inner_puzzle: filter,
@@ -170,7 +183,7 @@ impl InternalCustodyPolicy {
             .proof
             .root(hash)
             .ok_or(InternalCustodyError::InvalidPolicy)?;
-        let filter = self.authorization_filter(ctx, root, kind.multiple())?;
+        let filter = self.authorization_filter(ctx, root, kind)?;
         let hash: Bytes32 = ctx.tree_hash(filter).into();
         let filter_proof = self
             .filter_proofs
@@ -201,5 +214,22 @@ impl InternalCustodyPolicy {
             solution: clvm_list!(spend.solution, context),
         })?;
         Ok((auth.filter, auth.proof, solution))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RecoveryMultiple;
+    #[test]
+    fn recovery_multiple_excludes_lock_and_standard() {
+        for value in 0..=255 {
+            match RecoveryMultiple::new(value) {
+                Ok(multiple) => {
+                    assert!(value > 1);
+                    assert_eq!(multiple.get(), value);
+                }
+                Err(_) => assert!(value <= 1),
+            }
+        }
     }
 }

@@ -94,31 +94,28 @@ impl InternalCustodyPolicy {
         if unique.len() != keys.len() {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
-        let mut policy = Self {
-            drop_puzzle_hashes: chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
-                rekey: Bytes32::default(),
-                payment: Bytes32::default(),
-            },
-            info,
-            keys,
-            next_root,
-            thresholds,
-            filter_proofs,
-            leaf_proofs,
-        };
-        policy.drop_puzzle_hashes = chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
+        let drop_puzzle_hashes = chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
             rekey: chia_sdk_types::puzzles::InternalCustodyDropArgs {
                 inner_puzzle: super::payment::DEFAULT_INNER,
-                merkle_root: policy.rekey_tree().root(),
+                merkle_root: Self::rekey_tree(&info).root(),
             }
             .curry_tree_hash()
             .into(),
             payment: chia_sdk_types::puzzles::InternalCustodyDropArgs {
                 inner_puzzle: super::payment::DEFAULT_INNER,
-                merkle_root: policy.payment_completion_tree().1.root(),
+                merkle_root: Self::payment_completion_tree(&info).1.root(),
             }
             .curry_tree_hash()
             .into(),
+        };
+        let policy = Self {
+            info,
+            drop_puzzle_hashes,
+            keys,
+            next_root,
+            thresholds,
+            filter_proofs,
+            leaf_proofs,
         };
         if policy.to_reference_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());

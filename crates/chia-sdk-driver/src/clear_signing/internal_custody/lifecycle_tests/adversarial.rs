@@ -422,3 +422,63 @@ fn explicit_attempt_delay_must_cover_the_selected_subset_minimum() {
         );
     }
 }
+
+#[test]
+fn rekey_execution_rejects_relative_seconds_outside_u64() -> anyhow::Result<()> {
+    let ctx = &mut ctx();
+    let original = policy("policy");
+    let replacement = policy("new_policy");
+    let info = InternalCustodyInfo {
+        rekey_increment: u64::MAX,
+        ..original.info()
+    };
+    let old =
+        InternalCustodyPolicy::derive(ctx, info, original.keys().to_vec(), original.thresholds())?;
+    let new = InternalCustodyPolicy::derive(
+        ctx,
+        info,
+        replacement.keys().to_vec(),
+        replacement.thresholds(),
+    )?;
+    let input = spends(operation("slow-rekey"));
+    let selected = keys(operation("slow-rekey"));
+    let coin = Coin::new(
+        input[0].coin.parent_coin_info,
+        old.puzzle_hash().into(),
+        input[0].coin.amount,
+    );
+    let proof = proof(ctx, &input[0]);
+    let spend = old.start_rekey_spend(
+        ctx,
+        coin,
+        proof,
+        &new,
+        &selected,
+        InternalCustodyRekeyOptions {
+            timelock_multiple: 2,
+            fee_announcement: false,
+        },
+    )?;
+    let result = parse_internal_custody_operation(
+        ctx,
+        &old,
+        &[spend],
+        InternalCustodyOperationRequest::Rekey {
+            new_policy: &new,
+            signers: &selected,
+        },
+        &constants(),
+        500_000_000,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(DriverError::InternalCustody(
+                InternalCustodyError::UnexpectedConditions
+            ))
+        ),
+        "{:?}",
+        result.err()
+    );
+    Ok(())
+}

@@ -17,7 +17,7 @@ use chia_sdk_types::{
     },
 };
 use clvm_traits::{clvm_curried_args, clvm_list};
-use clvm_utils::CurriedProgram;
+use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 
 // `(a 2 5)` applies the revealed branch to the remaining environment.
@@ -33,7 +33,7 @@ impl InternalCustodyPolicy {
         })
     }
     pub(crate) fn payment_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let (_, tree) = self.payment_completion_tree();
+        let (_, tree) = Self::payment_completion_tree(&self.info());
         let root = tree.root();
         let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
         ctx.curry(InternalCustodyDropArgs {
@@ -41,12 +41,14 @@ impl InternalCustodyPolicy {
             merkle_root: root,
         })
     }
-    pub(super) fn payment_completion_tree(&self) -> (InternalCustodyAchCompletionArgs, MerkleTree) {
+    pub(super) fn payment_completion_tree(
+        info: &super::InternalCustodyInfo,
+    ) -> (InternalCustodyAchCompletionArgs, MerkleTree) {
         let complete = InternalCustodyAchCompletionArgs {
-            timelock: self.info().payment_clawback,
+            timelock: info.payment_clawback,
         };
         let clawback = InternalCustodyAchClawbackArgs {
-            return_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
+            return_puzzle_hash: P2SingletonArgs::new(info.launcher_id)
                 .curry_tree_hash()
                 .into(),
         };
@@ -57,7 +59,7 @@ impl InternalCustodyPolicy {
         (complete, tree)
     }
     pub(crate) fn rekey_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let root = self.rekey_tree().root();
+        let root = Self::rekey_tree(&self.info()).root();
         let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
         ctx.curry(InternalCustodyDropArgs {
             inner_puzzle,
@@ -94,7 +96,7 @@ impl InternalCustodyPolicy {
         {
             return Err(DriverError::WrongPuzzleHash);
         }
-        let (complete, tree) = self.payment_completion_tree();
+        let (complete, tree) = Self::payment_completion_tree(&self.info());
         let complete_hash = complete.curry_tree_hash();
         let proof = tree
             .proof(complete_hash.into())
@@ -137,15 +139,13 @@ impl InternalCustodyPolicy {
         if !amount.is_multiple_of(2) || coin.amount.is_multiple_of(2) {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
-        let inner = self.inner_layer().construct_puzzle(ctx)?;
+        let inner_hash: Bytes32 = self.inner_layer().tree_hash().into();
         let pending = self.pending_payment_puzzle(ctx, destination)?;
-        let mut conditions =
-            Conditions::new().create_coin(ctx.tree_hash(inner).into(), remaining, Memos::None);
+        let mut conditions = Conditions::new().create_coin(inner_hash, remaining, Memos::None);
         if amount > 0 {
             conditions = conditions.create_coin(ctx.tree_hash(pending).into(), amount, Memos::None);
         }
         let deposit_layer = P2SingletonLayer::new(self.info().launcher_id);
-        let inner_hash: Bytes32 = ctx.tree_hash(inner).into();
         let mut deposit_spends = Vec::with_capacity(deposits.len());
         for deposit in deposits {
             let id = deposit.coin_id();

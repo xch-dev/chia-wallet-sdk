@@ -26,13 +26,13 @@ pub struct InternalCustodyLockSpends {
     pub completion: [CoinSpend; 2],
 }
 impl InternalCustodyPolicy {
-    pub(crate) fn rekey_tree(&self) -> MerkleTree {
+    pub(crate) fn rekey_tree(info: &super::InternalCustodyInfo) -> MerkleTree {
         MerkleTree::new(&[
             InternalCustodyRekeyCompletionArgs {
                 singleton_struct: chia_puzzle_types::singleton::SingletonStruct::new(
-                    self.info().launcher_id,
+                    info.launcher_id,
                 ),
-                timelock: self.info().rekey_clawback,
+                timelock: info.rekey_clawback,
             }
             .curry_tree_hash()
             .into(),
@@ -204,8 +204,7 @@ impl InternalCustodyPolicy {
         let branch = ctx.alloc_mod::<InternalCustodyRekeyClawback>()?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: branch,
-            proof: self
-                .rekey_tree()
+            proof: Self::rekey_tree(&self.info())
                 .proof(InternalCustodyRekeyClawback::mod_hash().into())
                 .ok_or(InternalCustodyError::InvalidPolicy)?,
             solution: InternalCustodyRekeyClawbackSolution {
@@ -270,8 +269,7 @@ impl InternalCustodyPolicy {
         let complete_puzzle = ctx.curry(complete)?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: complete_puzzle,
-            proof: self
-                .rekey_tree()
+            proof: Self::rekey_tree(&self.info())
                 .proof(complete.curry_tree_hash().into())
                 .ok_or(InternalCustodyError::InvalidPolicy)?,
             solution: clvm_list!(proofs.1),

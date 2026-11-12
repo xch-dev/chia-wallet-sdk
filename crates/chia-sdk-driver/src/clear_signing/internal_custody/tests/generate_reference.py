@@ -20,7 +20,7 @@ parser.add_argument(
     "--output", type=Path, default=Path(__file__).with_name("lifecycle.json")
 )
 args = parser.parse_args()
-EXPECTED_VERSIONS = {"chia-blockchain": "2.7.6.dev175", "chia_rs": "0.50.0"}
+EXPECTED_VERSIONS = {"chia-blockchain": "2.7.5", "chia_rs": "0.48.1"}
 for package, expected in EXPECTED_VERSIONS.items():
     if version(package) != expected:
         raise SystemExit(f"{package} must be {expected}, found {version(package)}")

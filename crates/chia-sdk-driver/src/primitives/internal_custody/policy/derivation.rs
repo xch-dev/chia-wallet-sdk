@@ -1,3 +1,4 @@
+use super::super::authorization::{AuthKind, ConditionsAuthorization};
 use super::{
     Bytes32, DriverError, InternalCustodyError, InternalCustodyInfo, InternalCustodyPolicy,
     InternalCustodyProof, InternalCustodyThresholds, MAX_POLICY_BYTES, MAX_POLICY_PROOFS,
@@ -53,7 +54,11 @@ impl InternalCustodyPolicy {
             .map(|pk| StandardLayer::new(pk.derive_synthetic()).tree_hash().into())
             .collect();
         let tree = MerkleTree::new(&leaves);
-        let filter = policy.authorization_filter(ctx, tree.root(), 1)?;
+        let filter = policy.authorization_filter(
+            ctx,
+            tree.root(),
+            AuthKind::Conditions(ConditionsAuthorization::Standard),
+        )?;
         filters.push(ctx.tree_hash(filter).into());
         append_proofs(&mut policy.leaf_proofs, &leaves, &tree);
         if let Some(next_root) = policy.next_root {
@@ -63,7 +68,7 @@ impl InternalCustodyPolicy {
                 leaves.push(ctx.tree_hash(puzzle).into());
             }
             let tree = MerkleTree::new(&leaves);
-            let filter = policy.authorization_filter(ctx, tree.root(), 0)?;
+            let filter = policy.authorization_filter(ctx, tree.root(), AuthKind::Lock)?;
             filters.push(ctx.tree_hash(filter).into());
             append_proofs(&mut policy.leaf_proofs, &leaves, &tree);
         }
@@ -76,7 +81,11 @@ impl InternalCustodyPolicy {
             let tree = MerkleTree::new(&leaves);
             let multiple = u8::try_from(1 + thresholds.required - k)
                 .map_err(|_| InternalCustodyError::InvalidPolicy)?;
-            let filter = policy.authorization_filter(ctx, tree.root(), multiple)?;
+            let filter = policy.authorization_filter(
+                ctx,
+                tree.root(),
+                AuthKind::Conditions(ConditionsAuthorization::rekey(multiple)?),
+            )?;
             filters.push(ctx.tree_hash(filter).into());
             append_proofs(&mut policy.leaf_proofs, &leaves, &tree);
         }

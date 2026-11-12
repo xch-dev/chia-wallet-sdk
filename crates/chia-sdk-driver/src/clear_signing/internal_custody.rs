@@ -1,10 +1,9 @@
+#[cfg(test)]
+use crate::{InternalCustodyLayer, Layer, Puzzle};
 mod operations;
 pub use operations::*;
 
-use crate::{
-    DriverError, InternalCustodyError, InternalCustodyLayer, InternalCustodyPolicy, Layer, Puzzle,
-    SingletonLayer, SpendContext,
-};
+use crate::{DriverError, InternalCustodyError, InternalCustodyPolicy, SpendContext};
 use chia_bls::{PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::SingletonSolution;
@@ -31,7 +30,8 @@ const MAX_PROGRAM_BYTES: usize = 256 * 1024;
 pub struct InternalCustodyPayment {
     /// Singleton input authorized by this operation.
     pub input_coin: Coin,
-    /// Singleton continuation containing the resulting vault funds.
+    /// Recreated singleton containing the resulting vault funds. Every payment,
+    /// absorption and no-op recreates this continuation, even when no ACH coin exists.
     pub vault_child: Coin,
     /// Outgoing ACH payment, absent for claim-only absorption.
     pub pending_payment: Option<InternalCustodyPendingPayment>,
@@ -47,7 +47,8 @@ pub struct InternalCustodyPayment {
     pub launcher_id: Bytes32,
     /// Delay in seconds before a pending payment can be completed.
     pub clawback_seconds: u64,
-    /// Minimum age in seconds of the singleton input.
+    /// Minimum age in seconds since the singleton input was confirmed.
+    /// Read from its executed conditions; this does not establish time readiness.
     pub withdrawal_seconds: u64,
 }
 

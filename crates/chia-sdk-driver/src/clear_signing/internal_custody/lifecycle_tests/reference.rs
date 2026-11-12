@@ -362,26 +362,43 @@ fn verified_disclosures_and_offset_shares_match_every_signed_reference() -> anyh
                     InternalCustodyPaymentArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
                 assert_eq!(payment.signed_destination_context, action.destination);
                 assert_eq!(
+                    payment.fee_announcement,
+                    v["fee_announcement"].as_bool().unwrap()
+                );
+                assert_eq!(
+                    payment.withdrawal_seconds,
+                    reference_relative_seconds(ctx, &v["execution"][0])?
+                );
+                assert_eq!(
                     payment.vault_child.parent_coin_info,
                     input[0].coin.coin_id()
                 );
             }
             InternalCustodyOperationEffects::Rekey {
-                timelock_multiple,
                 initiation_seconds,
                 completion_seconds,
+                fee_announcement,
                 ..
             } => {
+                assert_eq!(*fee_announcement, v["fee_announcement"].as_bool().unwrap());
                 assert_eq!(
                     *initiation_seconds,
-                    u128::from(old.info().rekey_increment) * u128::from(*timelock_multiple)
-                        + if *timelock_multiple > 1 {
-                            u128::from(old.info().slow_rekey)
-                        } else {
-                            0
-                        }
+                    reference_relative_seconds(ctx, &v["execution"][0])?
                 );
                 assert_eq!(*completion_seconds, old.info().rekey_clawback);
+            }
+            InternalCustodyOperationEffects::PaymentClawback {
+                destination,
+                fee_announcement,
+                ..
+            } => {
+                assert_eq!(*destination, bytes(&data()["destination"]));
+                assert_eq!(*fee_announcement, v["fee_announcement"].as_bool().unwrap());
+            }
+            InternalCustodyOperationEffects::RekeyClawback {
+                fee_announcement, ..
+            } => {
+                assert_eq!(*fee_announcement, v["fee_announcement"].as_bool().unwrap());
             }
             _ => (),
         }
@@ -432,4 +449,19 @@ fn singleton_solution_for_test(
     let original = SingletonSolution::<NodePtr>::from_clvm(&**ctx, node)?.inner_solution;
     assert_eq!(ctx.serialize(&rebuilt)?, ctx.serialize(&original)?);
     Ok(solution)
+}
+
+fn reference_relative_seconds(
+    ctx: &mut SpendContext,
+    execution: &Value,
+) -> Result<u64, DriverError> {
+    let node = canonical_program(ctx, &unhex(&execution["conditions"]))?;
+    Ok(Vec::<Condition>::from_clvm(&**ctx, node)?
+        .into_iter()
+        .filter_map(|condition| match condition {
+            Condition::AssertSecondsRelative(c) => Some(c.seconds),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0))
 }

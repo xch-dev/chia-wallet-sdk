@@ -1,7 +1,7 @@
 {
   "environment": {
-    "chia-blockchain": "2.7.6.dev175",
-    "chia_rs": "0.50.0"
+    "chia-blockchain": "2.7.5",
+    "chia_rs": "0.48.1"
   },
   "reference_revision": "4150dc832a5e66b5ed839974f88d1feb573dcfe2",
   "domain": "37a90eb5185a9c4439a91ddc98bbadce7b4feba060d50116a067de66bf236615",

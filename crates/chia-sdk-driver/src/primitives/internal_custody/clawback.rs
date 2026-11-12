@@ -52,7 +52,7 @@ impl InternalCustodyPolicy {
         let clawback = InternalCustodyAchClawbackArgs {
             return_puzzle_hash: return_hash,
         };
-        let (_, tree) = self.payment_completion_tree();
+        let (_, tree) = Self::payment_completion_tree(&self.info());
         let branch = ctx.curry(clawback)?;
         let solution = InternalCustodyMerkleSolution {
             puzzle: branch,

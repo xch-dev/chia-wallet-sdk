@@ -60,7 +60,7 @@ Custody launcher puzzle or service.
 | Ordinary / slow rekey | `get_rekey_spend_info` | `start_rekey_spend` |
 | Rekey cancellation | `get_rekey_clawback_spend_info` | `rekey_clawback_spend` |
 | Rekey completion | `get_rekey_completion_spend` | `complete_rekey_spends` |
-| Security-level increase | `get_rekey_spend_info` without a replacement derivation | `increase_security_spends` |
+| Security increase | `get_rekey_spend_info` | `increase_security_spends` |
 
 The normal subset has `required` keys. A subset of `k` keys authorizes a minimum
 multiple of `1 + required - k`, down to `minimum`. An attempt may commit to that
@@ -86,8 +86,8 @@ Deposit input order is preserved, including its delegated-announcement order.
 Signer order does not change the aggregate key; duplicates are rejected. Payment
 arithmetic uses a wider intermediate and checks the final coin against `u64`,
 allowing absorption plus withdrawal even when their intermediate balance exceeds
-one coin's range. Deposit totals and withdrawals must be even, preserving the singleton's odd value. An
-absorb-only operation can retain a nonzero unused destination context, and a
+one coin's range. Deposit totals and withdrawals must be even, preserving the
+singleton's odd value. An absorb-only operation can retain a nonzero unused destination context, and a
 zero-value no-op is supported, matching Python. `payment_spends` always takes
 explicit `InternalCustodyPaymentOptions`: choose `Withdraw` or `Absorb` with its
 signed destination context and specify the fee-announcement form.
@@ -114,7 +114,6 @@ original policy even if the live singleton later rekeys.
 - The SDK rejects `minimum > required` and bounds public policies to 16 keys and
   1024 proofs per list, even where the reference CLI accepts larger configurations.
   These fail-closed limits bound offline work; they are not consensus limits.
-
 - The compiled puzzles are unchanged. Current consensus rejects ephemeral inputs
   carrying relative-time assertions, even with zero delay. Python's three-spend
   lock bundle must therefore be submitted in two stages. `increase_security_spends`
@@ -142,7 +141,17 @@ proofs, deposit bindings and mutual rekey announcements. Replacement policy
 metadata is independently derived against its committed root. Extra, missing,
 reordered or substituted inputs/conditions fail closed, except that a different
 valid independent pending coin naturally has a different coin ID and signing
-context. Relative-time conditions are preserved, not claimed to have elapsed.
+context. Every payment, absorption and no-op recreates the singleton reported as
+`vault_child`. Payment withdrawal and rekey initiation delays are read from the
+executed singleton's relative-time assertions, measured from confirmation of
+that singleton input. Completion delays are measured from confirmation of the
+pending payment or rekey coin. Reported delays do not establish time readiness;
+conditions are preserved, not claimed to have elapsed. Unrepresentable typed
+conditions, including relative delays outside `u64`, are rejected.
+
+Signed effects report the empty fee-sponsor announcement form for payments,
+payment cancellations, rekeys and rekey cancellations. Payment cancellations
+also report the original recipient committed by the pending coin.
 
 The caller must supply a bounded allocator, expected network domain, and current
 chain state. These verifiers do not establish inclusion, unspentness, freshness,
@@ -179,43 +188,25 @@ Adversarial tests cover wrong subsets/proofs/lineage, substituted inputs, immuta
 STATE changes, missing announcement partners, hidden effects, noncanonical
 programs, duplicate inputs, wrong amounts and shared cost-budget exhaustion.
 
-The generator records and requires `chia-blockchain==2.7.6.dev175` and
-`chia_rs==0.50.0`. The Chia source revision used is
-`0d53f9f7f28ef35450ebf2fefd3edea5ad025a01`. Create its Python environment from
-that checkout and install the pinned `chia_rs` version before regeneration.
-Reveals are stored once in a `programs` table keyed by serialized SHA256;
-operation records reference that table. The former application request/Docker
-fixtures have been replaced by the independently generated `payment` vector.
-No Docker backend is required.
+The generator requires the published releases `chia-blockchain==2.7.5` and
+`chia_rs==0.48.1` and records both versions in the fixture. Reveals are stored once
+in a `programs` table keyed by serialized SHA256; operations reference that table.
 
-Regenerate with that Python environment:
+From the SDK checkout, create an isolated Python 3.14 environment, install the
+released packages, and check out the pinned reference revision:
 
 ```sh
-/path/to/chia-blockchain/.venv/bin/python crates/chia-sdk-driver/src/clear_signing/internal_custody/tests/generate_reference.py \
-  --reference /path/to/internal-custody
+python3.14 -m venv /tmp/custody-reference-env
+/tmp/custody-reference-env/bin/python -m pip install \
+  'chia-blockchain==2.7.5' 'chia_rs==0.48.1'
+git clone https://github.com/Chia-Network/internal-custody \
+  /tmp/internal-custody-reference
+git -C /tmp/internal-custody-reference checkout --detach \
+  4150dc832a5e66b5ed839974f88d1feb573dcfe2
+/tmp/custody-reference-env/bin/python \
+  crates/chia-sdk-driver/src/clear_signing/internal_custody/tests/generate_reference.py \
+  --reference /tmp/internal-custody-reference
 cargo test -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --locked
 cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 ```
-
-## Migration of the in-development API
-
-These interfaces are new in this PR. Superseded names and wrappers are removed,
-with no deprecated aliases:
-
-| Previous interface | Current interface |
-| --- | --- |
-| `from_legacy_bytes` / `to_legacy_bytes` | `from_reference_bytes` / `to_reference_bytes`; identical reference `RootDerivation` bytes |
-| `parse_internal_custody_payment` | `parse_internal_custody_operation` with `InternalCustodyOperationRequest::Payment { signers }` |
-| `VerifiedInternalCustodyPayment` | `VerifiedInternalCustodyOperation`; `payment()` and `required_signature()` return `Option` because the type covers all operations |
-| `verify_synthetic_offset` | Removed; `offset_share()` derives the public share locally and returns `Result<Option<Signature>, DriverError>` |
-| Defaulting `payment_spends` and `payment_spends_with_options` | One `payment_spends` accepting explicit `InternalCustodyPaymentOptions`; use `Absorb { destination_context }` instead of an optional withdrawal |
-| Defaulting `start_rekey_spend` and `start_rekey_spend_with_state` | One `start_rekey_spend` accepting the replacement policy and explicit `InternalCustodyRekeyOptions` |
-| `inner_layer(ctx)?` | `inner_layer()`, returning the typed layer directly with no allocation or error |
-
-For the signer caller, change the stored verified type, use the `Payment` request
-with the existing selected subset, and extract the payment and signature with
-`payment()` / `required_signature()`. Remove the supplied synthetic-offset
-validation; the SDK no longer needs that hint. If assembling an aggregate
-signature, include the locally generated `offset_share()` when present.
-The caller's request JSON and app-facing review types remain its own interfaces.

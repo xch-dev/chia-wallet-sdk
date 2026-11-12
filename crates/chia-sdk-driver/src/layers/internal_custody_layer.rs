@@ -8,7 +8,7 @@ use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-/// The inner legacy prefarm layer. Parsing this layer identifies its parameters;
+/// The inner prefarm layer. Parsing this layer identifies its parameters;
 /// it does not authorize a spend or establish a trusted policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyLayer {
