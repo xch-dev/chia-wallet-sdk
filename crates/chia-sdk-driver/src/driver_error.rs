@@ -238,14 +238,19 @@ pub enum DriverError {
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    /// Coins couldn't be selected to cover an amount, such as the actions and fee of
+    /// [`Spends::apply_with_fee`](crate::Spends::apply_with_fee).
+    #[error("coin selection failed: {0}")]
+    CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
+
     /// [`spend_with_minimum_fee`](crate::spend_with_minimum_fee) rebuilt the transaction several
     /// times, and the fee still didn't cover its cost.
     #[error("the fee didn't cover the cost of the transaction after several attempts")]
     FeeDidNotConverge,
 
     /// A throwaway key of a [`VaultDryRun`](crate::VaultDryRun) failed to sign.
-    #[error("a stand-in vault key failed to sign")]
-    DryRunSigningFailed,
+    #[error("a stand-in vault key failed to sign: {0}")]
+    DryRunSigningFailed(String),
 
     /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
     /// single payment assertion would be satisfied by either of them.

@@ -2551,6 +2551,7 @@ export declare class MipsSpend {
   spend(custodyHash: Uint8Array): Spend
   spendVault(vault: Vault): void
   dryRun(vault: Vault): VaultDryRun
+  dryRunWithControllers(vault: Vault, controllers: Array<VaultDryRun>): VaultDryRun
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   eip712Member(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: K1PublicKey, signedHash: Uint8Array, signature: K1Signature): void

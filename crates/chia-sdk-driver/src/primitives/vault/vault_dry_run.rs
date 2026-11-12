@@ -3,10 +3,11 @@ use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::{
     Mod,
     puzzles::{
-        DelegatedPuzzleFeederSolution, K1Member, K1MemberPuzzleAssert,
-        K1MemberPuzzleAssertSolution, K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
+        AddDelegatedPuzzleWrapper, K1Member, K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution,
+        K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, R1Member, R1MemberPuzzleAssert,
-        R1MemberPuzzleAssertSolution, R1MemberSolution,
+        R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
+        SingletonMemberWithMode, SingletonMemberWithModeSolution,
     },
 };
 use chia_secp::{K1SecretKey, R1SecretKey};
@@ -15,8 +16,8 @@ use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, InnerPuzzleSpend, MipsSpend, MipsSpendKind, MofN, Puzzle, Spend, SpendContext,
-    Vault, VaultInfo, calculate_vault_puzzle_message, mips_puzzle_hash,
+    CurriedPuzzle, DriverError, InnerPuzzleSpend, MipsSpend, MipsSpendKind, MofN, Puzzle, Spend,
+    SpendContext, Vault, VaultInfo, calculate_vault_puzzle_message, mips_puzzle_hash,
 };
 
 /// The default authenticator data of a passkey member, used when the custody spend passed to
@@ -54,6 +55,9 @@ pub const PASSKEY_COST_MARGIN: u64 = 32_000;
 /// to [`VaultDryRun::new`], which should be the same length as the real ones (for example, from a previous signature
 /// by the same passkey).
 ///
+/// A vault controlled by other vaults (through a [`SingletonMember`] or [`SingletonMemberWithMode`]) is priced with
+/// [`VaultDryRun::with_controllers`], which points its singleton members at the controllers' stand-ins.
+///
 /// Other members that check a signature in CLVM aren't supported, and the stand-in spend will fail to run.
 #[derive(Debug, Clone)]
 pub struct VaultDryRun {
@@ -87,27 +91,68 @@ struct PasskeyData {
     challenge_index: usize,
 }
 
+/// Derives the throwaway keys of a stand-in. The keys don't need to be secret, since they only sign a transaction that's
+/// never submitted. They're derived from the vault's launcher id, so that the stand-ins of different vaults in the
+/// same transaction have different keys, as the real vaults do. Otherwise, after the 3.0 hard fork, the generator would
+/// charge for identical member puzzles only once, and the stand-in would cost less than the real transaction.
+struct KeyGenerator {
+    launcher_id: Bytes32,
+    next: u32,
+}
+
+/// What a member of the custody spend becomes in the stand-in.
+enum MemberRewrite {
+    /// The member signs in CLVM, so it's replaced with a member of the same type with a new key.
+    Rekeyed(NodePtr, DryRunKey),
+    /// The member is a singleton member of a controller, so its solution points at the controller's stand-in.
+    Controlled(Spend),
+    /// The member is kept as it is.
+    Unchanged,
+}
+
 impl VaultDryRun {
     /// Creates a stand-in for `vault`, from the custody spend that its members will sign. The custody spend's
     /// [`delegated`](MipsSpend::delegated) spend is ignored, and its member solutions are only used to copy the
     /// authenticator data and client data of passkey members.
+    ///
+    /// Only the members that the custody spend reveals are replaced. In an M of N, that's the first `required` members
+    /// that are in the custody spend, as [`MipsSpend::spend`] selects them.
     pub fn new(
         ctx: &mut SpendContext,
         vault: &Vault,
         custody: &MipsSpend,
     ) -> Result<Self, DriverError> {
+        Self::with_controllers(ctx, vault, custody, &[])
+    }
+
+    /// Creates a stand-in for `vault`, which is controlled by the vaults that `controllers` stand in for. Each
+    /// [`SingletonMember`] or [`SingletonMemberWithMode`] of a controller's launcher id is given the controller's
+    /// stand-in inner puzzle hash and amount, so that it accepts the message from the controller's stand-in. Create the
+    /// controllers' stand-ins first, and build their authorizations against this stand-in's coin.
+    pub fn with_controllers(
+        ctx: &mut SpendContext,
+        vault: &Vault,
+        custody: &MipsSpend,
+        controllers: &[VaultDryRun],
+    ) -> Result<Self, DriverError> {
         let mut stand_in = MipsSpend::new(custody.delegated);
         stand_in.restrictions.clone_from(&custody.restrictions);
 
         let mut signers = Vec::new();
-        let mut next_key = 0;
+        let mut keys = KeyGenerator {
+            launcher_id: vault.info.launcher_id,
+            next: 0,
+        };
 
         let custody_hash = rekey(
             ctx,
-            custody,
+            &RekeyContext {
+                custody,
+                controllers,
+            },
             &mut stand_in,
             &mut signers,
-            &mut next_key,
+            &mut keys,
             vault.info.custody_hash,
             true,
         )?;
@@ -153,22 +198,7 @@ impl VaultDryRun {
         let mut custody = self.custody.clone();
         custody.delegated = delegated_spend;
 
-        // The members sign the delegated puzzle hash that the delegated puzzle feeder passes them, which includes any
-        // delegated puzzle wrappers on the path. It doesn't depend on the signatures, so it's found by building the
-        // custody spend with placeholder signatures first.
-        for signer in &self.signers {
-            let solution = signer.solution(ctx, &self.vault, Bytes32::default())?;
-            set_member_spend(
-                &mut custody,
-                signer.member_hash,
-                Spend::new(signer.puzzle, solution),
-            )?;
-        }
-
-        let custody_spend = custody.spend(ctx, self.vault.info.custody_hash)?;
-        let feeder_solution: DelegatedPuzzleFeederSolution<NodePtr, NodePtr, NodePtr> =
-            ctx.extract(custody_spend.solution)?;
-        let delegated_puzzle_hash = ctx.tree_hash(feeder_solution.delegated_puzzle).into();
+        let delegated_puzzle_hash = self.signed_delegated_puzzle_hash(ctx, &custody)?;
 
         for signer in &self.signers {
             let solution = signer.solution(ctx, &self.vault, delegated_puzzle_hash)?;
@@ -180,6 +210,31 @@ impl VaultDryRun {
         }
 
         self.vault.spend(ctx, &custody)
+    }
+
+    /// The delegated puzzle hash that the members sign, which is the hash of the delegated puzzle wrapped in each of the
+    /// delegated puzzle wrappers on the spent path, as [`InnerPuzzleSpend::spend`] wraps it.
+    fn signed_delegated_puzzle_hash(
+        &self,
+        ctx: &SpendContext,
+        custody: &MipsSpend,
+    ) -> Result<Bytes32, DriverError> {
+        let mut wrappers = Vec::new();
+
+        custody
+            .members
+            .get(&self.vault.info.custody_hash)
+            .ok_or(DriverError::MissingSubpathSpend)?
+            .collect_delegated_puzzle_wrappers(custody, &mut wrappers)?;
+
+        let mut delegated_puzzle_hash = ctx.tree_hash(custody.delegated.puzzle);
+
+        for &wrapper in wrappers.iter().rev() {
+            delegated_puzzle_hash =
+                AddDelegatedPuzzleWrapper::new(wrapper, delegated_puzzle_hash).curry_tree_hash();
+        }
+
+        Ok(delegated_puzzle_hash.into())
     }
 }
 
@@ -295,9 +350,11 @@ impl PasskeyData {
         sk: &R1SecretKey,
         message_hash: &[u8; 32],
     ) -> Result<(Bytes, chia_secp::R1Signature), DriverError> {
-        let range = self
-            .challenge_range()
-            .ok_or(DriverError::DryRunSigningFailed)?;
+        let range = self.challenge_range().ok_or_else(|| {
+            DriverError::DryRunSigningFailed(
+                "the passkey client data doesn't contain a challenge".to_string(),
+            )
+        })?;
 
         let mut client_data_json = self.client_data_json.clone();
         client_data_json.replace_range(range, &base64_url(message_hash));
@@ -312,18 +369,24 @@ impl PasskeyData {
     }
 }
 
+struct RekeyContext<'a> {
+    custody: &'a MipsSpend,
+    controllers: &'a [VaultDryRun],
+}
+
 /// Copies the node at `hash` (and the nodes below it that the custody spend reveals) into `stand_in`, with every member
 /// that signs replaced by one with a new key, and returns its new hash.
 fn rekey(
     ctx: &mut SpendContext,
-    custody: &MipsSpend,
+    source: &RekeyContext<'_>,
     stand_in: &mut MipsSpend,
     signers: &mut Vec<DryRunSigner>,
-    next_key: &mut u32,
+    keys: &mut KeyGenerator,
     hash: TreeHash,
     top_level: bool,
 ) -> Result<TreeHash, DriverError> {
-    let node = custody
+    let node = source
+        .custody
         .members
         .get(&hash)
         .ok_or(DriverError::MissingSubpathSpend)?
@@ -333,25 +396,33 @@ fn rekey(
 
     let (kind, inner_puzzle_hash) = match node.kind {
         MipsSpendKind::Member(spend) => {
-            let spend = if let Some((puzzle, key)) = rekey_member(ctx, spend, next_key)? {
-                signer = Some((puzzle, key));
-                Spend::new(puzzle, NodePtr::NIL)
-            } else {
-                spend
+            let spend = match rewrite_member(ctx, spend, keys, source.controllers)? {
+                MemberRewrite::Rekeyed(puzzle, key) => {
+                    signer = Some((puzzle, key));
+                    Spend::new(puzzle, NodePtr::NIL)
+                }
+                MemberRewrite::Controlled(spend) => spend,
+                MemberRewrite::Unchanged => spend,
             };
             let inner_puzzle_hash = ctx.tree_hash(spend.puzzle);
             (MipsSpendKind::Member(spend), inner_puzzle_hash)
         }
         MipsSpendKind::MofN(m_of_n) => {
-            let mut items = Vec::with_capacity(m_of_n.items.len());
+            // Only the selected items are revealed. The others are only revealed by their hash, which costs the same
+            // whatever it is, and they're left out of the stand-in so that it selects the same items.
+            let selected = m_of_n.selected_items(source.custody)?;
+            let mut items = m_of_n.items.clone();
 
-            for item in m_of_n.items {
-                // Items that aren't spent are only revealed by their hash, which costs the same whatever it is.
-                items.push(if custody.members.contains_key(&item) {
-                    rekey(ctx, custody, stand_in, signers, next_key, item, false)?
-                } else {
-                    item
-                });
+            for index in selected {
+                items[index] = rekey(
+                    ctx,
+                    source,
+                    stand_in,
+                    signers,
+                    keys,
+                    m_of_n.items[index],
+                    false,
+                )?;
             }
 
             let m_of_n = MofN::new(m_of_n.required, items);
@@ -387,28 +458,33 @@ fn rekey(
     Ok(new_hash)
 }
 
-/// If the member signs in CLVM, returns a member of the same type with a new key, along with the key.
-fn rekey_member(
+/// Works out what a member of the custody spend becomes in the stand-in.
+fn rewrite_member(
     ctx: &mut SpendContext,
     spend: Spend,
-    next_key: &mut u32,
-) -> Result<Option<(NodePtr, DryRunKey)>, DriverError> {
+    keys: &mut KeyGenerator,
+    controllers: &[VaultDryRun],
+) -> Result<MemberRewrite, DriverError> {
     let mod_hash = Puzzle::parse(ctx, spend.puzzle).mod_hash();
 
+    if mod_hash == SingletonMember::mod_hash() || mod_hash == SingletonMemberWithMode::mod_hash() {
+        return controlled_member(ctx, spend, mod_hash, controllers);
+    }
+
     let result = if mod_hash == K1Member::mod_hash() {
-        let sk = k1_key(next_key);
+        let sk = keys.k1();
         let puzzle = ctx.curry(K1Member::new(sk.public_key()))?;
         (puzzle, DryRunKey::K1(sk))
     } else if mod_hash == K1MemberPuzzleAssert::mod_hash() {
-        let sk = k1_key(next_key);
+        let sk = keys.k1();
         let puzzle = ctx.curry(K1MemberPuzzleAssert::new(sk.public_key()))?;
         (puzzle, DryRunKey::K1PuzzleAssert(sk))
     } else if mod_hash == R1Member::mod_hash() {
-        let sk = r1_key(next_key);
+        let sk = keys.r1();
         let puzzle = ctx.curry(R1Member::new(sk.public_key()))?;
         (puzzle, DryRunKey::R1(sk))
     } else if mod_hash == R1MemberPuzzleAssert::mod_hash() {
-        let sk = r1_key(next_key);
+        let sk = keys.r1();
         let puzzle = ctx.curry(R1MemberPuzzleAssert::new(sk.public_key()))?;
         (puzzle, DryRunKey::R1PuzzleAssert(sk))
     } else if mod_hash == PasskeyMember::mod_hash() {
@@ -424,7 +500,7 @@ fn rekey_member(
                     )
                 },
             );
-        let sk = r1_key(next_key);
+        let sk = keys.r1();
         let puzzle = ctx.curry(PasskeyMember::new(sk.public_key()))?;
         (puzzle, DryRunKey::Passkey(sk, data))
     } else if mod_hash == PasskeyMemberPuzzleAssert::mod_hash() {
@@ -440,14 +516,61 @@ fn rekey_member(
                     )
                 },
             );
-        let sk = r1_key(next_key);
+        let sk = keys.r1();
         let puzzle = ctx.curry(PasskeyMemberPuzzleAssert::new(sk.public_key()))?;
         (puzzle, DryRunKey::PasskeyPuzzleAssert(sk, data))
     } else {
-        return Ok(None);
+        return Ok(MemberRewrite::Unchanged);
     };
 
-    Ok(Some(result))
+    Ok(MemberRewrite::Rekeyed(result.0, result.1))
+}
+
+/// If the singleton member is a controller's, gives it the controller's stand-in inner puzzle hash and amount. The
+/// puzzle is unchanged, since it only commits to the controller's launcher id.
+fn controlled_member(
+    ctx: &mut SpendContext,
+    spend: Spend,
+    mod_hash: TreeHash,
+    controllers: &[VaultDryRun],
+) -> Result<MemberRewrite, DriverError> {
+    let Some(curried) = CurriedPuzzle::parse(ctx, spend.puzzle) else {
+        return Ok(MemberRewrite::Unchanged);
+    };
+
+    let launcher_id = if mod_hash == SingletonMember::mod_hash() {
+        ctx.extract::<SingletonMember>(curried.args)?
+            .singleton_struct
+            .launcher_id
+    } else {
+        ctx.extract::<SingletonMemberWithMode>(curried.args)?
+            .singleton_struct
+            .launcher_id
+    };
+
+    let Some(controller) = controllers
+        .iter()
+        .find(|controller| controller.vault.info.launcher_id == launcher_id)
+    else {
+        return Ok(MemberRewrite::Unchanged);
+    };
+
+    let inner_puzzle_hash = controller.vault.info.custody_hash.into();
+    let amount = controller.vault.coin.amount;
+
+    let solution = if mod_hash == SingletonMember::mod_hash() {
+        ctx.alloc(&SingletonMemberSolution::new(inner_puzzle_hash, amount))?
+    } else {
+        ctx.alloc(&SingletonMemberWithModeSolution::new(
+            inner_puzzle_hash,
+            amount,
+        ))?
+    };
+
+    Ok(MemberRewrite::Controlled(Spend::new(
+        spend.puzzle,
+        solution,
+    )))
 }
 
 fn set_member_spend(
@@ -463,26 +586,30 @@ fn set_member_spend(
     Ok(())
 }
 
-/// Derives the next throwaway key. The keys don't need to be secret, since they only sign a transaction that's never
-/// submitted, so they're derived from a counter.
-fn key_bytes(next_key: &mut u32) -> [u8; 32] {
-    let bytes = sha256(&[b"chia-wallet-sdk vault dry run", &next_key.to_be_bytes()]);
-    *next_key += 1;
-    bytes
-}
+impl KeyGenerator {
+    fn next_bytes(&mut self) -> [u8; 32] {
+        let bytes = sha256(&[
+            b"chia-wallet-sdk vault dry run",
+            self.launcher_id.as_ref(),
+            &self.next.to_be_bytes(),
+        ]);
+        self.next += 1;
+        bytes
+    }
 
-fn k1_key(next_key: &mut u32) -> K1SecretKey {
-    loop {
-        if let Ok(sk) = K1SecretKey::from_bytes(&key_bytes(next_key)) {
-            return sk;
+    fn k1(&mut self) -> K1SecretKey {
+        loop {
+            if let Ok(sk) = K1SecretKey::from_bytes(&self.next_bytes()) {
+                return sk;
+            }
         }
     }
-}
 
-fn r1_key(next_key: &mut u32) -> R1SecretKey {
-    loop {
-        if let Ok(sk) = R1SecretKey::from_bytes(&key_bytes(next_key)) {
-            return sk;
+    fn r1(&mut self) -> R1SecretKey {
+        loop {
+            if let Ok(sk) = R1SecretKey::from_bytes(&self.next_bytes()) {
+                return sk;
+            }
         }
     }
 }
@@ -492,7 +619,7 @@ fn sign_k1(
     message_hash: &[u8; 32],
 ) -> Result<chia_secp::K1Signature, DriverError> {
     sk.sign_prehashed(message_hash)
-        .map_err(|_| DriverError::DryRunSigningFailed)
+        .map_err(|error| DriverError::DryRunSigningFailed(error.to_string()))
 }
 
 fn sign_r1(
@@ -500,7 +627,7 @@ fn sign_r1(
     message_hash: &[u8; 32],
 ) -> Result<chia_secp::R1Signature, DriverError> {
     sk.sign_prehashed(message_hash)
-        .map_err(|_| DriverError::DryRunSigningFailed)
+        .map_err(|error| DriverError::DryRunSigningFailed(error.to_string()))
 }
 
 fn sha256(parts: &[&[u8]]) -> [u8; 32] {
@@ -537,20 +664,27 @@ mod tests {
     use chia_bls::Signature;
     use chia_protocol::{CoinSpend, SpendBundle};
     use chia_puzzle_types::Memos;
+    use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
     use chia_sdk_test::{K1Pair, R1Pair, Simulator};
     use chia_sdk_types::{
-        Conditions, MAINNET_CONSTANTS, MessageFlags, MessageSide, conditions::SendMessage,
-        puzzles::BlsMember,
+        Conditions, MAINNET_CONSTANTS, MessageFlags, MessageSide,
+        conditions::SendMessage,
+        puzzles::{BlsMember, PreventMultipleCreateCoinsMod},
     };
     use clvm_utils::ToTreeHash;
     use rstest::rstest;
 
     use crate::{
         Action, FeeOptions, FeeTransaction, Finished, Id, Launcher, P2Singleton, Relation,
-        SpendKind, Spends, StandardLayer, minimum_fee, spend_bundle_conditions, spend_bundle_cost,
+        Restriction, RestrictionKind, SpendKind, Spends, StandardLayer, minimum_fee,
+        spend_bundle_conditions, spend_bundle_cost,
+        test_wallet::{controlled_custody_puzzle_hash, controller_authorization},
     };
 
     use super::*;
+
+    const PRE_FORK: u32 = 0xffff_fffa - 1;
+    const POST_FORK: u32 = 0xffff_fffa;
 
     /// The key of a member, for signing the real transaction.
     #[derive(Debug, Clone)]
@@ -577,8 +711,25 @@ mod tests {
             })
         }
 
-        /// The real solution, signed with the real key. Passkeys use the default client data, which the dry run copies
-        /// from the placeholder solution, so they're the same length.
+        /// A placeholder solution for the custody template. Passkeys get the default client data, which the stand-in
+        /// copies, and which the real solution also uses, so they're the same length.
+        fn placeholder(&self, ctx: &mut SpendContext) -> anyhow::Result<NodePtr> {
+            Ok(match self {
+                Self::Passkey(_) => {
+                    let data = PasskeyData::default_data();
+                    ctx.alloc(&PasskeyMemberSolution {
+                        authenticator_data: data.authenticator_data,
+                        client_data_json: data.client_data_json.into_bytes().into(),
+                        challenge_index: data.challenge_index,
+                        signature: chia_secp::R1Signature::from_bytes(&[1; 64])?,
+                        coin_id: Bytes32::default(),
+                    })?
+                }
+                _ => NodePtr::NIL,
+            })
+        }
+
+        /// The real solution, signed with the real key.
         fn solution(
             &self,
             ctx: &mut SpendContext,
@@ -601,68 +752,215 @@ mod tests {
         }
     }
 
-    /// A vault whose custody is `required` of the keys (or the single key, if there's one).
+    /// How a test vault's custody is made up.
+    #[derive(Debug, Clone)]
+    enum Custody {
+        /// `required` of the keys, or the single key if there's one. The custody template includes every key when
+        /// `template_includes_all` is set, even though only the first `required` are selected. With `wrapper`, the
+        /// custody puzzle has a delegated puzzle wrapper that prevents creating more than one coin.
+        Keys {
+            keys: Vec<TestKey>,
+            required: usize,
+            template_includes_all: bool,
+            wrapper: bool,
+        },
+        /// A singleton member of the controller with this launcher id.
+        Controlled(Bytes32),
+    }
+
+    impl Custody {
+        fn keys(keys: Vec<TestKey>, required: usize) -> Self {
+            Self::Keys {
+                keys,
+                required,
+                template_includes_all: false,
+                wrapper: false,
+            }
+        }
+    }
+
     struct TestVault {
         vault: Vault,
-        keys: Vec<TestKey>,
-        required: usize,
+        custody: Custody,
         p2_puzzle_hash: Bytes32,
         coins: Vec<Coin>,
     }
 
+    fn wrapper_restrictions(wrapper: bool) -> Vec<Restriction> {
+        if wrapper {
+            vec![Restriction {
+                kind: RestrictionKind::DelegatedPuzzleWrapper,
+                puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
+            }]
+        } else {
+            vec![]
+        }
+    }
+
+    impl Custody {
+        /// The MIPS puzzle hash of each key's member, and the custody hash.
+        fn hashes(&self, ctx: &mut SpendContext) -> anyhow::Result<(Vec<TreeHash>, TreeHash)> {
+            match self {
+                Self::Keys {
+                    keys,
+                    required,
+                    wrapper,
+                    ..
+                } => {
+                    let single = keys.len() == 1;
+                    let mut hashes = Vec::new();
+                    for key in keys {
+                        let puzzle = key.member_puzzle(ctx)?;
+                        let restrictions = if single {
+                            wrapper_restrictions(*wrapper)
+                        } else {
+                            vec![]
+                        };
+                        hashes.push(mips_puzzle_hash(
+                            0,
+                            restrictions,
+                            ctx.tree_hash(puzzle),
+                            single,
+                        ));
+                    }
+                    if single {
+                        return Ok((hashes.clone(), hashes[0]));
+                    }
+                    let m_of_n = MofN::new(*required, hashes.clone());
+                    let custody_hash = mips_puzzle_hash(
+                        0,
+                        wrapper_restrictions(*wrapper),
+                        m_of_n.inner_puzzle_hash(),
+                        true,
+                    );
+                    Ok((hashes, custody_hash))
+                }
+                Self::Controlled(launcher_id) => {
+                    Ok((vec![], controlled_custody_puzzle_hash(*launcher_id, false)))
+                }
+            }
+        }
+
+        /// The custody spend, with placeholder solutions, for the vault to stand in for. For a controlled vault, this
+        /// is the real singleton member spend, pointing at the real controller.
+        fn template(
+            &self,
+            ctx: &mut SpendContext,
+            controller: Option<&Vault>,
+        ) -> anyhow::Result<MipsSpend> {
+            let mut custody = MipsSpend::new(Spend::new(NodePtr::NIL, NodePtr::NIL));
+            let (hashes, custody_hash) = self.hashes(ctx)?;
+
+            match self {
+                Self::Keys {
+                    keys,
+                    required,
+                    template_includes_all,
+                    wrapper,
+                } => {
+                    let count = if *template_includes_all {
+                        keys.len()
+                    } else {
+                        *required
+                    };
+                    let single = keys.len() == 1;
+
+                    for (key, hash) in keys.iter().zip(&hashes).take(count) {
+                        let puzzle = key.member_puzzle(ctx)?;
+                        let solution = key.placeholder(ctx)?;
+                        let restrictions = if single {
+                            wrapper_restrictions(*wrapper)
+                        } else {
+                            vec![]
+                        };
+                        custody.members.insert(
+                            *hash,
+                            InnerPuzzleSpend::new(0, restrictions, Spend::new(puzzle, solution)),
+                        );
+                    }
+
+                    if !single {
+                        custody.members.insert(
+                            custody_hash,
+                            InnerPuzzleSpend::m_of_n(
+                                0,
+                                wrapper_restrictions(*wrapper),
+                                *required,
+                                hashes,
+                            ),
+                        );
+                    }
+
+                    if *wrapper {
+                        let puzzle = ctx.alloc_mod::<PreventMultipleCreateCoinsMod>()?;
+                        custody.restrictions.insert(
+                            PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
+                            Spend::new(puzzle, NodePtr::NIL),
+                        );
+                    }
+                }
+                Self::Controlled(_) => {
+                    let controller = controller.expect("a controlled vault needs its controller");
+                    let spend =
+                        crate::test_wallet::controlled_member_spend(ctx, controller, false)?;
+                    custody
+                        .members
+                        .insert(custody_hash, InnerPuzzleSpend::new(0, vec![], spend));
+                }
+            }
+
+            Ok(custody)
+        }
+
+        /// Spends the real vault, signing with the real keys.
+        fn spend_vault(
+            &self,
+            ctx: &mut SpendContext,
+            vault: &Vault,
+            controller: Option<&Vault>,
+            delegated: Spend,
+        ) -> anyhow::Result<()> {
+            let mut custody = self.template(ctx, controller)?;
+            custody.delegated = delegated;
+
+            if let Self::Keys {
+                keys,
+                required,
+                wrapper,
+                ..
+            } = self
+            {
+                let mut delegated_puzzle_hash = ctx.tree_hash(delegated.puzzle);
+                if *wrapper {
+                    delegated_puzzle_hash = AddDelegatedPuzzleWrapper::new(
+                        TreeHash::from(PREVENT_MULTIPLE_CREATE_COINS_HASH),
+                        delegated_puzzle_hash,
+                    )
+                    .curry_tree_hash();
+                }
+
+                let (hashes, _) = self.hashes(ctx)?;
+
+                for (key, hash) in keys.iter().zip(&hashes).take(*required) {
+                    let puzzle = key.member_puzzle(ctx)?;
+                    let solution = key.solution(ctx, vault, delegated_puzzle_hash.into())?;
+                    set_member_spend(&mut custody, *hash, Spend::new(puzzle, solution))?;
+                }
+            }
+
+            vault.spend(ctx, &custody)?;
+            Ok(())
+        }
+    }
+
     impl TestVault {
-        fn member_hashes(&self, ctx: &mut SpendContext) -> anyhow::Result<Vec<TreeHash>> {
-            let mut hashes = Vec::new();
-            for key in &self.keys {
-                let puzzle = key.member_puzzle(ctx)?;
-                let top_level = self.keys.len() == 1;
-                hashes.push(mips_puzzle_hash(
-                    0,
-                    vec![],
-                    ctx.tree_hash(puzzle),
-                    top_level,
-                ));
-            }
-            Ok(hashes)
-        }
-
-        fn custody_hash(&self, ctx: &mut SpendContext) -> anyhow::Result<TreeHash> {
-            let hashes = self.member_hashes(ctx)?;
-            if self.keys.len() == 1 {
-                return Ok(hashes[0]);
-            }
-            let m_of_n = MofN::new(self.required, hashes);
-            Ok(mips_puzzle_hash(
-                0,
-                vec![],
-                m_of_n.inner_puzzle_hash(),
-                true,
-            ))
-        }
-
         fn mint(
             sim: &mut Simulator,
             ctx: &mut SpendContext,
-            keys: Vec<TestKey>,
-            required: usize,
+            custody: Custody,
             amounts: &[u64],
         ) -> anyhow::Result<Self> {
-            let mut test_vault = Self {
-                vault: Vault {
-                    coin: Coin::new(Bytes32::default(), Bytes32::default(), 1),
-                    proof: chia_puzzle_types::Proof::Eve(chia_puzzle_types::EveProof {
-                        parent_parent_coin_info: Bytes32::default(),
-                        parent_amount: 1,
-                    }),
-                    info: VaultInfo::new(Bytes32::default(), TreeHash::new([0; 32])),
-                },
-                keys,
-                required,
-                p2_puzzle_hash: Bytes32::default(),
-                coins: Vec::new(),
-            };
-
-            let custody_hash = test_vault.custody_hash(ctx)?;
+            let (_, custody_hash) = custody.hashes(ctx)?;
             let total: u64 = amounts.iter().sum();
             let alice = sim.bls(total + 1);
 
@@ -680,79 +978,34 @@ mod tests {
             StandardLayer::new(alice.pk).spend(ctx, alice.coin, conditions)?;
             sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-            test_vault.coins = amounts
+            let coins = amounts
                 .iter()
                 .map(|&amount| Coin::new(alice.coin.coin_id(), p2_puzzle_hash, amount))
                 .collect();
-            test_vault.vault = vault;
-            test_vault.p2_puzzle_hash = p2_puzzle_hash;
 
-            Ok(test_vault)
+            Ok(Self {
+                vault,
+                custody,
+                p2_puzzle_hash,
+                coins,
+            })
         }
 
-        /// The custody spend, with the members that sign (the first `required` of them) and placeholder solutions.
-        fn custody_template(&self, ctx: &mut SpendContext) -> anyhow::Result<MipsSpend> {
-            let mut custody = MipsSpend::new(Spend::new(NodePtr::NIL, NodePtr::NIL));
-            let hashes = self.member_hashes(ctx)?;
-
-            for (key, hash) in self.keys.iter().zip(&hashes).take(self.required) {
-                let puzzle = key.member_puzzle(ctx)?;
-                let solution = match key {
-                    TestKey::Passkey(_) => {
-                        let data = PasskeyData::default_data();
-                        ctx.alloc(&PasskeyMemberSolution {
-                            authenticator_data: data.authenticator_data,
-                            client_data_json: data.client_data_json.into_bytes().into(),
-                            challenge_index: data.challenge_index,
-                            signature: chia_secp::R1Signature::from_bytes(&[1; 64])?,
-                            coin_id: Bytes32::default(),
-                        })?
-                    }
-                    _ => NodePtr::NIL,
-                };
-                custody.members.insert(
-                    *hash,
-                    InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, solution)),
-                );
-            }
-
-            if self.keys.len() > 1 {
-                let custody_hash = self.custody_hash(ctx)?;
-                custody.members.insert(
-                    custody_hash,
-                    InnerPuzzleSpend::m_of_n(0, vec![], self.required, hashes),
-                );
-            }
-
-            Ok(custody)
-        }
-
-        /// Spends the real vault, signing with the real keys.
-        fn spend_vault(&self, ctx: &mut SpendContext, delegated: Spend) -> anyhow::Result<()> {
-            let mut custody = self.custody_template(ctx)?;
-            custody.delegated = delegated;
-            let delegated_puzzle_hash = ctx.tree_hash(delegated.puzzle).into();
-            let hashes = self.member_hashes(ctx)?;
-
-            for (key, hash) in self.keys.iter().zip(&hashes).take(self.required) {
-                let puzzle = key.member_puzzle(ctx)?;
-                let solution = key.solution(ctx, &self.vault, delegated_puzzle_hash)?;
-                set_member_spend(&mut custody, *hash, Spend::new(puzzle, solution))?;
-            }
-
-            self.vault.spend(ctx, &custody)?;
-            Ok(())
+        fn dry_run(&self, ctx: &mut SpendContext) -> anyhow::Result<VaultDryRun> {
+            let template = self.custody.template(ctx, None)?;
+            Ok(VaultDryRun::new(ctx, &self.vault, &template)?)
         }
     }
 
-    /// Spends the p2 coins of `vault` and creates the vault's delegated spend, which is passed to `spend_vault`.
+    /// Spends the p2 coins of the vault and returns the vault's delegated spend, which sends each p2 coin its delegated
+    /// puzzle hash and recreates the vault.
     fn spend_p2(
         ctx: &mut SpendContext,
         spends: Spends<Finished>,
         vault: &Vault,
-        spend_vault: impl FnOnce(&mut SpendContext, Spend) -> Result<(), DriverError>,
-    ) -> Result<(), DriverError> {
-        let mut vault_conditions = Conditions::new();
+        extra_conditions: Conditions,
+    ) -> Result<Spend, DriverError> {
+        let mut vault_conditions = extra_conditions;
         let mut coin_spends = HashMap::new();
 
         for (asset, kind) in spends.unspent() {
@@ -783,13 +1036,11 @@ mod tests {
 
         spends.spend(ctx, coin_spends)?;
 
-        let delegated_spend = ctx.delegated_spend(vault_conditions.create_coin(
+        ctx.delegated_spend(vault_conditions.create_coin(
             vault.info.custody_hash.into(),
             vault.coin.amount,
             Memos::None,
-        ))?;
-
-        spend_vault(ctx, delegated_spend)
+        ))
     }
 
     fn actions() -> [Action; 1] {
@@ -801,52 +1052,41 @@ mod tests {
         )]
     }
 
-    /// Estimates the fee with the stand-in vault.
-    fn estimate(
-        ctx: &mut SpendContext,
-        test_vault: &TestVault,
-        dry_run: &VaultDryRun,
-    ) -> anyhow::Result<FeeTransaction<()>> {
-        let mut options = FeeOptions::new(&MAINNET_CONSTANTS);
-        options.extra_cost = dry_run.cost_margin();
-
-        Ok(
-            Spends::new(test_vault.p2_puzzle_hash).apply_with_minimum_fee(
-                ctx,
-                &actions(),
-                &test_vault.coins,
-                Relation::None,
-                options,
-                |ctx, spends| {
-                    spend_p2(ctx, spends, &dry_run.vault, |ctx, delegated| {
-                        dry_run.spend(ctx, delegated)
-                    })
-                },
-            )?,
-        )
+    fn options(height: u32, extra_cost: u64) -> FeeOptions<'static> {
+        let mut options = FeeOptions::new(&MAINNET_CONSTANTS, height);
+        options.extra_cost = extra_cost;
+        options
     }
 
-    /// Builds the real transaction with the estimated fee, signed with the real keys.
-    fn build_real(
-        ctx: &mut SpendContext,
-        test_vault: &TestVault,
-        fee: u64,
-    ) -> anyhow::Result<Vec<CoinSpend>> {
-        Spends::new(test_vault.p2_puzzle_hash).apply_with_fee(
-            ctx,
-            &actions(),
-            &test_vault.coins,
-            fee,
-            Relation::None,
-            |ctx, spends| {
-                spend_p2(ctx, spends, &test_vault.vault, |ctx, delegated| {
-                    test_vault
-                        .spend_vault(ctx, delegated)
-                        .map_err(|error| DriverError::Custom(error.to_string()))
-                })
-            },
-        )?;
-        Ok(ctx.take())
+    /// Checks the real transaction against the estimate: the cost is the same (or within the margin), the fee covers
+    /// it, the mempool sees the same fee, and the simulator accepts it.
+    fn check_real(
+        sim: &mut Simulator,
+        estimate: &FeeTransaction<()>,
+        real: Vec<CoinSpend>,
+        height: u32,
+        margin: u64,
+        submit: bool,
+    ) -> anyhow::Result<()> {
+        let real_cost = spend_bundle_cost(&real, &MAINNET_CONSTANTS, Some(height))?;
+
+        if margin == 0 {
+            assert_eq!(estimate.cost, real_cost);
+        } else {
+            assert!(estimate.cost.abs_diff(real_cost) <= margin);
+        }
+        assert!(estimate.fee >= minimum_fee(real_cost));
+
+        let conds = spend_bundle_conditions(&real, &MAINNET_CONSTANTS, height)?;
+        let mempool_fee = u64::try_from(conds.removal_amount - conds.addition_amount)?;
+        assert_eq!(mempool_fee, estimate.fee);
+        assert!(mempool_fee >= conds.cost * 5);
+
+        if submit {
+            sim.new_transaction(SpendBundle::new(real, Signature::default()))?;
+        }
+
+        Ok(())
     }
 
     fn keys(kind: &str, count: usize) -> Vec<TestKey> {
@@ -864,8 +1104,60 @@ mod tests {
             .collect()
     }
 
-    /// The dry run costs exactly the same as the real transaction, so it finds the same fee before anyone signs. The
-    /// fee pays for the coin it comes from, and the mempool sees a fee that clears its minimum.
+    /// Prices a send from the vault with its stand-in, then builds the real transaction with the same fee and checks
+    /// it. Returns the margin.
+    fn price_and_check(
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        test_vault: &TestVault,
+        height: u32,
+        submit: bool,
+    ) -> anyhow::Result<u64> {
+        let dry_run = test_vault.dry_run(ctx)?;
+        let margin = dry_run.cost_margin();
+        let spends = Spends::new(test_vault.p2_puzzle_hash);
+
+        let estimate = spends.apply_with_minimum_fee(
+            ctx,
+            &actions(),
+            &test_vault.coins,
+            Relation::None,
+            options(height, margin),
+            |ctx, spends| {
+                let delegated = spend_p2(ctx, spends, &dry_run.vault, Conditions::new())?;
+                dry_run.spend(ctx, delegated)
+            },
+        )?;
+
+        spends.apply_with_fee(
+            ctx,
+            &actions(),
+            &test_vault.coins,
+            estimate.fee,
+            Relation::None,
+            |ctx, spends| {
+                let delegated = spend_p2(ctx, spends, &test_vault.vault, Conditions::new())?;
+                test_vault
+                    .custody
+                    .spend_vault(ctx, &test_vault.vault, None, delegated)
+                    .map_err(|error| DriverError::Custom(error.to_string()))
+            },
+        )?;
+        let real = ctx.take();
+
+        // The first coin covers the payment but not the fee, so the fee has to come from the second coin.
+        let fee_coin = test_vault.coins[1].coin_id();
+        assert!(real.iter().any(|cs| cs.coin.coin_id() == fee_coin));
+
+        check_real(sim, &estimate, real, height, margin, submit)?;
+
+        Ok(margin)
+    }
+
+    const AMOUNTS: [u64; 2] = [1_000, 1_000_000_000_000];
+
+    /// The stand-in costs exactly the same as the real transaction on both sides of the fork, so it finds the fee before
+    /// anyone signs.
     #[rstest]
     #[case::k1("k1", 1, 1)]
     #[case::r1("r1", 1, 1)]
@@ -878,24 +1170,17 @@ mod tests {
         #[case] kind: &str,
         #[case] required: usize,
         #[case] count: usize,
+        #[values(PRE_FORK, POST_FORK)] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
-        // The first coin covers the payment but not the fee, so the fee has to come from the second coin.
-        let test_vault = TestVault::mint(
-            &mut sim,
-            &mut ctx,
-            keys(kind, count),
-            required,
-            &[1_000, 1_000_000_000_000],
-        )?;
+        let custody = Custody::keys(keys(kind, count), required);
+        let test_vault = TestVault::mint(&mut sim, &mut ctx, custody, &AMOUNTS)?;
 
-        let template = test_vault.custody_template(&mut ctx)?;
-        let dry_run = VaultDryRun::new(&mut ctx, &test_vault.vault, &template)?;
-
-        // BLS members don't sign in CLVM, so a BLS vault is its own stand-in.
+        let dry_run = test_vault.dry_run(&mut ctx)?;
         if kind == "bls" {
+            // BLS members don't sign in CLVM, so a BLS vault is its own stand-in.
             assert_eq!(dry_run.vault, test_vault.vault);
         } else {
             assert_ne!(
@@ -904,34 +1189,253 @@ mod tests {
             );
         }
 
-        let estimate = estimate(&mut ctx, &test_vault, &dry_run)?;
-        let real = build_real(&mut ctx, &test_vault, estimate.fee)?;
-        let real_cost = spend_bundle_cost(&real, &MAINNET_CONSTANTS, None)?;
-
-        if kind == "passkey" {
-            assert!(estimate.cost.abs_diff(real_cost) <= dry_run.cost_margin());
-        } else {
-            assert_eq!(estimate.cost, real_cost);
-        }
-        assert!(estimate.fee >= minimum_fee(real_cost));
-
-        let fee_coin = test_vault.coins[1].coin_id();
-        assert!(real.iter().any(|cs| cs.coin.coin_id() == fee_coin));
-
-        for height in [
-            MAINNET_CONSTANTS.hard_fork2_height - 1,
-            MAINNET_CONSTANTS.hard_fork2_height,
-        ] {
-            let conds = spend_bundle_conditions(&real, &MAINNET_CONSTANTS, height)?;
-            let mempool_fee = u64::try_from(conds.removal_amount - conds.addition_amount)?;
-            assert_eq!(mempool_fee, estimate.fee);
-            assert!(mempool_fee >= conds.cost * 5);
-        }
-
         // BLS members sign with AGG_SIG_ME, which the simulator checks, so the BLS case isn't submitted.
-        if kind != "bls" {
-            sim.new_transaction(SpendBundle::new(real, Signature::default()))?;
-        }
+        let margin = price_and_check(&mut sim, &mut ctx, &test_vault, height, kind != "bls")?;
+        let passkeys = if kind == "passkey" { required } else { 0 };
+        assert_eq!(margin, PASSKEY_COST_MARGIN * passkeys as u64);
+
+        Ok(())
+    }
+
+    /// Members that the custody spend includes but that an M of N doesn't select aren't revealed, so they aren't
+    /// replaced, and they don't add to the margin.
+    #[rstest]
+    fn test_unselected_members_are_not_replaced(
+        #[values(PRE_FORK, POST_FORK)] height: u32,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let custody = Custody::Keys {
+            keys: keys("passkey", 3),
+            required: 1,
+            template_includes_all: true,
+            wrapper: false,
+        };
+        let test_vault = TestVault::mint(&mut sim, &mut ctx, custody, &AMOUNTS)?;
+
+        let margin = price_and_check(&mut sim, &mut ctx, &test_vault, height, true)?;
+        assert_eq!(margin, PASSKEY_COST_MARGIN);
+
+        Ok(())
+    }
+
+    /// The members sign the delegated puzzle hash wrapped in the delegated puzzle wrappers on the path.
+    #[rstest]
+    fn test_delegated_puzzle_wrapper(
+        #[values(1, 3)] count: usize,
+        #[values(PRE_FORK, POST_FORK)] height: u32,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let custody = Custody::Keys {
+            keys: keys("r1", count),
+            required: count.min(2),
+            template_includes_all: false,
+            wrapper: true,
+        };
+        let test_vault = TestVault::mint(&mut sim, &mut ctx, custody, &AMOUNTS)?;
+
+        price_and_check(&mut sim, &mut ctx, &test_vault, height, true)?;
+
+        Ok(())
+    }
+
+    /// Two vaults in one transaction get different stand-in keys, as the real vaults have, so after the fork the
+    /// generator doesn't charge for one shared member puzzle where the real transaction pays for two.
+    #[rstest]
+    fn test_two_vaults_in_one_transaction(
+        #[values(PRE_FORK, POST_FORK)] height: u32,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let r1 = R1Pair::range_vec(2);
+        let alice = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::keys(vec![TestKey::R1(r1[0].sk.clone())], 1),
+            &AMOUNTS,
+        )?;
+        let bob = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::keys(vec![TestKey::R1(r1[1].sk.clone())], 1),
+            &AMOUNTS,
+        )?;
+
+        let alice_dry_run = alice.dry_run(&mut ctx)?;
+        let bob_dry_run = bob.dry_run(&mut ctx)?;
+
+        // Each vault sends from its own coins in one transaction.
+        let build = |ctx: &mut SpendContext,
+                     fee: u64,
+                     alice_vault: &Vault,
+                     bob_vault: &Vault,
+                     spend_alice: &dyn Fn(&mut SpendContext, Spend) -> Result<(), DriverError>,
+                     spend_bob: &dyn Fn(&mut SpendContext, Spend) -> Result<(), DriverError>|
+         -> Result<(), DriverError> {
+            Spends::new(alice.p2_puzzle_hash).apply_with_fee(
+                ctx,
+                &actions(),
+                &alice.coins,
+                fee,
+                Relation::None,
+                |ctx, spends| {
+                    let delegated = spend_p2(ctx, spends, alice_vault, Conditions::new())?;
+                    spend_alice(ctx, delegated)
+                },
+            )?;
+            Spends::new(bob.p2_puzzle_hash).apply_with_fee(
+                ctx,
+                &actions(),
+                &bob.coins,
+                0,
+                Relation::None,
+                |ctx, spends| {
+                    let delegated = spend_p2(ctx, spends, bob_vault, Conditions::new())?;
+                    spend_bob(ctx, delegated)
+                },
+            )
+        };
+
+        let estimate = spend_with_fee_for_test(&mut ctx, height, |ctx, fee| {
+            build(
+                ctx,
+                fee,
+                &alice_dry_run.vault,
+                &bob_dry_run.vault,
+                &|ctx, delegated| alice_dry_run.spend(ctx, delegated),
+                &|ctx, delegated| bob_dry_run.spend(ctx, delegated),
+            )
+        })?;
+
+        build(
+            &mut ctx,
+            estimate.fee,
+            &alice.vault,
+            &bob.vault,
+            &|ctx, delegated| {
+                alice
+                    .custody
+                    .spend_vault(ctx, &alice.vault, None, delegated)
+                    .map_err(|error| DriverError::Custom(error.to_string()))
+            },
+            &|ctx, delegated| {
+                bob.custody
+                    .spend_vault(ctx, &bob.vault, None, delegated)
+                    .map_err(|error| DriverError::Custom(error.to_string()))
+            },
+        )?;
+        let real = ctx.take();
+
+        check_real(&mut sim, &estimate, real, height, 0, true)?;
+
+        Ok(())
+    }
+
+    fn spend_with_fee_for_test(
+        ctx: &mut SpendContext,
+        height: u32,
+        build: impl FnMut(&mut SpendContext, u64) -> Result<(), DriverError>,
+    ) -> Result<FeeTransaction<()>, DriverError> {
+        crate::spend_with_minimum_fee(ctx, options(height, 0), build)
+    }
+
+    /// A vault controlled by another vault: the controlled vault's singleton member points at the controller's
+    /// stand-in, and the controller's stand-in authorizes the controlled vault's spend.
+    #[rstest]
+    fn test_vault_controlled_by_another_vault(
+        #[values(PRE_FORK, POST_FORK)] height: u32,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let controller = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::keys(vec![TestKey::R1(R1Pair::default().sk)], 1),
+            &[],
+        )?;
+        let controlled = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::Controlled(controller.vault.info.launcher_id),
+            &AMOUNTS,
+        )?;
+
+        let controller_dry_run = controller.dry_run(&mut ctx)?;
+        let controlled_template = controlled
+            .custody
+            .template(&mut ctx, Some(&controller.vault))?;
+        let controlled_dry_run = VaultDryRun::with_controllers(
+            &mut ctx,
+            &controlled.vault,
+            &controlled_template,
+            std::slice::from_ref(&controller_dry_run),
+        )?;
+
+        // The controlled vault has no members that sign, so only its singleton member's solution changes.
+        assert_eq!(controlled_dry_run.vault, controlled.vault);
+
+        let spends = Spends::new(controlled.p2_puzzle_hash);
+
+        let estimate = spends.apply_with_minimum_fee(
+            &mut ctx,
+            &actions(),
+            &controlled.coins,
+            Relation::None,
+            options(height, controller_dry_run.cost_margin()),
+            |ctx, spends| {
+                let delegated =
+                    spend_p2(ctx, spends, &controlled_dry_run.vault, Conditions::new())?;
+                let delegated_puzzle_hash = ctx.tree_hash(delegated.puzzle).into();
+                controlled_dry_run.spend(ctx, delegated)?;
+
+                let authorization = controller_authorization(
+                    ctx,
+                    &controller_dry_run.vault,
+                    controlled_dry_run.vault.coin,
+                    delegated_puzzle_hash,
+                    false,
+                )
+                .map_err(|error| DriverError::Custom(error.to_string()))?;
+                controller_dry_run.spend(ctx, authorization)
+            },
+        )?;
+
+        spends.apply_with_fee(
+            &mut ctx,
+            &actions(),
+            &controlled.coins,
+            estimate.fee,
+            Relation::None,
+            |ctx, spends| {
+                let delegated = spend_p2(ctx, spends, &controlled.vault, Conditions::new())?;
+                let delegated_puzzle_hash = ctx.tree_hash(delegated.puzzle).into();
+                controlled
+                    .custody
+                    .spend_vault(ctx, &controlled.vault, Some(&controller.vault), delegated)
+                    .map_err(|error| DriverError::Custom(error.to_string()))?;
+
+                let authorization = controller_authorization(
+                    ctx,
+                    &controller.vault,
+                    controlled.vault.coin,
+                    delegated_puzzle_hash,
+                    false,
+                )
+                .map_err(|error| DriverError::Custom(error.to_string()))?;
+                controller
+                    .custody
+                    .spend_vault(ctx, &controller.vault, None, authorization)
+                    .map_err(|error| DriverError::Custom(error.to_string()))
+            },
+        )?;
+        let real = ctx.take();
+
+        check_real(&mut sim, &estimate, real, height, 0, true)?;
 
         Ok(())
     }

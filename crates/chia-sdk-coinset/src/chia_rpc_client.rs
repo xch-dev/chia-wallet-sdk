@@ -469,16 +469,24 @@ pub trait ChiaRpcClient {
     }
 
     /// Calls `get_fee_estimate` for a single `target_time`, in seconds, and returns the estimated
-    /// fee rate in mojos per cost, or `None` if the request failed or returned no estimate.
+    /// fee rate in mojos per cost.
+    ///
+    /// Returns `Ok(None)` if `cost` is zero (without making a request), or if the node responds
+    /// with `success` set to `false` or with no estimate. Returns an error if the request itself
+    /// fails, for example because the node can't be reached or the response can't be parsed.
     fn get_fee_per_cost(
         &self,
         cost: u64,
         target_time: u64,
     ) -> impl Future<Output = Result<Option<f64>, Self::Error>> {
         async move {
+            if cost == 0 {
+                return Ok(None);
+            }
+
             let response = self.get_fee_estimate(cost, vec![target_time]).await?;
 
-            if !response.success || cost == 0 {
+            if !response.success {
                 return Ok(None);
             }
 
@@ -581,6 +589,13 @@ mod tests {
 
         let rate = client.get_fee_per_cost(50_000_000, 60).await.unwrap();
         assert_eq!(rate, Some(18_684_384.0 / 50_000_000.0));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_per_cost_zero_cost_makes_no_request() {
+        let client = MockRpcClient::new();
+        assert_eq!(client.get_fee_per_cost(0, 60).await.unwrap(), None);
+        assert!(client.get_requests().is_empty());
     }
 
     #[tokio::test]

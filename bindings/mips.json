@@ -208,6 +208,13 @@
         },
         "return": "VaultDryRun"
       },
+      "dry_run_with_controllers": {
+        "args": {
+          "vault": "Vault",
+          "controllers": "Vec<VaultDryRun>"
+        },
+        "return": "VaultDryRun"
+      },
       "m_of_n": {
         "args": {
           "config": "MemberConfig",

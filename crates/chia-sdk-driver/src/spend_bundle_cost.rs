@@ -12,8 +12,11 @@ use crate::DriverError;
 /// network described by `constants` (such as mainnet or testnet11) in effect at `height`, which is
 /// the previous transaction block height when the bundle enters the mempool.
 ///
-/// When `height` is `None`, the higher of the costs before and after the 3.0 hard fork is returned,
-/// so that a fee derived from it is never too low on either side of the fork.
+/// Pass the height whenever it's known. `None` is for a transaction that may enter the mempool on
+/// either side of the 3.0 hard fork, such as one that waits to be signed: it returns the higher of
+/// the costs before and after the fork, so that a fee derived from it is never too low. That
+/// overprices a transaction once the fork has activated (for example, by about 8% for a send with
+/// ten outputs), so don't use it as a default.
 ///
 /// The coin spends must form a complete, valid spend bundle, since cross-spend conditions such as
 /// announcements are checked. The aggregated signature isn't checked.
@@ -36,7 +39,7 @@ use crate::DriverError;
 ///     Conditions::new().create_coin(alice.puzzle_hash, alice.coin.amount, Memos::None),
 /// )?;
 ///
-/// let cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, None)?;
+/// let cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, Some(9_500_000))?;
 /// assert_eq!(minimum_fee(cost), cost * 5);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
@@ -45,18 +48,20 @@ pub fn spend_bundle_cost(
     constants: &ConsensusConstants,
     height: Option<u32>,
 ) -> Result<u64, DriverError> {
+    let spend_bundle = SpendBundle::new(coin_spends.to_vec(), Signature::default());
+
     if let Some(height) = height {
-        return Ok(spend_bundle_conditions(coin_spends, constants, height)?.cost);
+        return Ok(conditions_at(&spend_bundle, constants, height)?.cost);
     }
 
     let fork_height = constants.hard_fork2_height;
-    let after = spend_bundle_conditions(coin_spends, constants, fork_height)?.cost;
+    let after = conditions_at(&spend_bundle, constants, fork_height)?.cost;
 
     let Some(before_height) = fork_height.checked_sub(1) else {
         return Ok(after);
     };
 
-    let before = spend_bundle_conditions(coin_spends, constants, before_height)?.cost;
+    let before = conditions_at(&spend_bundle, constants, before_height)?.cost;
 
     Ok(before.max(after))
 }
@@ -71,12 +76,20 @@ pub fn spend_bundle_conditions(
     height: u32,
 ) -> Result<OwnedSpendBundleConditions, DriverError> {
     let spend_bundle = SpendBundle::new(coin_spends.to_vec(), Signature::default());
+    conditions_at(&spend_bundle, constants, height)
+}
+
+fn conditions_at(
+    spend_bundle: &SpendBundle,
+    constants: &ConsensusConstants,
+    height: u32,
+) -> Result<OwnedSpendBundleConditions, DriverError> {
     let mut allocator = Allocator::new();
 
     // The mempool limits a single transaction to half of a block's cost.
     let conditions = get_conditions_from_spendbundle(
         &mut allocator,
-        &spend_bundle,
+        spend_bundle,
         constants.max_block_cost_clvm / 2,
         height,
         constants,
