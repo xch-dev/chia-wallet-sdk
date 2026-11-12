@@ -50,9 +50,30 @@ fn build(
         }
         "rekey" => {
             let proof = proof(ctx, first);
-            vec![old.start_rekey_spend(ctx, first.coin, proof, new, &signers, fee)?]
+            vec![old.start_rekey_spend_with_state(
+                ctx,
+                first.coin,
+                proof,
+                rekey_state(
+                    old,
+                    new.info().puzzle_root,
+                    u8::try_from(v["multiple"].as_u64().unwrap()).unwrap(),
+                ),
+                &signers,
+                fee,
+            )?]
         }
-        "rekey-cancel" => vec![old.rekey_clawback_spend(ctx, first.coin, new, &signers, fee)?],
+        "rekey-cancel" => vec![old.rekey_clawback_spend(
+            ctx,
+            first.coin,
+            rekey_state(
+                old,
+                v.get("new_root").map_or(new.info().puzzle_root, bytes),
+                u8::try_from(v["multiple"].as_u64().unwrap()).unwrap(),
+            ),
+            &signers,
+            fee,
+        )?],
         "lock" => {
             let proof = proof(ctx, first);
             let lock = old.increase_security_spends(ctx, first.coin, proof, &signers)?;
@@ -163,7 +184,7 @@ fn python_spends_conditions_costs_and_signature_contexts() -> anyhow::Result<()>
                 ctx,
                 &old,
                 &input,
-                request(v, &new, &next, &signers),
+                request(v, &old, &new, &next, &signers),
                 &constants,
                 budget,
             )?;
@@ -172,7 +193,7 @@ fn python_spends_conditions_costs_and_signature_contexts() -> anyhow::Result<()>
                     ctx,
                     &old,
                     &input,
-                    request(v, &new, &next, &signers),
+                    request(v, &old, &new, &next, &signers),
                     &constants,
                     0
                 )
@@ -183,7 +204,7 @@ fn python_spends_conditions_costs_and_signature_contexts() -> anyhow::Result<()>
                     ctx,
                     &old,
                     &input,
-                    request(v, &new, &next, &signers),
+                    request(v, &old, &new, &next, &signers),
                     &constants,
                     budget - 1
                 )
@@ -264,7 +285,7 @@ fn python_higher_threshold_recoveries_match_bytes_signatures_and_consensus() -> 
                 ctx,
                 &old,
                 &input,
-                request(v, &new, &new, &selected),
+                request(v, &old, &new, &new, &selected),
                 &constants(),
                 budget,
             )?;

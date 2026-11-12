@@ -42,13 +42,19 @@ fn connected_rekeys_cancel_or_finish_then_use_replacement_policy() -> anyhow::Re
         };
         sim.new_transaction(SpendBundle::new(initial.clone(), signature(v)))?;
         let mut cancelled = sim.clone();
-        let cancel = old.rekey_clawback_spend(ctx, pending, &new, &selected, true)?;
+        let cancel = old.rekey_clawback_spend(
+            ctx,
+            pending,
+            rekey_state(&old, new.info().puzzle_root, timelock_multiple),
+            &selected,
+            true,
+        )?;
         let verified = parse_internal_custody_operation(
             ctx,
             &old,
             std::slice::from_ref(&cancel),
             InternalCustodyOperationRequest::RekeyClawback {
-                new_policy: &new,
+                state: rekey_state(&old, new.info().puzzle_root, timelock_multiple),
                 signers: &selected,
             },
             &constants(),
@@ -344,5 +350,79 @@ fn rekey_completion_uses_the_latest_singleton_and_original_pending_lineage() -> 
             .is_none()
     );
     assert_eq!(expected.amount, 81);
+    Ok(())
+}
+
+#[test]
+fn extended_recovery_can_complete_or_be_vetoed_by_a_normal_quorum() -> anyhow::Result<()> {
+    use chia_protocol::SpendBundle;
+    use chia_sdk_test::Simulator;
+    let ctx = &mut ctx();
+    let old = policy("policy");
+    let new = policy("new_policy");
+    let start = operation("long-recovery-start");
+    let input = spends(start);
+    let selected = keys(start);
+    let verified = parse_internal_custody_operation(
+        ctx,
+        &old,
+        &input,
+        InternalCustodyOperationRequest::Rekey {
+            new_policy: &new,
+            signers: &selected,
+        },
+        &constants(),
+        500_000_000,
+    )?;
+    let InternalCustodyOperationEffects::Rekey {
+        pending,
+        timelock_multiple: 3,
+        ..
+    } = *verified.effects()
+    else {
+        panic!("extended recovery")
+    };
+    let mut sim = Simulator::new();
+    sim.insert_coin(input[0].coin);
+    sim.create_block();
+    sim.pass_time(1000);
+    sim.new_transaction(SpendBundle::new(input, signature(start)))?;
+    let mut cancelled = sim.clone();
+    let normal = keys(operation("normal-rekey"));
+    let state = rekey_state(&old, new.info().puzzle_root, 3);
+    let cancel = old.rekey_clawback_spend(ctx, pending, state, &normal, false)?;
+    assert_eq!(
+        vec![cancel.clone()],
+        spends(operation("long-normal-cancel"))
+    );
+    let verified = parse_internal_custody_operation(
+        ctx,
+        &old,
+        std::slice::from_ref(&cancel),
+        InternalCustodyOperationRequest::RekeyClawback {
+            state,
+            signers: &normal,
+        },
+        &constants(),
+        500_000_000,
+    )?;
+    let sig = sign_required(verified.required_signature().unwrap(), &normal);
+    cancelled.new_transaction(SpendBundle::new(vec![cancel.clone()], sig.clone()))?;
+    let finish = spends(operation("long-recovery-complete"));
+    assert!(
+        sim.new_transaction(SpendBundle::new(finish.clone(), Signature::default()))
+            .is_err()
+    );
+    sim.pass_time(old.info().rekey_clawback);
+    assert!(
+        cancelled
+            .new_transaction(SpendBundle::new(finish.clone(), Signature::default()))
+            .is_err()
+    );
+    sim.new_transaction(SpendBundle::new(finish, Signature::default()))?;
+    assert!(
+        sim.new_transaction(SpendBundle::new(vec![cancel], sig))
+            .is_err()
+    );
     Ok(())
 }

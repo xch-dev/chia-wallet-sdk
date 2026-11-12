@@ -4,6 +4,9 @@ Run in its Python environment, passing --reference and --output. No node, networ
 private production keys, or Rust implementation is used. Fixed public seeds only.
 """
 import argparse
+import dataclasses
+import shutil
+import tempfile
 import hashlib
 import json
 from pathlib import Path
@@ -21,7 +24,15 @@ revision = subprocess.check_output(
 ).strip()
 if revision != "4150dc832a5e66b5ed839974f88d1feb573dcfe2":
     raise SystemExit("Reference checkout is not the pinned revision")
-sys.path.insert(0, str(args.reference.resolve()))
+# Compiling imported puzzles may rewrite .hex files. Work in a temporary source
+# copy so regenerating fixtures never mutates the authoritative checkout.
+reference_copy = tempfile.TemporaryDirectory(prefix="internal-custody-reference-")
+shutil.copytree(
+    args.reference / "cic",
+    Path(reference_copy.name) / "cic",
+    ignore=shutil.ignore_patterns("__pycache__"),
+)
+sys.path.insert(0, reference_copy.name)
 from chia_rs import AugSchemeMPL, G1Element, SpendBundle
 from chia_rs.sized_bytes import bytes32
 from chia_rs.sized_ints import uint32, uint64
@@ -234,6 +245,168 @@ from cic.drivers.filters import (
     solve_filter_for_rekey,
 )
 from cic.drivers.drop_coins import curry_rekey_puzzle, curry_ach_puzzle
+
+# Independent regressions for review findings. Use the original low-level
+# constructors where the convenience driver always chooses the minimum delay.
+from chia.types.coin_spend import make_spend
+from chia.wallet.puzzles.p2_delegated_puzzle_or_hidden_puzzle import (
+    puzzle_for_pk,
+    puzzle_for_conditions,
+    solution_for_delegated_puzzle,
+)
+from cic.drivers.prefarm import solve_prefarm_inner, SpendType
+from cic.drivers.singleton import solve_singleton
+from cic.drivers.drop_coins import solve_rekey_clawback, solve_rekey_completion
+from cic.drivers.merkle_utils import simplify_merkle_proof
+
+big = Coin(singleton.parent_coin_info, singleton.puzzle_hash, uint64((1 << 64) - 3))
+big_deposit = Coin(bytes32(b"\x55" * 32), deposit_ph, uint64(4))
+bundle, msg = get_withdrawal_spend_info(
+    big, keys[:2], policy, lineage, uint64(4), destination, [big_deposit]
+)
+add("overflow-intermediate", "payment", bundle, keys[:2], msg)
+
+unknown = dataclasses.replace(
+    new_policy,
+    prefarm_info=dataclasses.replace(
+        new_policy.prefarm_info, puzzle_root=bytes32(b"\x42" * 32)
+    ),
+)
+start, _ = get_rekey_spend_info(singleton, keys[:2], policy, lineage, unknown)
+unknown_coin = next(c for c in outputs(start.coin_spends[0]) if c.amount == 0)
+cancel, msg = get_rekey_clawback_spend_info(unknown_coin, keys[:2], policy, 1, unknown)
+add("unknown-target-cancel", "rekey-cancel", cancel, keys[:2], msg, 1)
+operations[-1]["new_root"] = unknown.prefarm_info.puzzle_root.hex()
+
+
+def explicit_authorization(selected, multiple, conditions):
+    aggregate = G1Element()
+    for key in selected:
+        aggregate += key
+    filter_proof, leaf_proof = (
+        list(p.items())[0][1] for p in policy.get_proofs_of_inclusion(aggregate)
+    )
+    leaf = puzzle_for_pk(aggregate)
+    minimum = 1 + policy.required_pubkeys - len(selected)
+    constructor = (
+        construct_payment_and_rekey_filter if minimum == 1 else construct_rekey_filter
+    )
+    gate = constructor(
+        policy.prefarm_info,
+        simplify_merkle_proof(leaf.get_tree_hash(), leaf_proof),
+        minimum,
+    )
+    delegated = puzzle_for_conditions(conditions)
+    inner = solution_for_delegated_puzzle(delegated, Program.to([]))
+    solution = solve_filter_for_rekey(
+        leaf,
+        Program.to(leaf_proof),
+        inner,
+        policy.prefarm_info.puzzle_root,
+        new_policy.prefarm_info.puzzle_root,
+        multiple,
+    )
+    return gate, Program.to(filter_proof), solution, delegated.get_tree_hash()
+
+
+def explicit_cancellation(name, pending, multiple, selected):
+    gate, proof, solution, message = explicit_authorization(
+        selected, multiple, [[51, pending.puzzle_hash, 0]]
+    )
+    spend = make_spend(
+        pending,
+        curry_rekey_puzzle(multiple, policy.prefarm_info, new_policy.prefarm_info),
+        solve_rekey_clawback(
+            policy.prefarm_info, pending.puzzle_hash, gate, proof, solution
+        ),
+    )
+    message += pending.name() + DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA
+    add(
+        name,
+        "rekey-cancel",
+        SpendBundle([spend], G2Element()),
+        selected,
+        message,
+        multiple,
+    )
+
+
+from chia_rs import G2Element
+
+slow_coin = Coin.from_json_dict(
+    next(v for v in operations if v["name"] == "slow-cancel")["spends"][0]["coin"]
+)
+explicit_cancellation("stronger-quorum-cancel", slow_coin, 2, keys[:2])
+for label, multiple, selected in [
+    ("long-normal", 3, keys[:2]),
+    ("long-recovery", 3, keys[:1]),
+    ("max-delay", 255, keys[:2]),
+]:
+    pending_puzzle = curry_rekey_puzzle(
+        multiple, policy.prefarm_info, new_policy.prefarm_info
+    )
+    inner_hash = construct_singleton_inner_puzzle(policy.prefarm_info).get_tree_hash()
+    gate, proof, solution, message = explicit_authorization(
+        selected,
+        multiple,
+        [[51, pending_puzzle.get_tree_hash(), 0], [51, inner_hash, singleton.amount]],
+    )
+    spend = make_spend(
+        singleton,
+        construct_full_singleton(policy.prefarm_info),
+        solve_singleton(
+            lineage,
+            singleton.amount,
+            solve_prefarm_inner(
+                SpendType.START_REKEY,
+                singleton.amount,
+                timelock=multiple,
+                puzzle_root=new_policy.prefarm_info.puzzle_root,
+                puzzle_reveal=gate,
+                proof_of_inclusion=proof,
+                puzzle_solution=solution,
+            ),
+        ),
+    )
+    message += singleton.name() + DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA
+    add(
+        label + "-start",
+        "rekey",
+        SpendBundle([spend], G2Element()),
+        selected,
+        message,
+        multiple,
+    )
+    pending = Coin(singleton.name(), pending_puzzle.get_tree_hash(), uint64(0))
+    child = Coin(singleton.name(), singleton.puzzle_hash, singleton.amount)
+    explicit_cancellation(label + "-cancel", pending, multiple, selected)
+    finish = [
+        make_spend(
+            child,
+            construct_full_singleton(policy.prefarm_info),
+            solve_singleton(
+                child_lineage,
+                child.amount,
+                solve_prefarm_inner(
+                    SpendType.FINISH_REKEY,
+                    child.amount,
+                    timelock=multiple,
+                    puzzle_root=new_policy.prefarm_info.puzzle_root,
+                ),
+            ),
+        ),
+        make_spend(
+            pending,
+            pending_puzzle,
+            solve_rekey_completion(policy.prefarm_info, child_lineage),
+        ),
+    ]
+    add(
+        label + "-complete",
+        "rekey-complete",
+        SpendBundle(finish, G2Element()),
+        multiple=multiple,
+    )
 
 negative_programs = []
 acs = Program.to(1)

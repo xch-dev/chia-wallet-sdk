@@ -239,7 +239,8 @@ pub struct InternalCustodyRekeyState {
     pub new_root: Bytes32,
     /// Root authorizing this attempt.
     pub old_root: Bytes32,
-    /// Initiation delay multiple, zero for security increases.
+    /// Committed delay multiple; positive values must cover the authorization
+    /// filter's minimum. Zero is reserved for security increases.
     pub timelock_multiple: u8,
 }
 /// Authorization arguments for cancelling a pending ACH payment.

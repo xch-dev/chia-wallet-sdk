@@ -55,17 +55,14 @@ impl InternalCustodyPolicy {
         &self,
         state: InternalCustodyRekeyState,
     ) -> Result<(), DriverError> {
-        let t = self.thresholds();
         if state.old_root != self.info().puzzle_root
             || (state.timelock_multiple == 0 && self.next_root() != Some(state.new_root))
-            || (state.timelock_multiple > 0
-                && u32::from(state.timelock_multiple) > 1 + t.required - t.minimum)
         {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
         Ok(())
     }
-    pub(crate) fn rekey_multiple(&self, signers: &[PublicKey]) -> Result<u8, DriverError> {
+    fn minimum_rekey_multiple(&self, signers: &[PublicKey]) -> Result<u8, DriverError> {
         let n =
             u32::try_from(signers.len()).map_err(|_| InternalCustodyError::InvalidSigningSet)?;
         if n < self.thresholds().minimum || n > self.thresholds().required {
@@ -73,6 +70,20 @@ impl InternalCustodyPolicy {
         }
         u8::try_from(1 + self.thresholds().required - n)
             .map_err(|_| InternalCustodyError::InvalidSigningSet.into())
+    }
+    fn rekey_authorization_multiple(
+        &self,
+        state: InternalCustodyRekeyState,
+        signers: &[PublicKey],
+    ) -> Result<u8, DriverError> {
+        self.validate_rekey_state(state)?;
+        let minimum = self.minimum_rekey_multiple(signers)?;
+        // Positive multiples are lower bounds, not exact signing-set identities.
+        // Zero belongs exclusively to the separate, uncancellable lock path.
+        if state.timelock_multiple < minimum {
+            return Err(InternalCustodyError::InvalidSigningSet.into());
+        }
+        Ok(minimum)
     }
     pub(crate) fn check_update(&self, new: &Self) -> Result<(), DriverError> {
         if (InternalCustodyInfo {
@@ -96,12 +107,27 @@ impl InternalCustodyPolicy {
         fee_announcement: bool,
     ) -> Result<CoinSpend, DriverError> {
         self.check_update(new_policy)?;
-        let multiple = self.rekey_multiple(signers)?;
         let state = InternalCustodyRekeyState {
             new_root: new_policy.info().puzzle_root,
             old_root: self.info().puzzle_root,
-            timelock_multiple: multiple,
+            timelock_multiple: self.minimum_rekey_multiple(signers)?,
         };
+        self.start_rekey_spend_with_state(ctx, coin, proof, state, signers, fee_announcement)
+    }
+    /// Start a rekey with an explicit committed root and delay multiple. The
+    /// selected subset authorizes its minimum delay or any longer positive delay.
+    /// This low-level constructor does not establish the target key definition;
+    /// clear signing independently verifies that definition against the root.
+    pub fn start_rekey_spend_with_state(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        proof: Proof,
+        state: InternalCustodyRekeyState,
+        signers: &[PublicKey],
+        fee_announcement: bool,
+    ) -> Result<CoinSpend, DriverError> {
+        let minimum = self.rekey_authorization_multiple(state, signers)?;
         let pending = self.pending_rekey_puzzle(ctx, state)?;
         // Python order: rekey coin, extra conditions, singleton continuation.
         let mut conditions =
@@ -111,9 +137,9 @@ impl InternalCustodyPolicy {
         }
         let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
         conditions = conditions.create_coin(ctx.tree_hash(inner).into(), coin.amount, Memos::None);
-        let context = ctx.alloc(&clvm_list!(state.new_root, state.old_root, multiple))?;
+        let context = ctx.alloc(&state)?;
         let (filter, filter_proof, filter_solution) =
-            self.authorize_conditions(ctx, signers, multiple, conditions, context)?;
+            self.authorize_conditions(ctx, signers, minimum, conditions, context)?;
         self.start_rekey(
             ctx,
             coin,
@@ -157,22 +183,17 @@ impl InternalCustodyPolicy {
         ))
     }
     /// Cancel a pending normal/slow rekey. A lock (zero multiple) cannot be cancelled.
-    /// The subset must be able to authorize exactly this attempt's timelock multiple.
+    /// Bind the exact pending state independently of the subset's minimum delay.
+    /// The target roster is neither required nor trusted when vetoing an attempt.
     pub fn rekey_clawback_spend(
         &self,
         ctx: &mut SpendContext,
         pending: Coin,
-        new_policy: &Self,
+        state: InternalCustodyRekeyState,
         signers: &[PublicKey],
         fee_announcement: bool,
     ) -> Result<CoinSpend, DriverError> {
-        self.check_update(new_policy)?;
-        let multiple = self.rekey_multiple(signers)?;
-        let state = InternalCustodyRekeyState {
-            new_root: new_policy.info().puzzle_root,
-            old_root: self.info().puzzle_root,
-            timelock_multiple: multiple,
-        };
+        let minimum = self.rekey_authorization_multiple(state, signers)?;
         let puzzle = self.pending_rekey_puzzle(ctx, state)?;
         if pending.amount != 0 || ctx.tree_hash(puzzle) != pending.puzzle_hash.into() {
             return Err(DriverError::WrongPuzzleHash);
@@ -181,9 +202,9 @@ impl InternalCustodyPolicy {
         if fee_announcement {
             conditions = conditions.create_coin_announcement(Bytes::default());
         }
-        let context = ctx.alloc(&clvm_list!(state.new_root, state.old_root, multiple))?;
+        let context = ctx.alloc(&state)?;
         let (filter, proof, solution) =
-            self.authorize_conditions(ctx, signers, multiple, conditions, context)?;
+            self.authorize_conditions(ctx, signers, minimum, conditions, context)?;
         let branch = ctx.alloc_mod::<InternalCustodyRekeyClawback>()?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: branch,

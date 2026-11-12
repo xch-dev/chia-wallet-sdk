@@ -7,8 +7,8 @@ mod payment;
 mod policy;
 pub use policy::*;
 
-/// Invalid or unsupported legacy custody data. The clear-signing parser supports
-/// only payments and deposit absorption, never a generic delegated spend fallback.
+/// Invalid or unsupported legacy custody data. Clear-signing parsers accept only
+/// explicitly modeled operations, never a generic delegated spend fallback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum InternalCustodyError {
     /// Invalid internal-custody policy.
@@ -29,12 +29,12 @@ pub enum InternalCustodyError {
     /// Internal-custody coin assertion or lineage mismatch.
     #[error("internal-custody coin assertion or lineage mismatch")]
     CoinAssertion,
-    /// Internal-custody conditions do not match the verified payment.
-    #[error("internal-custody conditions do not match the verified payment")]
+    /// Internal-custody conditions do not match the verified operation.
+    #[error("internal-custody conditions do not match the verified operation")]
     UnexpectedConditions,
 }
 
-pub(crate) use payment::deposit_announcement;
+pub(crate) use payment::{deposit_announcement, internal_custody_remaining_amount};
 
 /// Maximum supported singleton-plus-deposit inputs in a verified custody operation.
 /// This bounds reconstruction and per-input execution work alongside the cost budget.

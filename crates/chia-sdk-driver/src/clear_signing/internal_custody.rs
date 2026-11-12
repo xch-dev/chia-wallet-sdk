@@ -199,7 +199,11 @@ pub fn parse_internal_custody_payment(
         vault_child: Coin::new(
             spend.coin.coin_id(),
             spend.coin.puzzle_hash,
-            spend.coin.amount + action.incoming - action.outgoing,
+            crate::internal_custody_remaining_amount(
+                spend.coin.amount,
+                action.incoming,
+                action.outgoing,
+            )?,
         ),
         incoming_amount: action.incoming,
         fee_announcement,

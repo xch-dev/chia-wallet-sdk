@@ -65,6 +65,7 @@ fn proof(ctx: &mut SpendContext, spend: &CoinSpend) -> Proof {
 }
 fn request<'a>(
     v: &Value,
+    old: &InternalCustodyPolicy,
     new: &'a InternalCustodyPolicy,
     next: &'a InternalCustodyPolicy,
     signers: &'a [PublicKey],
@@ -82,7 +83,11 @@ fn request<'a>(
             signers,
         },
         "rekey-cancel" => InternalCustodyOperationRequest::RekeyClawback {
-            new_policy: new,
+            state: rekey_state(
+                old,
+                v.get("new_root").map_or(new.info().puzzle_root, bytes),
+                u8::try_from(v["multiple"].as_u64().unwrap()).unwrap(),
+            ),
             signers,
         },
         "rekey-complete" => InternalCustodyOperationRequest::RekeyCompletion { new_policy: new },
@@ -157,4 +162,16 @@ fn child_proof(
         parent_inner_puzzle_hash: ctx.tree_hash(inner).into(),
         parent_amount: parent.amount,
     }))
+}
+
+fn rekey_state(
+    old: &InternalCustodyPolicy,
+    new_root: Bytes32,
+    timelock_multiple: u8,
+) -> InternalCustodyRekeyState {
+    InternalCustodyRekeyState {
+        old_root: old.info().puzzle_root,
+        new_root,
+        timelock_multiple,
+    }
 }

@@ -37,9 +37,9 @@ pub enum InternalCustodyOperationRequest<'a> {
     },
     /// Cancel a pending ordinary/slow rekey.
     RekeyClawback {
-        /// Proposed policy committed by the input.
-        new_policy: &'a InternalCustodyPolicy,
-        /// Frozen participants for this attempt.
+        /// Exact pending root and delay, without requiring the target roster.
+        state: InternalCustodyRekeyState,
+        /// Frozen participants whose minimum delay must not exceed this attempt's.
         signers: &'a [PublicKey],
     },
     /// Finish a normal/slow rekey or a confirmed lock stage.
@@ -242,14 +242,24 @@ pub fn parse_internal_custody_operation(
         } => {
             validate_target(ctx, policy, new_policy)?;
             let raw = singleton_solution(ctx, first)?;
+            let action =
+                InternalCustodyRekeyArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
+            if action.new_root != new_policy.info().puzzle_root {
+                return Err(InternalCustodyError::InvalidPolicy.into());
+            }
+            let state = InternalCustodyRekeyState {
+                new_root: action.new_root,
+                old_root: policy.info().puzzle_root,
+                timelock_multiple: action.timelock_multiple,
+            };
             let expected = match_fee_form(
                 |fee| {
                     policy
-                        .start_rekey_spend(
+                        .start_rekey_spend_with_state(
                             ctx,
                             first.coin,
                             raw.lineage_proof,
-                            new_policy,
+                            state,
                             signers,
                             fee,
                         )
@@ -257,12 +267,6 @@ pub fn parse_internal_custody_operation(
                 },
                 spends,
             )?;
-            let multiple = policy.rekey_multiple(signers)?;
-            let state = InternalCustodyRekeyState {
-                new_root: new_policy.info().puzzle_root,
-                old_root: policy.info().puzzle_root,
-                timelock_multiple: multiple,
-            };
             let puzzle = policy.pending_rekey_puzzle(ctx, state)?;
             let pending = Coin::new(first.coin.coin_id(), ctx.tree_hash(puzzle).into(), 0);
             (
@@ -277,21 +281,17 @@ pub fn parse_internal_custody_operation(
                     ),
                     pending,
                     new_policy: definition(new_policy),
-                    timelock_multiple: multiple,
+                    timelock_multiple: state.timelock_multiple,
                 },
                 Some(policy.aggregate_key(signers)?.derive_synthetic()),
                 32,
             )
         }
-        R::RekeyClawback {
-            new_policy,
-            signers,
-        } => {
-            validate_target(ctx, policy, new_policy)?;
+        R::RekeyClawback { state, signers } => {
             let expected = match_fee_form(
                 |fee| {
                     policy
-                        .rekey_clawback_spend(ctx, first.coin, new_policy, signers, fee)
+                        .rekey_clawback_spend(ctx, first.coin, state, signers, fee)
                         .map(|s| vec![s])
                 },
                 spends,
@@ -301,8 +301,8 @@ pub fn parse_internal_custody_operation(
                 signers.to_vec(),
                 E::RekeyClawback {
                     pending: first.coin,
-                    new_root: new_policy.info().puzzle_root,
-                    timelock_multiple: policy.rekey_multiple(signers)?,
+                    new_root: state.new_root,
+                    timelock_multiple: state.timelock_multiple,
                 },
                 Some(policy.aggregate_key(signers)?.derive_synthetic()),
                 32,

@@ -174,11 +174,7 @@ impl InternalCustodyPolicy {
             } => (0, destination_context),
         };
         let incoming = self.validate_deposits(coin, deposits)?;
-        let remaining = coin
-            .amount
-            .checked_add(incoming)
-            .and_then(|b| b.checked_sub(amount))
-            .ok_or(InternalCustodyError::InvalidPayment)?;
+        let remaining = internal_custody_remaining_amount(coin.amount, incoming, amount)?;
         if !amount.is_multiple_of(2) || coin.amount.is_multiple_of(2) || remaining == 0 {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
@@ -267,6 +263,17 @@ impl InternalCustodyPolicy {
         }
         Ok(total)
     }
+}
+
+pub(crate) fn internal_custody_remaining_amount(
+    amount: u64,
+    incoming: u64,
+    outgoing: u64,
+) -> Result<u64, DriverError> {
+    let remaining = (u128::from(amount) + u128::from(incoming))
+        .checked_sub(u128::from(outgoing))
+        .ok_or(InternalCustodyError::InvalidPayment)?;
+    u64::try_from(remaining).map_err(|_| InternalCustodyError::InvalidPayment.into())
 }
 
 pub(crate) fn deposit_announcement(id: Bytes32) -> [u8; 32] {

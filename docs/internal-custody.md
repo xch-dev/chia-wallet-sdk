@@ -51,18 +51,25 @@ Custody launcher puzzle or service.
 | Rekey completion | `get_rekey_completion_spend` | `complete_rekey_spends` |
 | Security-level increase | `get_rekey_spend_info` without a replacement derivation | `increase_security_spends` |
 
-The normal subset has `required` keys. Recovery with `k` keys has multiple
-`1 + required - k`, down to `minimum`. Its initiation delay is
-`rekey_increment * multiple`, plus `slow_rekey` when the multiple exceeds one.
-Completion independently waits `rekey_clawback`. Cancellation must authorize the
-pending attempt's exact multiple. A cancelled zero-value rekey coin creates no
-outputs. A lock uses `required + 1` keys, the precommitted next root, multiple zero,
+The normal subset has `required` keys. A subset of `k` keys authorizes a minimum
+multiple of `1 + required - k`, down to `minimum`. An attempt may commit to that
+minimum or any larger positive `u8` multiple. Its initiation delay is
+`rekey_increment * committed_multiple`, plus `slow_rekey` when that multiple
+exceeds one. `start_rekey_spend` chooses Python's minimum-delay form;
+`start_rekey_spend_with_state` accepts an explicit root and multiple.
+Completion independently waits `rekey_clawback`. Cancellation binds the pending
+attempt's exact state, while the selected subset's authorized minimum must not
+exceed the committed multiple. A normal quorum can therefore veto a slower
+recovery. Cancellation requires no target roster: unknown or malicious roots
+remain cancellable. A cancelled zero-value rekey coin creates no outputs. A lock uses `required + 1` keys, the precommitted next root, multiple zero,
 a raw aggregate public key and an empty raw AGG_SIG_ME message; it cannot be
 cancelled.
 
 Deposit input order is preserved, including its delegated-announcement order.
-Signer order does not change the aggregate key; duplicates are rejected. Deposit
-totals and withdrawals must be even, preserving the singleton's odd value. An
+Signer order does not change the aggregate key; duplicates are rejected. Payment
+arithmetic uses a wider intermediate and checks the final coin against `u64`,
+allowing absorption plus withdrawal even when their intermediate balance exceeds
+one coin's range. Deposit totals and withdrawals must be even, preserving the singleton's odd value. An
 absorb-only operation can retain a nonzero unused destination context, and a
 zero-value no-op is supported, matching Python. The simpler `payment_spends`
 wrapper uses zero context when no withdrawal is specified.
@@ -129,7 +136,7 @@ limits.
 `clear_signing/internal_custody/tests/generate_reference.py` uses only the pinned
 Python checkout and deterministic public test seeds. It generates:
 
-- 19 primary operation variants and 21 additional higher-threshold rekey/recovery
+- 31 primary operation variants and 21 additional higher-threshold rekey/recovery
   variants, with exact spend bytes, executed conditions,
   costs, aggregate keys, network-specific signature messages and Python-generated
   partial signatures;
@@ -139,7 +146,9 @@ Python checkout and deterministic public test seeds. It generates:
 Rust tests compare against those independent bytes, then submit signed spends to
 `chia-sdk-test::Simulator` for consensus validation. Connected lifecycle tests
 cover cancellation/completion races, refund absorption, normal and slow rekeys,
-replacement-policy payments, staged locks and independent fee sponsors.
+replacement-policy payments, staged locks and independent fee sponsors. Reference
+regressions include intermediate-overflow payments, unknown-root cancellation,
+stronger-quorum vetoes, and longer committed delays up to the `u8` maximum.
 Adversarial tests cover wrong subsets/proofs/lineage, substituted inputs, immutable
 STATE changes, missing announcement partners, hidden effects, noncanonical
 programs, duplicate inputs, wrong amounts and shared cost-budget exhaustion.

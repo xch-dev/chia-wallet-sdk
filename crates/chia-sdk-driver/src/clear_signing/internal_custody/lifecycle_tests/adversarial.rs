@@ -41,7 +41,7 @@ fn lifecycle_verification_rejects_substitution_missing_inputs_and_wrong_subsets(
                         ctx,
                         &old,
                         &bad,
-                        request(v, &new, &next, &selected),
+                        request(v, &old, &new, &next, &selected),
                         &constants(),
                         500_000_000,
                     )?;
@@ -55,7 +55,7 @@ fn lifecycle_verification_rejects_substitution_missing_inputs_and_wrong_subsets(
                         ctx,
                         &old,
                         &bad,
-                        request(v, &new, &next, &selected),
+                        request(v, &old, &new, &next, &selected),
                         &constants(),
                         500_000_000
                     )
@@ -71,7 +71,7 @@ fn lifecycle_verification_rejects_substitution_missing_inputs_and_wrong_subsets(
                     ctx,
                     &old,
                     &input[..1],
-                    request(v, &new, &next, &selected),
+                    request(v, &old, &new, &next, &selected),
                     &constants(),
                     500_000_000
                 )
@@ -84,7 +84,7 @@ fn lifecycle_verification_rejects_substitution_missing_inputs_and_wrong_subsets(
                     ctx,
                     &old,
                     &reversed,
-                    request(v, &new, &next, &selected),
+                    request(v, &old, &new, &next, &selected),
                     &constants(),
                     500_000_000
                 )
@@ -98,7 +98,7 @@ fn lifecycle_verification_rejects_substitution_missing_inputs_and_wrong_subsets(
                         ctx,
                         &old,
                         &input,
-                        request(v, &new, &next, &bad),
+                        request(v, &old, &new, &next, &bad),
                         &constants(),
                         500_000_000
                     )
@@ -138,14 +138,25 @@ fn recovery_and_lock_authorizations_cannot_be_used_for_payments() -> anyhow::Res
             .increase_security_spends(ctx, input[0].coin, proof, locked.keys())
             .is_err()
     );
-    // Cancellation cannot substitute a stronger/weaker timelock-multiple filter.
+    // A stronger quorum can veto a slower attempt; a weaker subset cannot
+    // authorize an attempt shorter than its minimum delay.
     let pending = spends(operation("slow-cancel"))[0].coin;
     assert!(
         p.rekey_clawback_spend(
             ctx,
             pending,
-            &policy("new_policy"),
+            rekey_state(&p, policy("new_policy").info().puzzle_root, 2),
             &keys(operation("normal-rekey")),
+            false
+        )
+        .is_ok()
+    );
+    assert!(
+        p.rekey_clawback_spend(
+            ctx,
+            spends(operation("normal-cancel"))[0].coin,
+            rekey_state(&p, policy("new_policy").info().puzzle_root, 1),
+            &keys(operation("slow-rekey")),
             false
         )
         .is_err()
@@ -217,8 +228,14 @@ fn rekey_review_rejects_a_roster_not_committed_by_the_target_root() -> anyhow::R
         keys(operation("slow-rekey")),
     ] {
         assert!(
-            old.rekey_clawback_spend(ctx, pending, &policy("next_policy"), &selected, false)
-                .is_err()
+            old.rekey_clawback_spend(
+                ctx,
+                pending,
+                rekey_state(&old, policy("next_policy").info().puzzle_root, 0),
+                &selected,
+                false
+            )
+            .is_err()
         );
     }
     Ok(())
@@ -266,4 +283,130 @@ fn policy_derivation_bounds_expansion_and_rejects_forged_next_level() -> anyhow:
     )?;
     assert!(forged.verify_definition(ctx).is_err());
     Ok(())
+}
+
+#[test]
+fn payment_arithmetic_checks_final_outputs_instead_of_the_intermediate_total() -> anyhow::Result<()>
+{
+    let ctx = &mut ctx();
+    let old = policy("policy");
+    let v = operation("overflow-intermediate");
+    let input = spends(v);
+    let selected = keys(v);
+    let verified =
+        parse_internal_custody_payment(ctx, &old, &input, &selected, &constants(), 500_000_000)?;
+    assert_eq!(verified.payment().input_coin.amount, u64::MAX - 2);
+    assert_eq!(verified.payment().incoming_amount, 4);
+    assert_eq!(verified.payment().outgoing_amount(), 4);
+    assert_eq!(verified.payment().vault_child.amount, u64::MAX - 2);
+    let proof = proof(ctx, &input[0]);
+    // The intermediate sum is legal, but an out-of-range final output is not.
+    assert!(
+        old.payment_spends(ctx, input[0].coin, proof, None, &selected, &[input[1].coin])
+            .is_err()
+    );
+    let remaining = crate::internal_custody_remaining_amount;
+    assert_eq!(remaining(u64::MAX - 2, 4, 2)?, u64::MAX);
+    assert!(remaining(u64::MAX - 2, 4, 0).is_err());
+    assert!(remaining(101, 4, 106).is_err());
+    assert!(
+        old.payment_spends(
+            ctx,
+            Coin::new(
+                input[0].coin.parent_coin_info,
+                input[0].coin.puzzle_hash,
+                101
+            ),
+            proof,
+            Some(InternalCustodyWithdrawal {
+                amount: 106,
+                destination: bytes(&data()["destination"])
+            }),
+            &selected,
+            &[input[1].coin]
+        )
+        .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn cancelling_an_unknown_target_binds_the_attempt_without_a_target_roster() -> anyhow::Result<()> {
+    let ctx = &mut ctx();
+    let old = policy("policy");
+    let v = operation("unknown-target-cancel");
+    let input = spends(v);
+    let selected = keys(v);
+    let state = rekey_state(&old, bytes(&v["new_root"]), 1);
+    let verified = parse_internal_custody_operation(
+        ctx,
+        &old,
+        &input,
+        InternalCustodyOperationRequest::RekeyClawback {
+            state,
+            signers: &selected,
+        },
+        &constants(),
+        500_000_000,
+    )?;
+    assert!(
+        matches!(verified.effects(), InternalCustodyOperationEffects::RekeyClawback { new_root, timelock_multiple: 1, .. } if *new_root == state.new_root)
+    );
+    for changed in [
+        InternalCustodyRekeyState {
+            old_root: [43; 32].into(),
+            ..state
+        },
+        InternalCustodyRekeyState {
+            new_root: [43; 32].into(),
+            ..state
+        },
+        InternalCustodyRekeyState {
+            timelock_multiple: 2,
+            ..state
+        },
+        InternalCustodyRekeyState {
+            timelock_multiple: 0,
+            ..state
+        },
+    ] {
+        assert!(
+            parse_internal_custody_operation(
+                ctx,
+                &old,
+                &input,
+                InternalCustodyOperationRequest::RekeyClawback {
+                    state: changed,
+                    signers: &selected
+                },
+                &constants(),
+                500_000_000
+            )
+            .is_err()
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn explicit_attempt_delay_must_cover_the_selected_subset_minimum() {
+    let ctx = &mut ctx();
+    let old = policy("policy");
+    let new = policy("new_policy");
+    let input = spends(operation("normal-rekey"));
+    let proof = proof(ctx, &input[0]);
+    let slow = keys(operation("slow-rekey"));
+    for multiple in [0, 1] {
+        assert!(
+            old.start_rekey_spend_with_state(
+                ctx,
+                input[0].coin,
+                proof,
+                rekey_state(&old, new.info().puzzle_root, multiple),
+                &slow,
+                false
+            )
+            .is_err()
+        );
+    }
 }
