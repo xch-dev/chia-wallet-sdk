@@ -46,11 +46,10 @@
 //! # let _ = P2CurriedSolution::new(TreeHash::new([2; 32]), ());
 //! ```
 
-mod internal_custody;
-pub use internal_custody::*;
 mod augmented_condition;
 mod cat_makers;
 mod everything_with_singleton;
+mod internal_custody;
 mod mips;
 mod mods;
 mod option_contract;
@@ -65,6 +64,7 @@ mod secure_the_mint;
 pub use augmented_condition::*;
 pub use cat_makers::*;
 pub use everything_with_singleton::*;
+pub use internal_custody::*;
 pub use mips::*;
 pub use mods::*;
 pub use option_contract::*;
@@ -142,7 +142,8 @@ mod tests {
             let mut a = clvmr::Allocator::new();
             let ptr = clvmr::serde::node_from_bytes(&mut a, &$puzzle)?;
             let hash = clvm_utils::tree_hash(&mut a, ptr);
-            assert_eq!($puzzle_hash, hash);
+            let expected: clvm_utils::TreeHash = $puzzle_hash.into();
+            assert_eq!(expected, hash);
         };
     }
 }

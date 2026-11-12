@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from importlib.metadata import version
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--reference", required=True, type=Path)
@@ -19,6 +20,10 @@ parser.add_argument(
     "--output", type=Path, default=Path(__file__).with_name("lifecycle.json")
 )
 args = parser.parse_args()
+EXPECTED_VERSIONS = {"chia-blockchain": "2.7.6.dev175", "chia_rs": "0.50.0"}
+for package, expected in EXPECTED_VERSIONS.items():
+    if version(package) != expected:
+        raise SystemExit(f"{package} must be {expected}, found {version(package)}")
 revision = subprocess.check_output(
     ["git", "rev-parse", "HEAD"], cwd=args.reference, text=True
 ).strip()
@@ -558,6 +563,7 @@ for n, required, maximum, minimum in [
     )
     policy_matrix.append(bytes(derived).hex())
 result = {
+    "environment": {"chia-blockchain": version("chia-blockchain"), "chia_rs": version("chia_rs")},
     "reference_revision": revision,
     "domain": domain.hex(),
     "mainnet_domain": DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA.hex(),
@@ -571,6 +577,21 @@ result = {
     "singleton": singleton.to_json_dict(),
     "operations": operations,
 }
+programs = {}
+def deduplicate(value):
+    if isinstance(value, dict):
+        if "puzzle_reveal" in value:
+            reveal = value.pop("puzzle_reveal")
+            identifier = hashlib.sha256(bytes.fromhex(reveal.removeprefix("0x"))).hexdigest()
+            programs[identifier] = reveal.removeprefix("0x")
+            value["puzzle_reveal_ref"] = identifier
+        for child in value.values():
+            deduplicate(child)
+    elif isinstance(value, list):
+        for child in value:
+            deduplicate(child)
+deduplicate(result)
+result["programs"] = dict(sorted(programs.items()))
 args.output.write_text(json.dumps(result, indent=2) + "\n")
 print(
     f"Wrote {len(operations)} independent operations to {args.output} ({args.output.stat().st_size} bytes)"

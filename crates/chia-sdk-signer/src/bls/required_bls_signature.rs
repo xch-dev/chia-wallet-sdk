@@ -161,6 +161,9 @@ impl RequiredBlsSignature {
     /// Sign one share of this condition using its aggregate public key as the
     /// augmentation context. This is not ordinary individual-key signing. The
     /// caller must authorize the participant and the complete transaction first.
+    /// Aggregated shares are valid only when their constituent public keys sum
+    /// exactly to `self.public_key`, including the synthetic offset share for
+    /// standard-puzzle keys.
     pub fn sign_partial(
         &self,
         secret_key: &chia_bls::SecretKey,

@@ -1,11 +1,14 @@
 # Internal Custody
 
-Internal Custody is the legacy prefarm puzzle family implemented by
+Internal Custody is the prefarm puzzle family implemented by
 [Chia-Network/internal-custody](https://github.com/Chia-Network/internal-custody)
 revision `4150dc832a5e66b5ed839974f88d1feb573dcfe2`. It is distinct from
 MIPS/Cloud Wallet vaults and ClawbackV2. The SDK vendors the original compiled
 modules without changing them; provenance, license, serialized SHA256 and tree
 hashes are beside the reveals in `chia-sdk-types`.
+
+ACH means Automated Clearing House, the reference protocol’s name for delayed,
+cancellable payment coins.
 
 ## Interfaces
 
@@ -19,15 +22,24 @@ hashes are beside the reveals in `chia-sdk-types`.
   trip Python's public `RootDerivation` streamable format. `new` accepts bounded
   typed data. `verify_definition` independently derives the root and next-level
   commitment from the keys, thresholds and immutable parameters.
+- `InternalCustody` is a `Singleton<InternalCustodyPolicy>` with coin-bound payment
+  and rekey constructors and the existing `child_with` / `child_lineage_proof`
+  helpers. Standalone policy builders also support offline reconstruction and
+  pending drop coins independently of a live singleton.
 - Policy methods construct payments (with optional deposit absorption),
   absorption alone, payment completion/clawback, ordinary rekeys, slower recovery,
   rekey cancellation/completion, and security-level increases. Construction is
   independent of transport, chain discovery, signing and broadcasting.
 - `parse_internal_custody_payment` returns an immutable
   `VerifiedInternalCustodyPayment`. `parse_internal_custody_operation` handles the
-  other lifecycle operations and returns `VerifiedInternalCustodyOperation` with
+  full lifecycle, including payments, and returns `VerifiedInternalCustodyOperation` with
   typed effects and an optional exact signature requirement. Both require an
-  explicit network domain and a positive shared CLVM cost budget.
+  explicit network domain and a positive shared CLVM cost budget. The payment
+  interface is a thin typed adapter over the single operation verifier. Effects
+  expose the signed destination context even for absorb-only/no-op spends, the
+  recreated singleton, and actual rekey initiation/completion delays.
+  `offset_share()` computes the public synthetic-offset signature share locally;
+  raw-key locks and unsigned completions have no offset share.
 - `RequiredBlsSignature::sign_partial` / `verify_partial` use the condition's
   aggregate public key as augmentation. The higher-level verified objects also
   enforce membership in the selected subset. User approval and key access remain
@@ -61,7 +73,9 @@ Completion independently waits `rekey_clawback`. Cancellation binds the pending
 attempt's exact state, while the selected subset's authorized minimum must not
 exceed the committed multiple. A normal quorum can therefore veto a slower
 recovery. Cancellation requires no target roster: unknown or malicious roots
-remain cancellable. A cancelled zero-value rekey coin creates no outputs. A lock uses `required + 1` keys, the precommitted next root, multiple zero,
+remain cancellable. A cancelled zero-value rekey coin creates no outputs.
+
+A lock uses `required + 1` keys, the precommitted next root, multiple zero,
 a raw aggregate public key and an empty raw AGG_SIG_ME message; it cannot be
 cancelled.
 
@@ -88,6 +102,14 @@ completion compete until the pending coin is spent. A pending payment retains it
 original policy even if the live singleton later rekeys.
 
 ### Deliberate compatibility boundaries
+
+- Unlike the reference CLI’s minimum-only rekeys, the SDK accepts any committed
+  multiple at least the signing subset’s minimum, through 255. A stronger quorum
+  may cancel a slower attempt without knowing its target roster. Both behaviors
+  follow the unchanged puzzles’ authorization rules.
+- The SDK rejects `minimum > required` and bounds public policies to 16 keys and
+  1024 proofs per list, even where the reference CLI accepts larger configurations.
+  These fail-closed limits bound offline work; they are not consensus limits.
 
 - The compiled puzzles are unchanged. Current consensus rejects ephemeral inputs
   carrying relative-time assertions, even with zero delay. Python's three-spend
@@ -153,10 +175,19 @@ Adversarial tests cover wrong subsets/proofs/lineage, substituted inputs, immuta
 STATE changes, missing announcement partners, hidden effects, noncanonical
 programs, duplicate inputs, wrong amounts and shared cost-budget exhaustion.
 
-Regenerate with the original repository's Python environment:
+The generator records and requires `chia-blockchain==2.7.6.dev175` and
+`chia_rs==0.50.0`. The Chia source revision used is
+`0d53f9f7f28ef35450ebf2fefd3edea5ad025a01`. Create its Python environment from
+that checkout and install the pinned `chia_rs` version before regeneration.
+Reveals are stored once in a `programs` table keyed by serialized SHA256;
+operation records reference that table. The former application request/Docker
+fixtures have been replaced by the independently generated `payment` vector.
+No Docker backend is required.
+
+Regenerate with that Python environment:
 
 ```sh
-python crates/chia-sdk-driver/src/clear_signing/internal_custody/tests/generate_reference.py \
+/path/to/chia-blockchain/.venv/bin/python crates/chia-sdk-driver/src/clear_signing/internal_custody/tests/generate_reference.py \
   --reference /path/to/internal-custody
 cargo test -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --locked
 cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --all-targets --locked -- -D warnings

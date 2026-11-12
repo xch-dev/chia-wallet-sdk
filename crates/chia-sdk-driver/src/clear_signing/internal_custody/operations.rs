@@ -1,9 +1,12 @@
 //! Exact construction-backed verification for Internal Custody lifecycle operations.
+mod payment;
 use super::{
     AggSig, AggSigConstants, AggSigKind, Bytes32, Coin, CoinSpend, Condition, DriverError,
-    FromClvm, InternalCustodyError, InternalCustodyPolicy, InternalCustodySpendSolution, NodePtr,
-    PublicKey, RequiredBlsSignature, SecretKey, Signature, SingletonSolution, SpendContext,
-    canonical_program, run_budgeted,
+    FromClvm, InternalCustodyError, InternalCustodyLayer, InternalCustodyPayment,
+    InternalCustodyPaymentArguments, InternalCustodyPendingPayment, InternalCustodyPolicy,
+    InternalCustodySpendSolution, Layer, NodePtr, PublicKey, Puzzle, RequiredBlsSignature,
+    SecretKey, Signature, SingletonLayer, SingletonSolution, SpendContext, canonical_program,
+    run_budgeted,
 };
 use crate::{InternalCustodyInfo, InternalCustodyThresholds};
 use chia_puzzle_types::{DeriveSynthetic, LineageProof};
@@ -11,11 +14,38 @@ use chia_sdk_types::Mod;
 use chia_sdk_types::puzzles::{
     InternalCustodyMerkleSolution, InternalCustodyRekeyArguments, InternalCustodyRekeyState,
 };
+use payment::reconstruct_payment;
+
+// Keep the expected authorization independently derived from the selected roster.
+// Exact reconstruction fixes the delegated program; execution must still emit the
+// corresponding standard or lock signature form.
+enum ExpectedAuthorization {
+    Unsigned,
+    Standard(PublicKey),
+    Lock(PublicKey),
+}
+impl ExpectedAuthorization {
+    fn matches(&self, key: PublicKey, message: &[u8]) -> bool {
+        match self {
+            Self::Unsigned => false,
+            Self::Standard(aggregate) => key == aggregate.derive_synthetic() && message.len() == 32,
+            Self::Lock(aggregate) => key == *aggregate && message.is_empty(),
+        }
+    }
+    fn is_signed(&self) -> bool {
+        !matches!(self, Self::Unsigned)
+    }
+}
 
 /// Caller-selected operation definition. None of these fields are trusted review
 /// facts: every supplied spend must exactly match its canonical reconstruction.
 #[derive(Debug, Clone, Copy)]
 pub enum InternalCustodyOperationRequest<'a> {
+    /// Verify the exact payment action and fee form decoded from the signed input.
+    Payment {
+        /// Frozen signing participants.
+        signers: &'a [PublicKey],
+    },
     /// Cancel the ACH coin committed to this recipient.
     PaymentClawback {
         /// Original recipient.
@@ -69,6 +99,8 @@ pub struct InternalCustodyPolicyDefinition {
 /// time readiness remain the caller's responsibility, including for staged locks.
 #[derive(Debug, Clone)]
 pub enum InternalCustodyOperationEffects {
+    /// Payment, absorption, or a no-op, including its singleton continuation.
+    Payment(InternalCustodyPayment),
     /// ACH cancellation creates an unclaimed deposit, not singleton funds.
     PaymentClawback {
         /// Consumed ACH input.
@@ -97,6 +129,10 @@ pub enum InternalCustodyOperationEffects {
         new_policy: InternalCustodyPolicyDefinition,
         /// Recovery delay multiple.
         timelock_multiple: u8,
+        /// Minimum age of the initiating singleton, in seconds.
+        initiation_seconds: u128,
+        /// Minimum age of the pending coin before completion, in seconds.
+        completion_seconds: u64,
     },
     /// Cancel a zero-value pending attempt; no vault funds move.
     RekeyClawback {
@@ -153,6 +189,29 @@ impl VerifiedInternalCustodyOperation {
     pub fn required_signature(&self) -> Option<&RequiredBlsSignature> {
         self.signature.as_ref()
     }
+    /// Public deterministic synthetic-offset signature share, absent for raw-key
+    /// lock authorization and unsigned completion. This contains no custodian key.
+    pub fn offset_share(&self) -> Result<Option<Signature>, DriverError> {
+        let Some(required) = &self.signature else {
+            return Ok(None);
+        };
+        let aggregate = self
+            .selected_signers
+            .iter()
+            .fold(PublicKey::default(), |sum, key| sum + key);
+        if aggregate == required.public_key {
+            return Ok(None);
+        }
+        let mut hash = chia_sha2::Sha256::new();
+        hash.update(aggregate.to_bytes());
+        hash.update(chia_puzzle_types::standard::DEFAULT_HIDDEN_PUZZLE_HASH);
+        let offset = SecretKey::from_bytes(&chia_puzzle_types::mod_by_group_order(hash.finalize()))
+            .map_err(|_| InternalCustodyError::InvalidSigningSet)?;
+        if aggregate + &offset.public_key() != required.public_key {
+            return Err(InternalCustodyError::InvalidSigningSet.into());
+        }
+        Ok(Some(required.sign_partial(&offset)?))
+    }
     /// Produce a share after the caller obtains approval of these exact effects.
     pub fn sign_partial(&self, key: &SecretKey) -> Result<Signature, DriverError> {
         if !self.selected_signers.contains(&key.public_key()) {
@@ -188,15 +247,34 @@ pub fn parse_internal_custody_operation(
     let first = spends
         .first()
         .ok_or(InternalCustodyError::UnsupportedOperation)?;
-    if spends.len() > 3 {
+    if spends.len() > crate::MAX_INTERNAL_CUSTODY_INPUTS {
         return Err(InternalCustodyError::UnsupportedOperation.into());
     }
-    let (expected, signers, effects, expected_key, raw_message_len) = match request {
+    let decoded = spends
+        .iter()
+        .map(|spend| {
+            Ok((
+                canonical_program(ctx, spend.puzzle_reveal.as_ref())?,
+                canonical_program(ctx, spend.solution.as_ref())?,
+            ))
+        })
+        .collect::<Result<Vec<_>, DriverError>>()?;
+    let (expected, signers, effects, authorization) = match request {
+        R::Payment { signers } => {
+            let (expected, payment) =
+                reconstruct_payment(ctx, policy, spends, signers, decoded[0])?;
+            (
+                expected,
+                signers.to_vec(),
+                E::Payment(payment),
+                ExpectedAuthorization::Standard(policy.aggregate_key(signers)?),
+            )
+        }
         R::PaymentClawback {
             destination,
             signers,
         } => {
-            let expected = match_fee_form(
+            let (expected, _) = match_fee_form(
                 |fee| {
                     policy
                         .payment_clawback_spend(ctx, first.coin, destination, signers, fee)
@@ -219,8 +297,7 @@ pub fn parse_internal_custody_operation(
                     refund,
                     launcher_id: policy.info().launcher_id,
                 },
-                Some(policy.selected_key(signers)?),
-                32,
+                ExpectedAuthorization::Standard(policy.aggregate_key(signers)?),
             )
         }
         R::PaymentCompletion { destination } => {
@@ -232,8 +309,7 @@ pub fn parse_internal_custody_operation(
                     pending: first.coin,
                     payout: Coin::new(first.coin.coin_id(), destination, first.coin.amount),
                 },
-                None,
-                0,
+                ExpectedAuthorization::Unsigned,
             )
         }
         R::Rekey {
@@ -241,7 +317,7 @@ pub fn parse_internal_custody_operation(
             signers,
         } => {
             validate_target(ctx, policy, new_policy)?;
-            let raw = singleton_solution(ctx, first)?;
+            let raw = singleton_solution(ctx, decoded[0].1)?;
             let action =
                 InternalCustodyRekeyArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
             if action.new_root != new_policy.info().puzzle_root {
@@ -252,7 +328,7 @@ pub fn parse_internal_custody_operation(
                 old_root: policy.info().puzzle_root,
                 timelock_multiple: action.timelock_multiple,
             };
-            let expected = match_fee_form(
+            let (expected, _) = match_fee_form(
                 |fee| {
                     policy
                         .start_rekey_spend_with_state(
@@ -274,21 +350,26 @@ pub fn parse_internal_custody_operation(
                 signers.to_vec(),
                 E::Rekey {
                     input: first.coin,
-                    vault_child: Coin::new(
-                        first.coin.coin_id(),
-                        first.coin.puzzle_hash,
-                        first.coin.amount,
-                    ),
+                    vault_child: crate::Singleton::new(first.coin, raw.lineage_proof, policy)
+                        .child_with(policy, first.coin.amount)
+                        .coin,
                     pending,
                     new_policy: definition(new_policy),
                     timelock_multiple: state.timelock_multiple,
+                    initiation_seconds: u128::from(policy.info().rekey_increment)
+                        * u128::from(state.timelock_multiple)
+                        + if state.timelock_multiple > 1 {
+                            u128::from(policy.info().slow_rekey)
+                        } else {
+                            0
+                        },
+                    completion_seconds: policy.info().rekey_clawback,
                 },
-                Some(policy.aggregate_key(signers)?.derive_synthetic()),
-                32,
+                ExpectedAuthorization::Standard(policy.aggregate_key(signers)?),
             )
         }
         R::RekeyClawback { state, signers } => {
-            let expected = match_fee_form(
+            let (expected, _) = match_fee_form(
                 |fee| {
                     policy
                         .rekey_clawback_spend(ctx, first.coin, state, signers, fee)
@@ -304,8 +385,7 @@ pub fn parse_internal_custody_operation(
                     new_root: state.new_root,
                     timelock_multiple: state.timelock_multiple,
                 },
-                Some(policy.aggregate_key(signers)?.derive_synthetic()),
-                32,
+                ExpectedAuthorization::Standard(policy.aggregate_key(signers)?),
             )
         }
         R::RekeyCompletion { new_policy } => {
@@ -313,13 +393,13 @@ pub fn parse_internal_custody_operation(
             if spends.len() != 2 {
                 return Err(InternalCustodyError::UnsupportedOperation.into());
             }
-            let raw = singleton_solution(ctx, first)?;
+            let raw = singleton_solution(ctx, decoded[0].1)?;
             let action =
                 InternalCustodyRekeyArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
             if action.new_root != new_policy.info().puzzle_root {
                 return Err(InternalCustodyError::InvalidPolicy.into());
             }
-            let node = canonical_program(ctx, spends[1].solution.as_ref())?;
+            let node = decoded[1].1;
             let pending =
                 InternalCustodyMerkleSolution::<NodePtr, NodePtr>::from_clvm(&**ctx, node)?;
             let (lineage, ()): (LineageProof, ()) = FromClvm::from_clvm(&**ctx, pending.solution)?;
@@ -337,22 +417,18 @@ pub fn parse_internal_custody_operation(
                     (raw.lineage_proof, lineage),
                 )?
                 .to_vec();
-            let child = new_policy.singleton_puzzle(ctx)?;
             (
                 expected,
                 vec![],
                 E::RekeyCompletion {
                     input: first.coin,
                     pending: spends[1].coin,
-                    vault_child: Coin::new(
-                        first.coin.coin_id(),
-                        ctx.tree_hash(child).into(),
-                        first.coin.amount,
-                    ),
+                    vault_child: crate::Singleton::new(first.coin, raw.lineage_proof, policy)
+                        .child_with(new_policy, first.coin.amount)
+                        .coin,
                     new_policy: definition(new_policy),
                 },
-                None,
-                0,
+                ExpectedAuthorization::Unsigned,
             )
         }
         R::IncreaseSecurity {
@@ -363,7 +439,7 @@ pub fn parse_internal_custody_operation(
             if policy.next_root() != Some(new_policy.info().puzzle_root) {
                 return Err(InternalCustodyError::InvalidPolicy.into());
             }
-            let raw = singleton_solution(ctx, first)?;
+            let raw = singleton_solution(ctx, decoded[0].1)?;
             let stages =
                 policy.increase_security_spends(ctx, first.coin, raw.lineage_proof, signers)?;
             let pending = stages.completion[0].coin;
@@ -372,7 +448,6 @@ pub fn parse_internal_custody_operation(
             if spends.len() != 1 {
                 expected.extend(stages.completion);
             }
-            let child = new_policy.singleton_puzzle(ctx)?;
             (
                 expected,
                 signers.to_vec(),
@@ -380,15 +455,16 @@ pub fn parse_internal_custody_operation(
                     input: first.coin,
                     intermediate_singleton,
                     pending,
-                    vault_child: Coin::new(
-                        intermediate_singleton.coin_id(),
-                        ctx.tree_hash(child).into(),
-                        first.coin.amount,
-                    ),
+                    vault_child: crate::Singleton::new(
+                        intermediate_singleton,
+                        raw.lineage_proof,
+                        policy,
+                    )
+                    .child_with(new_policy, first.coin.amount)
+                    .coin,
                     new_policy: definition(new_policy),
                 },
-                Some(policy.aggregate_key(signers)?),
-                0,
+                ExpectedAuthorization::Lock(policy.aggregate_key(signers)?),
             )
         }
     };
@@ -401,16 +477,13 @@ pub fn parse_internal_custody_operation(
     let mut puzzle_announcements = std::collections::HashSet::new();
     let mut coin_assertions = Vec::new();
     let mut puzzle_assertions = Vec::new();
-    for spend in spends {
-        let puzzle = canonical_program(ctx, spend.puzzle_reveal.as_ref())?;
-        let solution = canonical_program(ctx, spend.solution.as_ref())?;
+    for (spend, (puzzle, solution)) in spends.iter().zip(decoded) {
         let output = run_budgeted(ctx, puzzle, solution, &mut remaining)?;
         for condition in Vec::<Condition>::from_clvm(&**ctx, output)? {
             match condition {
                 Condition::AggSigMe(c)
                     if signature.is_none()
-                        && Some(c.public_key) == expected_key
-                        && c.message.len() == raw_message_len =>
+                        && authorization.matches(c.public_key, c.message.as_ref()) =>
                 {
                     signature = Some(RequiredBlsSignature::try_from_condition(
                         &spend.coin,
@@ -468,7 +541,7 @@ pub fn parse_internal_custody_operation(
     {
         return Err(InternalCustodyError::UnexpectedConditions.into());
     }
-    if signature.is_some() != expected_key.is_some() {
+    if signature.is_some() != authorization.is_signed() {
         return Err(InternalCustodyError::UnexpectedConditions.into());
     }
     Ok(VerifiedInternalCustodyOperation {
@@ -494,22 +567,21 @@ fn definition(policy: &InternalCustodyPolicy) -> InternalCustodyPolicyDefinition
 }
 fn singleton_solution(
     ctx: &mut SpendContext,
-    spend: &CoinSpend,
+    solution: NodePtr,
 ) -> Result<
     SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>,
     DriverError,
 > {
-    let solution = canonical_program(ctx, spend.solution.as_ref())?;
     Ok(FromClvm::from_clvm(&**ctx, solution)?)
 }
 fn match_fee_form(
     mut build: impl FnMut(bool) -> Result<Vec<CoinSpend>, DriverError>,
     spends: &[CoinSpend],
-) -> Result<Vec<CoinSpend>, DriverError> {
+) -> Result<(Vec<CoinSpend>, bool), DriverError> {
     for fee in [false, true] {
         let expected = build(fee)?;
         if expected == spends {
-            return Ok(expected);
+            return Ok((expected, fee));
         }
     }
     Err(InternalCustodyError::UnexpectedConditions.into())

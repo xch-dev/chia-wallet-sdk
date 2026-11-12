@@ -5,7 +5,9 @@ mod rekey;
 pub use rekey::InternalCustodyLockSpends;
 mod payment;
 mod policy;
+mod singleton;
 pub use policy::*;
+pub use singleton::InternalCustody;
 
 /// Invalid or unsupported legacy custody data. Clear-signing parsers accept only
 /// explicitly modeled operations, never a generic delegated spend fallback.
@@ -34,7 +36,7 @@ pub enum InternalCustodyError {
     UnexpectedConditions,
 }
 
-pub(crate) use payment::{deposit_announcement, internal_custody_remaining_amount};
+pub(crate) use payment::internal_custody_remaining_amount;
 
 /// Maximum supported singleton-plus-deposit inputs in a verified custody operation.
 /// This bounds reconstruction and per-input execution work alongside the cost budget.

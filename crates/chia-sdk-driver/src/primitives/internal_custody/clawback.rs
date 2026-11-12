@@ -28,7 +28,7 @@ impl InternalCustodyPolicy {
             || !pending.amount.is_multiple_of(2)
             || ctx.tree_hash(puzzle) != pending.puzzle_hash.into()
         {
-            return Err(InternalCustodyError::InvalidPayment.into());
+            return Err(DriverError::WrongPuzzleHash);
         }
         let return_hash = P2SingletonArgs::new(self.info().launcher_id)
             .curry_tree_hash()
@@ -42,8 +42,13 @@ impl InternalCustodyPolicy {
             conditions = conditions.create_coin_announcement(Bytes::default());
         }
         let context = ctx.alloc(&(self.info().puzzle_root, destination))?;
-        let (filter, proof, solution) =
-            self.authorize_conditions(ctx, signers, 1, conditions, context)?;
+        let (filter, proof, solution) = self.authorize_conditions(
+            ctx,
+            signers,
+            super::authorization::ConditionsAuthorization::Standard,
+            conditions,
+            context,
+        )?;
         let clawback = InternalCustodyAchClawbackArgs {
             return_puzzle_hash: return_hash,
         };

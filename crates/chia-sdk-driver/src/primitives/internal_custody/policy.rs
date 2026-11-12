@@ -2,6 +2,7 @@ use crate::{DriverError, InternalCustodyError};
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_types::MerkleProof;
+use chia_sdk_types::Mod;
 use std::collections::HashSet;
 
 mod derivation;
@@ -56,6 +57,7 @@ pub struct InternalCustodyProof {
 #[derive(Debug, Clone)]
 pub struct InternalCustodyPolicy {
     info: InternalCustodyInfo,
+    pub(super) drop_puzzle_hashes: chia_sdk_types::puzzles::InternalCustodyPuzzleHashes,
     keys: Vec<PublicKey>,
     next_root: Option<Bytes32>,
     thresholds: InternalCustodyThresholds,
@@ -92,13 +94,31 @@ impl InternalCustodyPolicy {
         if unique.len() != keys.len() {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
-        let policy = Self {
+        let mut policy = Self {
+            drop_puzzle_hashes: chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
+                rekey: Bytes32::default(),
+                payment: Bytes32::default(),
+            },
             info,
             keys,
             next_root,
             thresholds,
             filter_proofs,
             leaf_proofs,
+        };
+        policy.drop_puzzle_hashes = chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
+            rekey: chia_sdk_types::puzzles::InternalCustodyDropArgs {
+                inner_puzzle: super::payment::DEFAULT_INNER,
+                merkle_root: policy.rekey_tree().root(),
+            }
+            .curry_tree_hash()
+            .into(),
+            payment: chia_sdk_types::puzzles::InternalCustodyDropArgs {
+                inner_puzzle: super::payment::DEFAULT_INNER,
+                merkle_root: policy.payment_completion_tree().1.root(),
+            }
+            .curry_tree_hash()
+            .into(),
         };
         if policy.to_legacy_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());

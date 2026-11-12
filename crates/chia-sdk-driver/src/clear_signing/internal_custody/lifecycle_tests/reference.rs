@@ -13,7 +13,9 @@ fn build(
     Ok(match v["kind"].as_str().unwrap() {
         "payment" => {
             let node = canonical_program(ctx, first.solution.as_ref())?;
-            let raw = SingletonSolution::<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr>>::from_clvm(&**ctx, node)?;
+            let raw = SingletonSolution::<
+                InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>,
+            >::from_clvm(&**ctx, node)?;
             let action =
                 InternalCustodyPaymentArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
             let action = if action.outgoing > 0 {
@@ -26,10 +28,8 @@ fn build(
                     destination_context: action.destination,
                 }
             };
-            old.payment_spends_with_options(
+            InternalCustody::new(first.coin, raw.lineage_proof, old.clone()).payment_spends(
                 ctx,
-                first.coin,
-                raw.lineage_proof,
                 InternalCustodyPaymentOptions {
                     action,
                     fee_announcement: fee,
@@ -332,4 +332,105 @@ fn python_higher_threshold_recoveries_match_bytes_signatures_and_consensus() -> 
         }
     }
     Ok(())
+}
+
+#[test]
+fn verified_disclosures_and_offset_shares_match_every_signed_reference() -> anyhow::Result<()> {
+    let old = policy("policy");
+    let new = policy("new_policy");
+    let next = policy("next_policy");
+    for v in data()["operations"].as_array().unwrap() {
+        let input = spends(v);
+        let selected = keys(v);
+        let ctx = &mut ctx();
+        let request = if v["kind"] == "payment" {
+            InternalCustodyOperationRequest::Payment { signers: &selected }
+        } else {
+            request(v, &old, &new, &next, &selected)
+        };
+        let verified = parse_internal_custody_operation(
+            ctx,
+            &old,
+            &input,
+            request,
+            &constants(),
+            500_000_000,
+        )?;
+        match verified.effects() {
+            InternalCustodyOperationEffects::Payment(payment) => {
+                let raw = singleton_solution_for_test(ctx, &input[0])?;
+                let action =
+                    InternalCustodyPaymentArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
+                assert_eq!(payment.signed_destination_context, action.destination);
+                assert_eq!(
+                    payment.vault_child.parent_coin_info,
+                    input[0].coin.coin_id()
+                );
+            }
+            InternalCustodyOperationEffects::Rekey {
+                timelock_multiple,
+                initiation_seconds,
+                completion_seconds,
+                ..
+            } => {
+                assert_eq!(
+                    *initiation_seconds,
+                    u128::from(old.info().rekey_increment) * u128::from(*timelock_multiple)
+                        + if *timelock_multiple > 1 {
+                            u128::from(old.info().slow_rekey)
+                        } else {
+                            0
+                        }
+                );
+                assert_eq!(*completion_seconds, old.info().rekey_clawback);
+            }
+            _ => (),
+        }
+        let offset = verified.offset_share()?;
+        if let Some(required) = verified.required_signature() {
+            let mut shares = Vec::new();
+            for secret in (1..=6)
+                .map(seed)
+                .filter(|s| selected.contains(&s.public_key()))
+            {
+                shares.push(verified.sign_partial(&secret)?);
+            }
+            if let Some(offset) = offset {
+                shares.push(offset);
+            }
+            assert!(
+                chia_bls::verify(
+                    &chia_bls::aggregate(&shares),
+                    &required.public_key,
+                    required.message()
+                ),
+                "{}",
+                v["name"]
+            );
+        } else {
+            assert!(offset.is_none());
+        }
+    }
+    Ok(())
+}
+
+fn singleton_solution_for_test(
+    ctx: &mut SpendContext,
+    spend: &CoinSpend,
+) -> Result<
+    SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>,
+    DriverError,
+> {
+    let node = canonical_program(ctx, spend.solution.as_ref())?;
+    let solution = SingletonSolution::from_clvm(&**ctx, node)?;
+    // Round trip every payment solution through the public layer interface.
+    let layer = policy("policy").inner_layer(ctx)?;
+    let parsed = InternalCustodyLayer::parse_solution(
+        ctx,
+        SingletonSolution::<NodePtr>::from_clvm(&**ctx, node)?.inner_solution,
+    )?;
+    let rebuilt = layer.construct_solution(ctx, parsed)?;
+    let original = SingletonSolution::<NodePtr>::from_clvm(&**ctx, node)?.inner_solution;
+    assert_eq!(ctx.serialize(&rebuilt)?, ctx.serialize(&original)?);
+    Ok(solution)
 }

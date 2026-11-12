@@ -17,12 +17,11 @@
 //! Anything that can't be verified is left out, and anything linked to the vault that can't be verified is an error.
 //! See [`parse_vault_transaction`] for exactly what is and isn't guaranteed.
 
-mod internal_custody;
-pub use internal_custody::*;
 mod children;
 mod delegated_spend;
 mod facts;
 mod inner_spend;
+mod internal_custody;
 mod issuance;
 mod linked_offer;
 mod memos;
@@ -38,6 +37,7 @@ pub use children::*;
 pub use delegated_spend::*;
 pub use facts::*;
 pub use inner_spend::*;
+pub use internal_custody::*;
 pub use issuance::*;
 pub use linked_offer::*;
 pub use memos::*;

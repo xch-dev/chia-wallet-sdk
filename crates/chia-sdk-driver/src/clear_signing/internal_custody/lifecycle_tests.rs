@@ -11,20 +11,20 @@ mod payments;
 mod reference;
 mod rekeys;
 
-fn data() -> &'static Value {
+pub(super) fn data() -> &'static Value {
     static DATA: OnceLock<Value> = OnceLock::new();
     DATA.get_or_init(|| serde_json::from_str(include_str!("tests/lifecycle.json")).unwrap())
 }
 fn unhex(v: &Value) -> Vec<u8> {
     hex::decode(v.as_str().unwrap().trim_start_matches("0x")).unwrap()
 }
-fn bytes(v: &Value) -> Bytes32 {
+pub(super) fn bytes(v: &Value) -> Bytes32 {
     unhex(v).try_into().unwrap()
 }
 fn ctx() -> SpendContext {
     clvmr::Allocator::new_limited(64 * 1024 * 1024).into()
 }
-fn policy(which: &str) -> InternalCustodyPolicy {
+pub(super) fn policy(which: &str) -> InternalCustodyPolicy {
     InternalCustodyPolicy::from_legacy_bytes(&unhex(&data()[which])).unwrap()
 }
 fn coin(v: &Value) -> Coin {
@@ -34,7 +34,7 @@ fn coin(v: &Value) -> Coin {
         v["amount"].as_u64().unwrap(),
     )
 }
-fn spends(v: &Value) -> Vec<CoinSpend> {
+pub(super) fn spends(v: &Value) -> Vec<CoinSpend> {
     v["spends"]
         .as_array()
         .unwrap()
@@ -42,13 +42,13 @@ fn spends(v: &Value) -> Vec<CoinSpend> {
         .map(|v| {
             CoinSpend::new(
                 coin(&v["coin"]),
-                unhex(&v["puzzle_reveal"]).into(),
+                unhex(&data()["programs"][v["puzzle_reveal_ref"].as_str().unwrap()]).into(),
                 unhex(&v["solution"]).into(),
             )
         })
         .collect()
 }
-fn keys(v: &Value) -> Vec<PublicKey> {
+pub(super) fn keys(v: &Value) -> Vec<PublicKey> {
     v["signers"]
         .as_array()
         .unwrap()
@@ -119,7 +119,7 @@ fn signature(v: &Value) -> Signature {
     assert_eq!(secret.public_key(), final_key);
     chia_bls::sign(&secret, message)
 }
-fn operation(name: &str) -> &'static Value {
+pub(super) fn operation(name: &str) -> &'static Value {
     data()["operations"]
         .as_array()
         .unwrap()
@@ -127,7 +127,7 @@ fn operation(name: &str) -> &'static Value {
         .find(|v| v["name"] == name)
         .unwrap()
 }
-fn constants() -> AggSigConstants {
+pub(super) fn constants() -> AggSigConstants {
     AggSigConstants::new(bytes(&data()["domain"]))
 }
 fn sign_required(required: &RequiredBlsSignature, selected: &[PublicKey]) -> Signature {

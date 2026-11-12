@@ -74,6 +74,7 @@ impl MerkleProof {
     pub fn new(path: u32, proof: Vec<Bytes32>) -> Self {
         Self { path, proof }
     }
+
     /// Calculate the root committed by this proof and leaf. Returns `None` for
     /// paths outside the proof depth or proofs exceeding the 32-bit path format.
     pub fn root(&self, leaf: Bytes32) -> Option<Bytes32> {

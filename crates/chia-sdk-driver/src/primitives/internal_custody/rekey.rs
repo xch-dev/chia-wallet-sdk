@@ -97,6 +97,9 @@ impl InternalCustodyPolicy {
     }
     /// Start a normal rekey or slower recovery using its authorized subset.
     /// The new policy must preserve the launcher's immutable puzzle state.
+    /// This convenience form chooses the subset's minimum delay and checks the
+    /// replacement policy metadata; `start_rekey_spend_with_state` accepts a raw
+    /// target root and an explicit longer delay for offline reconstruction.
     pub fn start_rekey_spend(
         &self,
         ctx: &mut SpendContext,
@@ -138,8 +141,13 @@ impl InternalCustodyPolicy {
         let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
         conditions = conditions.create_coin(ctx.tree_hash(inner).into(), coin.amount, Memos::None);
         let context = ctx.alloc(&state)?;
-        let (filter, filter_proof, filter_solution) =
-            self.authorize_conditions(ctx, signers, minimum, conditions, context)?;
+        let (filter, filter_proof, filter_solution) = self.authorize_conditions(
+            ctx,
+            signers,
+            super::authorization::ConditionsAuthorization::rekey(minimum)?,
+            conditions,
+            context,
+        )?;
         self.start_rekey(
             ctx,
             coin,
@@ -159,14 +167,14 @@ impl InternalCustodyPolicy {
         let (filter, filter_proof, filter_solution) = authorization;
         let puzzle = self.singleton_puzzle(ctx)?;
         if coin.amount.is_multiple_of(2) || ctx.tree_hash(puzzle) != coin.puzzle_hash.into() {
-            return Err(InternalCustodyError::InvalidPayment.into());
+            return Err(DriverError::WrongPuzzleHash);
         }
         let solution = ctx.alloc(&SingletonSolution {
             lineage_proof: proof,
             amount: coin.amount,
             inner_solution: InternalCustodySpendSolution {
                 amount: coin.amount,
-                spend_type: 1,
+                spend_type: chia_sdk_types::puzzles::InternalCustodySpendType::StartRekey,
                 action: InternalCustodyRekeyArguments {
                     timelock_multiple: state.timelock_multiple,
                     new_root: state.new_root,
@@ -203,8 +211,13 @@ impl InternalCustodyPolicy {
             conditions = conditions.create_coin_announcement(Bytes::default());
         }
         let context = ctx.alloc(&state)?;
-        let (filter, proof, solution) =
-            self.authorize_conditions(ctx, signers, minimum, conditions, context)?;
+        let (filter, proof, solution) = self.authorize_conditions(
+            ctx,
+            signers,
+            super::authorization::ConditionsAuthorization::rekey(minimum)?,
+            conditions,
+            context,
+        )?;
         let branch = ctx.alloc_mod::<InternalCustodyRekeyClawback>()?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: branch,
@@ -250,7 +263,7 @@ impl InternalCustodyPolicy {
             amount: singleton.amount,
             inner_solution: InternalCustodySpendSolution {
                 amount: singleton.amount,
-                spend_type: 0,
+                spend_type: chia_sdk_types::puzzles::InternalCustodySpendType::FinishRekey,
                 action: InternalCustodyRekeyArguments {
                     timelock_multiple: state.timelock_multiple,
                     new_root: state.new_root,
@@ -303,7 +316,7 @@ impl InternalCustodyPolicy {
             old_root: self.info().puzzle_root,
             timelock_multiple: 0,
         };
-        let auth = self.authorization(ctx, signers, 0)?;
+        let auth = self.authorization(ctx, signers, super::authorization::AuthKind::Lock)?;
         let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
         let inner_hash: Bytes32 = ctx.tree_hash(inner).into();
         let leaf_solution = ctx.alloc(&clvm_list!(state.old_root, (inner_hash, coin.amount)))?;

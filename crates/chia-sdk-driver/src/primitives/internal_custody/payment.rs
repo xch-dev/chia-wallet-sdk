@@ -12,8 +12,8 @@ use chia_puzzle_types::{
 use chia_sdk_types::{
     Conditions, MerkleTree, Mod,
     puzzles::{
-        InternalCustodyAchClawbackArgs, InternalCustodyAchCompletionArgs,
-        InternalCustodyMerkleArgs, InternalCustodyMerkleSolution, InternalCustodyPaymentArguments,
+        InternalCustodyAchClawbackArgs, InternalCustodyAchCompletionArgs, InternalCustodyDropArgs,
+        InternalCustodyMerkleSolution, InternalCustodyPaymentArguments,
         InternalCustodySpendSolution, P2SingletonArgs,
     },
 };
@@ -21,20 +21,16 @@ use clvm_traits::{clvm_curried_args, clvm_list};
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
+// `(a 2 5)` applies the revealed branch to the remaining environment.
+pub(super) const DEFAULT_INNER: (u8, (u8, (u8, ()))) = clvm_list!(2, 2, 5);
+
 impl InternalCustodyPolicy {
     /// Construct the committed inner custody layer.
-    pub fn inner_layer(&self, ctx: &mut SpendContext) -> Result<InternalCustodyLayer, DriverError> {
-        let info = self.info();
-        let rekey = self.rekey_puzzle(ctx)?;
-        let payment = self.payment_puzzle(ctx)?;
-        Ok(InternalCustodyLayer {
-            puzzle_root: info.puzzle_root,
-            rekey_puzzle_hash: ctx.tree_hash(rekey).into(),
-            payment_puzzle_hash: ctx.tree_hash(payment).into(),
-            withdrawal_timelock: info.withdrawal_timelock,
-            rekey_increment: info.rekey_increment,
-            slow_rekey: info.slow_rekey,
-        })
+    pub fn inner_layer(
+        &self,
+        _ctx: &mut SpendContext,
+    ) -> Result<InternalCustodyLayer, DriverError> {
+        Ok(self.layer())
     }
     /// Construct the full singleton puzzle for this policy.
     pub fn singleton_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -47,8 +43,8 @@ impl InternalCustodyPolicy {
     pub(crate) fn payment_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let (_, tree) = self.payment_completion_tree();
         let root = tree.root();
-        let inner_puzzle = ctx.alloc(&clvm_list!(2u8, 2u8, 5u8))?;
-        ctx.curry(InternalCustodyMerkleArgs {
+        let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
+        ctx.curry(InternalCustodyDropArgs {
             inner_puzzle,
             merkle_root: root,
         })
@@ -70,8 +66,8 @@ impl InternalCustodyPolicy {
     }
     pub(crate) fn rekey_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let root = self.rekey_tree().root();
-        let inner_puzzle = ctx.alloc(&clvm_list!(2u8, 2u8, 5u8))?;
-        ctx.curry(InternalCustodyMerkleArgs {
+        let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
+        ctx.curry(InternalCustodyDropArgs {
             inner_puzzle,
             merkle_root: root,
         })
@@ -84,7 +80,10 @@ impl InternalCustodyPolicy {
         let payment = self.payment_puzzle(ctx)?;
         ctx.alloc(&CurriedProgram {
             program: payment,
-            args: clvm_curried_args!((self.info().puzzle_root, destination)),
+            args: clvm_curried_args!(chia_sdk_types::puzzles::InternalCustodyAchState {
+                puzzle_root: self.info().puzzle_root,
+                destination
+            }),
         })
     }
     /// Complete a previously authorized pending payment. No custody signature is
@@ -125,6 +124,8 @@ impl InternalCustodyPolicy {
     /// arbitrary delegated conditions are permitted here.
     /// Deposit totals must be even to preserve the singleton's odd amount.
     /// Pass no withdrawal for claim-only; it creates no pending payment.
+    /// This convenience form chooses a zero absorb context and no fee announcement.
+    /// Use `payment_spends_with_options` to preserve an explicit reference context.
     /// Callers must check current input availability and relative-time eligibility.
     pub fn payment_spends(
         &self,
@@ -175,7 +176,7 @@ impl InternalCustodyPolicy {
         };
         let incoming = self.validate_deposits(coin, deposits)?;
         let remaining = internal_custody_remaining_amount(coin.amount, incoming, amount)?;
-        if !amount.is_multiple_of(2) || coin.amount.is_multiple_of(2) || remaining == 0 {
+        if !amount.is_multiple_of(2) || coin.amount.is_multiple_of(2) {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
         let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
@@ -204,14 +205,19 @@ impl InternalCustodyPolicy {
             conditions = conditions.create_coin_announcement(chia_protocol::Bytes::default());
         }
         let context = ctx.alloc(&(self.info().puzzle_root, destination))?;
-        let (filter, filter_proof, filter_solution) =
-            self.authorize_conditions(ctx, signers, 1, conditions, context)?;
+        let (filter, filter_proof, filter_solution) = self.authorize_conditions(
+            ctx,
+            signers,
+            super::authorization::ConditionsAuthorization::Standard,
+            conditions,
+            context,
+        )?;
         let solution = SingletonSolution {
             lineage_proof: proof,
             amount: coin.amount,
             inner_solution: InternalCustodySpendSolution {
                 amount: coin.amount,
-                spend_type: 2,
+                spend_type: chia_sdk_types::puzzles::InternalCustodySpendType::HandlePayment,
                 action: InternalCustodyPaymentArguments {
                     outgoing: amount,
                     incoming,

@@ -106,6 +106,7 @@ impl InternalCustodyPolicy {
     }
 }
 fn combination_count(n: usize, k: usize) -> usize {
+    debug_assert!(k <= n);
     (0..k).fold(1, |value, i| value * (n - i) / (i + 1))
 }
 fn append_proofs(out: &mut Vec<InternalCustodyProof>, leaves: &[Bytes32], tree: &MerkleTree) {

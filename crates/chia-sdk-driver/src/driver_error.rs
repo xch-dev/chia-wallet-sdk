@@ -13,13 +13,13 @@ use thiserror::Error;
 /// can be propagated with `?`.
 #[derive(Debug, Error)]
 pub enum DriverError {
-    /// Invalid or unsupported legacy custody policy or spend.
-    #[error("{0}")]
-    InternalCustody(#[from] crate::InternalCustodyError),
-
     /// An I/O error, for example from zlib while compressing or decompressing an offer.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// Invalid or unsupported Internal Custody policy or spend.
+    #[error("internal custody error: {0}")]
+    InternalCustody(#[from] crate::InternalCustodyError),
 
     /// An integer didn't fit in the type it was converted to.
     #[error("try from int error")]

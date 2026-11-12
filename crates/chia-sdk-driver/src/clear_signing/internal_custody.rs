@@ -7,7 +7,7 @@ use crate::{
 };
 use chia_bls::{PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzle_types::{Memos, singleton::SingletonSolution};
+use chia_puzzle_types::singleton::SingletonSolution;
 use chia_sdk_signer::{AggSigConstants, RequiredBlsSignature};
 use chia_sdk_types::{
     Condition,
@@ -35,6 +35,8 @@ pub struct InternalCustodyPayment {
     pub vault_child: Coin,
     /// Outgoing ACH payment, absent for claim-only absorption.
     pub pending_payment: Option<InternalCustodyPendingPayment>,
+    /// Destination committed in the signed filter, including absorb-only spends.
+    pub signed_destination_context: Bytes32,
     /// Total deposited mojos absorbed by this operation.
     pub incoming_amount: u64,
     /// Whether the signed spend creates the reference empty fee announcement.
@@ -69,45 +71,47 @@ impl InternalCustodyPayment {
 /// storage remain the caller's responsibilities.
 #[derive(Debug, Clone)]
 pub struct VerifiedInternalCustodyPayment {
-    payment: InternalCustodyPayment,
-    selected_signers: Vec<PublicKey>,
-    signature: RequiredBlsSignature,
+    operation: VerifiedInternalCustodyOperation,
 }
 impl VerifiedInternalCustodyPayment {
-    /// Return the verified transaction effects.
+    /// Return the verified transaction effects, including the recreated singleton.
     pub fn payment(&self) -> &InternalCustodyPayment {
-        &self.payment
+        let InternalCustodyOperationEffects::Payment(payment) = self.operation.effects() else {
+            unreachable!()
+        };
+        payment
     }
-    /// Return the exact frozen signing subset.
+    /// Frozen signing participants.
     pub fn selected_signers(&self) -> &[PublicKey] {
-        &self.selected_signers
+        self.operation.selected_signers()
     }
-    /// Return the aggregate-key signature condition extracted from execution.
+    /// Exact signature requirement.
     pub fn required_signature(&self) -> &RequiredBlsSignature {
-        &self.signature
+        self.operation
+            .required_signature()
+            .expect("payment is signed")
     }
-
-    /// Check a public synthetic-offset hint against the verified aggregate key.
-    /// The offset is public derivation data, not a custodian's private key.
+    /// Public deterministic synthetic-offset share for this signed payment.
+    pub fn offset_share(&self) -> Result<Signature, DriverError> {
+        self.operation
+            .offset_share()?
+            .ok_or_else(|| InternalCustodyError::InvalidSigningSet.into())
+    }
+    /// Check public synthetic-offset derivation data against the aggregate key.
     pub fn verify_synthetic_offset(&self, offset: &SecretKey) -> bool {
         let aggregate = self
-            .selected_signers
+            .selected_signers()
             .iter()
             .fold(PublicKey::default(), |sum, key| sum + key);
-        aggregate + &offset.public_key() == self.signature.public_key
+        aggregate + &offset.public_key() == self.required_signature().public_key
     }
-    /// Produce a share only for a participant in the verified frozen subset.
-    /// Callers must obtain user approval of `payment()` before accessing the key.
+    /// Produce a frozen participant's share after approval of `payment()`.
     pub fn sign_partial(&self, key: &SecretKey) -> Result<Signature, DriverError> {
-        if !self.selected_signers.contains(&key.public_key()) {
-            return Err(InternalCustodyError::InvalidSigningSet.into());
-        }
-        Ok(self.signature.sign_partial(key)?)
+        self.operation.sign_partial(key)
     }
-    /// Verify a share only for a participant in the verified subset.
-    pub fn verify_partial(&self, participant: &PublicKey, signature: &Signature) -> bool {
-        self.selected_signers.contains(participant)
-            && self.signature.verify_partial(participant, signature)
+    /// Verify a frozen participant's share.
+    pub fn verify_partial(&self, key: &PublicKey, signature: &Signature) -> bool {
+        self.operation.verify_partial(key, signature)
     }
 }
 
@@ -129,179 +133,18 @@ pub fn parse_internal_custody_payment(
     constants: &AggSigConstants,
     max_cost: u64,
 ) -> Result<VerifiedInternalCustodyPayment, DriverError> {
-    let Some(spend) = coin_spends
-        .first()
-        .filter(|_| coin_spends.len() <= crate::MAX_INTERNAL_CUSTODY_INPUTS)
-    else {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    };
-    let puzzle = canonical_program(ctx, spend.puzzle_reveal.as_ref())?;
-    let solution = canonical_program(ctx, spend.solution.as_ref())?;
-    if ctx.tree_hash(puzzle) != spend.coin.puzzle_hash.into() {
-        return Err(DriverError::WrongPuzzleHash);
-    }
-    let Some(layer) =
-        SingletonLayer::<InternalCustodyLayer>::parse_puzzle(ctx, Puzzle::parse(ctx, puzzle))?
-    else {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    };
-    if layer.launcher_id != policy.info().launcher_id
-        || layer.inner_puzzle != policy.inner_layer(ctx)?
-    {
-        return Err(InternalCustodyError::InvalidPolicy.into());
-    }
-    let singleton =
-        SingletonSolution::<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr>>::from_clvm(
-            &**ctx, solution,
-        )?;
-    if singleton.inner_solution.spend_type != 2 {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    }
-    let action =
-        InternalCustodyPaymentArguments::from_clvm(&**ctx, singleton.inner_solution.action)?;
-    let deposits: Vec<_> = coin_spends[1..].iter().map(|s| s.coin).collect();
-    let payment_action = if action.outgoing > 0 {
-        crate::InternalCustodyPaymentAction::Withdraw(crate::InternalCustodyWithdrawal {
-            amount: action.outgoing,
-            destination: action.destination,
-        })
-    } else {
-        crate::InternalCustodyPaymentAction::Absorb {
-            destination_context: action.destination,
-        }
-    };
-    // The reference CLI's sole extra condition is an empty fee announcement.
-    // Require an exact reconstruction of one of these two explicit forms.
-    let mut matched = None;
-    for fee_announcement in [false, true] {
-        let expected = policy.payment_spends_with_options(
-            ctx,
-            spend.coin,
-            singleton.lineage_proof,
-            crate::InternalCustodyPaymentOptions {
-                action: payment_action,
-                fee_announcement,
-            },
-            selected_signers,
-            &deposits,
-        )?;
-        if expected == coin_spends {
-            matched = Some(fee_announcement);
-            break;
-        }
-    }
-    let fee_announcement = matched.ok_or(InternalCustodyError::UnexpectedConditions)?;
-    let final_key = policy.selected_key(selected_signers)?;
-    let info = policy.info();
-    let pending_puzzle = policy.pending_payment_puzzle(ctx, action.destination)?;
-    let payment = InternalCustodyPayment {
-        input_coin: spend.coin,
-        vault_child: Coin::new(
-            spend.coin.coin_id(),
-            spend.coin.puzzle_hash,
-            crate::internal_custody_remaining_amount(
-                spend.coin.amount,
-                action.incoming,
-                action.outgoing,
-            )?,
-        ),
-        incoming_amount: action.incoming,
-        fee_announcement,
-        deposit_count: u32::try_from(deposits.len())
-            .map_err(|_| InternalCustodyError::InvalidPayment)?,
-        pending_payment: (action.outgoing > 0).then(|| InternalCustodyPendingPayment {
-            destination: action.destination,
-            coin: Coin::new(
-                spend.coin.coin_id(),
-                ctx.tree_hash(pending_puzzle).into(),
-                action.outgoing,
-            ),
-        }),
-        launcher_id: info.launcher_id,
-        clawback_seconds: info.payment_clawback,
-        withdrawal_seconds: info.withdrawal_timelock,
-    };
-    // One shared execution budget for the entire request, including deposits.
-    let mut cost_left = max_cost;
-    for deposit in &coin_spends[1..] {
-        let puzzle = canonical_program(ctx, deposit.puzzle_reveal.as_ref())?;
-        let solution = canonical_program(ctx, deposit.solution.as_ref())?;
-        run_budgeted(ctx, puzzle, solution, &mut cost_left)?;
-    }
-    let output = run_budgeted(ctx, puzzle, solution, &mut cost_left)?;
-    let conditions = Vec::<Condition>::from_clvm(&**ctx, output)?;
-    let mut signature = None;
-    let mut outputs = Vec::new();
-    let mut parents = 0;
-    let mut amounts = 0;
-    let mut timelocks = 0;
-    let mut announcements = Vec::new();
-    let mut assertions = Vec::new();
-    let mut fee_announcements = 0;
-    for condition in conditions {
-        match condition {
-            Condition::AggSigMe(c)
-                if signature.is_none() && c.public_key == final_key && c.message.len() == 32 =>
-            {
-                signature = Some(RequiredBlsSignature::try_from_condition(
-                    &spend.coin,
-                    AggSig {
-                        kind: AggSigKind::Me,
-                        public_key: c.public_key,
-                        message: c.message,
-                    },
-                    constants,
-                )?);
-            }
-            Condition::CreateCoin(c) if c.memos == Memos::<NodePtr>::None => {
-                outputs.push(Coin::new(spend.coin.coin_id(), c.puzzle_hash, c.amount));
-            }
-            Condition::AssertMyParentId(c) if c.parent_id == spend.coin.parent_coin_info => {
-                parents += 1;
-            }
-            Condition::AssertMyAmount(c) if c.amount == spend.coin.amount => {
-                amounts += 1;
-            }
-            Condition::AssertSecondsRelative(c) if c.seconds == info.withdrawal_timelock => {
-                timelocks += 1;
-            }
-            Condition::CreateCoinAnnouncement(c)
-                if fee_announcement && fee_announcements == 0 && c.message.is_empty() =>
-            {
-                fee_announcements += 1;
-            }
-            Condition::CreatePuzzleAnnouncement(c) => announcements.push(c.message),
-            Condition::AssertCoinAnnouncement(c) => assertions.push(c.announcement_id),
-            Condition::AssertMyParentId(_) | Condition::AssertMyAmount(_) => {
-                return Err(InternalCustodyError::CoinAssertion.into());
-            }
-            _ => return Err(InternalCustodyError::UnexpectedConditions.into()),
-        }
-    }
-    let expected_outputs: Vec<_> = std::iter::once(payment.vault_child)
-        .chain(payment.pending_payment.map(|p| p.coin))
-        .collect();
-    let expected_announcements: Vec<chia_protocol::Bytes> =
-        deposits.iter().map(|c| c.coin_id().into()).collect();
-    let expected_assertions: Vec<Bytes32> = deposits
-        .iter()
-        .map(|c| crate::deposit_announcement(c.coin_id()).into())
-        .collect();
-    if announcements != expected_announcements || assertions != expected_assertions {
-        return Err(InternalCustodyError::UnexpectedConditions.into());
-    }
-    if fee_announcements != usize::from(fee_announcement)
-        || parents != 1
-        || amounts != 2
-        || timelocks != 1
-        || outputs != expected_outputs
-    {
-        return Err(InternalCustodyError::UnexpectedConditions.into());
-    }
+    let verified = parse_internal_custody_operation(
+        ctx,
+        policy,
+        coin_spends,
+        InternalCustodyOperationRequest::Payment {
+            signers: selected_signers,
+        },
+        constants,
+        max_cost,
+    )?;
     Ok(VerifiedInternalCustodyPayment {
-        payment,
-        selected_signers: selected_signers.to_vec(),
-        signature: signature.ok_or(InternalCustodyError::UnexpectedConditions)?,
+        operation: verified,
     })
 }
 // CLVM interprets zero as unlimited, so exhaustion must fail before execution.

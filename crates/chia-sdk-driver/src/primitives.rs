@@ -10,8 +10,6 @@
 //! the parent coin spend (for example, with [`Cat::parse_children`] or [`Nft::parse_child`]), which
 //! is how wallets discover and sync coins.
 
-mod internal_custody;
-pub use internal_custody::*;
 mod bulletin;
 mod cat;
 mod cat_maker;
@@ -19,6 +17,7 @@ mod clawback;
 mod clawback_v2;
 mod did;
 mod intermediate_launcher;
+mod internal_custody;
 mod launcher;
 mod mips;
 mod nft;
@@ -35,6 +34,7 @@ pub use clawback::*;
 pub use clawback_v2::*;
 pub use did::*;
 pub use intermediate_launcher::*;
+pub use internal_custody::*;
 pub use launcher::*;
 pub use mips::*;
 pub use nft::*;

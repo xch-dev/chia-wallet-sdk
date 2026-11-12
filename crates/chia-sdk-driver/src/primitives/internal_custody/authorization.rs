@@ -13,7 +13,36 @@ use chia_sdk_types::{
 };
 use clvm_traits::clvm_list;
 use clvmr::NodePtr;
-use std::collections::HashSet;
+use std::{collections::HashSet, num::NonZeroU8};
+
+#[derive(Clone, Copy)]
+pub(super) enum ConditionsAuthorization {
+    Standard,
+    Recovery(NonZeroU8),
+}
+impl ConditionsAuthorization {
+    pub fn rekey(multiple: u8) -> Result<Self, crate::DriverError> {
+        match multiple {
+            0 => Err(InternalCustodyError::InvalidSigningSet.into()),
+            1 => Ok(Self::Standard),
+            m => Ok(Self::Recovery(NonZeroU8::new(m).expect("positive"))),
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub(super) enum AuthKind {
+    Lock,
+    Conditions(ConditionsAuthorization),
+}
+impl AuthKind {
+    fn multiple(self) -> u8 {
+        match self {
+            Self::Lock => 0,
+            Self::Conditions(ConditionsAuthorization::Standard) => 1,
+            Self::Conditions(ConditionsAuthorization::Recovery(m)) => m.get(),
+        }
+    }
+}
 
 pub(super) struct Authorization {
     pub filter: NodePtr,
@@ -44,37 +73,22 @@ impl InternalCustodyPolicy {
         }
         Ok(key)
     }
-    pub(crate) fn selected_key(
-        &self,
-        signers: &[PublicKey],
-    ) -> Result<PublicKey, crate::DriverError> {
-        if signers.len() != self.thresholds().required as usize {
-            return Err(InternalCustodyError::InvalidSigningSet.into());
-        }
-        let key = self.aggregate_key(signers)?.derive_synthetic();
-        if key.is_inf() {
-            return Err(InternalCustodyError::InvalidSigningSet.into());
-        }
-        Ok(key)
-    }
     pub(crate) fn authorization_filter(
         &self,
         ctx: &mut SpendContext,
         root: Bytes32,
         multiple: u8,
     ) -> Result<NodePtr, crate::DriverError> {
-        let rekey = self.rekey_puzzle(ctx)?;
         let rekey = InternalCustodyRekeyFilter {
-            puzzle_hash: ctx.tree_hash(rekey).into(),
+            puzzle_hash: self.drop_puzzle_hashes.rekey,
             allowed_timelock: u64::from(multiple),
         };
         let filter = if multiple == 1 {
-            let payment = self.payment_puzzle(ctx)?;
             ctx.curry(InternalCustodyRekeyAndPaymentArgs {
                 config: InternalCustodyFilterConfig {
                     rekey,
                     payment: InternalCustodyPaymentFilter {
-                        puzzle_hash: ctx.tree_hash(payment).into(),
+                        puzzle_hash: self.drop_puzzle_hashes.payment,
                         clawback_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
                             .curry_tree_hash()
                             .into(),
@@ -87,7 +101,7 @@ impl InternalCustodyPolicy {
         ctx.curry(InternalCustodyFilterArgs {
             inner_puzzle: filter,
             merkle_root: root,
-            extra: (),
+            curried_args: (),
         })
     }
     pub(crate) fn lock_puzzle(
@@ -96,10 +110,9 @@ impl InternalCustodyPolicy {
         key: PublicKey,
         root: Bytes32,
     ) -> Result<NodePtr, crate::DriverError> {
-        let rekey = self.rekey_puzzle(ctx)?;
         ctx.curry(InternalCustodyLockArgs {
             public_key: key,
-            rekey_puzzle_hash: ctx.tree_hash(rekey).into(),
+            rekey_puzzle_hash: self.drop_puzzle_hashes.rekey,
             next_root: root,
         })
     }
@@ -107,40 +120,45 @@ impl InternalCustodyPolicy {
         &self,
         ctx: &mut SpendContext,
         signers: &[PublicKey],
-        multiple: u8,
+        kind: AuthKind,
     ) -> Result<Authorization, crate::DriverError> {
         let t = self.thresholds();
-        let count = if multiple == 0 {
-            if t.required >= t.maximum || self.next_root().is_none() {
-                return Err(InternalCustodyError::InvalidSigningSet.into());
+        let (count, synthetic) = match kind {
+            AuthKind::Lock => {
+                if t.required >= t.maximum || self.next_root().is_none() {
+                    return Err(InternalCustodyError::InvalidSigningSet.into());
+                }
+                (t.required + 1, false)
             }
-            t.required + 1
-        } else {
-            t.required
-                .checked_sub(u32::from(multiple) - 1)
-                .ok_or(InternalCustodyError::InvalidSigningSet)?
+            AuthKind::Conditions(ConditionsAuthorization::Standard) => (t.required, true),
+            AuthKind::Conditions(ConditionsAuthorization::Recovery(m)) => (
+                t.required
+                    .checked_sub(u32::from(m.get()) - 1)
+                    .ok_or(InternalCustodyError::InvalidSigningSet)?,
+                true,
+            ),
         };
         if count < t.minimum || signers.len() != count as usize {
             return Err(InternalCustodyError::InvalidSigningSet.into());
         }
         let aggregate = self.aggregate_key(signers)?;
-        let public_key = if multiple == 0 {
-            aggregate
-        } else {
+        let public_key = if synthetic {
             aggregate.derive_synthetic()
+        } else {
+            aggregate
         };
         if public_key.is_inf() {
             return Err(InternalCustodyError::InvalidSigningSet.into());
         }
-        let leaf = if multiple == 0 {
+        let leaf = if synthetic {
+            StandardLayer::new(public_key).construct_puzzle(ctx)?
+        } else {
             self.lock_puzzle(
                 ctx,
                 public_key,
                 self.next_root()
                     .ok_or(InternalCustodyError::InvalidPolicy)?,
             )?
-        } else {
-            StandardLayer::new(public_key).construct_puzzle(ctx)?
         };
         let hash: Bytes32 = ctx.tree_hash(leaf).into();
         let proof = self
@@ -152,7 +170,7 @@ impl InternalCustodyPolicy {
             .proof
             .root(hash)
             .ok_or(InternalCustodyError::InvalidPolicy)?;
-        let filter = self.authorization_filter(ctx, root, multiple)?;
+        let filter = self.authorization_filter(ctx, root, kind.multiple())?;
         let hash: Bytes32 = ctx.tree_hash(filter).into();
         let filter_proof = self
             .filter_proofs
@@ -171,11 +189,11 @@ impl InternalCustodyPolicy {
         &self,
         ctx: &mut SpendContext,
         signers: &[PublicKey],
-        multiple: u8,
+        kind: ConditionsAuthorization,
         conditions: Conditions,
         context: NodePtr,
     ) -> Result<(NodePtr, MerkleProof, NodePtr), crate::DriverError> {
-        let auth = self.authorization(ctx, signers, multiple)?;
+        let auth = self.authorization(ctx, signers, AuthKind::Conditions(kind))?;
         let spend = StandardLayer::new(auth.public_key).spend_with_conditions(ctx, conditions)?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: spend.puzzle,

@@ -1,4 +1,5 @@
 use super::*;
+use chia_puzzle_types::Memos;
 
 #[test]
 fn connected_rekeys_cancel_or_finish_then_use_replacement_policy() -> anyhow::Result<()> {

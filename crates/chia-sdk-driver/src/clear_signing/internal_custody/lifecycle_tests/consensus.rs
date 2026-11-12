@@ -74,3 +74,46 @@ fn cli_fee_announcement_binds_an_independent_fee_sponsor() -> anyhow::Result<()>
     }
     Ok(())
 }
+
+#[test]
+fn relative_time_boundaries_reject_early_and_accept_at_the_deadline() -> anyhow::Result<()> {
+    use chia_protocol::SpendBundle;
+    use chia_sdk_test::Simulator;
+    for name in [
+        "payment",
+        "normal-rekey",
+        "slow-rekey",
+        "payment-complete",
+        "normal-complete",
+        "slow-complete",
+    ] {
+        let v = operation(name);
+        let input = spends(v);
+        let ctx = &mut ctx();
+        let mut delay = 0;
+        for execution in v["execution"].as_array().unwrap() {
+            let node = canonical_program(ctx, &unhex(&execution["conditions"]))?;
+            for condition in Vec::<Condition>::from_clvm(&**ctx, node)? {
+                if let Condition::AssertSecondsRelative(c) = condition {
+                    delay = delay.max(c.seconds);
+                }
+            }
+        }
+        assert!(delay > 0, "{name}");
+        let mut sim = Simulator::new();
+        for spend in &input {
+            sim.insert_coin(spend.coin);
+        }
+        sim.create_block();
+        sim.set_next_timestamp(delay - 1)?;
+        assert!(
+            sim.new_transaction(SpendBundle::new(input.clone(), signature(v)))
+                .is_err(),
+            "{name} accepted early"
+        );
+        sim.set_next_timestamp(delay)?;
+        sim.new_transaction(SpendBundle::new(input, signature(v)))
+            .map_err(|e| anyhow::anyhow!("{name} at deadline: {e:?}"))?;
+    }
+    Ok(())
+}

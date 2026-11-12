@@ -2,10 +2,7 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
     Mod,
-    puzzles::{
-        InternalCustodyPrefarmArgs, InternalCustodyPuzzleHashes, InternalCustodySpendSolution,
-        InternalCustodyState, InternalCustodyTimelocks,
-    },
+    puzzles::{InternalCustodyPrefarmArgs, InternalCustodySpendSolution, InternalCustodyState},
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -17,16 +14,8 @@ use clvmr::{Allocator, NodePtr};
 pub struct InternalCustodyLayer {
     /// Merkle root committing to the authorized custody puzzles.
     pub puzzle_root: Bytes32,
-    /// Rekey branch puzzle commitment.
-    pub rekey_puzzle_hash: Bytes32,
-    /// ACH branch puzzle commitment.
-    pub payment_puzzle_hash: Bytes32,
-    /// Minimum singleton age in seconds before a withdrawal or absorption.
-    pub withdrawal_timelock: u64,
-    /// Base rekey timelock in seconds.
-    pub rekey_increment: u64,
-    /// Additional penalty in seconds for slower rekey paths.
-    pub slow_rekey: u64,
+    /// Immutable puzzle commitments and timing configuration.
+    pub state: InternalCustodyState,
 }
 impl InternalCustodyLayer {
     /// Return the typed curry arguments for this layer.
@@ -34,17 +23,7 @@ impl InternalCustodyLayer {
         InternalCustodyPrefarmArgs {
             mod_hash: InternalCustodyPrefarmArgs::mod_hash().into(),
             puzzle_root: self.puzzle_root,
-            config: InternalCustodyState {
-                puzzles: InternalCustodyPuzzleHashes {
-                    rekey: self.rekey_puzzle_hash,
-                    payment: self.payment_puzzle_hash,
-                },
-                timelocks: InternalCustodyTimelocks {
-                    withdrawal: self.withdrawal_timelock,
-                    rekey_increment: self.rekey_increment,
-                    slow_rekey: self.slow_rekey,
-                },
-            },
+            config: self.state,
         }
     }
 }
@@ -63,11 +42,7 @@ impl Layer for InternalCustodyLayer {
         }
         Ok(Some(Self {
             puzzle_root: args.puzzle_root,
-            rekey_puzzle_hash: args.config.puzzles.rekey,
-            payment_puzzle_hash: args.config.puzzles.payment,
-            withdrawal_timelock: args.config.timelocks.withdrawal,
-            rekey_increment: args.config.timelocks.rekey_increment,
-            slow_rekey: args.config.timelocks.slow_rekey,
+            state: args.config,
         }))
     }
     fn parse_solution(

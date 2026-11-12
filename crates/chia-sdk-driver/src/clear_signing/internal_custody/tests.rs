@@ -8,7 +8,7 @@ use clvm_traits::{ToClvm, clvm_quote};
 use clvmr::Allocator;
 use serde_json::Value;
 
-type Solution = SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr>>;
+type Solution = SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>;
 #[derive(FromClvm, ToClvm)]
 #[clvm(list)]
 struct FilterArgs<S> {
@@ -30,44 +30,15 @@ fn fixture() -> (
     CoinSpend,
     Vec<PublicKey>,
     AggSigConstants,
-    Value,
 ) {
-    // Public test vectors generated independently by Python internal-custody/hsms.
-    let request: Value = serde_json::from_str(include_str!("tests/payment.json")).unwrap();
-    let op = &request["operation"];
-    let cs = &op["coin_spends"][0];
-    let policy = InternalCustodyPolicy::from_legacy_bytes(
-        &hex::decode(op["vault"]["root_derivation_hex"].as_str().unwrap()).unwrap(),
-    )
-    .unwrap();
-    let coin = Coin::new(
-        bytes::<32>(&cs["coin"]["parent_coin_info"]).into(),
-        bytes::<32>(&cs["coin"]["puzzle_hash"]).into(),
-        cs["coin"]["amount"].as_str().unwrap().parse().unwrap(),
-    );
-    let spend = CoinSpend::new(
-        coin,
-        hex::decode(cs["puzzle_reveal"].as_str().unwrap())
-            .unwrap()
-            .into(),
-        hex::decode(cs["solution"].as_str().unwrap())
-            .unwrap()
-            .into(),
-    );
-    let keys = op["selected_signers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| PublicKey::from_bytes(&bytes(v)).unwrap())
-        .collect();
-    (
-        policy,
-        spend,
-        keys,
-        AggSigConstants::new(bytes::<32>(&op["network"]["agg_sig_me_additional_data"]).into()),
-        request,
-    )
+    let v = super::lifecycle_tests::operation("payment");
+    let policy = super::lifecycle_tests::policy("policy");
+    let spend = super::lifecycle_tests::spends(v).remove(0);
+    let keys = super::lifecycle_tests::keys(v);
+
+    (policy, spend, keys, super::lifecycle_tests::constants())
 }
+
 fn parse(
     policy: &InternalCustodyPolicy,
     spend: &CoinSpend,
@@ -84,45 +55,34 @@ fn parse(
     )
 }
 fn key(index: usize) -> SecretKey {
-    let mut hash = chia_sha2::Sha256::new();
-    hash.update(format!("custody-app-fixture-{index}"));
-    let mnemonic = bip39::Mnemonic::from_entropy(&hash.finalize()).unwrap();
-    SecretKey::from_seed(&mnemonic.to_seed(""))
+    SecretKey::from_seed(&[u8::try_from(index + 1).unwrap(); 32])
 }
 #[test]
 fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
-    let (policy, spend, keys, constants, request) = fixture();
+    let (policy, spend, keys, constants) = fixture();
     let verified = parse(&policy, &spend, &keys, &constants)?;
     let facts = verified.payment();
-    assert_eq!(
-        facts.pending_payment.map(|p| p.coin).unwrap().amount,
-        2_000_000_000
-    );
+    assert_eq!(facts.pending_payment.map(|p| p.coin).unwrap().amount, 40);
     assert_eq!(
         facts.input_coin.amount - facts.pending_payment.map(|p| p.coin).unwrap().amount,
         facts.vault_child.amount
     );
-    assert_eq!(facts.clawback_seconds, 2);
+    assert_eq!(facts.clawback_seconds, 3);
     assert_eq!(facts.withdrawal_seconds, 1);
-    let oracle: Value = serde_json::from_str(include_str!("tests/expected.json"))?;
+    let vector = super::lifecycle_tests::operation("payment");
     assert_eq!(
         facts.pending_payment.unwrap().destination,
-        bytes::<32>(&oracle["destination_puzzle_hash"]).into()
+        super::lifecycle_tests::bytes(&super::lifecycle_tests::data()["destination"])
+    );
+    let expected = &vector["contexts"][0];
+    assert_eq!(
+        verified.required_signature().public_key.to_bytes(),
+        bytes::<48>(&expected["public_key"])
     );
     assert_eq!(
-        facts.input_coin.coin_id(),
-        bytes::<32>(&oracle["singleton_coin_id"]).into()
+        verified.required_signature().message(),
+        hex::decode(expected["message"].as_str().unwrap())?
     );
-    for expected in oracle["signing_context"].as_array().unwrap() {
-        assert_eq!(
-            verified.required_signature().public_key.to_bytes(),
-            bytes::<48>(&expected["final_public_key"])
-        );
-        assert_eq!(
-            verified.required_signature().message(),
-            hex::decode(expected["message"].as_str().unwrap())?
-        );
-    }
     let ctx = &mut ctx();
     let solution = spend.solution.to_clvm(&mut **ctx)?;
     let solution = SingletonSolution::<NodePtr>::from_clvm(&**ctx, solution)?;
@@ -161,12 +121,7 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
     }
     assert_eq!(signatures.len(), 2);
     assert!(verified.sign_partial(&key(42)).is_err());
-    let offset = SecretKey::from_bytes(&bytes::<32>(
-        &request["operation"]["sum_hints"][0]["synthetic_offset"],
-    ))?;
-    assert!(verified.verify_synthetic_offset(&offset));
-    assert!(!verified.verify_synthetic_offset(&key(42)));
-    signatures.push(verified.required_signature().sign_partial(&offset)?);
+    signatures.push(verified.offset_share()?);
     assert!(verify(
         &aggregate(&signatures),
         &verified.required_signature().public_key,
@@ -176,7 +131,7 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
 }
 #[test]
 fn rejects_unreviewed_effects_and_invalid_lineage() -> anyhow::Result<()> {
-    let (policy, spend, keys, constants, _) = fixture();
+    let (policy, spend, keys, constants) = fixture();
     let mut wrong = spend.clone();
     wrong.coin.parent_coin_info = [0; 32].into();
     assert!(matches!(
@@ -200,7 +155,7 @@ fn rejects_unreviewed_effects_and_invalid_lineage() -> anyhow::Result<()> {
     wrong.solution = ctx.serialize(&claimed)?;
     assert!(parse(&policy, &wrong, &keys, &constants).is_err());
     let mut rekey = original.clone();
-    rekey.inner_solution.spend_type = 1;
+    rekey.inner_solution.spend_type = chia_sdk_types::puzzles::InternalCustodySpendType::StartRekey;
     wrong.solution = ctx.serialize(&rekey)?;
     assert!(parse(&policy, &wrong, &keys, &constants).is_err());
     // Add a fee inside the delegated puzzle while preserving the payment-looking action.
@@ -227,7 +182,7 @@ fn rejects_unreviewed_effects_and_invalid_lineage() -> anyhow::Result<()> {
 }
 #[test]
 fn rejects_bad_subsets_programs_and_resource_limits() {
-    let (policy, spend, keys, constants, _) = fixture();
+    let (policy, spend, keys, constants) = fixture();
     let mut reversed = keys.clone();
     reversed.reverse();
     assert!(parse(&policy, &spend, &reversed, &constants).is_ok());
@@ -276,14 +231,9 @@ fn rejects_bad_subsets_programs_and_resource_limits() {
 }
 #[test]
 fn legacy_policy_and_proof_bounds_fail_closed() {
-    let (policy, _, _, _, request) = fixture();
-    let raw = hex::decode(
-        request["operation"]["vault"]["root_derivation_hex"]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    for end in (0..raw.len()).step_by(13) {
+    let (policy, _, _, _) = fixture();
+    let raw = policy.to_legacy_bytes();
+    for end in 0..raw.len() {
         assert!(InternalCustodyPolicy::from_legacy_bytes(&raw[..end]).is_err());
     }
     let mut extra = raw;
@@ -304,7 +254,7 @@ fn legacy_policy_and_proof_bounds_fail_closed() {
 
 #[test]
 fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow::Result<()> {
-    let (policy, spend, keys, constants, _) = fixture();
+    let (policy, spend, keys, constants) = fixture();
     let verified = parse(&policy, &spend, &keys, &constants)?;
     let facts = verified.payment();
     let ctx = &mut ctx();
@@ -348,7 +298,7 @@ fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow:
 
 #[test]
 fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Result<()> {
-    let (policy, spend, keys, constants, _) = fixture();
+    let (policy, spend, keys, constants) = fixture();
     let ctx = &mut ctx();
     let node = spend.solution.to_clvm(&mut **ctx)?;
     let original = Solution::from_clvm(&**ctx, node)?;
@@ -361,7 +311,7 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
         Coin::new([8; 32].into(), ph, 103),
     ];
     deposits.sort_by_key(Coin::coin_id);
-    for outgoing in [0, 2_000_000_000] {
+    for outgoing in [0, 40] {
         let destination = if outgoing == 0 {
             Bytes32::default()
         } else {
@@ -459,11 +409,8 @@ fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> 
     use chia_protocol::SpendBundle;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::TESTNET11_CONSTANTS;
-    let (policy, original, keys, _, request) = fixture();
+    let (policy, original, keys, _) = fixture();
     let constants = AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data);
-    let offset = SecretKey::from_bytes(&bytes::<32>(
-        &request["operation"]["sum_hints"][0]["synthetic_offset"],
-    ))?;
     for outgoing in [0, original.coin.amount + 101] {
         let ctx = &mut ctx();
         let node = original.solution.to_clvm(&mut **ctx)?;
@@ -493,7 +440,7 @@ fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> 
         for secret in (0..3).map(key).filter(|k| keys.contains(&k.public_key())) {
             shares.push(verified.sign_partial(&secret)?);
         }
-        shares.push(verified.required_signature().sign_partial(&offset)?);
+        shares.push(verified.offset_share()?);
         let signature = aggregate(&shares);
         assert!(
             sim.new_transaction(SpendBundle::new(vec![spends[0].clone()], signature.clone()))
@@ -557,7 +504,7 @@ fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> 
 
 #[test]
 fn execution_budget_cannot_become_unlimited() -> anyhow::Result<()> {
-    let (policy, original, keys, constants, _) = fixture();
+    let (policy, original, keys, constants) = fixture();
     let ctx = &mut ctx();
     let node = original.solution.to_clvm(&mut **ctx)?;
     let lineage = Solution::from_clvm(&**ctx, node)?.lineage_proof;

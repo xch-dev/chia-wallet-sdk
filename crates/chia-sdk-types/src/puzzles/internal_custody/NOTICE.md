@@ -1,6 +1,9 @@
-Compiled legacy internal-custody puzzle modules, Apache-2.0.
+Compiled reference internal-custody puzzle modules, Apache-2.0.
 Source: Chia-Network/internal-custody revision 4150dc832a5e66b5ed839974f88d1feb573dcfe2.
-See LICENSE. Module hashes are independently checked in the type tests.
+See LICENSE. Tree hashes and the serialized SHA256 table are checked in type tests.
+The singleton v1.1 reveal is provided by `chia-puzzles`, not vendored here; it
+matches the reference singleton tree hash
+`7faa3253bfddd1e0decb0906b2dc6247bbc4cf608f58345d173adb63e8b47c9f`.
 
 {
   "reference_revision": "4150dc832a5e66b5ed839974f88d1feb573dcfe2",
