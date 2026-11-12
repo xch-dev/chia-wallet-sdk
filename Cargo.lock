@@ -390,7 +390,7 @@ dependencies = [
 
 [[package]]
 name = "bindy"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bip39",
  "chia-bls 0.53.0",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "bindy-macro"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "chia-sdk-bindings",
  "convert_case 0.12.0",
@@ -698,7 +698,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-bindings"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bindy",
  "bip39",
@@ -733,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-cli"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "chia-wallet-sdk",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "aws-lc-rs",
  "chia-protocol",
@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-coinset"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "chia-protocol",
  "chia-traits 0.53.0",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-daemon"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "chia-sdk-client",
  "chia-sdk-coinset",
@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-derive"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "convert_case 0.12.0",
  "quote",
@@ -800,7 +800,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "bip39",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-signer"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.53.0",
@@ -861,7 +861,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-test"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -902,7 +902,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-types"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.53.0",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-utils"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bech32",
  "chia-protocol",
@@ -1021,7 +1021,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.53.0",
@@ -1064,7 +1064,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-py"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -1078,7 +1078,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-uniffi"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -1090,7 +1090,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-wasm"
-version = "0.37.1"
+version = "0.38.0"
 dependencies = [
  "bindy",
  "bindy-macro",
