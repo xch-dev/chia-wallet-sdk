@@ -13,9 +13,7 @@ fn build(
     Ok(match v["kind"].as_str().unwrap() {
         "payment" => {
             let node = canonical_program(ctx, first.solution.as_ref())?;
-            let raw = SingletonSolution::<
-                InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>,
-            >::from_clvm(&**ctx, node)?;
+            let raw = InternalCustodySingletonSolution::from_clvm(&**ctx, node)?;
             let action =
                 InternalCustodyPaymentArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
             let action = if action.outgoing > 0 {
@@ -433,10 +431,7 @@ fn verified_disclosures_and_offset_shares_match_every_signed_reference() -> anyh
 fn singleton_solution_for_test(
     ctx: &mut SpendContext,
     spend: &CoinSpend,
-) -> Result<
-    SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>,
-    DriverError,
-> {
+) -> Result<InternalCustodySingletonSolution, DriverError> {
     let node = canonical_program(ctx, spend.solution.as_ref())?;
     let solution = SingletonSolution::from_clvm(&**ctx, node)?;
     // Round trip every payment solution through the public layer interface.

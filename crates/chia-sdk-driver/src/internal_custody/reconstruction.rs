@@ -4,15 +4,17 @@ use super::{
     execution::Execution,
     operations::InternalCustodyOperationRequest as R,
 };
-use crate::{DriverError, InternalCustodyError, InternalCustodyPolicy, SpendContext};
+use crate::{
+    DriverError, InternalCustodyError, InternalCustodyPolicy, InternalCustodySingletonSolution,
+    SpendContext,
+};
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
-use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonSolution};
+use chia_puzzle_types::{LineageProof, Proof};
 use chia_sdk_types::{
     Mod,
     puzzles::{
         InternalCustodyMerkleSolution, InternalCustodyRekeyArguments, InternalCustodyRekeyState,
-        InternalCustodySpendSolution,
     },
 };
 use clvm_traits::FromClvm;
@@ -146,14 +148,12 @@ pub(super) fn reconstruct<'a>(
                 timelock_multiple: state.timelock_multiple,
             }))
         }
-        R::RekeyCompletion { new_policy } => reconstruct_completion(
-            ctx,
-            policy,
-            spends,
-            new_policy,
-            decoded[0].1,
-            decoded.get(1).map(|d| d.1),
-        ),
+        R::RekeyCompletion { new_policy } => {
+            if spends.len() != 2 {
+                return Err(InternalCustodyError::UnsupportedOperation.into());
+            }
+            reconstruct_completion(ctx, policy, spends, new_policy, decoded[0].1, decoded[1].1)
+        }
         R::IncreaseSecurity {
             new_policy,
             signers,
@@ -172,7 +172,7 @@ fn reconstruct_rekey<'a>(
     let first = &spends[0];
 
     new_policy.verify_definition(ctx)?;
-    let raw = singleton_solution(ctx, solution)?;
+    let raw = InternalCustodySingletonSolution::from_clvm(&**ctx, solution)?;
     let action = InternalCustodyRekeyArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
     if action.new_root != new_policy.info().puzzle_root {
         return Err(InternalCustodyError::InvalidPolicy.into());
@@ -214,22 +214,18 @@ fn reconstruct_completion<'a>(
     spends: &[CoinSpend],
     new_policy: &InternalCustodyPolicy,
     solution: NodePtr,
-    pending_solution: Option<NodePtr>,
+    pending_solution: NodePtr,
 ) -> Result<Reconstruction<'a>, DriverError> {
     let first = &spends[0];
-    let pending_solution = pending_solution.ok_or(InternalCustodyError::UnsupportedOperation)?;
 
     validate_target(ctx, policy, new_policy)?;
-    if spends.len() != 2 {
-        return Err(InternalCustodyError::UnsupportedOperation.into());
-    }
-    let raw = singleton_solution(ctx, solution)?;
+    let raw = InternalCustodySingletonSolution::from_clvm(&**ctx, solution)?;
     let action = InternalCustodyRekeyArguments::from_clvm(&**ctx, raw.inner_solution.action)?;
     if action.new_root != new_policy.info().puzzle_root {
         return Err(InternalCustodyError::InvalidPolicy.into());
     }
-    let node = pending_solution;
-    let pending = InternalCustodyMerkleSolution::<NodePtr, NodePtr>::from_clvm(&**ctx, node)?;
+    let pending =
+        InternalCustodyMerkleSolution::<NodePtr, NodePtr>::from_clvm(&**ctx, pending_solution)?;
     let (lineage, ()): (LineageProof, ()) = FromClvm::from_clvm(&**ctx, pending.solution)?;
     let state = InternalCustodyRekeyState {
         new_root: action.new_root,
@@ -270,7 +266,7 @@ fn reconstruct_lock<'a>(
     if policy.next_root() != Some(new_policy.info().puzzle_root) {
         return Err(InternalCustodyError::InvalidPolicy.into());
     }
-    let raw = singleton_solution(ctx, solution)?;
+    let raw = InternalCustodySingletonSolution::from_clvm(&**ctx, solution)?;
     let stages = policy.increase_security_spends(ctx, first.coin, raw.lineage_proof, signers)?;
     let pending = stages.completion[0].coin;
     let intermediate_singleton = stages.completion[1].coin;
@@ -304,15 +300,6 @@ fn definition(policy: &InternalCustodyPolicy) -> InternalCustodyPolicyDefinition
         keys: policy.keys().to_vec(),
         thresholds: policy.thresholds(),
     }
-}
-fn singleton_solution(
-    ctx: &mut SpendContext,
-    solution: NodePtr,
-) -> Result<
-    SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>,
-    DriverError,
-> {
-    Ok(FromClvm::from_clvm(&**ctx, solution)?)
 }
 pub(super) fn match_fee_form(
     mut build: impl FnMut(bool) -> Result<Vec<CoinSpend>, DriverError>,

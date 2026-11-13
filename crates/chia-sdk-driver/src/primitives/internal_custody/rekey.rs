@@ -119,15 +119,14 @@ impl InternalCustodyPolicy {
         };
         let minimum = self.rekey_authorization_multiple(state, signers)?;
         let info = self.info();
+        let penalty = if state.timelock_multiple > 1 {
+            info.slow_rekey
+        } else {
+            0
+        };
         info.rekey_increment
-            .checked_mul(u64::from(state.timelock_multiple))
-            .and_then(|base| {
-                if state.timelock_multiple > 1 {
-                    base.checked_add(info.slow_rekey)
-                } else {
-                    Some(base)
-                }
-            })
+            .checked_mul(state.timelock_multiple.into())
+            .and_then(|delay| delay.checked_add(penalty))
             .ok_or(InternalCustodyError::InvalidSigningSet)?;
 
         let pending = self.pending_rekey_puzzle(ctx, state)?;

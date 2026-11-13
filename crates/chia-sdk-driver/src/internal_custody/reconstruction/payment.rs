@@ -1,12 +1,12 @@
 use super::match_fee_form;
 use crate::{
     DriverError, InternalCustodyError, InternalCustodyPayment, InternalCustodyPendingPayment,
-    InternalCustodyPolicy, SpendContext,
+    InternalCustodyPolicy, InternalCustodySingletonSolution, SpendContext,
 };
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
-use chia_puzzle_types::{Proof, singleton::SingletonSolution};
-use chia_sdk_types::puzzles::{InternalCustodyPaymentArguments, InternalCustodySpendSolution};
+use chia_puzzle_types::Proof;
+use chia_sdk_types::puzzles::InternalCustodyPaymentArguments;
 use clvm_traits::FromClvm;
 use clvmr::NodePtr;
 
@@ -70,9 +70,7 @@ pub(super) fn reconstruct_payment(
 ) -> Result<ReconstructedPayment, DriverError> {
     // The operation verifier has already bounded and decoded this nonempty set.
     let spend = &spends[0];
-    let singleton = SingletonSolution::<
-        InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>,
-    >::from_clvm(&**ctx, solution)?;
+    let singleton = InternalCustodySingletonSolution::from_clvm(&**ctx, solution)?;
     if singleton.inner_solution.spend_type
         != chia_sdk_types::puzzles::InternalCustodySpendType::HandlePayment
     {

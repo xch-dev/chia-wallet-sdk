@@ -176,6 +176,7 @@ pub fn parse_internal_custody_operation(
         })
         .collect::<Result<Vec<_>, DriverError>>()?;
     let (signers, authorization) = request.authorization(policy)?;
+    // Reject unsupported spends before consuming the CLVM execution budget.
     let reconstructed = reconstruct(ctx, policy, spends, request, &decoded)?;
     let execution = execute(ctx, spends, &decoded, &authorization, constants, max_cost)?;
     let effects = reconstructed.describe(ctx, policy, spends, &execution)?;

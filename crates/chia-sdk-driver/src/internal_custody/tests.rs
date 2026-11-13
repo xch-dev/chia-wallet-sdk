@@ -1,26 +1,19 @@
 use super::execution::canonical_program;
-use super::lifecycle_tests::{payment_options, verify_payment};
-use crate::*;
-use chia_bls::{PublicKey, SecretKey, Signature};
-use chia_bls::{aggregate, verify};
+use super::lifecycle_tests::{ctx, payment_options, verify_payment};
+use crate::{InternalCustodySingletonSolution as Solution, *};
+use chia_bls::{PublicKey, SecretKey, Signature, aggregate, verify};
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzle_types::singleton::SingletonSolution;
-use chia_puzzle_types::standard::StandardSolution;
+use chia_puzzle_types::{singleton::SingletonSolution, standard::StandardSolution};
 use chia_sdk_signer::AggSigConstants;
 use chia_sdk_types::{
-    Condition,
-    puzzles::{InternalCustodyPaymentArguments, InternalCustodySpendSolution},
+    Condition, Conditions, Mod,
+    conditions::ReserveFee,
+    puzzles::{InternalCustodyMerkleSolution, InternalCustodyPaymentArguments},
 };
-use chia_sdk_types::{
-    Conditions, Mod, conditions::ReserveFee, puzzles::InternalCustodyMerkleSolution,
-};
-use clvm_traits::FromClvm;
-use clvm_traits::{ToClvm, clvm_quote};
-use clvmr::Allocator;
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvmr::{ChiaDialect, ClvmFlags, NodePtr, run_program};
 use serde_json::Value;
 
-type Solution = SingletonSolution<InternalCustodySpendSolution<NodePtr, NodePtr, NodePtr, NodePtr>>;
 #[derive(FromClvm, ToClvm)]
 #[clvm(list)]
 struct FilterArgs<S> {
@@ -28,9 +21,6 @@ struct FilterArgs<S> {
     context: (Bytes32, Bytes32),
 }
 
-fn ctx() -> SpendContext {
-    Allocator::new_limited(64 * 1024 * 1024).into()
-}
 fn bytes<const N: usize>(v: &Value) -> [u8; N] {
     hex::decode(v.as_str().unwrap())
         .unwrap()

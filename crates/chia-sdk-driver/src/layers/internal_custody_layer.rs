@@ -1,5 +1,6 @@
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonSolution;
 use chia_sdk_types::{
     Mod,
     puzzles::{InternalCustodyPrefarmArgs, InternalCustodySpendSolution, InternalCustodyState},
@@ -17,6 +18,9 @@ pub struct InternalCustodyLayer {
     /// Immutable puzzle commitments and timing configuration.
     pub state: InternalCustodyState,
 }
+pub(crate) type InternalCustodySingletonSolution =
+    SingletonSolution<<InternalCustodyLayer as Layer>::Solution>;
+
 impl InternalCustodyLayer {
     /// Return the typed curry arguments for this layer.
     pub fn args(&self) -> InternalCustodyPrefarmArgs {

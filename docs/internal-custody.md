@@ -147,8 +147,7 @@ executed singleton's relative-time assertions, measured from confirmation of
 that singleton input. Completion delays are measured from confirmation of the
 pending payment or rekey coin. Reported delays do not establish time readiness;
 conditions are preserved, not claimed to have elapsed. Unrepresentable typed
-conditions, including relative delays outside `u64`, are rejected. Rekey-start
-construction also rejects a committed initiation delay that overflows `u64`.
+conditions, including relative delays outside `u64`, are rejected.
 
 Signed effects report the empty fee-sponsor announcement form for payments,
 payment cancellations, rekeys and rekey cancellations. Payment cancellations
