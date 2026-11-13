@@ -5,7 +5,7 @@ Build each reviewer's prompt from the template below, filling in the Brief secti
 ## Prompt template
 
 ```text
-You are reviewing a change to chia-wallet-sdk (repo: xch-dev/chia-wallet-sdk), a Rust SDK for building Chia wallets and spending coins, with Node.js, WASM, Python, Go and .NET bindings, with fresh eyes. You have not seen the implementation being written, and that's on purpose: form your own view of the code.
+You are reviewing a change to chia-wallet-sdk (repo: xch-dev/chia-wallet-sdk), a Rust SDK for building Chia wallets and spending coins, with Node.js, WASM, Python, Go, .NET and C++ bindings, with fresh eyes. You have not seen the implementation being written, and that's on purpose: form your own view of the code.
 
 What the change is for:
 <the Brief section of the state file, verbatim>
@@ -18,7 +18,7 @@ Your focus this round: <Correctness | Tests and bindings | Simplification and re
 <the checklist for that focus, from below, or all three for a single reviewer>
 
 Rules:
-- Don't edit files in the repo. You may write scratch files to <scratchpad>/review-loop/scratch/ and run tests to check a claim (`cargo test -p <crate> <name>`; a throwaway `Simulator` test is the usual way to check a spend). Put any such test in the scratch directory or revert it before you finish.
+- Don't edit files in this checkout; other reviewers are reading it at the same time. To run code that checks a claim (a throwaway `Simulator` test is the usual way to check a spend), make your own worktree with `git worktree add --detach <scratchpad>/review-loop/scratch/wt-<focus> HEAD`, add the test there, run it with `cargo test -p <crate> <name>`, and remove the worktree with `git worktree remove --force <path>` before you finish.
 - Judge the change against the goal above. Points under "Settled" were decided by the user or the issue; don't re-raise them. Points under "Previously rejected" were rejected by the implementer; raise one again only if you have evidence the rejection is wrong, and say what it is. Decisions marked "provisional, for the user" will be put to the user at the end; raise one only with an argument the entry doesn't already give, and it will be passed on to them.
 - Prefer a few findings you're confident in over many guesses. If you aren't sure, say so in the finding.
 - If there's nothing worth reporting in your focus, say "No findings" and stop.
@@ -73,10 +73,10 @@ Bindings:
 - Is there a test for each behaviour the change adds, including the failures it should produce (a spend that must be rejected, a coin the parser must not accept)?
 - Do driver tests actually spend the coins in the `Simulator`, rather than only building the spend? Do they parse the child back and check its fields?
 - Does each test exercise what it's named for, and would it fail if the behaviour it covers regressed? A test that passes either way is worth a finding.
-- Bindings: is the new API tested from at least one binding (usually `napi/__test__/<area>.spec.ts`), and from the binding the change is specific to, if any (`pyo3/tests`, `wasm/__test__`, `go/chiawalletsdk`, `dotnet/ChiaWalletSdk.Tests`)?
+- Bindings: is the new API tested from at least one binding (usually `napi/__test__/<area>.spec.ts`), and from the binding the change is specific to, if any (`pyo3/tests`, `wasm/__test__`, `go/chiawalletsdk`, `dotnet/ChiaWalletSdk.Tests`, `cpp/tests`)?
 - Do `bindings/*.json` and the Rust implementation in `crates/chia-sdk-bindings` agree?
 - Generated files (`git diff <base>...HEAD -- napi/index.d.ts napi/index.js pyo3/chia_wallet_sdk.pyi`): is every change explained by the goal? A changed signature or a removed export in an unrelated API needs a reason.
-- Are new public items documented (CI runs rustdoc with `-D warnings`), and are `README.md` and `crates/chia-sdk-driver/docs.md` updated where they list this kind of feature?
+- Are new public items documented (CI runs rustdoc with `-D warnings`), and are `README.md` and `crates/chia-sdk-driver/docs.md` updated where they list this kind of feature (including the feature flag lists in `docs.md` and the crate docs)?
 
 ## Checklist: simplification and reuse
 
