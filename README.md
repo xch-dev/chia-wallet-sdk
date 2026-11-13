@@ -69,6 +69,7 @@ If you're new to developing on Chia, [xch.dev](https://xch.dev) is a great place
 From there:
 
 - Browse the [Rust API docs](https://docs.rs/chia-wallet-sdk/latest/chia_wallet_sdk)
+- [Internal Custody (prefarm) guide: construction and clear signing](docs/internal-custody.md)
 - Check out the [examples](examples), such as [spending CATs](examples/cat_spends.rs) or [using the simulator](examples/spend_simulator.rs)
 - Look at the binding tests in [`napi/__test__`](napi/__test__), [`wasm/__test__`](wasm/__test__), and [`pyo3/tests`](pyo3/tests) for usage from JavaScript and Python
 
