@@ -27,7 +27,7 @@ use clvmr::NodePtr;
 
 use crate::{K1PublicKey, K1Signature, Program, R1PublicKey, R1Signature, Spend};
 
-use super::{MemberConfig, Vault, convert_restrictions};
+use super::{MemberConfig, Vault, VaultDryRun, convert_restrictions};
 
 #[derive(Clone)]
 pub struct MipsSpend {
@@ -45,6 +45,30 @@ impl MipsSpend {
         Ok(Spend {
             puzzle: Program(self.clvm.clone(), spend.puzzle),
             solution: Program(self.clvm.clone(), spend.solution),
+        })
+    }
+
+    pub fn dry_run(&self, vault: Vault) -> Result<VaultDryRun> {
+        self.dry_run_with_controllers(vault, Vec::new())
+    }
+
+    pub fn dry_run_with_controllers(
+        &self,
+        vault: Vault,
+        controllers: Vec<VaultDryRun>,
+    ) -> Result<VaultDryRun> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let vault = sdk::Vault::from(vault);
+        let mips_spend = self.spend.lock().unwrap();
+        let controllers: Vec<sdk::VaultDryRun> = controllers
+            .into_iter()
+            .map(|controller| controller.dry_run)
+            .collect();
+        let dry_run =
+            sdk::VaultDryRun::with_controllers(&mut ctx, &vault, &mips_spend, &controllers)?;
+        Ok(VaultDryRun {
+            clvm: self.clvm.clone(),
+            dry_run,
         })
     }
 

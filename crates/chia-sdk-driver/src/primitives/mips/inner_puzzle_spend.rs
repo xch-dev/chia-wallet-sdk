@@ -117,16 +117,10 @@ impl InnerPuzzleSpend {
 
                 // The enforcer wraps this hash in its own wrappers, so it must already include
                 // the remaining wrappers further down the stack.
-                let mut inner_delegated_puzzle_hash = ctx.tree_hash(spend.delegated.puzzle);
-
-                for &wrapper in delegated_puzzle_wrappers[local_delegated_puzzle_wrappers.len()..]
-                    .iter()
-                    .rev()
-                {
-                    inner_delegated_puzzle_hash =
-                        AddDelegatedPuzzleWrapper::new(wrapper, inner_delegated_puzzle_hash)
-                            .curry_tree_hash();
-                }
+                let inner_delegated_puzzle_hash = wrap_delegated_puzzle_hash(
+                    ctx.tree_hash(spend.delegated.puzzle),
+                    &delegated_puzzle_wrappers[local_delegated_puzzle_wrappers.len()..],
+                );
 
                 delegated_puzzle_validator_solutions.push(ctx.alloc(
                     &EnforceDelegatedPuzzleWrappersSolution::new(
@@ -211,6 +205,20 @@ impl InnerPuzzleSpend {
             .map(|restriction| restriction.puzzle_hash)
             .collect()
     }
+}
+
+/// Wraps a delegated puzzle hash in a stack of delegated puzzle wrappers, outermost first, as the wrappers are curried
+/// around the delegated puzzle when it's spent.
+pub(crate) fn wrap_delegated_puzzle_hash(
+    delegated_puzzle_hash: TreeHash,
+    wrappers: &[TreeHash],
+) -> TreeHash {
+    wrappers
+        .iter()
+        .rev()
+        .fold(delegated_puzzle_hash, |hash, &wrapper| {
+            AddDelegatedPuzzleWrapper::new(wrapper, hash).curry_tree_hash()
+        })
 }
 
 /// Every inner puzzle's wrappers must be a prefix of the same stack, since they all wrap the same

@@ -202,6 +202,19 @@
           "vault": "Vault"
         }
       },
+      "dry_run": {
+        "args": {
+          "vault": "Vault"
+        },
+        "return": "VaultDryRun"
+      },
+      "dry_run_with_controllers": {
+        "args": {
+          "vault": "Vault",
+          "controllers": "Vec<VaultDryRun>"
+        },
+        "return": "VaultDryRun"
+      },
       "m_of_n": {
         "args": {
           "config": "MemberConfig",
@@ -295,6 +308,22 @@
       "force_singleton_recreation": {},
       "prevent_multiple_create_coins": {},
       "prevent_vault_side_effects": {}
+    }
+  },
+  "VaultDryRun": {
+    "type": "class",
+    "methods": {
+      "vault": {
+        "return": "Vault"
+      },
+      "cost_margin": {
+        "return": "u64"
+      },
+      "spend": {
+        "args": {
+          "delegated_spend": "Spend"
+        }
+      }
     }
   },
   "VaultMint": {

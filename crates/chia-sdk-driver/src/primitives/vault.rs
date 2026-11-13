@@ -1,11 +1,13 @@
 mod p2_conditions_or_singleton;
 mod p2_singleton;
+mod vault_dry_run;
 mod vault_info;
 mod vault_launcher;
 mod vault_signed_message;
 
 pub use p2_conditions_or_singleton::*;
 pub use p2_singleton::*;
+pub use vault_dry_run::*;
 pub use vault_info::*;
 pub use vault_signed_message::*;
 

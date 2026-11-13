@@ -238,6 +238,30 @@ pub enum DriverError {
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    /// Coins couldn't be selected to cover an amount, such as the actions and fee of
+    /// [`Spends::apply_with_fee`](crate::Spends::apply_with_fee).
+    #[error("coin selection failed: {0}")]
+    CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
+
+    /// [`spend_with_minimum_fee`](crate::spend_with_minimum_fee) rebuilt the transaction several
+    /// times, and the fee still didn't cover its cost.
+    #[error("the fee didn't cover the cost of the transaction after several attempts")]
+    FeeDidNotConverge,
+
+    /// A throwaway key of a [`VaultDryRun`](crate::VaultDryRun) failed to sign.
+    #[error("a stand-in vault key failed to sign: {0}")]
+    DryRunSigningFailed(String),
+
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given more than one stand-in for the
+    /// same controller.
+    #[error("more than one stand-in was given for vault controller {0}")]
+    DuplicateDryRunController(Bytes32),
+
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given a stand-in for the vault itself
+    /// as one of its controllers.
+    #[error("vault {0} can't be given as its own controller")]
+    DryRunControllerIsVault(Bytes32),
+
     /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
     /// single payment assertion would be satisfied by either of them.
     #[error("two settlement coins with the same puzzle hash make the same notarized payment")]

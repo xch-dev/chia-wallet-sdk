@@ -6,8 +6,8 @@ use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainStateResponse, ChiaRpcClient,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
     GetBlockResponse, GetBlockSpendsResponse, GetBlocksResponse, GetCoinRecordResponse,
-    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
-    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
+    GetCoinRecordsResponse, GetFeeEstimateResponse, GetMempoolItemResponse,
+    GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
 };
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -269,6 +269,18 @@ impl RpcClient {
         coin_name: Bytes32,
     ) -> Result<GetMempoolItemsResponse> {
         Ok(self.0.get_mempool_items_by_coin_name(coin_name).await?)
+    }
+
+    pub async fn get_fee_estimate(
+        &self,
+        cost: u64,
+        target_times: Vec<u64>,
+    ) -> Result<GetFeeEstimateResponse> {
+        Ok(self.0.get_fee_estimate(cost, target_times).await?)
+    }
+
+    pub async fn get_fee_per_cost(&self, cost: u64, target_time: u64) -> Result<Option<f64>> {
+        Ok(self.0.get_fee_per_cost(cost, target_time).await?)
     }
 }
 
