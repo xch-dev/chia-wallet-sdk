@@ -168,7 +168,7 @@ limits.
 
 ## Independent tests
 
-`clear_signing/internal_custody/tests/generate_reference.py` uses only the pinned
+`internal_custody/tests/generate_reference.py` uses only the pinned
 Python checkout and deterministic public test seeds. It generates:
 
 - 31 primary operation variants and 21 additional higher-threshold rekey/recovery
@@ -204,7 +204,7 @@ git clone https://github.com/Chia-Network/internal-custody \
 git -C /tmp/internal-custody-reference checkout --detach \
   4150dc832a5e66b5ed839974f88d1feb573dcfe2
 /tmp/custody-reference-env/bin/python \
-  crates/chia-sdk-driver/src/clear_signing/internal_custody/tests/generate_reference.py \
+  crates/chia-sdk-driver/src/internal_custody/tests/generate_reference.py \
   --reference /tmp/internal-custody-reference
 cargo test -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --locked
 cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --all-targets --locked -- -D warnings

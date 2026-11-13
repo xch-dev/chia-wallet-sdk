@@ -1,3 +1,9 @@
+//! Construction-backed verification and aggregate-context signing for Internal Custody.
+//!
+//! Typed requests reconstruct supported prefarm operations before executing them
+//! with a shared cost budget. Verified effects and signing capabilities bind review
+//! facts and participant signatures to those exact spends and the chosen network.
+
 #[cfg(test)]
 use crate::{InternalCustodyLayer, Layer, Puzzle};
 mod operations;
