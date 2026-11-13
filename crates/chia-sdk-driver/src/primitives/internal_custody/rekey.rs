@@ -25,20 +25,23 @@ pub struct InternalCustodyLockSpends {
     /// Second stage, in Python order: lock coin followed by `FINISH_REKEY` singleton.
     pub completion: [CoinSpend; 2],
 }
-impl InternalCustodyPolicy {
-    pub(crate) fn rekey_tree(info: &super::InternalCustodyInfo) -> MerkleTree {
+impl super::InternalCustodyInfo {
+    pub(super) fn rekey_tree(&self) -> MerkleTree {
         MerkleTree::new(&[
             InternalCustodyRekeyCompletionArgs {
                 singleton_struct: chia_puzzle_types::singleton::SingletonStruct::new(
-                    info.launcher_id,
+                    self.launcher_id,
                 ),
-                timelock: info.rekey_clawback,
+                timelock: self.rekey_clawback,
             }
             .curry_tree_hash()
             .into(),
             InternalCustodyRekeyClawback::mod_hash().into(),
         ])
     }
+}
+
+impl InternalCustodyPolicy {
     pub(crate) fn pending_rekey_puzzle(
         &self,
         ctx: &mut SpendContext,
@@ -98,6 +101,7 @@ impl InternalCustodyPolicy {
     /// Propose a replacement policy with an explicit initiation delay and fee form.
     /// The target must preserve the singleton's immutable configuration. The
     /// selected subset authorizes its minimum delay or any longer positive delay.
+    /// Rejects an initiation delay that exceeds the supported u64 seconds range.
     pub fn start_rekey_spend(
         &self,
         ctx: &mut SpendContext,
@@ -114,6 +118,18 @@ impl InternalCustodyPolicy {
             timelock_multiple: options.timelock_multiple,
         };
         let minimum = self.rekey_authorization_multiple(state, signers)?;
+        let info = self.info();
+        info.rekey_increment
+            .checked_mul(u64::from(state.timelock_multiple))
+            .and_then(|base| {
+                if state.timelock_multiple > 1 {
+                    base.checked_add(info.slow_rekey)
+                } else {
+                    Some(base)
+                }
+            })
+            .ok_or(InternalCustodyError::InvalidSigningSet)?;
+
         let pending = self.pending_rekey_puzzle(ctx, state)?;
         // Python order: rekey coin, extra conditions, singleton continuation.
         let mut conditions =
@@ -204,7 +220,9 @@ impl InternalCustodyPolicy {
         let branch = ctx.alloc_mod::<InternalCustodyRekeyClawback>()?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: branch,
-            proof: Self::rekey_tree(&self.info())
+            proof: self
+                .info()
+                .rekey_tree()
                 .proof(InternalCustodyRekeyClawback::mod_hash().into())
                 .ok_or(InternalCustodyError::InvalidPolicy)?,
             solution: InternalCustodyRekeyClawbackSolution {
@@ -269,7 +287,9 @@ impl InternalCustodyPolicy {
         let complete_puzzle = ctx.curry(complete)?;
         let solution = ctx.alloc(&InternalCustodyMerkleSolution {
             puzzle: complete_puzzle,
-            proof: Self::rekey_tree(&self.info())
+            proof: self
+                .info()
+                .rekey_tree()
                 .proof(complete.curry_tree_hash().into())
                 .ok_or(InternalCustodyError::InvalidPolicy)?,
             solution: clvm_list!(proofs.1),

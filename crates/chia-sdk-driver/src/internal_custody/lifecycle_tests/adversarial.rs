@@ -424,61 +424,87 @@ fn explicit_attempt_delay_must_cover_the_selected_subset_minimum() {
 }
 
 #[test]
-fn rekey_execution_rejects_relative_seconds_outside_u64() -> anyhow::Result<()> {
+fn rekey_builder_rejects_relative_seconds_outside_u64() -> anyhow::Result<()> {
     let ctx = &mut ctx();
     let original = policy("policy");
     let replacement = policy("new_policy");
-    let info = InternalCustodyInfo {
-        rekey_increment: u64::MAX,
-        ..original.info()
-    };
-    let old =
-        InternalCustodyPolicy::derive(ctx, info, original.keys().to_vec(), original.thresholds())?;
-    let new = InternalCustodyPolicy::derive(
-        ctx,
-        info,
-        replacement.keys().to_vec(),
-        replacement.thresholds(),
-    )?;
-    let input = spends(operation("slow-rekey"));
-    let selected = keys(operation("slow-rekey"));
-    let coin = Coin::new(
-        input[0].coin.parent_coin_info,
-        old.puzzle_hash().into(),
-        input[0].coin.amount,
-    );
-    let proof = proof(ctx, &input[0]);
-    let spend = old.start_rekey_spend(
-        ctx,
-        coin,
-        proof,
-        &new,
-        &selected,
-        InternalCustodyRekeyOptions {
-            timelock_multiple: 2,
-            fee_announcement: false,
-        },
-    )?;
-    let result = parse_internal_custody_operation(
-        ctx,
-        &old,
-        &[spend],
-        InternalCustodyOperationRequest::Rekey {
-            new_policy: &new,
-            signers: &selected,
-        },
-        &constants(),
-        500_000_000,
-    );
-    assert!(
-        matches!(
+    // Exercise multiplication overflow and a representable product whose penalty overflows.
+    for rekey_increment in [u64::MAX, u64::MAX / 2] {
+        let info = InternalCustodyInfo {
+            rekey_increment,
+            ..original.info()
+        };
+        let old = InternalCustodyPolicy::derive(
+            ctx,
+            info,
+            original.keys().to_vec(),
+            original.thresholds(),
+        )?;
+        let new = InternalCustodyPolicy::derive(
+            ctx,
+            info,
+            replacement.keys().to_vec(),
+            replacement.thresholds(),
+        )?;
+        let input = spends(operation("slow-rekey"));
+        let selected = keys(operation("slow-rekey"));
+        let coin = Coin::new(
+            input[0].coin.parent_coin_info,
+            old.puzzle_hash().into(),
+            input[0].coin.amount,
+        );
+        let proof = proof(ctx, &input[0]);
+        let result = old.start_rekey_spend(
+            ctx,
+            coin,
+            proof,
+            &new,
+            &selected,
+            InternalCustodyRekeyOptions {
+                timelock_multiple: 2,
+                fee_announcement: false,
+            },
+        );
+        assert!(matches!(
             result,
             Err(DriverError::InternalCustody(
-                InternalCustodyError::UnexpectedConditions
+                InternalCustodyError::InvalidSigningSet
             ))
-        ),
-        "{:?}",
-        result.err()
-    );
+        ));
+    }
     Ok(())
+}
+
+#[test]
+fn pending_payment_recipient_is_bound_for_cancellation_and_completion() {
+    let old = policy("policy");
+    let wrong_destination: Bytes32 = [42; 32].into();
+    assert_ne!(wrong_destination, bytes(&data()["destination"]));
+    for name in ["clawback", "clawback-fee", "payment-complete"] {
+        let vector = operation(name);
+        let input = spends(vector);
+        let selected = keys(vector);
+        let request = if vector["kind"] == "clawback" {
+            InternalCustodyOperationRequest::PaymentClawback {
+                destination: wrong_destination,
+                signers: &selected,
+            }
+        } else {
+            InternalCustodyOperationRequest::PaymentCompletion {
+                destination: wrong_destination,
+            }
+        };
+        let result = parse_internal_custody_operation(
+            &mut ctx(),
+            &old,
+            &input,
+            request,
+            &constants(),
+            500_000_000,
+        );
+        assert!(
+            matches!(result, Err(DriverError::WrongPuzzleHash)),
+            "{name}"
+        );
+    }
 }

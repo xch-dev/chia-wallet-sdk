@@ -97,13 +97,13 @@ impl InternalCustodyPolicy {
         let drop_puzzle_hashes = chia_sdk_types::puzzles::InternalCustodyPuzzleHashes {
             rekey: chia_sdk_types::puzzles::InternalCustodyDropArgs {
                 inner_puzzle: super::payment::DEFAULT_INNER,
-                merkle_root: Self::rekey_tree(&info).root(),
+                merkle_root: info.rekey_tree().root(),
             }
             .curry_tree_hash()
             .into(),
             payment: chia_sdk_types::puzzles::InternalCustodyDropArgs {
                 inner_puzzle: super::payment::DEFAULT_INNER,
-                merkle_root: Self::payment_completion_tree(&info).1.root(),
+                merkle_root: info.payment_completion_tree().1.root(),
             }
             .curry_tree_hash()
             .into(),

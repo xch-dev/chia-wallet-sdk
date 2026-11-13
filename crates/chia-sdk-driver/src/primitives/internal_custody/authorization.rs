@@ -13,20 +13,14 @@ use chia_sdk_types::{
 };
 use clvm_traits::clvm_list;
 use clvmr::NodePtr;
-use std::{collections::HashSet, num::NonZeroU8};
+use std::collections::HashSet;
 
 /// A recovery multiple is strictly greater than the standard multiple of one.
 #[derive(Clone, Copy)]
-pub(super) struct RecoveryMultiple(NonZeroU8);
+pub(super) struct RecoveryMultiple(u8);
 impl RecoveryMultiple {
-    fn new(value: u8) -> Result<Self, crate::DriverError> {
-        if value <= 1 {
-            return Err(InternalCustodyError::InvalidSigningSet.into());
-        }
-        Ok(Self(NonZeroU8::new(value).expect("greater than one")))
-    }
     fn get(self) -> u8 {
-        self.0.get()
+        self.0
     }
 }
 
@@ -40,7 +34,7 @@ impl ConditionsAuthorization {
         match multiple {
             0 => Err(InternalCustodyError::InvalidSigningSet.into()),
             1 => Ok(Self::Standard),
-            m => Ok(Self::Recovery(RecoveryMultiple::new(m)?)),
+            m => Ok(Self::Recovery(RecoveryMultiple(m))),
         }
     }
 }
@@ -85,19 +79,15 @@ impl InternalCustodyPolicy {
         root: Bytes32,
         kind: AuthKind,
     ) -> Result<NodePtr, crate::DriverError> {
-        let rekey = InternalCustodyRekeyFilter {
+        let rekey = |allowed_timelock| InternalCustodyRekeyFilter {
             puzzle_hash: self.drop_puzzle_hashes.rekey,
-            allowed_timelock: match kind {
-                AuthKind::Lock => 0,
-                AuthKind::Conditions(ConditionsAuthorization::Standard) => 1,
-                AuthKind::Conditions(ConditionsAuthorization::Recovery(m)) => u64::from(m.get()),
-            },
+            allowed_timelock,
         };
         let filter = match kind {
             AuthKind::Conditions(ConditionsAuthorization::Standard) => {
                 ctx.curry(InternalCustodyRekeyAndPaymentArgs {
                     config: InternalCustodyFilterConfig {
-                        rekey,
+                        rekey: rekey(1),
                         payment: InternalCustodyPaymentFilter {
                             puzzle_hash: self.drop_puzzle_hashes.payment,
                             clawback_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
@@ -107,8 +97,11 @@ impl InternalCustodyPolicy {
                     },
                 })?
             }
-            AuthKind::Lock | AuthKind::Conditions(ConditionsAuthorization::Recovery(_)) => {
-                ctx.curry(InternalCustodyOnlyRekeyArgs { config: rekey })?
+            AuthKind::Lock => ctx.curry(InternalCustodyOnlyRekeyArgs { config: rekey(0) })?,
+            AuthKind::Conditions(ConditionsAuthorization::Recovery(m)) => {
+                ctx.curry(InternalCustodyOnlyRekeyArgs {
+                    config: rekey(u64::from(m.get())),
+                })?
             }
         };
         ctx.curry(InternalCustodyFilterArgs {
@@ -219,16 +212,17 @@ impl InternalCustodyPolicy {
 
 #[cfg(test)]
 mod tests {
-    use super::RecoveryMultiple;
+    use super::ConditionsAuthorization;
     #[test]
-    fn recovery_multiple_excludes_lock_and_standard() {
+    fn rekey_authorization_classifies_every_u8_multiple() {
         for value in 0..=255 {
-            match RecoveryMultiple::new(value) {
-                Ok(multiple) => {
+            match ConditionsAuthorization::rekey(value) {
+                Err(_) => assert_eq!(value, 0),
+                Ok(ConditionsAuthorization::Standard) => assert_eq!(value, 1),
+                Ok(ConditionsAuthorization::Recovery(multiple)) => {
                     assert!(value > 1);
                     assert_eq!(multiple.get(), value);
                 }
-                Err(_) => assert!(value <= 1),
             }
         }
     }

@@ -23,6 +23,24 @@ use clvmr::NodePtr;
 // `(a 2 5)` applies the revealed branch to the remaining environment.
 pub(super) const DEFAULT_INNER: (u8, (u8, (u8, ()))) = clvm_list!(2, 2, 5);
 
+impl super::InternalCustodyInfo {
+    pub(super) fn payment_completion_tree(&self) -> (InternalCustodyAchCompletionArgs, MerkleTree) {
+        let complete = InternalCustodyAchCompletionArgs {
+            timelock: self.payment_clawback,
+        };
+        let clawback = InternalCustodyAchClawbackArgs {
+            return_puzzle_hash: P2SingletonArgs::new(self.launcher_id)
+                .curry_tree_hash()
+                .into(),
+        };
+        let tree = MerkleTree::new(&[
+            complete.curry_tree_hash().into(),
+            clawback.curry_tree_hash().into(),
+        ]);
+        (complete, tree)
+    }
+}
+
 impl InternalCustodyPolicy {
     /// Construct the full singleton puzzle for this policy.
     pub fn singleton_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -33,7 +51,7 @@ impl InternalCustodyPolicy {
         })
     }
     pub(crate) fn payment_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let (_, tree) = Self::payment_completion_tree(&self.info());
+        let (_, tree) = self.info().payment_completion_tree();
         let root = tree.root();
         let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
         ctx.curry(InternalCustodyDropArgs {
@@ -41,25 +59,9 @@ impl InternalCustodyPolicy {
             merkle_root: root,
         })
     }
-    pub(super) fn payment_completion_tree(
-        info: &super::InternalCustodyInfo,
-    ) -> (InternalCustodyAchCompletionArgs, MerkleTree) {
-        let complete = InternalCustodyAchCompletionArgs {
-            timelock: info.payment_clawback,
-        };
-        let clawback = InternalCustodyAchClawbackArgs {
-            return_puzzle_hash: P2SingletonArgs::new(info.launcher_id)
-                .curry_tree_hash()
-                .into(),
-        };
-        let tree = MerkleTree::new(&[
-            complete.curry_tree_hash().into(),
-            clawback.curry_tree_hash().into(),
-        ]);
-        (complete, tree)
-    }
+
     pub(crate) fn rekey_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let root = Self::rekey_tree(&self.info()).root();
+        let root = self.info().rekey_tree().root();
         let inner_puzzle = ctx.alloc(&DEFAULT_INNER)?;
         ctx.curry(InternalCustodyDropArgs {
             inner_puzzle,
@@ -96,7 +98,7 @@ impl InternalCustodyPolicy {
         {
             return Err(DriverError::WrongPuzzleHash);
         }
-        let (complete, tree) = Self::payment_completion_tree(&self.info());
+        let (complete, tree) = self.info().payment_completion_tree();
         let complete_hash = complete.curry_tree_hash();
         let proof = tree
             .proof(complete_hash.into())

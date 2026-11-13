@@ -87,9 +87,9 @@ Signer order does not change the aggregate key; duplicates are rejected. Payment
 arithmetic uses a wider intermediate and checks the final coin against `u64`,
 allowing absorption plus withdrawal even when their intermediate balance exceeds
 one coin's range. Deposit totals and withdrawals must be even, preserving the
-singleton's odd value. An absorb-only operation can retain a nonzero unused destination context, and a
-zero-value no-op is supported, matching Python. `payment_spends` always takes
-explicit `InternalCustodyPaymentOptions`: choose `Withdraw` or `Absorb` with its
+singleton's odd value. An absorb-only operation can retain a nonzero unused
+destination context. A zero-value no-op is also supported, matching Python.
+`payment_spends` always takes explicit `InternalCustodyPaymentOptions`: choose `Withdraw` or `Absorb` with its
 signed destination context and specify the fee-announcement form.
 
 The CLI's optional extra `[CREATE_COIN_ANNOUNCEMENT, ""]` is explicitly supported
@@ -147,7 +147,8 @@ executed singleton's relative-time assertions, measured from confirmation of
 that singleton input. Completion delays are measured from confirmation of the
 pending payment or rekey coin. Reported delays do not establish time readiness;
 conditions are preserved, not claimed to have elapsed. Unrepresentable typed
-conditions, including relative delays outside `u64`, are rejected.
+conditions, including relative delays outside `u64`, are rejected. Rekey-start
+construction also rejects a committed initiation delay that overflows `u64`.
 
 Signed effects report the empty fee-sponsor announcement form for payments,
 payment cancellations, rekeys and rekey cancellations. Payment cancellations
@@ -192,11 +193,11 @@ The generator requires the published releases `chia-blockchain==2.7.5` and
 `chia_rs==0.48.1` and records both versions in the fixture. Reveals are stored once
 in a `programs` table keyed by serialized SHA256; operations reference that table.
 
-From the SDK checkout, create an isolated Python 3.14 environment, install the
-released packages, and check out the pinned reference revision:
+From the SDK checkout, create an isolated environment with Python 3.13 or 3.14.
+Install the released packages and check out the pinned reference revision:
 
 ```sh
-python3.14 -m venv /tmp/custody-reference-env
+python3 -m venv /tmp/custody-reference-env
 /tmp/custody-reference-env/bin/python -m pip install \
   'chia-blockchain==2.7.5' 'chia_rs==0.48.1'
 git clone https://github.com/Chia-Network/internal-custody \
@@ -207,6 +208,7 @@ git -C /tmp/internal-custody-reference checkout --detach \
   crates/chia-sdk-driver/src/internal_custody/tests/generate_reference.py \
   --reference /tmp/internal-custody-reference
 cargo test -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --locked
-cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver --all-targets --locked -- -D warnings
+cargo clippy -p chia-sdk-types -p chia-sdk-signer -p chia-sdk-driver \
+  --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 ```
