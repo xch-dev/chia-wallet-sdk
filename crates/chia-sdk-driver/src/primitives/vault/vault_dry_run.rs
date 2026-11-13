@@ -68,6 +68,9 @@ pub struct VaultDryRun {
     pub vault: Vault,
     custody: MipsSpend,
     signers: Vec<DryRunSigner>,
+    /// How many times the spend reveals a passkey member, counting a member once for each M of N branch that selects
+    /// it, since each reveal runs the member's puzzle.
+    passkey_reveals: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -147,7 +150,7 @@ impl VaultDryRun {
             let launcher_id = controller.vault.info.launcher_id;
 
             if launcher_id == vault.info.launcher_id {
-                return Err(DriverError::DryRunControllerIsVault);
+                return Err(DriverError::DryRunControllerIsVault(launcher_id));
             }
 
             if !controller_ids.insert(launcher_id) {
@@ -192,28 +195,22 @@ impl VaultDryRun {
             info: VaultInfo::new(vault.info.launcher_id, custody_hash),
         };
 
+        let passkey_reveals =
+            count_passkey_reveals(&stand_in.custody, &stand_in.signers, custody_hash)?;
+
         Ok(Self {
             vault,
             custody: stand_in.custody,
             signers: stand_in.signers,
+            passkey_reveals,
         })
     }
 
     /// The cost to add to the stand-in transaction's cost to cover the real one, which is
-    /// [`PASSKEY_COST_MARGIN`] for each passkey member that signs, and zero otherwise.
+    /// [`PASSKEY_COST_MARGIN`] each time the spend reveals a passkey member that signs, and zero otherwise. A passkey
+    /// member selected in two M of N branches is revealed, and runs, twice.
     pub fn cost_margin(&self) -> u64 {
-        let passkeys = self
-            .signers
-            .iter()
-            .filter(|signer| {
-                matches!(
-                    signer.key,
-                    DryRunKey::Passkey(..) | DryRunKey::PasskeyPuzzleAssert(..)
-                )
-            })
-            .count() as u64;
-
-        passkeys * PASSKEY_COST_MARGIN
+        self.passkey_reveals * PASSKEY_COST_MARGIN
     }
 
     /// Spends the stand-in vault with the delegated spend, signing with the stand-in keys.
@@ -396,7 +393,7 @@ struct StandIn {
     custody: MipsSpend,
     signers: Vec<DryRunSigner>,
     keys: KeyGenerator,
-    rekeyed: HashMap<TreeHash, TreeHash>,
+    rekeyed: HashMap<(TreeHash, bool), TreeHash>,
 }
 
 /// Copies the node at `hash` (and the nodes below it that the custody spend reveals) into `stand_in`, with every member
@@ -411,7 +408,7 @@ fn rekey(
     hash: TreeHash,
     top_level: bool,
 ) -> Result<TreeHash, DriverError> {
-    if let Some(&new_hash) = stand_in.rekeyed.get(&hash) {
+    if let Some(&new_hash) = stand_in.rekeyed.get(&(hash, top_level)) {
         return Ok(new_hash);
     }
 
@@ -468,7 +465,7 @@ fn rekey(
         });
     }
 
-    stand_in.rekeyed.insert(hash, new_hash);
+    stand_in.rekeyed.insert((hash, top_level), new_hash);
     stand_in.custody.members.insert(
         new_hash,
         InnerPuzzleSpend {
@@ -594,6 +591,38 @@ fn controlled_member(
         spend.puzzle,
         solution,
     )))
+}
+
+/// Counts how many times the stand-in's spend reveals a passkey member that signs, walking the nodes that the spend
+/// reveals from `hash` down, as [`MipsSpend::spend`] selects them.
+fn count_passkey_reveals(
+    custody: &MipsSpend,
+    signers: &[DryRunSigner],
+    hash: TreeHash,
+) -> Result<u64, DriverError> {
+    let node = custody
+        .members
+        .get(&hash)
+        .ok_or(DriverError::MissingSubpathSpend)?;
+
+    match &node.kind {
+        MipsSpendKind::Member(_) => Ok(u64::from(signers.iter().any(|signer| {
+            signer.member_hash == hash
+                && matches!(
+                    signer.key,
+                    DryRunKey::Passkey(..) | DryRunKey::PasskeyPuzzleAssert(..)
+                )
+        }))),
+        MipsSpendKind::MofN(m_of_n) => {
+            let mut reveals = 0;
+
+            for index in m_of_n.selected_items(custody)? {
+                reveals += count_passkey_reveals(custody, signers, m_of_n.items[index])?;
+            }
+
+            Ok(reveals)
+        }
+    }
 }
 
 fn set_member_spend(
@@ -1513,21 +1542,31 @@ mod tests {
             &own_template,
             std::slice::from_ref(&controller_dry_run),
         );
-        assert!(matches!(result, Err(DriverError::DryRunControllerIsVault)));
+        assert!(matches!(
+            result,
+            Err(DriverError::DryRunControllerIsVault(launcher_id))
+                if launcher_id == controller.vault.info.launcher_id
+        ));
 
         Ok(())
     }
 
     /// A member selected in two M of N branches is revealed twice by the real spend. The stand-in replaces it once, so
-    /// it reveals the same puzzle twice too, and costs the same as the real spend after the fork's deduplication.
+    /// it reveals the same puzzle twice too, and costs the same as the real spend after the fork's deduplication. A
+    /// passkey member runs once for each reveal, so it adds to the margin twice.
     #[rstest]
     fn test_member_in_two_branches_is_replaced_once(
+        #[values("k1", "passkey")] kind: &str,
         #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
-        let key = TestKey::K1(K1Pair::default().sk);
+        let key = match kind {
+            "k1" => TestKey::K1(K1Pair::default().sk),
+            _ => TestKey::Passkey(R1Pair::default().sk),
+        };
 
         let member = key.member_puzzle(&mut ctx)?;
+        let placeholder = key.placeholder(&mut ctx)?;
         let member_hash = mips_puzzle_hash(0, vec![], ctx.tree_hash(member), false);
         let branch_hashes: Vec<TreeHash> = (0..2)
             .map(|nonce| {
@@ -1549,7 +1588,7 @@ mod tests {
         let mut custody = MipsSpend::new(Spend::new(NodePtr::NIL, NodePtr::NIL));
         custody.members.insert(
             member_hash,
-            InnerPuzzleSpend::new(0, vec![], Spend::new(member, NodePtr::NIL)),
+            InnerPuzzleSpend::new(0, vec![], Spend::new(member, placeholder)),
         );
         for (nonce, &hash) in branch_hashes.iter().enumerate() {
             custody.members.insert(
@@ -1569,6 +1608,16 @@ mod tests {
         let dry_run = VaultDryRun::new(&mut ctx, &vault, &custody)?;
         assert_eq!(dry_run.signers.len(), 1);
         assert_eq!(dry_run.custody.members.len(), custody.members.len());
+
+        let margin = dry_run.cost_margin();
+        assert_eq!(
+            margin,
+            if kind == "passkey" {
+                2 * PASSKEY_COST_MARGIN
+            } else {
+                0
+            }
+        );
 
         // The stand-in spend.
         let delegated =
@@ -1594,7 +1643,7 @@ mod tests {
         vault.spend(&mut ctx, &real)?;
         let real_cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, Some(height))?;
 
-        assert_eq!(stand_in_cost, real_cost);
+        assert!(stand_in_cost.abs_diff(real_cost) <= margin);
 
         Ok(())
     }

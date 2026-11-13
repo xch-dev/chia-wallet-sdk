@@ -259,8 +259,8 @@ pub enum DriverError {
 
     /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given a stand-in for the vault itself
     /// as one of its controllers.
-    #[error("a vault can't be given as its own controller")]
-    DryRunControllerIsVault,
+    #[error("vault {0} can't be given as its own controller")]
+    DryRunControllerIsVault(Bytes32),
 
     /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
     /// single payment assertion would be satisfied by either of them.

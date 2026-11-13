@@ -135,7 +135,7 @@ impl Spends {
     /// The coins are selected the same way for the same fee, so this builds the same transaction that
     /// [`Spends::apply_with_minimum_fee`] priced. `spend_p2` provides the p2 spends after the spends are prepared, as
     /// with [`Spends::spend`], and its return value is returned. On error, the context's coin spends are left as they
-    /// were before the call.
+    /// were before the call, without any that it added. Anything else it allocated in the context is kept.
     ///
     /// Returns [`DriverError::CoinSelection`] if the coins can't be selected to cover the actions and the fee, for
     /// example because there isn't enough balance, or reaching it would take too many coins.

@@ -207,8 +207,6 @@ impl InnerPuzzleSpend {
     }
 }
 
-/// Every inner puzzle's wrappers must be a prefix of the same stack, since they all wrap the same
-/// delegated puzzle.
 /// Wraps a delegated puzzle hash in a stack of delegated puzzle wrappers, outermost first, as the wrappers are curried
 /// around the delegated puzzle when it's spent.
 pub(crate) fn wrap_delegated_puzzle_hash(
@@ -223,6 +221,8 @@ pub(crate) fn wrap_delegated_puzzle_hash(
         })
 }
 
+/// Every inner puzzle's wrappers must be a prefix of the same stack, since they all wrap the same
+/// delegated puzzle.
 fn merge_delegated_puzzle_wrappers(
     delegated_puzzle_wrappers: &mut Vec<TreeHash>,
     local_delegated_puzzle_wrappers: &[TreeHash],
