@@ -1,13 +1,15 @@
+use std::collections::{HashMap, HashSet};
+
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::{
     Mod,
     puzzles::{
-        AddDelegatedPuzzleWrapper, K1Member, K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution,
-        K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
-        PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, R1Member, R1MemberPuzzleAssert,
-        R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
-        SingletonMemberWithMode, SingletonMemberWithModeSolution,
+        K1Member, K1MemberPuzzleAssert, K1MemberPuzzleAssertSolution, K1MemberSolution,
+        PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
+        PasskeyMemberSolution, R1Member, R1MemberPuzzleAssert, R1MemberPuzzleAssertSolution,
+        R1MemberSolution, SingletonMember, SingletonMemberSolution, SingletonMemberWithMode,
+        SingletonMemberWithModeSolution,
     },
 };
 use chia_secp::{K1SecretKey, R1SecretKey};
@@ -18,6 +20,7 @@ use clvmr::NodePtr;
 use crate::{
     CurriedPuzzle, DriverError, InnerPuzzleSpend, MipsSpend, MipsSpendKind, MofN, Puzzle, Spend,
     SpendContext, Vault, VaultInfo, calculate_vault_puzzle_message, mips_puzzle_hash,
+    wrap_delegated_puzzle_hash,
 };
 
 /// The default authenticator data of a passkey member, used when the custody spend passed to
@@ -129,20 +132,42 @@ impl VaultDryRun {
     /// [`SingletonMember`] or [`SingletonMemberWithMode`] of a controller's launcher id is given the controller's
     /// stand-in inner puzzle hash and amount, so that it accepts the message from the controller's stand-in. Create the
     /// controllers' stand-ins first, and build their authorizations against this stand-in's coin.
+    ///
+    /// Returns [`DriverError::DuplicateDryRunController`] if two controllers have the same launcher id, and
+    /// [`DriverError::DryRunControllerIsVault`] if a controller has the vault's own launcher id.
     pub fn with_controllers(
         ctx: &mut SpendContext,
         vault: &Vault,
         custody: &MipsSpend,
         controllers: &[VaultDryRun],
     ) -> Result<Self, DriverError> {
-        let mut stand_in = MipsSpend::new(custody.delegated);
-        stand_in.restrictions.clone_from(&custody.restrictions);
+        let mut controller_ids = HashSet::with_capacity(controllers.len());
 
-        let mut signers = Vec::new();
-        let mut keys = KeyGenerator {
-            launcher_id: vault.info.launcher_id,
-            next: 0,
+        for controller in controllers {
+            let launcher_id = controller.vault.info.launcher_id;
+
+            if launcher_id == vault.info.launcher_id {
+                return Err(DriverError::DryRunControllerIsVault);
+            }
+
+            if !controller_ids.insert(launcher_id) {
+                return Err(DriverError::DuplicateDryRunController(launcher_id));
+            }
+        }
+
+        let mut stand_in = StandIn {
+            custody: MipsSpend::new(custody.delegated),
+            signers: Vec::new(),
+            keys: KeyGenerator {
+                launcher_id: vault.info.launcher_id,
+                next: 0,
+            },
+            rekeyed: HashMap::new(),
         };
+        stand_in
+            .custody
+            .restrictions
+            .clone_from(&custody.restrictions);
 
         let custody_hash = rekey(
             ctx,
@@ -151,8 +176,6 @@ impl VaultDryRun {
                 controllers,
             },
             &mut stand_in,
-            &mut signers,
-            &mut keys,
             vault.info.custody_hash,
             true,
         )?;
@@ -171,8 +194,8 @@ impl VaultDryRun {
 
         Ok(Self {
             vault,
-            custody: stand_in,
-            signers,
+            custody: stand_in.custody,
+            signers: stand_in.signers,
         })
     }
 
@@ -227,14 +250,7 @@ impl VaultDryRun {
             .ok_or(DriverError::MissingSubpathSpend)?
             .collect_delegated_puzzle_wrappers(custody, &mut wrappers)?;
 
-        let mut delegated_puzzle_hash = ctx.tree_hash(custody.delegated.puzzle);
-
-        for &wrapper in wrappers.iter().rev() {
-            delegated_puzzle_hash =
-                AddDelegatedPuzzleWrapper::new(wrapper, delegated_puzzle_hash).curry_tree_hash();
-        }
-
-        Ok(delegated_puzzle_hash.into())
+        Ok(wrap_delegated_puzzle_hash(ctx.tree_hash(custody.delegated.puzzle), &wrappers).into())
     }
 }
 
@@ -374,17 +390,31 @@ struct RekeyContext<'a> {
     controllers: &'a [VaultDryRun],
 }
 
+/// What a stand-in is built up in: its custody spend, its signers, the keys it's given, and the new hash of each node
+/// that's already been copied.
+struct StandIn {
+    custody: MipsSpend,
+    signers: Vec<DryRunSigner>,
+    keys: KeyGenerator,
+    rekeyed: HashMap<TreeHash, TreeHash>,
+}
+
 /// Copies the node at `hash` (and the nodes below it that the custody spend reveals) into `stand_in`, with every member
 /// that signs replaced by one with a new key, and returns its new hash.
+///
+/// A node that's revealed more than once, such as a member selected in two M of N branches, is only copied once, so that
+/// the stand-in reveals the same puzzle each time, as the real spend does.
 fn rekey(
     ctx: &mut SpendContext,
     source: &RekeyContext<'_>,
-    stand_in: &mut MipsSpend,
-    signers: &mut Vec<DryRunSigner>,
-    keys: &mut KeyGenerator,
+    stand_in: &mut StandIn,
     hash: TreeHash,
     top_level: bool,
 ) -> Result<TreeHash, DriverError> {
+    if let Some(&new_hash) = stand_in.rekeyed.get(&hash) {
+        return Ok(new_hash);
+    }
+
     let node = source
         .custody
         .members
@@ -396,7 +426,7 @@ fn rekey(
 
     let (kind, inner_puzzle_hash) = match node.kind {
         MipsSpendKind::Member(spend) => {
-            let spend = match rewrite_member(ctx, spend, keys, source.controllers)? {
+            let spend = match rewrite_member(ctx, spend, &mut stand_in.keys, source.controllers)? {
                 MemberRewrite::Rekeyed(puzzle, key) => {
                     signer = Some((puzzle, key));
                     Spend::new(puzzle, NodePtr::NIL)
@@ -414,15 +444,7 @@ fn rekey(
             let mut items = m_of_n.items.clone();
 
             for index in selected {
-                items[index] = rekey(
-                    ctx,
-                    source,
-                    stand_in,
-                    signers,
-                    keys,
-                    m_of_n.items[index],
-                    false,
-                )?;
+                items[index] = rekey(ctx, source, stand_in, m_of_n.items[index], false)?;
             }
 
             let m_of_n = MofN::new(m_of_n.required, items);
@@ -439,14 +461,15 @@ fn rekey(
     );
 
     if let Some((puzzle, key)) = signer {
-        signers.push(DryRunSigner {
+        stand_in.signers.push(DryRunSigner {
             member_hash: new_hash,
             puzzle,
             key,
         });
     }
 
-    stand_in.members.insert(
+    stand_in.rekeyed.insert(hash, new_hash);
+    stand_in.custody.members.insert(
         new_hash,
         InnerPuzzleSpend {
             nonce: node.nonce,
@@ -669,7 +692,7 @@ mod tests {
     use chia_sdk_types::{
         Conditions, MAINNET_CONSTANTS, MessageFlags, MessageSide,
         conditions::SendMessage,
-        puzzles::{BlsMember, PreventMultipleCreateCoinsMod},
+        puzzles::{AddDelegatedPuzzleWrapper, BlsMember, PreventMultipleCreateCoinsMod},
     };
     use clvm_utils::ToTreeHash;
     use rstest::rstest;
@@ -683,8 +706,15 @@ mod tests {
 
     use super::*;
 
-    const PRE_FORK: u32 = 0xffff_fffa - 1;
-    const POST_FORK: u32 = 0xffff_fffa;
+    /// A mainnet height just before the 3.0 hard fork.
+    fn pre_fork() -> u32 {
+        MAINNET_CONSTANTS.hard_fork2_height - 1
+    }
+
+    /// The mainnet height of the 3.0 hard fork.
+    fn post_fork() -> u32 {
+        MAINNET_CONSTANTS.hard_fork2_height
+    }
 
     /// The key of a member, for signing the real transaction.
     #[derive(Debug, Clone)]
@@ -1170,7 +1200,7 @@ mod tests {
         #[case] kind: &str,
         #[case] required: usize,
         #[case] count: usize,
-        #[values(PRE_FORK, POST_FORK)] height: u32,
+        #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
@@ -1201,7 +1231,7 @@ mod tests {
     /// replaced, and they don't add to the margin.
     #[rstest]
     fn test_unselected_members_are_not_replaced(
-        #[values(PRE_FORK, POST_FORK)] height: u32,
+        #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
@@ -1224,7 +1254,7 @@ mod tests {
     #[rstest]
     fn test_delegated_puzzle_wrapper(
         #[values(1, 3)] count: usize,
-        #[values(PRE_FORK, POST_FORK)] height: u32,
+        #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
@@ -1246,7 +1276,7 @@ mod tests {
     /// generator doesn't charge for one shared member puzzle where the real transaction pays for two.
     #[rstest]
     fn test_two_vaults_in_one_transaction(
-        #[values(PRE_FORK, POST_FORK)] height: u32,
+        #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
@@ -1347,7 +1377,7 @@ mod tests {
     /// stand-in, and the controller's stand-in authorizes the controlled vault's spend.
     #[rstest]
     fn test_vault_controlled_by_another_vault(
-        #[values(PRE_FORK, POST_FORK)] height: u32,
+        #[values(pre_fork(), post_fork())] height: u32,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
@@ -1436,6 +1466,135 @@ mod tests {
         let real = ctx.take();
 
         check_real(&mut sim, &estimate, real, height, 0, true)?;
+
+        Ok(())
+    }
+
+    /// A controller can only be given once, and a vault can't be its own controller.
+    #[test]
+    fn test_controllers_are_validated() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let controller = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::keys(vec![TestKey::R1(R1Pair::default().sk)], 1),
+            &[],
+        )?;
+        let signing_vault = TestVault::mint(
+            &mut sim,
+            &mut ctx,
+            Custody::Controlled(controller.vault.info.launcher_id),
+            &[],
+        )?;
+
+        let controller_dry_run = controller.dry_run(&mut ctx)?;
+        let signing_template = signing_vault
+            .custody
+            .template(&mut ctx, Some(&controller.vault))?;
+
+        let result = VaultDryRun::with_controllers(
+            &mut ctx,
+            &signing_vault.vault,
+            &signing_template,
+            &[controller_dry_run.clone(), controller_dry_run.clone()],
+        );
+        assert!(matches!(
+            result,
+            Err(DriverError::DuplicateDryRunController(launcher_id))
+                if launcher_id == controller.vault.info.launcher_id
+        ));
+
+        let own_template = controller.custody.template(&mut ctx, None)?;
+        let result = VaultDryRun::with_controllers(
+            &mut ctx,
+            &controller.vault,
+            &own_template,
+            std::slice::from_ref(&controller_dry_run),
+        );
+        assert!(matches!(result, Err(DriverError::DryRunControllerIsVault)));
+
+        Ok(())
+    }
+
+    /// A member selected in two M of N branches is revealed twice by the real spend. The stand-in replaces it once, so
+    /// it reveals the same puzzle twice too, and costs the same as the real spend after the fork's deduplication.
+    #[rstest]
+    fn test_member_in_two_branches_is_replaced_once(
+        #[values(pre_fork(), post_fork())] height: u32,
+    ) -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+        let key = TestKey::K1(K1Pair::default().sk);
+
+        let member = key.member_puzzle(&mut ctx)?;
+        let member_hash = mips_puzzle_hash(0, vec![], ctx.tree_hash(member), false);
+        let branch_hashes: Vec<TreeHash> = (0..2)
+            .map(|nonce| {
+                mips_puzzle_hash(
+                    nonce,
+                    vec![],
+                    MofN::new(1, vec![member_hash]).inner_puzzle_hash(),
+                    false,
+                )
+            })
+            .collect();
+        let custody_hash = mips_puzzle_hash(
+            0,
+            vec![],
+            MofN::new(2, branch_hashes.clone()).inner_puzzle_hash(),
+            true,
+        );
+
+        let mut custody = MipsSpend::new(Spend::new(NodePtr::NIL, NodePtr::NIL));
+        custody.members.insert(
+            member_hash,
+            InnerPuzzleSpend::new(0, vec![], Spend::new(member, NodePtr::NIL)),
+        );
+        for (nonce, &hash) in branch_hashes.iter().enumerate() {
+            custody.members.insert(
+                hash,
+                InnerPuzzleSpend::m_of_n(nonce, vec![], 1, vec![member_hash]),
+            );
+        }
+        custody.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, vec![], 2, branch_hashes),
+        );
+
+        let (_, vault) =
+            Launcher::new(Bytes32::new([1; 32]), 1).mint_vault(&mut ctx, custody_hash, ())?;
+        ctx.take();
+
+        let dry_run = VaultDryRun::new(&mut ctx, &vault, &custody)?;
+        assert_eq!(dry_run.signers.len(), 1);
+        assert_eq!(dry_run.custody.members.len(), custody.members.len());
+
+        // The stand-in spend.
+        let delegated =
+            Conditions::new().create_coin(dry_run.vault.info.custody_hash.into(), 1, Memos::None);
+        let delegated = Spend::new(
+            ctx.alloc(&clvm_traits::clvm_quote!(delegated))?,
+            NodePtr::NIL,
+        );
+        dry_run.spend(&mut ctx, delegated)?;
+        let stand_in_cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, Some(height))?;
+
+        // The real spend, signed with the real key.
+        let delegated = Conditions::new().create_coin(custody_hash.into(), 1, Memos::None);
+        let delegated = Spend::new(
+            ctx.alloc(&clvm_traits::clvm_quote!(delegated))?,
+            NodePtr::NIL,
+        );
+        let delegated_puzzle_hash = ctx.tree_hash(delegated.puzzle).into();
+        let solution = key.solution(&mut ctx, &vault, delegated_puzzle_hash)?;
+        let mut real = custody.clone();
+        real.delegated = delegated;
+        set_member_spend(&mut real, member_hash, Spend::new(member, solution))?;
+        vault.spend(&mut ctx, &real)?;
+        let real_cost = spend_bundle_cost(&ctx.take(), &MAINNET_CONSTANTS, Some(height))?;
+
+        assert_eq!(stand_in_cost, real_cost);
 
         Ok(())
     }

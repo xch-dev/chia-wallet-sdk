@@ -252,6 +252,16 @@ pub enum DriverError {
     #[error("a stand-in vault key failed to sign: {0}")]
     DryRunSigningFailed(String),
 
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given more than one stand-in for the
+    /// same controller.
+    #[error("more than one stand-in was given for vault controller {0}")]
+    DuplicateDryRunController(Bytes32),
+
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given a stand-in for the vault itself
+    /// as one of its controllers.
+    #[error("a vault can't be given as its own controller")]
+    DryRunControllerIsVault,
+
     /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
     /// single payment assertion would be satisfied by either of them.
     #[error("two settlement coins with the same puzzle hash make the same notarized payment")]

@@ -751,6 +751,115 @@ for (const kind of ["r1", "passkey"] as const) {
   });
 }
 
+// The delegated spend of a controller that authorizes the controlled vault's delegated spend: it recreates the
+// controller and sends the controlled vault's coin the delegated puzzle hash.
+function controllerAuthorization(
+  clvm: Clvm,
+  controller: Vault,
+  controlledCoin: Coin,
+  delegatedPuzzleHash: Uint8Array,
+): Spend {
+  return clvm.delegatedSpend([
+    clvm.createCoin(controller.info.custodyHash, controller.coin.amount, null),
+    clvm.sendMessage(23, delegatedPuzzleHash, [
+      clvm.alloc(controlledCoin.coinId()),
+    ]),
+  ]);
+}
+
+test("vault dry run prices a vault controlled by another vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const config = new MemberConfig().withTopLevel(true);
+  const controller = mintVault(sim, clvm, r1MemberHash(config, r1.pk, false));
+  const vault = mintVault(
+    sim,
+    clvm,
+    singletonMemberHash(config, controller.info.launcherId, false),
+  );
+
+  // Price the spend before the controller's member signs. The controlled vault's singleton member is pointed at the
+  // controller's stand-in.
+  const controllerTemplate = clvm.mipsSpend(
+    controller.coin,
+    clvm.delegatedSpend([]),
+  );
+  controllerTemplate.r1Member(
+    config,
+    r1.pk,
+    r1.sk.signPrehashed(new Uint8Array(32)),
+    false,
+  );
+  const controllerDryRun = controllerTemplate.dryRun(controller);
+
+  const template = clvm.mipsSpend(vault.coin, clvm.delegatedSpend([]));
+  template.singletonMember(
+    config,
+    controller.info.launcherId,
+    false,
+    controller.info.custodyHash,
+    controller.coin.amount,
+  );
+  const dryRun = template.dryRunWithControllers(vault, [controllerDryRun]);
+
+  // The controlled vault has no members that sign, so its stand-in has the same coin.
+  t.deepEqual(dryRun.vault().coin.coinId(), vault.coin.coinId());
+
+  const delegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+  ]);
+  dryRun.spend(delegatedSpend);
+  controllerDryRun.spend(
+    controllerAuthorization(
+      clvm,
+      controllerDryRun.vault(),
+      vault.coin,
+      delegatedSpend.puzzle.treeHash(),
+    ),
+  );
+  const estimatedCost = spendBundleCost(clvm.coinSpends(), true, HEIGHT);
+
+  // The real spend, with the controller's member signing its authorization.
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.singletonMember(
+    config,
+    controller.info.launcherId,
+    false,
+    controller.info.custodyHash,
+    controller.coin.amount,
+  );
+  mips.spendVault(vault);
+
+  const authorization = controllerAuthorization(
+    clvm,
+    controller,
+    vault.coin,
+    delegatedSpend.puzzle.treeHash(),
+  );
+  const controllerMips = clvm.mipsSpend(controller.coin, authorization);
+  controllerMips.r1Member(
+    config,
+    r1.pk,
+    r1.sk.signPrehashed(
+      sha256(
+        Uint8Array.from([
+          ...authorization.puzzle.treeHash(),
+          ...controller.coin.coinId(),
+        ]),
+      ),
+    ),
+    false,
+  );
+  controllerMips.spendVault(controller);
+
+  const coinSpends = clvm.coinSpends();
+  t.is(spendBundleCost(coinSpends, true, HEIGHT), estimatedCost);
+
+  sim.spendCoins(coinSpends, []);
+});
+
 function initiateVaultRecovery(
   forceSingletonRecreation: boolean,
   childAmount: bigint | null,

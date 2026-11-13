@@ -62,7 +62,8 @@ pub struct FeeTransaction<T> {
 /// any coins that pay the fee. It's first called with a fee of zero, and then again with the
 /// [`recommended_fee`] for the cost of the previous attempt, until the fee covers the cost. The coin spends that
 /// were already in the context are included in every attempt. On success, the final coin spends are returned and left
-/// out of the context. On error, the context is left as it was before the call.
+/// out of the context. On error, the context's coin spends are left as they were before the call, without any
+/// that a failed attempt added. Anything else a failed attempt allocated in the context is kept.
 ///
 /// To price a vault transaction before its members sign it, build it against a
 /// [`VaultDryRun`](crate::VaultDryRun) and spend that, with its [`cost_margin`](crate::VaultDryRun::cost_margin) as
@@ -133,8 +134,8 @@ impl Spends {
     /// `xch_coins` that are already being spent, by these spends or by a coin spend already in the context, are skipped.
     /// The coins are selected the same way for the same fee, so this builds the same transaction that
     /// [`Spends::apply_with_minimum_fee`] priced. `spend_p2` provides the p2 spends after the spends are prepared, as
-    /// with [`Spends::spend`], and its return value is returned. On error, the context is left as it was before the
-    /// call.
+    /// with [`Spends::spend`], and its return value is returned. On error, the context's coin spends are left as they
+    /// were before the call.
     ///
     /// Returns [`DriverError::CoinSelection`] if the coins can't be selected to cover the actions and the fee, for
     /// example because there isn't enough balance, or reaching it would take too many coins.
