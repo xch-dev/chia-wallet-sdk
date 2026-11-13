@@ -42,6 +42,7 @@ Mark "For the user: yes" when the fix depends on a choice the user should confir
 - Public API: names, signatures and shapes of new or changed Rust items, and of the bindings in `bindings/*.json`.
 - Breaking changes to existing public APIs, in Rust or in any binding.
 - Which puzzle version, CHIP variant or on-chain format to support, when the source doesn't say.
+- Whether to put a new puzzle behind a Cargo feature, and the feature's name.
 - Changing the scope of the issue, or behaviour outside it.
 
 Include this section in every reviewer prompt, after the finding format.
@@ -60,11 +61,12 @@ Puzzles, drivers and spends (the most costly source of bugs in this repo):
 - **Parsing**: does `parse_puzzle` / `parse_child` reject a puzzle that only looks similar (a different mod hash, a different inner layer, a wrong curried argument), and accept every valid form, including ones created by other wallets? A parser that accepts the wrong coin can make a wallet track or spend funds it shouldn't.
 - **Lineage and singletons**: are lineage proofs, launcher IDs and singleton struct hashes built from the right coin? Does the child keep the same identity (asset ID, launcher ID) as the parent?
 - **Value and security**: can a spend be altered by a third party (an unsigned condition, a missing `AGG_SIG_ME`, an announcement not asserted)? Are fees and change accounted for, so no value is created or burned unintentionally?
+- **Offers and settlement**: treat the counterparty's offer as untrusted input. Do puzzle reveals match the coins they claim to spend? Are duplicate settlement payments, unsupported requested assets, and old settlement or compression versions rejected? Are royalties and requested amounts computed from what's actually committed, and are different asset kinds (such as revocable and normal CATs) kept apart? Does coin selection count each coin once and respect its limits?
 - **Clear signing** (`clear_signing`): does a change to what a spend does also change what's shown to the signer, and can a spend show the signer something it doesn't do?
 
 Bindings:
 - Does each binding convert values without losing data (`u64` and larger amounts as `bigint`, byte lengths checked)?
-- Do `bindings/*.json` and the Rust implementation in `crates/chia-sdk-bindings` agree, and do the generated `napi/index.d.ts` and `pyo3/chia_wallet_sdk.pyi` show the intended signatures?
+- Do conversions from binding input fail cleanly (out-of-range numbers, wrong byte lengths, invalid enums) instead of panicking?
 
 ## Checklist: tests and bindings
 
@@ -72,6 +74,7 @@ Bindings:
 - Do driver tests actually spend the coins in the `Simulator`, rather than only building the spend? Do they parse the child back and check its fields?
 - Does each test exercise what it's named for, and would it fail if the behaviour it covers regressed? A test that passes either way is worth a finding.
 - Bindings: is the new API tested from at least one binding (usually `napi/__test__/<area>.spec.ts`), and from the binding the change is specific to, if any (`pyo3/tests`, `wasm/__test__`, `go/chiawalletsdk`, `dotnet/ChiaWalletSdk.Tests`)?
+- Do `bindings/*.json` and the Rust implementation in `crates/chia-sdk-bindings` agree?
 - Generated files (`git diff <base>...HEAD -- napi/index.d.ts napi/index.js pyo3/chia_wallet_sdk.pyi`): is every change explained by the goal? A changed signature or a removed export in an unrelated API needs a reason.
 - Are new public items documented (CI runs rustdoc with `-D warnings`), and are `README.md` and `crates/chia-sdk-driver/docs.md` updated where they list this kind of feature?
 
