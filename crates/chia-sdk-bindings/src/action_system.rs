@@ -4,7 +4,7 @@ use std::{
 };
 
 use bindy::Result;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext, SpendKind,
@@ -218,6 +218,8 @@ impl Spends {
     }
 
     pub fn prepare(&self, deltas: Deltas, relation: Option<Relation>) -> Result<FinishedSpends> {
+        // Every method locks the Clvm before the spends, so that concurrent calls can't deadlock.
+        let mut ctx = self.clvm.lock().unwrap();
         let mut spends = self.spends.lock().unwrap();
 
         let empty = sdk::Spends::with_separate_change_puzzle_hash(
@@ -225,8 +227,6 @@ impl Spends {
             spends.change_puzzle_hash,
         );
         let spends = std::mem::replace(&mut *spends, empty);
-
-        let mut ctx = self.clvm.lock().unwrap();
 
         let spends = spends.prepare(
             &mut ctx,
@@ -265,8 +265,8 @@ impl Spends {
         fee: u64,
         relation: Option<Relation>,
     ) -> Result<FinishedSpends> {
-        let spends = self.spends.lock().unwrap();
         let mut ctx = self.clvm.lock().unwrap();
+        let spends = self.spends.lock().unwrap();
 
         let actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
 
@@ -375,11 +375,7 @@ impl FinishedSpends {
         let spends = self.spends.lock().unwrap().clone();
         let finished = self.finished.lock().unwrap().clone();
 
-        let existing = ctx.take();
-
-        for coin_spend in &existing {
-            ctx.insert(coin_spend.clone());
-        }
+        let existing: Vec<CoinSpend> = ctx.iter().cloned().collect();
 
         let outputs = match spends.spend(&mut ctx, finished) {
             Ok(outputs) => outputs,

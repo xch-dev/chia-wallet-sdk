@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from chia_wallet_sdk import (
@@ -11,6 +13,7 @@ from chia_wallet_sdk import (
     MipsMemo,
     MipsMemoContext,
     MofNMemo,
+    PeerSimulator,
     PublicKey,
     R1Pair,
     RestrictionMemo,
@@ -304,10 +307,6 @@ def test_required_signatures_puzzle_hash_mismatch():
 
 
 def test_peer_simulator():
-    import asyncio
-
-    from chia_wallet_sdk import PeerSimulator, SpendBundle
-
     async def run():
         sim = await PeerSimulator.start()
         peer = await sim.connect()
@@ -319,13 +318,16 @@ def test_peer_simulator():
         updates = await peer.register_for_coin_updates([coin_id], 0)
         assert len(updates.coin_states) == 1
 
-        # The peer simulator uses testnet11 constants, whose AGG_SIG_ME additional data is
-        # the genesis challenge.
+        # The peer simulator uses testnet11 constants.
         clvm = Clvm()
         delegated = clvm.delegated_spend([clvm.create_coin(alice.puzzle_hash, 900)])
         clvm.spend_standard_coin(alice.coin, alice.pk, delegated)
-        message = delegated.puzzle.tree_hash() + coin_id + sim.genesis_challenge()
-        spend_bundle = SpendBundle(clvm.coin_spends(), alice.sk.sign(message))
+        coin_spends = clvm.coin_spends()
+        required = clvm.required_signatures(coin_spends, AggSigConstants.testnet11())
+        spend_bundle = SpendBundle(
+            coin_spends,
+            Signature.aggregate([alice.sk.sign(item.message()) for item in required.bls]),
+        )
 
         ack = await peer.send_transaction(spend_bundle)
         assert ack.status == 1
@@ -350,11 +352,7 @@ def test_peer_simulator():
         assert (await peer.request_peers()).peer_list == []
 
         await peer.close()
-        try:
+        with pytest.raises(Exception):
             await peer.request_peers()
-        except Exception:
-            pass
-        else:
-            raise AssertionError("expected the closed peer to fail")
 
     asyncio.run(run())

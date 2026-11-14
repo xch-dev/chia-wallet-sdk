@@ -130,6 +130,10 @@ pub enum Error {
     #[error("Simulator error: {0}")]
     Simulator(#[from] SimulatorError),
 
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    #[error("Peer simulator error: {0}")]
+    PeerSimulator(#[from] chia_sdk_test::PeerSimulatorError),
+
     #[error("Signer error: {0}")]
     Signer(#[from] chia_sdk_signer::SignerError),
 

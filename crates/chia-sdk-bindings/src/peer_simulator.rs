@@ -9,22 +9,16 @@ use crate::{BlsPairWithCoin, Peer};
 #[derive(Clone)]
 pub struct PeerSimulator(Arc<chia_sdk_test::PeerSimulator>);
 
-fn simulator_error(error: chia_sdk_test::PeerSimulatorError) -> bindy::Error {
-    bindy::Error::Custom(format!("Peer simulator error: {error}"))
-}
-
 impl PeerSimulator {
     /// Starts a peer simulator listening on an ephemeral port on `127.0.0.1`.
     pub async fn start() -> Result<Self> {
-        let simulator = chia_sdk_test::PeerSimulator::new()
-            .await
-            .map_err(simulator_error)?;
+        let simulator = chia_sdk_test::PeerSimulator::new().await?;
         Ok(Self(Arc::new(simulator)))
     }
 
     /// Connects a new [`Peer`] to the simulator, after the initial `NewPeakWallet` message.
     pub async fn connect(&self) -> Result<Peer> {
-        let (peer, receiver) = self.0.connect_split().await.map_err(simulator_error)?;
+        let (peer, receiver) = self.0.connect_split().await?;
         Ok(Peer::from_parts(peer, receiver))
     }
 

@@ -15,10 +15,10 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = ["dep:napi", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl"]
+napi = ["dep:napi", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl", "chia-sdk-test/peer-simulator"]
 wasm = ["dep:js-sys"]
-pyo3 = ["dep:pyo3", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl"]
-uniffi = ["dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl", "dep:tokio"]
+pyo3 = ["dep:pyo3", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl", "chia-sdk-test/peer-simulator"]
+uniffi = ["dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl", "dep:tokio", "chia-sdk-test/peer-simulator"]
 
 [dependencies]
 thiserror = { workspace = true }

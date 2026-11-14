@@ -1421,7 +1421,7 @@ test("apply with fee rejects insufficient funds for the fee", (t) => {
   const spends = new Spends(clvm, alice.puzzleHash);
   const actions = [Action.send(Id.xch(), bob.puzzleHash, 1000n)];
 
-  // A coin spend that was already in the Clvm is kept when the call fails
+  // A failed coin selection doesn't drop coin spends that were already in the Clvm
   const other = new Wallet(2n);
   other.addXch(sim, 1n);
   const [otherCoin] = other.fetchXch(sim);
@@ -1455,7 +1455,9 @@ test("a failed spend leaves the coin spends as they were", (t) => {
   const alice = new Wallet(0n);
   const bob = new Wallet(1n);
 
-  alice.addXch(sim, 1000n);
+  // The payment needs both of Alice's coins
+  alice.addXch(sim, 600n);
+  alice.addXch(sim, 600n);
   bob.addXch(sim, 1n);
   const [bobCoin] = bob.fetchXch(sim);
 
@@ -1472,7 +1474,19 @@ test("a failed spend leaves the coin spends as they were", (t) => {
     0n,
   );
 
-  // The pending spend wasn't given a p2 spend
+  const pending = finished.pendingSpends();
+  t.is(pending.length, 2);
+
+  // Only the first pending spend is given a p2 spend, so spending the second one fails after the
+  // first coin spend has already been added to the Clvm
+  finished.insert(
+    pending[0].coin().coinId(),
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend(pending[0].conditions()),
+    ),
+  );
+
   t.throws(() => finished.spend());
 
   const coinSpends = clvm.coinSpends();

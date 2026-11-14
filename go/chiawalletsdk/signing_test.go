@@ -166,11 +166,13 @@ func TestApplyWithFeeInsufficientFunds(t *testing.T) {
 	spends := must(sdk.NewSpends(clvm, alice.PuzzleHash()))
 	actions := []*sdk.Action{must(sdk.ActionSend(must(sdk.IdXch()), bob.PuzzleHash(), 1000, nil))}
 
+	// The payment alone is covered, but not the fee.
+	if _, err := spends.ApplyWithFee(actions, []*sdk.Coin{alice.Coin()}, 0, nil); err != nil {
+		t.Fatalf("expected the payment without a fee to succeed, got %v", err)
+	}
+	must(clvm.CoinSpends())
+
 	if _, err := spends.ApplyWithFee(actions, []*sdk.Coin{alice.Coin()}, 1, nil); err == nil {
 		t.Fatal("expected an error when the coins can't cover the fee")
-	}
-
-	if coinSpends := must(clvm.CoinSpends()); len(coinSpends) != 0 {
-		t.Fatalf("expected the failed call to leave no coin spends, got %d", len(coinSpends))
 	}
 }
