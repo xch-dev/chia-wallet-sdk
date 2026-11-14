@@ -1978,6 +1978,7 @@ export declare class FullNodeSimulator {
   getMasterSecretKey(): SecretKey
   getPrefarmPuzzleHash(): Buffer
   setFarmingPh(puzzleHash: Uint8Array): void
+  setGenesisChallenge(genesisChallenge: Uint8Array): void
   getBlockchainState(): BlockchainStateResponse
   getNetworkInfo(): GetNetworkInfoResponse
   getAggsigAdditionalData(): Buffer

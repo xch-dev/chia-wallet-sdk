@@ -96,6 +96,14 @@ impl FullNodeSimulator {
         Ok(())
     }
 
+    pub fn set_genesis_challenge(&self, genesis_challenge: Bytes32) -> Result<()> {
+        self.0
+            .lock()
+            .unwrap()
+            .set_genesis_challenge(genesis_challenge);
+        Ok(())
+    }
+
     pub fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
         Ok(self.0.lock().unwrap().get_blockchain_state())
     }
