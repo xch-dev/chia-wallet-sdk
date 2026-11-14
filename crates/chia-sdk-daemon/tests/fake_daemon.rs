@@ -1,22 +1,23 @@
-//! Tests `DaemonClient` against a fake daemon, a local TLS websocket server that's driven by
-//! each test, since there's no real daemon to connect to in CI.
+//! Tests `DaemonClient` against a fake daemon, a local websocket server that's driven by each
+//! test, since there's no real daemon to connect to in CI.
+//!
+//! The fake daemon serves plain `ws://`, since tokio-tungstenite doesn't use the connector for
+//! those URLs. The Node.js binding tests cover a TLS connection end to end.
 
-#![cfg(feature = "native-tls")]
+// `DaemonClient` only exists with a TLS feature enabled.
+#![cfg(any(feature = "native-tls", feature = "rustls"))]
 
-use std::{future::Future, time::Duration};
+use std::{future::Future, net::SocketAddr, time::Duration};
 
-use chia_sdk_client::create_native_tls_connector;
 use chia_sdk_coinset::ChiaRpcClient;
 use chia_sdk_daemon::{DaemonClient, DaemonError};
-use chia_ssl::ChiaCertificate;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_native_tls::{TlsAcceptor, TlsStream};
-use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::{Connector, WebSocketStream};
 use tungstenite::Message;
 
-type ServerSocket = WebSocketStream<TlsStream<TcpStream>>;
+type ServerSocket = WebSocketStream<TcpStream>;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -29,32 +30,30 @@ async fn within<T>(future: impl Future<Output = T>) -> T {
 
 struct FakeDaemon {
     listener: TcpListener,
-    acceptor: TlsAcceptor,
 }
 
 impl FakeDaemon {
     async fn start() -> Result<Self> {
-        let cert = ChiaCertificate::generate()?;
-        let identity =
-            native_tls::Identity::from_pkcs8(cert.cert_pem.as_bytes(), cert.key_pem.as_bytes())?;
-        let acceptor = TlsAcceptor::from(native_tls::TlsAcceptor::new(identity)?);
-        let listener = TcpListener::bind("127.0.0.1:0").await?;
-        Ok(Self { listener, acceptor })
+        Self::bind("127.0.0.1:0".parse()?).await
+    }
+
+    async fn bind(addr: SocketAddr) -> Result<Self> {
+        let listener = TcpListener::bind(addr).await?;
+        Ok(Self { listener })
+    }
+
+    fn addr(&self) -> SocketAddr {
+        self.listener.local_addr().unwrap()
     }
 
     fn url(&self) -> String {
-        format!("wss://{}", self.listener.local_addr().unwrap())
+        format!("ws://{}", self.addr())
     }
 
     async fn accept(&self) -> ServerSocket {
         let (tcp, _) = self.listener.accept().await.unwrap();
-        let tls = self.acceptor.accept(tcp).await.unwrap();
-        tokio_tungstenite::accept_async(tls).await.unwrap()
+        tokio_tungstenite::accept_async(tcp).await.unwrap()
     }
-}
-
-fn client_connector() -> tokio_tungstenite::Connector {
-    create_native_tls_connector(&ChiaCertificate::generate().unwrap()).unwrap()
 }
 
 async fn recv_json(ws: &mut ServerSocket) -> Value {
@@ -87,7 +86,7 @@ async fn expect_registration(ws: &mut ServerSocket, origin: Option<&str>) -> Str
 /// Accepts a connection and reads the client's registration of its own origin.
 async fn accept_client(daemon: &FakeDaemon) -> (DaemonClient, ServerSocket, String) {
     let url = daemon.url();
-    let connect = Box::pin(DaemonClient::connect(&url, client_connector(), TIMEOUT));
+    let connect = Box::pin(DaemonClient::connect(&url, Connector::Plain, TIMEOUT));
     let (client, mut ws) = within(async { tokio::join!(connect, daemon.accept()) }).await;
     let client = client.unwrap();
 
