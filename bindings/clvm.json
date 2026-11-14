@@ -20,6 +20,13 @@
       "coin_spends": {
         "return": "Vec<CoinSpend>"
       },
+      "required_signatures": {
+        "args": {
+          "coin_spends": "Vec<CoinSpend>",
+          "constants": "AggSigConstants"
+        },
+        "return": "RequiredSignatures"
+      },
       "parse": {
         "args": {
           "program": "String"

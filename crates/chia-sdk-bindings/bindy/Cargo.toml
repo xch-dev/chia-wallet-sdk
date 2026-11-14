@@ -34,6 +34,7 @@ chia-bls = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true, features = ["offer-compression"] }
 chia-sdk-test = { workspace = true }
+chia-sdk-signer = { workspace = true }
 chia-sdk-client = { workspace = true, optional = true }
 chia-ssl = { workspace = true, optional = true }
 reqwest = { workspace = true }

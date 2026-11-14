@@ -126,6 +126,9 @@ pub enum Error {
     #[error("Simulator error: {0}")]
     Simulator(#[from] SimulatorError),
 
+    #[error("Signer error: {0}")]
+    Signer(#[from] chia_sdk_signer::SignerError),
+
     #[error("BigInt parse error: {0}")]
     BigIntParse(#[from] ParseBigIntError),
 
