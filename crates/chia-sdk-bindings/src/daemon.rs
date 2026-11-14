@@ -11,6 +11,9 @@ use crate::{Connector, RpcClient};
 
 /// A websocket client for the Chia daemon, which can send full node RPC requests through the
 /// daemon and receive the events that services broadcast.
+///
+/// Call [`DaemonClient::close`] when you're done with the client. Dropping it doesn't close the
+/// connection, since a background task keeps it open and reconnects if it's lost.
 #[derive(Clone)]
 pub struct DaemonClient {
     client: SdkDaemonClient,
@@ -50,7 +53,8 @@ impl DaemonClient {
         })
     }
 
-    /// Closes the connection. The client doesn't reconnect afterwards.
+    /// Closes the connection. The client doesn't reconnect afterwards. This is the only way to
+    /// release the connection, since dropping the client leaves it open.
     pub async fn close(&self) -> Result<()> {
         Ok(self.client.close().await?)
     }

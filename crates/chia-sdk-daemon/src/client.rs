@@ -257,6 +257,10 @@ mod inner {
         /// New requests and subscriptions fail with [`DaemonError::ConnectionClosed`] from now
         /// on. Once the daemon completes the close handshake, the background task stops
         /// without reconnecting. If the client is reconnecting, it stops trying instead.
+        ///
+        /// This is the only way to release the connection. Dropping every handle to the client
+        /// doesn't stop the background task, which keeps the connection open and reconnects if
+        /// it's lost.
         pub async fn close(&self) -> Result<(), DaemonError> {
             // This is set before the sink is locked, so a reconnection that installs a new sink
             // either sees it and closes that sink itself, or installs it before this closes it.
