@@ -1,6 +1,7 @@
 package chiawalletsdk_test
 
 import (
+	"bytes"
 	"testing"
 
 	sdk "github.com/xch-dev/chia-wallet-sdk/go/chiawalletsdk"
@@ -44,5 +45,65 @@ func TestPeerSimulator(t *testing.T) {
 
 	if _, err := peer.RequestChildren(coinID); err == nil {
 		t.Fatal("expected a request after closing the peer to fail")
+	}
+}
+
+func TestPeerSimulatorMempool(t *testing.T) {
+	sim := must(sdk.PeerSimulatorStartWithMempool())
+	defer sim.Destroy()
+
+	peer := must(sim.ConnectWithMempoolUpdates())
+	defer peer.Destroy()
+
+	alice := must(sim.Bls(1000))
+	coinID := must(alice.Coin().CoinId())
+	must(peer.RegisterForPhUpdates([][]byte{alice.PuzzleHash()}, 0))
+
+	height := must(sim.Height())
+	spendBundle := signStandardSpend(t, alice, 900)
+	transactionID := must(spendBundle.Hash())
+
+	if ack := must(peer.SendTransaction(spendBundle)); ack.Status() != 1 {
+		t.Fatalf("expected the transaction to be accepted, got status %d", ack.Status())
+	}
+
+	for {
+		event := must(peer.Next())
+		if event == nil {
+			t.Fatal("the connection closed before the mempool update")
+		}
+		if added := (*event).MempoolItemsAdded(); added != nil {
+			ids := (*added).TransactionIds()
+			if len(ids) != 1 || !bytes.Equal(ids[0], transactionID) {
+				t.Fatal("expected the transaction to be added to the mempool")
+			}
+			break
+		}
+	}
+
+	transaction := must(peer.RequestTransaction(transactionID)).Transaction()
+	if !bytes.Equal(must(transaction.Hash()), transactionID) {
+		t.Fatal("expected the mempool transaction to be returned by its id")
+	}
+
+	if records := must(sim.FarmBlock(1)); len(records) != 1 {
+		t.Fatalf("expected one block, got %d", len(records))
+	}
+	if got := must(sim.Height()); got != height+1 {
+		t.Fatalf("expected height %d, got %d", height+1, got)
+	}
+
+	state := must(sim.CoinState(coinID))
+	if state == nil || (*state).SpentHeight() == nil || *(*state).SpentHeight() != height+1 {
+		t.Fatal("expected the coin to be spent in the farmed block")
+	}
+}
+
+func TestPeerSimulatorFarmBlockNeedsMempool(t *testing.T) {
+	sim := must(sdk.PeerSimulatorStart())
+	defer sim.Destroy()
+
+	if _, err := sim.FarmBlock(1); err == nil {
+		t.Fatal("expected farming without a mempool to fail")
 	}
 }

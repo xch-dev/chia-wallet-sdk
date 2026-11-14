@@ -306,6 +306,20 @@ def test_required_signatures_puzzle_hash_mismatch():
         clvm.required_signatures(clvm.coin_spends(), AggSigConstants.testnet11())
 
 
+def sign_standard_spend(pair, amount):
+    """Spends the coin to a new coin of `amount` with the same puzzle hash, signed for
+    testnet11, which the peer simulator uses."""
+    clvm = Clvm()
+    delegated = clvm.delegated_spend([clvm.create_coin(pair.puzzle_hash, amount)])
+    clvm.spend_standard_coin(pair.coin, pair.pk, delegated)
+    coin_spends = clvm.coin_spends()
+    required = clvm.required_signatures(coin_spends, AggSigConstants.testnet11())
+    return SpendBundle(
+        coin_spends,
+        Signature.aggregate([pair.sk.sign(item.message()) for item in required.bls]),
+    )
+
+
 def test_peer_simulator():
     async def run():
         sim = await PeerSimulator.start()
@@ -318,16 +332,7 @@ def test_peer_simulator():
         updates = await peer.register_for_coin_updates([coin_id], 0)
         assert len(updates.coin_states) == 1
 
-        # The peer simulator uses testnet11 constants.
-        clvm = Clvm()
-        delegated = clvm.delegated_spend([clvm.create_coin(alice.puzzle_hash, 900)])
-        clvm.spend_standard_coin(alice.coin, alice.pk, delegated)
-        coin_spends = clvm.coin_spends()
-        required = clvm.required_signatures(coin_spends, AggSigConstants.testnet11())
-        spend_bundle = SpendBundle(
-            coin_spends,
-            Signature.aggregate([alice.sk.sign(item.message()) for item in required.bls]),
-        )
+        spend_bundle = sign_standard_spend(alice, 900)
 
         ack = await peer.send_transaction(spend_bundle)
         assert ack.status == 1
@@ -351,5 +356,37 @@ def test_peer_simulator():
         await peer.close()
         with pytest.raises(Exception):
             await peer.request_peers()
+
+    asyncio.run(run())
+
+
+def test_peer_simulator_mempool():
+    async def run():
+        sim = await PeerSimulator.start_with_mempool()
+        peer = await sim.connect_with_mempool_updates()
+
+        alice = await sim.bls(1000)
+        coin_id = alice.coin.coin_id()
+        await peer.register_for_ph_updates([alice.puzzle_hash], 0)
+
+        height = await sim.height()
+        spend_bundle = sign_standard_spend(alice, 900)
+        transaction_id = spend_bundle.hash()
+        assert (await peer.send_transaction(spend_bundle)).status == 1
+
+        while True:
+            event = await peer.next()
+            assert event is not None
+            if event.mempool_items_added is not None:
+                break
+        assert event.mempool_items_added.transaction_ids == [transaction_id]
+        assert (await sim.coin_state(coin_id)).spent_height is None
+
+        transaction = await peer.request_transaction(transaction_id)
+        assert transaction.transaction.hash() == transaction_id
+
+        assert len(await sim.farm_block(1)) == 1
+        assert await sim.height() == height + 1
+        assert (await sim.coin_state(coin_id)).spent_height == height + 1
 
     asyncio.run(run())

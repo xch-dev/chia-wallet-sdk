@@ -3382,9 +3382,12 @@ export declare class PeerOptions {
 export declare class PeerSimulator {
   clone(): PeerSimulator
   static start(): Promise<PeerSimulator>
+  static startWithMempool(): Promise<PeerSimulator>
   connect(): Promise<Peer>
+  connectWithMempoolUpdates(): Promise<Peer>
   socketAddr(): string
   genesisChallenge(): Buffer
+  farmBlock(blocks: number): Promise<Array<BlockRecord>>
   height(): Promise<number>
   headerHash(): Promise<Buffer>
   newCoin(puzzleHash: Uint8Array, amount: bigint): Promise<Coin>

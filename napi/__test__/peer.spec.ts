@@ -87,6 +87,57 @@ test("sends a transaction and reads its result through the peer", async (t) => {
   t.deepEqual(peers.peerList, []);
 });
 
+async function nextMatching<T>(
+  peer: Peer,
+  pick: (event: NonNullable<Awaited<ReturnType<Peer["next"]>>>) => T | undefined,
+): Promise<T> {
+  while (true) {
+    const event = await peer.next();
+    if (!event) throw new Error("connection closed before the expected event");
+    const value = pick(event);
+    if (value) return value;
+  }
+}
+
+test("waits in the mempool until a block is farmed", async (t) => {
+  const sim = await PeerSimulator.startWithMempool();
+  const peer = await sim.connectWithMempoolUpdates();
+
+  const alice = await sim.bls(1000n);
+  const coinId = alice.coin.coinId();
+  await peer.registerForPhUpdates([alice.puzzleHash], 0);
+
+  const height = await sim.height();
+  const spendBundle = spendCoin(alice, 900n);
+  const transactionId = spendBundle.hash();
+  t.is((await peer.sendTransaction(spendBundle)).status, 1);
+
+  const added = await nextMatching(peer, (event) => event.mempoolItemsAdded);
+  t.true(bytesEqual(added.transactionIds[0], transactionId));
+
+  // The transaction is pending, so the coin isn't spent and no block was made.
+  t.is(await sim.height(), height);
+  t.falsy((await sim.coinState(coinId))?.spentHeight);
+
+  const transaction = await peer.requestTransaction(transactionId);
+  t.true(bytesEqual(transaction.transaction.hash(), transactionId));
+
+  const records = await sim.farmBlock(1);
+  t.is(records.length, 1);
+  t.is(await sim.height(), height + 1);
+
+  const removed = await nextMatching(peer, (event) => event.mempoolItemsRemoved);
+  t.true(bytesEqual(removed.removedItems[0].transactionId, transactionId));
+  t.is(removed.removedItems[0].reason, MempoolRemoveReason.BlockInclusion);
+
+  t.is((await sim.coinState(coinId))?.spentHeight, height + 1);
+});
+
+test("only farms blocks in mempool mode", async (t) => {
+  const sim = await PeerSimulator.start();
+  await t.throwsAsync(() => sim.farmBlock(1), { message: /mempool mode/ });
+});
+
 test("returns a rejected transaction ack instead of throwing", async (t) => {
   const sim = await PeerSimulator.start();
   const peer = await sim.connect();
