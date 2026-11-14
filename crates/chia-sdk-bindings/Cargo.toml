@@ -39,11 +39,11 @@ uniffi = [
 ]
 
 [dependencies]
-chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling"] }
+chia-sdk-utils = { workspace = true, features = ["chip-0057"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling", "chip-0057"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
-chia-sdk-test = { workspace = true, features = ["serde"] }
-chia-sdk-types = { workspace = true, features = ["chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling"] }
+chia-sdk-test = { workspace = true, features = ["serde", "chip-0057"] }
+chia-sdk-types = { workspace = true, features = ["chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling", "chip-0057"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }
@@ -59,6 +59,7 @@ clvmr = { workspace = true }
 bindy = { workspace = true }
 bip39 = { workspace = true }
 hex = { workspace = true }
+indexmap = { workspace = true }
 sha2 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
