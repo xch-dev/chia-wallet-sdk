@@ -374,13 +374,19 @@ def test_peer_simulator_mempool():
         transaction_id = spend_bundle.hash()
         assert (await peer.send_transaction(spend_bundle)).status == 1
 
-        while True:
-            event = await peer.next()
-            assert event is not None
-            if event.mempool_items_added is not None:
-                break
-        assert event.mempool_items_added.transaction_ids == [transaction_id]
-        assert (await sim.coin_state(coin_id)).spent_height is None
+        async def next_added():
+            while True:
+                event = await peer.next()
+                assert event is not None
+                if event.mempool_items_added is not None:
+                    return event.mempool_items_added
+
+        added = await asyncio.wait_for(next_added(), timeout=30)
+        assert added.transaction_ids == [transaction_id]
+
+        pending = await sim.coin_state(coin_id)
+        assert pending is not None
+        assert pending.spent_height is None
 
         transaction = await peer.request_transaction(transaction_id)
         assert transaction.transaction.hash() == transaction_id

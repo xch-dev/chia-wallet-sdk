@@ -3,6 +3,7 @@ package chiawalletsdk_test
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	sdk "github.com/xch-dev/chia-wallet-sdk/go/chiawalletsdk"
 )
@@ -67,6 +68,10 @@ func TestPeerSimulatorMempool(t *testing.T) {
 		t.Fatalf("expected the transaction to be accepted, got status %d", ack.Status())
 	}
 
+	// Fail instead of hanging if the mempool update never arrives.
+	timer := time.AfterFunc(30*time.Second, func() { peer.Close() })
+	defer timer.Stop()
+
 	for {
 		event := must(peer.Next())
 		if event == nil {
@@ -80,6 +85,7 @@ func TestPeerSimulatorMempool(t *testing.T) {
 			break
 		}
 	}
+	timer.Stop()
 
 	transaction := must(peer.RequestTransaction(transactionID)).Transaction()
 	if !bytes.Equal(must(transaction.Hash()), transactionID) {

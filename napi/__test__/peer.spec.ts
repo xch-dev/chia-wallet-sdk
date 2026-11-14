@@ -117,7 +117,9 @@ test("waits in the mempool until a block is farmed", async (t) => {
 
   // The transaction is pending, so the coin isn't spent and no block was made.
   t.is(await sim.height(), height);
-  t.falsy((await sim.coinState(coinId))?.spentHeight);
+  const pending = await sim.coinState(coinId);
+  t.truthy(pending);
+  t.falsy(pending?.spentHeight);
 
   const transaction = await peer.requestTransaction(transactionId);
   t.true(bytesEqual(transaction.transaction.hash(), transactionId));

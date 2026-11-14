@@ -47,8 +47,8 @@ impl PeerSimulatorBackend for FullNodeSimulator {}
 /// runtime. It stops when this value is dropped. Connections use plain websockets without TLS.
 ///
 /// The simulator supports the wallet handshake, sending transactions, coin and puzzle state
-/// requests and subscriptions, puzzle solution and children requests, and `RequestTransaction`.
-/// `RequestPeers` is answered with an empty peer list.
+/// requests and subscriptions, puzzle solution and children requests, and, in mempool mode,
+/// `RequestTransaction`. `RequestPeers` is answered with an empty peer list.
 /// Connected peers receive a `NewPeakWallet` message for each new block, and subscribers receive
 /// coin state updates.
 ///

@@ -20,7 +20,8 @@ enum Mode {
     /// Each transaction is included in a new block as soon as it's sent.
     Instant(SdkPeerSimulator<Simulator>),
     /// Transactions wait in a mempool until a block is farmed. `next_seed` seeds the key pairs
-    /// made by [`PeerSimulator::bls`], since [`FullNodeSimulator`] has no random key helper.
+    /// made by [`PeerSimulator::bls`], since [`FullNodeSimulator`] has no random key helper. It
+    /// starts at a random value so the pairs don't match `BlsPair.from_seed` with small seeds.
     Mempool {
         simulator: SdkPeerSimulator<FullNodeSimulator>,
         next_seed: AtomicU64,
@@ -42,6 +43,10 @@ macro_rules! with_simulator {
 impl PeerSimulator {
     /// Starts a peer simulator listening on an ephemeral port on `127.0.0.1`. Each transaction
     /// is included in a new block as soon as it's sent, and there is no mempool.
+    ///
+    /// Like a full node, it doesn't answer `RequestTransaction` for a transaction that's no
+    /// longer in a mempool, so [`Peer::request_transaction`] never returns in this mode. Use
+    /// [`PeerSimulator::start_with_mempool`] to test it.
     pub async fn start() -> Result<Self> {
         let simulator = SdkPeerSimulator::new().await?;
         Ok(Self(Arc::new(Mode::Instant(simulator))))
@@ -55,12 +60,16 @@ impl PeerSimulator {
         let simulator = SdkPeerSimulator::with_mempool().await?;
         Ok(Self(Arc::new(Mode::Mempool {
             simulator,
-            next_seed: AtomicU64::new(0),
+            next_seed: AtomicU64::new(rand::random()),
         })))
     }
 
     /// Connects a new [`Peer`] to the simulator, after the initial `NewPeakWallet` message.
     /// It doesn't receive mempool updates.
+    ///
+    /// The peer keeps up to 32 events, such as the `NewPeakWallet` sent for each block, until
+    /// they're read with [`Peer::next`]. Once that many are waiting, it stops reading responses,
+    /// so read the events in tests that make many blocks.
     pub async fn connect(&self) -> Result<Peer> {
         let (peer, receiver) = with_simulator!(&*self.0, sim => sim.connect_split().await?);
         Ok(Peer::from_parts(peer, receiver))
@@ -91,6 +100,9 @@ impl PeerSimulator {
 
     /// Farms `blocks` blocks (at least one) from the mempool, and sends the resulting messages
     /// to connected peers. Only available in mempool mode.
+    ///
+    /// Each block sends every connected peer at least one event, so see
+    /// [`PeerSimulator::connect`] about reading them.
     pub async fn farm_block(&self, blocks: u32) -> Result<Vec<BlockRecord>> {
         match &*self.0 {
             Mode::Instant(_) => Err(bindy::Error::Custom(
@@ -126,7 +138,8 @@ impl PeerSimulator {
                 simulator,
                 next_seed,
             } => {
-                let pair = BlsPair::new(next_seed.fetch_add(1, Ordering::Relaxed));
+                let seed = next_seed.fetch_add(1, Ordering::Relaxed);
+                let pair = BlsPair::new(seed);
                 let coin = simulator.lock().await.new_coin(pair.puzzle_hash, amount);
                 chia_sdk_test::BlsPairWithCoin::new(pair, coin)
             }
