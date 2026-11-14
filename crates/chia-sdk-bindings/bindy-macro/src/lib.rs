@@ -1250,15 +1250,24 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                 }
                             });
                         }
+                        // Like async methods, this runs on the Tokio runtime rather than as a
+                        // native pyo3 coroutine, since factories such as `Peer::connect` spawn
+                        // Tokio tasks.
                         MethodKind::AsyncFactory => {
                             method_tokens.extend(quote! {
                                 #pyo3_attr
-                                pub async fn #remapped_method_ident(
+                                pub fn #remapped_method_ident<'a>(
+                                    py: Python<'a>,
                                     #( #arg_idents: #arg_types ),*
-                                ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
-                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
-                                    ).await?, &bindy::Pyo3Context)?)
+                                ) -> pyo3::PyResult<pyo3::Bound<'a, pyo3::PyAny>> {
+                                    #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)?; )*
+
+                                    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                                        let result: pyo3::PyResult<#ret> = Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
+                                            #( #arg_idents ),*
+                                        ).await?, &bindy::Pyo3Context)?);
+                                        result
+                                    })
                                 }
                             });
                         }

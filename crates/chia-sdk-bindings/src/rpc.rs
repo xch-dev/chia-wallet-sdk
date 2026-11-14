@@ -18,16 +18,20 @@ enum RpcClientImpl {
     Coinset(chia_sdk_coinset::CoinsetClient),
     #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     FullNode(chia_sdk_coinset::FullNodeClient),
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    Daemon(chia_sdk_daemon::DaemonClient),
 }
 
 impl ChiaRpcClient for RpcClientImpl {
-    type Error = reqwest::Error;
+    type Error = bindy::Error;
 
     fn base_url(&self) -> &str {
         match self {
             RpcClientImpl::Coinset(client) => client.base_url(),
             #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
             RpcClientImpl::FullNode(client) => client.base_url(),
+            #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+            RpcClientImpl::Daemon(client) => client.base_url(),
         }
     }
 
@@ -41,9 +45,11 @@ impl ChiaRpcClient for RpcClientImpl {
         R: DeserializeOwned + Send,
     {
         match self {
-            RpcClientImpl::Coinset(client) => client.make_post_request(endpoint, body).await,
+            RpcClientImpl::Coinset(client) => Ok(client.make_post_request(endpoint, body).await?),
             #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
-            RpcClientImpl::FullNode(client) => client.make_post_request(endpoint, body).await,
+            RpcClientImpl::FullNode(client) => Ok(client.make_post_request(endpoint, body).await?),
+            #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+            RpcClientImpl::Daemon(client) => Ok(client.make_post_request(endpoint, body).await?),
         }
     }
 }
@@ -84,38 +90,44 @@ impl RpcClient {
         ))))
     }
 
+    /// Wraps a daemon client, so that the full node RPC methods are sent through the daemon.
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    pub(crate) fn from_daemon(client: chia_sdk_daemon::DaemonClient) -> Self {
+        Self(Arc::new(RpcClientImpl::Daemon(client)))
+    }
+
     pub fn base_url(&self) -> Result<String> {
         Ok(self.0.base_url().to_string())
     }
 
     pub async fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
-        Ok(self.0.get_blockchain_state().await?)
+        self.0.get_blockchain_state().await
     }
 
     pub async fn get_additions_and_removals(
         &self,
         header_hash: Bytes32,
     ) -> Result<AdditionsAndRemovalsResponse> {
-        Ok(self.0.get_additions_and_removals(header_hash).await?)
+        self.0.get_additions_and_removals(header_hash).await
     }
 
     pub async fn get_block(&self, header_hash: Bytes32) -> Result<GetBlockResponse> {
-        Ok(self.0.get_block(header_hash).await?)
+        self.0.get_block(header_hash).await
     }
 
     pub async fn get_block_record(&self, header_hash: Bytes32) -> Result<GetBlockRecordResponse> {
-        Ok(self.0.get_block_record(header_hash).await?)
+        self.0.get_block_record(header_hash).await
     }
 
     pub async fn get_block_record_by_height(
         &self,
         height: u32,
     ) -> Result<GetBlockRecordByHeightResponse> {
-        Ok(self.0.get_block_record_by_height(height).await?)
+        self.0.get_block_record_by_height(height).await
     }
 
     pub async fn get_block_records(&self, start: u32, end: u32) -> Result<GetBlockRecordsResponse> {
-        Ok(self.0.get_block_records(start, end).await?)
+        self.0.get_block_records(start, end).await
     }
 
     pub async fn get_blocks(
@@ -125,18 +137,17 @@ impl RpcClient {
         exclude_header_hash: bool,
         exclude_reorged: bool,
     ) -> Result<GetBlocksResponse> {
-        Ok(self
-            .0
+        self.0
             .get_blocks(start, end, exclude_header_hash, exclude_reorged)
-            .await?)
+            .await
     }
 
     pub async fn get_block_spends(&self, header_hash: Bytes32) -> Result<GetBlockSpendsResponse> {
-        Ok(self.0.get_block_spends(header_hash).await?)
+        self.0.get_block_spends(header_hash).await
     }
 
     pub async fn get_coin_record_by_name(&self, name: Bytes32) -> Result<GetCoinRecordResponse> {
-        Ok(self.0.get_coin_record_by_name(name).await?)
+        self.0.get_coin_record_by_name(name).await
     }
 
     pub async fn get_coin_records_by_hint(
@@ -147,10 +158,9 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins, cursor)
-            .await?)
+            .await
     }
 
     pub async fn get_coin_records_by_hints(
@@ -161,10 +171,9 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins, cursor)
-            .await?)
+            .await
     }
 
     pub async fn get_coin_records_by_names(
@@ -175,10 +184,9 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_names(names, start_height, end_height, include_spent_coins, cursor)
-            .await?)
+            .await
     }
 
     pub async fn get_coin_records_by_parent_ids(
@@ -189,8 +197,7 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_parent_ids(
                 parent_ids,
                 start_height,
@@ -198,7 +205,7 @@ impl RpcClient {
                 include_spent_coins,
                 cursor,
             )
-            .await?)
+            .await
     }
 
     pub async fn get_coin_records_by_puzzle_hash(
@@ -209,8 +216,7 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_puzzle_hash(
                 puzzle_hash,
                 start_height,
@@ -218,7 +224,7 @@ impl RpcClient {
                 include_spent_coins,
                 cursor,
             )
-            .await?)
+            .await
     }
 
     pub async fn get_coin_records_by_puzzle_hashes(
@@ -229,8 +235,7 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        Ok(self
-            .0
+        self.0
             .get_coin_records_by_puzzle_hashes(
                 puzzle_hashes,
                 start_height,
@@ -238,7 +243,7 @@ impl RpcClient {
                 include_spent_coins,
                 cursor,
             )
-            .await?)
+            .await
     }
 
     pub async fn get_puzzle_and_solution(
@@ -246,29 +251,29 @@ impl RpcClient {
         coin_id: Bytes32,
         height: Option<u32>,
     ) -> Result<GetPuzzleAndSolutionResponse> {
-        Ok(self.0.get_puzzle_and_solution(coin_id, height).await?)
+        self.0.get_puzzle_and_solution(coin_id, height).await
     }
 
     pub async fn push_tx(&self, spend_bundle: SpendBundle) -> Result<PushTxResponse> {
-        Ok(self.0.push_tx(spend_bundle).await?)
+        self.0.push_tx(spend_bundle).await
     }
 
     pub async fn get_network_info(&self) -> Result<GetNetworkInfoResponse> {
-        Ok(self.0.get_network_info().await?)
+        self.0.get_network_info().await
     }
 
     pub async fn get_mempool_item_by_tx_id(
         &self,
         tx_id: Bytes32,
     ) -> Result<GetMempoolItemResponse> {
-        Ok(self.0.get_mempool_item_by_tx_id(tx_id).await?)
+        self.0.get_mempool_item_by_tx_id(tx_id).await
     }
 
     pub async fn get_mempool_items_by_coin_name(
         &self,
         coin_name: Bytes32,
     ) -> Result<GetMempoolItemsResponse> {
-        Ok(self.0.get_mempool_items_by_coin_name(coin_name).await?)
+        self.0.get_mempool_items_by_coin_name(coin_name).await
     }
 
     pub async fn get_fee_estimate(
@@ -276,11 +281,11 @@ impl RpcClient {
         cost: u64,
         target_times: Vec<u64>,
     ) -> Result<GetFeeEstimateResponse> {
-        Ok(self.0.get_fee_estimate(cost, target_times).await?)
+        self.0.get_fee_estimate(cost, target_times).await
     }
 
     pub async fn get_fee_per_cost(&self, cost: u64, target_time: u64) -> Result<Option<f64>> {
-        Ok(self.0.get_fee_per_cost(cost, target_time).await?)
+        self.0.get_fee_per_cost(cost, target_time).await
     }
 }
 

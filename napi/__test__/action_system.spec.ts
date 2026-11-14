@@ -18,6 +18,7 @@ import {
   encodeOffer,
   encodePartialOffer,
   Id,
+  minimumFee,
   Nft,
   NftAssetInfo,
   NftMetadata,
@@ -30,6 +31,7 @@ import {
   Outputs,
   payableTradePrices,
   Payment,
+  recommendedFee,
   Relation,
   RequestedPayments,
   selectCoins,
@@ -37,6 +39,7 @@ import {
   Simulator,
   Spend,
   SpendBundle,
+  spendBundleCost,
   Spends,
   standardPuzzleHash,
   TransferNftById,
@@ -1285,9 +1288,12 @@ test("unplaced conditions are returned instead of an intermediate coin", (t) => 
   // The change assertion and the reserved fee are returned for another spend to emit
   const unplaced = finished.unplacedConditions();
   t.is(unplaced.length, 2);
-  t.truthy(unplaced.some((condition) => condition.parseAssertPuzzleAnnouncement()));
+  t.truthy(
+    unplaced.some((condition) => condition.parseAssertPuzzleAnnouncement()),
+  );
   t.is(
-    unplaced.find((condition) => condition.parseReserveFee())?.parseReserveFee()?.amount,
+    unplaced.find((condition) => condition.parseReserveFee())?.parseReserveFee()
+      ?.amount,
     1n,
   );
 
@@ -1307,4 +1313,183 @@ test("unplaced conditions are returned instead of an intermediate coin", (t) => 
   sim.spendCoins(clvm.coinSpends(), [alice.pair.sk]);
 
   t.is(alice.balance(sim, Id.xch()), 14n);
+});
+
+// A mainnet height before the 3.0 hard fork.
+const FEE_HEIGHT = 9_500_000;
+
+// Builds the transaction with `applyWithFee`, signs it, and takes its coin spends out of the Clvm.
+function buildWithFee(
+  clvm: Clvm,
+  wallet: Wallet,
+  spends: Spends,
+  actions: Action[],
+  xchCoins: Coin[],
+  fee: bigint,
+): { outputs: Outputs; coinSpends: CoinSpend[] } {
+  const finished = spends.applyWithFee(actions, xchCoins, fee);
+
+  for (const spend of finished.pendingSpends()) {
+    finished.insert(
+      spend.coin().coinId(),
+      clvm.standardSpend(
+        wallet.pair.pk,
+        clvm.delegatedSpend(spend.conditions()),
+      ),
+    );
+  }
+
+  const outputs = finished.spend();
+
+  // Taking the coin spends clears them from the Clvm, so the next attempt starts from the same state
+  return { outputs, coinSpends: clvm.coinSpends() };
+}
+
+function serializeCoinSpends(coinSpends: CoinSpend[]): string[] {
+  return coinSpends.map((cs) =>
+    [
+      Buffer.from(cs.coin.coinId()).toString("hex"),
+      Buffer.from(cs.puzzleReveal).toString("hex"),
+      Buffer.from(cs.solution).toString("hex"),
+    ].join(":"),
+  );
+}
+
+test("apply with the minimum fee selects a coin for the fee", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(0n);
+  const bob = new Wallet(1n);
+
+  // The first coin covers the payment exactly, so the fee needs the second one
+  alice.addXch(sim, 1000n);
+  alice.addXch(sim, 1_000_000_000_000n);
+  const xchCoins = alice.fetchXch(sim);
+  const feeCoin = xchCoins.find((coin) => coin.amount === 1_000_000_000_000n)!;
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  const actions = [Action.send(Id.xch(), bob.puzzleHash, 1000n)];
+
+  // Raise the fee to cover the cost of the previous attempt until it covers its own cost. Since
+  // `applyWithFee` doesn't consume the spends, the same spends can be used for every attempt.
+  let fee = 0n;
+  let tx: { outputs: Outputs; coinSpends: CoinSpend[] } | undefined;
+  let cost = 0n;
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    tx = buildWithFee(clvm, alice, spends, actions, xchCoins, fee);
+    cost = spendBundleCost(tx.coinSpends, true, FEE_HEIGHT);
+    const needed = recommendedFee(cost);
+
+    if (fee >= needed) break;
+
+    fee = needed;
+    tx = undefined;
+  }
+
+  if (!tx) throw new Error("The fee didn't converge");
+
+  t.true(fee > 0n);
+  t.is(fee, minimumFee(cost));
+  t.is(tx.outputs.fee(), fee);
+  t.true(tx.coinSpends.some((cs) => cs.coin.coinId().equals(feeCoin.coinId())));
+
+  // The same fee rebuilds the same transaction
+  const rebuilt = buildWithFee(clvm, alice, spends, actions, xchCoins, fee);
+  t.deepEqual(
+    serializeCoinSpends(rebuilt.coinSpends),
+    serializeCoinSpends(tx.coinSpends),
+  );
+
+  sim.spendCoins(tx.coinSpends, [alice.pair.sk]);
+
+  t.is(bob.balance(sim, Id.xch()), 1000n);
+  t.is(alice.balance(sim, Id.xch()), 1_000_000_000_000n - fee);
+});
+
+test("apply with fee rejects insufficient funds for the fee", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(0n);
+  const bob = new Wallet(1n);
+
+  alice.addXch(sim, 1000n);
+  const xchCoins = alice.fetchXch(sim);
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  const actions = [Action.send(Id.xch(), bob.puzzleHash, 1000n)];
+
+  // A failed coin selection doesn't drop coin spends that were already in the Clvm
+  const other = new Wallet(2n);
+  other.addXch(sim, 1n);
+  const [otherCoin] = other.fetchXch(sim);
+  clvm.spendStandardCoin(
+    otherCoin,
+    other.pair.pk,
+    clvm.delegatedSpend([clvm.createCoin(other.puzzleHash, 1n, null)]),
+  );
+
+  // The payment alone is covered, but not the fee
+  t.notThrows(() => spends.applyWithFee(actions, xchCoins, 0n));
+  t.is(clvm.coinSpends().length, 1);
+
+  clvm.spendStandardCoin(
+    otherCoin,
+    other.pair.pk,
+    clvm.delegatedSpend([clvm.createCoin(other.puzzleHash, 1n, null)]),
+  );
+
+  t.throws(() => spends.applyWithFee(actions, xchCoins, 1n));
+
+  const coinSpends = clvm.coinSpends();
+  t.is(coinSpends.length, 1);
+  t.true(coinSpends[0].coin.coinId().equals(otherCoin.coinId()));
+});
+
+test("a failed spend leaves the coin spends as they were", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(0n);
+  const bob = new Wallet(1n);
+
+  // The payment needs both of Alice's coins
+  alice.addXch(sim, 600n);
+  alice.addXch(sim, 600n);
+  bob.addXch(sim, 1n);
+  const [bobCoin] = bob.fetchXch(sim);
+
+  clvm.spendStandardCoin(
+    bobCoin,
+    bob.pair.pk,
+    clvm.delegatedSpend([clvm.createCoin(bob.puzzleHash, 1n, null)]),
+  );
+
+  const spends = new Spends(clvm, alice.puzzleHash);
+  const finished = spends.applyWithFee(
+    [Action.send(Id.xch(), bob.puzzleHash, 1000n)],
+    alice.fetchXch(sim),
+    0n,
+  );
+
+  const pending = finished.pendingSpends();
+  t.is(pending.length, 2);
+
+  // Only the first pending spend is given a p2 spend, so spending the second one fails after the
+  // first coin spend has already been added to the Clvm
+  finished.insert(
+    pending[0].coin().coinId(),
+    clvm.standardSpend(
+      alice.pair.pk,
+      clvm.delegatedSpend(pending[0].conditions()),
+    ),
+  );
+
+  t.throws(() => finished.spend());
+
+  const coinSpends = clvm.coinSpends();
+  t.is(coinSpends.length, 1);
+  t.true(coinSpends[0].coin.coinId().equals(bobCoin.coinId()));
 });

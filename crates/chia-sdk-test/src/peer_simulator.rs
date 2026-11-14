@@ -47,7 +47,8 @@ impl PeerSimulatorBackend for FullNodeSimulator {}
 /// runtime. It stops when this value is dropped. Connections use plain websockets without TLS.
 ///
 /// The simulator supports the wallet handshake, sending transactions, coin and puzzle state
-/// requests and subscriptions, puzzle solution and children requests, and `RequestTransaction`.
+/// requests and subscriptions, puzzle solution and children requests, and, in mempool mode,
+/// `RequestTransaction`. `RequestPeers` is answered with an empty peer list.
 /// Connected peers receive a `NewPeakWallet` message for each new block, and subscribers receive
 /// coin state updates.
 ///
@@ -279,6 +280,11 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
             shared,
             join_handle,
         })
+    }
+
+    /// Returns the address that the simulator is listening on.
+    pub fn socket_addr(&self) -> SocketAddr {
+        self.addr
     }
 
     /// Returns the configuration the simulator was started with.
@@ -555,6 +561,17 @@ mod tests {
         let ack = peer.send_transaction(empty_bundle).await?;
         assert_eq!(ack.status, 3);
         assert_eq!(ack.txid, transaction_id);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_peers() -> anyhow::Result<()> {
+        let sim = PeerSimulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let response = peer.request_peers().await?;
+        assert!(response.peer_list.is_empty());
 
         Ok(())
     }

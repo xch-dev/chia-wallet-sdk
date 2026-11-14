@@ -1,0 +1,72 @@
+{
+  "AggSigConstants": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "agg_sig_me": "Bytes32"
+        }
+      },
+      "mainnet": {
+        "type": "factory"
+      },
+      "testnet11": {
+        "type": "factory"
+      },
+      "me": {
+        "return": "Bytes32"
+      },
+      "parent": {
+        "return": "Bytes32"
+      },
+      "puzzle": {
+        "return": "Bytes32"
+      },
+      "amount": {
+        "return": "Bytes32"
+      },
+      "parent_amount": {
+        "return": "Bytes32"
+      },
+      "puzzle_amount": {
+        "return": "Bytes32"
+      },
+      "parent_puzzle": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "RequiredSignatures": {
+    "type": "class",
+    "fields": {
+      "bls": "Vec<RequiredBlsSignature>",
+      "secp": "Vec<RequiredSecpSignature>"
+    }
+  },
+  "RequiredBlsSignature": {
+    "type": "class",
+    "fields": {
+      "coin_id": "Bytes32",
+      "public_key": "PublicKey",
+      "raw_message": "Bytes",
+      "appended_info": "Bytes",
+      "domain_string": "Option<Bytes32>"
+    },
+    "methods": {
+      "message": {
+        "return": "Bytes"
+      }
+    }
+  },
+  "RequiredSecpSignature": {
+    "type": "class",
+    "fields": {
+      "coin_id": "Bytes32",
+      "k1_public_key": "Option<K1PublicKey>",
+      "r1_public_key": "Option<R1PublicKey>",
+      "message_hash": "Bytes32",
+      "placeholder": "Program"
+    }
+  }
+}

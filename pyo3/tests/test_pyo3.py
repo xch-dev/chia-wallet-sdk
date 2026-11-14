@@ -1,4 +1,9 @@
+import asyncio
+
+import pytest
+
 from chia_wallet_sdk import (
+    AggSigConstants,
     Clvm,
     InnerPuzzleMemo,
     K1Pair,
@@ -8,12 +13,15 @@ from chia_wallet_sdk import (
     MipsMemo,
     MipsMemoContext,
     MofNMemo,
+    PeerSimulator,
     PublicKey,
     R1Pair,
     RestrictionMemo,
     Reveals,
     RunCatTail,
     Signature,
+    Simulator,
+    SpendBundle,
     VaultMessageProof,
     WrapperMemo,
     calculate_vault_coin_message,
@@ -245,3 +253,146 @@ def test_vault_message_proof():
         assert False, "expected the wrong launcher id to be rejected"
     except Exception:
         pass
+
+
+def test_sign_with_required_signatures():
+    sim = Simulator()
+    clvm = Clvm()
+
+    alice = sim.bls(1)
+
+    clvm.spend_coin(
+        alice.coin,
+        clvm.standard_spend(
+            alice.pk,
+            clvm.delegated_spend([clvm.create_coin(alice.puzzle_hash, 1, None)]),
+        ),
+    )
+
+    coin_spends = clvm.coin_spends()
+    constants = AggSigConstants.testnet11()
+    required = clvm.required_signatures(coin_spends, constants)
+
+    assert len(required.bls) == 1
+    assert len(required.secp) == 0
+
+    [item] = required.bls
+    assert item.coin_id == alice.coin.coin_id()
+    assert item.domain_string == constants.me()
+    assert item.message() == item.raw_message + alice.coin.coin_id() + constants.me()
+
+    signature = Signature.aggregate([alice.sk.sign(item.message())])
+    sim.new_transaction(SpendBundle(coin_spends, signature))
+
+    assert len(sim.unspent_coins(alice.puzzle_hash, False)) == 1
+
+
+def test_required_signatures_puzzle_hash_mismatch():
+    sim = Simulator()
+    clvm = Clvm()
+
+    alice = sim.bls(1)
+    bob = sim.bls(1)
+
+    clvm.spend_coin(
+        alice.coin,
+        clvm.standard_spend(
+            bob.pk,
+            clvm.delegated_spend([clvm.create_coin(alice.puzzle_hash, 1, None)]),
+        ),
+    )
+
+    with pytest.raises(Exception, match="does not match coin puzzle hash"):
+        clvm.required_signatures(clvm.coin_spends(), AggSigConstants.testnet11())
+
+
+def sign_standard_spend(pair, amount):
+    """Spends the coin to a new coin of `amount` with the same puzzle hash, signed for
+    testnet11, which the peer simulator uses."""
+    clvm = Clvm()
+    delegated = clvm.delegated_spend([clvm.create_coin(pair.puzzle_hash, amount)])
+    clvm.spend_standard_coin(pair.coin, pair.pk, delegated)
+    coin_spends = clvm.coin_spends()
+    required = clvm.required_signatures(coin_spends, AggSigConstants.testnet11())
+    return SpendBundle(
+        coin_spends,
+        Signature.aggregate([pair.sk.sign(item.message()) for item in required.bls]),
+    )
+
+
+def test_peer_simulator():
+    async def run():
+        sim = await PeerSimulator.start()
+        peer = await sim.connect()
+        assert peer.socket_addr() == sim.socket_addr()
+
+        alice = await sim.bls(1000)
+        coin_id = alice.coin.coin_id()
+
+        updates = await peer.register_for_coin_updates([coin_id], 0)
+        assert len(updates.coin_states) == 1
+
+        spend_bundle = sign_standard_spend(alice, 900)
+
+        ack = await peer.send_transaction(spend_bundle)
+        assert ack.status == 1
+        assert ack.error is None
+
+        while True:
+            event = await peer.next()
+            assert event is not None
+            if event.coin_state_update is not None:
+                break
+        assert any(
+            item.coin.coin_id() == coin_id
+            for item in event.coin_state_update.items
+        )
+
+        children = await peer.request_children(coin_id)
+        assert [state.coin.amount for state in children.coin_states] == [900]
+
+        assert (await peer.request_peers()).peer_list == []
+
+        await peer.close()
+        with pytest.raises(Exception):
+            await peer.request_peers()
+
+    asyncio.run(run())
+
+
+def test_peer_simulator_mempool():
+    async def run():
+        sim = await PeerSimulator.start_with_mempool()
+        peer = await sim.connect_with_mempool_updates()
+
+        alice = await sim.bls(1000)
+        coin_id = alice.coin.coin_id()
+        await peer.register_for_ph_updates([alice.puzzle_hash], 0)
+
+        height = await sim.height()
+        spend_bundle = sign_standard_spend(alice, 900)
+        transaction_id = spend_bundle.hash()
+        assert (await peer.send_transaction(spend_bundle)).status == 1
+
+        async def next_added():
+            while True:
+                event = await peer.next()
+                assert event is not None
+                if event.mempool_items_added is not None:
+                    return event.mempool_items_added
+
+        added = await asyncio.wait_for(next_added(), timeout=30)
+        assert added.transaction_ids == [transaction_id]
+
+        pending = await sim.coin_state(coin_id)
+        assert pending is not None
+        assert pending.spent_height is None
+
+        transaction = await peer.request_transaction(transaction_id)
+        assert transaction.transaction.hash() == transaction_id
+
+        assert len(await sim.farm_block(1)) == 1
+        assert await sim.height() == height + 1
+        assert (await sim.coin_state(coin_id)).spent_height == height + 1
+
+    asyncio.run(run())

@@ -7,7 +7,7 @@ use chia_protocol::{
     RejectCoinState, RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren,
     RequestCoinState, RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
     RequestRemovePuzzleSubscriptions, RequestTransaction, RespondChildren, RespondCoinState,
-    RespondPuzzleSolution, RespondPuzzleState, RespondRemoveCoinSubscriptions,
+    RespondPeers, RespondPuzzleSolution, RespondPuzzleState, RespondRemoveCoinSubscriptions,
     RespondRemovePuzzleSubscriptions, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
     SendTransaction, TransactionAck,
 };
@@ -154,6 +154,7 @@ async fn handle_message<B: Backend>(
                 None => Reply { response: None },
             }
         }
+        ProtocolMessageTypes::RequestPeers => Reply::message(&RespondPeers::new(Vec::new()))?,
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
