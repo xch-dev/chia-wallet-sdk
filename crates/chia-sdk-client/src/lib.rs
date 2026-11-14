@@ -7,6 +7,7 @@
 //!   protocol request, such as [`Peer::request_puzzle_state`] and [`Peer::send_transaction`].
 //!   Messages that aren't responses, like coin state updates, are sent to a receiver.
 //! * `connect_peer`, which connects to a peer and performs the wallet protocol handshake.
+//!   Set [`PeerOptions::mempool_updates`] to opt in to CHIP-26 mempool updates.
 //! * `Client`, which manages connections to several peers, and keeps track of banned and
 //!   trusted IP addresses.
 //! * [`Network`], which describes a network and finds peers with its DNS introducers.
@@ -62,6 +63,7 @@
 
 #![cfg_attr(not(test), warn(missing_docs))]
 
+mod capability;
 mod error;
 mod network;
 mod peer;
@@ -70,6 +72,7 @@ mod rate_limits;
 mod request_map;
 mod tls;
 
+pub use capability::*;
 pub use error::*;
 pub use network::*;
 pub use peer::*;

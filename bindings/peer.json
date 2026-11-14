@@ -36,7 +36,8 @@
     "type": "class",
     "no_wasm": true,
     "fields": {
-      "rate_limit_factor": "f64"
+      "rate_limit_factor": "f64",
+      "mempool_updates": "bool"
     },
     "methods": {
       "new": {
@@ -112,7 +113,9 @@
     "no_wasm": true,
     "fields": {
       "new_peak_wallet": "Option<NewPeakWallet>",
-      "coin_state_update": "Option<CoinStateUpdate>"
+      "coin_state_update": "Option<CoinStateUpdate>",
+      "mempool_items_added": "Option<MempoolItemsAdded>",
+      "mempool_items_removed": "Option<MempoolItemsRemoved>"
     }
   },
   "NewPeakWallet": {
@@ -138,6 +141,38 @@
       "peak_hash": "Bytes32",
       "items": "Vec<CoinState>"
     }
+  },
+  "MempoolItemsAdded": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "transaction_ids": "Vec<Bytes32>"
+    }
+  },
+  "MempoolItemsRemoved": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "removed_items": "Vec<RemovedMempoolItem>"
+    }
+  },
+  "RemovedMempoolItem": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "transaction_id": "Bytes32",
+      "reason": "MempoolRemoveReason"
+    }
+  },
+  "MempoolRemoveReason": {
+    "type": "enum",
+    "values": ["Conflict", "BlockInclusion", "PoolFull", "Expired"]
   },
   "RespondCoinState": {
     "type": "class",

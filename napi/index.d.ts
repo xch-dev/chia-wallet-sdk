@@ -1851,6 +1851,10 @@ export declare class Event {
   set newPeakWallet(value: NewPeakWallet | undefined | null)
   get coinStateUpdate(): CoinStateUpdate | null
   set coinStateUpdate(value: CoinStateUpdate | undefined | null)
+  get mempoolItemsAdded(): MempoolItemsAdded | null
+  set mempoolItemsAdded(value: MempoolItemsAdded | undefined | null)
+  get mempoolItemsRemoved(): MempoolItemsRemoved | null
+  set mempoolItemsRemoved(value: MempoolItemsRemoved | undefined | null)
 }
 
 export declare class EverythingWithSingletonIssuance {
@@ -2485,6 +2489,20 @@ export declare class MempoolItem {
   set spendBundle(value: SpendBundle)
   get fee(): bigint
   set fee(value: bigint)
+}
+
+export declare class MempoolItemsAdded {
+  clone(): MempoolItemsAdded
+  constructor(transactionIds: Array<Uint8Array>)
+  get transactionIds(): Array<Buffer>
+  set transactionIds(value: Array<Uint8Array>)
+}
+
+export declare class MempoolItemsRemoved {
+  clone(): MempoolItemsRemoved
+  constructor(removedItems: Array<RemovedMempoolItem>)
+  get removedItems(): Array<RemovedMempoolItem>
+  set removedItems(value: Array<RemovedMempoolItem>)
 }
 
 export declare class MempoolMinFees {
@@ -3308,6 +3326,8 @@ export declare class PeerOptions {
   constructor()
   get rateLimitFactor(): number
   set rateLimitFactor(value: number)
+  get mempoolUpdates(): boolean
+  set mempoolUpdates(value: boolean)
 }
 
 export declare class PendingSpend {
@@ -3654,6 +3674,15 @@ export declare class Remark {
   constructor(rest: Program)
   get rest(): Program
   set rest(value: Program)
+}
+
+export declare class RemovedMempoolItem {
+  clone(): RemovedMempoolItem
+  constructor(transactionId: Uint8Array, reason: MempoolRemoveReason)
+  get transactionId(): Buffer
+  set transactionId(value: Uint8Array)
+  get reason(): MempoolRemoveReason
+  set reason(value: MempoolRemoveReason)
 }
 
 export declare class RequestedPayments {
@@ -5417,6 +5446,13 @@ export declare function fusionHint(): Buffer
 export declare function generateBytes(bytes: number): Buffer
 
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Buffer
+
+export declare const enum MempoolRemoveReason {
+  Conflict = 0,
+  BlockInclusion = 1,
+  PoolFull = 2,
+  Expired = 3,
+}
 
 export declare function minimumFee(cost: bigint): bigint
 
