@@ -74,8 +74,12 @@ pub use splitter::*;
 pub use utils::*;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod daemon;
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use daemon::*;
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
 

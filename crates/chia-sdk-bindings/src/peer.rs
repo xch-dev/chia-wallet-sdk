@@ -39,7 +39,7 @@ impl Certificate {
 }
 
 #[derive(Clone)]
-pub struct Connector(SdkConnector);
+pub struct Connector(pub(crate) SdkConnector);
 
 impl Connector {
     pub fn new(cert: Certificate) -> Result<Self> {

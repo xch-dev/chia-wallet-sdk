@@ -15,10 +15,10 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = ["dep:napi", "dep:chia-sdk-client", "dep:chia-ssl"]
+napi = ["dep:napi", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl"]
 wasm = ["dep:js-sys"]
-pyo3 = ["dep:pyo3", "dep:chia-sdk-client", "dep:chia-ssl"]
-uniffi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
+pyo3 = ["dep:pyo3", "dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl"]
+uniffi = ["dep:chia-sdk-client", "dep:chia-sdk-daemon", "dep:chia-ssl", "dep:tokio"]
 
 [dependencies]
 thiserror = { workspace = true }
@@ -36,6 +36,7 @@ chia-sdk-driver = { workspace = true, features = ["offer-compression"] }
 chia-sdk-test = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-client = { workspace = true, optional = true }
+chia-sdk-daemon = { workspace = true, optional = true }
 chia-ssl = { workspace = true, optional = true }
 reqwest = { workspace = true }
 clvmr = { workspace = true }

@@ -30,5 +30,11 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
+[dev-dependencies]
+chia-ssl = { workspace = true }
+native-tls = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
+tokio-native-tls = { workspace = true }
+
 [package.metadata.cargo-machete]
 ignored = ["chia-sdk-client"]

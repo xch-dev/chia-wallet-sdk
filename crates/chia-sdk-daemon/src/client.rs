@@ -102,6 +102,7 @@ mod inner {
         max_reconnect_attempts: AtomicU32,
         disconnect_tx: broadcast::Sender<()>,
         reconnect_tx: broadcast::Sender<()>,
+        closed: watch::Sender<bool>,
     }
 
     impl std::fmt::Debug for DaemonClientInner {
@@ -154,6 +155,7 @@ mod inner {
             let (connected_tx, _) = watch::channel(true);
             let (disconnect_tx, _) = broadcast::channel::<()>(16);
             let (reconnect_tx, _) = broadcast::channel::<()>(16);
+            let (closed_tx, _) = watch::channel(false);
 
             let inner = Arc::new(DaemonClientInner {
                 base_url: url.to_string(),
@@ -169,22 +171,10 @@ mod inner {
                 max_reconnect_attempts: AtomicU32::new(u32::MAX),
                 disconnect_tx,
                 reconnect_tx,
+                closed: closed_tx,
             });
 
-            let pending_clone = inner.pending.clone();
-            let event_tx_clone = inner.event_tx.clone();
-            let inner_for_reader = inner.clone();
-
-            let reader_handle = tokio::spawn(async move {
-                if let Err(error) =
-                    handle_inbound_messages(stream, pending_clone, event_tx_clone).await
-                {
-                    debug!("Daemon reader task ended: {error}");
-                    if let Err(e) = Self::reconnect(inner_for_reader).await {
-                        error!("Reconnection failed permanently: {e}");
-                    }
-                }
-            });
+            let reader_handle = Self::spawn_reader(inner.clone(), stream);
 
             *inner.reader_handle.lock().await = Some(reader_handle);
 
@@ -274,6 +264,16 @@ mod inner {
             self.0.reconnect_tx.subscribe()
         }
 
+        /// Waits until the client has stopped for good, because the connection was closed
+        /// cleanly (by [`DaemonClient::close`] or by the daemon) or reconnecting gave up.
+        ///
+        /// Once this happens, requests fail with [`DaemonError::ConnectionClosed`], and no more
+        /// events are received.
+        pub async fn closed(&self) {
+            let mut closed = self.0.closed.subscribe();
+            closed.wait_for(|closed| *closed).await.ok();
+        }
+
         /// Sets the maximum number of reconnection attempts before giving up.
         /// `None` means unlimited (the default).
         pub fn set_max_reconnect_attempts(&self, max: Option<u32>) {
@@ -333,6 +333,30 @@ mod inner {
             Ok(serde_json::from_value(value)?)
         }
 
+        /// Spawns the task that reads messages from the daemon. If the connection fails, the
+        /// task reconnects, and if it closes cleanly or reconnecting gives up, the client is
+        /// marked as closed.
+        fn spawn_reader(inner: Arc<DaemonClientInner>, stream: Stream) -> JoinHandle<()> {
+            tokio::spawn(async move {
+                match handle_inbound_messages(stream, inner.pending.clone(), inner.event_tx.clone())
+                    .await
+                {
+                    Ok(()) => debug!("Daemon connection closed"),
+                    Err(error) => {
+                        debug!("Daemon reader task ended: {error}");
+                        match Self::reconnect(inner.clone()).await {
+                            Ok(()) => return,
+                            Err(e) => error!("Reconnection failed permanently: {e}"),
+                        }
+                    }
+                }
+
+                inner.connected.send_replace(false);
+                inner.pending.lock().await.clear();
+                inner.closed.send_replace(true);
+            })
+        }
+
         /// Breaks the recursive async cycle by boxing the future. The actual
         /// reconnection logic lives in `reconnect_inner`.
         fn reconnect(
@@ -382,25 +406,10 @@ mod inner {
 
                         *inner.sink.lock().await = new_sink;
 
-                        // Abort old reader task if still running, then spawn a new one
-                        if let Some(handle) = inner.reader_handle.lock().await.take() {
-                            handle.abort();
-                        }
-
-                        let pending_clone = inner.pending.clone();
-                        let event_tx_clone = inner.event_tx.clone();
-                        let inner_clone = inner.clone();
-                        let new_handle = tokio::spawn(async move {
-                            if let Err(error) =
-                                handle_inbound_messages(new_stream, pending_clone, event_tx_clone)
-                                    .await
-                            {
-                                debug!("Daemon reader task ended: {error}");
-                                if let Err(e) = Self::reconnect(inner_clone).await {
-                                    error!("Reconnection failed permanently: {e}");
-                                }
-                            }
-                        });
+                        // This runs on the old reader task, after its stream ended, so the
+                        // old handle is replaced without aborting it. Aborting would cancel
+                        // this task at its next await, before it registers the services.
+                        let new_handle = Self::spawn_reader(inner.clone(), new_stream);
                         *inner.reader_handle.lock().await = Some(new_handle);
 
                         // Re-register all subscriptions (origin is first in the vec)
