@@ -112,6 +112,11 @@ class FakeConnection {
     this.sendFrame(1, Buffer.from(JSON.stringify(value), "utf8"));
   }
 
+  /** Drops the connection without a close frame, as if the daemon crashed. */
+  drop() {
+    this.socket.destroy();
+  }
+
   /** Waits for the client's close frame, replies to it, and ends the connection. */
   async expectClose() {
     while (true) {
@@ -261,6 +266,99 @@ test("daemon client forwards requests and events through a fake daemon", async (
   t.false(await client.nextDisconnect());
   t.false(await client.nextReconnect());
   await t.throwsAsync(rpc.getNetworkInfo(), { message: /Connection closed/ });
+});
+
+async function connectClient(
+  daemon: Awaited<ReturnType<typeof startFakeDaemon>>,
+) {
+  const [client, connection] = await Promise.all([
+    DaemonClient.connect(daemon.url, connector(), 10),
+    daemon.accept(),
+  ]);
+  const origin = await expectRegistration(connection);
+  return { client, connection, origin };
+}
+
+/** Answers the next full node request with the network info of testnet11. */
+async function answerNetworkInfo(connection: FakeConnection, origin: string) {
+  const request = await connection.receiveJson();
+  if (request.command !== "get_network_info") {
+    throw new Error(`unexpected request: ${JSON.stringify(request)}`);
+  }
+  connection.sendJson({
+    command: "get_network_info",
+    ack: true,
+    origin: "chia_full_node",
+    destination: origin,
+    request_id: request.request_id,
+    data: { success: true, network_name: "testnet11", network_prefix: "txch" },
+  });
+}
+
+test("daemon subscription reports skipped events and keeps working", async (t) => {
+  const daemon = await startFakeDaemon();
+  t.teardown(() => daemon.close());
+
+  const { client, connection, origin } = await connectClient(daemon);
+  const subscription = await client.subscribe("wallet_ui");
+  t.is(await expectRegistration(connection), "wallet_ui");
+
+  // More events arrive than the subscription holds before it reads any of them.
+  const count = 300;
+  for (let index = 0; index < count; index++) {
+    connection.sendJson({
+      command: "state_changed",
+      ack: false,
+      origin: "chia_wallet",
+      destination: "wallet_ui",
+      request_id: "",
+      data: { index },
+    });
+  }
+
+  // The client reads messages in order, so once this response arrives, so have the events.
+  const rpc = client.rpcClient();
+  await Promise.all([
+    rpc.getNetworkInfo(),
+    answerNetworkInfo(connection, origin),
+  ]);
+
+  const skipped = count - 256;
+  await t.throwsAsync(subscription.next(), {
+    message: new RegExp(`skipped ${skipped} events`),
+  });
+
+  const event = await subscription.next();
+  t.truthy(event);
+  t.deepEqual(JSON.parse(event!.data), { index: skipped });
+
+  await Promise.all([client.close(), connection.expectClose()]);
+});
+
+test("daemon client reconnects after the connection drops", async (t) => {
+  const daemon = await startFakeDaemon();
+  t.teardown(() => daemon.close());
+
+  const { client, connection, origin } = await connectClient(daemon);
+  await client.subscribe("wallet_ui");
+  t.is(await expectRegistration(connection), "wallet_ui");
+
+  // Without a close frame, the client reconnects and registers its services again.
+  connection.drop();
+  const reconnected = await daemon.accept();
+  t.true(await client.nextDisconnect());
+  t.is(await expectRegistration(reconnected), origin);
+  t.is(await expectRegistration(reconnected), "wallet_ui");
+  t.true(await client.nextReconnect());
+
+  const rpc = client.rpcClient();
+  const [networkInfo] = await Promise.all([
+    rpc.getNetworkInfo(),
+    answerNetworkInfo(reconnected, origin),
+  ]);
+  t.is(networkInfo.networkName, "testnet11");
+
+  await Promise.all([client.close(), reconnected.expectClose()]);
 });
 
 test("daemon client fails to connect to a closed port", async (t) => {
