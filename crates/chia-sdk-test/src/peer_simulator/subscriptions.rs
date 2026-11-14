@@ -86,20 +86,17 @@ impl Subscriptions {
             .collect()
     }
 
+    pub(crate) fn remove_peer(&mut self, peer: SocketAddr) {
+        self.coin_subscriptions.swap_remove(&peer);
+        self.puzzle_subscriptions.swap_remove(&peer);
+    }
+
     pub(crate) fn subscription_count(&self, peer: SocketAddr) -> usize {
         self.coin_subscriptions.get(&peer).map_or(0, IndexSet::len)
             + self
                 .puzzle_subscriptions
                 .get(&peer)
                 .map_or(0, IndexSet::len)
-    }
-
-    pub(crate) fn peers(&self) -> IndexSet<SocketAddr> {
-        self.coin_subscriptions
-            .keys()
-            .chain(self.puzzle_subscriptions.keys())
-            .copied()
-            .collect()
     }
 
     pub(crate) fn coin_subscriptions(&self, peer: SocketAddr) -> Option<&IndexSet<Bytes32>> {

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{SimulatorError, StateDumpError};
 
-use super::{FullNodeSimulator, SimBlock, SimCoinRecord};
+use super::{FullNodeSimulator, SIMULATOR_GENESIS_CHALLENGE, SimBlock, SimCoinRecord};
 
 const FORMAT: &str = "chia-wallet-sdk/full-node-simulator-state";
 const VERSION: u32 = 1;
@@ -28,6 +28,9 @@ struct SimulatorStateDump {
     master_secret_key: [u8; 32],
     prefarm_puzzle_hash: Bytes32,
     node_id: Bytes32,
+    /// Left out when it's the default, so dumps stay readable by older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    genesis_challenge: Option<Bytes32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,6 +129,8 @@ impl FullNodeSimulator {
             master_secret_key: self.master_secret_key.to_bytes(),
             prefarm_puzzle_hash: self.prefarm_puzzle_hash,
             node_id: self.node_id,
+            genesis_challenge: (self.genesis_challenge != SIMULATOR_GENESIS_CHALLENGE)
+                .then_some(self.genesis_challenge),
         };
 
         serde_json::to_string_pretty(&dump)
@@ -145,7 +150,8 @@ impl FullNodeSimulator {
     pub fn restore_state(&mut self, state_json: &str) -> Result<(), SimulatorError> {
         let dump: SimulatorStateDump = serde_json::from_str(state_json)
             .map_err(|error| StateDumpError::Deserialize(error.to_string()))?;
-        let restored = FullNodeSimulator::try_from(dump)?;
+        let mut restored = FullNodeSimulator::try_from(dump)?;
+        restored.peer_events = std::mem::take(&mut self.peer_events);
         *self = restored;
         Ok(())
     }

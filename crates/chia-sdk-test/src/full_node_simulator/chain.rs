@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use chia_consensus::validation_error::ErrorCode;
-use chia_protocol::{BlockRecord, Bytes32, SpendBundle};
+use chia_protocol::{BlockRecord, Bytes32, MempoolRemoveReason, SpendBundle};
 use indexmap::{IndexMap, IndexSet};
 use rand::RngExt;
 
@@ -183,9 +183,21 @@ impl FullNodeSimulator {
         self.state
             .apply_block(block)
             .expect("locally built block delta must apply atomically");
+        self.record_block_for_peers(
+            height,
+            header_hash,
+            &additions
+                .iter()
+                .chain(&removals)
+                .copied()
+                .collect::<Vec<_>>(),
+        );
         for tx_id in included_tx_ids {
-            self.mempool.swap_remove(&tx_id);
+            if let Some(item) = self.mempool.shift_remove(&tx_id) {
+                self.record_mempool_removed(tx_id, &item, MempoolRemoveReason::BlockInclusion);
+            }
         }
+        self.evict_invalid_mempool_items();
 
         self.events.push(FullNodeSimulatorEvent::Block {
             height,
@@ -239,13 +251,34 @@ impl FullNodeSimulator {
     }
 
     pub(super) fn prune_mempool(&mut self) {
-        let spend_bundles = self
+        let previous = std::mem::take(&mut self.mempool);
+
+        // Items that are added back unchanged stay in the mempool as far as peers can tell, so
+        // only the differences are recorded.
+        let peer_events = self.pause_peer_events();
+        self.requeue_transactions(previous.values().map(|item| item.spend_bundle.clone()));
+        self.resume_peer_events(peer_events);
+
+        for (tx_id, item) in &previous {
+            if !self.mempool.contains_key(tx_id) {
+                let reason = self
+                    .validate_bundle(item.spend_bundle.clone())
+                    .err()
+                    .map_or(MempoolRemoveReason::Conflict, |error| {
+                        Self::removal_reason(&error)
+                    });
+                self.record_mempool_removed(*tx_id, item, reason);
+            }
+        }
+        let added = self
             .mempool
-            .values()
-            .map(|item| item.spend_bundle.clone())
+            .keys()
+            .filter(|tx_id| !previous.contains_key(*tx_id))
+            .copied()
             .collect::<Vec<_>>();
-        self.mempool.clear();
-        self.requeue_transactions(spend_bundles);
+        for tx_id in added {
+            self.record_mempool_added(tx_id);
+        }
     }
 
     fn random_hash(&mut self) -> Bytes32 {
@@ -268,8 +301,10 @@ impl FullNodeSimulator {
     ///
     /// Each block includes every mempool transaction that is still valid and doesn't conflict
     /// with one already in the block, plus a reward coin for
-    /// [`FullNodeSimulator::get_farming_ph`]. Included transactions are removed from the mempool.
-    /// A [`FullNodeSimulatorEvent::Block`] event is recorded for each block.
+    /// [`FullNodeSimulator::get_farming_ph`]. Included transactions are removed from the mempool,
+    /// and so are transactions that are no longer valid after the block, such as ones that spend
+    /// a coin that no longer exists after a reorg. A
+    /// [`FullNodeSimulatorEvent::Block`] event is recorded for each block.
     pub fn farm_block(&mut self, blocks: u32) -> Vec<BlockRecord> {
         let count = blocks.max(1);
         let mut records = Vec::new();

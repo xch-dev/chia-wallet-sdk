@@ -418,3 +418,50 @@ fn tampered_restore_failure_is_atomic() -> anyhow::Result<()> {
     assert_eq!(target.dump_state()?, before);
     Ok(())
 }
+
+#[test]
+fn dump_restore_keeps_a_custom_genesis_challenge() -> anyhow::Result<()> {
+    use chia_sdk_types::{TESTNET11_CONSTANTS, conditions::AggSigMe};
+
+    use crate::{BlsPair, sign_transaction};
+
+    let default_dump: serde_json::Value =
+        serde_json::from_str(&FullNodeSimulator::new().dump_state()?)?;
+    assert!(default_dump.get("genesis_challenge").is_none());
+
+    let mut sim = FullNodeSimulator::with_seed(123);
+    sim.set_genesis_challenge(TESTNET11_CONSTANTS.genesis_challenge);
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    sim.set_farming_ph(puzzle_hash);
+    let reward = sim.farm_block(1)[0]
+        .reward_claims_incorporated
+        .as_ref()
+        .unwrap()[0];
+
+    // The block replays only if the restored simulator checks the signature against the same
+    // additional data.
+    let pair = BlsPair::new(0);
+    let coin_spends = vec![CoinSpend::new(
+        reward,
+        puzzle_reveal,
+        to_program([AggSigMe::new(pair.pk, b"message".to_vec().into())])?,
+    )];
+    let signature = sign_transaction(&coin_spends, &[pair.sk])?;
+    assert!(
+        sim.push_tx(SpendBundle::new(coin_spends, signature))
+            .success
+    );
+    sim.farm_block(1);
+
+    let json = sim.dump_state()?;
+    let mut restored = FullNodeSimulator::new();
+    restored.restore_state(&json)?;
+
+    assert_eq!(restored.header_hash(), sim.header_hash());
+    assert_eq!(
+        restored.get_aggsig_additional_data(),
+        TESTNET11_CONSTANTS.genesis_challenge
+    );
+
+    Ok(())
+}

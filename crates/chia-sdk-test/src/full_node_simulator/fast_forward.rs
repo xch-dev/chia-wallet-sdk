@@ -11,7 +11,7 @@ use clvmr::{
 
 use crate::{
     FullNodeSimulator,
-    full_node_simulator::{SIMULATOR_GENESIS_CHALLENGE, ValidatedBundle, ValidatedSpend},
+    full_node_simulator::{ValidatedBundle, ValidatedSpend},
     validate_clvm_and_signature,
 };
 
@@ -94,7 +94,7 @@ impl FullNodeSimulator {
         &self,
         spend_bundle: &SpendBundle,
     ) -> FastForwardResult {
-        let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
+        let constants = default_constants(self.genesis_challenge, self.genesis_challenge);
         let Ok(conds) = validate_clvm_and_signature(
             spend_bundle,
             11_000_000_000 / 2,

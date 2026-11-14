@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, ops::Deref, sync::Arc};
 
-use chia_protocol::Message;
-use chia_sdk_client::{Peer, PeerOptions};
+use chia_protocol::{BlockRecord, Handshake, Message, NodeType, ProtocolMessageTypes};
+use chia_sdk_client::{ClientError, Peer, PeerOptions};
 use peer_map::PeerMap;
 use subscriptions::Subscriptions;
 use tokio::{
@@ -12,29 +12,59 @@ use tokio::{
 use tokio_tungstenite::connect_async;
 use ws_connection::ws_connection;
 
-use crate::Simulator;
+use crate::{FullNodeSimulator, Simulator};
 
+mod backend;
 mod config;
 mod error;
+mod notify;
 mod peer_map;
 mod subscriptions;
 mod ws_connection;
 
+#[cfg(test)]
+mod mempool_tests;
+
 pub use config::*;
 pub use error::*;
 
-/// A local websocket server that exposes a [`Simulator`] through the Chia wallet peer protocol.
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for crate::Simulator {}
+    impl Sealed for crate::FullNodeSimulator {}
+}
+
+/// A simulator that a [`PeerSimulator`] can serve over the wallet peer protocol.
+///
+/// This is implemented for [`Simulator`], where every transaction is included in a new block as
+/// soon as it's sent, and for [`FullNodeSimulator`], where transactions wait in a mempool until a
+/// block is farmed. It is sealed, so it can't be implemented outside of this crate.
+pub trait PeerSimulatorBackend: sealed::Sealed + backend::Backend {}
+
+impl PeerSimulatorBackend for Simulator {}
+impl PeerSimulatorBackend for FullNodeSimulator {}
+
+/// A local websocket server that exposes a simulator through the Chia wallet peer protocol.
 ///
 /// This lets you test code that uses a `chia-sdk-client` [`Peer`]. The server listens on an
 /// ephemeral port on `127.0.0.1` and runs on a Tokio task, so it must be created inside a Tokio
 /// runtime. It stops when this value is dropped. Connections use plain websockets without TLS.
 ///
-/// The simulator supports sending transactions, coin and puzzle state requests and
-/// subscriptions, and puzzle solution and children requests. Each accepted transaction creates a
-/// new block, after which connected peers receive a `NewPeakWallet` message and subscribers
-/// receive coin state updates.
+/// The simulator supports the wallet handshake, sending transactions, coin and puzzle state
+/// requests and subscriptions, puzzle solution and children requests, and `RequestTransaction`.
+/// Connected peers receive a `NewPeakWallet` message for each new block, and subscribers receive
+/// coin state updates.
 ///
-/// [`PeerSimulator`] dereferences to the inner [`Mutex<Simulator>`](Mutex), so you can lock it
+/// There are two modes:
+///
+/// - [`PeerSimulator::new`] serves a [`Simulator`]. Each accepted transaction is included in a new
+///   block right away, and there is no mempool.
+/// - [`PeerSimulator::with_mempool`] serves a [`FullNodeSimulator`]. Accepted transactions wait
+///   in its mempool until the test farms a block with [`PeerSimulator::farm_block`], and peers
+///   that opt in receive the [CHIP-26] mempool updates.
+///
+/// [`PeerSimulator`] dereferences to the inner [`Mutex`] around the simulator, so you can lock it
 /// to create coins or inspect the state.
 ///
 /// # Example
@@ -58,25 +88,37 @@ pub use error::*;
 /// # })?;
 /// # Ok::<(), anyhow::Error>(())
 /// ```
+///
+/// [CHIP-26]: https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0026.md
 #[derive(Debug)]
-pub struct PeerSimulator {
-    config: Arc<PeerSimulatorConfig>,
+pub struct PeerSimulator<S: PeerSimulatorBackend = Simulator> {
     addr: SocketAddr,
-    simulator: Arc<Mutex<Simulator>>,
-    subscriptions: Arc<Mutex<Subscriptions>>,
+    shared: Arc<Shared<S>>,
     join_handle: JoinHandle<()>,
 }
 
-impl Deref for PeerSimulator {
-    type Target = Mutex<Simulator>;
+/// The state shared between the [`PeerSimulator`] and its connections.
+///
+/// Locks are always taken in the order `simulator`, then `subscriptions`, then `peer_map`.
+#[derive(Debug)]
+pub(crate) struct Shared<S> {
+    config: PeerSimulatorConfig,
+    simulator: Mutex<S>,
+    subscriptions: Mutex<Subscriptions>,
+    peer_map: PeerMap,
+}
+
+impl<S: PeerSimulatorBackend> Deref for PeerSimulator<S> {
+    type Target = Mutex<S>;
 
     fn deref(&self) -> &Self::Target {
-        &self.simulator
+        &self.shared.simulator
     }
 }
 
-impl PeerSimulator {
-    /// Starts a peer simulator with the default [`PeerSimulatorConfig`].
+impl PeerSimulator<Simulator> {
+    /// Starts a peer simulator with the default [`PeerSimulatorConfig`] and a default
+    /// [`Simulator`], which includes each transaction in a new block right away.
     ///
     /// # Errors
     ///
@@ -92,24 +134,133 @@ impl PeerSimulator {
     ///
     /// Returns [`PeerSimulatorError::Io`] if the listener can't be bound.
     pub async fn with_config(config: PeerSimulatorConfig) -> Result<Self, PeerSimulatorError> {
+        Self::start(config).await
+    }
+}
+
+impl PeerSimulator<FullNodeSimulator> {
+    /// Starts a peer simulator with the default [`PeerSimulatorConfig`] and a mempool, backed by
+    /// a [`FullNodeSimulator`].
+    ///
+    /// See [`PeerSimulator::with_mempool_config`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PeerSimulatorError::Io`] if the listener can't be bound.
+    pub async fn with_mempool() -> Result<Self, PeerSimulatorError> {
+        Self::with_mempool_config(PeerSimulatorConfig::default()).await
+    }
+
+    /// Starts a peer simulator with the given [`PeerSimulatorConfig`] and a mempool, backed by a
+    /// new [`FullNodeSimulator`].
+    ///
+    /// In this mode:
+    ///
+    /// - `SendTransaction` validates the transaction and adds it to the mempool, without creating
+    ///   a block. Replace-by-fee and conflicts follow [`FullNodeSimulator::push_tx_detailed`].
+    /// - [`PeerSimulator::farm_block`] creates blocks from the mempool and sends the
+    ///   `NewPeakWallet` and coin state updates.
+    /// - `RequestTransaction` is answered from the mempool. Like a full node, there's no response
+    ///   if the transaction isn't in the mempool.
+    /// - Peers that advertise the CHIP-26 `MEMPOOL_UPDATES` capability (5) in their handshake
+    ///   receive `MempoolItemsAdded` and `MempoolItemsRemoved` for transactions that spend or
+    ///   create a coin they're subscribed to, by coin id, puzzle hash or hint. A new subscription
+    ///   is followed by `MempoolItemsAdded` for the transactions already in the mempool that match
+    ///   it. Transactions are removed with the reason `BlockInclusion` when farmed, and
+    ///   `Conflict` when replaced by fee or when they're no longer valid after a block (along
+    ///   with the transactions that spend their outputs). Since every valid transaction is
+    ///   included in the next block, transactions don't expire, and `PoolFull` isn't used. Use
+    ///   [`PeerSimulator::connect_split_with_capabilities`] to connect such a peer.
+    ///
+    /// The simulator's genesis challenge, which is also the `AGG_SIG_ME` additional data, is set
+    /// to [`PeerSimulatorConfig::genesis_challenge`]. With the default config, that means spends
+    /// signed with [`sign_transaction`](crate::sign_transaction) are valid. The chain starts at
+    /// height 1, as described in [`FullNodeSimulator`].
+    ///
+    /// Changes made by locking the simulator directly, such as
+    /// [`FullNodeSimulator::push_tx`], are sent to peers by the next [`PeerSimulator::farm_block`],
+    /// transaction, or [`PeerSimulator::notify_peers`]. Reverts and reorgs made this way aren't
+    /// sent as coin state updates, only as the mempool changes they cause.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chia_bls::Signature;
+    /// use chia_protocol::{CoinSpend, MempoolItemsAdded, ProtocolMessageTypes, SpendBundle};
+    /// use chia_sdk_test::{PeerSimulator, to_program, to_puzzle};
+    /// use chia_traits::Streamable;
+    ///
+    /// # tokio::runtime::Runtime::new()?.block_on(async {
+    /// let sim = PeerSimulator::with_mempool().await?;
+    /// let (peer, mut receiver) = sim
+    ///     .connect_split_with_capabilities(vec![(5, "1".to_string())])
+    ///     .await?;
+    ///
+    /// let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    /// let coin = sim.lock().await.new_coin(puzzle_hash, 1_000);
+    /// peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+    ///
+    /// let spend_bundle = SpendBundle::new(
+    ///     vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+    ///     Signature::default(),
+    /// );
+    /// let transaction_id = spend_bundle.name();
+    /// assert_eq!(peer.send_transaction(spend_bundle).await?.status, 1);
+    ///
+    /// // The transaction is pending, so the coin isn't spent yet.
+    /// let message = receiver.recv().await.unwrap();
+    /// assert_eq!(message.msg_type, ProtocolMessageTypes::MempoolItemsAdded);
+    /// let added = MempoolItemsAdded::from_bytes(&message.data)?;
+    /// assert_eq!(added.transaction_ids, vec![transaction_id]);
+    ///
+    /// sim.farm_block(1).await;
+    /// let record = sim.lock().await.get_coin_record_by_name(coin.coin_id());
+    /// assert!(record.coin_record.unwrap().spent);
+    /// # Ok::<(), anyhow::Error>(())
+    /// # })?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PeerSimulatorError::Io`] if the listener can't be bound.
+    pub async fn with_mempool_config(
+        config: PeerSimulatorConfig,
+    ) -> Result<Self, PeerSimulatorError> {
+        Self::start(config).await
+    }
+
+    /// Farms `blocks` blocks (at least one) with [`FullNodeSimulator::farm_block`], and sends
+    /// the resulting messages to connected peers.
+    ///
+    /// For each block, every peer receives a `NewPeakWallet` message, subscribers receive a
+    /// `CoinStateUpdate`, and peers that opted into mempool updates receive
+    /// `MempoolItemsRemoved` for the matching transactions that left the mempool.
+    pub async fn farm_block(&self, blocks: u32) -> Vec<BlockRecord> {
+        let mut simulator = self.shared.simulator.lock().await;
+        let records = simulator.farm_block(blocks);
+        self.flush(&mut simulator).await;
+        records
+    }
+}
+
+impl<S: PeerSimulatorBackend> PeerSimulator<S> {
+    async fn start(config: PeerSimulatorConfig) -> Result<Self, PeerSimulatorError> {
         tracing::info!("starting simulator");
 
-        let addr = "127.0.0.1:0";
-        let peer_map = PeerMap::default();
-        let listener = TcpListener::bind(addr).await?;
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
         let addr = listener.local_addr()?;
-        let simulator = Arc::new(Mutex::new(Simulator::default()));
-        let subscriptions = Arc::new(Mutex::new(Subscriptions::default()));
-        let config = Arc::new(config);
+        let shared = Arc::new(Shared {
+            simulator: Mutex::new(S::new_for_peers(&config)),
+            config,
+            subscriptions: Mutex::new(Subscriptions::default()),
+            peer_map: PeerMap::default(),
+        });
 
-        let simulator_clone = simulator.clone();
-        let subscriptions_clone = subscriptions.clone();
-        let config_clone = config.clone();
+        let shared_clone = shared.clone();
 
         let join_handle = tokio::spawn(async move {
-            let simulator = simulator_clone;
-            let subscriptions = subscriptions_clone;
-            let config = config_clone;
+            let shared = shared_clone;
 
             while let Ok((stream, addr)) = listener.accept().await {
                 let stream = match tokio_tungstenite::accept_async(stream).await {
@@ -119,34 +270,26 @@ impl PeerSimulator {
                         continue;
                     }
                 };
-                tokio::spawn(ws_connection(
-                    peer_map.clone(),
-                    stream,
-                    addr,
-                    config.clone(),
-                    simulator.clone(),
-                    subscriptions.clone(),
-                ));
+                tokio::spawn(ws_connection(shared.clone(), stream, addr));
             }
         });
 
         Ok(Self {
-            config,
             addr,
-            simulator,
-            subscriptions,
+            shared,
             join_handle,
         })
     }
 
     /// Returns the configuration the simulator was started with.
     pub fn config(&self) -> &PeerSimulatorConfig {
-        &self.config
+        &self.shared.config
     }
 
     /// Connects a new [`Peer`] and returns it with the receiver for incoming messages.
     ///
-    /// The first message is the initial `NewPeakWallet`, which is left in the receiver.
+    /// No handshake is sent. The first message is the initial `NewPeakWallet`, which is left in
+    /// the receiver.
     ///
     /// # Errors
     ///
@@ -154,16 +297,13 @@ impl PeerSimulator {
     pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         tracing::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
-        Ok(Peer::from_websocket(
-            ws,
-            PeerOptions {
-                rate_limit_factor: 0.6,
-            },
-        )?)
+        Ok(Peer::from_websocket(ws, PeerOptions::default())?)
     }
 
     /// Connects a new [`Peer`] and returns it with the receiver for incoming messages, after
     /// waiting for the initial `NewPeakWallet` message and discarding it.
+    ///
+    /// No handshake is sent, so the peer doesn't receive mempool updates.
     ///
     /// # Errors
     ///
@@ -180,6 +320,47 @@ impl PeerSimulator {
             .recv()
             .await
             .expect("expected NewPeakWallet message");
+        Ok((peer, receiver))
+    }
+
+    /// Connects a new [`Peer`] and performs the wallet handshake, advertising the given
+    /// capabilities. Returns the peer with the receiver for incoming messages, after discarding
+    /// the initial `NewPeakWallet` and the simulator's `Handshake`.
+    ///
+    /// Each capability is a pair of its id and value, such as `(5, "1".to_string())` for the
+    /// CHIP-26 `MEMPOOL_UPDATES` capability. A peer connected without the handshake, such as
+    /// with [`PeerSimulator::connect_split`], has no capabilities.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the websocket connection fails, or
+    /// [`ClientError::MissingHandshake`] if it closes before the simulator's `Handshake`
+    /// arrives.
+    pub async fn connect_split_with_capabilities(
+        &self,
+        capabilities: Vec<(u16, String)>,
+    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        let (peer, mut receiver) = self.connect_raw().await?;
+
+        peer.send(Handshake {
+            network_id: "simulator0".to_string(),
+            protocol_version: "0.0.37".to_string(),
+            software_version: "0.0.0".to_string(),
+            server_port: 0,
+            node_type: NodeType::Wallet,
+            capabilities,
+        })
+        .await?;
+
+        loop {
+            let Some(message) = receiver.recv().await else {
+                return Err(ClientError::MissingHandshake.into());
+            };
+            if message.msg_type == ProtocolMessageTypes::Handshake {
+                break;
+            }
+        }
+
         Ok((peer, receiver))
     }
 
@@ -206,21 +387,44 @@ impl PeerSimulator {
         Ok(peer)
     }
 
-    /// Replaces the simulator with a new default [`Simulator`] and clears all subscriptions.
+    /// Sends connected peers the messages for changes that were made by locking the simulator
+    /// directly, such as transactions pushed to a [`FullNodeSimulator`]'s mempool or blocks
+    /// farmed with [`FullNodeSimulator::farm_block`].
     ///
-    /// Existing connections stay open.
+    /// Changes made through the peer protocol or [`PeerSimulator::farm_block`] are sent right
+    /// away, so this is only needed after direct changes. With a [`Simulator`], there's nothing
+    /// to send.
+    pub async fn notify_peers(&self) {
+        let mut simulator = self.shared.simulator.lock().await;
+        self.flush(&mut simulator).await;
+    }
+
+    async fn flush(&self, simulator: &mut S) {
+        let events = simulator.drain_events();
+        let subscriptions = self.shared.subscriptions.lock().await;
+        if let Err(error) =
+            notify::notify_peers(&self.shared.peer_map, &subscriptions, &events).await
+        {
+            tracing::error!("error notifying peers: {}", error);
+        }
+    }
+
+    /// Replaces the simulator with a new one and clears all subscriptions.
+    ///
+    /// Existing connections stay open. Peers aren't told about the reset, including the removal
+    /// of any transactions that were in the mempool.
     ///
     /// # Errors
     ///
     /// This currently never fails.
     pub async fn reset(&self) -> Result<(), PeerSimulatorError> {
-        *self.simulator.lock().await = Simulator::default();
-        *self.subscriptions.lock().await = Subscriptions::default();
+        *self.shared.simulator.lock().await = S::new_for_peers(&self.shared.config);
+        *self.shared.subscriptions.lock().await = Subscriptions::default();
         Ok(())
     }
 }
 
-impl Drop for PeerSimulator {
+impl<S: PeerSimulatorBackend> Drop for PeerSimulator<S> {
     fn drop(&mut self) {
         self.join_handle.abort();
     }

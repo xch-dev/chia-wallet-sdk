@@ -4,7 +4,8 @@ use indexmap::{IndexMap, IndexSet};
 use crate::{SimulatorError, StateDumpError};
 
 use super::super::{
-    FullNodeSimulator, SimBlock, SimCoinRecord, ValidatedBundle,
+    FullNodeSimulator, PeerEventLog, SIMULATOR_GENESIS_CHALLENGE, SimBlock, SimCoinRecord,
+    ValidatedBundle,
     state::{BlockDelta, ChainState, CoinChange, HintChange, SpendChange},
     validation::ValidationOverlay,
 };
@@ -308,7 +309,11 @@ impl TryFrom<SimulatorStateDump> for FullNodeSimulator {
             master_secret_key,
             prefarm_puzzle_hash: dump.prefarm_puzzle_hash,
             node_id: dump.node_id,
+            genesis_challenge: dump
+                .genesis_challenge
+                .unwrap_or(SIMULATOR_GENESIS_CHALLENGE),
             events: Vec::new(),
+            peer_events: PeerEventLog::default(),
         };
         for (expected_header, block) in dump.header_hashes.iter().zip(dump.blocks) {
             if block.header_hash != *expected_header {
