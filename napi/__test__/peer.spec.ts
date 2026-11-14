@@ -1,35 +1,33 @@
 import test from "ava";
 
 import {
+  AggSigConstants,
   BlsPairWithCoin,
   bytesEqual,
   Clvm,
   Peer,
   PeerSimulator,
+  Signature,
   SpendBundle,
 } from "../index.js";
 
-// Spends the coin to a new coin of `amount` with the same puzzle hash, and signs the
-// AGG_SIG_ME condition of the standard puzzle. The peer simulator uses testnet11 constants,
-// whose AGG_SIG_ME additional data is the genesis challenge.
-function spendCoin(
-  sim: PeerSimulator,
-  alice: BlsPairWithCoin,
-  amount: bigint,
-): SpendBundle {
+// Spends the coin to a new coin of `amount` with the same puzzle hash, and signs it with the
+// required signatures. The peer simulator uses testnet11 constants.
+function spendCoin(alice: BlsPairWithCoin, amount: bigint): SpendBundle {
   const clvm = new Clvm();
   const delegated = clvm.delegatedSpend([
     clvm.createCoin(alice.puzzleHash, amount),
   ]);
   clvm.spendStandardCoin(alice.coin, alice.pk, delegated);
 
-  const message = Buffer.concat([
-    delegated.puzzle.treeHash(),
-    alice.coin.coinId(),
-    sim.genesisChallenge(),
-  ]);
+  const coinSpends = clvm.coinSpends();
+  const required = clvm.requiredSignatures(
+    coinSpends,
+    AggSigConstants.testnet11(),
+  );
+  const signatures = required.bls.map((item) => alice.sk.sign(item.message()));
 
-  return new SpendBundle(clvm.coinSpends(), alice.sk.sign(message));
+  return new SpendBundle(coinSpends, Signature.aggregate(signatures));
 }
 
 async function nextCoinStateUpdate(peer: Peer) {
@@ -58,7 +56,7 @@ test("sends a transaction and reads it back through the peer", async (t) => {
   t.is(phUpdates.coinStates.length, 1);
   t.true(bytesEqual(phUpdates.puzzleHashes[0], alice.puzzleHash));
 
-  const spendBundle = spendCoin(sim, alice, 900n);
+  const spendBundle = spendCoin(alice, 900n);
   const ack = await peer.sendTransaction(spendBundle);
   t.is(ack.status, 1);
   t.falsy(ack.error);
@@ -92,7 +90,7 @@ test("returns a rejected transaction ack instead of throwing", async (t) => {
   const peer = await sim.connect();
 
   const alice = await sim.bls(1000n);
-  const spendBundle = spendCoin(sim, alice, 1000n);
+  const spendBundle = spendCoin(alice, 1000n);
 
   t.is((await peer.sendTransaction(spendBundle)).status, 1);
 
