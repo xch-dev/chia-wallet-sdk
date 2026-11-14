@@ -22,7 +22,8 @@ use clvmr::NodePtr;
 pub struct InternalCustodyLockSpends {
     /// First stage: signed singleton spend creating the lock coin and continuation.
     pub authorization: CoinSpend,
-    /// Second stage, in Python order: lock coin followed by `FINISH_REKEY` singleton.
+    /// Second stage, in `complete_rekey_spends` order: `FINISH_REKEY` singleton
+    /// followed by the lock coin, so it verifies as a `RekeyCompletion`.
     pub completion: [CoinSpend; 2],
 }
 impl super::InternalCustodyInfo {
@@ -350,7 +351,7 @@ impl InternalCustodyPolicy {
         )?;
         Ok(InternalCustodyLockSpends {
             authorization,
-            completion: [drop, singleton],
+            completion: [singleton, drop],
         })
     }
 }

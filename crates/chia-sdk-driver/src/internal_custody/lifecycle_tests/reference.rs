@@ -76,7 +76,9 @@ fn build(
             let lock = old.increase_security_spends(ctx, first.coin, proof, &signers)?;
             let mut out = vec![lock.authorization];
             if input.len() > 1 {
-                out.extend(lock.completion);
+                // The reference bundle puts the lock coin before the singleton.
+                let [singleton, drop] = lock.completion;
+                out.extend([drop, singleton]);
             }
             out
         }

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     DriverError, InternalCustodyError, InternalCustodyPolicy, InternalCustodySingletonSolution,
-    SpendContext,
+    SingletonInfo, SpendContext,
 };
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
@@ -268,20 +268,24 @@ fn reconstruct_lock<'a>(
     }
     let raw = InternalCustodySingletonSolution::from_clvm(&**ctx, solution)?;
     let stages = policy.increase_security_spends(ctx, first.coin, raw.lineage_proof, signers)?;
-    let pending = stages.completion[0].coin;
-    let intermediate_singleton = stages.completion[1].coin;
+    let [completion, drop] = stages.completion;
+    let intermediate_singleton = completion.coin;
+    let pending = drop.coin;
     let mut expected = vec![stages.authorization];
     if spends.len() != 1 {
-        expected.extend(stages.completion);
+        // Python's historical three-spend bundle puts the lock coin first.
+        expected.extend([drop, completion]);
     }
     require_exact_spends(&expected, spends)?;
     Ok(Reconstruction::ready(E::IncreaseSecurity {
         input: first.coin,
         intermediate_singleton,
         pending,
-        vault_child: crate::Singleton::new(intermediate_singleton, raw.lineage_proof, policy)
-            .child_with(new_policy, first.coin.amount)
-            .coin,
+        vault_child: Coin::new(
+            intermediate_singleton.coin_id(),
+            new_policy.puzzle_hash().into(),
+            first.coin.amount,
+        ),
         new_policy: definition(new_policy),
     }))
 }

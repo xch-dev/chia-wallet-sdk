@@ -96,6 +96,7 @@ impl InternalCustodyPolicy {
         if policy.to_reference_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());
         }
+        policy.derived = true;
         Ok(policy)
     }
 

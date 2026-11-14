@@ -232,10 +232,7 @@ fn launch_absorb_lock_resume_and_pay_at_the_higher_security_level() -> anyhow::R
         },
         (lineage, parent),
     )?;
-    assert_eq!(
-        resumed,
-        [lock.completion[1].clone(), lock.completion[0].clone()]
-    );
+    assert_eq!(resumed, lock.completion);
     parse_internal_custody_operation(
         ctx,
         &p,

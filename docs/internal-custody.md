@@ -118,8 +118,10 @@ original policy even if the live singleton later rekeys.
   carrying relative-time assertions, even with zero delay. Python's three-spend
   lock bundle must therefore be submitted in two stages. `increase_security_spends`
   returns signed `authorization` and unsigned `completion` separately; confirm
-  the first before submitting the second. `complete_rekey_spends` also supports
-  reconstructing the second stage from persisted chain state. The verifier can
+  the first before submitting the second. `completion` is in
+  `complete_rekey_spends` order (singleton first) and verifies as a
+  `RekeyCompletion`; `complete_rekey_spends` also supports reconstructing it
+  from persisted chain state. The verifier can
   describe the full historical three-spend bundle, but does not claim it is a
   single consensus-valid transaction.
 - Python's historical `data_to_sign` helper hardcodes the mainnet AGG_SIG_ME

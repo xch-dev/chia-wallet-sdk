@@ -63,6 +63,9 @@ pub struct InternalCustodyPolicy {
     thresholds: InternalCustodyThresholds,
     pub(super) filter_proofs: Vec<InternalCustodyProof>,
     pub(super) leaf_proofs: Vec<InternalCustodyProof>,
+    /// Set only by [`Self::derive`], whose output matches its own definition by
+    /// construction, so [`Self::verify_definition`] can skip re-deriving it.
+    derived: bool,
 }
 impl InternalCustodyPolicy {
     /// Validate and construct bounded public custody policy data.
@@ -116,6 +119,7 @@ impl InternalCustodyPolicy {
             thresholds,
             filter_proofs,
             leaf_proofs,
+            derived: false,
         };
         if policy.to_reference_bytes().len() > MAX_POLICY_BYTES {
             return Err(InternalCustodyError::InvalidPolicy.into());
@@ -187,6 +191,9 @@ impl InternalCustodyPolicy {
     /// root and next-level commitment to match this policy. Proof order is not
     /// authority; construction checks inclusion proofs separately.
     pub fn verify_definition(&self, ctx: &mut crate::SpendContext) -> Result<(), DriverError> {
+        if self.derived {
+            return Ok(());
+        }
         let derived = Self::derive(ctx, self.info, self.keys.clone(), self.thresholds)?;
         if derived.info.puzzle_root != self.info.puzzle_root || derived.next_root != self.next_root
         {
