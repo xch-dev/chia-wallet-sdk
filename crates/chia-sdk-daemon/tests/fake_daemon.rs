@@ -237,3 +237,120 @@ async fn stops_after_max_reconnect_attempts() -> Result<()> {
 
     Ok(())
 }
+
+/// Reads from the socket until the client closes it or the connection ends.
+async fn drain(ws: &mut ServerSocket) {
+    while let Some(message) = ws.next().await {
+        if message.is_err() {
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn close_during_reconnect_stops_the_client() -> Result<()> {
+    let daemon = FakeDaemon::start().await?;
+    let addr = daemon.addr();
+    let (client, ws, _origin) = accept_client(&daemon).await;
+    let mut disconnects = client.on_disconnect();
+    let mut reconnects = client.on_reconnect();
+
+    // Nothing is listening, so the client keeps waiting between reconnection attempts.
+    drop(daemon);
+    drop(ws);
+    within(disconnects.recv()).await?;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    within(client.close()).await?;
+
+    // The daemon comes back, but the client stays closed instead of reconnecting to it.
+    let daemon = FakeDaemon::bind(addr).await?;
+    within(async {
+        tokio::select! {
+            () = client.closed() => {}
+            _ = daemon.accept() => panic!("the client reconnected after it was closed"),
+        }
+    })
+    .await;
+
+    let accepted = tokio::time::timeout(Duration::from_secs(3), daemon.listener.accept()).await;
+    assert!(
+        accepted.is_err(),
+        "the client reconnected after it was closed"
+    );
+    assert!(reconnects.try_recv().is_err());
+
+    assert!(matches!(
+        client.get_network_info().await,
+        Err(DaemonError::ConnectionClosed)
+    ));
+    assert!(matches!(
+        client.subscribe("wallet_ui").await,
+        Err(DaemonError::ConnectionClosed)
+    ));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pending_request_fails_when_the_daemon_closes() -> Result<()> {
+    let daemon = FakeDaemon::start().await?;
+    let (client, mut ws, _origin) = accept_client(&daemon).await;
+
+    // The daemon closes the connection instead of answering the request.
+    let server = async {
+        let request = recv_json(&mut ws).await;
+        assert_eq!(request["command"], "get_network_info");
+        ws.close(None).await.unwrap();
+        drain(&mut ws).await;
+    };
+
+    // The request fails as soon as the connection closes, well before its timeout.
+    let (response, ()) = tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::join!(client.get_network_info(), server)
+    })
+    .await
+    .expect("the request didn't fail promptly");
+    assert!(matches!(response, Err(DaemonError::ReceiveFailed)));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn closed_fires_when_the_daemon_closes() -> Result<()> {
+    let daemon = FakeDaemon::start().await?;
+    let (client, mut ws, _origin) = accept_client(&daemon).await;
+    let mut reconnects = client.on_reconnect();
+
+    ws.close(None).await?;
+    within(async { tokio::join!(client.closed(), drain(&mut ws)) }).await;
+
+    assert!(reconnects.try_recv().is_err());
+    assert!(matches!(
+        client.get_network_info().await,
+        Err(DaemonError::ConnectionClosed)
+    ));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn subscribe_after_close_returns_connection_closed() -> Result<()> {
+    let daemon = FakeDaemon::start().await?;
+    let (client, mut ws, _origin) = accept_client(&daemon).await;
+
+    // Subscribing fails as soon as the client starts closing, and after it has closed.
+    client.close().await?;
+    assert!(matches!(
+        client.subscribe("wallet_ui").await,
+        Err(DaemonError::ConnectionClosed)
+    ));
+
+    within(async { tokio::join!(client.closed(), drain(&mut ws)) }).await;
+    assert!(matches!(
+        client.subscribe("wallet_ui").await,
+        Err(DaemonError::ConnectionClosed)
+    ));
+
+    Ok(())
+}

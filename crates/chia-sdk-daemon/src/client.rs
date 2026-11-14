@@ -102,6 +102,8 @@ mod inner {
         max_reconnect_attempts: AtomicU32,
         disconnect_tx: broadcast::Sender<()>,
         reconnect_tx: broadcast::Sender<()>,
+        /// Set by [`DaemonClient::close`], so that the client doesn't reconnect afterwards.
+        closing: watch::Sender<bool>,
         closed: watch::Sender<bool>,
     }
 
@@ -155,6 +157,7 @@ mod inner {
             let (connected_tx, _) = watch::channel(true);
             let (disconnect_tx, _) = broadcast::channel::<()>(16);
             let (reconnect_tx, _) = broadcast::channel::<()>(16);
+            let (closing_tx, _) = watch::channel(false);
             let (closed_tx, _) = watch::channel(false);
 
             let inner = Arc::new(DaemonClientInner {
@@ -171,6 +174,7 @@ mod inner {
                 max_reconnect_attempts: AtomicU32::new(u32::MAX),
                 disconnect_tx,
                 reconnect_tx,
+                closing: closing_tx,
                 closed: closed_tx,
             });
 
@@ -221,6 +225,10 @@ mod inner {
         }
 
         async fn register_service(&self, service: &str) -> Result<(), DaemonError> {
+            if !self.is_usable() {
+                return Err(DaemonError::ConnectionClosed);
+            }
+
             let request_id = next_request_id();
 
             let request = WebsocketRequest {
@@ -246,11 +254,29 @@ mod inner {
 
         /// Closes the websocket connection.
         ///
-        /// Once the daemon completes the close handshake, the background task stops without
-        /// reconnecting.
+        /// New requests and subscriptions fail with [`DaemonError::ConnectionClosed`] from now
+        /// on. Once the daemon completes the close handshake, the background task stops
+        /// without reconnecting. If the client is reconnecting, it stops trying instead.
         pub async fn close(&self) -> Result<(), DaemonError> {
-            self.0.sink.lock().await.close().await?;
+            // This is set before the sink is locked, so a reconnection that installs a new sink
+            // either sees it and closes that sink itself, or installs it before this closes it.
+            self.0.closing.send_replace(true);
+
+            let result = self.0.sink.lock().await.close().await;
+
+            // While reconnecting, the sink belongs to the broken connection, so it can't be
+            // closed cleanly. The reconnection stops on its own once it sees `closing`.
+            if result.is_err() && !*self.0.connected.borrow() {
+                return Ok(());
+            }
+
+            result?;
             Ok(())
+        }
+
+        /// Whether requests can be sent, because the client is connected and isn't closing.
+        fn is_usable(&self) -> bool {
+            *self.0.connected.borrow() && !*self.0.closing.borrow()
         }
 
         /// Returns a receiver that fires when the connection is lost unexpectedly, before the
@@ -291,7 +317,7 @@ mod inner {
         where
             R: DeserializeOwned + Send,
         {
-            if !*self.0.connected.subscribe().borrow() {
+            if !self.is_usable() {
                 return Err(DaemonError::ConnectionClosed);
             }
 
@@ -341,11 +367,22 @@ mod inner {
                 match handle_inbound_messages(stream, inner.pending.clone(), inner.event_tx.clone())
                     .await
                 {
-                    Ok(()) => debug!("Daemon connection closed"),
+                    Ok(()) => {
+                        debug!("Daemon connection closed");
+                        // If the daemon started the close, this sends the reply that tungstenite
+                        // queued, which completes the handshake and ends the connection.
+                        inner.sink.lock().await.close().await.ok();
+                    }
+                    Err(error) if *inner.closing.borrow() => {
+                        debug!("Daemon reader task ended after closing: {error}");
+                    }
                     Err(error) => {
                         debug!("Daemon reader task ended: {error}");
                         match Self::reconnect(inner.clone()).await {
                             Ok(()) => return,
+                            Err(DaemonError::ConnectionClosed) => {
+                                debug!("Stopped reconnecting because the client was closed");
+                            }
                             Err(e) => error!("Reconnection failed permanently: {e}"),
                         }
                     }
@@ -383,8 +420,13 @@ mod inner {
             let mut attempt = 0u32;
             let mut backoff = Duration::from_secs(1);
             let max_backoff = Duration::from_secs(30);
+            let mut closing = inner.closing.subscribe();
 
             loop {
+                if *closing.borrow() {
+                    return Err(DaemonError::ConnectionClosed);
+                }
+
                 attempt += 1;
                 let max = inner.max_reconnect_attempts.load(Ordering::Relaxed);
                 if max != u32::MAX && attempt > max {
@@ -393,49 +435,72 @@ mod inner {
 
                 info!("Reconnecting to daemon (attempt {attempt})...");
 
-                match tokio_tungstenite::connect_async_tls_with_config(
+                let connect = tokio_tungstenite::connect_async_tls_with_config(
                     &inner.base_url,
                     None,
                     false,
                     Some(inner.connector.clone()),
-                )
-                .await
-                {
-                    Ok((ws, _)) => {
-                        let (new_sink, new_stream) = ws.split();
+                );
 
-                        *inner.sink.lock().await = new_sink;
+                let result = tokio::select! {
+                    result = connect => result,
+                    _ = closing.wait_for(|closing| *closing) => {
+                        return Err(DaemonError::ConnectionClosed);
+                    }
+                };
+
+                match result {
+                    Ok((ws, _)) => {
+                        let (mut new_sink, new_stream) = ws.split();
+
+                        // The services are cloned first, since `subscribe` locks them before
+                        // the sink. A service subscribed while reconnecting fails to register,
+                        // so it isn't missed here.
+                        let subs = inner.subscriptions.lock().await.clone();
+
+                        {
+                            let mut sink = inner.sink.lock().await;
+
+                            // `close` sets this before it locks the sink, so if it isn't set
+                            // here, `close` will close the new sink once this unlocks it.
+                            if *inner.closing.borrow() {
+                                new_sink.close().await.ok();
+                                return Err(DaemonError::ConnectionClosed);
+                            }
+
+                            // Re-register all subscriptions (origin is first in the vec)
+                            for service in &subs {
+                                let request_id = next_request_id();
+                                let request = WebsocketRequest {
+                                    command: "register_service".to_string(),
+                                    ack: false,
+                                    origin: inner.origin.clone(),
+                                    destination: "daemon".to_string(),
+                                    request_id,
+                                    data: serde_json::json!({ "service": service }),
+                                };
+                                if let Ok(msg) = serde_json::to_string(&request) {
+                                    new_sink
+                                        .send(tungstenite::Message::Text(msg.into()))
+                                        .await
+                                        .ok();
+                                }
+                            }
+
+                            *sink = new_sink;
+
+                            // This is set before the new reader starts, so that if the new
+                            // connection ends at once, the reader marks it as disconnected
+                            // after this, rather than this marking it as connected again.
+                            inner.connected.send_replace(true);
+                        }
 
                         // This runs on the old reader task, after its stream ended, so the
                         // old handle is replaced without aborting it. Aborting would cancel
-                        // this task at its next await, before it registers the services.
+                        // this task at its next await.
                         let new_handle = Self::spawn_reader(inner.clone(), new_stream);
                         *inner.reader_handle.lock().await = Some(new_handle);
 
-                        // Re-register all subscriptions (origin is first in the vec)
-                        let subs = inner.subscriptions.lock().await.clone();
-                        for service in &subs {
-                            let request_id = next_request_id();
-                            let request = WebsocketRequest {
-                                command: "register_service".to_string(),
-                                ack: false,
-                                origin: inner.origin.clone(),
-                                destination: "daemon".to_string(),
-                                request_id,
-                                data: serde_json::json!({ "service": service }),
-                            };
-                            if let Ok(msg) = serde_json::to_string(&request) {
-                                inner
-                                    .sink
-                                    .lock()
-                                    .await
-                                    .send(tungstenite::Message::Text(msg.into()))
-                                    .await
-                                    .ok();
-                            }
-                        }
-
-                        inner.connected.send_modify(|val| *val = true);
                         inner.reconnect_tx.send(()).ok();
 
                         info!("Reconnected to daemon successfully");
@@ -443,7 +508,12 @@ mod inner {
                     }
                     Err(e) => {
                         warn!("Reconnect attempt {attempt} failed: {e}");
-                        tokio::time::sleep(backoff).await;
+                        tokio::select! {
+                            () = tokio::time::sleep(backoff) => {}
+                            _ = closing.wait_for(|closing| *closing) => {
+                                return Err(DaemonError::ConnectionClosed);
+                            }
+                        }
                         backoff = (backoff * 2).min(max_backoff);
                     }
                 }
