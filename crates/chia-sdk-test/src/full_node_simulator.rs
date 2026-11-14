@@ -12,6 +12,7 @@ use rand_chacha::ChaCha8Rng;
 
 mod chain;
 mod fast_forward;
+mod peer_events;
 mod push_tx;
 mod queries;
 mod state;
@@ -23,6 +24,9 @@ mod validation;
 #[cfg(test)]
 mod tests;
 
+use peer_events::PeerEventLog;
+#[cfg(feature = "peer-simulator")]
+pub(crate) use peer_events::{MempoolItemIds, PeerEvent};
 use state::ChainState;
 use types::{SimBlock, SimCoinRecord, ValidatedBundle, ValidatedSpend};
 
@@ -95,7 +99,9 @@ pub struct FullNodeSimulator {
     master_secret_key: SecretKey,
     prefarm_puzzle_hash: Bytes32,
     node_id: Bytes32,
+    genesis_challenge: Bytes32,
     events: Vec<FullNodeSimulatorEvent>,
+    peer_events: PeerEventLog,
 }
 
 impl Default for FullNodeSimulator {
@@ -227,8 +233,22 @@ impl FullNodeSimulator {
             master_secret_key: root_secret_key,
             prefarm_puzzle_hash,
             node_id: node_id.into(),
+            genesis_challenge: SIMULATOR_GENESIS_CHALLENGE,
             events: Vec::new(),
+            peer_events: PeerEventLog::default(),
         }
+    }
+
+    /// Sets the genesis challenge, which is used as the `AGG_SIG_ME` additional data when
+    /// validating spends and is reported by [`FullNodeSimulator::get_network_info`].
+    ///
+    /// This lets the simulator accept spends signed for another network. For example, setting it
+    /// to the testnet11 genesis challenge makes it accept spends signed with
+    /// [`sign_transaction`](crate::sign_transaction). Transactions already in the mempool are
+    /// revalidated when the next block is farmed, so any whose signatures no longer match are
+    /// dropped then.
+    pub fn set_genesis_challenge(&mut self, genesis_challenge: Bytes32) {
+        self.genesis_challenge = genesis_challenge;
     }
 
     /// Adds an unspent coin to the coin set, confirmed at the current height and timestamp.

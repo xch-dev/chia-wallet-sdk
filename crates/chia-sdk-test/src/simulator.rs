@@ -281,6 +281,17 @@ impl Simulator {
             .collect()
     }
 
+    /// Returns the hints of the coin with id `coin_id`.
+    #[cfg(feature = "peer-simulator")]
+    pub(crate) fn hints_of(&self, coin_id: Bytes32) -> Vec<Bytes32> {
+        self.data
+            .hinted_coins
+            .iter()
+            .filter(|(_, coin_ids)| coin_ids.contains(&coin_id))
+            .map(|(hint, _)| *hint)
+            .collect()
+    }
+
     /// Returns the ids of all coins that have been hinted with `hint`.
     pub fn hinted_coins(&self, hint: Bytes32) -> Vec<Bytes32> {
         self.data
