@@ -94,6 +94,15 @@
           "relation": "Option<Relation>"
         },
         "return": "FinishedSpends"
+      },
+      "apply_with_fee": {
+        "args": {
+          "actions": "Vec<Action>",
+          "xch_coins": "Vec<Coin>",
+          "fee": "u64",
+          "relation": "Option<Relation>"
+        },
+        "return": "FinishedSpends"
       }
     }
   },

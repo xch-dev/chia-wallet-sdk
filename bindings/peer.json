@@ -101,6 +101,53 @@
         },
         "return": "Vec<Bytes32>"
       },
+      "send_transaction": {
+        "type": "async",
+        "args": {
+          "spend_bundle": "SpendBundle"
+        },
+        "return": "TransactionAck"
+      },
+      "register_for_ph_updates": {
+        "type": "async",
+        "args": {
+          "puzzle_hashes": "Vec<Bytes32>",
+          "min_height": "u32"
+        },
+        "return": "RespondToPhUpdates"
+      },
+      "register_for_coin_updates": {
+        "type": "async",
+        "args": {
+          "coin_ids": "Vec<Bytes32>",
+          "min_height": "u32"
+        },
+        "return": "RespondToCoinUpdates"
+      },
+      "request_children": {
+        "type": "async",
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "RespondChildren"
+      },
+      "request_transaction": {
+        "type": "async",
+        "args": {
+          "transaction_id": "Bytes32"
+        },
+        "return": "RespondTransaction"
+      },
+      "request_peers": {
+        "type": "async",
+        "return": "RespondPeers"
+      },
+      "socket_addr": {
+        "return": "String"
+      },
+      "close": {
+        "type": "async"
+      },
       "next": {
         "type": "async",
         "return": "Option<Event>"
@@ -184,6 +231,77 @@
       "include_unspent": "bool",
       "include_hinted": "bool",
       "min_amount": "u64"
+    }
+  },
+  "TransactionAck": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "txid": "Bytes32",
+      "status": "u8",
+      "error": "Option<String>"
+    }
+  },
+  "RespondToPhUpdates": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "puzzle_hashes": "Vec<Bytes32>",
+      "min_height": "u32",
+      "coin_states": "Vec<CoinState>"
+    }
+  },
+  "RespondToCoinUpdates": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin_ids": "Vec<Bytes32>",
+      "min_height": "u32",
+      "coin_states": "Vec<CoinState>"
+    }
+  },
+  "RespondChildren": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin_states": "Vec<CoinState>"
+    }
+  },
+  "RespondTransaction": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "transaction": "SpendBundle"
+    }
+  },
+  "RespondPeers": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "peer_list": "Vec<TimestampedPeerInfo>"
+    }
+  },
+  "TimestampedPeerInfo": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "host": "String",
+      "port": "u16",
+      "timestamp": "u64"
     }
   }
 }

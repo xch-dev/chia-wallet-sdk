@@ -17,25 +17,31 @@ workspace = true
 [features]
 napi = [
     "dep:chia-sdk-client",
+    "dep:chia-sdk-daemon",
     "dep:chia-ssl",
     "dep:tokio",
     "bindy/napi",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 wasm = ["bindy/wasm"]
 pyo3 = [
     "dep:chia-sdk-client",
+    "dep:chia-sdk-daemon",
     "dep:chia-ssl",
     "dep:tokio",
     "bindy/pyo3",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 uniffi = [
     "dep:chia-sdk-client",
+    "dep:chia-sdk-daemon",
     "dep:chia-ssl",
     "dep:tokio",
     "bindy/uniffi",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 
 [dependencies]
@@ -43,8 +49,10 @@ chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true, features = ["serde"] }
+chia-sdk-signer = { workspace = true }
 chia-sdk-types = { workspace = true, features = ["chip-0008", "chip-0021", "chip-0035", "chip-0037", "chip-0052", "auction", "pooling"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
+chia-sdk-daemon = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }
 chia-consensus = { workspace = true }
@@ -65,6 +73,5 @@ rand_chacha = { workspace = true }
 num-bigint = { workspace = true }
 paste = { workspace = true }
 chialisp = { workspace = true }
-tokio = { workspace = true, features = ["sync"], optional = true }
-reqwest = { workspace = true }
+tokio = { workspace = true, features = ["sync", "macros"], optional = true }
 serde = { workspace = true }

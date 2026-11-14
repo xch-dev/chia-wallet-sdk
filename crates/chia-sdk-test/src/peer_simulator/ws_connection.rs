@@ -6,9 +6,10 @@ use chia_protocol::{
     PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
     RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren, RequestCoinState,
     RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
-    RequestRemovePuzzleSubscriptions, RespondChildren, RespondCoinState, RespondPuzzleSolution,
-    RespondPuzzleState, RespondRemoveCoinSubscriptions, RespondRemovePuzzleSubscriptions,
-    RespondToCoinUpdates, RespondToPhUpdates, SendTransaction, SpendBundle, TransactionAck,
+    RequestRemovePuzzleSubscriptions, RequestTransaction, RespondChildren, RespondCoinState,
+    RespondPeers, RespondPuzzleSolution, RespondPuzzleState, RespondRemoveCoinSubscriptions,
+    RespondRemovePuzzleSubscriptions, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
+    SendTransaction, SpendBundle, TransactionAck,
 };
 use chia_traits::Streamable;
 use futures_channel::mpsc::{self, UnboundedSender};
@@ -27,7 +28,7 @@ use tokio_tungstenite::{
 use crate::{Simulator, SimulatorError};
 
 use super::{
-    PeerMap, config::PeerSimulatorConfig, error::PeerSimulatorError, peer_map::Ws,
+    PeerMap, Transactions, config::PeerSimulatorConfig, error::PeerSimulatorError, peer_map::Ws,
     subscriptions::Subscriptions,
 };
 
@@ -38,6 +39,7 @@ pub(crate) async fn ws_connection(
     config: Arc<PeerSimulatorConfig>,
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
+    transactions: Arc<Mutex<Transactions>>,
 ) {
     let (mut tx, mut rx) = mpsc::unbounded();
 
@@ -72,6 +74,7 @@ pub(crate) async fn ws_connection(
             &config,
             &simulator,
             &subscriptions,
+            &transactions,
             message,
             addr,
             tx.clone(),
@@ -112,11 +115,13 @@ async fn handle_initial_peak(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_message(
     peer_map: PeerMap,
     config: &PeerSimulatorConfig,
     simulator: &Mutex<Simulator>,
     subscriptions: &Mutex<Subscriptions>,
+    transactions: &Mutex<Transactions>,
     message: WsMessage,
     addr: SocketAddr,
     mut ws: Ws,
@@ -128,9 +133,35 @@ async fn handle_message(
         ProtocolMessageTypes::SendTransaction => {
             let request = SendTransaction::from_bytes(&request.data)?;
             let subscriptions = subscriptions.lock().await;
-            let response = send_transaction(peer_map, request, simulator, subscriptions).await?;
+            let mut transactions = transactions.lock().await;
+            let response = send_transaction(
+                peer_map,
+                request,
+                simulator,
+                subscriptions,
+                &mut transactions,
+            )
+            .await?;
             (ProtocolMessageTypes::TransactionAck, response)
         }
+        ProtocolMessageTypes::RequestTransaction => {
+            let request = RequestTransaction::from_bytes(&request.data)?;
+            let transactions = transactions.lock().await;
+
+            // Like a full node, don't respond if the transaction isn't known.
+            let Some(spend_bundle) = transactions.get(&request.transaction_id).cloned() else {
+                return Ok(());
+            };
+
+            (
+                ProtocolMessageTypes::RespondTransaction,
+                RespondTransaction::new(spend_bundle).to_bytes()?.into(),
+            )
+        }
+        ProtocolMessageTypes::RequestPeers => (
+            ProtocolMessageTypes::RespondPeers,
+            RespondPeers::new(Vec::new()).to_bytes()?.into(),
+        ),
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
             let subscriptions = subscriptions.lock().await;
@@ -261,8 +292,10 @@ async fn send_transaction(
     request: SendTransaction,
     mut simulator: MutexGuard<'_, Simulator>,
     mut subscriptions: MutexGuard<'_, Subscriptions>,
+    transactions: &mut Transactions,
 ) -> Result<Bytes, PeerSimulatorError> {
     let transaction_id = request.transaction.name();
+    let spend_bundle = request.transaction.clone();
 
     let updates = match new_transaction(&mut simulator, &mut subscriptions, request.transaction) {
         Ok(updates) => updates,
@@ -283,6 +316,8 @@ async fn send_transaction(
             .into());
         }
     };
+
+    transactions.insert(transaction_id, spend_bundle);
 
     let header_hash = simulator.header_hash();
 

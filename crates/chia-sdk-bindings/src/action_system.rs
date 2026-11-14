@@ -4,7 +4,7 @@ use std::{
 };
 
 use bindy::Result;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext, SpendKind,
@@ -218,6 +218,8 @@ impl Spends {
     }
 
     pub fn prepare(&self, deltas: Deltas, relation: Option<Relation>) -> Result<FinishedSpends> {
+        // Every method locks the Clvm before the spends, so that concurrent calls can't deadlock.
+        let mut ctx = self.clvm.lock().unwrap();
         let mut spends = self.spends.lock().unwrap();
 
         let empty = sdk::Spends::with_separate_change_puzzle_hash(
@@ -226,29 +228,13 @@ impl Spends {
         );
         let spends = std::mem::replace(&mut *spends, empty);
 
-        let mut ctx = self.clvm.lock().unwrap();
-
         let spends = spends.prepare(
             &mut ctx,
             &deltas.0,
             relation.map_or(sdk::Relation::None, Into::into),
         )?;
 
-        let mut finished = HashMap::new();
-
-        for (asset, kind) in spends.unspent() {
-            let SpendKind::Settlement(settlement) = kind else {
-                continue;
-            };
-
-            finished.insert(
-                asset.coin().coin_id(),
-                SettlementLayer.construct_spend(
-                    &mut ctx,
-                    SettlementPaymentsSolution::new(settlement.finish()),
-                )?,
-            );
-        }
+        let finished = settlement_spends(&mut ctx, &spends)?;
 
         Ok(FinishedSpends {
             spends: Arc::new(Mutex::new(spends)),
@@ -256,6 +242,74 @@ impl Spends {
             finished: Arc::new(Mutex::new(finished)),
         })
     }
+
+    /// Applies the actions and a fee of `fee`, selecting XCH from `xch_coins` to cover them, and prepares the spends.
+    /// This is [`sdk::Spends::apply_with_fee`], with the p2 spends provided afterwards through the returned
+    /// [`FinishedSpends`], as with [`Spends::prepare`]. `actions` shouldn't include a fee, since one is added.
+    ///
+    /// Unlike [`Spends::prepare`], this leaves the spends as they were, so it can be called again with a higher fee.
+    /// The coins are selected the same way for the same fee, so calling it again with the same fee builds the same
+    /// transaction. Coins in `xch_coins` that are already being spent, by these spends or by a coin spend already in
+    /// the [`Clvm`], are skipped, so take the coin spends of each attempt out of the [`Clvm`] with
+    /// [`Clvm::coin_spends`] before the next one.
+    ///
+    /// To pay the minimum fee, start with a fee of zero, spend the result, take the coin spends, and price them with
+    /// [`spend_bundle_cost`](crate::spend_bundle_cost) and [`recommended_fee`](crate::recommended_fee). Repeat with
+    /// that fee until the fee covers it.
+    ///
+    /// On error, the [`Clvm`]'s coin spends are left as they were before the call.
+    pub fn apply_with_fee(
+        &self,
+        actions: Vec<Action>,
+        xch_coins: Vec<Coin>,
+        fee: u64,
+        relation: Option<Relation>,
+    ) -> Result<FinishedSpends> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let spends = self.spends.lock().unwrap();
+
+        let actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
+
+        let (spends, finished) = spends.apply_with_fee(
+            &mut ctx,
+            &actions,
+            &xch_coins,
+            fee,
+            relation.map_or(sdk::Relation::None, Into::into),
+            |ctx, spends| {
+                let finished = settlement_spends(ctx, &spends)?;
+                Ok((spends, finished))
+            },
+        )?;
+
+        Ok(FinishedSpends {
+            spends: Arc::new(Mutex::new(spends)),
+            clvm: self.clvm.clone(),
+            finished: Arc::new(Mutex::new(finished)),
+        })
+    }
+}
+
+/// Builds the spends of the settlement coins, which don't need a p2 spend from the caller.
+fn settlement_spends(
+    ctx: &mut SpendContext,
+    spends: &sdk::Spends<sdk::Finished>,
+) -> std::result::Result<HashMap<Bytes32, sdk::Spend>, sdk::DriverError> {
+    let mut finished = HashMap::new();
+
+    for (asset, kind) in spends.unspent() {
+        let SpendKind::Settlement(settlement) = kind else {
+            continue;
+        };
+
+        finished.insert(
+            asset.coin().coin_id(),
+            SettlementLayer
+                .construct_spend(ctx, SettlementPaymentsSolution::new(settlement.finish()))?,
+        );
+    }
+
+    Ok(finished)
 }
 
 #[derive(Clone)]
@@ -313,13 +367,29 @@ impl FinishedSpends {
         Ok(())
     }
 
+    /// Spends the coins, adding the coin spends to the [`Clvm`]. Every pending spend must have been given a p2 spend
+    /// with [`FinishedSpends::insert`]. On error, the [`Clvm`]'s coin spends are left as they were before the call.
     pub fn spend(&self) -> Result<Outputs> {
         let mut ctx = self.clvm.lock().unwrap();
 
         let spends = self.spends.lock().unwrap().clone();
         let finished = self.finished.lock().unwrap().clone();
 
-        let outputs = spends.spend(&mut ctx, finished)?;
+        let existing: Vec<CoinSpend> = ctx.iter().cloned().collect();
+
+        let outputs = match spends.spend(&mut ctx, finished) {
+            Ok(outputs) => outputs,
+            Err(error) => {
+                ctx.take();
+
+                for coin_spend in existing {
+                    ctx.insert(coin_spend);
+                }
+
+                return Err(error.into());
+            }
+        };
+
         Ok(Outputs {
             inner: outputs,
             clvm: self.clvm.clone(),

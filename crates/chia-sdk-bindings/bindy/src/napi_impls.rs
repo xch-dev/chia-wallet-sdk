@@ -51,6 +51,12 @@ impl FromRust<(), NapiReturnContext, Napi> for () {
     }
 }
 
+impl FromRust<(), NapiAsyncReturnContext, Napi> for () {
+    fn from_rust(_value: (), _context: &NapiAsyncReturnContext) -> Result<Self> {
+        Ok(())
+    }
+}
+
 trait ArrayBuffer: From<Vec<u8>> {
     fn generic_to_vec(&self) -> Vec<u8>;
 }

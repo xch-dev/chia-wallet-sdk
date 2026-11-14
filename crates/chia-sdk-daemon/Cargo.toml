@@ -23,12 +23,15 @@ chia-sdk-coinset = { workspace = true }
 chia-sdk-client = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tungstenite = { workspace = true }
-tokio = { workspace = true, features = ["sync", "time", "rt"] }
+tokio = { workspace = true, features = ["macros", "sync", "time", "rt"] }
 futures-util = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
 
 [package.metadata.cargo-machete]
 ignored = ["chia-sdk-client"]

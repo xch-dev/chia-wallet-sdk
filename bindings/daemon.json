@@ -1,0 +1,61 @@
+{
+  "DaemonClient": {
+    "type": "class",
+    "no_wasm": true,
+    "methods": {
+      "connect": {
+        "type": "async_factory",
+        "args": {
+          "url": "String",
+          "connector": "Connector",
+          "timeout_seconds": "f64"
+        }
+      },
+      "rpc_client": {
+        "return": "RpcClient"
+      },
+      "subscribe": {
+        "type": "async",
+        "args": {
+          "service": "String"
+        },
+        "return": "DaemonSubscription"
+      },
+      "close": {
+        "type": "async"
+      },
+      "set_max_reconnect_attempts": {
+        "args": {
+          "max_attempts": "Option<u32>"
+        }
+      },
+      "next_disconnect": {
+        "type": "async",
+        "return": "bool"
+      },
+      "next_reconnect": {
+        "type": "async",
+        "return": "bool"
+      }
+    }
+  },
+  "DaemonSubscription": {
+    "type": "class",
+    "no_wasm": true,
+    "methods": {
+      "next": {
+        "type": "async",
+        "return": "Option<DaemonEvent>"
+      }
+    }
+  },
+  "DaemonEvent": {
+    "type": "class",
+    "no_wasm": true,
+    "fields": {
+      "command": "String",
+      "origin": "String",
+      "data": "String"
+    }
+  }
+}

@@ -3,7 +3,8 @@ use std::sync::Arc;
 use bindy::Result;
 use chia_protocol::{
     Bytes32, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes, PuzzleSolutionResponse,
-    RespondCoinState, RespondPuzzleState,
+    RespondChildren, RespondCoinState, RespondPeers, RespondPuzzleState, RespondToCoinUpdates,
+    RespondToPhUpdates, RespondTransaction, SpendBundle, TransactionAck,
 };
 use chia_sdk_client::{
     Connector as SdkConnector, Peer as SdkPeer, PeerOptions as SdkPeerOptions, connect_peer,
@@ -38,7 +39,7 @@ impl Certificate {
 }
 
 #[derive(Clone)]
-pub struct Connector(SdkConnector);
+pub struct Connector(pub(crate) SdkConnector);
 
 impl Connector {
     pub fn new(cert: Certificate) -> Result<Self> {
@@ -103,7 +104,13 @@ impl Peer {
         )
         .await?;
 
-        Ok(Self(peer, Arc::new(Mutex::new(receiver))))
+        Ok(Self::from_parts(peer, receiver))
+    }
+
+    /// Wraps a connected peer and the receiver for its incoming messages, so that the receiver
+    /// can be read with [`Peer::next`].
+    pub(crate) fn from_parts(peer: SdkPeer, receiver: Receiver<Message>) -> Self {
+        Self(peer, Arc::new(Mutex::new(receiver)))
     }
 
     pub async fn request_coin_state(
@@ -168,6 +175,68 @@ impl Peer {
             .puzzle_hashes)
     }
 
+    /// Submits a spend bundle to the peer's mempool.
+    ///
+    /// A rejected transaction isn't an error: check the returned ack's `status` and `error`.
+    pub async fn send_transaction(&self, spend_bundle: SpendBundle) -> Result<TransactionAck> {
+        Ok(self.0.send_transaction(spend_bundle).await?)
+    }
+
+    /// Subscribes to updates for coins with the given puzzle hashes, and returns the state of
+    /// those coins that changed since `min_height`. Later updates are returned by [`Peer::next`].
+    pub async fn register_for_ph_updates(
+        &self,
+        puzzle_hashes: Vec<Bytes32>,
+        min_height: u32,
+    ) -> Result<RespondToPhUpdates> {
+        Ok(self
+            .0
+            .register_for_ph_updates(puzzle_hashes, min_height)
+            .await?)
+    }
+
+    /// Subscribes to updates for the given coins, and returns the state of those coins that
+    /// changed since `min_height`. Later updates are returned by [`Peer::next`].
+    pub async fn register_for_coin_updates(
+        &self,
+        coin_ids: Vec<Bytes32>,
+        min_height: u32,
+    ) -> Result<RespondToCoinUpdates> {
+        Ok(self
+            .0
+            .register_for_coin_updates(coin_ids, min_height)
+            .await?)
+    }
+
+    /// Requests the state of the coins created by spending the given coin.
+    pub async fn request_children(&self, coin_id: Bytes32) -> Result<RespondChildren> {
+        Ok(self.0.request_children(coin_id).await?)
+    }
+
+    /// Requests the spend bundle with the given transaction id from the peer's mempool.
+    ///
+    /// Full nodes don't respond if the transaction isn't in their mempool, so this waits until
+    /// the connection closes.
+    pub async fn request_transaction(&self, transaction_id: Bytes32) -> Result<RespondTransaction> {
+        Ok(self.0.request_transaction(transaction_id).await?)
+    }
+
+    /// Requests the addresses of other full nodes that the peer knows about.
+    pub async fn request_peers(&self) -> Result<RespondPeers> {
+        Ok(self.0.request_peers().await?)
+    }
+
+    /// The IP address and port of the peer, such as `127.0.0.1:8444`.
+    pub fn socket_addr(&self) -> Result<String> {
+        Ok(self.0.socket_addr().to_string())
+    }
+
+    /// Closes the connection. This affects every clone of the peer, and later requests fail.
+    pub async fn close(&self) -> Result<()> {
+        self.0.close().await?;
+        Ok(())
+    }
+
     pub async fn next(&self) -> Result<Option<Event>> {
         let mut receiver = self.1.lock().await;
 
@@ -208,3 +277,17 @@ pub trait PuzzleSolutionResponseExt {}
 pub trait CoinStateUpdateExt {}
 
 pub trait NewPeakWalletExt {}
+
+pub trait TransactionAckExt {}
+
+pub trait RespondToPhUpdatesExt {}
+
+pub trait RespondToCoinUpdatesExt {}
+
+pub trait RespondChildrenExt {}
+
+pub trait RespondTransactionExt {}
+
+pub trait RespondPeersExt {}
+
+pub trait TimestampedPeerInfoExt {}
