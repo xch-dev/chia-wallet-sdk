@@ -174,8 +174,11 @@ impl PeerSimulator<FullNodeSimulator> {
     ///
     /// Changes made by locking the simulator directly, such as
     /// [`FullNodeSimulator::push_tx`], are sent to peers by the next [`PeerSimulator::farm_block`],
-    /// transaction, or [`PeerSimulator::notify_peers`]. Reverts and reorgs made this way aren't
-    /// sent as coin state updates, only as the mempool changes they cause.
+    /// transaction, or [`PeerSimulator::notify_peers`]. Reverts, reorgs and
+    /// `FullNodeSimulator::restore_state` made this way aren't sent as coin state updates, only
+    /// as the mempool changes they cause.
+    ///
+    /// CHIP-26's `RequestCostInfo` isn't supported.
     ///
     /// # Example
     ///

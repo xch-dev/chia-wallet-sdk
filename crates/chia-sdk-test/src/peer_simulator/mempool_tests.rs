@@ -18,8 +18,7 @@ use crate::{BlsPair, FullNodeSimulator, sign_transaction, to_program, to_puzzle}
 
 use super::PeerSimulator;
 
-/// The CHIP-26 `MEMPOOL_UPDATES` capability.
-const MEMPOOL_UPDATES: u16 = 5;
+use super::notify::MEMPOOL_UPDATES_CAPABILITY as MEMPOOL_UPDATES;
 
 /// Connects a peer that advertises the base capabilities and, if `mempool_updates` is set,
 /// `MEMPOOL_UPDATES`. The handshake is done by hand rather than with a helper, so this also
@@ -1089,6 +1088,121 @@ async fn test_subscription_limit_rejections_are_labelled_as_rejections() -> anyh
         rejection.reason,
         RejectStateReason::ExceededSubscriptionLimit
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_items_that_survive_a_revert_are_not_announced_again() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+
+    let confirmed = sim.lock().await.new_coin(puzzle_hash, 1);
+    let confirmed_spend = spend(confirmed, &puzzle_reveal, &[])?;
+    let confirmed_id = confirmed_spend.name();
+    assert_eq!(peer.send_transaction(confirmed_spend).await?.status, 1);
+    sim.farm_block(1).await;
+
+    let pending = sim.lock().await.new_coin(puzzle_hash, 1);
+    assert_eq!(
+        peer.send_transaction(spend(pending, &puzzle_reveal, &[])?)
+            .await?
+            .status,
+        1
+    );
+    received(&peer, &mut receiver).await?;
+
+    // Only the reverted block's transaction is new to the mempool.
+    sim.lock().await.revert_blocks(1);
+    sim.notify_peers().await;
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![confirmed_id]);
+
+    // The reorg prune puts both back without announcing either.
+    sim.lock().await.reorg_blocks(0, 0);
+    sim.notify_peers().await;
+    assert!(mempool_messages(&received(&peer, &mut receiver).await?).is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_removed_subscriptions_stop_updates() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+    peer.register_for_coin_updates(vec![coin.coin_id()], 0)
+        .await?;
+
+    let removed_puzzle_hashes = peer
+        .remove_puzzle_subscriptions(Some(vec![puzzle_hash]))
+        .await?
+        .puzzle_hashes;
+    assert_eq!(removed_puzzle_hashes, vec![puzzle_hash]);
+    let removed_coin_ids = peer.remove_coin_subscriptions(None).await?.coin_ids;
+    assert_eq!(removed_coin_ids, vec![coin.coin_id()]);
+
+    assert_eq!(
+        peer.send_transaction(spend(coin, &puzzle_reveal, &[(puzzle_hash, 1, None)])?)
+            .await?
+            .status,
+        1
+    );
+    sim.farm_block(1).await;
+
+    let types: Vec<_> = received(&peer, &mut receiver)
+        .await?
+        .iter()
+        .map(|message| message.msg_type)
+        .collect();
+    assert_eq!(types, vec![ProtocolMessageTypes::NewPeakWallet]);
+
+    Ok(())
+}
+
+#[cfg(feature = "serde")]
+#[tokio::test]
+async fn test_restore_state_removes_the_mempool() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+    let dump = sim.lock().await.dump_state()?;
+
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let pending = spend(coin, &puzzle_reveal, &[])?;
+    let pending_id = pending.name();
+    assert_eq!(peer.send_transaction(pending).await?.status, 1);
+    received(&peer, &mut receiver).await?;
+
+    sim.lock().await.restore_state(&dump)?;
+    sim.notify_peers().await;
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        removed(&messages[0]),
+        vec![RemovedMempoolItem::new(
+            pending_id,
+            MempoolRemoveReason::Conflict
+        )]
+    );
+
+    // Mempool updates keep working after the restore.
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let next = spend(coin, &puzzle_reveal, &[])?;
+    let next_id = next.name();
+    assert_eq!(peer.send_transaction(next).await?.status, 1);
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![next_id]);
 
     Ok(())
 }

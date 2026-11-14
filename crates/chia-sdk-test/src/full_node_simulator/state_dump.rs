@@ -1,6 +1,6 @@
 mod restore;
 
-use chia_protocol::{BlockRecord, Bytes32, CoinSpend, SpendBundle};
+use chia_protocol::{BlockRecord, Bytes32, CoinSpend, MempoolRemoveReason, SpendBundle};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -141,7 +141,9 @@ impl FullNodeSimulator {
     /// [`FullNodeSimulator::dump_state`].
     ///
     /// Every block is replayed and checked against the dumped coins, spends, and hints. The
-    /// mempool and pending events are cleared.
+    /// mempool and pending events are cleared. A `PeerSimulator` serving
+    /// this simulator tells its peers that the mempool items were removed, with the reason
+    /// `Conflict`, but doesn't send coin state updates for the new chain.
     ///
     /// # Errors
     ///
@@ -151,8 +153,10 @@ impl FullNodeSimulator {
         let dump: SimulatorStateDump = serde_json::from_str(state_json)
             .map_err(|error| StateDumpError::Deserialize(error.to_string()))?;
         let mut restored = FullNodeSimulator::try_from(dump)?;
+        for (tx_id, item) in std::mem::take(&mut self.mempool) {
+            self.record_mempool_removed(tx_id, &item, MempoolRemoveReason::Conflict);
+        }
         restored.peer_events = std::mem::take(&mut self.peer_events);
-        restored.peer_events.forget_items();
         *self = restored;
         Ok(())
     }

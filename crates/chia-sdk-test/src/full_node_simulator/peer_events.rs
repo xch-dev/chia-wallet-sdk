@@ -1,13 +1,14 @@
 //! Changes that a [`PeerSimulator`](crate::PeerSimulator) serving this simulator announces to
 //! connected peers. Nothing is recorded unless the peer simulator enables the log.
 
+#![cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
+
 use chia_protocol::{Bytes32, CoinState, MempoolRemoveReason};
 use indexmap::{IndexMap, IndexSet};
 
 use super::{FullNodeSimulator, ValidatedBundle};
 
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
 pub(crate) struct PeerEventLog {
     enabled: bool,
     events: Vec<PeerEvent>,
@@ -17,17 +18,8 @@ pub(crate) struct PeerEventLog {
     item_ids: IndexMap<Bytes32, MempoolItemIds>,
 }
 
-#[cfg(feature = "serde")]
-impl PeerEventLog {
-    /// Forgets the ids of mempool items, for when the mempool is replaced wholesale.
-    pub(super) fn forget_items(&mut self) {
-        self.item_ids.clear();
-    }
-}
-
 /// A change to the chain or the mempool, in the order it happened.
 #[derive(Debug, Clone)]
-#[cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
 pub enum PeerEvent {
     /// A block was farmed. The coin states are the coins it created or spent, as of that block,
     /// along with their hints.
@@ -51,7 +43,6 @@ pub enum PeerEvent {
 
 /// The ids a mempool item touches, which CHIP-26 matches against a peer's subscriptions.
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
 pub struct MempoolItemIds {
     /// The ids of the coins the item spends and creates.
     pub coin_ids: IndexSet<Bytes32>,
@@ -271,9 +262,9 @@ mod backend {
         }
 
         fn mempool_transaction(&self, transaction_id: Bytes32) -> Option<SpendBundle> {
-            self.get_mempool_item_by_tx_id(transaction_id)
-                .mempool_item
-                .map(|item| item.spend_bundle)
+            self.mempool
+                .get(&transaction_id)
+                .map(|item| item.spend_bundle.clone())
         }
     }
 }
