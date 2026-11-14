@@ -190,7 +190,7 @@ impl FullNodeSimulator {
                 .iter()
                 .chain(&removals)
                 .copied()
-                .collect::<Vec<_>>(),
+                .collect::<IndexSet<_>>(),
         );
         for tx_id in included_tx_ids {
             if let Some(item) = self.mempool.shift_remove(&tx_id) {
@@ -278,6 +278,50 @@ impl FullNodeSimulator {
             .collect::<Vec<_>>();
         for tx_id in added {
             self.record_mempool_added(tx_id);
+        }
+    }
+
+    /// The reason a mempool item that fails validation with `error` is removed: [`Expired`] if
+    /// one of its `ASSERT_BEFORE_*` conditions no longer passes, otherwise [`Conflict`].
+    ///
+    /// Items are currently never left out of a block while they're valid, so they can't expire
+    /// in practice. The mapping is here for when that changes, such as with a block cost limit.
+    ///
+    /// [`Expired`]: MempoolRemoveReason::Expired
+    /// [`Conflict`]: MempoolRemoveReason::Conflict
+    pub(super) fn removal_reason(error: &SimulatorError) -> MempoolRemoveReason {
+        match error {
+            SimulatorError::Validation(
+                ErrorCode::AssertBeforeHeightAbsoluteFailed
+                | ErrorCode::AssertBeforeHeightRelativeFailed
+                | ErrorCode::AssertBeforeSecondsAbsoluteFailed
+                | ErrorCode::AssertBeforeSecondsRelativeFailed,
+            ) => MempoolRemoveReason::Expired,
+            _ => MempoolRemoveReason::Conflict,
+        }
+    }
+
+    /// Removes the mempool items that are no longer valid at the current peak, such as items that
+    /// spend a coin that no longer exists, along with the items that depend on them.
+    pub(super) fn evict_invalid_mempool_items(&mut self) {
+        loop {
+            let invalid = self
+                .mempool
+                .iter()
+                .filter_map(|(tx_id, item)| {
+                    self.validate_bundle(item.spend_bundle.clone())
+                        .err()
+                        .map(|error| (*tx_id, Self::removal_reason(&error)))
+                })
+                .collect::<Vec<_>>();
+            if invalid.is_empty() {
+                break;
+            }
+            for (tx_id, reason) in invalid {
+                if let Some(item) = self.mempool.shift_remove(&tx_id) {
+                    self.record_mempool_removed(tx_id, &item, reason);
+                }
+            }
         }
     }
 

@@ -54,7 +54,7 @@ impl FullNodeSimulator {
         }
         let replaces_items = !conflicting_tx_ids.is_empty();
         for conflicting_tx_id in conflicting_tx_ids {
-            if let Some(item) = self.mempool.swap_remove(&conflicting_tx_id) {
+            if let Some(item) = self.mempool.shift_remove(&conflicting_tx_id) {
                 self.record_mempool_removed(
                     conflicting_tx_id,
                     &item,

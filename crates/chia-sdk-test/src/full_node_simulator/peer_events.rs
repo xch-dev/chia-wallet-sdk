@@ -1,13 +1,10 @@
 //! Changes that a [`PeerSimulator`](crate::PeerSimulator) serving this simulator announces to
 //! connected peers. Nothing is recorded unless the peer simulator enables the log.
 
-use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, CoinState, MempoolRemoveReason};
 use indexmap::IndexSet;
 
-use crate::SimulatorError;
-
-use super::{FullNodeSimulator, SimCoinRecord, ValidatedBundle};
+use super::{FullNodeSimulator, ValidatedBundle};
 
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
@@ -46,17 +43,17 @@ pub enum PeerEvent {
 pub struct MempoolItemIds {
     /// The ids of the coins the item spends and creates.
     pub coin_ids: IndexSet<Bytes32>,
-    /// The puzzle hashes of the coins the item spends and creates, and the hints of the coins it
-    /// creates.
+    /// The puzzle hashes and hints of the coins the item spends and creates.
     pub puzzle_hashes: IndexSet<Bytes32>,
 }
 
-impl MempoolItemIds {
-    fn new(item: &ValidatedBundle) -> Self {
-        let mut ids = Self::default();
-        for spend in item.spends.values() {
-            ids.coin_ids.insert(spend.coin_spend.coin.coin_id());
+impl FullNodeSimulator {
+    fn mempool_item_ids(&self, item: &ValidatedBundle) -> MempoolItemIds {
+        let mut ids = MempoolItemIds::default();
+        for (coin_id, spend) in &item.spends {
+            ids.coin_ids.insert(*coin_id);
             ids.puzzle_hashes.insert(spend.coin_spend.coin.puzzle_hash);
+            ids.puzzle_hashes.extend(self.spent_coin_hint(*coin_id));
         }
         for (coin, hint) in &item.additions {
             ids.coin_ids.insert(coin.coin_id());
@@ -65,24 +62,25 @@ impl MempoolItemIds {
         }
         ids
     }
-}
 
-impl SimCoinRecord {
-    fn to_coin_state(self) -> CoinState {
-        CoinState::new(
-            self.coin,
-            self.spent_block_index,
-            Some(self.confirmed_block_index),
-        )
+    /// The hint of a coin that is spent, whether it's in the coin set or created by a mempool
+    /// item.
+    fn spent_coin_hint(&self, coin_id: Bytes32) -> Option<Bytes32> {
+        if let Some(hint) = self.state.coin_hints.get(&coin_id) {
+            return Some(*hint);
+        }
+        self.mempool
+            .values()
+            .flat_map(|item| &item.additions)
+            .find(|(coin, _)| coin.coin_id() == coin_id)
+            .and_then(|(_, hint)| *hint)
     }
-}
 
-impl FullNodeSimulator {
     pub(super) fn record_block_for_peers(
         &mut self,
         height: u32,
         header_hash: Bytes32,
-        coin_ids: &[Bytes32],
+        coin_ids: &IndexSet<Bytes32>,
     ) {
         if !self.peer_events.enabled {
             return;
@@ -116,7 +114,7 @@ impl FullNodeSimulator {
         let Some(item) = self.mempool.get(&transaction_id) else {
             return;
         };
-        let ids = MempoolItemIds::new(item);
+        let ids = self.mempool_item_ids(item);
         self.peer_events.events.push(PeerEvent::MempoolItemAdded {
             transaction_id,
             ids,
@@ -132,10 +130,11 @@ impl FullNodeSimulator {
         if !self.peer_events.enabled {
             return;
         }
+        let ids = self.mempool_item_ids(item);
         self.peer_events.events.push(PeerEvent::MempoolItemRemoved {
             transaction_id,
             reason,
-            ids: MempoolItemIds::new(item),
+            ids,
         });
     }
 
@@ -147,119 +146,109 @@ impl FullNodeSimulator {
     pub(super) fn resume_peer_events(&mut self, enabled: bool) {
         self.peer_events.enabled = enabled;
     }
-
-    /// The reason a mempool item that fails validation with `error` is removed: [`Expired`] if
-    /// one of its `ASSERT_BEFORE_*` conditions no longer passes, otherwise [`Conflict`].
-    ///
-    /// Items are currently never left out of a block while they're valid, so they can't expire
-    /// in practice. The mapping is here for when that changes, such as with a block cost limit.
-    ///
-    /// [`Expired`]: MempoolRemoveReason::Expired
-    /// [`Conflict`]: MempoolRemoveReason::Conflict
-    pub(super) fn removal_reason(error: &SimulatorError) -> MempoolRemoveReason {
-        match error {
-            SimulatorError::Validation(
-                ErrorCode::AssertBeforeHeightAbsoluteFailed
-                | ErrorCode::AssertBeforeHeightRelativeFailed
-                | ErrorCode::AssertBeforeSecondsAbsoluteFailed
-                | ErrorCode::AssertBeforeSecondsRelativeFailed,
-            ) => MempoolRemoveReason::Expired,
-            _ => MempoolRemoveReason::Conflict,
-        }
-    }
-
-    /// Removes the mempool items that are no longer valid at the current peak, such as items that
-    /// spend a coin a block just spent, or whose `ASSERT_BEFORE_*` conditions have expired.
-    ///
-    /// Items that depend on a removed item are removed as well.
-    pub(super) fn evict_invalid_mempool_items(&mut self) {
-        loop {
-            let invalid = self
-                .mempool
-                .iter()
-                .filter_map(|(tx_id, item)| {
-                    self.validate_bundle(item.spend_bundle.clone())
-                        .err()
-                        .map(|error| (*tx_id, Self::removal_reason(&error)))
-                })
-                .collect::<Vec<_>>();
-            if invalid.is_empty() {
-                break;
-            }
-            for (tx_id, reason) in invalid {
-                if let Some(item) = self.mempool.shift_remove(&tx_id) {
-                    self.record_mempool_removed(tx_id, &item, reason);
-                }
-            }
-        }
-    }
 }
 
 #[cfg(feature = "peer-simulator")]
-impl FullNodeSimulator {
-    pub(crate) fn enable_peer_events(&mut self) {
-        self.peer_events.enabled = true;
-    }
+mod backend {
+    use chia_protocol::{Bytes32, CoinState, Program, SpendBundle};
+    use indexmap::IndexSet;
 
-    pub(crate) fn drain_peer_events(&mut self) -> Vec<PeerEvent> {
-        std::mem::take(&mut self.peer_events.events)
-    }
+    use crate::{FullNodeSimulator, PeerSimulatorConfig, SimulatorError, peer_simulator::Backend};
 
-    pub(crate) fn peer_coin_states(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
-        coin_ids
-            .iter()
-            .filter_map(|coin_id| self.state.coins.get(coin_id))
-            .map(|record| record.to_coin_state())
-            .collect()
-    }
+    use super::{MempoolItemIds, PeerEvent};
 
-    pub(crate) fn peer_coin_states_by_puzzle_hashes(
-        &self,
-        puzzle_hashes: &IndexSet<Bytes32>,
-        include_hints: bool,
-    ) -> Vec<CoinState> {
-        self.state
-            .coins
-            .iter()
-            .filter(|(coin_id, record)| {
-                puzzle_hashes.contains(&record.coin.puzzle_hash)
-                    || (include_hints
-                        && self
-                            .state
-                            .coin_hints
-                            .get(*coin_id)
-                            .is_some_and(|hint| puzzle_hashes.contains(hint)))
-            })
-            .map(|(_, record)| record.to_coin_state())
-            .collect()
-    }
+    impl Backend for FullNodeSimulator {
+        const HAS_MEMPOOL: bool = true;
 
-    pub(crate) fn peer_children(&self, coin_id: Bytes32) -> Vec<CoinState> {
-        self.state
-            .coins
-            .values()
-            .filter(|record| record.coin.parent_coin_info == coin_id)
-            .map(|record| record.to_coin_state())
-            .collect()
-    }
+        fn new_for_peers(config: &PeerSimulatorConfig) -> Self {
+            let mut simulator = Self::new();
+            simulator.set_genesis_challenge(config.genesis_challenge);
+            simulator.peer_events.enabled = true;
+            simulator
+        }
 
-    pub(crate) fn peer_coin_spend(&self, coin_id: Bytes32) -> Option<&chia_protocol::CoinSpend> {
-        self.state.coin_spends.get(&coin_id)
-    }
+        fn peak_height(&self) -> u32 {
+            self.height()
+        }
 
-    pub(crate) fn peer_mempool_items(&self) -> Vec<(Bytes32, MempoolItemIds)> {
-        self.mempool
-            .iter()
-            .map(|(tx_id, item)| (*tx_id, MempoolItemIds::new(item)))
-            .collect()
-    }
+        fn peak_header_hash(&self) -> Bytes32 {
+            self.header_hash()
+        }
 
-    pub(crate) fn peer_mempool_spend_bundle(
-        &self,
-        transaction_id: Bytes32,
-    ) -> Option<chia_protocol::SpendBundle> {
-        self.mempool
-            .get(&transaction_id)
-            .map(|item| item.spend_bundle.clone())
+        fn header_hash_at(&self, height: u32) -> Option<Bytes32> {
+            self.header_hash_of(height)
+        }
+
+        fn coin_states(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
+            coin_ids
+                .iter()
+                .filter_map(|coin_id| self.state.coins.get(coin_id))
+                .map(|record| record.to_coin_state())
+                .collect()
+        }
+
+        fn coin_states_by_puzzle_hashes(
+            &self,
+            puzzle_hashes: &IndexSet<Bytes32>,
+            include_hints: bool,
+        ) -> Vec<CoinState> {
+            self.state
+                .coins
+                .iter()
+                .filter(|(coin_id, record)| {
+                    puzzle_hashes.contains(&record.coin.puzzle_hash)
+                        || (include_hints
+                            && self
+                                .state
+                                .coin_hints
+                                .get(*coin_id)
+                                .is_some_and(|hint| puzzle_hashes.contains(hint)))
+                })
+                .map(|(_, record)| record.to_coin_state())
+                .collect()
+        }
+
+        fn children(&self, coin_id: Bytes32) -> Vec<CoinState> {
+            self.state
+                .coins
+                .values()
+                .filter(|record| record.coin.parent_coin_info == coin_id)
+                .map(|record| record.to_coin_state())
+                .collect()
+        }
+
+        fn puzzle_and_solution(&self, coin_id: Bytes32, height: u32) -> Option<(Program, Program)> {
+            let coin_spend = self
+                .get_puzzle_and_solution(coin_id, Some(height))
+                .coin_solution?;
+            Some((coin_spend.puzzle_reveal, coin_spend.solution))
+        }
+
+        fn submit_transaction(
+            &mut self,
+            spend_bundle: SpendBundle,
+        ) -> Result<Vec<PeerEvent>, SimulatorError> {
+            if let Some(error) = self.push_tx_detailed(spend_bundle).error {
+                return Err(error);
+            }
+            Ok(Backend::drain_events(self))
+        }
+
+        fn drain_events(&mut self) -> Vec<PeerEvent> {
+            std::mem::take(&mut self.peer_events.events)
+        }
+
+        fn mempool_items(&self) -> Vec<(Bytes32, MempoolItemIds)> {
+            self.mempool
+                .iter()
+                .map(|(tx_id, item)| (*tx_id, self.mempool_item_ids(item)))
+                .collect()
+        }
+
+        fn mempool_transaction(&self, transaction_id: Bytes32) -> Option<SpendBundle> {
+            self.get_mempool_item_by_tx_id(transaction_id)
+                .mempool_item
+                .map(|item| item.spend_bundle)
+        }
     }
 }

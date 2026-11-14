@@ -15,6 +15,8 @@ use ws_connection::ws_connection;
 use crate::{FullNodeSimulator, Simulator};
 
 mod backend;
+
+pub(crate) use backend::Backend;
 mod config;
 mod error;
 mod notify;
@@ -28,19 +30,12 @@ mod mempool_tests;
 pub use config::*;
 pub use error::*;
 
-mod sealed {
-    pub trait Sealed {}
-
-    impl Sealed for crate::Simulator {}
-    impl Sealed for crate::FullNodeSimulator {}
-}
-
 /// A simulator that a [`PeerSimulator`] can serve over the wallet peer protocol.
 ///
 /// This is implemented for [`Simulator`], where every transaction is included in a new block as
 /// soon as it's sent, and for [`FullNodeSimulator`], where transactions wait in a mempool until a
 /// block is farmed. It is sealed, so it can't be implemented outside of this crate.
-pub trait PeerSimulatorBackend: sealed::Sealed + backend::Backend {}
+pub trait PeerSimulatorBackend: backend::Backend {}
 
 impl PeerSimulatorBackend for Simulator {}
 impl PeerSimulatorBackend for FullNodeSimulator {}
@@ -329,7 +324,8 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
     ///
     /// Each capability is a pair of its id and value, such as `(5, "1".to_string())` for the
     /// CHIP-26 `MEMPOOL_UPDATES` capability. A peer connected without the handshake, such as
-    /// with [`PeerSimulator::connect_split`], has no capabilities.
+    /// with [`PeerSimulator::connect_split`], has no capabilities. The simulator accepts any
+    /// network id and sends it back, so the one this sends doesn't matter.
     ///
     /// # Errors
     ///

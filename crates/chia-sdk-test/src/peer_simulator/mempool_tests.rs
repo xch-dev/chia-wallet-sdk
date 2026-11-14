@@ -7,7 +7,7 @@ use chia_bls::Signature;
 use chia_protocol::{
     Bytes32, Coin, CoinSpend, CoinStateFilters, CoinStateUpdate, Handshake, MempoolItemsAdded,
     MempoolItemsRemoved, MempoolRemoveReason, Message, NewPeakWallet, NodeType, Program,
-    ProtocolMessageTypes, RemovedMempoolItem, SpendBundle,
+    ProtocolMessageTypes, RejectStateReason, RemovedMempoolItem, SpendBundle,
 };
 use chia_sdk_client::Peer;
 use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Memos};
@@ -724,5 +724,198 @@ async fn test_instant_mode_handshake() -> anyhow::Result<()> {
             ProtocolMessageTypes::CoinStateUpdate
         ]
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_spending_a_hinted_coin_matches_the_hint() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let hint = Bytes32::new([42; 32]);
+    let other_puzzle_hash = Bytes32::new([7; 32]);
+
+    // A coin on chain that is hinted to the wallet, like an NFT or CAT it holds.
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let hinted = Coin::new(coin.coin_id(), puzzle_hash, 1);
+    let create_hinted = spend(coin, &puzzle_reveal, &[(puzzle_hash, 1, Some(hint))])?;
+    assert!(sim.lock().await.push_tx(create_hinted).success);
+    sim.farm_block(1).await;
+
+    // Subscribed to the hint only, as a wallet subscribes to its p2 puzzle hash.
+    peer.register_for_ph_updates(vec![hint], 0).await?;
+    received(&peer, &mut receiver).await?;
+
+    // Sending the coin away creates nothing hinted to the wallet, but it spends a hinted coin.
+    let send_away = spend(hinted, &puzzle_reveal, &[(other_puzzle_hash, 1, None)])?;
+    let send_away_id = send_away.name();
+    assert_eq!(peer.send_transaction(send_away).await?.status, 1);
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![send_away_id]);
+
+    // The same holds for a hinted coin that only exists in the mempool.
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let pending_hinted = Coin::new(coin.coin_id(), puzzle_hash, 1);
+    let create_pending = spend(coin, &puzzle_reveal, &[(puzzle_hash, 1, Some(hint))])?;
+    let spend_pending = spend(
+        pending_hinted,
+        &puzzle_reveal,
+        &[(other_puzzle_hash, 1, None)],
+    )?;
+    let (create_id, spend_id) = (create_pending.name(), spend_pending.name());
+    assert_eq!(peer.send_transaction(create_pending).await?.status, 1);
+    assert_eq!(peer.send_transaction(spend_pending).await?.status, 1);
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(
+        messages.iter().flat_map(added).collect::<Vec<_>>(),
+        vec![create_id, spend_id]
+    );
+
+    // A new subscription to the hint replays all three.
+    let (other, mut other_receiver) = connect_with_handshake(&sim, true).await?;
+    other.register_for_ph_updates(vec![hint], 0).await?;
+    let messages = received(&other, &mut other_receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![send_away_id, create_id, spend_id]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_ephemeral_coin_is_sent_once() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = sim.connect_split().await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let ephemeral = Coin::new(coin.coin_id(), puzzle_hash, 1);
+    peer.register_for_coin_updates(vec![ephemeral.coin_id()], 0)
+        .await?;
+
+    let mut spend_bundle = spend(coin, &puzzle_reveal, &[(puzzle_hash, 1, None)])?;
+    spend_bundle
+        .coin_spends
+        .extend(spend(ephemeral, &puzzle_reveal, &[])?.coin_spends);
+    assert_eq!(peer.send_transaction(spend_bundle).await?.status, 1);
+
+    let height = sim.farm_block(1).await[0].height;
+    let messages = received(&peer, &mut receiver).await?;
+    let update = CoinStateUpdate::from_bytes(&messages[1].data)?;
+    assert_eq!(update.items.len(), 1);
+    assert_eq!(update.items[0].coin, ephemeral);
+    assert_eq!(update.items[0].created_height, Some(height));
+    assert_eq!(update.items[0].spent_height, Some(height));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_puzzle_solution_and_children() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let peer = sim.connect().await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 3);
+    let spend_bundle = spend(
+        coin,
+        &puzzle_reveal,
+        &[(puzzle_hash, 1, None), (puzzle_hash, 2, None)],
+    )?;
+    let solution = spend_bundle.coin_spends[0].solution.clone();
+    assert_eq!(peer.send_transaction(spend_bundle).await?.status, 1);
+
+    // Nothing is spent or created while the transaction is pending.
+    assert!(
+        peer.request_children(coin.coin_id())
+            .await?
+            .coin_states
+            .is_empty()
+    );
+    let height = sim.lock().await.height() + 1;
+    assert!(
+        peer.request_puzzle_and_solution(coin.coin_id(), height)
+            .await?
+            .is_err()
+    );
+
+    sim.farm_block(1).await;
+
+    let response = peer
+        .request_puzzle_and_solution(coin.coin_id(), height)
+        .await?
+        .unwrap();
+    assert_eq!(response.puzzle, puzzle_reveal);
+    assert_eq!(response.solution, solution);
+    assert!(
+        peer.request_puzzle_and_solution(coin.coin_id(), height - 1)
+            .await?
+            .is_err()
+    );
+
+    let children = peer.request_children(coin.coin_id()).await?.coin_states;
+    let mut amounts: Vec<_> = children.iter().map(|cs| cs.coin.amount).collect();
+    amounts.sort_unstable();
+    assert_eq!(amounts, vec![1, 2]);
+    assert!(
+        children
+            .iter()
+            .all(|cs| cs.created_height == Some(height) && cs.spent_height.is_none())
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_revert_requeues_transactions() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    peer.register_for_coin_updates(vec![coin.coin_id()], 0)
+        .await?;
+
+    let spend_bundle = spend(coin, &puzzle_reveal, &[])?;
+    let transaction_id = spend_bundle.name();
+    assert_eq!(peer.send_transaction(spend_bundle).await?.status, 1);
+    sim.farm_block(1).await;
+    received(&peer, &mut receiver).await?;
+
+    // Reverting the block puts its transaction back in the mempool.
+    sim.lock().await.revert_blocks(1);
+    sim.notify_peers().await;
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![transaction_id]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_reorg_rejections_are_labelled_as_rejections() -> anyhow::Result<()> {
+    let sim = PeerSimulator::new().await?;
+    let peer = sim.connect().await?;
+    let wrong_header_hash = Bytes32::new([1; 32]);
+
+    let rejection = peer
+        .request_coin_state(vec![Bytes32::default()], None, wrong_header_hash, false)
+        .await?
+        .unwrap_err();
+    assert_eq!(rejection.reason, RejectStateReason::Reorg);
+
+    let rejection = peer
+        .request_puzzle_state(
+            vec![Bytes32::default()],
+            None,
+            wrong_header_hash,
+            CoinStateFilters::new(true, true, true, 0),
+            false,
+        )
+        .await?
+        .unwrap_err();
+    assert_eq!(rejection.reason, RejectStateReason::Reorg);
+
     Ok(())
 }

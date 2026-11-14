@@ -2,10 +2,10 @@ use std::{net::SocketAddr, sync::Arc};
 
 use chia_consensus::validation_error::{ErrorCode, ValidationErr};
 use chia_protocol::{
-    Bytes, Bytes32, CoinState, Handshake, Message, NewPeakWallet, NodeType, ProtocolMessageTypes,
-    PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
-    RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren, RequestCoinState,
-    RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
+    Bytes, Bytes32, ChiaProtocolMessage, CoinState, Handshake, Message, NewPeakWallet, NodeType,
+    ProtocolMessageTypes, PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates,
+    RejectCoinState, RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren,
+    RequestCoinState, RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
     RequestRemovePuzzleSubscriptions, RequestTransaction, RespondChildren, RespondCoinState,
     RespondPuzzleSolution, RespondPuzzleState, RespondRemoveCoinSubscriptions,
     RespondRemovePuzzleSubscriptions, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
@@ -96,18 +96,23 @@ async fn handle_initial_peak<B: Backend>(
     Ok(())
 }
 
-/// The messages to send back for a request: the response, if there is one, followed by any
-/// mempool updates for subscriptions that the request added.
+/// The response to send back for a request, if there is one.
 struct Reply {
     response: Option<(ProtocolMessageTypes, Bytes)>,
-    followups: Vec<WsMessage>,
 }
 
 impl Reply {
+    /// A response whose type is the message's own, so that rejections are labelled as such.
+    fn message<T>(body: &T) -> Result<Self, PeerSimulatorError>
+    where
+        T: Streamable + ChiaProtocolMessage,
+    {
+        Ok(Self::new(T::msg_type(), body.to_bytes()?.into()))
+    }
+
     fn new(response_type: ProtocolMessageTypes, response: Bytes) -> Self {
         Self {
             response: Some((response_type, response)),
-            followups: Vec::new(),
         }
     }
 }
@@ -140,7 +145,7 @@ async fn handle_message<B: Backend>(
 
     let mut new_subscriptions = NewSubscriptions::default();
 
-    let mut reply = match request.msg_type {
+    let reply = match request.msg_type {
         ProtocolMessageTypes::SendTransaction => {
             let request = SendTransaction::from_bytes(&request.data)?;
             let response = send_transaction(shared, request, &mut *simulator).await?;
@@ -158,10 +163,7 @@ async fn handle_message<B: Backend>(
                     ))
                 })
                 .transpose()?;
-            Reply {
-                response,
-                followups: Vec::new(),
-            }
+            Reply { response }
         }
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
@@ -189,8 +191,7 @@ async fn handle_message<B: Backend>(
         }
         ProtocolMessageTypes::RequestPuzzleSolution => {
             let request = RequestPuzzleSolution::from_bytes(&request.data)?;
-            let response = request_puzzle_solution(&request, &*simulator)?;
-            Reply::new(ProtocolMessageTypes::RespondPuzzleSolution, response)
+            request_puzzle_solution(&request, &*simulator)?
         }
         ProtocolMessageTypes::RequestChildren => {
             let request = RequestChildren::from_bytes(&request.data)?;
@@ -200,28 +201,26 @@ async fn handle_message<B: Backend>(
         ProtocolMessageTypes::RequestCoinState => {
             let request = RequestCoinState::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = request_coin_state(
+            request_coin_state(
                 addr,
                 request,
                 config,
                 &*simulator,
                 &mut subscriptions,
                 &mut new_subscriptions,
-            )?;
-            Reply::new(ProtocolMessageTypes::RespondCoinState, response)
+            )?
         }
         ProtocolMessageTypes::RequestPuzzleState => {
             let request = RequestPuzzleState::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = request_puzzle_state(
+            request_puzzle_state(
                 addr,
                 request,
                 config,
                 &*simulator,
                 &mut subscriptions,
                 &mut new_subscriptions,
-            )?;
-            Reply::new(ProtocolMessageTypes::RespondPuzzleState, response)
+            )?
         }
         ProtocolMessageTypes::RequestRemoveCoinSubscriptions => {
             let request = RequestRemoveCoinSubscriptions::from_bytes(&request.data)?;
@@ -247,18 +246,20 @@ async fn handle_message<B: Backend>(
     };
 
     // CHIP-26: a new subscription is followed by the mempool items that already match it.
-    if mempool_updates
+    let mempool_replay = if mempool_updates
         && (!new_subscriptions.coin_ids.is_empty() || !new_subscriptions.puzzle_hashes.is_empty())
     {
-        reply.followups.extend(mempool_items_added(
+        mempool_items_added(
             &simulator.mempool_items(),
             &new_subscriptions.coin_ids,
             &new_subscriptions.puzzle_hashes,
-        )?);
-    }
+        )?
+    } else {
+        None
+    };
 
-    drop(simulator);
-
+    // The simulator stays locked until the messages are queued, so that a block farmed at the
+    // same time can't be sent to this peer before the response that describes the older state.
     if let Some((response_type, response_data)) = reply.response {
         let message = Message {
             msg_type: response_type,
@@ -269,9 +270,11 @@ async fn handle_message<B: Backend>(
         ws.send(message.into()).await?;
     }
 
-    for followup in reply.followups {
-        ws.send(followup).await?;
+    if let Some(mempool_replay) = mempool_replay {
+        ws.send(mempool_replay).await?;
     }
+
+    drop(simulator);
 
     Ok(())
 }
@@ -416,26 +419,22 @@ fn register_for_ph_updates<B: Backend>(
 fn request_puzzle_solution<B: Backend>(
     request: &RequestPuzzleSolution,
     simulator: &B,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let Some((puzzle_reveal, solution)) =
         simulator.puzzle_and_solution(request.coin_name, request.height)
     else {
-        return Ok(RejectPuzzleSolution {
+        return Reply::message(&RejectPuzzleSolution {
             coin_name: request.coin_name,
             height: request.height,
-        }
-        .to_bytes()?
-        .into());
+        });
     };
 
-    Ok(RespondPuzzleSolution::new(PuzzleSolutionResponse::new(
+    Reply::message(&RespondPuzzleSolution::new(PuzzleSolutionResponse::new(
         request.coin_name,
         request.height,
         puzzle_reveal,
         solution,
-    ))
-    .to_bytes()?
-    .into())
+    )))
 }
 
 fn request_children<B: Backend>(
@@ -454,17 +453,13 @@ fn request_coin_state<B: Backend>(
     simulator: &B,
     subscriptions: &mut Subscriptions,
     new_subscriptions: &mut NewSubscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     if let Some(previous_height) = request.previous_height {
         if Some(request.header_hash) != simulator.header_hash_at(previous_height) {
-            return Ok(RejectCoinState::new(RejectStateReason::Reorg)
-                .to_bytes()?
-                .into());
+            return Reply::message(&RejectCoinState::new(RejectStateReason::Reorg));
         }
     } else if request.header_hash != config.genesis_challenge {
-        return Ok(RejectCoinState::new(RejectStateReason::Reorg)
-            .to_bytes()?
-            .into());
+        return Reply::message(&RejectCoinState::new(RejectStateReason::Reorg));
     }
 
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
@@ -472,11 +467,9 @@ fn request_coin_state<B: Backend>(
     let subscription_count = subscriptions.subscription_count(peer);
 
     if subscription_count + coin_ids.len() > config.max_subscriptions && request.subscribe {
-        return Ok(
-            RejectCoinState::new(RejectStateReason::ExceededSubscriptionLimit)
-                .to_bytes()?
-                .into(),
-        );
+        return Reply::message(&RejectCoinState::new(
+            RejectStateReason::ExceededSubscriptionLimit,
+        ));
     }
 
     let coin_states: Vec<CoinState> = simulator
@@ -495,12 +488,10 @@ fn request_coin_state<B: Backend>(
         subscriptions.add_coin_subscriptions(peer, coin_ids);
     }
 
-    Ok(RespondCoinState {
+    Reply::message(&RespondCoinState {
         coin_ids: request.coin_ids,
         coin_states,
-    }
-    .to_bytes()?
-    .into())
+    })
 }
 
 fn request_puzzle_state<B: Backend>(
@@ -510,17 +501,13 @@ fn request_puzzle_state<B: Backend>(
     simulator: &B,
     subscriptions: &mut Subscriptions,
     new_subscriptions: &mut NewSubscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     if let Some(previous_height) = request.previous_height {
         if Some(request.header_hash) != simulator.header_hash_at(previous_height) {
-            return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
-                .to_bytes()?
-                .into());
+            return Reply::message(&RejectPuzzleState::new(RejectStateReason::Reorg));
         }
     } else if request.header_hash != config.genesis_challenge {
-        return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
-            .to_bytes()?
-            .into());
+        return Reply::message(&RejectPuzzleState::new(RejectStateReason::Reorg));
     }
 
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
@@ -530,11 +517,9 @@ fn request_puzzle_state<B: Backend>(
     if subscription_count + puzzle_hashes.len() > config.max_subscriptions
         && request.subscribe_when_finished
     {
-        return Ok(
-            RejectPuzzleState::new(RejectStateReason::ExceededSubscriptionLimit)
-                .to_bytes()?
-                .into(),
-        );
+        return Reply::message(&RejectPuzzleState::new(
+            RejectStateReason::ExceededSubscriptionLimit,
+        ));
     }
 
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
@@ -585,15 +570,13 @@ fn request_puzzle_state<B: Backend>(
 
     let height = next_height.unwrap_or(simulator.peak_height());
 
-    Ok(RespondPuzzleState {
+    Reply::message(&RespondPuzzleState {
         height,
         header_hash: simulator.header_hash_at(height).unwrap(),
         puzzle_hashes: request.puzzle_hashes,
         coin_states,
         is_finished: next_height.is_none(),
-    }
-    .to_bytes()?
-    .into())
+    })
 }
 
 fn request_remove_coin_subscriptions(

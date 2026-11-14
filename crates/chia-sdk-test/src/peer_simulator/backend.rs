@@ -2,7 +2,7 @@ use chia_protocol::{Bytes32, CoinState, Program, SpendBundle};
 use indexmap::IndexSet;
 
 use crate::{
-    FullNodeSimulator, Simulator, SimulatorError,
+    Simulator, SimulatorError,
     full_node_simulator::{MempoolItemIds, PeerEvent},
 };
 
@@ -10,8 +10,9 @@ use super::PeerSimulatorConfig;
 
 /// The operations a [`PeerSimulator`](crate::PeerSimulator) needs from the simulator it serves.
 ///
-/// This is public only so that it can be a supertrait of the sealed
-/// [`PeerSimulatorBackend`](super::PeerSimulatorBackend), and can't be named outside the crate.
+/// It's public but can't be named outside the crate, which seals
+/// [`PeerSimulatorBackend`](super::PeerSimulatorBackend). The [`FullNodeSimulator`](crate::FullNodeSimulator)
+/// implementation is next to its private state, in `full_node_simulator/peer_events.rs`.
 pub trait Backend: Send + Sized + 'static {
     /// Whether this backend has a mempool, and so sends CHIP-26 mempool updates.
     const HAS_MEMPOOL: bool;
@@ -106,8 +107,8 @@ impl Backend for Simulator {
     ) -> Result<Vec<PeerEvent>, SimulatorError> {
         let updates = self.new_transaction(spend_bundle)?;
         let coin_states = updates
-            .keys()
-            .filter_map(|coin_id| Some((self.coin_state(*coin_id)?, self.hints_of(*coin_id))))
+            .into_iter()
+            .map(|(coin_id, coin_state)| (coin_state, self.hints_of(coin_id)))
             .collect();
         Ok(vec![PeerEvent::Block {
             height: self.height(),
@@ -128,78 +129,5 @@ impl Backend for Simulator {
 
     fn mempool_transaction(&self, _transaction_id: Bytes32) -> Option<SpendBundle> {
         None
-    }
-}
-
-impl Backend for FullNodeSimulator {
-    const HAS_MEMPOOL: bool = true;
-
-    fn new_for_peers(config: &PeerSimulatorConfig) -> Self {
-        let mut simulator = Self::new();
-        simulator.set_genesis_challenge(config.genesis_challenge);
-        simulator.enable_peer_events();
-        simulator
-    }
-
-    fn peak_height(&self) -> u32 {
-        self.height()
-    }
-
-    fn peak_header_hash(&self) -> Bytes32 {
-        self.header_hash()
-    }
-
-    fn header_hash_at(&self, height: u32) -> Option<Bytes32> {
-        self.header_hash_of(height)
-    }
-
-    fn coin_states(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
-        self.peer_coin_states(coin_ids)
-    }
-
-    fn coin_states_by_puzzle_hashes(
-        &self,
-        puzzle_hashes: &IndexSet<Bytes32>,
-        include_hints: bool,
-    ) -> Vec<CoinState> {
-        self.peer_coin_states_by_puzzle_hashes(puzzle_hashes, include_hints)
-    }
-
-    fn children(&self, coin_id: Bytes32) -> Vec<CoinState> {
-        self.peer_children(coin_id)
-    }
-
-    fn puzzle_and_solution(&self, coin_id: Bytes32, height: u32) -> Option<(Program, Program)> {
-        let coin_state = self.peer_coin_states(&IndexSet::from([coin_id])).pop()?;
-        if coin_state.spent_height != Some(height) {
-            return None;
-        }
-        let coin_spend = self.peer_coin_spend(coin_id)?;
-        Some((
-            coin_spend.puzzle_reveal.clone(),
-            coin_spend.solution.clone(),
-        ))
-    }
-
-    fn submit_transaction(
-        &mut self,
-        spend_bundle: SpendBundle,
-    ) -> Result<Vec<PeerEvent>, SimulatorError> {
-        if let Some(error) = self.push_tx_detailed(spend_bundle).error {
-            return Err(error);
-        }
-        Ok(self.drain_peer_events())
-    }
-
-    fn drain_events(&mut self) -> Vec<PeerEvent> {
-        self.drain_peer_events()
-    }
-
-    fn mempool_items(&self) -> Vec<(Bytes32, MempoolItemIds)> {
-        self.peer_mempool_items()
-    }
-
-    fn mempool_transaction(&self, transaction_id: Bytes32) -> Option<SpendBundle> {
-        self.peer_mempool_spend_bundle(transaction_id)
     }
 }
