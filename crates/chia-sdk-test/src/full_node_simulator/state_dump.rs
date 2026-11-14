@@ -152,6 +152,7 @@ impl FullNodeSimulator {
             .map_err(|error| StateDumpError::Deserialize(error.to_string()))?;
         let mut restored = FullNodeSimulator::try_from(dump)?;
         restored.peer_events = std::mem::take(&mut self.peer_events);
+        restored.peer_events.forget_items();
         *self = restored;
         Ok(())
     }

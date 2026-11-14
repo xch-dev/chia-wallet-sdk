@@ -919,3 +919,176 @@ async fn test_reorg_rejections_are_labelled_as_rejections() -> anyhow::Result<()
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_incoming_payment_matches_the_puzzle_hash() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    // Someone else's coin pays the wallet's puzzle hash, without a hint.
+    let (sender_puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let wallet_puzzle_hash = Bytes32::new([9; 32]);
+    let coin = sim.lock().await.new_coin(sender_puzzle_hash, 1);
+    let payment = Coin::new(coin.coin_id(), wallet_puzzle_hash, 1);
+    peer.register_for_ph_updates(vec![wallet_puzzle_hash], 0)
+        .await?;
+
+    let spend_bundle = spend(coin, &puzzle_reveal, &[(wallet_puzzle_hash, 1, None)])?;
+    let transaction_id = spend_bundle.name();
+    assert_eq!(
+        sim.connect()
+            .await?
+            .send_transaction(spend_bundle)
+            .await?
+            .status,
+        1
+    );
+
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![transaction_id]);
+
+    // A wallet that subscribes to the created coin's id also finds it, live and on replay.
+    let (by_coin, mut by_coin_receiver) = connect_with_handshake(&sim, true).await?;
+    by_coin
+        .register_for_coin_updates(vec![payment.coin_id()], 0)
+        .await?;
+    let messages = received(&by_coin, &mut by_coin_receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![transaction_id]);
+
+    let (replayed, mut replayed_receiver) = connect_with_handshake(&sim, true).await?;
+    replayed
+        .register_for_ph_updates(vec![wallet_puzzle_hash], 0)
+        .await?;
+    let messages = received(&replayed, &mut replayed_receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![transaction_id]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_hint_matches_are_removed_after_the_hinted_coin_is_gone() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let hint = Bytes32::new([42; 32]);
+    let other_puzzle_hash = Bytes32::new([7; 32]);
+    peer.register_for_ph_updates(vec![hint], 0).await?;
+
+    // The parent creates a hinted coin, the dependent spends it without a hint, and both match
+    // only through the hint.
+    let coin = sim.lock().await.new_coin(puzzle_hash, 2);
+    let hinted = Coin::new(coin.coin_id(), puzzle_hash, 2);
+    let parent = spend(coin, &puzzle_reveal, &[(puzzle_hash, 2, Some(hint))])?;
+    let dependent = spend(hinted, &puzzle_reveal, &[(other_puzzle_hash, 2, None)])?;
+    let (parent_id, dependent_id) = (parent.name(), dependent.name());
+    assert_eq!(peer.send_transaction(parent).await?.status, 1);
+    assert_eq!(peer.send_transaction(dependent).await?.status, 1);
+    received(&peer, &mut receiver).await?;
+
+    // The replacement doesn't create the hinted coin, so the dependent is evicted, and its
+    // removal is still sent to the peer it was added for.
+    let replacement = spend(coin, &puzzle_reveal, &[(other_puzzle_hash, 1, None)])?;
+    assert_eq!(peer.send_transaction(replacement).await?.status, 1);
+    let removals: Vec<_> = received(&peer, &mut receiver)
+        .await?
+        .iter()
+        .filter(|message| message.msg_type == ProtocolMessageTypes::MempoolItemsRemoved)
+        .flat_map(removed)
+        .collect();
+    assert_eq!(
+        removals,
+        vec![
+            RemovedMempoolItem::new(parent_id, MempoolRemoveReason::Conflict),
+            RemovedMempoolItem::new(dependent_id, MempoolRemoveReason::Conflict),
+        ]
+    );
+
+    // The same after a reorg removes a hinted coin from the chain.
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    let hinted = Coin::new(coin.coin_id(), puzzle_hash, 1);
+    let parent = spend(coin, &puzzle_reveal, &[(puzzle_hash, 1, Some(hint))])?;
+    assert_eq!(peer.send_transaction(parent).await?.status, 1);
+    sim.farm_block(1).await;
+    let dependent = spend(hinted, &puzzle_reveal, &[(other_puzzle_hash, 1, None)])?;
+    let dependent_id = dependent.name();
+    assert_eq!(peer.send_transaction(dependent).await?.status, 1);
+    received(&peer, &mut receiver).await?;
+
+    sim.lock().await.reorg_blocks(1, 0);
+    sim.notify_peers().await;
+    let removals: Vec<_> = received(&peer, &mut receiver)
+        .await?
+        .iter()
+        .filter(|message| message.msg_type == ProtocolMessageTypes::MempoolItemsRemoved)
+        .flat_map(removed)
+        .collect();
+    assert!(removals.contains(&RemovedMempoolItem::new(
+        dependent_id,
+        MempoolRemoveReason::Conflict
+    )));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_capability_must_be_enabled() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = sim
+        .connect_split_with_capabilities(vec![(MEMPOOL_UPDATES, "0".to_string())])
+        .await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+    assert_eq!(
+        peer.send_transaction(spend(coin, &puzzle_reveal, &[])?)
+            .await?
+            .status,
+        1
+    );
+    assert!(received(&peer, &mut receiver).await?.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_subscription_limit_rejections_are_labelled_as_rejections() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_config(super::PeerSimulatorConfig {
+        max_subscriptions: 1,
+        ..Default::default()
+    })
+    .await?;
+    let peer = sim.connect().await?;
+    let genesis_challenge = sim.config().genesis_challenge;
+    let ids = vec![Bytes32::new([1; 32]), Bytes32::new([2; 32])];
+
+    let rejection = peer
+        .request_coin_state(ids.clone(), None, genesis_challenge, true)
+        .await?
+        .unwrap_err();
+    assert_eq!(
+        rejection.reason,
+        RejectStateReason::ExceededSubscriptionLimit
+    );
+
+    let rejection = peer
+        .request_puzzle_state(
+            ids,
+            None,
+            genesis_challenge,
+            CoinStateFilters::new(true, true, true, 0),
+            true,
+        )
+        .await?
+        .unwrap_err();
+    assert_eq!(
+        rejection.reason,
+        RejectStateReason::ExceededSubscriptionLimit
+    );
+
+    Ok(())
+}

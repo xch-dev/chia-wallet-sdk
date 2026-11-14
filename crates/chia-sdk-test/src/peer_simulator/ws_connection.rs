@@ -107,13 +107,9 @@ impl Reply {
     where
         T: Streamable + ChiaProtocolMessage,
     {
-        Ok(Self::new(T::msg_type(), body.to_bytes()?.into()))
-    }
-
-    fn new(response_type: ProtocolMessageTypes, response: Bytes) -> Self {
-        Self {
-            response: Some((response_type, response)),
-        }
+        Ok(Self {
+            response: Some((T::msg_type(), body.to_bytes()?.into())),
+        })
     }
 }
 
@@ -148,46 +144,37 @@ async fn handle_message<B: Backend>(
     let reply = match request.msg_type {
         ProtocolMessageTypes::SendTransaction => {
             let request = SendTransaction::from_bytes(&request.data)?;
-            let response = send_transaction(shared, request, &mut *simulator).await?;
-            Reply::new(ProtocolMessageTypes::TransactionAck, response)
+            send_transaction(shared, request, &mut *simulator).await?
         }
         ProtocolMessageTypes::RequestTransaction => {
             let request = RequestTransaction::from_bytes(&request.data)?;
             // Like a full node, don't respond if the transaction isn't in the mempool.
-            let response = simulator
-                .mempool_transaction(request.transaction_id)
-                .map(|transaction| {
-                    Ok::<_, PeerSimulatorError>((
-                        ProtocolMessageTypes::RespondTransaction,
-                        RespondTransaction::new(transaction).to_bytes()?.into(),
-                    ))
-                })
-                .transpose()?;
-            Reply { response }
+            match simulator.mempool_transaction(request.transaction_id) {
+                Some(transaction) => Reply::message(&RespondTransaction::new(transaction))?,
+                None => Reply { response: None },
+            }
         }
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = register_for_coin_updates(
+            register_for_coin_updates(
                 addr,
                 request,
                 &*simulator,
                 &mut subscriptions,
                 &mut new_subscriptions,
-            )?;
-            Reply::new(ProtocolMessageTypes::RespondToCoinUpdates, response)
+            )?
         }
         ProtocolMessageTypes::RegisterForPhUpdates => {
             let request = RegisterForPhUpdates::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = register_for_ph_updates(
+            register_for_ph_updates(
                 addr,
                 request,
                 &*simulator,
                 &mut subscriptions,
                 &mut new_subscriptions,
-            )?;
-            Reply::new(ProtocolMessageTypes::RespondToPhUpdates, response)
+            )?
         }
         ProtocolMessageTypes::RequestPuzzleSolution => {
             let request = RequestPuzzleSolution::from_bytes(&request.data)?;
@@ -195,8 +182,7 @@ async fn handle_message<B: Backend>(
         }
         ProtocolMessageTypes::RequestChildren => {
             let request = RequestChildren::from_bytes(&request.data)?;
-            let response = request_children(&request, &*simulator)?;
-            Reply::new(ProtocolMessageTypes::RespondChildren, response)
+            request_children(&request, &*simulator)?
         }
         ProtocolMessageTypes::RequestCoinState => {
             let request = RequestCoinState::from_bytes(&request.data)?;
@@ -225,20 +211,12 @@ async fn handle_message<B: Backend>(
         ProtocolMessageTypes::RequestRemoveCoinSubscriptions => {
             let request = RequestRemoveCoinSubscriptions::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = request_remove_coin_subscriptions(addr, request, &mut subscriptions)?;
-            Reply::new(
-                ProtocolMessageTypes::RespondRemoveCoinSubscriptions,
-                response,
-            )
+            request_remove_coin_subscriptions(addr, request, &mut subscriptions)?
         }
         ProtocolMessageTypes::RequestRemovePuzzleSubscriptions => {
             let request = RequestRemovePuzzleSubscriptions::from_bytes(&request.data)?;
             let mut subscriptions = shared.subscriptions.lock().await;
-            let response = request_remove_puzzle_subscriptions(addr, request, &mut subscriptions)?;
-            Reply::new(
-                ProtocolMessageTypes::RespondRemovePuzzleSubscriptions,
-                response,
-            )
+            request_remove_puzzle_subscriptions(addr, request, &mut subscriptions)?
         }
         message_type => {
             return Err(PeerSimulatorError::UnsupportedMessage(message_type));
@@ -319,7 +297,7 @@ async fn send_transaction<B: Backend>(
     shared: &Shared<B>,
     request: SendTransaction,
     simulator: &mut B,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let transaction_id = request.transaction.name();
 
     let events = match simulator.submit_transaction(request.transaction) {
@@ -332,22 +310,18 @@ async fn send_transaction<B: Backend>(
                 _ => ErrorCode::Unknown,
             };
 
-            return Ok(TransactionAck::new(
+            return Reply::message(&TransactionAck::new(
                 transaction_id,
                 3,
                 Some(format!("{:?}", ValidationErr::Err(error_code))),
-            )
-            .to_bytes()?
-            .into());
+            ));
         }
     };
 
     let subscriptions = shared.subscriptions.lock().await;
     notify_peers(&shared.peer_map, &subscriptions, &events).await?;
 
-    Ok(TransactionAck::new(transaction_id, 1, None)
-        .to_bytes()?
-        .into())
+    Reply::message(&TransactionAck::new(transaction_id, 1, None))
 }
 
 fn register_for_coin_updates<B: Backend>(
@@ -356,7 +330,7 @@ fn register_for_coin_updates<B: Backend>(
     simulator: &B,
     subscriptions: &mut Subscriptions,
     new_subscriptions: &mut NewSubscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
 
     let coin_states: Vec<CoinState> = simulator
@@ -373,13 +347,11 @@ fn register_for_coin_updates<B: Backend>(
     new_subscriptions.coin_ids.extend(coin_ids.iter().copied());
     subscriptions.add_coin_subscriptions(peer, coin_ids);
 
-    Ok(RespondToCoinUpdates {
+    Reply::message(&RespondToCoinUpdates {
         coin_ids: request.coin_ids,
         min_height: request.min_height,
         coin_states,
-    }
-    .to_bytes()?
-    .into())
+    })
 }
 
 fn register_for_ph_updates<B: Backend>(
@@ -388,7 +360,7 @@ fn register_for_ph_updates<B: Backend>(
     simulator: &B,
     subscriptions: &mut Subscriptions,
     new_subscriptions: &mut NewSubscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
 
     let coin_states: Vec<CoinState> = simulator
@@ -407,13 +379,11 @@ fn register_for_ph_updates<B: Backend>(
         .extend(puzzle_hashes.iter().copied());
     subscriptions.add_puzzle_subscriptions(peer, puzzle_hashes);
 
-    Ok(RespondToPhUpdates {
+    Reply::message(&RespondToPhUpdates {
         puzzle_hashes: request.puzzle_hashes,
         min_height: request.min_height,
         coin_states,
-    }
-    .to_bytes()?
-    .into())
+    })
 }
 
 fn request_puzzle_solution<B: Backend>(
@@ -440,10 +410,8 @@ fn request_puzzle_solution<B: Backend>(
 fn request_children<B: Backend>(
     request: &RequestChildren,
     simulator: &B,
-) -> Result<Bytes, PeerSimulatorError> {
-    Ok(RespondChildren::new(simulator.children(request.coin_name))
-        .to_bytes()?
-        .into())
+) -> Result<Reply, PeerSimulatorError> {
+    Reply::message(&RespondChildren::new(simulator.children(request.coin_name)))
 }
 
 fn request_coin_state<B: Backend>(
@@ -583,30 +551,26 @@ fn request_remove_coin_subscriptions(
     peer: SocketAddr,
     request: RequestRemoveCoinSubscriptions,
     subscriptions: &mut Subscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let coin_ids = if let Some(coin_ids) = request.coin_ids {
         subscriptions.remove_coin_subscriptions(peer, &coin_ids)
     } else {
         subscriptions.remove_all_coin_subscriptions(peer)
     };
 
-    Ok(RespondRemoveCoinSubscriptions { coin_ids }
-        .to_bytes()?
-        .into())
+    Reply::message(&RespondRemoveCoinSubscriptions { coin_ids })
 }
 
 fn request_remove_puzzle_subscriptions(
     peer: SocketAddr,
     request: RequestRemovePuzzleSubscriptions,
     subscriptions: &mut Subscriptions,
-) -> Result<Bytes, PeerSimulatorError> {
+) -> Result<Reply, PeerSimulatorError> {
     let puzzle_hashes = if let Some(puzzle_hashes) = request.puzzle_hashes {
         subscriptions.remove_puzzle_subscriptions(peer, &puzzle_hashes)
     } else {
         subscriptions.remove_all_puzzle_subscriptions(peer)
     };
 
-    Ok(RespondRemovePuzzleSubscriptions { puzzle_hashes }
-        .to_bytes()?
-        .into())
+    Reply::message(&RespondRemovePuzzleSubscriptions { puzzle_hashes })
 }

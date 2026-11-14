@@ -2,7 +2,7 @@
 //! connected peers. Nothing is recorded unless the peer simulator enables the log.
 
 use chia_protocol::{Bytes32, CoinState, MempoolRemoveReason};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 
 use super::{FullNodeSimulator, ValidatedBundle};
 
@@ -11,6 +11,18 @@ use super::{FullNodeSimulator, ValidatedBundle};
 pub(crate) struct PeerEventLog {
     enabled: bool,
     events: Vec<PeerEvent>,
+    /// The ids of each mempool item, as of when it was added. Removals and replays use these,
+    /// so an item is removed for the same peers it was added for, even if a coin it touched (and
+    /// so its hint) is gone by the time it's removed.
+    item_ids: IndexMap<Bytes32, MempoolItemIds>,
+}
+
+#[cfg(feature = "serde")]
+impl PeerEventLog {
+    /// Forgets the ids of mempool items, for when the mempool is replaced wholesale.
+    pub(super) fn forget_items(&mut self) {
+        self.item_ids.clear();
+    }
 }
 
 /// A change to the chain or the mempool, in the order it happened.
@@ -115,6 +127,9 @@ impl FullNodeSimulator {
             return;
         };
         let ids = self.mempool_item_ids(item);
+        self.peer_events
+            .item_ids
+            .insert(transaction_id, ids.clone());
         self.peer_events.events.push(PeerEvent::MempoolItemAdded {
             transaction_id,
             ids,
@@ -130,7 +145,11 @@ impl FullNodeSimulator {
         if !self.peer_events.enabled {
             return;
         }
-        let ids = self.mempool_item_ids(item);
+        let ids = self
+            .peer_events
+            .item_ids
+            .shift_remove(&transaction_id)
+            .unwrap_or_else(|| self.mempool_item_ids(item));
         self.peer_events.events.push(PeerEvent::MempoolItemRemoved {
             transaction_id,
             reason,
@@ -228,9 +247,7 @@ mod backend {
             &mut self,
             spend_bundle: SpendBundle,
         ) -> Result<Vec<PeerEvent>, SimulatorError> {
-            if let Some(error) = self.push_tx_detailed(spend_bundle).error {
-                return Err(error);
-            }
+            self.normalize_and_insert(spend_bundle)?;
             Ok(Backend::drain_events(self))
         }
 
@@ -241,7 +258,15 @@ mod backend {
         fn mempool_items(&self) -> Vec<(Bytes32, MempoolItemIds)> {
             self.mempool
                 .iter()
-                .map(|(tx_id, item)| (*tx_id, self.mempool_item_ids(item)))
+                .map(|(tx_id, item)| {
+                    let ids = self
+                        .peer_events
+                        .item_ids
+                        .get(tx_id)
+                        .cloned()
+                        .unwrap_or_else(|| self.mempool_item_ids(item));
+                    (*tx_id, ids)
+                })
                 .collect()
         }
 
