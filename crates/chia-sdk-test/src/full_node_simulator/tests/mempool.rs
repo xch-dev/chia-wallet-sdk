@@ -293,3 +293,50 @@ fn farming_removes_items_whose_signature_no_longer_matches() -> anyhow::Result<(
 
     Ok(())
 }
+
+#[test]
+fn moving_the_clock_past_an_expiry_removes_the_item() -> anyhow::Result<()> {
+    use chia_consensus::validation_error::ErrorCode;
+    use chia_sdk_types::conditions::AssertBeforeSecondsAbsolute;
+
+    use crate::SimulatorError;
+
+    let mut sim = FullNodeSimulator::new();
+    sim.farm_block(1);
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+    let expires_at = sim.next_timestamp() + 60;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program([AssertBeforeSecondsAbsolute::new(expires_at)])?,
+        )],
+        Signature::default(),
+    );
+    let tx_id = spend_bundle.name();
+    assert!(sim.push_tx(spend_bundle).success);
+
+    // Times before the peak block are refused.
+    assert!(matches!(
+        sim.set_next_timestamp(0),
+        Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast))
+    ));
+
+    sim.pass_time(60);
+    assert_eq!(sim.next_timestamp(), expires_at);
+    let height = sim.height();
+    sim.farm_block(1);
+
+    // The block was farmed without the expired item, which left the mempool.
+    assert_eq!(sim.height(), height + 1);
+    assert!(sim.get_mempool_item_by_tx_id(tx_id).mempool_item.is_none());
+    assert!(
+        !sim.get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .unwrap()
+            .spent
+    );
+
+    Ok(())
+}

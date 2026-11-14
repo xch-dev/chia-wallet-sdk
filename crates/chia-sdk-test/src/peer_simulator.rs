@@ -161,10 +161,12 @@ impl PeerSimulator<FullNodeSimulator> {
     ///   receive `MempoolItemsAdded` and `MempoolItemsRemoved` for transactions that spend or
     ///   create a coin they're subscribed to, by coin id, puzzle hash or hint. A new subscription
     ///   is followed by `MempoolItemsAdded` for the transactions already in the mempool that match
-    ///   it. Transactions are removed with the reason `BlockInclusion` when farmed, and
-    ///   `Conflict` when replaced by fee or when they're no longer valid after a block (along
-    ///   with the transactions that spend their outputs). Since every valid transaction is
-    ///   included in the next block, transactions don't expire, and `PoolFull` isn't used. Use
+    ///   it. Transactions are removed with the reason `BlockInclusion` when farmed, `Expired`
+    ///   when the clock has been moved past an `ASSERT_BEFORE_SECONDS_*` condition (see
+    ///   [`FullNodeSimulator::pass_time`]) before a block is farmed, and `Conflict` when replaced
+    ///   by fee or when they're otherwise no longer valid after a block (along with the
+    ///   transactions that spend their outputs). Every valid transaction is included in the next
+    ///   block, so `PoolFull` isn't used. Use
     ///   [`PeerSimulator::connect_split_with_capabilities`] to connect such a peer.
     ///
     /// The simulator's genesis challenge, which is also the `AGG_SIG_ME` additional data, is set
@@ -322,12 +324,16 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
     }
 
     /// Connects a new [`Peer`] and performs the wallet handshake, advertising the given
-    /// capabilities. Returns the peer with the receiver for incoming messages, after discarding
-    /// the initial `NewPeakWallet` and the simulator's `Handshake`.
+    /// capabilities. Returns the peer with the receiver for incoming messages.
+    ///
+    /// The simulator's `Handshake` reply is taken out of the receiver, and the initial
+    /// `NewPeakWallet` is left in it, so the receiver starts the way it does after a handshake
+    /// with a full node. Use this to hand the connection to wallet code that processes the
+    /// initial peak itself.
     ///
     /// Each capability is a pair of its id and value, such as `(5, "1".to_string())` for the
     /// CHIP-26 `MEMPOOL_UPDATES` capability. A peer connected without the handshake, such as
-    /// with [`PeerSimulator::connect_split`], has no capabilities. The simulator accepts any
+    /// with [`PeerSimulator::connect_raw`], has no capabilities. The simulator accepts any
     /// network id and sends it back, so the one this sends doesn't matter.
     ///
     /// # Errors
@@ -335,7 +341,7 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
     /// Returns an error if the websocket connection fails, or
     /// [`ClientError::MissingHandshake`] if it closes before the simulator's `Handshake`
     /// arrives.
-    pub async fn connect_split_with_capabilities(
+    pub async fn connect_raw_with_capabilities(
         &self,
         capabilities: Vec<(u16, String)>,
     ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
@@ -351,6 +357,9 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
         })
         .await?;
 
+        // The simulator sends the initial peak as soon as a peer connects, so it arrives before
+        // the handshake reply.
+        let mut before_handshake = Vec::new();
         loop {
             let Some(message) = receiver.recv().await else {
                 return Err(ClientError::MissingHandshake.into());
@@ -358,8 +367,49 @@ impl<S: PeerSimulatorBackend> PeerSimulator<S> {
             if message.msg_type == ProtocolMessageTypes::Handshake {
                 break;
             }
+            before_handshake.push(message);
         }
 
+        let (sender, forwarded) = mpsc::channel(32);
+        tokio::spawn(async move {
+            for message in before_handshake {
+                if sender.send(message).await.is_err() {
+                    return;
+                }
+            }
+            while let Some(message) = receiver.recv().await {
+                if sender.send(message).await.is_err() {
+                    return;
+                }
+            }
+        });
+
+        Ok((peer, forwarded))
+    }
+
+    /// Connects a new [`Peer`] and performs the wallet handshake, advertising the given
+    /// capabilities, like [`PeerSimulator::connect_raw_with_capabilities`]. Returns the peer
+    /// with the receiver for incoming messages, after waiting for the initial `NewPeakWallet`
+    /// and discarding it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the websocket connection fails, or
+    /// [`ClientError::MissingHandshake`] if it closes before the simulator's `Handshake`
+    /// arrives.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connection closes before the initial `NewPeakWallet` message arrives.
+    pub async fn connect_split_with_capabilities(
+        &self,
+        capabilities: Vec<(u16, String)>,
+    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        let (peer, mut receiver) = self.connect_raw_with_capabilities(capabilities).await?;
+        receiver
+            .recv()
+            .await
+            .expect("expected NewPeakWallet message");
         Ok((peer, receiver))
     }
 

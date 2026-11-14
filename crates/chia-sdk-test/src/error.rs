@@ -257,7 +257,7 @@ pub enum StateDumpError {
     #[error("replayed height does not match serialized height")]
     ReplayedHeightMismatch,
 
-    /// The next timestamp after replaying the blocks doesn't match the dumped next timestamp.
+    /// The dumped next timestamp is earlier than the timestamp of the last block.
     #[error("next timestamp does not follow the canonical blocks")]
     NextTimestampMismatch,
 }

@@ -137,6 +137,35 @@ test("full node simulator validates signatures with the genesis challenge", (t) 
   t.true(sim.pushTx(spendBundle).success);
 });
 
+test("full node simulator drops transactions whose expiry has passed", (t) => {
+  const sim = new FullNodeSimulator();
+  const clvm = new Clvm();
+  const puzzle = clvm.parse("1");
+  const coin = sim.newCoin(puzzle.treeHash(), 0n);
+
+  // ASSERT_BEFORE_SECONDS_ABSOLUTE one minute from the next block.
+  const expiresAt = sim.nextTimestamp() + 60n;
+  const spendBundle = new SpendBundle(
+    [
+      new CoinSpend(
+        coin,
+        puzzle.serialize(),
+        clvm.parse(`((85 ${expiresAt}))`).serialize(),
+      ),
+    ],
+    Signature.infinity(),
+  );
+  t.true(sim.pushTx(spendBundle).success);
+
+  t.throws(() => sim.setNextTimestamp(0n));
+  sim.passTime(60n);
+  t.is(sim.nextTimestamp(), expiresAt);
+  sim.farmBlock(1);
+
+  t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 0);
+  t.false(sim.getCoinRecordByName(coin.coinId()).coinRecord!.spent);
+});
+
 test("full node simulator can serve rpc over http", async (t) => {
   const sim = new FullNodeSimulator();
   const server = await sim.startServer();

@@ -284,8 +284,9 @@ impl FullNodeSimulator {
     /// The reason a mempool item that fails validation with `error` is removed: [`Expired`] if
     /// one of its `ASSERT_BEFORE_*` conditions no longer passes, otherwise [`Conflict`].
     ///
-    /// Items are currently never left out of a block while they're valid, so they can't expire
-    /// in practice. The mapping is here for when that changes, such as with a block cost limit.
+    /// Items expire when the chain's clock is moved past their `ASSERT_BEFORE_SECONDS_*`
+    /// conditions with [`FullNodeSimulator::set_next_timestamp`] or
+    /// [`FullNodeSimulator::pass_time`].
     ///
     /// [`Expired`]: MempoolRemoveReason::Expired
     /// [`Conflict`]: MempoolRemoveReason::Conflict
@@ -334,6 +335,44 @@ impl FullNodeSimulator {
     /// Returns all events recorded since the last call, and clears them.
     pub fn drain_events(&mut self) -> Vec<FullNodeSimulatorEvent> {
         std::mem::take(&mut self.events)
+    }
+
+    /// Returns the timestamp that the next farmed block will have, in seconds.
+    ///
+    /// Transactions are validated against this timestamp, both when they're pushed and when the
+    /// next block is farmed.
+    pub fn next_timestamp(&self) -> u64 {
+        self.state.next_timestamp
+    }
+
+    /// Sets the timestamp of the next farmed block, in seconds.
+    ///
+    /// Use this to bring the chain's clock in line with the wall clock, or to move it past a
+    /// transaction's `ASSERT_BEFORE_SECONDS_*` condition. The next block leaves out transactions
+    /// that are no longer valid at its timestamp and removes them from the mempool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SimulatorError::Validation`] with [`ErrorCode::TimestampTooFarInPast`] if `time`
+    /// is earlier than the timestamp of the peak block.
+    pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
+        let peak_timestamp = self
+            .state
+            .blocks
+            .get(&self.header_hash())
+            .and_then(|block| block.record.timestamp);
+        if peak_timestamp.is_some_and(|peak_timestamp| time < peak_timestamp) {
+            return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
+        }
+        self.state.next_timestamp = time;
+        Ok(())
+    }
+
+    /// Moves the timestamp of the next farmed block forward by `time` seconds.
+    ///
+    /// See [`FullNodeSimulator::set_next_timestamp`].
+    pub fn pass_time(&mut self, time: u64) {
+        self.state.next_timestamp = self.state.next_timestamp.saturating_add(time);
     }
 
     /// Sets the puzzle hash that receives the reward coin of each farmed block.

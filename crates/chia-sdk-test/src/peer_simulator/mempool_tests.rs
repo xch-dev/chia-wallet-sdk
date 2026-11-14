@@ -1206,3 +1206,86 @@ async fn test_restore_state_removes_the_mempool() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_expired_transaction() -> anyhow::Result<()> {
+    use chia_sdk_types::conditions::AssertBeforeSecondsAbsolute;
+
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = connect_with_handshake(&sim, true).await?;
+
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    peer.register_for_coin_updates(vec![coin.coin_id()], 0)
+        .await?;
+
+    let expires_at = sim.lock().await.next_timestamp() + 3_600;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program([AssertBeforeSecondsAbsolute::new(expires_at)])?,
+        )],
+        Signature::default(),
+    );
+    let transaction_id = spend_bundle.name();
+    assert_eq!(peer.send_transaction(spend_bundle.clone()).await?.status, 1);
+    received(&peer, &mut receiver).await?;
+
+    // The next block is an hour later, so the transaction can't be included.
+    sim.lock().await.pass_time(3_600);
+    sim.farm_block(1).await;
+
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(
+        mempool_messages(&messages)
+            .into_iter()
+            .flat_map(removed)
+            .collect::<Vec<_>>(),
+        vec![RemovedMempoolItem::new(
+            transaction_id,
+            MempoolRemoveReason::Expired
+        )]
+    );
+    assert!(
+        !messages
+            .iter()
+            .any(|message| message.msg_type == ProtocolMessageTypes::CoinStateUpdate)
+    );
+
+    // Resubmitting it is rejected.
+    let ack = peer.send_transaction(spend_bundle).await?;
+    assert_eq!(ack.status, 3);
+    assert_eq!(
+        ack.error.as_deref(),
+        Some("Err(AssertBeforeSecondsAbsoluteFailed)")
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_connect_raw_with_capabilities_keeps_the_initial_peak() -> anyhow::Result<()> {
+    let sim = PeerSimulator::with_mempool().await?;
+    let (peer, mut receiver) = sim
+        .connect_raw_with_capabilities(vec![(MEMPOOL_UPDATES, "1".to_string())])
+        .await?;
+
+    let message = receiver.recv().await.expect("expected NewPeakWallet");
+    assert_eq!(message.msg_type, ProtocolMessageTypes::NewPeakWallet);
+    let new_peak = NewPeakWallet::from_bytes(&message.data)?;
+    assert_eq!(new_peak.height, sim.lock().await.height());
+
+    // The handshake still opted the peer into mempool updates.
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.lock().await.new_coin(puzzle_hash, 1);
+    peer.register_for_ph_updates(vec![puzzle_hash], 0).await?;
+    let spend_bundle = spend(coin, &puzzle_reveal, &[])?;
+    let transaction_id = spend_bundle.name();
+    assert_eq!(peer.send_transaction(spend_bundle).await?.status, 1);
+    let messages = received(&peer, &mut receiver).await?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(added(&messages[0]), vec![transaction_id]);
+
+    Ok(())
+}

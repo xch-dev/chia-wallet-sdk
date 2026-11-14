@@ -465,3 +465,21 @@ fn dump_restore_keeps_a_custom_genesis_challenge() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn dump_restore_keeps_time_moved_between_blocks() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::with_seed(123);
+    sim.farm_block(1);
+    sim.pass_time(1_000);
+    sim.farm_block(1);
+    sim.pass_time(500);
+
+    let json = sim.dump_state()?;
+    let mut restored = FullNodeSimulator::new();
+    restored.restore_state(&json)?;
+
+    assert_eq!(restored.header_hash(), sim.header_hash());
+    assert_eq!(restored.next_timestamp(), sim.next_timestamp());
+
+    Ok(())
+}

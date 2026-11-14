@@ -185,6 +185,19 @@
         },
         "return": "GetMempoolItemsResponse"
       },
+      "next_timestamp": {
+        "return": "u64"
+      },
+      "set_next_timestamp": {
+        "args": {
+          "time": "u64"
+        }
+      },
+      "pass_time": {
+        "args": {
+          "time": "u64"
+        }
+      },
       "farm_block": {
         "args": {
           "blocks": "u32"
