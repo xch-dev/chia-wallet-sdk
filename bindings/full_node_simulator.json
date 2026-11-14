@@ -55,6 +55,11 @@
           "puzzle_hash": "Bytes32"
         }
       },
+      "set_genesis_challenge": {
+        "args": {
+          "genesis_challenge": "Bytes32"
+        }
+      },
       "get_blockchain_state": {
         "return": "BlockchainStateResponse"
       },
@@ -179,6 +184,19 @@
           "coin_name": "Bytes32"
         },
         "return": "GetMempoolItemsResponse"
+      },
+      "next_timestamp": {
+        "return": "u64"
+      },
+      "set_next_timestamp": {
+        "args": {
+          "time": "u64"
+        }
+      },
+      "pass_time": {
+        "args": {
+          "time": "u64"
+        }
       },
       "farm_block": {
         "args": {

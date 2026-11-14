@@ -9,7 +9,7 @@ use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolMinFees, SyncState,
 };
 
-use super::{FullNodeSimulator, SIMULATOR_GENESIS_CHALLENGE, SimCoinRecord, ValidatedBundle};
+use super::{FullNodeSimulator, SimCoinRecord, ValidatedBundle};
 
 impl FullNodeSimulator {
     /// Returns the height of the peak block. The genesis block is at height 1.
@@ -109,7 +109,7 @@ impl FullNodeSimulator {
         GetNetworkInfoResponse {
             network_name: Some("simulator0".to_string()),
             network_prefix: Some("txch".to_string()),
-            genesis_challenge: Some(SIMULATOR_GENESIS_CHALLENGE),
+            genesis_challenge: Some(self.genesis_challenge),
             error: None,
             success: true,
         }
@@ -117,10 +117,11 @@ impl FullNodeSimulator {
 
     /// Returns the `AGG_SIG_ME` additional data that signatures must be made with.
     ///
-    /// This is the simulator's genesis challenge, which isn't the testnet11 value used by
+    /// This is the simulator's genesis challenge. Unless it was changed with
+    /// [`FullNodeSimulator::set_genesis_challenge`], it isn't the testnet11 value used by
     /// [`sign_transaction`](crate::sign_transaction).
     pub fn get_aggsig_additional_data(&self) -> Bytes32 {
-        SIMULATOR_GENESIS_CHALLENGE
+        self.genesis_challenge
     }
 
     /// Returns the record of the block with the given header hash, including blocks orphaned by

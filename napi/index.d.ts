@@ -1978,6 +1978,7 @@ export declare class FullNodeSimulator {
   getMasterSecretKey(): SecretKey
   getPrefarmPuzzleHash(): Buffer
   setFarmingPh(puzzleHash: Uint8Array): void
+  setGenesisChallenge(genesisChallenge: Uint8Array): void
   getBlockchainState(): BlockchainStateResponse
   getNetworkInfo(): GetNetworkInfoResponse
   getAggsigAdditionalData(): Buffer
@@ -1997,6 +1998,9 @@ export declare class FullNodeSimulator {
   pushTx(spendBundle: SpendBundle): PushTxResponse
   getMempoolItemByTxId(txId: Uint8Array): GetMempoolItemResponse
   getMempoolItemsByCoinName(coinName: Uint8Array): GetMempoolItemsResponse
+  nextTimestamp(): bigint
+  setNextTimestamp(time: bigint): void
+  passTime(time: bigint): void
   farmBlock(blocks: number): Array<BlockRecord>
   revertBlocks(blocks: number): Array<Buffer>
   reorgBlocks(numOfBlocksToRev: number, numOfNewBlocks: number): Array<BlockRecord>

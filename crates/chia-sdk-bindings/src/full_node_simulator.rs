@@ -96,6 +96,14 @@ impl FullNodeSimulator {
         Ok(())
     }
 
+    pub fn set_genesis_challenge(&self, genesis_challenge: Bytes32) -> Result<()> {
+        self.0
+            .lock()
+            .unwrap()
+            .set_genesis_challenge(genesis_challenge);
+        Ok(())
+    }
+
     pub fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
         Ok(self.0.lock().unwrap().get_blockchain_state())
     }
@@ -258,6 +266,20 @@ impl FullNodeSimulator {
             .lock()
             .unwrap()
             .get_mempool_items_by_coin_name(coin_name))
+    }
+
+    pub fn next_timestamp(&self) -> Result<u64> {
+        Ok(self.0.lock().unwrap().next_timestamp())
+    }
+
+    pub fn set_next_timestamp(&self, time: u64) -> Result<()> {
+        self.0.lock().unwrap().set_next_timestamp(time)?;
+        Ok(())
+    }
+
+    pub fn pass_time(&self, time: u64) -> Result<()> {
+        self.0.lock().unwrap().pass_time(time);
+        Ok(())
     }
 
     pub fn farm_block(&self, blocks: u32) -> Result<Vec<BlockRecord>> {

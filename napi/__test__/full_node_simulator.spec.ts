@@ -102,6 +102,70 @@ test("full node simulator push tx waits for manual farming", (t) => {
   t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 0);
 });
 
+test("full node simulator validates signatures with the genesis challenge", (t) => {
+  const sim = new FullNodeSimulator();
+  const genesisChallenge = new Uint8Array(32).fill(7);
+  const clvm = new Clvm();
+  const puzzle = clvm.parse("1");
+  const coin = sim.newCoin(puzzle.treeHash(), 0n);
+
+  const secretKey = SecretKey.fromSeed(new Uint8Array(32).fill(1));
+  const publicKey = Buffer.from(secretKey.publicKey().toBytes()).toString(
+    "hex",
+  );
+  const message = Buffer.from("hello");
+
+  // AGG_SIG_ME signs the message, the coin id and the genesis challenge.
+  const spendBundle = new SpendBundle(
+    [
+      new CoinSpend(
+        coin,
+        puzzle.serialize(),
+        clvm
+          .parse(`((50 0x${publicKey} 0x${message.toString("hex")}))`)
+          .serialize(),
+      ),
+    ],
+    secretKey.sign(Buffer.concat([message, coin.coinId(), genesisChallenge])),
+  );
+
+  t.false(sim.pushTx(spendBundle).success);
+
+  sim.setGenesisChallenge(genesisChallenge);
+  t.true(bytesEqual(sim.getAggsigAdditionalData(), genesisChallenge));
+  t.true(bytesEqual(sim.getNetworkInfo().genesisChallenge!, genesisChallenge));
+  t.true(sim.pushTx(spendBundle).success);
+});
+
+test("full node simulator drops transactions whose expiry has passed", (t) => {
+  const sim = new FullNodeSimulator();
+  const clvm = new Clvm();
+  const puzzle = clvm.parse("1");
+  const coin = sim.newCoin(puzzle.treeHash(), 0n);
+
+  // ASSERT_BEFORE_SECONDS_ABSOLUTE one minute from the next block.
+  const expiresAt = sim.nextTimestamp() + 60n;
+  const spendBundle = new SpendBundle(
+    [
+      new CoinSpend(
+        coin,
+        puzzle.serialize(),
+        clvm.parse(`((85 ${expiresAt}))`).serialize(),
+      ),
+    ],
+    Signature.infinity(),
+  );
+  t.true(sim.pushTx(spendBundle).success);
+
+  t.throws(() => sim.setNextTimestamp(0n));
+  sim.passTime(60n);
+  t.is(sim.nextTimestamp(), expiresAt);
+  sim.farmBlock(1);
+
+  t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 0);
+  t.false(sim.getCoinRecordByName(coin.coinId()).coinRecord!.spent);
+});
+
 test("full node simulator can serve rpc over http", async (t) => {
   const sim = new FullNodeSimulator();
   const server = await sim.startServer();

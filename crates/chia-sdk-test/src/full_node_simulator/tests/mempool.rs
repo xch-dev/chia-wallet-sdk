@@ -160,3 +160,183 @@ fn push_tx_allows_dedup_compatible_mempool_overlap() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn replacing_an_item_removes_the_items_that_spend_its_children() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::new();
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+    let parent = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 100)?;
+    let child = Coin::new(coin.coin_id(), puzzle_hash, 100);
+    let dependent = spend_to_child(child, puzzle_reveal.clone(), puzzle_hash, 100)?;
+    let replacement = spend_to_child(coin, puzzle_reveal, puzzle_hash, 99)?;
+    let dependent_tx_id = dependent.name();
+
+    assert!(sim.push_tx(parent).success);
+    assert!(sim.push_tx(dependent).success);
+    assert!(sim.push_tx(replacement.clone()).success);
+
+    assert!(
+        sim.get_mempool_item_by_tx_id(dependent_tx_id)
+            .mempool_item
+            .is_none()
+    );
+    assert!(
+        sim.get_mempool_item_by_tx_id(replacement.name())
+            .mempool_item
+            .is_some()
+    );
+
+    Ok(())
+}
+
+#[test]
+fn farming_removes_items_that_are_no_longer_valid() -> anyhow::Result<()> {
+    let mut sim = FullNodeSimulator::new();
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+    let parent = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 100)?;
+    let child = Coin::new(coin.coin_id(), puzzle_hash, 100);
+    let dependent = spend_to_child(child, puzzle_reveal, puzzle_hash, 100)?;
+    let dependent_tx_id = dependent.name();
+
+    assert!(sim.push_tx(parent).success);
+    sim.farm_block(1);
+    assert!(sim.push_tx(dependent).success);
+
+    // The reorg drops the block that created the child, so the dependent item can't be included
+    // in the replacement block and is removed from the mempool.
+    sim.reorg_blocks(1, 0);
+
+    assert!(
+        sim.get_mempool_item_by_tx_id(dependent_tx_id)
+            .mempool_item
+            .is_none()
+    );
+    assert!(
+        sim.get_coin_record_by_name(child.coin_id())
+            .coin_record
+            .is_none()
+    );
+
+    Ok(())
+}
+
+#[test]
+fn set_genesis_challenge_changes_the_agg_sig_me_additional_data() -> anyhow::Result<()> {
+    use chia_sdk_types::{TESTNET11_CONSTANTS, conditions::AggSigMe};
+
+    use crate::{BlsPair, sign_transaction};
+
+    let mut sim = FullNodeSimulator::new();
+    let pair = BlsPair::new(0);
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 0);
+    let coin_spends = vec![CoinSpend::new(
+        coin,
+        puzzle_reveal,
+        to_program([AggSigMe::new(pair.pk, b"message".to_vec().into())])?,
+    )];
+    // Signed with the testnet11 additional data.
+    let signature = sign_transaction(&coin_spends, &[pair.sk])?;
+    let spend_bundle = SpendBundle::new(coin_spends, signature);
+
+    assert!(!sim.push_tx(spend_bundle.clone()).success);
+
+    sim.set_genesis_challenge(TESTNET11_CONSTANTS.genesis_challenge);
+    assert_eq!(
+        sim.get_aggsig_additional_data(),
+        TESTNET11_CONSTANTS.genesis_challenge
+    );
+    assert_eq!(
+        sim.get_network_info().genesis_challenge,
+        Some(TESTNET11_CONSTANTS.genesis_challenge)
+    );
+    assert!(sim.push_tx(spend_bundle).success);
+
+    Ok(())
+}
+
+#[test]
+fn farming_removes_items_whose_signature_no_longer_matches() -> anyhow::Result<()> {
+    use chia_sdk_types::{TESTNET11_CONSTANTS, conditions::AggSigMe};
+
+    use crate::{BlsPair, sign_transaction};
+
+    let mut sim = FullNodeSimulator::new();
+    sim.set_genesis_challenge(TESTNET11_CONSTANTS.genesis_challenge);
+    let pair = BlsPair::new(0);
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 0);
+    let coin_spends = vec![CoinSpend::new(
+        coin,
+        puzzle_reveal,
+        to_program([AggSigMe::new(pair.pk, b"message".to_vec().into())])?,
+    )];
+    let signature = sign_transaction(&coin_spends, &[pair.sk])?;
+    let spend_bundle = SpendBundle::new(coin_spends, signature);
+    let tx_id = spend_bundle.name();
+    assert!(sim.push_tx(spend_bundle).success);
+
+    // The item can't be included once the additional data changes, so it's dropped instead of
+    // staying in the mempool.
+    sim.set_genesis_challenge(FullNodeSimulator::new().get_aggsig_additional_data());
+    sim.farm_block(1);
+
+    assert!(sim.get_mempool_item_by_tx_id(tx_id).mempool_item.is_none());
+    assert!(
+        !sim.get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .unwrap()
+            .spent
+    );
+
+    Ok(())
+}
+
+#[test]
+fn moving_the_clock_past_an_expiry_removes_the_item() -> anyhow::Result<()> {
+    use chia_consensus::validation_error::ErrorCode;
+    use chia_sdk_types::conditions::AssertBeforeSecondsAbsolute;
+
+    use crate::SimulatorError;
+
+    let mut sim = FullNodeSimulator::new();
+    sim.farm_block(1);
+    let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+    let coin = sim.new_coin(puzzle_hash, 100);
+    let expires_at = sim.next_timestamp() + 60;
+    let spend_bundle = SpendBundle::new(
+        vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program([AssertBeforeSecondsAbsolute::new(expires_at)])?,
+        )],
+        Signature::default(),
+    );
+    let tx_id = spend_bundle.name();
+    assert!(sim.push_tx(spend_bundle).success);
+
+    // Times before the peak block are refused.
+    assert!(matches!(
+        sim.set_next_timestamp(0),
+        Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast))
+    ));
+
+    sim.pass_time(60);
+    assert_eq!(sim.next_timestamp(), expires_at);
+    let height = sim.height();
+    sim.farm_block(1);
+
+    // The block was farmed without the expired item, which left the mempool.
+    assert_eq!(sim.height(), height + 1);
+    assert!(sim.get_mempool_item_by_tx_id(tx_id).mempool_item.is_none());
+    assert!(
+        !sim.get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .unwrap()
+            .spent
+    );
+
+    Ok(())
+}

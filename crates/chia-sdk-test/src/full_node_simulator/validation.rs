@@ -7,7 +7,7 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     FullNodeSimulator, SimulatorError,
-    full_node_simulator::{SIMULATOR_GENESIS_CHALLENGE, ValidatedBundle, ValidatedSpend},
+    full_node_simulator::{ValidatedBundle, ValidatedSpend},
     spend_bundle_validation::{
         CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
         validate_relative_conditions, validate_reserve_fee,
@@ -51,7 +51,7 @@ impl FullNodeSimulator {
         spend_bundle: SpendBundle,
         overlay: Option<&ValidationOverlay>,
     ) -> Result<ValidatedBundle, SimulatorError> {
-        let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
+        let constants = default_constants(self.genesis_challenge, self.genesis_challenge);
         let clock = ValidationClock {
             height: self.state.height,
             timestamp: self.state.next_timestamp,
