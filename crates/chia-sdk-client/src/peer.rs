@@ -41,9 +41,13 @@ type Response<T, E> = std::result::Result<T, E>;
 /// use chia_sdk_client::PeerOptions;
 ///
 /// assert_eq!(PeerOptions::default().rate_limit_factor, 0.6);
+/// assert!(!PeerOptions::default().mempool_updates);
 ///
-/// // Use up to 90% of the full node's rate limits.
-/// let options = PeerOptions { rate_limit_factor: 0.9 };
+/// // Use up to 90% of the full node's rate limits, and receive mempool updates.
+/// let options = PeerOptions {
+///     rate_limit_factor: 0.9,
+///     mempool_updates: true,
+/// };
 /// # let _ = options;
 /// ```
 #[derive(Debug, Clone, Copy)]
@@ -52,12 +56,27 @@ pub struct PeerOptions {
     /// are allowed to use. Defaults to `0.6`, which leaves room so the full node doesn't
     /// disconnect the wallet for sending too many messages.
     pub rate_limit_factor: f64,
+
+    /// Whether to advertise [`Capability::MempoolUpdates`](crate::Capability::MempoolUpdates)
+    /// in the handshake, as defined in
+    /// [CHIP-26](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0026.md).
+    /// Defaults to `false`.
+    ///
+    /// If the full node also supports it, it sends `MempoolItemsAdded` and
+    /// `MempoolItemsRemoved` messages to the receiver for mempool transactions that match the
+    /// wallet's puzzle hash and coin subscriptions. That includes the transactions already in
+    /// the mempool when a subscription is added.
+    ///
+    /// This only affects the handshake sent by `connect_peer` and `Client::connect`.
+    /// `Peer::connect` and [`Peer::from_websocket`] don't send a handshake, so they ignore it.
+    pub mempool_updates: bool,
 }
 
 impl Default for PeerOptions {
     fn default() -> Self {
         Self {
             rate_limit_factor: 0.6,
+            mempool_updates: false,
         }
     }
 }

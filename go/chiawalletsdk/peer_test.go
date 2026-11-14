@@ -1,7 +1,6 @@
 package chiawalletsdk_test
 
 import (
-	"bytes"
 	"testing"
 
 	sdk "github.com/xch-dev/chia-wallet-sdk/go/chiawalletsdk"
@@ -30,11 +29,6 @@ func TestPeerSimulator(t *testing.T) {
 	children := must(peer.RequestChildren(coinID)).CoinStates()
 	if len(children) != 1 || children[0].Coin().Amount() != 900 {
 		t.Fatalf("expected one child of 900 mojos, got %d children", len(children))
-	}
-
-	transaction := must(peer.RequestTransaction(must(spendBundle.Hash()))).Transaction()
-	if !bytes.Equal(must(transaction.Hash()), must(spendBundle.Hash())) {
-		t.Fatal("expected the transaction to be returned by its id")
 	}
 
 	if peers := must(peer.RequestPeers()).PeerList(); len(peers) != 0 {

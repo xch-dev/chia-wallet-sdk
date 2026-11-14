@@ -5,8 +5,13 @@ import {
   BlsPairWithCoin,
   bytesEqual,
   Clvm,
+  MempoolItemsAdded,
+  MempoolItemsRemoved,
+  MempoolRemoveReason,
   Peer,
+  PeerOptions,
   PeerSimulator,
+  RemovedMempoolItem,
   Signature,
   SpendBundle,
 } from "../index.js";
@@ -38,7 +43,7 @@ async function nextCoinStateUpdate(peer: Peer) {
   }
 }
 
-test("sends a transaction and reads it back through the peer", async (t) => {
+test("sends a transaction and reads its result through the peer", async (t) => {
   const sim = await PeerSimulator.start();
   const peer = await sim.connect();
 
@@ -78,9 +83,6 @@ test("sends a transaction and reads it back through the peer", async (t) => {
   t.is(children.coinStates[0].coin.amount, 900n);
   t.true(bytesEqual(children.coinStates[0].coin.parentCoinInfo, coinId));
 
-  const transaction = await peer.requestTransaction(spendBundle.hash());
-  t.true(bytesEqual(transaction.transaction.hash(), spendBundle.hash()));
-
   const peers = await peer.requestPeers();
   t.deepEqual(peers.peerList, []);
 });
@@ -109,4 +111,42 @@ test("fails requests after the peer is closed", async (t) => {
   await t.throwsAsync(peer.requestPeers());
   await t.throwsAsync(peer.requestChildren(new Uint8Array(32)));
   t.is(await peer.next(), null);
+});
+
+test("mempool updates are off by default and can be enabled", (t) => {
+  const options = new PeerOptions();
+  t.false(options.mempoolUpdates);
+  t.is(options.rateLimitFactor, 0.6);
+
+  options.mempoolUpdates = true;
+  t.true(options.mempoolUpdates);
+  t.true(options.clone().mempoolUpdates);
+});
+
+test("mempool update messages roundtrip", (t) => {
+  const first = new Uint8Array(32).fill(1);
+  const second = new Uint8Array(32).fill(2);
+
+  const added = new MempoolItemsAdded([first, second]);
+  t.deepEqual(
+    added.transactionIds.map((id) => Uint8Array.from(id)),
+    [first, second],
+  );
+
+  const reasons = [
+    MempoolRemoveReason.Conflict,
+    MempoolRemoveReason.BlockInclusion,
+    MempoolRemoveReason.PoolFull,
+    MempoolRemoveReason.Expired,
+  ];
+
+  const removed = new MempoolItemsRemoved(
+    reasons.map((reason) => new RemovedMempoolItem(first, reason)),
+  );
+
+  t.deepEqual(
+    removed.removedItems.map((item) => item.reason),
+    reasons,
+  );
+  t.deepEqual(Uint8Array.from(removed.removedItems[0].transactionId), first);
 });

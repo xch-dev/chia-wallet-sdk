@@ -1,5 +1,5 @@
 use chia_consensus::{conditions::ELIGIBLE_FOR_DEDUP, validation_error::ErrorCode};
-use chia_protocol::{Bytes32, SpendBundle};
+use chia_protocol::{Bytes32, MempoolRemoveReason, SpendBundle};
 use chia_sdk_coinset::PushTxResponse;
 use indexmap::IndexSet;
 
@@ -52,13 +52,24 @@ impl FullNodeSimulator {
         {
             return Err(SimulatorError::Validation(ErrorCode::MempoolConflict));
         }
-        if !conflicting_tx_ids.is_empty() {
-            for tx_id in conflicting_tx_ids {
-                self.mempool.swap_remove(&tx_id);
+        let replaces_items = !conflicting_tx_ids.is_empty();
+        for conflicting_tx_id in conflicting_tx_ids {
+            if let Some(item) = self.mempool.shift_remove(&conflicting_tx_id) {
+                self.record_mempool_removed(
+                    conflicting_tx_id,
+                    &item,
+                    MempoolRemoveReason::Conflict,
+                );
             }
         }
 
         self.mempool.insert(tx_id, validated);
+        self.record_mempool_added(tx_id);
+
+        // Items that spent a coin created by a replaced item are no longer valid.
+        if replaces_items {
+            self.evict_invalid_mempool_items();
+        }
         Ok(())
     }
 
@@ -168,7 +179,8 @@ impl FullNodeSimulator {
     /// - Fast-forwardable singleton spends of a coin that was already spent (on chain or in the
     ///   mempool) are rebased onto the latest singleton coin.
     /// - Otherwise, a conflicting bundle replaces the conflicting mempool items only if it spends
-    ///   all of their coins and pays a higher fee than they do combined.
+    ///   all of their coins and pays a higher fee than they do combined. Mempool items that spend
+    ///   a coin created by a replaced item are removed too.
     pub fn push_tx_detailed(
         &mut self,
         spend_bundle: SpendBundle,

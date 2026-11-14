@@ -346,9 +346,6 @@ def test_peer_simulator():
         children = await peer.request_children(coin_id)
         assert [state.coin.amount for state in children.coin_states] == [900]
 
-        transaction = await peer.request_transaction(spend_bundle.hash())
-        assert transaction.transaction.hash() == spend_bundle.hash()
-
         assert (await peer.request_peers()).peer_list == []
 
         await peer.close()

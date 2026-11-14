@@ -747,6 +747,7 @@ dependencies = [
 name = "chia-sdk-client"
 version = "0.38.0"
 dependencies = [
+ "anyhow",
  "aws-lc-rs",
  "chia-protocol",
  "chia-sdk-types",

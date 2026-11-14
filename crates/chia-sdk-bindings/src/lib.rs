@@ -147,9 +147,12 @@ pub use chia_sdk_types::{
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
-    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondChildren, RespondCoinState,
-    RespondPeers, RespondPuzzleState, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
-    TimestampedPeerInfo, TransactionAck,
+    CoinStateUpdate, MempoolItemsAdded, MempoolItemsRemoved, NewPeakWallet, PuzzleSolutionResponse,
+    RemovedMempoolItem, RespondChildren, RespondCoinState, RespondPeers, RespondPuzzleState,
+    RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction, TimestampedPeerInfo,
+    TransactionAck,
 };
+
+pub use chia_protocol::MempoolRemoveReason;
 
 pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};
