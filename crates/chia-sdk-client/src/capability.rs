@@ -4,10 +4,7 @@
 /// feature that depends on a capability is only used when both peers advertise it. The ids
 /// match the `Capability` enum in `chia-blockchain`.
 ///
-/// `connect_peer` always advertises [`Capability::Base`],
-/// [`Capability::BlockHeaders`] and [`Capability::RateLimitsV2`], and advertises
-/// [`Capability::MempoolUpdates`] when [`PeerOptions::mempool_updates`](crate::PeerOptions::mempool_updates)
-/// is enabled.
+/// See `connect_peer` for which capabilities its handshake advertises.
 ///
 /// # Example
 ///
