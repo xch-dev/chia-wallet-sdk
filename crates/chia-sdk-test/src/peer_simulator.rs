@@ -154,12 +154,7 @@ impl PeerSimulator {
     pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         tracing::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
-        Ok(Peer::from_websocket(
-            ws,
-            PeerOptions {
-                rate_limit_factor: 0.6,
-            },
-        )?)
+        Ok(Peer::from_websocket(ws, PeerOptions::default())?)
     }
 
     /// Connects a new [`Peer`] and returns it with the receiver for incoming messages, after
