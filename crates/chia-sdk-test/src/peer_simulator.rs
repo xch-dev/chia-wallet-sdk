@@ -1,7 +1,8 @@
 use std::{net::SocketAddr, ops::Deref, sync::Arc};
 
-use chia_protocol::Message;
+use chia_protocol::{Bytes32, Message, SpendBundle};
 use chia_sdk_client::{Peer, PeerOptions};
+use indexmap::IndexMap;
 use peer_map::PeerMap;
 use subscriptions::Subscriptions;
 use tokio::{
@@ -23,6 +24,9 @@ mod ws_connection;
 pub use config::*;
 pub use error::*;
 
+/// Transactions accepted by the simulator, keyed by transaction id.
+type Transactions = IndexMap<Bytes32, SpendBundle>;
+
 /// A local websocket server that exposes a [`Simulator`] through the Chia wallet peer protocol.
 ///
 /// This lets you test code that uses a `chia-sdk-client` [`Peer`]. The server listens on an
@@ -33,6 +37,10 @@ pub use error::*;
 /// subscriptions, and puzzle solution and children requests. Each accepted transaction creates a
 /// new block, after which connected peers receive a `NewPeakWallet` message and subscribers
 /// receive coin state updates.
+///
+/// Since there's no mempool, `RequestTransaction` is answered with any transaction that the
+/// simulator has accepted. Like a full node, it doesn't respond to unknown transaction ids, so
+/// that request waits forever. `RequestPeers` is answered with an empty peer list.
 ///
 /// [`PeerSimulator`] dereferences to the inner [`Mutex<Simulator>`](Mutex), so you can lock it
 /// to create coins or inspect the state.
@@ -64,6 +72,7 @@ pub struct PeerSimulator {
     addr: SocketAddr,
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
+    transactions: Arc<Mutex<Transactions>>,
     join_handle: JoinHandle<()>,
 }
 
@@ -100,15 +109,18 @@ impl PeerSimulator {
         let addr = listener.local_addr()?;
         let simulator = Arc::new(Mutex::new(Simulator::default()));
         let subscriptions = Arc::new(Mutex::new(Subscriptions::default()));
+        let transactions = Arc::new(Mutex::new(Transactions::default()));
         let config = Arc::new(config);
 
         let simulator_clone = simulator.clone();
         let subscriptions_clone = subscriptions.clone();
+        let transactions_clone = transactions.clone();
         let config_clone = config.clone();
 
         let join_handle = tokio::spawn(async move {
             let simulator = simulator_clone;
             let subscriptions = subscriptions_clone;
+            let transactions = transactions_clone;
             let config = config_clone;
 
             while let Ok((stream, addr)) = listener.accept().await {
@@ -126,6 +138,7 @@ impl PeerSimulator {
                     config.clone(),
                     simulator.clone(),
                     subscriptions.clone(),
+                    transactions.clone(),
                 ));
             }
         });
@@ -135,8 +148,14 @@ impl PeerSimulator {
             addr,
             simulator,
             subscriptions,
+            transactions,
             join_handle,
         })
+    }
+
+    /// Returns the address that the simulator is listening on.
+    pub fn socket_addr(&self) -> SocketAddr {
+        self.addr
     }
 
     /// Returns the configuration the simulator was started with.
@@ -206,7 +225,8 @@ impl PeerSimulator {
         Ok(peer)
     }
 
-    /// Replaces the simulator with a new default [`Simulator`] and clears all subscriptions.
+    /// Replaces the simulator with a new default [`Simulator`] and clears all subscriptions and
+    /// accepted transactions.
     ///
     /// Existing connections stay open.
     ///
@@ -216,6 +236,7 @@ impl PeerSimulator {
     pub async fn reset(&self) -> Result<(), PeerSimulatorError> {
         *self.simulator.lock().await = Simulator::default();
         *self.subscriptions.lock().await = Subscriptions::default();
+        *self.transactions.lock().await = Transactions::default();
         Ok(())
     }
 }
@@ -302,6 +323,40 @@ mod tests {
         let ack = peer.send_transaction(empty_bundle).await?;
         assert_eq!(ack.status, 3);
         assert_eq!(ack.txid, transaction_id);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_transaction() -> anyhow::Result<()> {
+        let sim = PeerSimulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+        let transaction_id = spend_bundle.name();
+
+        let ack = peer.send_transaction(spend_bundle.clone()).await?;
+        assert_eq!(ack.status, 1);
+
+        let response = peer.request_transaction(transaction_id).await?;
+        assert_eq!(response.transaction, spend_bundle);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_peers() -> anyhow::Result<()> {
+        let sim = PeerSimulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let response = peer.request_peers().await?;
+        assert!(response.peer_list.is_empty());
 
         Ok(())
     }

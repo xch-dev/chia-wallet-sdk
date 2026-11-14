@@ -1,0 +1,51 @@
+{
+  "PeerSimulator": {
+    "type": "class",
+    "no_wasm": true,
+    "methods": {
+      "start": {
+        "type": "async_factory"
+      },
+      "connect": {
+        "type": "async",
+        "return": "Peer"
+      },
+      "socket_addr": {
+        "return": "String"
+      },
+      "genesis_challenge": {
+        "return": "Bytes32"
+      },
+      "height": {
+        "type": "async",
+        "return": "u32"
+      },
+      "header_hash": {
+        "type": "async",
+        "return": "Bytes32"
+      },
+      "new_coin": {
+        "type": "async",
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Coin"
+      },
+      "bls": {
+        "type": "async",
+        "args": {
+          "amount": "u64"
+        },
+        "return": "BlsPairWithCoin"
+      },
+      "coin_state": {
+        "type": "async",
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Option<CoinState>"
+      }
+    }
+  }
+}

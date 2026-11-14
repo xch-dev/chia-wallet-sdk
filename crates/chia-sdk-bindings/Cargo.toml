@@ -21,6 +21,7 @@ napi = [
     "dep:tokio",
     "bindy/napi",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 wasm = ["bindy/wasm"]
 pyo3 = [
@@ -29,6 +30,7 @@ pyo3 = [
     "dep:tokio",
     "bindy/pyo3",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 uniffi = [
     "dep:chia-sdk-client",
@@ -36,6 +38,7 @@ uniffi = [
     "dep:tokio",
     "bindy/uniffi",
     "chia-sdk-test/full-node-simulator-http",
+    "chia-sdk-test/peer-simulator",
 ]
 
 [dependencies]

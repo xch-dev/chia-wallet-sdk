@@ -301,3 +301,60 @@ def test_required_signatures_puzzle_hash_mismatch():
 
     with pytest.raises(Exception, match="does not match coin puzzle hash"):
         clvm.required_signatures(clvm.coin_spends(), AggSigConstants.testnet11())
+
+
+def test_peer_simulator():
+    import asyncio
+
+    from chia_wallet_sdk import PeerSimulator, SpendBundle
+
+    async def run():
+        sim = await PeerSimulator.start()
+        peer = await sim.connect()
+        assert peer.socket_addr() == sim.socket_addr()
+
+        alice = await sim.bls(1000)
+        coin_id = alice.coin.coin_id()
+
+        updates = await peer.register_for_coin_updates([coin_id], 0)
+        assert len(updates.coin_states) == 1
+
+        # The peer simulator uses testnet11 constants, whose AGG_SIG_ME additional data is
+        # the genesis challenge.
+        clvm = Clvm()
+        delegated = clvm.delegated_spend([clvm.create_coin(alice.puzzle_hash, 900)])
+        clvm.spend_standard_coin(alice.coin, alice.pk, delegated)
+        message = delegated.puzzle.tree_hash() + coin_id + sim.genesis_challenge()
+        spend_bundle = SpendBundle(clvm.coin_spends(), alice.sk.sign(message))
+
+        ack = await peer.send_transaction(spend_bundle)
+        assert ack.status == 1
+        assert ack.error is None
+
+        while True:
+            event = await peer.next()
+            assert event is not None
+            if event.coin_state_update is not None:
+                break
+        assert any(
+            item.coin.coin_id() == coin_id
+            for item in event.coin_state_update.items
+        )
+
+        children = await peer.request_children(coin_id)
+        assert [state.coin.amount for state in children.coin_states] == [900]
+
+        transaction = await peer.request_transaction(spend_bundle.hash())
+        assert transaction.transaction.hash() == spend_bundle.hash()
+
+        assert (await peer.request_peers()).peer_list == []
+
+        await peer.close()
+        try:
+            await peer.request_peers()
+        except Exception:
+            pass
+        else:
+            raise AssertionError("expected the closed peer to fail")
+
+    asyncio.run(run())

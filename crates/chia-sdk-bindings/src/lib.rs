@@ -79,6 +79,12 @@ mod peer;
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
 
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod peer_simulator;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use peer_simulator::*;
+
 pub use chia_bls::{PublicKey, SecretKey, Signature};
 pub use chia_protocol::{
     BlockRecord, Bytes, Bytes32, ChallengeChainSubSlot, Coin, CoinSpend, CoinState,
@@ -137,7 +143,9 @@ pub use chia_sdk_types::{
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
-    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
+    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondChildren, RespondCoinState,
+    RespondPeers, RespondPuzzleState, RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction,
+    TimestampedPeerInfo, TransactionAck,
 };
 
 pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};
