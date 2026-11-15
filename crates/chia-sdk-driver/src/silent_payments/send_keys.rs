@@ -197,10 +197,7 @@ mod tests {
             )],
         )?;
         let result = spends.prepare(&mut ctx, &deltas, Relation::None);
-        assert!(matches!(
-            result,
-            Err(DriverError::SilentPaymentKeysNotRegistered)
-        ));
+        assert!(matches!(result, Err(DriverError::SilentPaymentKeysMissing)));
         Ok(())
     }
 

@@ -611,7 +611,7 @@ pub enum DriverError {
     /// `Spends::finish_with_silent_payment_keys`.
     #[cfg(feature = "chip-0057")]
     #[error("silent payment secret keys were not provided")]
-    SilentPaymentKeysNotRegistered,
+    SilentPaymentKeysMissing,
 
     /// A registered silent-payment key is not the synthetic key for its coin.
     /// `StandardArgs::curry_tree_hash(registered_pk)` must equal the coin's

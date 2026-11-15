@@ -1,10 +1,8 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, offer::Payment};
 use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 use super::silent_payment_send::{next_k, record_pending};
-use chia_protocol::Coin;
-
 use crate::{
     Asset, Delta, Deltas, DriverError, Id, SpendAction, SpendContext, Spends,
     silent_payments::{SettledOtherPayment, SilentPaymentSource, Wrapper},

@@ -700,7 +700,7 @@ impl Spends<Unfinished> {
         // `Spends::prepare_with_silent_payment_keys` takes.
         #[cfg(feature = "chip-0057")]
         if self.silent_payments.has_pending() {
-            return Err(DriverError::SilentPaymentKeysNotRegistered);
+            return Err(DriverError::SilentPaymentKeysMissing);
         }
 
         self.prepare_unfinished(ctx, deltas, relation)?;

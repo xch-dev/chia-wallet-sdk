@@ -1,4 +1,5 @@
 use chia_bls::PublicKey;
+use chia_protocol::Coin;
 use chia_puzzle_types::Memos;
 use chia_sdk_types::silent_payments::K_MAX;
 use chia_sdk_utils::silent_payments::SilentPaymentAddress;
@@ -12,34 +13,26 @@ use crate::{
 /// A CHIP-0057 silent payment send, created by
 /// [`Action::silent_payment_send`](crate::Action::silent_payment_send).
 ///
-/// The output is created by a coin of the asset `id` in the spend group: for
-/// XCH a coin spent with the standard puzzle, for a CAT the first spend of
-/// that asset (CHIP-0057 "Outputs in CATs"). One `k` counter per scan key runs
-/// across every asset, up to `K_MAX` outputs.
+/// The output is created by a coin of the asset `id` in the spend group, and each scan key has
+/// one `k` counter across every asset. The address's network is not checked.
 ///
-/// The recipient's keys are validated when the action is applied. The
-/// address's network is not checked, since only the caller knows which network
-/// the transaction is for.
-///
-/// Privacy warning: `memos` of an XCH output are published on chain. A 32-byte
-/// first memo is rejected (`DriverError::SilentPaymentMemoHintForbidden`).
+/// The `memos` of an XCH output are published on chain, and a 32-byte first memo is rejected
+/// ([`DriverError::SilentPaymentMemoHintForbidden`]).
 #[derive(Debug, Clone)]
 pub struct SilentPaymentSendAction {
-    /// The asset the output is paid in: [`Id::Xch`], or [`Id::Existing`] with
-    /// the asset ID of a CAT that the transaction spends.
+    /// The asset the output is paid in: [`Id::Xch`], or a CAT that the transaction spends.
     pub id: Id,
     /// The silent payment address that is paid.
     pub recipient: SilentPaymentAddress,
     /// The amount of the output, in the smallest unit of the asset.
     pub amount: u64,
-    /// The memos of an XCH output. A CAT output carries only the hint the SDK
-    /// builds, so this must be [`Memos::None`] for it.
+    /// The memos of an XCH output. This must be [`Memos::None`] for a CAT, which is hinted with
+    /// its one-time puzzle hash.
     pub memos: Memos,
 }
 
 impl SilentPaymentSendAction {
-    /// An output of `amount` in the asset `id`. `memos` must be
-    /// [`Memos::None`] for a CAT.
+    /// An output of `amount` in the asset `id`. `memos` must be [`Memos::None`] for a CAT.
     pub fn new(id: Id, recipient: SilentPaymentAddress, amount: u64, memos: Memos) -> Self {
         Self {
             id,
@@ -62,9 +55,7 @@ impl SpendAction for SilentPaymentSendAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        // The address may have been assembled from arbitrary keys rather than
-        // decoded, so it is checked again here, before anything is derived
-        // from it.
+        // The address may not have been decoded, which is what validates the keys.
         self.recipient.validate()?;
 
         if matches!(self.id, Id::Xch) {
@@ -76,13 +67,8 @@ impl SpendAction for SilentPaymentSendAction {
     }
 }
 
-/// CHIP-0057 "Kmax": the next `k` for the scan key, shared by every asset.
-///
-/// The counter is keyed by the 48-byte compressed scan key, so that all
-/// addresses of a recipient (labeled or not) and outputs in every asset share
-/// it. A sender must not create more than `K_MAX` outputs for one scan key in
-/// one spend group, since scanners stop at that index; this is checked before
-/// anything is changed.
+/// The next `k` of the scan key, which every address of the recipient and every asset share.
+/// Fails at `K_MAX` (CHIP-0057 "Kmax"), where scanners stop.
 pub(crate) fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, DriverError> {
     let k = spends
         .silent_payments
@@ -96,15 +82,14 @@ pub(crate) fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, Driver
     Ok(k)
 }
 
-/// Takes `k` (from [`next_k`]) for the scan key and records the pending
-/// output. The ECDH, the `CreateCoin` condition and the entry in `outputs` are
-/// all deferred to `Spends::prepare`, when the spend group is known.
+/// Takes `k` (from [`next_k`]) for the scan key and records the pending output, which is derived
+/// and created when the transaction is prepared and the spend group is known.
 pub(crate) fn record_pending(
     spends: &mut Spends,
     recipient: &SilentPaymentAddress,
     k: u32,
     source: SilentPaymentSource,
-    parent_coin: Option<chia_protocol::Coin>,
+    parent_coin: Option<Coin>,
     amount: u64,
     memos: Memos,
 ) {
@@ -123,17 +108,7 @@ pub(crate) fn record_pending(
     });
 }
 
-/// Apply-time half of an XCH silent-payment send: reserves the XCH coin that
-/// will create the output, takes the next `k` for the recipient's scan key, and
-/// records a `SilentPaymentPending` entry. No `CreateCoin` is emitted here: the
-/// one-time puzzle hash depends on the spend group, which is only known when
-/// the transaction is completed, so [`Spends::prepare`] derives and emits the
-/// output.
-///
-/// Privacy warning: memos passed here land in the on-chain `CreateCoin.memos`
-/// field unchanged and are visible to everyone. The 32-byte first-memo hint
-/// guard (`DriverError::SilentPaymentMemoHintForbidden`) is run by the caller
-/// before this helper.
+/// Reserves the XCH coin that will create the output and records the pending output.
 fn spend_silent_payment(
     ctx: &mut SpendContext,
     spends: &mut Spends,
@@ -141,16 +116,11 @@ fn spend_silent_payment(
     amount: u64,
     memos: Memos,
 ) -> Result<(), DriverError> {
-    // 1. The next k for the scan key, with the K_MAX check.
     let k = next_k(spends, &recipient.scan_pk)?;
 
-    // 2. Reserve the XCH coin that will create the output. BURN_PUZZLE_HASH is
-    //    a placeholder, since the real puzzle hash is only known at finish time
-    //    and only the amount matters for choosing a source.
-    //
-    //    CHIP-0057 requires the output to be created by a standard-puzzle coin
-    //    of the spend group, so a conditions spend is preferred, and a source
-    //    that is not one (a settlement coin) is rejected.
+    // The output must be created by a coin of the spend group, so a conditions spend is
+    // preferred and any other source (a settlement coin) is rejected. The puzzle hash isn't
+    // known yet, and only the amount matters for choosing a source.
     let output = Output::new(BURN_PUZZLE_HASH, amount);
     let source = match spends.xch.items.iter().position(|item| {
         item.kind.is_conditions() && item.kind.is_allowed(&output, &item.asset.constraints())
@@ -163,7 +133,6 @@ fn spend_silent_payment(
     }
     let parent_coin = spends.xch.items[source].asset.coin();
 
-    // 3. Record the output.
     record_pending(
         spends,
         recipient,
@@ -177,13 +146,8 @@ fn spend_silent_payment(
     Ok(())
 }
 
-/// Apply-time half of a CAT silent-payment send.
-///
-/// The output is created by the first conditions spend of the asset, which is
-/// the CAT coin of that asset that the `ASSERT_CONCURRENT_SPEND` cycle binds
-/// into the spend group (the other coins of the asset are tied to it by the CAT
-/// ring only). Its memo list is built by [`Spends::prepare`] as the hint `(p)`,
-/// so caller memos are refused.
+/// Records the pending output of a CAT send. It is created by the first conditions spend of the
+/// asset, which is the asset's coin in the spend group.
 fn spend_silent_payment_cat(
     spends: &mut Spends,
     id: Id,
@@ -203,9 +167,6 @@ fn spend_silent_payment_cat(
 
     let k = next_k(spends, &recipient.scan_pk)?;
 
-    // The source is the asset's first conditions spend, and it must be able to
-    // create the output (BURN_PUZZLE_HASH stands in for the one-time puzzle
-    // hash, as for XCH).
     let Some(source) = cat.items.iter().position(|item| item.kind.is_conditions()) else {
         return Err(DriverError::SilentPaymentParentNotEligible);
     };
@@ -232,17 +193,7 @@ fn spend_silent_payment_cat(
     Ok(())
 }
 
-/// Reject a 32-byte first memo that would be promoted to a `puzzle_hash` hint
-/// by the standard Chia wallet, defeating silent-payment privacy.
-///
-/// Privacy warning: the standard wallet (Sage, the mainnet wallet) treats a
-/// 32-byte first memo as a `puzzle_hash` hint and indexes the output by that
-/// hash — exposing the one-time puzzle hash to any indexer. For silent
-/// payments, this completely defeats the privacy gain.
-///
-/// Returns `Err(DriverError::SilentPaymentMemoHintForbidden)` if the first
-/// memo atom is exactly 32 bytes. All other memo shapes (`Memos::None`, non-pair,
-/// non-atom head, first atom != 32 bytes, malformed) return `Ok(())`.
+/// Rejects a 32-byte first memo, which wallets and indexers read as a hint.
 fn memo_hint_guard(ctx: &SpendContext, memos: Memos) -> Result<(), DriverError> {
     use clvmr::SExp;
 
@@ -1074,7 +1025,7 @@ mod silent_payment_tests {
     // Finish-time key-registration acceptance test.
     // ====================================================================
 
-    /// A silent payment send finished without the secret keys returns `Err(DriverError::SilentPaymentKeysNotRegistered)` at finish time.
+    /// A silent payment send finished without the secret keys returns `Err(DriverError::SilentPaymentKeysMissing)` at finish time.
     #[test]
     fn silent_payment_keys_not_registered_errors_at_finish() -> Result<()> {
         let mut sim = Simulator::new();
@@ -1109,8 +1060,8 @@ mod silent_payment_tests {
         );
 
         assert!(
-            matches!(result, Err(DriverError::SilentPaymentKeysNotRegistered)),
-            "expected SilentPaymentKeysNotRegistered when finish runs without the secret keys, got: {result:?}"
+            matches!(result, Err(DriverError::SilentPaymentKeysMissing)),
+            "expected SilentPaymentKeysMissing when finish runs without the secret keys, got: {result:?}"
         );
         Ok(())
     }
