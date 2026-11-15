@@ -63,7 +63,7 @@ jobs:
       - name: Install Rust target
         run: rustup target add ${{ matrix.settings.target }}
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache: false
@@ -175,7 +175,7 @@ jobs:
       - name: Install Rust target
         run: rustup target add ${{ matrix.settings.target }}
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
@@ -302,12 +302,12 @@ jobs:
             rustup target add x86_64-apple-darwin
           fi
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache: false
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
@@ -451,7 +451,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache: false
@@ -512,7 +512,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
