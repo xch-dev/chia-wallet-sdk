@@ -69,6 +69,8 @@
 //!   from CHIP-0037.
 //! * `chip-0052`: Enables partial offers from CHIP-0052, such as `PartialOfferBundle`, which can
 //!   be filled in parts at a fixed price.
+//! * `chip-0057`: Enables silent payments from CHIP-0057 (a draft), with `SilentPaymentAddress`,
+//!   `Action::silent_payment_send`, and the scanner (`scan_from_tweaks`).
 //! * `pooling`: Enables plot NFTs for pooling, with the `PlotNft` primitive, which can self pool,
 //!   join and leave pools, and claim pool rewards.
 //! * `action-layer`: Enables the action layer and the primitives built on it, such as

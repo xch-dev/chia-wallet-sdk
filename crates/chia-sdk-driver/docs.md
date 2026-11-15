@@ -174,6 +174,10 @@ that can't be verified from the revealed spends is left out.
 - `chip-0052`: Partial offers (CHIP-0052), with `PartialOfferInfo`, `PartialOffer`, and
   `PartialOfferBundle`. With `offer-compression`, they can also be encoded as `partial1...`
   strings with `encode_partial_offer` and `decode_partial_offer`.
+- `chip-0057`: Silent payments (CHIP-0057, a draft), with `Action::silent_payment_send` and the
+  settlement actions for offers, `Spends::prepare_with_silent_payment_keys`, and the scanner
+  (`tweak_data_from_block_spends`, `scan_from_tweaks`). Addresses and keys are in
+  `chia_sdk_utils::silent_payments`.
 - `pooling`: Plot NFTs for pooling, with the `PlotNft` primitive, `Launcher::mint_plot_nft`, and
   the `SingletonV1Layer`, `PoolMemberLayer`, `PoolWaitingRoomLayer`, and
   `P2SingletonOrDelayedLayer`.
