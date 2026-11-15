@@ -130,6 +130,20 @@ test("label generation and change address (TV3, TV7)", (t) => {
 
 // CHIP-0057 Test Vector 8: hardened derivation at m/12381n/8444n/12n/0n (scan)
 // and m/12381n/8444n/13n/0n (spend) from the BIP-39 test mnemonic.
+test("SilentPaymentKeys.labelRegistry registers the labels for its scan key", (t) => {
+  const keys = tv1Keys();
+  const labels = keys.labelRegistry([1, 2, 2]);
+
+  t.is(labels.len(), 2);
+  t.is(toHex(labels.scanPk().toBytes()), toHex(keys.scanPk().toBytes()));
+  const label = SilentPayments.generateLabel(keys.scanSk(), 1);
+  t.is(labels.lookup(label.publicKey), 1);
+  t.is(
+    toHex(labels.forward(2)!.toBytes()),
+    toHex(SilentPayments.generateLabel(keys.scanSk(), 2).publicKey.toBytes()),
+  );
+});
+
 test("key derivation from the mnemonic is hardened (TV8)", (t) => {
   const keys = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
   t.is(

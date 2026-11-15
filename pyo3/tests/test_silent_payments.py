@@ -1005,3 +1005,17 @@ def test_label_registry_is_bound_to_its_scan_key():
         SilentPayments.scan_from_tweaks(
             keys.scan_sk(), keys.spend_pk(), data, LabelRegistry(other), K_MAX_DEFAULT
         )
+
+
+def test_keys_label_registry():
+    """`SilentPaymentKeys.label_registry` registers the labels for its scan key."""
+    keys = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    labels = keys.label_registry([1, 2, 2])
+    assert labels.len() == 2
+    assert labels.scan_pk().to_bytes() == keys.scan_pk().to_bytes()
+    label = SilentPayments.generate_label(keys.scan_sk(), 1)
+    assert labels.lookup(label.public_key) == 1
+    assert (
+        labels.forward(2).to_bytes()
+        == SilentPayments.generate_label(keys.scan_sk(), 2).public_key.to_bytes()
+    )

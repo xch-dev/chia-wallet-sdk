@@ -4582,6 +4582,7 @@ export declare class SilentPaymentKeys {
   unlabeledAddress(network: SilentPaymentNetwork): SilentPaymentAddress
   labeledAddress(network: SilentPaymentNetwork, m: number): SilentPaymentAddress
   changeAddress(network: SilentPaymentNetwork): SilentPaymentAddress
+  labelRegistry(labels: Array<number>): LabelRegistry
 }
 
 export declare class SilentPaymentLabel {

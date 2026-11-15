@@ -160,6 +160,12 @@ impl SilentPaymentKeys {
     pub fn change_address(&self, network: SilentPaymentNetwork) -> Result<SilentPaymentAddress> {
         Ok(self.0.change_address(network.into()).into())
     }
+
+    /// A `LabelRegistry` of this wallet's scan key with `labels` registered,
+    /// for `SilentPayments.scan_from_tweaks`.
+    pub fn label_registry(&self, labels: Vec<u32>) -> Result<LabelRegistry> {
+        Ok(self.0.label_registry(labels).into())
+    }
 }
 
 // ─── LabelRegistry (full register/forward/lookup/len/is_empty API) ───────

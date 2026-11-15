@@ -69,6 +69,12 @@
           "network": "SilentPaymentNetwork"
         },
         "return": "SilentPaymentAddress"
+      },
+      "label_registry": {
+        "args": {
+          "labels": "Vec<u32>"
+        },
+        "return": "LabelRegistry"
       }
     }
   },
