@@ -20,6 +20,7 @@ import {
   SilentPaymentKeys,
   SilentPaymentNetwork,
   SilentPaymentSecretKey,
+  SilentPaymentWrapper,
   SilentPayments,
   Simulator,
   Spends,
@@ -141,4 +142,66 @@ test("napi: multi-input SP send -> tweak_data_from_block_spends -> scan", (t) =>
   t.is(detections[0].k, 0, "first output at this scan_pk -> k=0");
   t.is(detections[0].label, null, "unlabeled detection -> label is null");
   t.is(detections[0].amount, 700n, "multi-input SP output amount round-trips");
+
+  // The spend groups behind the tweak points, in the same order: each coin
+  // alone, then the pair the concurrent-spend cycle binds, whose outputs
+  // include the detected coin.
+  const groups = SilentPayments.spendGroupsFromBlockSpends(
+    blockSpends,
+    blockAdditions,
+  );
+  t.deepEqual(
+    groups.map((group) => group.coins.length),
+    [1, 1, 2],
+  );
+  groups.forEach((group, i) => {
+    t.true(
+      bytesEqual(
+        group.tweakPoint.toBytes(),
+        tweakData.tweakPoints[i].toBytes(),
+      ),
+    );
+    t.true(group.coins.every((coin) => coin.wrapper == null));
+  });
+  t.true(
+    groups[2].outputs.some((coin) =>
+      bytesEqual(coin.coinId(), detections[0].coinId),
+    ),
+  );
+
+  // Every spend of the block is an eligible XCH spend with a sender's key.
+  const senderKeys = [sender1SyntheticSk, sender2SyntheticSk].map((sk) =>
+    sk.publicKey().toBytes(),
+  );
+  for (const spend of blockSpends) {
+    const eligible = SilentPayments.eligibleSpend(spend);
+    t.truthy(eligible);
+    t.true(eligible!.wrapper == null);
+    t.true(
+      senderKeys.some((key) =>
+        bytesEqual(key, eligible!.syntheticKey.toBytes()),
+      ),
+    );
+  }
+});
+
+test("napi: sortWrappers gives the order of a block's wrapper list", (t) => {
+  const assetA = new Uint8Array(32).fill(1);
+  const assetB = new Uint8Array(32).fill(2);
+  const hidden = new Uint8Array(32).fill(3);
+
+  const sorted = SilentPayments.sortWrappers([
+    new SilentPaymentWrapper(assetB, null),
+    new SilentPaymentWrapper(assetA, hidden),
+    new SilentPaymentWrapper(assetA, null),
+    new SilentPaymentWrapper(assetB, null),
+  ]);
+
+  t.is(sorted.length, 3, "duplicates are removed");
+  t.true(bytesEqual(sorted[0].assetId, assetA));
+  t.is(sorted[0].hiddenPuzzleHash, null);
+  t.true(bytesEqual(sorted[1].assetId, assetA));
+  t.true(bytesEqual(sorted[1].hiddenPuzzleHash!, hidden));
+  t.true(bytesEqual(sorted[2].assetId, assetB));
+  t.is(sorted[2].hiddenPuzzleHash, null);
 });

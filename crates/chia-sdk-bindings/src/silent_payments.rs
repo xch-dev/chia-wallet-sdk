@@ -503,6 +503,34 @@ pub struct SilentPaymentSecretKey {
     pub secret_key: SecretKey,
 }
 
+// ─── Spend groups of a block ──────────────────────────────────────────────
+
+/// An eligible spend (CHIP-0057 `eligible_spend`): the synthetic public key of
+/// its standard puzzle and its wrapper (`None` for XCH).
+#[derive(Clone)]
+pub struct SilentPaymentEligibleSpend {
+    pub synthetic_key: PublicKey,
+    pub wrapper: Option<SilentPaymentWrapper>,
+}
+
+/// A coin of a spend group and its wrapper (`None` for XCH).
+#[derive(Clone)]
+pub struct SilentPaymentSpendGroupCoin {
+    pub coin_id: Bytes32,
+    pub wrapper: Option<SilentPaymentWrapper>,
+}
+
+/// A spend group of a block: its coins in the block's order, its tweak point
+/// and the coins that count as its outputs for a light-wallet server, which
+/// are the coins its members create and the coins created by the spends whose
+/// puzzle announcements they assert (settlement coins).
+#[derive(Clone)]
+pub struct SilentPaymentSpendGroup {
+    pub coins: Vec<SilentPaymentSpendGroupCoin>,
+    pub tweak_point: PublicKey,
+    pub outputs: Vec<Coin>,
+}
+
 // ─── Settlement coins (derive_settlement_outputs, without tuples) ─────────
 //
 // bindy cannot marshal tuples or `Vec<Option<T>>`, so the spend group, the
@@ -760,6 +788,56 @@ impl SilentPayments {
             &additions,
         )?;
         Ok(driver_td.into())
+    }
+
+    /// The spend groups of a block, in the order of the tweak points of
+    /// `tweak_data_from_block_spends`, each with its coins, tweak point and
+    /// outputs. This is what a light-wallet server serves.
+    pub fn spend_groups_from_block_spends(
+        coin_spends: Vec<CoinSpend>,
+        additions: Vec<Coin>,
+    ) -> Result<Vec<SilentPaymentSpendGroup>> {
+        let groups = chia_sdk_driver::spend_groups_from_block_spends(&coin_spends, &additions)?;
+        Ok(groups
+            .into_iter()
+            .map(|group| SilentPaymentSpendGroup {
+                coins: group
+                    .coin_ids
+                    .into_iter()
+                    .zip(group.member_wrappers)
+                    .map(|(coin_id, wrapper)| SilentPaymentSpendGroupCoin {
+                        coin_id,
+                        wrapper: wrapper.map(Into::into),
+                    })
+                    .collect(),
+                tweak_point: group.tweak_point,
+                outputs: group.outputs,
+            })
+            .collect())
+    }
+
+    /// CHIP-0057 `eligible_spend`: the key and the wrapper of a coin spend
+    /// that can be in a spend group, or nothing for any other spend.
+    pub fn eligible_spend(coin_spend: CoinSpend) -> Result<Option<SilentPaymentEligibleSpend>> {
+        Ok(
+            chia_sdk_driver::eligible_spend(&coin_spend).map(|(synthetic_key, wrapper)| {
+                SilentPaymentEligibleSpend {
+                    synthetic_key,
+                    wrapper: wrapper.map(Into::into),
+                }
+            }),
+        )
+    }
+
+    /// The distinct wrappers of `wrappers` in the order of a block's wrapper
+    /// list (CHIP-0057 "Wrapper List of a Block").
+    pub fn sort_wrappers(wrappers: Vec<SilentPaymentWrapper>) -> Result<Vec<SilentPaymentWrapper>> {
+        Ok(
+            chia_sdk_driver::sort_wrappers(wrappers.into_iter().map(Into::into))
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        )
     }
 
     /// CHIP-0057 `DeriveSettlementOutputs`: the payments a party is paid

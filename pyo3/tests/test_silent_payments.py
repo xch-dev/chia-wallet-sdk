@@ -536,6 +536,44 @@ def test_multi_input_e2e():
     assert detections[0].label is None, "unlabeled detection -> label is None"
     assert detections[0].amount == 700, "multi-input SP output amount round-trips"
 
+    # The spend groups behind the tweak points, in the same order: each coin
+    # alone, then the pair the concurrent-spend cycle binds, whose outputs
+    # include the detected coin.
+    groups = SilentPayments.spend_groups_from_block_spends(block_spends, block_outputs)
+    assert [len(group.coins) for group in groups] == [1, 1, 2]
+    for group, tweak_point in zip(groups, tweak_data.tweak_points):
+        assert group.tweak_point.to_bytes() == tweak_point.to_bytes()
+        assert all(coin.wrapper is None for coin in group.coins)
+    assert detections[0].coin_id in [coin.coin_id() for coin in groups[2].outputs]
+
+    # Every spend of the block is an eligible XCH spend with a sender's key.
+    sender_keys = [
+        sk.public_key().to_bytes() for sk in (sender1_synthetic_sk, sender2_synthetic_sk)
+    ]
+    for spend in block_spends:
+        eligible = SilentPayments.eligible_spend(spend)
+        assert eligible is not None and eligible.wrapper is None
+        assert eligible.synthetic_key.to_bytes() in sender_keys
+
+
+def test_sort_wrappers_gives_the_wrapper_list_order():
+    """pyo3: `sort_wrappers` removes duplicates and orders by asset ID, the
+    wrapper without a hidden puzzle hash first."""
+    asset_a, asset_b, hidden = bytes([1] * 32), bytes([2] * 32), bytes([3] * 32)
+    wrappers = SilentPayments.sort_wrappers(
+        [
+            SilentPaymentWrapper(asset_b, None),
+            SilentPaymentWrapper(asset_a, hidden),
+            SilentPaymentWrapper(asset_a, None),
+            SilentPaymentWrapper(asset_b, None),
+        ]
+    )
+    assert [(w.asset_id, w.hidden_puzzle_hash) for w in wrappers] == [
+        (asset_a, None),
+        (asset_a, hidden),
+        (asset_b, None),
+    ]
+
 
 def test_raw_key_not_synthetic_errors():
     """pyo3: a raw key against a non-synthetic coin surfaces the typed error.

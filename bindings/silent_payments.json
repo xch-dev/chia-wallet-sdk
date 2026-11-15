@@ -277,6 +277,31 @@
       "group_outputs": "Vec<SilentPaymentGroupOutput>"
     }
   },
+  "SilentPaymentEligibleSpend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "synthetic_key": "PublicKey",
+      "wrapper": "Option<SilentPaymentWrapper>"
+    }
+  },
+  "SilentPaymentSpendGroupCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32",
+      "wrapper": "Option<SilentPaymentWrapper>"
+    }
+  },
+  "SilentPaymentSpendGroup": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coins": "Vec<SilentPaymentSpendGroupCoin>",
+      "tweak_point": "PublicKey",
+      "outputs": "Vec<Coin>"
+    }
+  },
   "SilentPayments": {
     "type": "class",
     "methods": {
@@ -352,6 +377,28 @@
           "additions": "Vec<Coin>"
         },
         "return": "TweakData"
+      },
+      "spend_groups_from_block_spends": {
+        "type": "static",
+        "args": {
+          "coin_spends": "Vec<CoinSpend>",
+          "additions": "Vec<Coin>"
+        },
+        "return": "Vec<SilentPaymentSpendGroup>"
+      },
+      "eligible_spend": {
+        "type": "static",
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "Option<SilentPaymentEligibleSpend>"
+      },
+      "sort_wrappers": {
+        "type": "static",
+        "args": {
+          "wrappers": "Vec<SilentPaymentWrapper>"
+        },
+        "return": "Vec<SilentPaymentWrapper>"
       },
       "derive_settlement_outputs": {
         "type": "static",

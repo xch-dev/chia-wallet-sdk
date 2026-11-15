@@ -4533,6 +4533,15 @@ export declare class SilentPaymentAddress {
   set network(value: SilentPaymentNetwork)
 }
 
+export declare class SilentPaymentEligibleSpend {
+  clone(): SilentPaymentEligibleSpend
+  constructor(syntheticKey: PublicKey, wrapper?: SilentPaymentWrapper | undefined | null)
+  get syntheticKey(): PublicKey
+  set syntheticKey(value: PublicKey)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+}
+
 export declare class SilentPaymentGroupCoin {
   clone(): SilentPaymentGroupCoin
   static fromCoin(coin: Coin, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null): SilentPaymentGroupCoin
@@ -4604,6 +4613,9 @@ export declare class SilentPayments {
   static computeTweakPoint(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): PublicKey | null
   static aggregateSenderSks(sks: Array<SecretKey>): SecretKey
   static tweakDataFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): TweakData
+  static spendGroupsFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): Array<SilentPaymentSpendGroup>
+  static eligibleSpend(coinSpend: CoinSpend): SilentPaymentEligibleSpend | null
+  static sortWrappers(wrappers: Array<SilentPaymentWrapper>): Array<SilentPaymentWrapper>
   static deriveSettlementOutputs(group: Array<SilentPaymentGroupCoin>, recipients: Array<SilentPaymentSettlementRecipient>, otherPayments: Array<SilentPaymentOtherPayment>, nonce: Uint8Array): SilentPaymentSettlement
 }
 
@@ -4644,6 +4656,26 @@ export declare class SilentPaymentSettlementRecipient {
   set settled(value: boolean)
   get amount(): bigint
   set amount(value: bigint)
+}
+
+export declare class SilentPaymentSpendGroup {
+  clone(): SilentPaymentSpendGroup
+  constructor(coins: Array<SilentPaymentSpendGroupCoin>, tweakPoint: PublicKey, outputs: Array<Coin>)
+  get coins(): Array<SilentPaymentSpendGroupCoin>
+  set coins(value: Array<SilentPaymentSpendGroupCoin>)
+  get tweakPoint(): PublicKey
+  set tweakPoint(value: PublicKey)
+  get outputs(): Array<Coin>
+  set outputs(value: Array<Coin>)
+}
+
+export declare class SilentPaymentSpendGroupCoin {
+  clone(): SilentPaymentSpendGroupCoin
+  constructor(coinId: Uint8Array, wrapper?: SilentPaymentWrapper | undefined | null)
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
 }
 
 export declare class SilentPaymentWrapper {
