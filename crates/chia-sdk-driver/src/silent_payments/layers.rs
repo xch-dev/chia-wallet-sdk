@@ -905,7 +905,7 @@ mod tests {
         assert_eq!(coin_wrapper(&spend), None);
     }
 
-    /// `classify_spend` gives exactly `coin_wrapper_from_node` and the
+    /// `classify_spend` gives the wrapper of `coin_wrapper_from_node` and the
     /// eligible spend of the CHIP's steps, for every shape of spend.
     #[test]
     fn classify_spend_agrees_with_the_separate_matchers() {
@@ -953,33 +953,27 @@ mod tests {
             .unwrap();
         let issuer = ((1, (standard, ())), ()).to_clvm(&mut a).unwrap();
 
+        let plain = Wrapper::cat(asset_id);
+        let revocable = Wrapper::revocable(asset_id, hidden);
+        // (puzzle, solution, the eligible spend the CHIP's steps give)
         let cases = [
-            (standard, NodePtr::NIL),
-            (settlement, NodePtr::NIL),
-            (plain_cat, NodePtr::NIL),
-            (settlement_cat, NodePtr::NIL),
-            (cat_in_cat, NodePtr::NIL),
-            (revocable_cat, holder),
-            (revocable_cat, issuer),
-            (revocable_cat, NodePtr::NIL),
+            (standard, NodePtr::NIL, Some((key, None))),
+            (settlement, NodePtr::NIL, None),
+            (plain_cat, NodePtr::NIL, Some((key, Some(plain)))),
+            (settlement_cat, NodePtr::NIL, None),
+            (cat_in_cat, NodePtr::NIL, None),
+            (revocable_cat, holder, Some((key, Some(revocable)))),
+            (revocable_cat, issuer, None),
+            (revocable_cat, NodePtr::NIL, None),
         ];
-        let mut eligible = 0;
         let mut wrapped = 0;
-        for (puzzle, solution) in cases {
+        for (puzzle, solution, expected) in cases {
             let (list_wrapper, spend) = classify_spend(&a, puzzle, solution);
             assert_eq!(list_wrapper, coin_wrapper_from_node(&a, puzzle));
-            assert_eq!(spend, eligible_spend_from_nodes(&a, puzzle, solution));
-            eligible += usize::from(spend.is_some());
+            assert_eq!(spend, expected);
             wrapped += usize::from(list_wrapper.is_some());
         }
-        assert_eq!(eligible, 3);
         assert_eq!(wrapped, 6);
-        assert_eq!(
-            classify_spend(&a, revocable_cat, holder),
-            (
-                Some(Wrapper::revocable(asset_id, hidden)),
-                Some((key, Some(Wrapper::revocable(asset_id, hidden))))
-            )
-        );
+        assert_eq!(classify_spend(&a, revocable_cat, issuer).0, Some(revocable));
     }
 }
