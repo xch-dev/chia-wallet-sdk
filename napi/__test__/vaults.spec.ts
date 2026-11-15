@@ -14,14 +14,17 @@ import {
   K1SecretKey,
   K1Signature,
   MemberConfig,
+  minimumFee,
   mOfNHash,
   passkeyMemberHash,
   preventVaultSideEffectsRestriction,
+  r1MemberHash,
   R1Pair,
   sha256,
   Simulator,
   singletonMemberHash,
   Spend,
+  spendBundleCost,
   timelockRestriction,
   treeHashPair,
   Vault,
@@ -633,6 +636,228 @@ test("singleton recreation restriction prevents recovery initiation from changin
 
 test("recovery initiation succeeds with singleton recreation restriction", (t) => {
   t.notThrows(() => initiateVaultRecovery(true, 1n));
+});
+
+// A mainnet height before the 3.0 hard fork.
+const HEIGHT = 9_500_000;
+
+// The client data of a passkey signature, in the same format as the "passkey member vault" test.
+function passkeySignature(
+  sk: R1Pair["sk"],
+  message: Uint8Array,
+): {
+  signature: ReturnType<R1Pair["sk"]["signPrehashed"]>;
+  authenticatorData: Buffer;
+  clientDataJSON: Buffer;
+} {
+  const authenticatorData = Buffer.from(
+    "49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000009",
+    "hex",
+  );
+  const clientDataJSON = Buffer.from(
+    `{"type":"webauthn.get","challenge":"${Buffer.from(message).toString(
+      "base64url",
+    )}","origin":"http://localhost:3000","crossOrigin":false}`,
+    "utf-8",
+  );
+  const signature = sk.signPrehashed(
+    sha256(Buffer.concat([authenticatorData, sha256(clientDataJSON)])),
+  );
+  return { signature, authenticatorData, clientDataJSON };
+}
+
+for (const kind of ["r1", "passkey"] as const) {
+  test(`vault dry run prices the signed spend (${kind})`, (t) => {
+    const sim = new Simulator();
+    const clvm = new Clvm();
+
+    const r1 = R1Pair.fromSeed(1n);
+    const config = new MemberConfig().withTopLevel(true);
+    const memberHash =
+      kind === "r1"
+        ? r1MemberHash(config, r1.pk, false)
+        : passkeyMemberHash(config, r1.pk, false);
+    const vault = mintVault(sim, clvm, memberHash);
+
+    const addMember = (
+      mips: ReturnType<Clvm["mipsSpend"]>,
+      message: Uint8Array,
+    ) => {
+      if (kind === "r1") {
+        mips.r1Member(config, r1.pk, r1.sk.signPrehashed(message), false);
+      } else {
+        const { signature, authenticatorData, clientDataJSON } =
+          passkeySignature(r1.sk, message);
+        mips.passkeyMember(
+          config,
+          r1.pk,
+          signature,
+          authenticatorData,
+          clientDataJSON,
+          23,
+          false,
+        );
+      }
+    };
+
+    // Before anyone signs, price the spend with a stand-in vault. The template's signature is a placeholder, and a
+    // passkey's client data is copied from it, so it should be the same length as the real one.
+    const template = clvm.mipsSpend(vault.coin, clvm.delegatedSpend([]));
+    addMember(template, new Uint8Array(32));
+    const dryRun = template.dryRun(vault);
+    const standIn = dryRun.vault();
+
+    dryRun.spend(
+      clvm.delegatedSpend([
+        clvm.createCoin(standIn.info.custodyHash, standIn.coin.amount, null),
+      ]),
+    );
+    const estimatedCost = spendBundleCost(clvm.coinSpends(), true, HEIGHT);
+
+    // The margin is in cost, so it's added to the cost before pricing, not to the fee.
+    const margin = dryRun.costMargin();
+    const fee = minimumFee(estimatedCost + margin);
+    t.is(margin, kind === "r1" ? 0n : 32_000n);
+
+    // The real spend, signed by the member.
+    const delegatedSpend = clvm.delegatedSpend([
+      clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+    ]);
+    const message = sha256(
+      Uint8Array.from([
+        ...delegatedSpend.puzzle.treeHash(),
+        ...vault.coin.coinId(),
+      ]),
+    );
+    const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+    addMember(mips, message);
+    mips.spendVault(vault);
+
+    const coinSpends = clvm.coinSpends();
+    const realCost = spendBundleCost(coinSpends, true, HEIGHT);
+
+    if (kind === "r1") {
+      t.is(realCost, estimatedCost);
+    } else {
+      const difference =
+        realCost > estimatedCost
+          ? realCost - estimatedCost
+          : estimatedCost - realCost;
+      t.true(difference <= margin);
+    }
+    t.true(fee >= minimumFee(realCost));
+
+    sim.spendCoins(coinSpends, []);
+  });
+}
+
+// The delegated spend of a controller that authorizes the controlled vault's delegated spend: it recreates the
+// controller and sends the controlled vault's coin the delegated puzzle hash.
+function controllerAuthorization(
+  clvm: Clvm,
+  controller: Vault,
+  controlledCoin: Coin,
+  delegatedPuzzleHash: Uint8Array,
+): Spend {
+  return clvm.delegatedSpend([
+    clvm.createCoin(controller.info.custodyHash, controller.coin.amount, null),
+    clvm.sendMessage(23, delegatedPuzzleHash, [
+      clvm.alloc(controlledCoin.coinId()),
+    ]),
+  ]);
+}
+
+test("vault dry run prices a vault controlled by another vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const r1 = R1Pair.fromSeed(1n);
+  const config = new MemberConfig().withTopLevel(true);
+  const controller = mintVault(sim, clvm, r1MemberHash(config, r1.pk, false));
+  const vault = mintVault(
+    sim,
+    clvm,
+    singletonMemberHash(config, controller.info.launcherId, false),
+  );
+
+  // Price the spend before the controller's member signs. The controlled vault's singleton member is pointed at the
+  // controller's stand-in.
+  const controllerTemplate = clvm.mipsSpend(
+    controller.coin,
+    clvm.delegatedSpend([]),
+  );
+  controllerTemplate.r1Member(
+    config,
+    r1.pk,
+    r1.sk.signPrehashed(new Uint8Array(32)),
+    false,
+  );
+  const controllerDryRun = controllerTemplate.dryRun(controller);
+
+  const template = clvm.mipsSpend(vault.coin, clvm.delegatedSpend([]));
+  template.singletonMember(
+    config,
+    controller.info.launcherId,
+    false,
+    controller.info.custodyHash,
+    controller.coin.amount,
+  );
+  const dryRun = template.dryRunWithControllers(vault, [controllerDryRun]);
+
+  // The controlled vault has no members that sign, so its stand-in has the same coin.
+  t.deepEqual(dryRun.vault().coin.coinId(), vault.coin.coinId());
+
+  const delegatedSpend = clvm.delegatedSpend([
+    clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+  ]);
+  dryRun.spend(delegatedSpend);
+  controllerDryRun.spend(
+    controllerAuthorization(
+      clvm,
+      controllerDryRun.vault(),
+      vault.coin,
+      delegatedSpend.puzzle.treeHash(),
+    ),
+  );
+  const estimatedCost = spendBundleCost(clvm.coinSpends(), true, HEIGHT);
+
+  // The real spend, with the controller's member signing its authorization.
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.singletonMember(
+    config,
+    controller.info.launcherId,
+    false,
+    controller.info.custodyHash,
+    controller.coin.amount,
+  );
+  mips.spendVault(vault);
+
+  const authorization = controllerAuthorization(
+    clvm,
+    controller,
+    vault.coin,
+    delegatedSpend.puzzle.treeHash(),
+  );
+  const controllerMips = clvm.mipsSpend(controller.coin, authorization);
+  controllerMips.r1Member(
+    config,
+    r1.pk,
+    r1.sk.signPrehashed(
+      sha256(
+        Uint8Array.from([
+          ...authorization.puzzle.treeHash(),
+          ...controller.coin.coinId(),
+        ]),
+      ),
+    ),
+    false,
+  );
+  controllerMips.spendVault(controller);
+
+  const coinSpends = clvm.coinSpends();
+  t.is(spendBundleCost(coinSpends, true, HEIGHT), estimatedCost);
+
+  sim.spendCoins(coinSpends, []);
 });
 
 function initiateVaultRecovery(

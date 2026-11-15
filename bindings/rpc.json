@@ -196,6 +196,22 @@
           "coin_name": "Bytes32"
         },
         "return": "GetMempoolItemsResponse"
+      },
+      "get_fee_estimate": {
+        "type": "async",
+        "args": {
+          "cost": "u64",
+          "target_times": "Vec<u64>"
+        },
+        "return": "GetFeeEstimateResponse"
+      },
+      "get_fee_per_cost": {
+        "type": "async",
+        "args": {
+          "cost": "u64",
+          "target_time": "u64"
+        },
+        "return": "Option<f64>"
       }
     }
   },
@@ -360,6 +376,22 @@
       "network_name": "Option<String>",
       "network_prefix": "Option<String>",
       "genesis_challenge": "Option<Bytes32>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetFeeEstimateResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "estimates": "Vec<u64>",
+      "target_times": "Vec<u64>",
+      "current_fee_rate": "Option<f64>",
+      "mempool_size": "Option<u64>",
+      "mempool_max_size": "Option<u64>",
+      "full_node_synced": "Option<bool>",
+      "last_tx_block_height": "Option<u32>",
       "error": "Option<String>",
       "success": "bool"
     }

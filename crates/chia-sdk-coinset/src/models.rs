@@ -229,3 +229,28 @@ pub struct GetMempoolItemsResponse {
     /// Whether the request succeeded.
     pub success: bool,
 }
+
+/// The response to [`ChiaRpcClient::get_fee_estimate`](crate::ChiaRpcClient::get_fee_estimate).
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetFeeEstimateResponse {
+    /// The estimated fee, in mojos, for each of the requested target times.
+    #[serde(default)]
+    pub estimates: Vec<u64>,
+    /// The target times the estimates are for, in seconds.
+    #[serde(default)]
+    pub target_times: Vec<u64>,
+    /// The fee rate, in mojos per cost, needed to get into the mempool right now.
+    pub current_fee_rate: Option<f64>,
+    /// The total cost of the transactions in the mempool.
+    pub mempool_size: Option<u64>,
+    /// The maximum total cost of the transactions the mempool holds.
+    pub mempool_max_size: Option<u64>,
+    /// Whether the node is synced.
+    pub full_node_synced: Option<bool>,
+    /// The height of the most recent transaction block.
+    pub last_tx_block_height: Option<u32>,
+    /// The error message if the request failed.
+    pub error: Option<String>,
+    /// Whether the request succeeded.
+    pub success: bool,
+}

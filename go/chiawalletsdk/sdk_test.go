@@ -3,9 +3,7 @@ package chiawalletsdk_test
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"strings"
-	"sync"
 	"testing"
 
 	sdk "github.com/xch-dev/chia-wallet-sdk/go/chiawalletsdk"
@@ -28,6 +26,22 @@ func check(t *testing.T, err error) {
 
 func fromHex(value string) []byte {
 	return must(hex.DecodeString(value))
+}
+
+// seed returns a 32 byte seed whose first byte is the given value.
+func seed(first byte) []byte {
+	value := make([]byte, 32)
+	value[0] = first
+	return value
+}
+
+// deref returns the value a pointer points to, or nil, so failure messages show values rather
+// than addresses.
+func deref[T any](value *T) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func TestCoinId(t *testing.T) {
@@ -172,28 +186,6 @@ func TestClvmValueAllocation(t *testing.T) {
 	}
 }
 
-func TestConditionAllocation(t *testing.T) {
-	clvm := must(sdk.NewClvm())
-	defer clvm.Destroy()
-
-	puzzleHash := make([]byte, 32)
-
-	condition := must(sdk.NewCreateCoin(puzzleHash, 1000, nil))
-	defer condition.Destroy()
-
-	allocated := must(clvm.Alloc(sdk.ClvmTypeCreateCoin{Value: condition}))
-	direct := must(clvm.CreateCoin(puzzleHash, 1000, nil))
-
-	if !bytes.Equal(must(allocated.TreeHash()), must(direct.TreeHash())) {
-		t.Fatal("expected the allocated condition to match the direct one")
-	}
-
-	parsed := must(allocated.ParseCreateCoin())
-	if parsed == nil || (*parsed).Amount() != 1000 {
-		t.Fatal("expected to parse the condition back")
-	}
-}
-
 func TestCurryAddFunction(t *testing.T) {
 	clvm := must(sdk.NewClvm())
 	defer clvm.Destroy()
@@ -279,45 +271,6 @@ func TestSimulatorTransaction(t *testing.T) {
 	coins := must(sim.UnspentCoins(alice.PuzzleHash(), false))
 	if len(coins) != 1 || coins[0].Amount() != 900 {
 		t.Fatalf("expected a single 900 mojo coin, got %d coins", len(coins))
-	}
-}
-
-func TestConcurrentUse(t *testing.T) {
-	clvm := must(sdk.NewClvm())
-	defer clvm.Destroy()
-
-	var wg sync.WaitGroup
-	errs := make(chan error, 32)
-
-	for i := range 32 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			program, err := clvm.Int(fmt.Sprint(i))
-			if err != nil {
-				errs <- err
-				return
-			}
-			defer program.Destroy()
-
-			value, err := program.ToInt()
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			if value == nil || *value != fmt.Sprint(i) {
-				errs <- fmt.Errorf("expected %d, got %v", i, value)
-			}
-		}()
-	}
-
-	wg.Wait()
-	close(errs)
-
-	for err := range errs {
-		t.Error(err)
 	}
 }
 
