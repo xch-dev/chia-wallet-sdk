@@ -42,7 +42,7 @@ use chia_sdk_driver::{Cat, CatInfo, CatSpend, SpendContext, SpendWithConditions,
 use chia_sdk_types::Conditions;
 use chia_sdk_types::silent_payments::{SCAN_PATH, SPEND_PATH, ScalarField};
 use chia_sdk_utils::silent_payments::{
-    LabelRegistry, SP_ADDRESS_VERSION, SilentPaymentAddress, SilentPaymentKeys,
+    LabelRegistry, SILENT_PAYMENT_ADDRESS_VERSION, SilentPaymentAddress, SilentPaymentKeys,
     SilentPaymentNetwork, generate_label,
 };
 use chia_sha2::Sha256;
@@ -166,7 +166,7 @@ fn header() {
     assert_eq!(text(&file, "chip"), "CHIP-0057");
     assert_eq!(
         file["address_version"].as_u64(),
-        Some(u64::from(SP_ADDRESS_VERSION))
+        Some(u64::from(SILENT_PAYMENT_ADDRESS_VERSION))
     );
 
     // The sections this test walks, so that an empty or reshaped file cannot

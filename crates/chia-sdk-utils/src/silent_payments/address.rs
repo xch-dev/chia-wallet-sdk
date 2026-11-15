@@ -12,15 +12,15 @@ use crate::Bech32Error;
 use super::SilentPaymentError;
 
 /// The CHIP-0057 address version this implementation emits (v0).
-pub const SP_ADDRESS_VERSION: u8 = 0;
+pub const SILENT_PAYMENT_ADDRESS_VERSION: u8 = 0;
 
 /// The version reserved for backward-incompatible upgrades; decoding MUST fail.
-pub const SP_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE: u8 = 31;
+pub const SILENT_PAYMENT_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE: u8 = 31;
 
 /// Maximum silent-payment address length in characters. SP addresses exceed
 /// bech32's original 90-character limit; CHIP-0057 (following BIP-352) allows
 /// up to 1,023 characters.
-pub const SP_ADDRESS_MAX_LENGTH: usize = 1023;
+pub const SILENT_PAYMENT_ADDRESS_MAX_LENGTH: usize = 1023;
 
 /// Encode a version character followed by 5-bit groups as bech32m under `hrp`.
 fn encode_fes(hrp: &str, fes: impl Iterator<Item = Fe32>) -> Result<String, Bech32Error> {
@@ -165,7 +165,8 @@ impl SilentPaymentAddress {
         payload.extend_from_slice(&self.spend_pk.to_bytes());
         debug_assert_eq!(payload.len(), 96);
 
-        let version = Fe32::try_from(SP_ADDRESS_VERSION).expect("SP_ADDRESS_VERSION < 32");
+        let version = Fe32::try_from(SILENT_PAYMENT_ADDRESS_VERSION)
+            .expect("SILENT_PAYMENT_ADDRESS_VERSION < 32");
         Ok(encode_fes(
             self.network.hrp(),
             std::iter::once(version).chain(payload.into_iter().bytes_to_fes()),
@@ -191,7 +192,7 @@ impl SilentPaymentAddress {
     ///   - either pubkey half is invalid bytes → `SilentPaymentError::InvalidPublicKey`.
     ///   - either pubkey half is the identity element → `SilentPaymentError::IdentityPublicKey`.
     pub fn decode(s: &str) -> Result<Self, SilentPaymentError> {
-        if s.len() > SP_ADDRESS_MAX_LENGTH {
+        if s.len() > SILENT_PAYMENT_ADDRESS_MAX_LENGTH {
             return Err(SilentPaymentError::AddressTooLong(s.len()));
         }
         let unchecked = UncheckedHrpstring::new(s)
@@ -210,11 +211,11 @@ impl SilentPaymentAddress {
         let Some((&version, rest)) = data.split_first() else {
             return Err(SilentPaymentError::PayloadLength(0));
         };
-        if version == SP_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE {
+        if version == SILENT_PAYMENT_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE {
             return Err(SilentPaymentError::ReservedAddressVersion);
         }
         let payload = fes_to_bytes_strict(rest)?;
-        let length_ok = if version == SP_ADDRESS_VERSION {
+        let length_ok = if version == SILENT_PAYMENT_ADDRESS_VERSION {
             payload.len() == 96
         } else {
             // Forward-compatible versions may append data after the keys.
@@ -526,7 +527,7 @@ mod tests {
         payload[..48].copy_from_slice(&TV1_SCAN_PK_BYTES);
         payload[48..96].copy_from_slice(&TV1_SPEND_PK_BYTES);
         let s = encode_with_version(1, &payload, "spxch");
-        assert!(s.len() > SP_ADDRESS_MAX_LENGTH);
+        assert!(s.len() > SILENT_PAYMENT_ADDRESS_MAX_LENGTH);
         match SilentPaymentAddress::decode(&s) {
             Err(SilentPaymentError::AddressTooLong(n)) => assert_eq!(n, s.len()),
             other => panic!("expected AddressTooLong, got {other:?}"),
@@ -764,7 +765,7 @@ mod tests {
         let mut payload = tv1_payload();
         payload.resize(631, 0x11);
         let s = encode_with_version(1, &payload, "spxch");
-        assert_eq!(s.len(), SP_ADDRESS_MAX_LENGTH);
+        assert_eq!(s.len(), SILENT_PAYMENT_ADDRESS_MAX_LENGTH);
 
         let decoded = SilentPaymentAddress::decode(&s).unwrap();
         assert_eq!(decoded.scan_pk, pk(TV1_SCAN_PK_BYTES));
@@ -773,7 +774,7 @@ mod tests {
         // One more payload byte pushes it past the limit.
         payload.push(0x11);
         let s = encode_with_version(1, &payload, "spxch");
-        assert!(s.len() > SP_ADDRESS_MAX_LENGTH);
+        assert!(s.len() > SILENT_PAYMENT_ADDRESS_MAX_LENGTH);
         assert_eq!(
             SilentPaymentAddress::decode(&s),
             Err(SilentPaymentError::AddressTooLong(s.len()))
