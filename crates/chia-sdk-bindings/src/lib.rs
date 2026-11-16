@@ -36,6 +36,7 @@ mod puzzle;
 mod rpc;
 mod secp;
 mod secure_the_bag;
+mod signer;
 mod silent_payments;
 mod simulator;
 mod splitter;
@@ -68,16 +69,27 @@ pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
 pub use secure_the_bag::*;
+pub use signer::*;
 pub use silent_payments::*;
 pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod daemon;
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use daemon::*;
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod peer_simulator;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use peer_simulator::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
 pub use chia_protocol::{
@@ -137,7 +149,12 @@ pub use chia_sdk_types::{
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
-    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
+    CoinStateUpdate, MempoolItemsAdded, MempoolItemsRemoved, NewPeakWallet, PuzzleSolutionResponse,
+    RemovedMempoolItem, RespondChildren, RespondCoinState, RespondPeers, RespondPuzzleState,
+    RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction, TimestampedPeerInfo,
+    TransactionAck,
 };
+
+pub use chia_protocol::MempoolRemoveReason;
 
 pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};

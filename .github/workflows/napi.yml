@@ -30,18 +30,19 @@ jobs:
           - host: windows-2025
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
-          # Linux builds use napi's glibc 2.17 cross toolchain. Each target is built on the other
-          # architecture, since cc-rs ignores the cross C compiler when the host and target match
-          # and would compile C dependencies against the runner's newer glibc headers instead.
+          # The x64 Linux build uses napi's glibc 2.17 cross toolchain. It's built on arm64, since
+          # cc-rs ignores the cross C compiler when the host and target match and would compile C
+          # dependencies against the runner's newer glibc headers instead.
           - host: ubuntu-24.04-arm
             target: x86_64-unknown-linux-gnu
             build: pnpm build:linux-x64 --use-napi-cross
+          # The arm64 Linux build uses zig with the same glibc 2.17 floor. With napi's aarch64 cross
+          # gcc, ring's RSA code was broken and Certificate.generate() failed with "Key rejected by
+          # ring: InconsistentComponents".
           - host: ubuntu-24.04
             target: aarch64-unknown-linux-gnu
-            build: |
-              # napi's cross gcc doesn't define __ARM_ARCH, which ring's assembly requires
-              export CFLAGS_aarch64_unknown_linux_gnu="-D__ARM_ARCH=8"
-              pnpm build:linux-arm64 --use-napi-cross
+            zig: true
+            build: pnpm napi build --platform --release --target aarch64-unknown-linux-gnu.2.17 -x
     name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
     steps:
@@ -74,6 +75,18 @@ jobs:
         with:
           key: ${{ matrix.settings.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Setup zig
+        if: ${{ matrix.settings.zig }}
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.1
+
+      - name: Install cargo-zigbuild
+        if: ${{ matrix.settings.zig }}
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild@0.24.1
 
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}

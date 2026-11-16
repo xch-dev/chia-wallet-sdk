@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use chia_consensus::validation_error::ErrorCode;
-use chia_protocol::{BlockRecord, Bytes32, SpendBundle};
+use chia_protocol::{BlockRecord, Bytes32, MempoolRemoveReason, SpendBundle};
 use indexmap::{IndexMap, IndexSet};
 use rand::RngExt;
 
@@ -183,9 +183,21 @@ impl FullNodeSimulator {
         self.state
             .apply_block(block)
             .expect("locally built block delta must apply atomically");
+        self.record_block_for_peers(
+            height,
+            header_hash,
+            &additions
+                .iter()
+                .chain(&removals)
+                .copied()
+                .collect::<IndexSet<_>>(),
+        );
         for tx_id in included_tx_ids {
-            self.mempool.swap_remove(&tx_id);
+            if let Some(item) = self.mempool.shift_remove(&tx_id) {
+                self.record_mempool_removed(tx_id, &item, MempoolRemoveReason::BlockInclusion);
+            }
         }
+        self.evict_invalid_mempool_items();
 
         self.events.push(FullNodeSimulatorEvent::Block {
             height,
@@ -239,13 +251,79 @@ impl FullNodeSimulator {
     }
 
     pub(super) fn prune_mempool(&mut self) {
-        let spend_bundles = self
+        let previous = std::mem::take(&mut self.mempool);
+
+        // Items that are added back unchanged stay in the mempool as far as peers can tell, so
+        // only the differences are recorded.
+        let peer_events = self.pause_peer_events();
+        self.requeue_transactions(previous.values().map(|item| item.spend_bundle.clone()));
+        self.resume_peer_events(peer_events);
+
+        for (tx_id, item) in &previous {
+            if !self.mempool.contains_key(tx_id) {
+                let reason = self
+                    .validate_bundle(item.spend_bundle.clone())
+                    .err()
+                    .map_or(MempoolRemoveReason::Conflict, |error| {
+                        Self::removal_reason(&error)
+                    });
+                self.record_mempool_removed(*tx_id, item, reason);
+            }
+        }
+        let added = self
             .mempool
-            .values()
-            .map(|item| item.spend_bundle.clone())
+            .keys()
+            .filter(|tx_id| !previous.contains_key(*tx_id))
+            .copied()
             .collect::<Vec<_>>();
-        self.mempool.clear();
-        self.requeue_transactions(spend_bundles);
+        for tx_id in added {
+            self.record_mempool_added(tx_id);
+        }
+    }
+
+    /// The reason a mempool item that fails validation with `error` is removed: [`Expired`] if
+    /// one of its `ASSERT_BEFORE_*` conditions no longer passes, otherwise [`Conflict`].
+    ///
+    /// Items expire when the chain's clock is moved past their `ASSERT_BEFORE_SECONDS_*`
+    /// conditions with [`FullNodeSimulator::set_next_timestamp`] or
+    /// [`FullNodeSimulator::pass_time`].
+    ///
+    /// [`Expired`]: MempoolRemoveReason::Expired
+    /// [`Conflict`]: MempoolRemoveReason::Conflict
+    pub(super) fn removal_reason(error: &SimulatorError) -> MempoolRemoveReason {
+        match error {
+            SimulatorError::Validation(
+                ErrorCode::AssertBeforeHeightAbsoluteFailed
+                | ErrorCode::AssertBeforeHeightRelativeFailed
+                | ErrorCode::AssertBeforeSecondsAbsoluteFailed
+                | ErrorCode::AssertBeforeSecondsRelativeFailed,
+            ) => MempoolRemoveReason::Expired,
+            _ => MempoolRemoveReason::Conflict,
+        }
+    }
+
+    /// Removes the mempool items that are no longer valid at the current peak, such as items that
+    /// spend a coin that no longer exists, along with the items that depend on them.
+    pub(super) fn evict_invalid_mempool_items(&mut self) {
+        loop {
+            let invalid = self
+                .mempool
+                .iter()
+                .filter_map(|(tx_id, item)| {
+                    self.validate_bundle(item.spend_bundle.clone())
+                        .err()
+                        .map(|error| (*tx_id, Self::removal_reason(&error)))
+                })
+                .collect::<Vec<_>>();
+            if invalid.is_empty() {
+                break;
+            }
+            for (tx_id, reason) in invalid {
+                if let Some(item) = self.mempool.shift_remove(&tx_id) {
+                    self.record_mempool_removed(tx_id, &item, reason);
+                }
+            }
+        }
     }
 
     fn random_hash(&mut self) -> Bytes32 {
@@ -259,6 +337,44 @@ impl FullNodeSimulator {
         std::mem::take(&mut self.events)
     }
 
+    /// Returns the timestamp that the next farmed block will have, in seconds.
+    ///
+    /// Transactions are validated against this timestamp, both when they're pushed and when the
+    /// next block is farmed.
+    pub fn next_timestamp(&self) -> u64 {
+        self.state.next_timestamp
+    }
+
+    /// Sets the timestamp of the next farmed block, in seconds.
+    ///
+    /// Use this to bring the chain's clock in line with the wall clock, or to move it past a
+    /// transaction's `ASSERT_BEFORE_SECONDS_*` condition. The next block leaves out transactions
+    /// that are no longer valid at its timestamp and removes them from the mempool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SimulatorError::Validation`] with [`ErrorCode::TimestampTooFarInPast`] if `time`
+    /// is earlier than the timestamp of the peak block.
+    pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
+        let peak_timestamp = self
+            .state
+            .blocks
+            .get(&self.header_hash())
+            .and_then(|block| block.record.timestamp);
+        if peak_timestamp.is_some_and(|peak_timestamp| time < peak_timestamp) {
+            return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
+        }
+        self.state.next_timestamp = time;
+        Ok(())
+    }
+
+    /// Moves the timestamp of the next farmed block forward by `time` seconds.
+    ///
+    /// See [`FullNodeSimulator::set_next_timestamp`].
+    pub fn pass_time(&mut self, time: u64) {
+        self.state.next_timestamp = self.state.next_timestamp.saturating_add(time);
+    }
+
     /// Sets the puzzle hash that receives the reward coin of each farmed block.
     pub fn set_farming_ph(&mut self, puzzle_hash: Bytes32) {
         self.farming_puzzle_hash = puzzle_hash;
@@ -268,8 +384,10 @@ impl FullNodeSimulator {
     ///
     /// Each block includes every mempool transaction that is still valid and doesn't conflict
     /// with one already in the block, plus a reward coin for
-    /// [`FullNodeSimulator::get_farming_ph`]. Included transactions are removed from the mempool.
-    /// A [`FullNodeSimulatorEvent::Block`] event is recorded for each block.
+    /// [`FullNodeSimulator::get_farming_ph`]. Included transactions are removed from the mempool,
+    /// and so are transactions that are no longer valid after the block, such as ones that spend
+    /// a coin that no longer exists after a reorg. A
+    /// [`FullNodeSimulatorEvent::Block`] event is recorded for each block.
     pub fn farm_block(&mut self, blocks: u32) -> Vec<BlockRecord> {
         let count = blocks.max(1);
         let mut records = Vec::new();

@@ -1,10 +1,11 @@
 use chia_protocol::{Bytes32, CoinSpend};
 use indexmap::{IndexMap, IndexSet};
 
-use crate::{SimulatorError, StateDumpError};
+use crate::{ChainStateError, SimulatorError, StateDumpError};
 
 use super::super::{
-    FullNodeSimulator, SimBlock, SimCoinRecord, ValidatedBundle,
+    FullNodeSimulator, PeerEventLog, SIMULATOR_GENESIS_CHALLENGE, SimBlock, SimCoinRecord,
+    ValidatedBundle,
     state::{BlockDelta, ChainState, CoinChange, HintChange, SpendChange},
     validation::ValidationOverlay,
 };
@@ -308,11 +309,28 @@ impl TryFrom<SimulatorStateDump> for FullNodeSimulator {
             master_secret_key,
             prefarm_puzzle_hash: dump.prefarm_puzzle_hash,
             node_id: dump.node_id,
+            genesis_challenge: dump
+                .genesis_challenge
+                .unwrap_or(SIMULATOR_GENESIS_CHALLENGE),
             events: Vec::new(),
+            peer_events: PeerEventLog::default(),
         };
         for (expected_header, block) in dump.header_hashes.iter().zip(dump.blocks) {
             if block.header_hash != *expected_header {
                 return Err(StateDumpError::CanonicalBlockOrderMismatch.into());
+            }
+            // The clock can be moved between blocks with `set_next_timestamp` or `pass_time`, so
+            // a block isn't always one second after the one before it, but it's never earlier.
+            if let Some(timestamp) = block.record.timestamp {
+                let peak_timestamp = simulator
+                    .state
+                    .blocks
+                    .get(&simulator.header_hash())
+                    .and_then(|peak| peak.record.timestamp);
+                if peak_timestamp.is_some_and(|peak_timestamp| timestamp < peak_timestamp) {
+                    return Err(ChainStateError::InvalidBlockTimestamp.into());
+                }
+                simulator.state.next_timestamp = timestamp;
             }
             let (_, block) = block.into_block(&simulator, &coins, &coin_spends, &coin_hints)?;
             simulator.state.apply_block(block)?;
@@ -320,9 +338,15 @@ impl TryFrom<SimulatorStateDump> for FullNodeSimulator {
         if simulator.state.height != dump.height {
             return Err(StateDumpError::ReplayedHeightMismatch.into());
         }
-        if simulator.state.next_timestamp != dump.next_timestamp {
+        let peak_timestamp = simulator
+            .state
+            .blocks
+            .get(&simulator.header_hash())
+            .and_then(|peak| peak.record.timestamp);
+        if peak_timestamp.is_some_and(|peak_timestamp| dump.next_timestamp < peak_timestamp) {
             return Err(StateDumpError::NextTimestampMismatch.into());
         }
+        simulator.state.next_timestamp = dump.next_timestamp;
         validate_index(&coins, &simulator.state.coins, "coin records")?;
         validate_index(&coin_spends, &simulator.state.coin_spends, "coin spends")?;
         validate_index(&coin_hints, &simulator.state.coin_hints, "coin hints")?;

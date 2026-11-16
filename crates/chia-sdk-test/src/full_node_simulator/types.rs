@@ -1,4 +1,4 @@
-use chia_protocol::{BlockRecord, Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{BlockRecord, Bytes32, Coin, CoinSpend, CoinState, SpendBundle};
 use chia_sdk_coinset::{CoinRecord, MempoolItem, PushTxResponse};
 use indexmap::IndexMap;
 
@@ -92,6 +92,15 @@ pub enum FullNodeSimulatorEvent {
 }
 
 impl SimCoinRecord {
+    #[cfg_attr(not(feature = "peer-simulator"), allow(dead_code))]
+    pub(super) fn to_coin_state(self) -> CoinState {
+        CoinState::new(
+            self.coin,
+            self.spent_block_index,
+            Some(self.confirmed_block_index),
+        )
+    }
+
     pub(super) fn to_coin_record(self) -> CoinRecord {
         CoinRecord {
             coin: self.coin,

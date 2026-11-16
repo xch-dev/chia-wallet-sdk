@@ -17,6 +17,10 @@ pub enum DriverError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Invalid or unsupported Internal Custody policy or spend.
+    #[error("internal custody error: {0}")]
+    InternalCustody(#[from] crate::InternalCustodyError),
+
     /// An integer didn't fit in the type it was converted to.
     #[error("try from int error")]
     TryFromInt(#[from] TryFromIntError),

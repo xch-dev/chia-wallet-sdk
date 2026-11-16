@@ -95,6 +95,15 @@
         },
         "return": "FinishedSpends"
       },
+      "apply_with_fee": {
+        "args": {
+          "actions": "Vec<Action>",
+          "xch_coins": "Vec<Coin>",
+          "fee": "u64",
+          "relation": "Option<Relation>"
+        },
+        "return": "FinishedSpends"
+      },
       "set_silent_payment_requested_asset_info": {
         "args": {
           "asset_info": "AssetInfo"

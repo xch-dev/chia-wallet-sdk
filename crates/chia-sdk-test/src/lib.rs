@@ -22,7 +22,10 @@
 //! - `full-node-simulator-http`: Implies `serde`. Adds `FullNodeSimulatorServer`, which serves a
 //!   [`FullNodeSimulator`] over a local HTTP server that speaks the full node RPC protocol.
 //! - `peer-simulator`: Adds `PeerSimulator`, which serves a [`Simulator`] over the Chia wallet
-//!   peer protocol on a local websocket, so you can test code that uses `chia-sdk-client`.
+//!   peer protocol on a local websocket, so you can test code that uses `chia-sdk-client`. With
+//!   `PeerSimulator::with_mempool`, it serves a [`FullNodeSimulator`] instead, so transactions
+//!   wait in a mempool until a block is farmed, and peers can opt into the CHIP-26 mempool
+//!   updates.
 //!
 //! # Quick start
 //!

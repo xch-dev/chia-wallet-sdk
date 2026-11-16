@@ -396,7 +396,9 @@ dependencies = [
  "chia-bls 0.53.0",
  "chia-protocol",
  "chia-sdk-client",
+ "chia-sdk-daemon",
  "chia-sdk-driver",
+ "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-utils",
  "chia-ssl",
@@ -688,12 +690,12 @@ dependencies = [
 
 [[package]]
 name = "chia-puzzles"
-version = "0.20.3"
+version = "0.20.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "553363ce9550cfde0ae1306a0a79bf9afd36ea09e0222b874b6287b44ad9d178"
+checksum = "b99b67d578c252423b6d8de60c5feb1c97edcd05e7eec780d9e1b671a7092d79"
 dependencies = [
  "hex",
- "hex-literal 0.4.1",
+ "hex-literal 1.1.0",
 ]
 
 [[package]]
@@ -709,7 +711,9 @@ dependencies = [
  "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-coinset",
+ "chia-sdk-daemon",
  "chia-sdk-driver",
+ "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",
  "chia-sdk-utils",
@@ -726,7 +730,6 @@ dependencies = [
  "paste",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
- "reqwest",
  "serde",
  "sha2 0.11.1",
  "tokio",
@@ -745,6 +748,7 @@ dependencies = [
 name = "chia-sdk-client"
 version = "0.38.0"
 dependencies = [
+ "anyhow",
  "aws-lc-rs",
  "chia-protocol",
  "chia-sdk-types",
