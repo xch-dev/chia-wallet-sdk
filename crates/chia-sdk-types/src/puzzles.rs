@@ -49,6 +49,7 @@
 mod augmented_condition;
 mod cat_makers;
 mod everything_with_singleton;
+mod internal_custody;
 mod mips;
 mod mods;
 mod option_contract;
@@ -63,6 +64,7 @@ mod secure_the_mint;
 pub use augmented_condition::*;
 pub use cat_makers::*;
 pub use everything_with_singleton::*;
+pub use internal_custody::*;
 pub use mips::*;
 pub use mods::*;
 pub use option_contract::*;
