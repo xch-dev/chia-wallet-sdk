@@ -3,11 +3,20 @@
 use crate::{MerkleProof, Mod};
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzles::{
+    INTERNAL_CUSTODY_ACH_CLAWBACK, INTERNAL_CUSTODY_ACH_CLAWBACK_HASH,
+    INTERNAL_CUSTODY_ACH_COMPLETION, INTERNAL_CUSTODY_ACH_COMPLETION_HASH,
+    INTERNAL_CUSTODY_ONLY_REKEY, INTERNAL_CUSTODY_ONLY_REKEY_HASH, INTERNAL_CUSTODY_P2_MERKLE_TREE,
+    INTERNAL_CUSTODY_P2_MERKLE_TREE_HASH, INTERNAL_CUSTODY_P2_NEW_LOCK_LEVEL,
+    INTERNAL_CUSTODY_P2_NEW_LOCK_LEVEL_HASH, INTERNAL_CUSTODY_PREFARM_INNER,
+    INTERNAL_CUSTODY_PREFARM_INNER_HASH, INTERNAL_CUSTODY_REKEY_AND_PAYMENT,
+    INTERNAL_CUSTODY_REKEY_AND_PAYMENT_HASH, INTERNAL_CUSTODY_REKEY_CLAWBACK,
+    INTERNAL_CUSTODY_REKEY_CLAWBACK_HASH, INTERNAL_CUSTODY_REKEY_COMPLETION,
+    INTERNAL_CUSTODY_REKEY_COMPLETION_HASH,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use std::borrow::Cow;
-mod mods;
-pub use mods::*;
 
 /// The pair of child-puzzle commitments in prefarm STATE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
@@ -235,10 +244,10 @@ impl Mod for InternalCustodyOnlyRekeyArgs {
 }
 impl Mod for InternalCustodyLockArgs {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&INTERNAL_CUSTODY_NEW_LOCK_LEVEL)
+        Cow::Borrowed(&INTERNAL_CUSTODY_P2_NEW_LOCK_LEVEL)
     }
     fn mod_hash() -> TreeHash {
-        INTERNAL_CUSTODY_NEW_LOCK_LEVEL_HASH.into()
+        INTERNAL_CUSTODY_P2_NEW_LOCK_LEVEL_HASH.into()
     }
 }
 
@@ -360,45 +369,6 @@ mod tests {
     use super::*;
     use clvmr::Allocator;
 
-    #[test]
-    fn pinned_module_hashes_match_reveals() -> anyhow::Result<()> {
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_ONLY_REKEY => INTERNAL_CUSTODY_ONLY_REKEY_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_NEW_LOCK_LEVEL => INTERNAL_CUSTODY_NEW_LOCK_LEVEL_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_PREFARM_INNER => INTERNAL_CUSTODY_PREFARM_INNER_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_P2_MERKLE_TREE => INTERNAL_CUSTODY_P2_MERKLE_TREE_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_REKEY_AND_PAYMENT => INTERNAL_CUSTODY_REKEY_AND_PAYMENT_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_ACH_COMPLETION => INTERNAL_CUSTODY_ACH_COMPLETION_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_ACH_CLAWBACK => INTERNAL_CUSTODY_ACH_CLAWBACK_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_REKEY_COMPLETION => INTERNAL_CUSTODY_REKEY_COMPLETION_HASH);
-        crate::assert_puzzle_hash!(INTERNAL_CUSTODY_REKEY_CLAWBACK => INTERNAL_CUSTODY_REKEY_CLAWBACK_HASH);
-        Ok(())
-    }
-    #[test]
-    fn serialized_module_hashes_match_notice() {
-        for (name, bytes) in [
-            (
-                "singleton_top_layer_v1_1",
-                &chia_puzzles::SINGLETON_TOP_LAYER_V1_1[..],
-            ),
-            ("prefarm_inner", &INTERNAL_CUSTODY_PREFARM_INNER[..]),
-            ("p2_merkle_tree", &INTERNAL_CUSTODY_P2_MERKLE_TREE[..]),
-            ("rekey_and_payment", &INTERNAL_CUSTODY_REKEY_AND_PAYMENT[..]),
-            ("only_rekey", &INTERNAL_CUSTODY_ONLY_REKEY[..]),
-            ("p2_new_lock_level", &INTERNAL_CUSTODY_NEW_LOCK_LEVEL[..]),
-            ("ach_completion", &INTERNAL_CUSTODY_ACH_COMPLETION[..]),
-            ("ach_clawback", &INTERNAL_CUSTODY_ACH_CLAWBACK[..]),
-            ("rekey_completion", &INTERNAL_CUSTODY_REKEY_COMPLETION[..]),
-            ("rekey_clawback", &INTERNAL_CUSTODY_REKEY_CLAWBACK[..]),
-        ] {
-            let mut hash = chia_sha2::Sha256::new();
-            hash.update(bytes);
-            let entry = format!("\"{name}.clsp.hex\": \"{}\"", hex::encode(hash.finalize()));
-            assert!(
-                include_str!("internal_custody/NOTICE.md").contains(&entry),
-                "{name}"
-            );
-        }
-    }
     #[test]
     fn spend_discriminators_match_reference_atoms_and_reject_unknown_values() -> anyhow::Result<()>
     {

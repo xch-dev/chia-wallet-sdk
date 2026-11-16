@@ -3,9 +3,9 @@
 Internal Custody is the prefarm puzzle family implemented by
 [Chia-Network/internal-custody](https://github.com/Chia-Network/internal-custody)
 revision `4150dc832a5e66b5ed839974f88d1feb573dcfe2`. It is distinct from
-MIPS/Cloud Wallet vaults and ClawbackV2. The SDK vendors the original compiled
-modules without changing them; provenance, license, serialized SHA256 and tree
-hashes are beside the reveals in `chia-sdk-types`.
+MIPS/Cloud Wallet vaults and ClawbackV2. The compiled modules come unchanged
+from `chia-puzzles` (0.20.4 and later), which carries the reference reveals and
+their tree hashes.
 
 ACH means Automated Clearing House, the reference protocol’s name for delayed,
 cancellable payment coins.

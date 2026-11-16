@@ -142,8 +142,7 @@ mod tests {
             let mut a = clvmr::Allocator::new();
             let ptr = clvmr::serde::node_from_bytes(&mut a, &$puzzle)?;
             let hash = clvm_utils::tree_hash(&mut a, ptr);
-            let expected: clvm_utils::TreeHash = $puzzle_hash.into();
-            assert_eq!(expected, hash);
+            assert_eq!($puzzle_hash, hash);
         };
     }
 }
