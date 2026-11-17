@@ -1,4 +1,7 @@
-use std::{fs, mem, path::Path};
+use std::{
+    fs, mem,
+    path::{Path, PathBuf},
+};
 
 use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
@@ -89,7 +92,17 @@ enum MethodKind {
     Constructor,
 }
 
-fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
+/// Reads `bindings.json` and every `.json` file in the `bindings` directory next to it.
+///
+/// Also returns `const _: &[u8] = include_bytes!(...)` items for every file that was read, which
+/// the macros emit so that rustc lists the files in the crate's dep-info and cargo rebuilds the
+/// crate when one of them is edited, renamed or deleted. Cargo only tracks files, not directories,
+/// so adding a new file to the `bindings` directory isn't noticed on its own: the crate is rebuilt
+/// once anything else it depends on changes, such as registering the new module in
+/// `chia-sdk-bindings`. Touch `bindings.json` to pick up a new file without any other change.
+fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>, proc_macro2::TokenStream) {
+    let mut files = vec![PathBuf::from(path)];
+
     let source = fs::read_to_string(path).unwrap();
 
     let bindy: Bindy = serde_json::from_str(&source).unwrap();
@@ -106,6 +119,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
     for path in dir {
         if path.path().extension().unwrap() == "json" {
             let source = fs::read_to_string(path.path()).unwrap();
+            files.push(path.path());
             let contents: IndexMap<String, Binding> = serde_json::from_str(&source).unwrap();
             bindings.extend(contents);
         }
@@ -154,7 +168,20 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
         }
     }
 
-    (bindy, bindings)
+    (bindy, bindings, track_files(&files))
+}
+
+fn track_files(files: &[PathBuf]) -> proc_macro2::TokenStream {
+    let paths = files.iter().map(|file| {
+        // `include_bytes!` resolves relative paths against the file that invokes the macro, while
+        // the macros read paths relative to the working directory, so pass absolute paths.
+        let path = std::path::absolute(file).unwrap();
+        path.to_str().unwrap().to_string()
+    });
+
+    quote! {
+        #( const _: &[u8] = include_bytes!(#paths); )*
+    }
 }
 
 fn build_base_mappings(
@@ -198,7 +225,7 @@ fn build_base_mappings(
 #[proc_macro]
 pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -594,13 +621,15 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         }
     });
 
+    output.extend(tracked_files);
+
     output.into()
 }
 
 #[proc_macro]
 pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -1134,13 +1163,15 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
         }
     });
 
+    output.extend(tracked_files);
+
     output.into()
 }
 
 #[proc_macro]
 pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -1490,13 +1521,15 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
         }
     });
 
+    output.extend(tracked_files);
+
     output.into()
 }
 
 #[proc_macro]
 pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = load_bindings(&input);
 
     let mut stubs = bindy.pyo3_stubs.clone();
     build_base_mappings(&bindy, &mut IndexMap::new(), &mut stubs);
@@ -1638,7 +1671,11 @@ pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
         "from typing import List, Optional, Union, Awaitable\nfrom enum import IntEnum\n\n{clvm_type}\n\n{functions}\n{classes}"
     );
 
-    quote!(#stubs).into()
+    quote!({
+        #tracked_files
+        #stubs
+    })
+    .into()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1782,7 +1819,7 @@ pub fn bindy_uniffi_blocking(input: TokenStream) -> TokenStream {
 
 fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -2216,6 +2253,8 @@ fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
             }
         }
     });
+
+    output.extend(tracked_files);
 
     output.into()
 }
