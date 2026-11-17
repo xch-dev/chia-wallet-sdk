@@ -754,6 +754,7 @@ pub enum DriverError {
     NoMeltPublicKey,
 }
 
+#[cfg(feature = "action-layer")]
 impl DriverError {
     /// Returns [`DriverError::LengthMismatch`] if `found` isn't `expected`.
     pub(crate) fn check_length(
