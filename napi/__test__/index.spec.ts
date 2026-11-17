@@ -293,6 +293,17 @@ test("mint and spend nft", (t) => {
     61_437_425n,
   );
   t.is(spendBundleCost(coinSpends, ConsensusConstants.mainnet()), 66_418_338n);
+
+  // The cost follows the network's fork heights: with the 3.0 hard fork before the given
+  // height, it's the cost after the fork.
+  t.is(
+    spendBundleCost(
+      coinSpends,
+      ConsensusConstants.mainnet().withHardFork2Height(9_000_000),
+      9_500_000,
+    ),
+    66_418_338n,
+  );
 });
 
 test("create and parse condition", (t) => {

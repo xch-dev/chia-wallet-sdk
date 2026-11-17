@@ -10,7 +10,7 @@ use chia_puzzle_types::{
     singleton::{SingletonArgs, SingletonStruct},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use chia_sdk_test::{Simulator, sign_transaction};
+use chia_sdk_test::{Simulator, sign_transaction_with_constants};
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
@@ -314,7 +314,11 @@ impl TestVault {
             )
             .collect();
 
-        let signature = sign_transaction(&bundle_coin_spends, slice::from_ref(&self.secret_key))?;
+        let signature = sign_transaction_with_constants(
+            &bundle_coin_spends,
+            slice::from_ref(&self.secret_key),
+            &sim.agg_sig_constants(),
+        )?;
         let spend_bundle = SpendBundle::new(bundle_coin_spends, signature.clone());
 
         Ok(TransactionData {

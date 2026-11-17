@@ -62,9 +62,8 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
 /// use chia_protocol::SpendBundle;
 /// use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 /// use chia_sdk_driver::{SpendContext, create_security_coin_with_pk, new_sk, spend_security_coin};
-/// use chia_sdk_signer::AggSigConstants;
 /// use chia_sdk_test::Simulator;
-/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+/// use chia_sdk_types::Conditions;
 ///
 /// let mut sim = Simulator::new();
 /// let ctx = &mut SpendContext::new();
@@ -81,7 +80,7 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
 ///     security_coin,
 ///     Conditions::new().reserve_fee(1_000),
 ///     &sk,
-///     &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+///     &sim.agg_sig_constants(),
 /// )?;
 /// sim.new_transaction(SpendBundle::new(ctx.take(), signature))?;
 /// # Ok::<(), anyhow::Error>(())
@@ -366,9 +365,8 @@ pub fn create_security_coin(
 ///     CatalogRegistryConstants, Offer, Spend, SpendContext, StandardLayer,
 ///     launch_catalog_registry, sign_standard_transaction,
 /// };
-/// use chia_sdk_signer::AggSigConstants;
 /// use chia_sdk_test::Simulator;
-/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+/// use chia_sdk_types::Conditions;
 ///
 /// let mut sim = Simulator::new();
 /// let ctx = &mut SpendContext::new();
@@ -388,7 +386,7 @@ pub fn create_security_coin(
 ///     alice.coin,
 ///     Spend::new(puzzle, solution),
 ///     &alice.sk,
-///     &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+///     &sim.agg_sig_constants(),
 /// )?;
 /// let offer = Offer::from_spend_bundle(ctx, &SpendBundle::new(vec![offer_spend], signature))?;
 ///
@@ -409,7 +407,7 @@ pub fn create_security_coin(
 ///     |_ctx, _launcher_id, _security_coin, (constants, payment_asset_id)| {
 ///         Ok((Conditions::new(), constants, payment_asset_id))
 ///     },
-///     &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+///     &sim.agg_sig_constants(),
 ///     (constants, payment_asset_id),
 /// )?;
 ///
@@ -997,7 +995,7 @@ mod tests {
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
     use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
-        MerkleTree, TESTNET11_CONSTANTS,
+        MerkleTree,
         puzzles::{
             ANY_METADATA_UPDATER_HASH, AnyMetadataUpdater, CatNftMetadata, CompactCoinProof,
             DelegatedStateActionSolution, HandleNftMetadata, IntermediaryCoinProof,
@@ -1319,7 +1317,7 @@ mod tests {
             offer_src_coin,
             offer_spend,
             &launcher_bls.sk,
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -1367,7 +1365,7 @@ mod tests {
                     initial_registration_asset_id,
                 ))
             },
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
             (
                 catalog_constants.with_price_singleton(price_singleton_launcher_id),
                 payment_cat.info.asset_id,
@@ -1846,7 +1844,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -1894,7 +1892,7 @@ mod tests {
                 |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
                     Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
                 },
-                &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+                &sim.agg_sig_constants(),
                 (
                     xchandles_constants.with_price_singleton(price_singleton_launcher_id),
                     payment_cat.info.asset_id,
@@ -2780,7 +2778,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -2813,7 +2811,7 @@ mod tests {
             |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
                 Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
             },
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
             (
                 xchandles_constants.with_price_singleton(price_singleton_launcher_id),
                 payment_cat.info.asset_id,
@@ -3419,7 +3417,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -3441,7 +3439,7 @@ mod tests {
                 first_epoch_start,
                 source_cat.info.p2_puzzle_hash,
                 constants,
-                &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+                &sim.agg_sig_constants(),
                 "yak yak yak",
             )?;
 
@@ -5301,7 +5299,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -5323,7 +5321,7 @@ mod tests {
                 first_epoch_start,
                 source_cat.info.p2_puzzle_hash,
                 constants,
-                &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+                &sim.agg_sig_constants(),
                 "yak yak yak",
             )?;
 

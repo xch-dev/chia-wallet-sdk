@@ -4,9 +4,11 @@ use chia_sdk_types::TESTNET11_CONSTANTS;
 /// Options for a [`PeerSimulator`](crate::PeerSimulator).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PeerSimulatorConfig {
-    /// The header hash that coin and puzzle state requests must use when they don't specify a
-    /// previous height. Other values are rejected as a reorg. Defaults to the testnet11 genesis
-    /// challenge.
+    /// The genesis challenge of the simulated network. Coin and puzzle state requests must use it
+    /// as the header hash when they don't specify a previous height; other values are rejected
+    /// as a reorg. Transactions are validated with it as the `AGG_SIG_ME` additional data, so
+    /// sign them with `AggSigConstants::new(genesis_challenge)`. Defaults to the testnet11
+    /// genesis challenge.
     pub genesis_challenge: Bytes32,
     /// The maximum number of coin and puzzle subscriptions per peer. Requests that would exceed it
     /// are rejected. Defaults to 200,000.

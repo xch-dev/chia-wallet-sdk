@@ -209,7 +209,10 @@ test("consensus constants describe mainnet, testnet11, and custom networks", (t)
 
   const genesisChallenge = new Uint8Array(32).fill(42);
   const custom = new ConsensusConstants(genesisChallenge, genesisChallenge)
-    .withHardFork2Height(0)
+    .withHardForkHeight(1)
+    .withHardFork2Height(2)
+    .withSoftFork8Height(3)
+    .withSoftFork9Height(4)
     .withTestnet(true);
 
   t.is(toHex(custom.genesisChallenge()), toHex(genesisChallenge));
@@ -217,8 +220,13 @@ test("consensus constants describe mainnet, testnet11, and custom networks", (t)
     toHex(custom.aggSigConstants().parent()),
     toHex(new AggSigConstants(genesisChallenge).parent()),
   );
-  t.is(custom.hardFork2Height(), 0);
+  t.is(custom.hardForkHeight(), 1);
+  t.is(custom.hardFork2Height(), 2);
+  t.is(custom.softFork8Height(), 3);
+  t.is(custom.softFork9Height(), 4);
   t.is(custom.maxBlockCostClvm(), mainnet.maxBlockCostClvm());
+  t.is(custom.costPerByte(), 12_000n);
+  t.is(mainnet.hardForkHeight(), 5_496_000);
   t.true(custom.testnet());
 });
 

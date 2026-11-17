@@ -579,7 +579,7 @@ mod tests {
     use std::slice;
 
     use chia_protocol::Bytes;
-    use chia_sdk_types::{conditions::AggSigMe, default_constants};
+    use chia_sdk_types::{TESTNET11_CONSTANTS, conditions::AggSigMe, default_constants};
 
     use crate::{sign_transaction, to_program, to_puzzle};
 
@@ -616,6 +616,40 @@ mod tests {
             sim.coin_state(coin.coin_id()).unwrap().spent_height,
             Some(0)
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_max_cost_comes_from_constants() -> anyhow::Result<()> {
+        let mut constants = TESTNET11_CONSTANTS.clone();
+        constants.max_block_cost_clvm = 1_000;
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let solution = to_program(())?;
+
+        // The spend fits in half of a testnet11 block.
+        let mut sim = Simulator::new();
+        let coin = sim.new_coin(puzzle_hash, 1);
+        sim.spend_coins(
+            vec![CoinSpend::new(
+                coin,
+                puzzle_reveal.clone(),
+                solution.clone(),
+            )],
+            &[],
+        )?;
+
+        // But not in half of a block with a maximum cost of 1,000.
+        let mut sim = Simulator::with_config(SimulatorConfig {
+            constants,
+            ..Default::default()
+        });
+        let coin = sim.new_coin(puzzle_hash, 1);
+        assert!(matches!(
+            sim.spend_coins(vec![CoinSpend::new(coin, puzzle_reveal, solution)], &[]),
+            Err(SimulatorError::Validation(ErrorCode::CostExceeded))
+        ));
 
         Ok(())
     }
