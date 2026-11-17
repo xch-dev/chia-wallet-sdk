@@ -1506,6 +1506,35 @@ fn test_vault_message_proof_vault_info_not_vault() -> Result<()> {
         Err(DriverError::UnsupportedVaultCustody)
     ));
 
+    // A singleton with a vault's MIPS inner puzzle, but with a singleton struct that has the wrong launcher puzzle
+    // hash.
+    let mut sim = Simulator::new();
+    let vault_custody = TestCustody::new(&[Kind::R1], 1);
+    let vault = vault_custody.mint(&mut sim, &mut ctx)?;
+    let vault_proof = vault_custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
+    let vault_puzzle = ctx.alloc(&vault_proof.coin_spend.puzzle_reveal)?;
+    let custody = CurriedProgram::<NodePtr, SingletonArgs<NodePtr>>::from_clvm(&ctx, vault_puzzle)?
+        .args
+        .inner_puzzle;
+    assert_eq!(ctx.tree_hash(custody), vault_custody.custody_hash());
+
+    let mut args = SingletonArgs::new(launcher_id, custody);
+    args.singleton_struct.launcher_puzzle_hash = Bytes32::new([3; 32]);
+    let singleton = ctx.curry(args)?;
+    let proof = proof_for(&mut ctx, singleton)?;
+    assert!(matches!(
+        proof.vault_info(),
+        Err(DriverError::InvalidSingletonStruct)
+    ));
+
+    // With the right singleton struct, the same puzzle is a vault.
+    let singleton = ctx.curry(SingletonArgs::new(launcher_id, custody))?;
+    let proof = proof_for(&mut ctx, singleton)?;
+    assert_eq!(
+        proof.vault_info()?,
+        VaultInfo::new(launcher_id, ctx.tree_hash(custody))
+    );
+
     Ok(())
 }
 
@@ -1530,15 +1559,15 @@ fn test_vault_info_custody_hash_is_not_trusted() -> Result<()> {
         vault.proof,
         forged_info,
     );
-    let forged = forger.sign_messages(&mut ctx, &forged_vault, &messages(), &[0])?;
+    let forged_proof = forger.sign_messages(&mut ctx, &forged_vault, &messages(), &[0])?;
 
-    let info = forged.vault_info()?;
+    let info = forged_proof.vault_info()?;
     assert_eq!(info, forged_info);
 
     // Trusting the proof's custody hash accepts the forgery.
     assert_eq!(
         verify_vault_signed_message(
-            &forged,
+            &forged_proof,
             vault.info.launcher_id,
             info.custody_hash.into(),
             TESTNET11_CONSTANTS.genesis_challenge,
@@ -1550,7 +1579,7 @@ fn test_vault_info_custody_hash_is_not_trusted() -> Result<()> {
     // Comparing with the vault's coin on chain catches it.
     assert_ne!(Bytes32::from(info.puzzle_hash()), vault.coin.puzzle_hash);
     assert!(matches!(
-        custody.verify(&forged, &vault),
+        custody.verify(&forged_proof, &vault),
         Err(DriverError::WrongVaultPuzzleHash)
     ));
 
