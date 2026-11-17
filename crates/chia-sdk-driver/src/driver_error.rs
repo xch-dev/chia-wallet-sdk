@@ -284,9 +284,9 @@ pub enum DriverError {
     #[error("the amount is too large to fit in a coin")]
     AmountOverflow,
 
-    /// An addition or subtraction on values parsed from a spend, or passed to a spend builder,
-    /// overflowed or underflowed. For example, a reward distributor withdrawal that removes more
-    /// rewards than its reward slot holds.
+    /// Arithmetic on values parsed from a spend, or passed to a spend builder, overflowed,
+    /// underflowed or divided by zero. For example, a reward distributor withdrawal that removes
+    /// more rewards than its reward slot holds, or a payout with a precision of zero.
     #[error("arithmetic overflow")]
     ArithmeticOverflow,
 

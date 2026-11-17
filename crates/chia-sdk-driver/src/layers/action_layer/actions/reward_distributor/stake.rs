@@ -21,7 +21,7 @@ use clvm_traits::{ToClvm, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use super::checked_add;
+use super::{checked_add, entry_payout_precision};
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
@@ -465,7 +465,10 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
+    /// Returns an error if any of the spends can't be created, or with
+    /// [`DriverError::ArithmeticOverflow`] if `existing_slot`'s initial cumulative payout is after
+    /// the distributor's, its unclaimed rewards don't fit in a [`u128`], or its shares or slot
+    /// counter overflow.
     ///
     /// # Panics
     ///
@@ -567,14 +570,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
@@ -619,7 +624,9 @@ impl RewardDistributorStakeAction {
     /// # Errors
     ///
     /// Returns an error if any of the spends can't be created, or with
-    /// [`DriverError::ArithmeticOverflow`] if the total of `nft_shares` or the entry's shares overflow.
+    /// [`DriverError::ArithmeticOverflow`] if the total of `nft_shares` overflows,
+    /// `existing_slot`'s initial cumulative payout is after the distributor's, its unclaimed
+    /// rewards don't fit in a [`u128`], or its shares or slot counter overflow.
     ///
     /// # Panics
     ///
@@ -737,14 +744,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
@@ -785,7 +794,10 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
+    /// Returns an error if any of the spends can't be created, or with
+    /// [`DriverError::ArithmeticOverflow`] if `existing_slot`'s initial cumulative payout is after
+    /// the distributor's, its unclaimed rewards don't fit in a [`u128`], or its shares or slot
+    /// counter overflow.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_cat_mode(
         self,
@@ -851,14 +863,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),

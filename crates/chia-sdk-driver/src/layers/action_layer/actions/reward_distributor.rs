@@ -45,6 +45,22 @@ fn checked_sub(a: u64, b: u64) -> Result<u64, DriverError> {
     a.checked_sub(b).ok_or(DriverError::ArithmeticOverflow)
 }
 
+/// Calculates `shares * (cumulative_payout - initial_cumulative_payout)`, the payout owed to
+/// `shares` shares of an entry multiplied by the distributor's precision.
+///
+/// Fails with [`DriverError::ArithmeticOverflow`] if `initial_cumulative_payout` is greater than
+/// `cumulative_payout` or the product doesn't fit in a [`u128`].
+fn entry_payout_precision(
+    shares: u64,
+    cumulative_payout: u128,
+    initial_cumulative_payout: u128,
+) -> Result<u128, DriverError> {
+    cumulative_payout
+        .checked_sub(initial_cumulative_payout)
+        .and_then(|payout_per_share| payout_per_share.checked_mul(u128::from(shares)))
+        .ok_or(DriverError::ArithmeticOverflow)
+}
+
 /// Calculates the payout owed to `shares` shares of an entry, which is
 /// `shares * (cumulative_payout - initial_cumulative_payout) / precision` rounded down, and the
 /// rounding error, as the puzzles do.
@@ -64,10 +80,8 @@ fn entry_payout(
         return Err(DriverError::ArithmeticOverflow);
     }
 
-    let payout_precision = cumulative_payout
-        .checked_sub(initial_cumulative_payout)
-        .and_then(|payout_per_share| payout_per_share.checked_mul(u128::from(shares)))
-        .ok_or(DriverError::ArithmeticOverflow)?;
+    let payout_precision =
+        entry_payout_precision(shares, cumulative_payout, initial_cumulative_payout)?;
 
     Ok(RewardDistributorEntryPayoutInfo {
         payout_amount: u64::try_from(payout_precision / precision)?,
@@ -93,9 +107,9 @@ mod tests {
     use clvmr::NodePtr;
 
     use crate::{
-        DriverError, Reserve, RewardDistributor, RewardDistributorConstants, RewardDistributorInfo,
-        RewardDistributorState, RewardDistributorStateTransition, RewardDistributorType,
-        RoundRewardInfo, RoundTimeInfo, Slot, SpendContext,
+        Cat, CatInfo, DriverError, Reserve, RewardDistributor, RewardDistributorConstants,
+        RewardDistributorInfo, RewardDistributorState, RewardDistributorStateTransition,
+        RewardDistributorType, RoundRewardInfo, RoundTimeInfo, Slot, SpendContext,
     };
 
     use super::*;
@@ -114,10 +128,22 @@ mod tests {
     }
 
     fn distributor(state: RewardDistributorState, bps: u64) -> RewardDistributor {
-        let constants = RewardDistributorConstants::without_launcher_id(
+        distributor_of_type(
+            state,
+            bps,
             RewardDistributorType::Managed {
                 manager_singleton_launcher_id: Bytes32::new([1; 32]),
             },
+        )
+    }
+
+    fn distributor_of_type(
+        state: RewardDistributorState,
+        bps: u64,
+        distributor_type: RewardDistributorType,
+    ) -> RewardDistributor {
+        let constants = RewardDistributorConstants::without_launcher_id(
+            distributor_type,
             Bytes32::new([2; 32]),
             100,
             1,
@@ -249,28 +275,11 @@ mod tests {
     }
 
     #[test]
-    fn test_withdraw_incentives_share_that_does_not_fit_is_an_error() -> anyhow::Result<()> {
-        let ctx = &mut SpendContext::new();
-        let solution = ctx.alloc(&RewardDistributorWithdrawIncentivesActionSolution {
-            reward_slot_counter: 0,
-            reward_slot_epoch_time: EPOCH_START,
-            clawback_ph: Bytes32::default(),
-            committed_value: u64::MAX,
-            reward_slot_total_rewards: u64::MAX,
-            reward_slot_next_epoch_initialized: false,
-        })?;
-        let state = state(u64::MAX, 0, 0);
-        let changes = RewardDistributorStateTransition {
-            old_state: state,
-            new_state: state,
-        };
-
+    fn test_withdraw_incentives_share_that_does_not_fit_is_an_error() {
         assert!(
-            RewardDistributorWithdrawIncentivesAction::get_log(ctx, solution, changes, 20_000)
+            withdraw_log(0, u64::MAX, u64::MAX, 20_000)
                 .is_err_and(|error| matches!(error, DriverError::TryFromInt(_)))
         );
-
-        Ok(())
     }
 
     fn no_changes() -> RewardDistributorStateTransition {
@@ -500,6 +509,28 @@ mod tests {
     }
 
     #[test]
+    fn test_commit_incentives_spend_that_fails_to_parse_leaves_no_spends() {
+        let ctx = &mut SpendContext::new();
+        let mut distributor = distributor(state(0, 0, EPOCH_START), 5000);
+
+        // The reward slot already holds `u64::MAX`, so adding to it overflows in `get_log`,
+        // after the puzzle has run.
+        let reward_slot = reward_slot(&distributor);
+        let action = distributor.new_action::<RewardDistributorCommitIncentivesAction>();
+        assert!(is_overflow(action.spend(
+            ctx,
+            &mut distributor,
+            reward_slot,
+            EPOCH_START,
+            Bytes32::default(),
+            1,
+        )));
+
+        assert!(ctx.take().is_empty());
+        assert!(distributor.pending_spend.logs.is_empty());
+    }
+
+    #[test]
     fn test_entry_payout() -> anyhow::Result<()> {
         // 3 shares * (1000 - 250) / 7 = 321 remainder 3
         let payout = entry_payout(3, 1000, 250, 7)?;
@@ -570,6 +601,31 @@ mod tests {
         }
     }
 
+    /// An entry slot that claims a cumulative payout after the distributor's, as a slot from a
+    /// newer distributor state would.
+    fn entry_slot_ahead_of_the_distributor(
+        distributor: &RewardDistributor,
+    ) -> Slot<RewardDistributorEntrySlotValue> {
+        let mut value = entry_slot(0, 1);
+        value.initial_cumulative_payout = 1;
+        slot(
+            distributor,
+            RewardDistributorSlotNonce::ENTRY.to_u64(),
+            value,
+        )
+    }
+
+    #[test]
+    fn test_initiate_payout_spend_with_entry_ahead_of_the_distributor_is_an_error() {
+        let ctx = &mut SpendContext::new();
+        let mut distributor = distributor(state(0, 0, 0), 0);
+        let entry_slot = entry_slot_ahead_of_the_distributor(&distributor);
+
+        let action = distributor.new_action::<RewardDistributorInitiatePayoutAction>();
+        assert!(is_overflow(action.spend(ctx, &mut distributor, entry_slot)));
+        assert!(ctx.take().is_empty());
+    }
+
     #[test]
     fn test_refresh_counter_overflow_is_an_error() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -609,24 +665,35 @@ mod tests {
         hidden_puzzle_hash: None,
     };
 
+    fn stake_solution(
+        ctx: &mut SpendContext,
+        existing_slot_counter: i128,
+        existing_slot_shares: u64,
+        cat_amount: u64,
+    ) -> Result<RewardDistributorStakeActionSolution<NodePtr>, DriverError> {
+        let lock_puzzle_solution = ctx.alloc(&RewardDistributorCatLockingPuzzleSolution {
+            my_id: Bytes32::default(),
+            cat_amount,
+            cat_maker_solution_rest: (),
+        })?;
+        Ok(RewardDistributorStakeActionSolution {
+            lock_puzzle_solution,
+            existing_slot_counter,
+            entry_custody_puzzle_hash: Bytes32::new([5; 32]),
+            existing_slot_cumulative_payout: 0,
+            existing_slot_shares,
+        })
+    }
+
     fn stake_log(
         existing_slot_counter: i128,
         existing_slot_shares: u64,
         cat_amount: u64,
     ) -> Result<RewardDistributorStakeActionLog, DriverError> {
         let ctx = &mut SpendContext::new();
-        let lock_puzzle_solution = ctx.alloc(&RewardDistributorCatLockingPuzzleSolution {
-            my_id: Bytes32::default(),
-            cat_amount,
-            cat_maker_solution_rest: (),
-        })?;
-        let solution = ctx.alloc(&RewardDistributorStakeActionSolution {
-            lock_puzzle_solution,
-            existing_slot_counter,
-            entry_custody_puzzle_hash: Bytes32::new([5; 32]),
-            existing_slot_cumulative_payout: 0,
-            existing_slot_shares,
-        })?;
+        let solution =
+            stake_solution(ctx, existing_slot_counter, existing_slot_shares, cat_amount)?;
+        let solution = ctx.alloc(&solution)?;
         RewardDistributorStakeAction::get_log(ctx, solution, no_changes(), CAT_TYPE)
     }
 
@@ -646,18 +713,7 @@ mod tests {
         // `get_log` rejects a counter that doesn't fit in a `u64` before this, but
         // `created_slot_value` is public.
         let ctx = &mut SpendContext::new();
-        let lock_puzzle_solution = ctx.alloc(&RewardDistributorCatLockingPuzzleSolution {
-            my_id: Bytes32::default(),
-            cat_amount: 1,
-            cat_maker_solution_rest: (),
-        })?;
-        let solution = RewardDistributorStakeActionSolution {
-            lock_puzzle_solution,
-            existing_slot_counter: i128::MAX,
-            entry_custody_puzzle_hash: Bytes32::new([5; 32]),
-            existing_slot_cumulative_payout: 0,
-            existing_slot_shares: 0,
-        };
+        let solution = stake_solution(ctx, i128::MAX, 0, 1)?;
         assert!(is_overflow(
             RewardDistributorStakeAction::created_slot_value(
                 ctx,
@@ -668,6 +724,28 @@ mod tests {
         ));
         assert!(stake_log(i128::MAX, 0, 1).is_err());
         Ok(())
+    }
+
+    #[test]
+    fn test_stake_spend_with_entry_ahead_of_the_distributor_is_an_error() {
+        let ctx = &mut SpendContext::new();
+        let mut distributor = distributor_of_type(state(0, 0, 0), 0, CAT_TYPE);
+        let existing_slot = entry_slot_ahead_of_the_distributor(&distributor);
+        let cat = Cat::new(
+            Coin::new(Bytes32::default(), Bytes32::default(), 1),
+            None,
+            CatInfo::new(Bytes32::new([6; 32]), None, Bytes32::default()),
+        );
+
+        let action = distributor.new_action::<RewardDistributorStakeAction>();
+        let result = action.spend_for_cat_mode(
+            ctx,
+            &mut distributor,
+            cat,
+            Bytes32::new([5; 32]),
+            Some(existing_slot),
+        );
+        assert!(is_overflow(result));
     }
 
     fn unstake_log(

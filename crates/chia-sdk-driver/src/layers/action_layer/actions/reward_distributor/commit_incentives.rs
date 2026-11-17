@@ -71,14 +71,15 @@ impl RewardDistributorCommitIncentivesAction {
         }
     }
 
-    /// Returns the number of epochs from `slot_epoch_time` to `epoch_start`, which must be a
-    /// positive whole number, since the puzzle steps through the epochs until it reaches
-    /// `epoch_start` exactly.
+    /// Returns the number of epochs from the spent reward slot's epoch, `slot_epoch_time`, to the
+    /// committed epoch, `epoch_start`.
     ///
-    /// The puzzle creates a slot for each of these epochs, plus the updated spent reward slot and
-    /// the commitment slot. Each slot is a `CREATE_COIN`, so a spend that creates more slots than a
-    /// mainnet block's cost limit divided by the cost of a `CREATE_COIN` (8,148 after the 3.0 hard
-    /// fork, which lowered it) can't be confirmed, and is rejected rather than parsed.
+    /// If they differ, the puzzle steps through the epochs until it reaches `epoch_start`
+    /// exactly, so it must be a positive whole number of epochs later. The puzzle creates a slot
+    /// for each of these epochs, plus the updated spent reward slot and the commitment slot. Each
+    /// slot is a `CREATE_COIN`, so a spend that creates more slots than a mainnet block's cost
+    /// limit divided by the cost of a `CREATE_COIN` (8,148 since the 3.0 hard fork lowered that
+    /// cost) can't be confirmed, and is rejected rather than parsed.
     fn epochs_to_target(
         slot_epoch_time: u64,
         epoch_start: u64,
@@ -90,7 +91,11 @@ impl RewardDistributorCommitIncentivesAction {
             .checked_sub(slot_epoch_time)
             .ok_or(DriverError::InvalidRewardDistributorEpoch)?;
 
-        if epoch_seconds == 0 || elapsed == 0 || elapsed % epoch_seconds != 0 {
+        if elapsed == 0 {
+            return Ok(0);
+        }
+
+        if epoch_seconds == 0 || elapsed % epoch_seconds != 0 {
             return Err(DriverError::InvalidRewardDistributorEpoch);
         }
 
@@ -132,46 +137,45 @@ impl RewardDistributorCommitIncentivesAction {
             rewards: params.rewards_to_add,
         };
 
-        let mut created_reward_slots = vec![];
+        let epochs =
+            Self::epochs_to_target(params.slot_epoch_time, params.epoch_start, epoch_seconds)?;
+        let counter = checked_add(params.slot_counter, 1)?;
 
-        if params.slot_epoch_time == params.epoch_start {
-            created_reward_slots.push(RewardDistributorRewardSlotValue {
-                counter: checked_add(params.slot_counter, 1)?,
+        let created_reward_slots = if epochs == 0 {
+            vec![RewardDistributorRewardSlotValue {
+                counter,
                 epoch_start: params.epoch_start,
                 next_epoch_initialized: params.slot_next_epoch_initialized,
                 rewards: checked_add(params.slot_total_rewards, params.rewards_to_add)?,
-            });
+            }]
         } else {
-            // The puzzle creates a reward slot for each epoch from the one after the spent slot's
-            // epoch until it reaches `epoch_start` exactly, so it can only succeed if `epoch_start`
-            // is a whole number of epochs after the spent slot's epoch.
-            let epochs =
-                Self::epochs_to_target(params.slot_epoch_time, params.epoch_start, epoch_seconds)?;
+            let mut created_reward_slots = vec![
+                RewardDistributorRewardSlotValue {
+                    counter,
+                    epoch_start: params.slot_epoch_time,
+                    next_epoch_initialized: true,
+                    rewards: params.slot_total_rewards,
+                },
+                RewardDistributorRewardSlotValue {
+                    counter: 0,
+                    epoch_start: params.epoch_start,
+                    next_epoch_initialized: false,
+                    rewards: params.rewards_to_add,
+                },
+            ];
 
-            created_reward_slots.push(RewardDistributorRewardSlotValue {
-                counter: checked_add(params.slot_counter, 1)?,
-                epoch_start: params.slot_epoch_time,
-                next_epoch_initialized: true,
-                rewards: params.slot_total_rewards,
-            });
-            created_reward_slots.push(RewardDistributorRewardSlotValue {
-                counter: 0,
-                epoch_start: params.epoch_start,
-                next_epoch_initialized: false,
-                rewards: params.rewards_to_add,
-            });
-
-            // `epochs` is bounded, and every epoch start here is less than `epoch_start`, so the
-            // arithmetic can't overflow.
-            for epoch in 1..epochs {
-                created_reward_slots.push(RewardDistributorRewardSlotValue {
+            // Every epoch here starts before `epoch_start`, so this can't overflow.
+            created_reward_slots.extend((1..epochs).map(|epoch| {
+                RewardDistributorRewardSlotValue {
                     counter: 0,
                     epoch_start: params.slot_epoch_time + epoch * epoch_seconds,
                     next_epoch_initialized: true,
                     rewards: 0,
-                });
-            }
-        }
+                }
+            }));
+
+            created_reward_slots
+        };
 
         Ok(RewardDistributorCommitIncentivesActionLog {
             spent_reward_slot: RewardDistributorRewardSlotValue {
@@ -212,13 +216,11 @@ impl RewardDistributorCommitIncentivesAction {
         let reward_slot = distributor.actual_reward_slot_value(reward_slot);
 
         // Fail before running the puzzle, which never ends for an unreachable epoch.
-        if reward_slot.info.value.epoch_start != epoch_start {
-            Self::epochs_to_target(
-                reward_slot.info.value.epoch_start,
-                epoch_start,
-                self.epoch_seconds,
-            )?;
-        }
+        Self::epochs_to_target(
+            reward_slot.info.value.epoch_start,
+            epoch_start,
+            self.epoch_seconds,
+        )?;
 
         let new_commitment_slot_value = RewardDistributorCommitmentSlotValue {
             epoch_start,

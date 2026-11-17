@@ -147,7 +147,9 @@ impl RewardDistributorInitiatePayoutAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created.
+    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created, or
+    /// with [`DriverError::ArithmeticOverflow`] if the entry's initial cumulative payout is after
+    /// the distributor's or the precision is zero.
     pub fn spend(
         self,
         ctx: &mut SpendContext,
