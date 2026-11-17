@@ -115,7 +115,7 @@ func TestApplyWithMinimumFee(t *testing.T) {
 
 	for attempt := 0; attempt < 8; attempt++ {
 		outputs, coinSpends = buildWithFee(t, clvm, alice, spends, actions, xchCoins, fee)
-		cost = must(sdk.SpendBundleCost(coinSpends, true, &height))
+		cost = must(sdk.SpendBundleCost(coinSpends, must(sdk.ConsensusConstantsMainnet()), &height))
 		needed := must(sdk.RecommendedFee(cost, nil))
 
 		if fee >= needed {

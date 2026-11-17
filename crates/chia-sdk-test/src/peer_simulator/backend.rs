@@ -1,8 +1,10 @@
 use chia_protocol::{Bytes32, CoinState, Program, SpendBundle};
 use indexmap::IndexSet;
 
+use chia_sdk_types::default_constants;
+
 use crate::{
-    Simulator, SimulatorError,
+    Simulator, SimulatorConfig, SimulatorError,
     full_node_simulator::{MempoolItemIds, PeerEvent},
 };
 
@@ -61,8 +63,13 @@ pub trait Backend: Send + Sized + 'static {
 impl Backend for Simulator {
     const HAS_MEMPOOL: bool = false;
 
-    fn new_for_peers(_config: &PeerSimulatorConfig) -> Self {
-        Self::default()
+    /// Validates and signs with the [`PeerSimulatorConfig::genesis_challenge`] as the
+    /// `AGG_SIG_ME` additional data, like the mempool backend.
+    fn new_for_peers(config: &PeerSimulatorConfig) -> Self {
+        Self::with_config(SimulatorConfig {
+            constants: default_constants(config.genesis_challenge, config.genesis_challenge),
+            ..Default::default()
+        })
     }
 
     fn peak_height(&self) -> u32 {

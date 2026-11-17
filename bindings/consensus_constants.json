@@ -1,0 +1,77 @@
+{
+  "ConsensusConstants": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "genesis_challenge": "Bytes32",
+          "agg_sig_me": "Bytes32"
+        }
+      },
+      "mainnet": {
+        "type": "factory"
+      },
+      "testnet11": {
+        "type": "factory"
+      },
+      "genesis_challenge": {
+        "return": "Bytes32"
+      },
+      "agg_sig_constants": {
+        "return": "AggSigConstants"
+      },
+      "max_block_cost_clvm": {
+        "return": "u64"
+      },
+      "cost_per_byte": {
+        "return": "u64"
+      },
+      "hard_fork_height": {
+        "return": "u32"
+      },
+      "hard_fork2_height": {
+        "return": "u32"
+      },
+      "soft_fork8_height": {
+        "return": "u32"
+      },
+      "soft_fork9_height": {
+        "return": "u32"
+      },
+      "testnet": {
+        "return": "bool"
+      },
+      "with_hard_fork_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "ConsensusConstants"
+      },
+      "with_hard_fork2_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "ConsensusConstants"
+      },
+      "with_soft_fork8_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "ConsensusConstants"
+      },
+      "with_soft_fork9_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "ConsensusConstants"
+      },
+      "with_testnet": {
+        "args": {
+          "testnet": "bool"
+        },
+        "return": "ConsensusConstants"
+      }
+    }
+  }
+}

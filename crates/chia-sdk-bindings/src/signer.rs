@@ -10,7 +10,7 @@ use crate::{Clvm, K1PublicKey, Program, R1PublicKey};
 /// are signed, so that signatures can't be replayed on another network or for another kind of
 /// condition.
 #[derive(Clone, Copy)]
-pub struct AggSigConstants(chia_sdk_signer::AggSigConstants);
+pub struct AggSigConstants(pub(crate) chia_sdk_signer::AggSigConstants);
 
 impl AggSigConstants {
     /// Derives the constants from the `AGG_SIG_ME` additional data, which is the network's

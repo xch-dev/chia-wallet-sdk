@@ -5,7 +5,7 @@ use chia_bls::SecretKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, SpendBundle};
 use chia_sdk_test::SimulatorConfig;
 
-use crate::BlsPairWithCoin;
+use crate::{AggSigConstants, BlsPairWithCoin, ConsensusConstants};
 
 #[derive(Default, Clone)]
 pub struct Simulator(Arc<Mutex<chia_sdk_test::Simulator>>);
@@ -22,6 +22,29 @@ impl Simulator {
                 ..Default::default()
             }),
         ))))
+    }
+
+    /// Creates a simulator that validates spend bundles with the given consensus constants,
+    /// instead of testnet11's.
+    pub fn with_constants(constants: ConsensusConstants) -> Result<Self> {
+        Ok(Self(Arc::new(Mutex::new(
+            chia_sdk_test::Simulator::with_config(SimulatorConfig {
+                constants: constants.0,
+                ..Default::default()
+            }),
+        ))))
+    }
+
+    /// The consensus constants that spend bundles are validated with.
+    pub fn constants(&self) -> Result<ConsensusConstants> {
+        Ok(ConsensusConstants(
+            self.0.lock().unwrap().constants().clone(),
+        ))
+    }
+
+    /// The `AGG_SIG_*` additional data that BLS signatures for this simulator must be made with.
+    pub fn agg_sig_constants(&self) -> Result<AggSigConstants> {
+        Ok(AggSigConstants(self.0.lock().unwrap().agg_sig_constants()))
     }
 
     pub fn height(&self) -> Result<u32> {

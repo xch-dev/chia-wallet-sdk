@@ -1,9 +1,10 @@
 use bindy::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use rand::{Rng, SeedableRng, rngs::SysRng};
 use rand_chacha::ChaCha20Rng;
 use sha2::{Digest, Sha256};
+
+use crate::ConsensusConstants;
 
 pub fn from_hex(value: String) -> Result<Bytes> {
     Ok(hex::decode(value)?.into())
@@ -54,17 +55,12 @@ pub fn select_coins(coins: Vec<Coin>, amount: u64) -> Result<Vec<Coin>> {
 
 pub fn spend_bundle_cost(
     coin_spends: Vec<CoinSpend>,
-    mainnet: bool,
+    constants: ConsensusConstants,
     height: Option<u32>,
 ) -> Result<u64> {
-    let constants = if mainnet {
-        &*MAINNET_CONSTANTS
-    } else {
-        &*TESTNET11_CONSTANTS
-    };
     Ok(chia_sdk_driver::spend_bundle_cost(
         &coin_spends,
-        constants,
+        &constants.0,
         height,
     )?)
 }
