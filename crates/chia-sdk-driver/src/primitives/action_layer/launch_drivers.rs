@@ -338,6 +338,21 @@ pub fn create_security_coin(
     Ok((security_coin_sk, security_coin))
 }
 
+/// Returns the first XCH settlement coin offered by `offer`, which the launch functions turn into
+/// the security coin.
+///
+/// # Errors
+///
+/// Returns an error if `offer` doesn't offer any XCH.
+pub fn first_offered_xch_coin(offer: &Offer) -> Result<Coin, DriverError> {
+    offer
+        .offered_coins()
+        .xch
+        .first()
+        .copied()
+        .ok_or_else(|| DriverError::Custom("offer doesn't offer any XCH".to_string()))
+}
+
 /// Launches a [`CatalogRegistry`] funded by the XCH of `offer`.
 ///
 /// The first offered XCH coin becomes a security coin with a new random key (see
@@ -352,9 +367,9 @@ pub fn create_security_coin(
 /// security coin's secret key, the registry, its two initial slots, and the security coin. All
 /// spends, including the offer's, are added to `ctx`.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `offer` doesn't offer any XCH.
+/// Returns an error if `offer` doesn't offer any XCH.
 ///
 /// # Example
 ///
@@ -446,7 +461,7 @@ pub fn launch_catalog_registry<V>(
     DriverError,
 > {
     let (security_coin_sk, security_coin) =
-        create_security_coin(ctx, offer.offered_coins().xch[0])?;
+        create_security_coin(ctx, first_offered_xch_coin(offer)?)?;
     offer
         .spend_bundle()
         .coin_spends
@@ -532,9 +547,9 @@ pub fn launch_catalog_registry<V>(
 /// initial state, and constants, so the registry can later be found with
 /// [`XchandlesRegistry::from_launcher_solution`].
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `offer` doesn't offer any XCH.
+/// Returns an error if `offer` doesn't offer any XCH.
 #[allow(clippy::type_complexity)]
 pub fn launch_xchandles_registry<V>(
     ctx: &mut SpendContext,
@@ -564,7 +579,7 @@ pub fn launch_xchandles_registry<V>(
     DriverError,
 > {
     let (security_coin_sk, security_coin) =
-        create_security_coin(ctx, offer.offered_coins().xch[0])?;
+        create_security_coin(ctx, first_offered_xch_coin(offer)?)?;
     offer
         .spend_bundle()
         .coin_spends
@@ -797,13 +812,10 @@ pub fn spend_settlement_nft_with_payment(
 /// coin's secret key, the distributor, its first reward slot, and the refund CAT. All spends,
 /// including the offer's, are added to `ctx`.
 ///
-/// # Panics
-///
-/// Panics if `offer` doesn't offer any XCH.
-///
 /// # Errors
 ///
-/// Returns an error if `offer` doesn't offer any CATs with `constants.reserve_asset_id`.
+/// Returns an error if `offer` doesn't offer any XCH, or any CATs with
+/// `constants.reserve_asset_id`.
 #[allow(clippy::type_complexity)]
 pub fn launch_reward_distributor(
     ctx: &mut SpendContext,
@@ -824,7 +836,7 @@ pub fn launch_reward_distributor(
     DriverError,
 > {
     let (security_coin_sk, security_coin) =
-        create_security_coin(ctx, offer.offered_coins().xch[0])?;
+        create_security_coin(ctx, first_offered_xch_coin(offer)?)?;
     offer
         .spend_bundle()
         .coin_spends
@@ -1273,6 +1285,47 @@ mod tests {
 
     #[allow(clippy::similar_names)]
     #[allow(clippy::cast_possible_truncation)]
+    #[test]
+    fn test_launch_without_offered_xch() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+        let offer = Offer::from_spend_bundle(
+            &mut ctx,
+            &SpendBundle::new(Vec::new(), Signature::default()),
+        )?;
+
+        assert!(matches!(
+            first_offered_xch_coin(&offer),
+            Err(DriverError::Custom(message)) if message == "offer doesn't offer any XCH"
+        ));
+        assert!(matches!(
+            launch_reward_distributor(
+                &mut ctx,
+                &offer,
+                0,
+                Bytes32::default(),
+                RewardDistributorConstants::without_launcher_id(
+                    RewardDistributorType::Managed {
+                        manager_singleton_launcher_id: Bytes32::default(),
+                    },
+                    Bytes32::default(),
+                    1,
+                    1,
+                    0,
+                    0,
+                    false,
+                    0,
+                    0,
+                    Bytes32::default(),
+                ),
+                &TESTNET11_CONSTANTS,
+                "",
+            ),
+            Err(DriverError::Custom(message)) if message == "offer doesn't offer any XCH"
+        ));
+
+        Ok(())
+    }
+
     #[test]
     fn test_catalog() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -2143,6 +2196,24 @@ mod tests {
                     slice::from_ref(&user_bls.sk),
                 )?;
             }
+
+            // A base price of 0 would make the price of one period 0, so it's rejected rather
+            // than dividing by zero.
+            assert!(matches!(
+                registry.new_action::<XchandlesRegisterAction>().spend(
+                    ctx,
+                    &mut registry,
+                    left_slot.clone(),
+                    right_slot.clone(),
+                    &precommit_coin,
+                    0,
+                    registration_period,
+                    100,
+                    did.info.inner_puzzle_hash().into(),
+                    did.info.inner_puzzle_hash().into(),
+                ),
+                Err(DriverError::Custom(message)) if message == "base handle price must not be 0"
+            ));
 
             let spent_values = [left_slot.info.value, right_slot.info.value];
             let (secure_cond, owner_conds, _resolved_conds) =
@@ -3648,6 +3719,31 @@ mod tests {
                     Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
+                assert!(matches!(
+                    registry
+                        .new_action::<RewardDistributorStakeAction>()
+                        .spend_for_curated_nft_mode(
+                            ctx,
+                            &mut registry,
+                            &[offer_nft],
+                            &[],
+                            &[merkle_tree
+                                .proof((nft.info.launcher_id, 1).tree_hash().into())
+                                .unwrap()],
+                            nft_bls.puzzle_hash,
+                            None,
+                            merkle_tree.root(),
+                            None,
+                            dl_metadata_updater_hash.tree_hash().into(),
+                            dl_inner_puzzle_hash.into(),
+                        ),
+                    Err(DriverError::LengthMismatch {
+                        argument: "nft_shares",
+                        expected: 1,
+                        found: 0,
+                    })
+                ));
+
                 registry
                     .new_action::<RewardDistributorStakeAction>()
                     .spend_for_curated_nft_mode(
@@ -3676,6 +3772,24 @@ mod tests {
                         amount: nft_launcher_coin.amount,
                     }],
                 };
+                assert!(matches!(
+                    registry
+                        .new_action::<RewardDistributorStakeAction>()
+                        .spend_for_collection_nft_mode(
+                            ctx,
+                            &mut registry,
+                            &[offer_nft],
+                            &[],
+                            nft_bls.puzzle_hash,
+                            None,
+                        ),
+                    Err(DriverError::LengthMismatch {
+                        argument: "nft_launcher_proofs",
+                        expected: 1,
+                        found: 0,
+                    })
+                ));
+
                 registry
                     .new_action::<RewardDistributorStakeAction>()
                     .spend_for_collection_nft_mode(
@@ -4581,6 +4695,57 @@ mod tests {
                 datastore =
                     Some(Datastore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
+
+                assert!(matches!(
+                    registry
+                        .new_action::<RewardDistributorRefreshAction>()
+                        .spend(
+                            ctx,
+                            &mut registry,
+                            vec![entry3_slot.clone()],
+                            &[&[locked_nft3]],
+                            &[&[-3]],
+                            &[&[]],
+                            &[&[merkle_tree
+                                .proof((locked_nft3.info.launcher_id, 3).tree_hash().into())
+                                .unwrap()]],
+                            &[nft3_deposit.clone()],
+                            merkle_tree.root(),
+                            None,
+                            dl_metadata_updater_hash.tree_hash().into(),
+                            dl_inner_puzzle_hash.into(),
+                        ),
+                    Err(DriverError::LengthMismatch {
+                        argument: "nft_new_shares",
+                        expected: 1,
+                        found: 0,
+                    })
+                ));
+                assert!(matches!(
+                    registry
+                        .new_action::<RewardDistributorRefreshAction>()
+                        .spend(
+                            ctx,
+                            &mut registry,
+                            vec![entry3_slot.clone()],
+                            &[],
+                            &[&[-3]],
+                            &[&[3]],
+                            &[&[merkle_tree
+                                .proof((locked_nft3.info.launcher_id, 3).tree_hash().into())
+                                .unwrap()]],
+                            &[nft3_deposit.clone()],
+                            merkle_tree.root(),
+                            None,
+                            dl_metadata_updater_hash.tree_hash().into(),
+                            dl_inner_puzzle_hash.into(),
+                        ),
+                    Err(DriverError::LengthMismatch {
+                        argument: "nfts",
+                        expected: 1,
+                        found: 0,
+                    })
+                ));
 
                 let (sec_conds, new_locked_nfts) = registry
                     .new_action::<RewardDistributorRefreshAction>()

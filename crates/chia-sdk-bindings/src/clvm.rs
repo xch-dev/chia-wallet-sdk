@@ -14,8 +14,8 @@ use chia_sdk_driver::{
     MedievalVaultInfo, Offer, OptionMetadata, PoolState, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
     StandardLayer, StreamedAsset, create_security_coin as driver_create_security_coin,
-    create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
-    spend_security_coin, spend_settlement_cats, spend_settlement_nft,
+    create_security_coin_with_pk as driver_create_security_coin_with_pk, first_offered_xch_coin,
+    launch_reward_distributor, spend_security_coin, spend_settlement_cats, spend_settlement_nft,
 };
 use chia_sdk_types::{
     Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
@@ -815,7 +815,7 @@ impl Clvm {
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
 
         let (security_coin_sk, security_coin) =
-            driver_create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+            driver_create_security_coin(&mut ctx, first_offered_xch_coin(&offer)?)?;
 
         Ok(OfferSecurityCoinDetails {
             security_coin,
@@ -851,7 +851,7 @@ impl Clvm {
 
         let security_coin = driver_create_security_coin_with_pk(
             &mut ctx,
-            offer.offered_coins().xch[0],
+            first_offered_xch_coin(&offer)?,
             security_coin_sk.public_key(),
         )?;
 

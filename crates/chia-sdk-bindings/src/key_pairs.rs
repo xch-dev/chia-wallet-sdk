@@ -1,8 +1,19 @@
-use bindy::Result;
+use bindy::{Error, Result};
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin};
 
 use crate::{K1PublicKey, K1SecretKey, R1PublicKey, R1SecretKey};
+
+/// `range_vec_with_seed` derives the pairs from the seeds `seed..seed + count`, which overflows
+/// (and panics in debug builds) if the last seed doesn't fit in a `u64`.
+fn check_seed_range(seed: u64, count: u32) -> Result<()> {
+    if count > 0 && seed.checked_add(u64::from(count) - 1).is_none() {
+        return Err(Error::Custom(format!(
+            "Seed range starting at {seed} with {count} pairs overflows u64"
+        )));
+    }
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct BlsPair {
@@ -16,6 +27,7 @@ impl BlsPair {
     }
 
     pub fn many_from_seed(seed: u64, count: u32) -> Result<Vec<Self>> {
+        check_seed_range(seed, count)?;
         let pairs = chia_sdk_test::BlsPair::range_vec_with_seed(seed, count.try_into().unwrap());
         Ok(pairs.into_iter().map(Into::into).collect())
     }
@@ -59,6 +71,7 @@ impl K1Pair {
     }
 
     pub fn many_from_seed(seed: u64, count: u32) -> Result<Vec<Self>> {
+        check_seed_range(seed, count)?;
         let pairs = chia_sdk_test::K1Pair::range_vec_with_seed(seed, count.try_into().unwrap());
         Ok(pairs.into_iter().map(Into::into).collect())
     }
@@ -84,6 +97,7 @@ impl R1Pair {
     }
 
     pub fn many_from_seed(seed: u64, count: u32) -> Result<Vec<Self>> {
+        check_seed_range(seed, count)?;
         let pairs = chia_sdk_test::R1Pair::range_vec_with_seed(seed, count.try_into().unwrap());
         Ok(pairs.into_iter().map(Into::into).collect())
     }

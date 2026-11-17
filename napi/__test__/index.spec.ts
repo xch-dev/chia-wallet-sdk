@@ -1,6 +1,7 @@
 import test from "ava";
 
 import {
+  BlsPair,
   bytesEqual,
   Clvm,
   Coin,
@@ -12,7 +13,9 @@ import {
   NftMint,
   PublicKey,
   SecretKey,
+  Signature,
   Simulator,
+  SpendBundle,
   spendBundleCost,
   toHex,
 } from "../index.js";
@@ -178,6 +181,29 @@ test("secret key from short seed throws", (t) => {
     message: /expected at least 32 bytes, found 31/,
   });
   t.notThrows(() => SecretKey.fromSeed(new Uint8Array(32)));
+});
+
+test("many key pairs from an overflowing seed range throws", (t) => {
+  const max = 2n ** 64n - 1n;
+  t.throws(() => BlsPair.manyFromSeed(max, 2), { message: /overflows u64/ });
+  t.is(BlsPair.manyFromSeed(max, 1).length, 1);
+});
+
+test("offer security coin from an offer without xch throws", (t) => {
+  const clvm = new Clvm();
+  const offer = new SpendBundle([], Signature.infinity());
+
+  t.throws(() => clvm.createOfferSecurityCoin(offer), {
+    message: /offer doesn't offer any XCH/,
+  });
+  t.throws(
+    () =>
+      clvm.createOfferSecurityCoinWithKey(
+        offer,
+        SecretKey.fromSeed(new Uint8Array(32)),
+      ),
+    { message: /offer doesn't offer any XCH/ },
+  );
 });
 
 test("curry add function", (t) => {
