@@ -1,10 +1,9 @@
 //! Wrappers and eligible spends (CHIP-0057 "Wrappers", "Eligible CAT Spends", "Wrapper List of
 //! a Block").
 //!
-//! [`eligible_spend`] is the CHIP's procedure of that name. Matching is exact at every layer:
-//! the module's tree hash, the curried arguments and the tree hash of the whole layer. The SDK's
-//! [`crate::CatLayer`] and [`crate::RevocationLayer`] parsers are not used, since they check the
-//! module hash and the shape of the arguments only. Nothing here panics on block data.
+//! Matching is exact at every layer: the module's tree hash, the curried arguments and the tree
+//! hash of the whole layer. [`crate::CatLayer`] and [`crate::RevocationLayer`] are not used,
+//! since they check the module hash and the shape of the arguments only.
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, CoinSpend};
@@ -22,16 +21,8 @@ use clvmr::{Allocator, NodePtr, SExp};
 
 use crate::CatInfo;
 
-/// A wrapper `W = (asset_id, hidden_ph)` of CHIP-0057 ("Wrappers").
-///
-/// `asset_id` is the 32-byte asset ID of the CAT in the `cat_v2` layer (the
-/// hash of its TAIL), and `hidden_puzzle_hash` is, for a revocable CAT, the
-/// 32-byte hidden puzzle hash of the CHIP-0038 revocation layer, or `None`
-/// otherwise.
-///
-/// Two wrappers are equal when both fields are equal as bytes. Wrappers have
-/// no implicit order: the order of a block's wrapper list is the CHIP's, given
-/// by [`sort_wrappers`] only.
+/// A wrapper `W = (asset_id, hidden_ph)` (CHIP-0057 "Wrappers"). The order of a block's wrapper
+/// list is given by [`sort_wrappers`] only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Wrapper {
     /// The CAT's asset ID (the hash of its TAIL).
@@ -57,14 +48,8 @@ impl Wrapper {
         }
     }
 
-    /// `wrap(W, h)`: the puzzle hash of a coin with this wrapper whose inner
-    /// standard puzzle has tree hash `puzzle_hash`.
-    ///
-    /// The tree hash of `cat_v2` curried with (`CAT_MOD_HASH`, `asset_id`,
-    /// inner puzzle), where the inner puzzle has tree hash `puzzle_hash` for a
-    /// plain CAT and, for a revocable CAT, the tree hash of the revocation
-    /// layer curried with (`REVOCATION_MOD_HASH`, `hidden_ph`, `puzzle_hash`).
-    /// This is [`CatInfo::puzzle_hash`].
+    /// `wrap(W, h)`: the puzzle hash of a coin with this wrapper whose inner standard puzzle has
+    /// tree hash `puzzle_hash`.
     pub fn wrap(&self, puzzle_hash: Bytes32) -> Bytes32 {
         CatInfo::new(self.asset_id, self.hidden_puzzle_hash, puzzle_hash)
             .puzzle_hash()
@@ -77,15 +62,8 @@ pub fn wrap_puzzle_hash(wrapper: Option<&Wrapper>, puzzle_hash: Bytes32) -> Byte
     wrapper.map_or(puzzle_hash, |w| w.wrap(puzzle_hash))
 }
 
-/// The distinct wrappers of `wrappers` in the CHIP's order ("Wrapper List of a
-/// Block"):
-///
-/// "The list is given in a fixed, total order: by *`asset_id`* as bytes, and for
-/// one asset ID the wrapper without a hidden puzzle hash first, then by
-/// *`hidden_ph`* as bytes."
-///
-/// The key is spelled out rather than derived, so the order does not depend on
-/// the field order of [`Wrapper`]. Duplicates are removed.
+/// The distinct wrappers of `wrappers` in the order of CHIP-0057 "Wrapper List of a Block": by
+/// asset ID as bytes, the wrapper without a hidden puzzle hash first, then by hidden puzzle hash.
 pub fn sort_wrappers(wrappers: impl IntoIterator<Item = Wrapper>) -> Vec<Wrapper> {
     let mut sorted: Vec<Wrapper> = wrappers.into_iter().collect();
     sorted.sort_by_key(|w| {
@@ -99,12 +77,8 @@ pub fn sort_wrappers(wrappers: impl IntoIterator<Item = Wrapper>) -> Vec<Wrapper
     sorted
 }
 
-/// `eligible_spend` of a coin spend: `(A, W)` for the three eligible shapes,
-/// else `None` (see the module documentation).
-///
-/// The puzzle reveal and the solution are deserialized once. A solution that
-/// does not deserialize is read as nil: it is only read for the revocable
-/// shape, which it then does not have.
+/// CHIP-0057 `eligible_spend`: the synthetic key and the wrapper of a spend of one of the three
+/// eligible shapes, else `None`. A solution that does not deserialize is read as nil.
 pub fn eligible_spend(coin_spend: &CoinSpend) -> Option<(PublicKey, Option<Wrapper>)> {
     let mut a = Allocator::new();
     let puzzle = node_from_bytes(&mut a, coin_spend.puzzle_reveal.as_ref()).ok()?;
@@ -115,21 +89,7 @@ pub fn eligible_spend(coin_spend: &CoinSpend) -> Option<(PublicKey, Option<Wrapp
     eligible_spend_from_nodes(&a, puzzle, solution)
 }
 
-/// `eligible_spend` over an already deserialized puzzle reveal and solution.
-///
-/// The CHIP's steps, in its order:
-/// 1. the puzzle is the standard puzzle: (its key, `None`);
-/// 2. unless the puzzle is exactly `cat_v2`: `None`;
-/// 3. the CAT's inner puzzle is the standard puzzle: (its key, `(asset_id, None)`);
-/// 4. unless the inner puzzle is exactly the revocation layer: `None`;
-/// 5. `hidden_ph` and `inner_ph` are its second and third curried arguments;
-/// 6. `hidden_flag` and `revealed` are the first two elements of the CAT
-///    layer's inner solution, the first element of the solution; another
-///    shape: `None`;
-/// 7. `hidden_flag` is not nil (the issuer's hidden path): `None`;
-/// 8. `tree_hash(revealed) != inner_ph`: `None`;
-/// 9. `revealed` is the standard puzzle: (its key, `(asset_id, hidden_ph)`);
-/// 10. otherwise `None`.
+/// [`eligible_spend`] over an already deserialized puzzle reveal and solution.
 pub fn eligible_spend_from_nodes(
     a: &Allocator,
     puzzle: NodePtr,
@@ -138,8 +98,8 @@ pub fn eligible_spend_from_nodes(
     classify_spend(a, puzzle, solution).1
 }
 
-/// [`coin_wrapper_from_node`] and [`eligible_spend_from_nodes`] of one spend,
-/// matching the CAT layer and the revocation layer once for both.
+/// [`coin_wrapper_from_node`] and [`eligible_spend_from_nodes`] of one spend, matching each layer
+/// once. The numbers are the steps of the CHIP's `eligible_spend`.
 pub(crate) fn classify_spend(
     a: &Allocator,
     puzzle: NodePtr,
@@ -182,21 +142,15 @@ pub(crate) fn classify_spend(
     (Some(wrapper), eligible())
 }
 
-/// The wrapper a coin spend adds to its block's wrapper list, or `None` when
-/// its puzzle reveal is not exactly `cat_v2` ("Wrapper List of a Block").
-///
-/// Every exact `cat_v2` spend has a wrapper, eligible or not: a CAT around an
-/// offer's settlement coin, a revocable CAT spent through the issuer's hidden
-/// path and a CAT inside a CAT all add theirs.
+/// The wrapper a coin spend adds to its block's wrapper list ("Wrapper List of a Block"): every
+/// exact `cat_v2` spend has one, eligible or not.
 pub fn coin_wrapper(coin_spend: &CoinSpend) -> Option<Wrapper> {
     let mut a = Allocator::new();
     let puzzle = node_from_bytes(&mut a, coin_spend.puzzle_reveal.as_ref()).ok()?;
     coin_wrapper_from_node(&a, puzzle)
 }
 
-/// [`coin_wrapper`] over an already deserialized puzzle reveal:
-/// `(asset_id, hidden_ph)` when the `cat_v2` inner puzzle is exactly the
-/// revocation layer, `(asset_id, None)` for any other inner puzzle.
+/// [`coin_wrapper`] over an already deserialized puzzle reveal.
 pub fn coin_wrapper_from_node(a: &Allocator, puzzle: NodePtr) -> Option<Wrapper> {
     let (asset_id, inner) = match_cat(a, puzzle)?;
     Some(Wrapper {
@@ -205,11 +159,8 @@ pub fn coin_wrapper_from_node(a: &Allocator, puzzle: NodePtr) -> Option<Wrapper>
     })
 }
 
-/// The synthetic public key of `puzzle` when it is exactly the standard puzzle
-/// (CHIP-0057 "Recognizing an Eligible Spend"): its uncurried module has tree
-/// hash `P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH`, it has exactly one curried
-/// argument, a 48-byte public key, and its tree hash equals that of the
-/// standard puzzle curried with that key.
+/// The synthetic public key of `puzzle` when it is exactly the standard puzzle (CHIP-0057
+/// "Recognizing an Eligible Spend").
 fn standard_puzzle_key(a: &Allocator, puzzle: NodePtr) -> Option<PublicKey> {
     let curried = CurriedProgram::<NodePtr, StandardArgs>::from_clvm(a, puzzle).ok()?;
     if tree_hash(a, curried.program) != TreeHash::new(P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH) {
@@ -223,11 +174,6 @@ fn standard_puzzle_key(a: &Allocator, puzzle: NodePtr) -> Option<PublicKey> {
 }
 
 /// `(asset_id, inner puzzle)` when `puzzle` is exactly `cat_v2`.
-///
-/// Its uncurried module has tree hash `CAT_MOD_HASH`; it has exactly three
-/// curried arguments, the first equal to `CAT_MOD_HASH`, the second a 32-byte
-/// atom `asset_id` and the third a puzzle `inner`; and its tree hash equals
-/// `wrap((asset_id, None), tree_hash(inner))`.
 fn match_cat(a: &Allocator, puzzle: NodePtr) -> Option<(Bytes32, NodePtr)> {
     let curried = CurriedProgram::<NodePtr, CatArgs<NodePtr>>::from_clvm(a, puzzle).ok()?;
     if tree_hash(a, curried.program) != TreeHash::new(CAT_PUZZLE_HASH) {
@@ -246,11 +192,6 @@ fn match_cat(a: &Allocator, puzzle: NodePtr) -> Option<(Bytes32, NodePtr)> {
 }
 
 /// `(hidden_ph, inner_ph)` when `puzzle` is exactly the revocation layer.
-///
-/// Its uncurried module has tree hash `REVOCATION_MOD_HASH`; it has exactly
-/// three curried arguments, each a 32-byte atom, the first equal to
-/// `REVOCATION_MOD_HASH`; and its tree hash equals the tree hash of the
-/// revocation layer curried with those three atoms.
 fn match_revocation(a: &Allocator, puzzle: NodePtr) -> Option<(Bytes32, Bytes32)> {
     let curried =
         CurriedProgram::<NodePtr, match_curried_args!(Bytes32, Bytes32, Bytes32)>::from_clvm(

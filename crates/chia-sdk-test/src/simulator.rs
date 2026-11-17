@@ -341,13 +341,7 @@ impl Simulator {
         self.data.coin_spends.get(&coin_id).cloned()
     }
 
-    /// Return every coin spend that resolved at `height`.
-    ///
-    /// Iterates `data.coin_states` filtered by `spent_height == Some(height)`,
-    /// joins each `coin_id` against `data.coin_spends`, and returns the joined
-    /// `CoinSpend`s in iteration order.
-    ///
-    /// Returns an empty vector when no spends resolved at `height`.
+    /// The coin spends of the block at `height`.
     #[must_use]
     pub fn block_spends(&self, height: u32) -> Vec<CoinSpend> {
         self.data
@@ -358,14 +352,7 @@ impl Simulator {
             .collect()
     }
 
-    /// Return every coin created at `height`.
-    ///
-    /// Iterates `data.coin_states` filtered by `created_height == Some(height)`
-    /// and returns the underlying `Coin` for each (drops the `CoinState`
-    /// envelope — callers that need spent-height information should use
-    /// `coin_state(coin_id)` directly).
-    ///
-    /// Returns an empty vector when no coins were created at `height`.
+    /// The coins created in the block at `height`.
     #[must_use]
     pub fn block_outputs(&self, height: u32) -> Vec<Coin> {
         self.data

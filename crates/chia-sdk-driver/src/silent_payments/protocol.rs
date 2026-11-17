@@ -14,9 +14,7 @@ use chia_sha2::Sha256;
 use crate::DriverError;
 
 /// The scanner's shared secret for a tweak point: `SHA256(serialize(scan_sk * tweak_point))`.
-///
-/// `tweak_point` must be a non-identity element of the prime-order subgroup;
-/// [`super::scan_from_tweaks`] checks this before calling.
+/// `tweak_point` must be a valid non-identity point; [`super::scan_from_tweaks`] checks this.
 #[must_use]
 pub fn compute_shared_secret_from_tweak(scan_sk: &SecretKey, tweak_point: &PublicKey) -> [u8; 32] {
     // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
@@ -39,13 +37,8 @@ pub fn derive_output_tweak(shared_secret: &[u8; 32], k: u32) -> ScalarField {
     ScalarField::from_bytes_unsigned(hash)
 }
 
-/// The one-time public key of an output: `spend_pk + tweak * G`.
-///
-/// # Errors
-///
-/// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
-/// below the group order `r`, which a tweak built with
-/// `ScalarField::from_bytes_raw` may not be.
+/// The one-time public key of an output: `spend_pk + tweak * G`. Returns
+/// [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not below the group order `r`.
 pub fn derive_onetime_pk(
     spend_pk: &PublicKey,
     tweak: &ScalarField,
@@ -53,13 +46,8 @@ pub fn derive_onetime_pk(
     Ok(spend_pk + &tweak_secret_key(tweak)?.public_key())
 }
 
-/// The one-time secret key of an output: `(spend_sk + tweak) mod r`, where
-/// `tweak` is the combined tweak of a detection (CHIP-0057 "Spending").
-///
-/// # Errors
-///
-/// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
-/// below the group order `r` (see [`derive_onetime_pk`]).
+/// The one-time secret key of an output: `(spend_sk + tweak) mod r`, where `tweak` is the
+/// combined tweak of a detection (CHIP-0057 "Spending"). Fails like [`derive_onetime_pk`].
 pub fn derive_onetime_sk(
     spend_sk: &SecretKey,
     tweak: &ScalarField,
@@ -82,13 +70,8 @@ pub fn puzzle_hash_for_pk(pk: &PublicKey) -> Bytes32 {
 
 // Send side. Callers pass synthetic secret keys; see `SyntheticSecretKey`.
 
-/// The sum of the synthetic secret keys of a spend group, mod `r`, with one
-/// term per coin.
-///
-/// # Errors
-///
-/// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero, which
-/// includes the empty slice (CHIP-0057 "Edge Cases").
+/// The sum of the synthetic secret keys of a spend group, mod `r`, with one term per coin.
+/// Returns [`DriverError::SilentPaymentZeroKeySum`] if the sum is zero or `sks` is empty.
 pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<SecretKey, DriverError> {
     let mut sum = SecretKey::from_bytes(&[0u8; 32]).expect("zero is a valid chia-bls scalar");
     for sk in sks {
@@ -100,19 +83,14 @@ pub fn aggregate_sender_sks(sks: &[SecretKey]) -> Result<SecretKey, DriverError>
     Ok(sum)
 }
 
-/// Whether a secret key is the zero scalar. `chia-bls` accepts zero as a
-/// secret key, so it has to be checked for explicitly.
+/// Whether a secret key is zero, which `chia-bls` accepts as a secret key.
 fn is_zero_key(sk: &SecretKey) -> bool {
     ScalarField::from_bytes_raw(sk.to_bytes()).is_zero()
 }
 
 /// The input hash of a spend group:
-/// `int(tagged_hash("Chia_SP/Inputs", coin_id_L || serialize(A_sum))) mod r`,
-/// where `coin_id_L` is the smallest of `coin_ids`.
-///
-/// # Errors
-///
-/// Returns [`DriverError::SilentPaymentNoXchInputs`] if `coin_ids` is empty.
+/// `int(tagged_hash("Chia_SP/Inputs", coin_id_L || serialize(A_sum))) mod r`, with `coin_id_L` the
+/// smallest of `coin_ids`. Returns [`DriverError::SilentPaymentNoXchInputs`] if there are none.
 pub fn compute_input_hash(
     coin_ids: &[Bytes32],
     aggregated_sender_pk: &PublicKey,
@@ -131,12 +109,8 @@ pub fn compute_input_hash(
     Ok(ScalarField::from_bytes_unsigned(hash))
 }
 
-/// The tweak point of a spend group: `T = input_hash * A_sum` (CHIP-0057
-/// "Tweak Points"), from the coin ids of the group and the sum of its
-/// synthetic public keys.
-///
-/// Returns `None` for a group that yields no tweak point: `A_sum` is the
-/// identity element, `input_hash` is zero, or `coin_ids` is empty.
+/// The tweak point of a spend group, `T = input_hash * A_sum` (CHIP-0057 "Tweak Points").
+/// `None` if `A_sum` is the identity element, `input_hash` is zero, or `coin_ids` is empty.
 #[must_use]
 pub fn compute_tweak_point(
     coin_ids: &[Bytes32],
@@ -149,9 +123,7 @@ pub fn compute_tweak_point(
     tweak_point_from_input_hash(aggregated_sender_pk, &input_hash)
 }
 
-/// `input_hash * A_sum`, or `None` if `A_sum` is the identity element or
-/// `input_hash` is zero. Split out of [`compute_tweak_point`] so that the
-/// zero input hash rule can be tested.
+/// `input_hash * A_sum`, or `None` if `A_sum` is the identity element or `input_hash` is zero.
 pub(super) fn tweak_point_from_input_hash(
     a_sum: &PublicKey,
     input_hash: &ScalarField,
@@ -167,22 +139,10 @@ pub(super) fn tweak_point_from_input_hash(
     Some(tweak_point)
 }
 
-/// The puzzle hash of the sender's `k`-th output to `scan_pk` in a spend group
-/// (CHIP-0057 `SendSilentPayment`). `spend_pk` is the second key of the
-/// recipient's address, `aggregated_sender_sk` is [`aggregate_sender_sks`] of
-/// the group and `input_hash` is its [`compute_input_hash`].
-///
-/// # Errors
-///
-/// Follows the failure cases of the CHIP-0057 `SendSilentPayment` procedure:
-/// [`DriverError::SilentPayment`] with
-/// [`SilentPaymentError::IdentityPublicKey`] if `scan_pk` or `spend_pk` is the
-/// identity element, [`DriverError::SilentPaymentZeroKeySum`] if
-/// `aggregated_sender_sk` is zero, [`DriverError::SilentPaymentZeroInputHash`]
-/// if `input_hash` is zero, and [`DriverError::SilentPaymentZeroTweak`] if the
-/// output tweak `t_k` is zero. Subgroup membership of the keys is not checked
-/// here (it costs a scalar multiplication per call); callers that take keys
-/// from an untrusted source validate them first, as
+/// The puzzle hash of the sender's `k`-th output to `scan_pk` in a spend group (CHIP-0057
+/// `SendSilentPayment`), from [`aggregate_sender_sks`] and [`compute_input_hash`] of the group.
+/// Fails if a public key is the identity element, or the key sum, input hash or output tweak
+/// is zero. Subgroup membership is not checked: validate untrusted keys first, as
 /// [`SilentPaymentAddress::validate`](chia_sdk_utils::silent_payments::SilentPaymentAddress::validate) does.
 pub fn derive_one_time_puzzle_hash(
     scan_pk: &PublicKey,
@@ -191,8 +151,7 @@ pub fn derive_one_time_puzzle_hash(
     input_hash: &ScalarField,
     k: u32,
 ) -> Result<Bytes32, DriverError> {
-    // An identity scan key makes the shared secret a public constant, and an
-    // identity spend key makes the one-time key t_k * G.
+    // An identity key would make the shared secret public or let the sender spend the output.
     if scan_pk.is_inf() || spend_pk.is_inf() {
         return Err(DriverError::SilentPayment(
             SilentPaymentError::IdentityPublicKey,
@@ -203,14 +162,8 @@ pub fn derive_one_time_puzzle_hash(
     one_time_puzzle_hash_from_tweak(spend_pk, &t_k)
 }
 
-/// The sender's side of the ECDH: `SHA256(serialize((input_hash * a_sum) * B_scan))`.
-///
-/// The point is computed as `input_hash * (a_sum * B_scan)`, two point
-/// multiplications, so that the secret key sum is never multiplied outside of
-/// `chia-bls`.
-///
-/// Fails if `a_sum` or `input_hash` is zero, as the CHIP-0057 `SendSilentPayment`
-/// procedure requires.
+/// The sender's side of the ECDH, `SHA256(serialize(input_hash * (a_sum * B_scan)))`: two point
+/// multiplications, so the key sum stays inside `chia-bls`. Fails if either scalar is zero.
 fn sender_shared_secret(
     scan_pk: &PublicKey,
     aggregated_sender_sk: &SecretKey,
@@ -223,7 +176,6 @@ fn sender_shared_secret(
         return Err(DriverError::SilentPaymentZeroInputHash);
     }
 
-    // The scalar bytes are held in a `ScalarField`, which zeroizes them on drop.
     let a_sum = ScalarField::from_bytes_raw(aggregated_sender_sk.to_bytes());
     let mut point = *scan_pk;
     point.scalar_multiply(a_sum.as_bytes());

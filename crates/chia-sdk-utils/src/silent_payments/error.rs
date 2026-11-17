@@ -2,60 +2,43 @@
 
 use thiserror::Error;
 
-/// Errors produced by the silent-payments wallet API (key derivation, label
-/// generation, address encode/decode).
-///
-/// The `Bech32` variant wraps the existing `chia_sdk_utils::Bech32Error` so
-/// callers can pattern-match on the underlying bech32m parse / checksum /
-/// character errors without an extra layer of nesting.
+/// Errors of the silent payment keys, labels and address codec.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum SilentPaymentError {
-    /// Decoded HRP is neither `"spxch"` (mainnet) nor `"tspxch"` (testnet).
-    /// Specifically catches `"xch1..."` (the standard Chia address) being
-    /// passed to [`super::SilentPaymentAddress::decode`].
+    /// The HRP is neither `spxch` (mainnet) nor `tspxch` (testnet), for example a standard
+    /// `xch1...` address.
     #[error("invalid silent-payment HRP '{0}' (expected 'spxch' or 'tspxch')")]
     WrongHrp(String),
 
-    /// The decoded payload has an invalid length: a v0 payload must be exactly
-    /// 96 bytes; a v1-30 (forward-compatible) payload must be at least 96 bytes.
+    /// A version 0 payload is not exactly 96 bytes, or a version 1-30 payload is shorter.
     #[error("invalid silent-payment payload length: expected 96 bytes, got {0}")]
     PayloadLength(usize),
 
-    /// The address carries version 31, reserved by CHIP-0057 for a
-    /// backward-incompatible upgrade. Senders MUST NOT send to it.
+    /// The address has version 31, which is reserved; senders must not send to it.
     #[error("silent-payment address version 31 is reserved for a backward-incompatible upgrade")]
     ReservedAddressVersion,
 
-    /// The address exceeds the CHIP-0057 length allowance of 1,023 characters.
+    /// The address is longer than 1,023 characters.
     #[error("silent-payment address too long: {0} characters (max 1023)")]
     AddressTooLong(usize),
 
-    /// One of the public keys is not a valid element of the prime-order G1
-    /// subgroup: its 48 bytes are not a valid compressed G1 point, or the point
-    /// lies outside the subgroup.
+    /// A public key is not a valid compressed G1 point in the prime-order subgroup.
     #[error("invalid silent-payment public-key encoding")]
     InvalidPublicKey,
 
-    /// Either the scan or the spend public key is the identity element (point
-    /// at infinity), which CHIP-0057 "Silent Payment Address" requires to be
-    /// rejected.
+    /// The scan or the spend public key is the identity element.
     #[error("silent-payment public key is the identity element")]
     IdentityPublicKey,
 
-    /// `SilentPaymentKeys::labeled_address(0)` was called. `m = 0` is reserved
-    /// as the change label (CHIP-0057 "Change Detection") and must not appear in a publicly-
-    /// shared address.
+    /// Label 0 is the change label (CHIP-0057 "Change Detection") and has no shareable address.
     #[error("label index 0 is reserved for change outputs and cannot be exposed")]
     ReservedChangeLabel,
 
-    /// A [`super::LabelRegistry`] was used with a scan key other than the one
-    /// it was created for.
+    /// A [`super::LabelRegistry`] was used with a scan key other than its own.
     #[error("label registry belongs to another scan key")]
     LabelRegistryKeyMismatch,
 
-    /// bech32 / bech32m parse, checksum, or character error. Wraps the
-    /// existing `chia_sdk_utils::Bech32Error` so the error message stays
-    /// uniform with the standard-address path.
+    /// A bech32m parse, checksum or character error.
     #[error("bech32m error: {0}")]
     Bech32(#[from] crate::Bech32Error),
 }

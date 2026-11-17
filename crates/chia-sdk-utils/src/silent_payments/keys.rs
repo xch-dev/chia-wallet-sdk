@@ -1,5 +1,4 @@
-//! `SilentPaymentKeys` — CHIP-0057 scan/spend key derivation and labeled
-//! address generation.
+//! The recipient's scan and spend keys and their addresses.
 
 use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey};
@@ -10,22 +9,10 @@ use super::{
     labels::{CHANGE_LABEL, generate_label},
 };
 
-/// The wallet-author-facing key bundle for CHIP-0057 silent payments.
+/// A recipient's scan and spend secret keys. The scan key detects payments and the spend key
+/// spends them; whoever holds the scan key sees every payment to the address.
 ///
-/// Stores both the scan and spend BLS secret keys plus their cached public
-/// keys (computed once at construction). The scan key is used for incoming-
-/// payment detection; the spend key is used to sign coin spends for detected
-/// payments.
-///
-/// **Privacy note:** the scan key bypasses the standard wallet's privacy
-/// boundary. Anyone who holds this scan key can see every silent-payment output
-/// addressed to the associated address. Wallet authors should treat `scan_sk`
-/// as the more sensitive of the two keys for at-rest storage.
-///
-/// **Lifetime hygiene:** this type does NOT implement `Zeroize`. Matching the
-/// SDK norm (`chia_bls::SecretKey` and `chia_sdk_test::BlsPair` also do not),
-/// it is the wallet author's responsibility to drop / overwrite the bundle
-/// when secret material is no longer needed.
+/// The keys are not wiped from memory on drop.
 #[derive(Clone)]
 pub struct SilentPaymentKeys {
     scan_sk: SecretKey,
@@ -46,18 +33,9 @@ impl core::fmt::Debug for SilentPaymentKeys {
 }
 
 impl SilentPaymentKeys {
-    /// Derive `(scan_sk, spend_sk)` from a BIP-39 mnemonic with EIP-2333
-    /// hardened derivation at every level of the CHIP-0057 paths
-    /// `m/12381n/8444n/12n/0n` (scan) and `m/12381n/8444n/13n/0n` (spend), as
-    /// CHIP-0057 "Key Derivation" requires.
-    ///
-    /// Hardened derivation is what makes the scan key safe to place on an
-    /// online device: it reveals nothing about the spend key or the master
-    /// key, even to someone who also holds the wallet's master public key.
-    ///
-    /// Uses an empty BIP-39 passphrase — matches the standard Chia wallet
-    /// convention (also used by `chia_sdk_test::BlsPair::new` and
-    /// `chia_sdk_bindings::Mnemonic`).
+    /// Derives the keys from a mnemonic with an empty passphrase, hardened at every level of
+    /// `m/12381n/8444n/12n/0n` (scan) and `m/12381n/8444n/13n/0n` (spend), as CHIP-0057 "Key
+    /// Derivation" requires, so the scan key reveals nothing about the spend or master key.
     #[must_use]
     pub fn from_mnemonic(mnemonic: &Mnemonic) -> Self {
         let seed = mnemonic.to_seed("");
@@ -67,16 +45,8 @@ impl SilentPaymentKeys {
         Self::from_secret_keys(scan_sk, spend_sk)
     }
 
-    /// Construct from explicit scan and spend secret keys.
-    ///
-    /// The protocol treats the key pair as given (CHIP-0057 "Key
-    /// Derivation"): keys obtained in any way produce valid addresses and
-    /// payments, but only keys derived as in [`Self::from_mnemonic`] can be
-    /// recovered from a mnemonic by other wallets.
-    ///
-    /// A watch-only scanner, which holds no spend secret key, does not use
-    /// this type; it calls the scanner with the scan secret key and the spend
-    /// public key directly.
+    /// The keys from explicit secret keys. Only keys derived as in [`Self::from_mnemonic`] can
+    /// be recovered from the mnemonic by another wallet.
     #[must_use]
     pub fn from_secret_keys(scan_sk: SecretKey, spend_sk: SecretKey) -> Self {
         Self {
@@ -87,44 +57,38 @@ impl SilentPaymentKeys {
         }
     }
 
-    /// The scan secret key (`b_scan` in CHIP terminology).
+    /// The scan secret key.
     #[must_use]
     pub fn scan_sk(&self) -> &SecretKey {
         &self.scan_sk
     }
 
-    /// The spend secret key (`b_spend` in CHIP terminology).
+    /// The spend secret key.
     #[must_use]
     pub fn spend_sk(&self) -> &SecretKey {
         &self.spend_sk
     }
 
-    /// The scan public key (`B_scan` in CHIP terminology).
+    /// The scan public key.
     #[must_use]
     pub fn scan_pk(&self) -> &PublicKey {
         &self.scan_pk
     }
 
-    /// The spend public key (`B_spend` in CHIP terminology — the unlabeled
-    /// spend pubkey; labeled sub-addresses use `B_m = B_spend + label_pk`).
+    /// The unlabeled spend public key.
     #[must_use]
     pub fn spend_pk(&self) -> &PublicKey {
         &self.spend_pk
     }
 
-    /// Build the unlabeled bech32m silent-payment address for this key bundle
-    /// on the given network.
+    /// The unlabeled address on `network`.
     #[must_use]
     pub fn unlabeled_address(&self, network: SilentPaymentNetwork) -> SilentPaymentAddress {
         SilentPaymentAddress::new(self.scan_pk, self.spend_pk, network)
     }
 
-    /// Build a labeled bech32m silent-payment sub-address.
-    ///
-    /// `m = 0` is the reserved change label (CHIP-0057 "Change Detection")
-    /// and is rejected here, so that the change address is never handed out by
-    /// accident; the wallet obtains it with [`Self::change_address`]. Use
-    /// `m >= 1` for labels that are handed out.
+    /// The address of label `m >= 1`. Label 0 is the change label and is rejected; see
+    /// [`Self::change_address`].
     pub fn labeled_address(
         &self,
         network: SilentPaymentNetwork,
@@ -136,23 +100,14 @@ impl SilentPaymentKeys {
         Ok(self.address_for_label(network, m))
     }
 
-    /// The wallet's own change address: `(B_scan, B_0)`, using the reserved
-    /// change label `m = 0` (CHIP-0057 "Change Detection").
-    ///
-    /// **Never share this address.** It exists so that the wallet can send
-    /// change back to itself and recognize it as change when scanning (the
-    /// scanner always checks label 0 and reports it as `Some(0)`). If anyone
-    /// else learned it, they could create payments that the wallet would
-    /// wrongly identify as its own change. Use
-    /// [`Self::unlabeled_address`] or [`Self::labeled_address`] for addresses
-    /// that are handed out.
+    /// The wallet's own change address, with label 0 (CHIP-0057 "Change Detection"). Never
+    /// share it: a payment to it from anyone else would be reported as the wallet's change.
     #[must_use]
     pub fn change_address(&self, network: SilentPaymentNetwork) -> SilentPaymentAddress {
         self.address_for_label(network, CHANGE_LABEL)
     }
 
-    /// A [`LabelRegistry`] of this wallet's scan key with the labels `labels`
-    /// registered, for the scanner.
+    /// A [`LabelRegistry`] of this scan key with `labels` registered.
     #[must_use]
     pub fn label_registry(&self, labels: impl IntoIterator<Item = u32>) -> LabelRegistry {
         let mut registry = LabelRegistry::new(&self.scan_sk);
@@ -171,8 +126,7 @@ impl SilentPaymentKeys {
     }
 }
 
-/// Walk a path with EIP-2333 hardened derivation at every level, as CHIP-0057
-/// "Key Derivation" requires for the scan and spend keys.
+/// Derives `path` from `sk`, hardened at every level.
 fn derive_path(sk: &SecretKey, path: &[u32]) -> SecretKey {
     let mut out = sk.clone();
     for &index in path {

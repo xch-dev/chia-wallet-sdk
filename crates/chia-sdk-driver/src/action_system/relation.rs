@@ -11,11 +11,8 @@ pub enum Relation {
     /// Each spend asserts that the previous spend (wrapping around to the last) is included in the
     /// same block, with `ASSERT_CONCURRENT_SPEND`.
     ///
-    /// CHIP-0057 silent payments rely on this closed cycle: scanners group the inputs of a
-    /// multi-input silent payment by following these assertions, so a silent payment whose
-    /// transaction spends two or more XCH coins (counting intermediate coins) must be prepared
-    /// with this relation (otherwise `DriverError::SilentPaymentRequiresInputBinding` is
-    /// returned).
+    /// A CHIP-0057 silent payment that spends two or more coins needs this relation, since
+    /// scanners find its spend group by following the assertions.
     AssertConcurrent,
 
     /// Each spend creates a coin announcement with an empty message, and asserts the announcement

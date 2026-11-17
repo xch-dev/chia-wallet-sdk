@@ -1,30 +1,17 @@
-//! BIP-340-style tagged-hash for CHIP-0057 silent payments.
-//!
-//! `tagged_hash(tag, data) = SHA256(SHA256(tag) || SHA256(tag) || data)`.
-//!
-//! Domain-tag constants for the three CHIP-0057 scalars are pinned here.
-//! Each tag is hashed at test time by the SHA-256 routine in `chia-sha2`
-//! (the SDK-standard hasher — never `sha2::Sha256` in this module tree);
-//! the test module pins each `SHA256(tag)` to a `hex!(...)` literal so any
-//! typo in a tag-string constant fails the corresponding test before any
-//! protocol code runs.
+//! The tagged hash and its tags (CHIP-0057 "Tagged Hash").
 
 use chia_sha2::Sha256;
 
-/// Tag for the `input_hash` scalar (CHIP-0057 "Tagged Hash").
+/// The tag of the input hash.
 pub const CHIA_SP_INPUTS: &str = "Chia_SP/Inputs";
 
-/// Tag for the `t_k` output-tweak scalar (CHIP-0057 "Tagged Hash").
+/// The tag of an output tweak.
 pub const CHIA_SP_SHARED_SECRET: &str = "Chia_SP/SharedSecret";
 
-/// Tag for the `label_scalar` (CHIP-0057 "Tagged Hash", "Label Generation").
+/// The tag of a label scalar.
 pub const CHIA_SP_LABEL: &str = "Chia_SP/Label";
 
-/// Compute `SHA256(SHA256(tag) || SHA256(tag) || data)` using `chia-sha2`.
-///
-/// This is the BIP-340 tagged-hash construction. `chia-sha2` exposes only
-/// `Sha256::{new, update, finalize}` — there is no `::digest(...)` static
-/// method. The double-`update(tag_hash)` is intentional per BIP-340.
+/// `SHA256(SHA256(tag) || SHA256(tag) || data)`, the BIP-340 tagged hash.
 #[must_use]
 pub fn tagged_hash(tag: &str, data: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();

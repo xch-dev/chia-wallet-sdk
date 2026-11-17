@@ -18,35 +18,17 @@ use super::protocol::{
 };
 use super::types::{DetectedSilentPaymentCoin, OutputMeta, TweakData};
 
-/// The per-spend-group iteration cap of the scanner: `K_max` of CHIP-0057
-/// "Kmax: Maximum Outputs Per Spend Group" (2,400), as a `usize`.
-///
-/// Pass this to [`scan_from_tweaks`]. A smaller value makes the scan miss
-/// outputs at higher indices that a conforming sender may have created; a
-/// larger value is capped, since a scanner stops when `k` reaches `K_max`.
+/// `K_max` of CHIP-0057 "Kmax: Maximum Outputs Per Spend Group" (2,400) as a `usize`, the cap to
+/// pass to [`scan_from_tweaks`]. A smaller cap can miss outputs of a conforming sender.
 pub const K_MAX_DEFAULT: usize = K_MAX as usize;
 
-/// Scan the spend groups of `data` for outputs paid to `(scan_sk, spend_pk)`
-/// (CHIP-0057 `ScanForSilentPayment`).
+/// Scans the spend groups of `data` for outputs paid to `(scan_sk, spend_pk)` (CHIP-0057
+/// `ScanForSilentPayment`). The change label `m = 0` is always checked and reported as `Some(0)`,
+/// and `k_max` is capped to `K_max`. The work per tweak point is about
+/// `k x (1 + labels) x (1 + wrappers)` hashes, so bound a [`TweakData`] taken from another party.
 ///
-/// At each `k` the unlabeled candidate is checked first, then the change label
-/// `m = 0` (always, reported as `Some(0)`), then the labels of `labels` in
-/// ascending order. Each candidate is tested bare and under every wrapper of
-/// `data.wrappers`, and every coin with a matching puzzle hash is reported. A
-/// group is abandoned at the first `k` with no match, and at `k_max` (pass
-/// [`K_MAX_DEFAULT`]; larger values are capped to `K_max`).
-///
-/// A tweak point that is the identity element or outside the prime-order
-/// subgroup is skipped. The work per tweak point is about
-/// `k x (1 + labels) x (1 + wrappers)` hashes, so a caller that takes
-/// [`TweakData`] from another party should bound it; the wrapper list is never
-/// truncated here.
-///
-/// # Errors
-///
-/// `labels` must be a registry of `scan_sk`; a registry created for another
-/// scan key would never match, so it is refused with
-/// [`SilentPaymentError::LabelRegistryKeyMismatch`].
+/// Returns [`SilentPaymentError::LabelRegistryKeyMismatch`] if `labels` is a registry of another
+/// scan key.
 pub fn scan_from_tweaks(
     scan_sk: &SecretKey,
     spend_pk: &PublicKey,
@@ -63,12 +45,10 @@ pub fn scan_from_tweaks(
     let forms = wrapper_forms(&data.wrappers);
     let mut detected = Vec::new();
 
-    // A scanner stops iterating a spend group when k reaches K_max.
     let k_bound = u32::try_from(k_max).unwrap_or(u32::MAX).min(K_MAX);
 
     for tweak_point in &data.tweak_points {
-        // CHIP-0057 "Tweak Points" / "Edge Cases": never multiply the scan key
-        // by the identity element or by a point outside the prime-order subgroup.
+        // CHIP-0057 "Edge Cases": the scan key is never multiplied by such a point.
         if tweak_point.is_inf() || !tweak_point.is_valid() {
             continue;
         }
@@ -90,9 +70,7 @@ pub fn scan_from_tweaks(
     Ok(detected)
 }
 
-/// The forms under which each candidate is tested: bare (`None`) first, then
-/// each wrapper of the list in list order, a wrapper equal to an earlier one
-/// skipped.
+/// The forms each candidate is tested under: bare first, then each distinct wrapper in order.
 fn wrapper_forms(wrappers: &[Wrapper]) -> Vec<Option<Wrapper>> {
     let mut seen = HashSet::with_capacity(wrappers.len());
     let mut forms = Vec::with_capacity(wrappers.len() + 1);
@@ -105,8 +83,7 @@ fn wrapper_forms(wrappers: &[Wrapper]) -> Vec<Option<Wrapper>> {
     forms
 }
 
-/// Every coin whose puzzle hash is `wrap(W, base)` for a form `W`, with that
-/// form, in the order of `forms`.
+/// Every coin whose puzzle hash is `wrap(W, base)` for a form `W`, with that form.
 fn match_forms<'a>(
     outputs: &HashMap<Bytes32, Vec<&'a OutputMeta>>,
     forms: &[Option<Wrapper>],
@@ -121,9 +98,7 @@ fn match_forms<'a>(
     matched
 }
 
-/// The labels to scan for: the change label `m = 0`, which is always included
-/// (CHIP-0057 "Scanning a Spend Group": the label set should always contain
-/// it), followed by the caller's labels in ascending order of `m`.
+/// The labels to scan for: the change label `m = 0`, then the caller's in ascending order.
 fn label_set(scan_sk: &SecretKey, labels: Option<&LabelRegistry>) -> Vec<(u32, PublicKey)> {
     let (_, change_label_pk) = generate_label(scan_sk, CHANGE_LABEL);
     let mut set = vec![(CHANGE_LABEL, change_label_pk)];
@@ -138,9 +113,7 @@ fn label_set(scan_sk: &SecretKey, labels: Option<&LabelRegistry>) -> Vec<(u32, P
     set
 }
 
-/// The candidate outputs by puzzle hash. Several coins can share one puzzle
-/// hash (they differ in parent or amount), and all of them are spendable with
-/// the same one-time key.
+/// The candidate outputs by puzzle hash. Coins that share one are all reported.
 fn index_outputs(outputs: &[OutputMeta]) -> HashMap<Bytes32, Vec<&OutputMeta>> {
     let mut index: HashMap<Bytes32, Vec<&OutputMeta>> = HashMap::new();
     for output in outputs {
@@ -149,10 +122,8 @@ fn index_outputs(outputs: &[OutputMeta]) -> HashMap<Bytes32, Vec<&OutputMeta>> {
     index
 }
 
-/// The `k` loop of the CHIP-0057 `ScanForSilentPayment` procedure for one spend
-/// group. `tweak_for_k` yields the output tweak `t_k`; it is a parameter so that
-/// the zero-tweak rule can be tested. `forms` are the wrapper forms of
-/// [`wrapper_forms`].
+/// The `k` loop of `ScanForSilentPayment` for one spend group. `tweak_for_k` is a parameter so
+/// that the zero-tweak rule can be tested.
 #[allow(clippy::too_many_arguments)]
 fn scan_group(
     tweak_for_k: impl Fn(u32) -> ScalarField,
@@ -164,8 +135,6 @@ fn scan_group(
     k_bound: u32,
     detected: &mut Vec<DetectedSilentPaymentCoin>,
 ) {
-    // Record a detection for every matched coin: its own coin ID, the bare
-    // candidate puzzle hash, and the wrapper under which it matched.
     let mut record = |matched: &[(&OutputMeta, Option<Wrapper>)],
                       base: Bytes32,
                       k: u32,
@@ -193,31 +162,26 @@ fn scan_group(
             break;
         }
 
-        // A tweak from `derive_output_tweak` is always below `r`; one that is
-        // not ends the scan of this group like a zero tweak.
+        // A tweak that is not below `r` ends the scan of this group like a zero tweak.
         let Ok(candidate_pk) = derive_onetime_pk(spend_pk, &output_tweak) else {
             break;
         };
         let candidate_hash = puzzle_hash_for_pk(&candidate_pk);
 
-        // The unlabeled candidate, bare and under every wrapper at once.
         let matched = match_forms(outputs, forms, candidate_hash);
         if !matched.is_empty() {
             record(&matched, candidate_hash, k, None, &output_tweak);
             continue;
         }
 
-        // Labeled candidates are only checked when the unlabeled candidate at
-        // this k missed. The first label that matches wins for this k; the
-        // change label is checked first, then the others in ascending order.
+        // Labels are checked only if the unlabeled candidate missed; the first that matches wins.
         let mut found = false;
         for &(m, label_pk) in labels {
             let labeled_pk = candidate_pk + &label_pk;
             let labeled_hash = puzzle_hash_for_pk(&labeled_pk);
             let matched = match_forms(outputs, forms, labeled_hash);
             if !matched.is_empty() {
-                // The label scalar is derived from the scan key, so the
-                // combined tweak needs no spend key either.
+                // The label scalar comes from the scan key, so the tweak needs no spend key.
                 let (label_scalar, _) = generate_label(scan_sk, m);
                 record(
                     &matched,
@@ -238,17 +202,10 @@ fn scan_group(
     }
 }
 
-/// Lets a [`SilentPaymentKeys`] bundle drive the scanner with a single method
-/// call.
-///
-/// The type is defined in `chia-sdk-utils`, so the bundled flow is exposed as a
-/// trait here. A watch-only scanner, which holds the scan secret key and the
-/// spend public key but not the spend secret key, cannot build a
-/// [`SilentPaymentKeys`] and calls [`scan_from_tweaks`] directly.
+/// [`scan_from_tweaks`] as a method of [`SilentPaymentKeys`]. A watch-only scanner has no spend
+/// secret key and calls [`scan_from_tweaks`] directly.
 pub trait SilentPaymentScan {
-    /// Scan `tweak_data` for silent-payment outputs addressed to this key
-    /// bundle. Equivalent to calling [`scan_from_tweaks`] with this bundle's
-    /// `scan_sk` and `spend_pk`; the spend secret key is not used.
+    /// [`scan_from_tweaks`] with this bundle's scan secret key and spend public key.
     fn scan(
         &self,
         tweak_data: &TweakData,

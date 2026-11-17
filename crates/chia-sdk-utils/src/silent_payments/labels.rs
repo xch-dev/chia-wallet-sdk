@@ -1,21 +1,4 @@
-//! Label generation and label-index ↔ label-pubkey registry for CHIP-0057
-//! silent payments.
-//!
-//! CHIP-0057 "Label Generation":
-//! ```text
-//! label_data    = ser256(b_scan) || ser32(m)
-//! label_scalar  = int(tagged_hash("Chia_SP/Label", label_data)) mod r
-//! label_pk      = label_scalar * G
-//! B_m           = B_spend + label_pk
-//! ```
-//!
-//! `m = 0` ([`CHANGE_LABEL`]) is reserved for the wallet's own change. The
-//! scanner always checks it, whether or not it is registered, and the wallet
-//! obtains its change address with
-//! [`super::SilentPaymentKeys::change_address`].
-//! [`super::SilentPaymentKeys::labeled_address`] rejects it so that the change
-//! address is never handed out by accident; [`generate_label`] and
-//! [`LabelRegistry::register`] accept it.
+//! Labels and the registry a scanner looks them up in (CHIP-0057 "Label Generation").
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -24,19 +7,11 @@ use chia_sdk_types::silent_payments::{CHIA_SP_LABEL, ScalarField, tagged_hash};
 
 use super::SilentPaymentError;
 
-/// The label index reserved for the wallet's own change outputs (CHIP-0057
-/// "Change Detection"). An address with this label must never be handed out.
+/// The label reserved for the wallet's own change (CHIP-0057 "Change Detection"). Its address
+/// must never be handed out.
 pub const CHANGE_LABEL: u32 = 0;
 
-/// Compute the label scalar and label public key for label index `m`.
-///
-/// Returns `(label_scalar, label_pk)` where `label_pk = label_scalar * G`.
-/// The scalar uses UNSIGNED mod-r reduction via the [`ScalarField`] boundary;
-/// see `ScalarField::from_bytes_unsigned` for why that interpretation is
-/// mandatory.
-///
-/// `m = 0` is accepted at this layer — the public boundary is in
-/// [`super::SilentPaymentKeys::labeled_address`].
+/// The label scalar and label public key for label index `m`, including `m = 0`.
 pub(crate) fn generate_label(scan_sk: &SecretKey, m: u32) -> (ScalarField, PublicKey) {
     let mut data = [0u8; 36];
     data[..32].copy_from_slice(&scan_sk.to_bytes());
@@ -49,12 +24,8 @@ pub(crate) fn generate_label(scan_sk: &SecretKey, m: u32) -> (ScalarField, Publi
     (label_scalar, label_sk.public_key())
 }
 
-/// The labels a wallet scans for under one scan key, as a bidirectional
-/// `label_index ↔ label_pk` map.
-///
-/// The registry is bound to its scan key: it stores the scan public key,
-/// [`LabelRegistry::register`] refuses any other key, and the scanner refuses a
-/// registry of another scan key. It holds no secret.
+/// The labels a wallet scans for under one scan key. It stores the scan public key and no
+/// secret; [`LabelRegistry::register`] and the scanner refuse another scan key.
 #[derive(Clone, Debug)]
 pub struct LabelRegistry {
     scan_pk: PublicKey,
@@ -79,12 +50,8 @@ impl LabelRegistry {
         &self.scan_pk
     }
 
-    /// Register label `m`. `scan_sk` must be the scan secret key the registry
-    /// was created for ([`SilentPaymentError::LabelRegistryKeyMismatch`]
-    /// otherwise).
-    ///
-    /// `m = 0` is accepted but has no effect on scanning: the scanner always
-    /// checks the change label.
+    /// Registers label `m`. Returns [`SilentPaymentError::LabelRegistryKeyMismatch`] if
+    /// `scan_sk` is not the registry's scan key. Label 0 is always scanned, registered or not.
     pub fn register(&mut self, scan_sk: &SecretKey, m: u32) -> Result<(), SilentPaymentError> {
         if scan_sk.public_key() != self.scan_pk {
             return Err(SilentPaymentError::LabelRegistryKeyMismatch);
@@ -97,33 +64,31 @@ impl LabelRegistry {
         Ok(())
     }
 
-    /// Look up the label public key for a registered label index.
+    /// The label public key of a registered label.
     #[must_use]
     pub fn forward(&self, m: u32) -> Option<&PublicKey> {
         self.forward.get(&m)
     }
 
-    /// Look up the label index that registers a given label public key.
-    /// Used by the scanner to attribute a labeled detection.
+    /// The registered label with the label public key `label_pk`.
     #[must_use]
     pub fn lookup(&self, label_pk: &PublicKey) -> Option<u32> {
         self.reverse.get(&label_pk.to_bytes()).copied()
     }
 
-    /// Number of registered labels.
+    /// The number of registered labels.
     #[must_use]
     pub fn len(&self) -> usize {
         self.forward.len()
     }
 
-    /// True if no labels are registered.
+    /// Whether no labels are registered.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.forward.is_empty()
     }
 
-    /// Iterate registered `(m, label_pk)` pairs in ascending order of `m`, so
-    /// that the scanner checks labels in a deterministic order.
+    /// The registered `(m, label_pk)` pairs in ascending order of `m`.
     pub fn iter(&self) -> impl Iterator<Item = (u32, &PublicKey)> {
         self.forward.iter().map(|(&m, pk)| (m, pk))
     }

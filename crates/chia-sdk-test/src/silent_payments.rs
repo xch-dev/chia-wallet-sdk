@@ -1,13 +1,5 @@
-//! Test-side helpers for CHIP-0057 silent payments.
-//!
-//! These helpers are NOT production code — they exist so that the simulator
-//! and binding test suites can construct `TweakData` from on-chain state
-//! without going through a future transport protocol (not currently supported).
-//!
-//! Convenience re-exports of the wallet-side address/key types from
-//! `chia-sdk-utils::silent_payments` so that downstream simulator round-trip
-//! tests can reach `SilentPaymentAddress` and `SilentPaymentKeys` through one
-//! import path.
+//! Test helpers for silent payments (CHIP-0057): tweak data from a simulator block, and
+//! re-exports of the address and key types.
 
 mod tweak_data;
 

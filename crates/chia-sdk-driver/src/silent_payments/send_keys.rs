@@ -6,15 +6,9 @@ use std::fmt;
 use chia_bls::{PublicKey, SecretKey};
 use chia_puzzle_types::DeriveSynthetic;
 
-/// A `chia_bls::SecretKey` proven (by construction via [`SyntheticSecretKey::from_raw`]
-/// or by the check when the transaction is prepared) to be the SYNTHETIC secret key —
-/// the one whose public key is curried into `StandardArgs::synthetic_key`. The
-/// CHIP-0057 send path aggregates these verbatim; passing a raw wallet SK lands
-/// funds at an undetectable one-time puzzle hash, so the type exists to make that
-/// a compile error.
-///
-/// `Debug` does not print the key (`chia_bls::SecretKey`'s own `Debug` prints
-/// it in full). The key is not zeroized on drop, because `chia_bls::SecretKey`
+/// A secret key known to be the SYNTHETIC key curried into a coin's standard puzzle. A raw
+/// wallet key would derive a one-time puzzle hash no scanner finds, so the send path takes this
+/// type. `Debug` does not print the key; it is not zeroized on drop, as `chia_bls::SecretKey`
 /// cannot be.
 #[derive(Clone)]
 pub struct SyntheticSecretKey(SecretKey);
@@ -26,18 +20,14 @@ impl fmt::Debug for SyntheticSecretKey {
 }
 
 impl SyntheticSecretKey {
-    /// Synthesize from a raw wallet SK via the DEFAULT hidden puzzle — the same
-    /// `chia_puzzle_types::DeriveSynthetic` path `puzzle_hash_for_pk` uses, so
-    /// outputs stay byte-identical to the standard-spend convention.
+    /// The synthetic key of a raw wallet key, derived with the default hidden puzzle.
     #[must_use]
     pub fn from_raw(raw: &SecretKey) -> Self {
         Self(raw.derive_synthetic())
     }
 
-    /// Escape hatch: wrap a key the caller asserts is already synthetic. NOT
-    /// validated here — the check when the transaction is prepared
-    /// (`curry_tree_hash(sk.public_key()) == coin p2_puzzle_hash`)
-    /// is the universal backstop that rejects a mis-wrapped key before signing.
+    /// Wraps a key the caller asserts is already synthetic. It is not checked here; a key that
+    /// does not belong to its coin is rejected when the transaction is prepared.
     #[must_use]
     pub fn from_synthetic_unchecked(synthetic: SecretKey) -> Self {
         Self(synthetic)
@@ -62,27 +52,19 @@ impl SyntheticSecretKey {
     }
 }
 
-/// A `chia_bls::PublicKey` proven (by construction via [`SyntheticPublicKey::from_raw`]
-/// or by the check when the transaction is prepared) to be the SYNTHETIC public key —
-/// the one curried into `StandardArgs::synthetic_key`. The CHIP-0057 send path
-/// uses these verbatim; passing a raw wallet PK lands funds at an undetectable
-/// one-time puzzle hash, so the type exists to make that a compile error.
+/// A public key known to be the SYNTHETIC key curried into a coin's standard puzzle; see
+/// `SyntheticSecretKey`.
 #[derive(Debug, Clone, Copy)]
 pub struct SyntheticPublicKey(PublicKey);
 
 impl SyntheticPublicKey {
-    /// Synthesize from a raw wallet PK via the DEFAULT hidden puzzle — the same
-    /// `chia_puzzle_types::DeriveSynthetic` path `puzzle_hash_for_pk` uses, so
-    /// outputs stay byte-identical to the standard-spend convention.
+    /// The synthetic key of a raw wallet public key, derived with the default hidden puzzle.
     #[must_use]
     pub fn from_raw(raw: &PublicKey) -> Self {
         Self(raw.derive_synthetic())
     }
 
-    /// Escape hatch: wrap a key the caller asserts is already synthetic. NOT
-    /// validated here — the check when the transaction is prepared
-    /// (`curry_tree_hash(pk) == coin p2_puzzle_hash`) is the universal backstop
-    /// that rejects a mis-wrapped key before signing.
+    /// Wraps a key the caller asserts is already synthetic, without checking it.
     #[must_use]
     pub fn from_synthetic_unchecked(synthetic: PublicKey) -> Self {
         Self(synthetic)

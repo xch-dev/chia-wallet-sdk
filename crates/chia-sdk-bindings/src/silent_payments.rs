@@ -1,21 +1,4 @@
-//! Silent-payments (chip-0057) binding facade.
-//!
-//! chip-0057 is enabled unconditionally on this crate's chia-sdk-{driver,utils,
-//! types,test} dependencies, so the facade carries no cargo feature of its own
-//! and no `#[cfg(feature = "chip-0057")]` attributes. The free-function
-//! primitives (`scan_from_tweaks`, `derive_onetime_sk`,
-//! `derive_one_time_puzzle_hash`, `compute_input_hash`, `aggregate_sender_sks`,
-//! `tweak_data_from_block_spends`) are surfaced as static methods
-//! on a zero-field `SilentPayments` namespace class — the same shape used by
-//! the `Constants` and `Clvm` facades elsewhere in this crate. `ScalarField`
-//! is exposed as its own bindy class (not type-grouped to `{bytes}`) so the
-//! unsigned mod-r reduction invariant survives the FFI boundary and cannot be
-//! bypassed by callers handing in a raw 32-byte buffer.
-//!
-//! Privacy warning: silent-payment memos and scan keys carry chip-0057 hazards.
-//! Any party holding the recipient's scan secret key can detect every payment
-//! to that address, and memos attached to silent-payment outputs land on chain
-//! in plaintext.
+//! Bindings for silent payments (CHIP-0057).
 
 use std::sync::{Arc, Mutex};
 
@@ -28,10 +11,6 @@ use clvmr::serde::{node_from_bytes, node_to_bytes};
 
 use crate::Mnemonic;
 
-// ─── SilentPaymentNetwork (unit-variant enum) ────────────────────────────
-
-/// Network discriminator for silent-payment addresses (mainnet `spxch` /
-/// testnet `tspxch`).
 #[derive(Clone, Copy, Debug)]
 pub enum SilentPaymentNetwork {
     Mainnet,
@@ -56,9 +35,6 @@ impl From<SilentPaymentNetwork> for chia_sdk_utils::silent_payments::SilentPayme
     }
 }
 
-// ─── SilentPaymentAddress (3-field class + encode/decode) ────────────────
-
-/// CHIP-0057 silent-payment bech32m address.
 #[derive(Clone)]
 pub struct SilentPaymentAddress {
     pub scan_pk: PublicKey,
@@ -102,12 +78,6 @@ impl From<SilentPaymentAddress> for chia_sdk_utils::silent_payments::SilentPayme
     }
 }
 
-// ─── SilentPaymentKeys (opaque wrapper with getters + factories) ─────────
-
-/// CHIP-0057 scan + spend key bundle.
-///
-/// Privacy warning: `scan_sk` lets the holder see every payment to the
-/// associated address. Treat as the more sensitive key for at-rest storage.
 #[derive(Clone)]
 pub struct SilentPaymentKeys(chia_sdk_utils::silent_payments::SilentPaymentKeys);
 
@@ -152,42 +122,28 @@ impl SilentPaymentKeys {
         Ok(self.0.labeled_address(network.into(), m)?.into())
     }
 
-    /// The wallet's own change address (reserved label `m = 0`).
-    ///
-    /// Never share this address: anyone who knows it can create payments that
-    /// the wallet identifies as its own change. The scanner always checks the
-    /// change label and reports it as label 0.
+    /// The address of the change label (m = 0). It must not be shared.
     pub fn change_address(&self, network: SilentPaymentNetwork) -> Result<SilentPaymentAddress> {
         Ok(self.0.change_address(network.into()).into())
     }
 
-    /// A `LabelRegistry` of this wallet's scan key with `labels` registered,
-    /// for `SilentPayments.scan_from_tweaks`.
     pub fn label_registry(&self, labels: Vec<u32>) -> Result<LabelRegistry> {
         Ok(self.0.label_registry(labels).into())
     }
 }
 
-// ─── LabelRegistry (full register/forward/lookup/len/is_empty API) ───────
-//
-// Wrapped in Arc<Mutex<_>> so the bindy-generated `&self` dispatch can mutate
-// the underlying registry — bindy methods are always `&self` on the wrapper,
-// matching the Spends/FinishedSpends precedent in action_system.rs.
-
 #[derive(Clone)]
 pub struct LabelRegistry(Arc<Mutex<chia_sdk_utils::silent_payments::LabelRegistry>>);
 
 impl LabelRegistry {
-    /// An empty registry for the scan secret key `scan_sk`. Only the scan
-    /// public key is kept.
+    /// Only the scan public key is kept.
     pub fn new(scan_sk: SecretKey) -> Result<Self> {
         Ok(Self(Arc::new(Mutex::new(
             chia_sdk_utils::silent_payments::LabelRegistry::new(&scan_sk),
         ))))
     }
 
-    /// Register label index `m`. `scan_sk` must be the key the registry was
-    /// created for.
+    /// `scan_sk` must be the key the registry was created for.
     pub fn register(&self, scan_sk: SecretKey, m: u32) -> Result<()> {
         self.0
             .lock()
@@ -197,7 +153,6 @@ impl LabelRegistry {
         Ok(())
     }
 
-    /// The scan public key the registry belongs to.
     pub fn scan_pk(&self) -> Result<PublicKey> {
         Ok(*self.0.lock().unwrap().scan_pk())
     }
@@ -228,18 +183,12 @@ impl From<chia_sdk_utils::silent_payments::LabelRegistry> for LabelRegistry {
 
 impl From<LabelRegistry> for chia_sdk_utils::silent_payments::LabelRegistry {
     fn from(value: LabelRegistry) -> Self {
-        // bindy passes `LabelRegistry` by value into static methods like
-        // `SilentPayments::scan_from_tweaks`. Unwrap the Arc<Mutex<_>>;
-        // try_unwrap is the cheap path, fall back to cloning the inner if
-        // another handle is alive.
         match Arc::try_unwrap(value.0) {
             Ok(mutex) => mutex.into_inner().unwrap(),
             Err(arc) => arc.lock().unwrap().clone(),
         }
     }
 }
-
-// ─── OutputMeta (4-field class with auto-generated new) ──────────────────
 
 #[derive(Clone)]
 pub struct OutputMeta {
@@ -271,14 +220,7 @@ impl From<OutputMeta> for chia_sdk_driver::OutputMeta {
     }
 }
 
-// ─── SilentPaymentWrapper (the asset of a CAT output) ────────────────────
-
-/// The wrapper of a CAT (CHIP-0057 "Extension to CATs"): the asset ID and, for
-/// a revocable CAT, the revocation layer's hidden puzzle hash. XCH has no
-/// wrapper (`None` wherever a wrapper is optional).
-///
-/// Named `SilentPaymentWrapper` because the bindings' namespace is flat and
-/// already has `WrapperMemo` and `ParsedWrapper`.
+/// The driver's `Wrapper`. The bindings already have `WrapperMemo` and `ParsedWrapper`.
 #[derive(Clone)]
 pub struct SilentPaymentWrapper {
     pub asset_id: Bytes32,
@@ -286,9 +228,6 @@ pub struct SilentPaymentWrapper {
 }
 
 impl SilentPaymentWrapper {
-    /// `wrap(W, h)`: the puzzle hash of a coin of this asset whose inner
-    /// standard puzzle has tree hash `puzzle_hash` (the CAT layer, and the
-    /// revocation layer for a revocable CAT, around it).
     pub fn wrap(&self, puzzle_hash: Bytes32) -> Result<Bytes32> {
         Ok(chia_sdk_driver::Wrapper::from(self.clone()).wrap(puzzle_hash))
     }
@@ -312,24 +251,15 @@ impl From<SilentPaymentWrapper> for chia_sdk_driver::Wrapper {
     }
 }
 
-// ─── TweakData (3 fields, explicit two-argument constructor) ─────────────
-//
-// The constructor is explicit, not bindy's `"new": true` (which takes every
-// field), so `TweakData(tweak_points, outputs)` keeps its two arguments after
-// `wrappers` was added. `with_wrappers` builds tweak data with the block's
-// wrapper list.
-
 #[derive(Clone)]
 pub struct TweakData {
     pub tweak_points: Vec<PublicKey>,
     pub outputs: Vec<OutputMeta>,
-    /// The block's wrapper list; empty when no CAT coin is spent in it. The
-    /// scanner tests every output bare and under each wrapper.
     pub wrappers: Vec<SilentPaymentWrapper>,
 }
 
 impl TweakData {
-    /// Tweak data with an empty wrapper list: outputs are tested bare only.
+    // Explicit, not bindy's `"new": true`, which would take every field.
     pub fn new(tweak_points: Vec<PublicKey>, outputs: Vec<OutputMeta>) -> Result<Self> {
         Ok(Self {
             tweak_points,
@@ -338,7 +268,6 @@ impl TweakData {
         })
     }
 
-    /// Tweak data with the block's wrapper list.
     pub fn with_wrappers(
         tweak_points: Vec<PublicKey>,
         outputs: Vec<OutputMeta>,
@@ -372,29 +301,14 @@ impl From<TweakData> for chia_sdk_driver::TweakData {
     }
 }
 
-// ─── ScalarField (own class, NOT type-grouped to {bytes}) ────────────────
-
-/// CHIP-0057 mod-r scalar with unsigned reduction at construction.
-///
-/// Scalars such as a detection's tweak and a label scalar are sensitive. The
-/// underlying value is zeroized when the object is dropped, but bytes returned
-/// by `to_bytes` are the caller's to protect.
-///
-/// Use `ScalarField.fromBytes(bytes)` (TS) / `ScalarField.from_bytes(bytes)`
-/// (py) to construct from any 32-byte input — the factory reduces mod r so
-/// wallet authors cannot accidentally pass an unreduced value into
-/// `SilentPayments.deriveOneTimePuzzleHash`. Exposing this as a dedicated
-/// class (rather than collapsing to a raw `{bytes}` type group) is what makes
-/// the unsigned-vs-signed reduction choice survive the FFI boundary.
+/// A scalar mod r. It is its own class, not a bytes type, so that every value is reduced.
 #[derive(Clone)]
 pub struct ScalarField(chia_sdk_types::silent_payments::ScalarField);
 
 impl ScalarField {
     pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
-        // MUST use the unsigned-reducing factory. The unchecked / no-reduction
-        // sibling on `ScalarField` is deliberately not surfaced through this
-        // facade — exposing it would let a caller hand in a value above r,
-        // producing silently-undetectable on-chain payments.
+        // The constructor without reduction is not exposed: an unreduced scalar gives payments no
+        // scanner finds.
         Ok(Self(
             chia_sdk_types::silent_payments::ScalarField::from_bytes_unsigned(bytes.into()),
         ))
@@ -417,17 +331,7 @@ impl From<ScalarField> for chia_sdk_types::silent_payments::ScalarField {
     }
 }
 
-// ─── DetectedSilentPaymentCoin (return type of scan_from_tweaks) ────────────────────
-
-/// A detected silent-payment coin. Produced from the scan secret key and the
-/// spend public key alone: it carries the combined tweak
-/// `(t_k + label_scalar) mod r`, not a spendable key. Call `onetime_sk` with
-/// the spend secret key to obtain the one-time key.
-///
-/// `puzzle_hash` is the bare one-time puzzle hash (the inner puzzle hash of a
-/// CAT output). `wrapper` is the asset under which the coin matched: `None`
-/// for XCH. `coin()` is the coin as it is on chain, with puzzle hash
-/// `wrap(wrapper, puzzle_hash)`.
+/// `puzzle_hash` is the bare one-time puzzle hash; `coin()` is the coin as it is on chain.
 #[derive(Clone)]
 pub struct DetectedSilentPaymentCoin {
     pub coin_id: Bytes32,
@@ -441,9 +345,6 @@ pub struct DetectedSilentPaymentCoin {
 }
 
 impl DetectedSilentPaymentCoin {
-    /// The detected output coin as it is on chain: for a CAT output its puzzle
-    /// hash is the wrapped one, `wrap(wrapper, puzzle_hash)`; for XCH it is
-    /// the bare one-time puzzle hash.
     pub fn coin(&self) -> Result<Coin> {
         let wrapper = self.wrapper.clone().map(chia_sdk_driver::Wrapper::from);
         Ok(Coin::new(
@@ -453,8 +354,7 @@ impl DetectedSilentPaymentCoin {
         ))
     }
 
-    /// The one-time secret key of the coin: `(spend_sk + tweak) mod r`. The
-    /// coin is spent with the synthetic key of the result.
+    /// The coin is spent with the synthetic key of the result.
     pub fn onetime_sk(&self, spend_sk: SecretKey) -> Result<SecretKey> {
         Ok(chia_sdk_driver::derive_onetime_sk(
             &spend_sk,
@@ -478,58 +378,37 @@ impl From<chia_sdk_driver::DetectedSilentPaymentCoin> for DetectedSilentPaymentC
     }
 }
 
-// ─── SilentPaymentLabel (return type of generate_label) ──────────────────
-
-/// A CHIP-0057 label: `scalar = int(tagged_hash("Chia_SP/Label", ser256(b_scan)
-/// || ser32(m))) mod r` and `public_key = scalar * G`. The labeled spend key is
-/// `B_m = B_spend + public_key`.
-///
-/// The scalar is derived from the scan secret key and links a labeled address
-/// to the wallet's other addresses, so it must be kept private.
+/// `scalar` links a labeled address to the wallet's other addresses and must be kept private.
 #[derive(Clone)]
 pub struct SilentPaymentLabel {
     pub scalar: ScalarField,
     pub public_key: PublicKey,
 }
 
-// ─── SilentPayments (zero-field namespace of statics) ────────────────────
-
-/// Static-functions namespace. Hosts the free-fn protocol primitives under one
-/// class name. Mirrors the namespace shape used by `Constants` and `Clvm`
-/// elsewhere in the facade.
 #[derive(Clone)]
 pub struct SilentPayments;
 
-/// One `(p2_puzzle_hash, secret_key)` entry of the keys passed to
-/// `Spends.prepare_with_silent_payment_keys`. `secret_key` is the raw wallet
-/// secret key; the synthetic key is derived with the default hidden puzzle.
+/// `secret_key` is the raw wallet secret key; the synthetic key is derived from it.
 #[derive(Clone)]
 pub struct SilentPaymentSecretKey {
     pub p2_puzzle_hash: Bytes32,
     pub secret_key: SecretKey,
 }
 
-// ─── Spend groups of a block ──────────────────────────────────────────────
-
-/// An eligible spend (CHIP-0057 `eligible_spend`): the synthetic public key of
-/// its standard puzzle and its wrapper (`None` for XCH).
 #[derive(Clone)]
 pub struct SilentPaymentEligibleSpend {
     pub synthetic_key: PublicKey,
     pub wrapper: Option<SilentPaymentWrapper>,
 }
 
-/// A coin of a spend group and its wrapper (`None` for XCH).
 #[derive(Clone)]
 pub struct SilentPaymentSpendGroupCoin {
     pub coin_id: Bytes32,
     pub wrapper: Option<SilentPaymentWrapper>,
 }
 
-/// A spend group of a block: its coins in the block's order, its tweak point
-/// and the coins that count as its outputs for a light-wallet server, which
-/// are the coins its members create and the coins created by the spends whose
-/// puzzle announcements they assert (settlement coins).
+/// `outputs` are the coins its members create and the coins created by the spends whose puzzle
+/// announcements they assert (settlement coins).
 #[derive(Clone)]
 pub struct SilentPaymentSpendGroup {
     pub coins: Vec<SilentPaymentSpendGroupCoin>,
@@ -537,33 +416,12 @@ pub struct SilentPaymentSpendGroup {
     pub outputs: Vec<Coin>,
 }
 
-// ─── Settlement coins (derive_settlement_outputs, without tuples) ─────────
-//
-// bindy cannot marshal tuples or `Vec<Option<T>>`, so the spend group, the
-// recipient entries and the results of
-// `chia_sdk_driver::derive_settlement_outputs` cross the FFI as small classes.
-// CLVM values (payments, notarized payments) cross as their serialized bytes,
-// as an offer lists them.
+// bindy cannot marshal tuples or `Vec<Option<T>>`, so the arguments and results of
+// `derive_settlement_outputs` are small classes, and CLVM values are serialized bytes.
 
-/// One coin of a party's spend group: its coin ID, its puzzle hash on chain
-/// (the standard puzzle hash for XCH, `wrap(W, standard puzzle hash)` for a
-/// CAT coin), its SYNTHETIC secret key and its asset (`None` for XCH).
-///
-/// Unlike `SilentPaymentSecretKey`, which takes the raw wallet key,
-/// `secret_key` is the synthetic key, the one whose public key is curried into
-/// the coin's standard puzzle. `derive_settlement_outputs` checks that the key
-/// belongs to the coin, `wrap(wrapper, curry_tree_hash(secret_key.public_key()))
-/// == puzzle_hash`, and fails otherwise (`SilentPaymentKeyNotSynthetic`): a raw
-/// wallet key, another coin's key or the wrong wrapper would pay one-time
-/// puzzle hashes no scanner finds.
-///
-/// `from_coin(coin, secret_key, wrapper)` takes the coin ID and the puzzle
-/// hash from the coin itself; use it for a coin of a transaction. The
-/// constructor takes them separately, for the CHIP's test vectors, whose coin
-/// IDs have no coin behind them; `puzzle_hash` must then still be the coin's,
-/// never a hash computed from the key.
-///
-/// Privacy warning: `secret_key` is the coin's spending key.
+/// `secret_key` is the SYNTHETIC secret key of the coin, unlike `SilentPaymentSecretKey`, and
+/// `puzzle_hash` the coin's puzzle hash on chain. `derive_settlement_outputs` fails with
+/// `SilentPaymentKeyNotSynthetic` if the key does not belong to the coin.
 #[derive(Clone)]
 pub struct SilentPaymentGroupCoin {
     pub coin_id: Bytes32,
@@ -573,8 +431,6 @@ pub struct SilentPaymentGroupCoin {
 }
 
 impl SilentPaymentGroupCoin {
-    /// The entry of `coin`, held with the synthetic key `secret_key` in the
-    /// asset `wrapper` (`None` for XCH).
     pub fn from_coin(
         coin: Coin,
         secret_key: SecretKey,
@@ -589,12 +445,8 @@ impl SilentPaymentGroupCoin {
     }
 }
 
-/// A recipient entry of `derive_settlement_outputs`: `amount` of the asset
-/// `wrapper` to the silent payment address `(scan_pk, spend_pk)`, where
-/// `spend_pk` is the spend key of the address paid (`B_m` for a labeled
-/// address; the change is label 0). `settled` is true for a payment made by
-/// the settlement coin of the asset, false for an output of the party's own
-/// spend group.
+/// `settled` is true for a payment made by a settlement coin and false for an output of the
+/// party's own spend group. `spend_pk` is the spend key of the address paid (`B_m` for a label).
 #[derive(Clone)]
 pub struct SilentPaymentSettlementRecipient {
     pub scan_pk: PublicKey,
@@ -604,19 +456,13 @@ pub struct SilentPaymentSettlementRecipient {
     pub amount: u64,
 }
 
-/// A requested payment of the party to an address that is not a silent
-/// payment address, in the asset `wrapper`: `payment` is the serialized CLVM
-/// of the payment as the party lists it in its offer, `(puzzle_hash amount
-/// memos)`.
+/// `payment` is the serialized CLVM of the payment, `(puzzle_hash amount memos)`.
 #[derive(Clone)]
 pub struct SilentPaymentOtherPayment {
     pub wrapper: Option<SilentPaymentWrapper>,
     pub payment: Bytes,
 }
 
-/// An output of the party's own spend group (a recipient entry that is not
-/// settled): the bare one-time puzzle hash and `wrap(wrapper, puzzle_hash)`,
-/// the puzzle hash of the coin a coin of the group creates.
 #[derive(Clone)]
 pub struct SilentPaymentGroupOutput {
     pub k: u32,
@@ -626,18 +472,8 @@ pub struct SilentPaymentGroupOutput {
     pub wrapped_puzzle_hash: Bytes32,
 }
 
-/// The result of `SilentPayments.derive_settlement_outputs`.
-///
-/// - `settlement_outputs`: `wrap(W, p)` of each settled entry, in the order of
-///   the recipients, the coins the settlement coins must create.
-/// - `settled_payments`: the serialized payment of each settled entry, XCH
-///   `(p amount ())` and CAT `(p amount (p))`.
-/// - `notarized_payments`: one serialized notarized payment
-///   `(nonce . payments)` per asset, in order of first appearance.
-/// - `announcements`: the puzzle announcement each notarized payment's
-///   settlement coin makes, aligned with `notarized_payments`; one coin of the
-///   party's group asserts each.
-/// - `group_outputs`: the outputs of the entries that are not settled.
+/// `settlement_outputs` and `settled_payments` follow the order of the settled recipients;
+/// `announcements` is aligned with `notarized_payments`, one per asset.
 #[derive(Clone)]
 pub struct SilentPaymentSettlement {
     pub settlement_outputs: Vec<Bytes32>,
@@ -647,7 +483,6 @@ pub struct SilentPaymentSettlement {
     pub group_outputs: Vec<SilentPaymentGroupOutput>,
 }
 
-/// The serialized CLVM of `value`, allocated in `ctx`.
 fn serialized<T>(ctx: &mut SpendContext, value: &T) -> Result<Bytes>
 where
     T: clvm_traits::ToClvm<clvmr::Allocator>,
@@ -657,29 +492,12 @@ where
 }
 
 impl SilentPayments {
-    /// `K_max` (2,400): the maximum number of silent-payment outputs for one
-    /// scan key in one spend group (CHIP-0057 "Kmax: Maximum Outputs Per Spend
-    /// Group"). A sender must not exceed it, and it is the iteration cap to
-    /// pass to `scan_from_tweaks`.
-    ///
-    /// Exposed as a zero-argument static, the way `Constants` exposes its
-    /// values.
+    /// `K_max`, the most outputs to one scan key in a spend group; pass it to `scan_from_tweaks`.
     pub fn k_max() -> Result<u32> {
         Ok(chia_sdk_types::silent_payments::K_MAX)
     }
 
-    /// Detect silent-payment outputs in a `TweakData` blob.
-    ///
-    /// The change label `m = 0` is always checked, whether or not it is in
-    /// `labels`, and a match is reported as label 0.
-    ///
-    /// Needs only the scan secret key and the spend public key, so it can run
-    /// on a watch-only device. Each detection carries the combined tweak; the
-    /// holder of the spend secret key turns it into the one-time key with
-    /// `DetectedSilentPaymentCoin.onetime_sk` or `SilentPayments.derive_onetime_sk`.
-    ///
-    /// Privacy warning: anyone with the scan secret key sees every payment to
-    /// the wallet.
+    /// The change label (m = 0) is always checked and is reported as label 0.
     pub fn scan_from_tweaks(
         b_scan: SecretKey,
         b_spend_pub: PublicKey,
@@ -699,8 +517,6 @@ impl SilentPayments {
         Ok(detections.into_iter().map(Into::into).collect())
     }
 
-    /// Compute the label scalar and label public key for label index `m`
-    /// (CHIP-0057 "Label Generation"). `m = 0` is the reserved change label.
     pub fn generate_label(scan_sk: SecretKey, m: u32) -> Result<SilentPaymentLabel> {
         let (scalar, public_key) = chia_sdk_utils::silent_payments::generate_label(&scan_sk, m);
         Ok(SilentPaymentLabel {
@@ -709,14 +525,10 @@ impl SilentPayments {
         })
     }
 
-    /// The one-time secret key for a detection's combined tweak:
-    /// `(spend_sk + tweak) mod r`. This is the only step of receiving a silent
-    /// payment that needs the spend secret key.
     pub fn derive_onetime_sk(spend_sk: SecretKey, tweak: ScalarField) -> Result<SecretKey> {
         Ok(chia_sdk_driver::derive_onetime_sk(&spend_sk, &tweak.0)?)
     }
 
-    /// The one-time puzzle hash of the sender's `k`-th output to a scan key.
     /// `aggregated_sender_sk` is the result of `aggregate_sender_sks`.
     pub fn derive_one_time_puzzle_hash(
         b_scan_pub: PublicKey,
@@ -742,14 +554,8 @@ impl SilentPayments {
         Ok(chia_sdk_driver::compute_input_hash(&coin_ids, &aggregated_sender_pk)?.into())
     }
 
-    /// The tweak point of a spend group, `T = input_hash * A_sum` (CHIP-0057
-    /// "Tweak Points"), from the coin ids of the group and the sum of its
-    /// synthetic public keys. This is what a server computes for light
-    /// clients, one per spend group.
-    ///
-    /// Returns nothing for a group that is left out of a block's tweak points:
-    /// one whose key sum is the identity element, or whose input hash is zero.
-    /// An empty `coin_ids` is an error.
+    /// Returns nothing for a group that a block's tweak points leave out: its key sum is the
+    /// identity element or its input hash is zero.
     pub fn compute_tweak_point(
         coin_ids: Vec<Bytes32>,
         aggregated_sender_pk: PublicKey,
@@ -763,28 +569,11 @@ impl SilentPayments {
         ))
     }
 
-    /// The sum of the sender's synthetic secret keys mod r, one term per coin
-    /// of the spend group. Fails if the sum is zero.
+    /// The sum of the synthetic secret keys of the spend group. Fails if it is zero.
     pub fn aggregate_sender_sks(sks: Vec<SecretKey>) -> Result<SecretKey> {
         Ok(chia_sdk_driver::aggregate_sender_sks(&sks)?)
     }
 
-    /// Build a `TweakData` from a real-block `Vec<CoinSpend>` + `Vec<Coin>`
-    /// (post-decompression). The canonical entry point for any wallet
-    /// processing real blocks (testnet11, mainnet) — not just the in-process
-    /// simulator — and for transport clients that materialise block data from
-    /// upstream RPC.
-    ///
-    /// Delegates to the driver-side
-    /// `chia_sdk_driver::silent_payments::tweak_data_from_block_spends`, which
-    /// forms the block's spend groups as in CHIP-0057 "Scanning a Block":
-    /// every standard-puzzle spend on its own, plus every strongly connected
-    /// component of two or more standard-puzzle spends in the
-    /// `ASSERT_CONCURRENT_SPEND` graph. CAT and revocable-CAT spends on the
-    /// holder's path join the groups with the key of their inner standard
-    /// puzzle, and give the block's wrapper list (`TweakData.wrappers`, in the
-    /// CHIP's order). Spends of other puzzles (NFT, DID, ...) are ignored, and
-    /// groups whose keys sum to the identity element yield no tweak point.
     pub fn tweak_data_from_block_spends(
         coin_spends: Vec<CoinSpend>,
         additions: Vec<Coin>,
@@ -796,9 +585,7 @@ impl SilentPayments {
         Ok(driver_td.into())
     }
 
-    /// The spend groups of a block, in the order of the tweak points of
-    /// `tweak_data_from_block_spends`, each with its coins, tweak point and
-    /// outputs. This is what a light-wallet server serves.
+    /// In the order of the tweak points of `tweak_data_from_block_spends`.
     pub fn spend_groups_from_block_spends(
         coin_spends: Vec<CoinSpend>,
         additions: Vec<Coin>,
@@ -822,8 +609,6 @@ impl SilentPayments {
             .collect())
     }
 
-    /// CHIP-0057 `eligible_spend`: the key and the wrapper of a coin spend
-    /// that can be in a spend group, or nothing for any other spend.
     pub fn eligible_spend(coin_spend: CoinSpend) -> Result<Option<SilentPaymentEligibleSpend>> {
         Ok(
             chia_sdk_driver::eligible_spend(&coin_spend).map(|(synthetic_key, wrapper)| {
@@ -835,8 +620,6 @@ impl SilentPayments {
         )
     }
 
-    /// The distinct wrappers of `wrappers` in the order of a block's wrapper
-    /// list (CHIP-0057 "Wrapper List of a Block").
     pub fn sort_wrappers(wrappers: Vec<SilentPaymentWrapper>) -> Result<Vec<SilentPaymentWrapper>> {
         Ok(
             chia_sdk_driver::sort_wrappers(wrappers.into_iter().map(Into::into))
@@ -846,23 +629,8 @@ impl SilentPayments {
         )
     }
 
-    /// CHIP-0057 `DeriveSettlementOutputs`: the payments a party is paid
-    /// through settlement coins in an offer, derived from its own spend group.
-    ///
-    /// `group` is the party's spend group (coin ID, coin puzzle hash,
-    /// synthetic secret key and asset per coin), `recipients` its recipient entries (settled payments
-    /// and the outputs of its own group, such as its change, in one `k`
-    /// sequence per scan key), `other_payments` its requested payments to
-    /// addresses that are not silent payment addresses, and `nonce` the
-    /// offer's nonce of its requested payments. Runs in its own CLVM
-    /// allocator and returns the CLVM values serialized.
-    ///
-    /// Fails, without panicking, on an empty group, a key that is not the
-    /// synthetic key of its coin (curried into the standard puzzle and wrapped
-    /// in the coin's wrapper, it must give the coin's `puzzle_hash`), an
-    /// identity recipient key, a malformed other payment,
-    /// an output of the group in an asset no coin of the group holds, more
-    /// than `K_max` entries to one scan key, or a zero key sum.
+    /// CHIP-0057 `DeriveSettlementOutputs`. `recipients` are the settled payments and the outputs
+    /// of the party's own group, such as its change, in one `k` sequence per scan key.
     pub fn derive_settlement_outputs(
         group: Vec<SilentPaymentGroupCoin>,
         recipients: Vec<SilentPaymentSettlementRecipient>,

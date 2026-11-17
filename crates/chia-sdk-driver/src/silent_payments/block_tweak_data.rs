@@ -1,23 +1,10 @@
 //! Builds a [`TweakData`] from the coin spends and additions of a block (CHIP-0057 "Scanning a
 //! Block", "Tweak Points", "Wrapper List of a Block"). The caller decompresses the block
-//! generator; nothing here depends on `chia-consensus`.
+//! generator.
 //!
-//! - **Eligible spends** are recognized by exact layer matching
-//!   ([`eligible_spend_from_nodes`](super::eligible_spend_from_nodes)); any other spend
-//!   contributes no key, no coin id and no edge.
-//! - **Pass 1:** every eligible spend on its own is a spend group.
-//! - **Pass 2:** every eligible spend is run in full, as consensus does. Each
-//!   `ASSERT_CONCURRENT_SPEND` naming another eligible spend is a directed edge, and every
-//!   strongly connected component of two or more spends is a spend group. A coin that asserts a
-//!   group without being asserted back is therefore not part of it.
-//! - **Tweak points** are emitted once each, the single-input groups in `coin_spends` order, then
-//!   the multi-input groups. A group whose key sum is the identity or whose input hash is zero
-//!   yields none.
-//! - **Wrapper list:** every exact `cat_v2` spend adds its wrapper, eligible or not, in the
-//!   CHIP's order ([`sort_wrappers`]).
-//! - **Outputs** are every addition of the block. [`spend_groups_from_block_spends`] also gives
-//!   each group's own outputs for a light-wallet server (CHIP-0057 Appendix A): the children of
-//!   its coins and of every spend whose puzzle announcement a coin of the group asserts.
+//! Every eligible spend on its own is a spend group, and so is every strongly connected component
+//! of two or more eligible spends in the `ASSERT_CONCURRENT_SPEND` graph. The tweak points of the
+//! single-input groups come first, in the block's order.
 
 use std::collections::{HashMap, HashSet};
 
@@ -33,7 +20,6 @@ use crate::silent_payments::{
     OutputMeta, TweakData, Wrapper, compute_tweak_point, layers::classify_spend, sort_wrappers,
 };
 
-/// Eligible-spend row carried between stages.
 struct EligibleSpend {
     coin_id: Bytes32,
     synthetic_pk: PublicKey,
@@ -44,25 +30,8 @@ struct EligibleSpend {
     solution: NodePtr,
 }
 
-/// A spend group of a block (CHIP-0057 "Spend Groups across Assets"), with the
-/// coins that count as its outputs for light-wallet cut-through.
-///
-/// `coin_ids` and `member_wrappers` are aligned: one entry per eligible spend
-/// of the group, in the block's order, with its wrapper (`None` for an XCH
-/// coin). `tweak_point` is `input_hash * A_sum` of the group.
-///
-/// `outputs` are the children of the group's coins, then the children of
-/// every other spend of the block whose puzzle announcement a coin of the
-/// group asserts (`ASSERT_PUZZLE_ANNOUNCEMENT`), de-duplicated by coin ID
-/// (CHIP-0057 Appendix A, "Light Client Support"). Through that second part a
-/// payment created by a settlement coin of an offer stays with the party that
-/// asserted it ("Payments through Settlement Coins"). Every spend that makes an
-/// asserted announcement counts, since anyone can fund a coin that makes the
-/// same one; coin announcements are not followed.
-///
-/// A light-wallet server serves each group's tweak point with its `outputs`
-/// (cut-through). A full scanner still matches every addition of the block
-/// ([`tweak_data_from_block_spends`], CHIP-0057 "Output Matching Scope").
+/// A spend group of a block (CHIP-0057 "Spend Groups across Assets"), with the coins a
+/// light-wallet server serves as its outputs (CHIP-0057 Appendix A).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpendGroup {
     /// The IDs of the group's coins, one per eligible spend, in the block's order.
@@ -71,26 +40,14 @@ pub struct SpendGroup {
     pub tweak_point: PublicKey,
     /// The wrapper of each coin of `coin_ids` (`None` for an XCH coin).
     pub member_wrappers: Vec<Option<Wrapper>>,
-    /// The coins that count as the group's outputs for light-wallet cut-through.
+    /// The children of the group's coins, then of every other spend whose puzzle announcement a
+    /// coin of the group asserts, each once.
     pub outputs: Vec<Coin>,
 }
 
-/// The spend groups of a block, from its coin spends and additions: the
-/// single-input groups (Pass 1) and the multi-input groups (Pass 2) that
-/// [`tweak_data_from_block_spends`] computes its tweak points from, in the
-/// same order, each with its coin IDs, wrappers, tweak point and outputs (see
-/// [`SpendGroup`]). Groups that have no tweak point (a key sum that is the
-/// identity element, or a zero input hash) are left out, as there.
-///
-/// To find the spends whose puzzle announcements a group asserts, the spends
-/// of the block that are not eligible spends are run, but only when some
-/// eligible spend asserts a puzzle announcement, so a block without offers
-/// costs what [`tweak_data_from_block_spends`] costs.
-///
-/// # Errors
-///
-/// The current implementation never returns an error; the `Result` return
-/// type leaves room for validation to be added without an API break.
+/// The spend groups of a block that have a tweak point, in the order of the tweak points of
+/// [`tweak_data_from_block_spends`], each with its outputs. Spends that are not eligible are run
+/// only when an eligible spend asserts a puzzle announcement.
 pub fn spend_groups_from_block_spends(
     coin_spends: &[CoinSpend],
     additions: &[Coin],
@@ -98,37 +55,16 @@ pub fn spend_groups_from_block_spends(
     Ok(block_groups(coin_spends, additions, true).groups)
 }
 
-/// Build a [`TweakData`] from a real (or simulator) block's coin spends and
-/// additions: one tweak point per spend group (see
-/// [`crate::silent_payments::compute_tweak_point`]), one [`OutputMeta`] per
-/// addition, and the block's wrapper list in the CHIP's order.
-///
-/// The tweak points are those of [`spend_groups_from_block_spends`], in its
-/// order, with byte-identical points given once; the groups are computed by
-/// the same pass, without their outputs. `outputs` is every addition of the
-/// block, not a group's outputs: a scanner matches every coin created in the
-/// block (CHIP-0057 "Output Matching Scope").
-///
-/// Spends that are not eligible spends are skipped silently for the groups,
-/// without panicking or returning an error; an exact `cat_v2` spend among them
-/// still adds its wrapper.
-///
-/// See module-level docs for how the spend groups are formed and for the order
-/// of the tweak points.
-///
-/// # Errors
-///
-/// The current implementation never returns an error; the `Result` return
-/// type leaves room for validation to be added without an API break.
+/// Builds the [`TweakData`] of a block: one tweak point per spend group, given once, every
+/// addition as an output (CHIP-0057 "Output Matching Scope") and the block's wrapper list. Spends
+/// that are not eligible are skipped, except that an exact `cat_v2` spend still adds its wrapper.
 pub fn tweak_data_from_block_spends(
     coin_spends: &[CoinSpend],
     additions: &[Coin],
 ) -> Result<TweakData, DriverError> {
     let BlockGroups { groups, wrappers } = block_groups(coin_spends, additions, false);
 
-    // Byte-identical tweak points are given once, keeping the first occurrence
-    // to preserve the documented order. Overlapping passes (a coin's singleton
-    // plus its SCC membership) never drop a group that merely shares a coin.
+    // The first occurrence of a tweak point is kept, which preserves the order.
     let mut tweak_points: Vec<PublicKey> = Vec::new();
     let mut seen: HashSet<[u8; 48]> = HashSet::new();
     for group in groups {
@@ -137,7 +73,6 @@ pub fn tweak_data_from_block_spends(
         }
     }
 
-    // One OutputMeta per addition.
     let outputs: Vec<OutputMeta> = additions
         .iter()
         .map(|coin| OutputMeta {
@@ -151,21 +86,17 @@ pub fn tweak_data_from_block_spends(
     Ok(TweakData::with_wrappers(tweak_points, outputs, wrappers))
 }
 
-/// The spend groups and the wrapper list of a block.
 struct BlockGroups {
     groups: Vec<SpendGroup>,
     wrappers: Vec<Wrapper>,
 }
 
-/// Forms the block's spend groups (Pass 1 and Pass 2) and its wrapper list.
-/// With `with_outputs`, each group's outputs are computed too; otherwise they
-/// are left empty and no spend is run beyond what Pass 2 needs.
+/// Forms the block's spend groups and its wrapper list. Without `with_outputs` the groups'
+/// outputs are left empty and only eligible spends are run.
 fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: bool) -> BlockGroups {
     let mut allocator = Allocator::new();
 
-    // Eligible spends of every asset (the CHIP's closed list), and the wrapper
-    // of every exact cat_v2 spend, eligible or not. The other spends are kept
-    // in case a group asserts one of their puzzle announcements.
+    // The spends that are not eligible are kept in case a group asserts one of their announcements.
     let mut standard_spends: Vec<EligibleSpend> = Vec::new();
     let mut other_spends: Vec<(usize, NodePtr, NodePtr)> = Vec::new();
     let mut wrappers: Vec<Wrapper> = Vec::new();
@@ -197,35 +128,26 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         });
     }
 
-    // Candidate groups accumulate additively across both passes; a single coin
-    // may appear in several (its Pass-1 singleton and/or a Pass-2 SCC). No pass
-    // excludes a coin from any other pass.
+    // A coin may be in several groups: its own and a multi-input one.
     let mut groups: Vec<Vec<usize>> = Vec::new();
 
-    // Pass 1 — a singleton candidate group for EVERY standard spend (in
-    // `coin_spends` input order). This is the only pass that detects
-    // single-input sends, so it runs unconditionally.
+    // Pass 1: every eligible spend on its own.
     for i in 0..standard_spends.len() {
         groups.push(vec![i]);
     }
 
-    // The puzzle announcements each eligible spend asserts, and every spend
-    // that makes each puzzle announcement (by announcement ID), for the
-    // groups' outputs.
+    // The puzzle announcements each eligible spend asserts, and the spends that make each one.
     let mut asserted: Vec<Vec<Bytes32>> = vec![Vec::new(); standard_spends.len()];
     let mut announcers: HashMap<Bytes32, Vec<usize>> = HashMap::new();
 
-    // Pass 2 — strongly connected components of the `ASSERT_CONCURRENT_SPEND`
-    // graph over all eligible spends.
+    // Pass 2: strongly connected components of the `ASSERT_CONCURRENT_SPEND` graph.
     if !standard_spends.is_empty() {
-        // Coin-id -> graph-node-position map over every standard spend.
         let coin_id_to_pos: IndexMap<Bytes32, usize> = standard_spends
             .iter()
             .enumerate()
             .map(|(pos, ss)| (ss.coin_id, pos))
             .collect();
 
-        // Adjacency list keyed by spend index (0..standard_spends.len()).
         let mut adj: Vec<Vec<usize>> = vec![Vec::new(); standard_spends.len()];
         for (pos, ss) in standard_spends.iter().enumerate() {
             let Ok(output) = run_puzzle(&mut allocator, ss.puzzle, ss.solution) else {
@@ -264,8 +186,7 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         }
     }
 
-    // The spends that are not eligible are run only when an eligible spend
-    // asserts a puzzle announcement: they can only matter as its announcer.
+    // The other spends can only matter as announcers, so they run only if something is asserted.
     if with_outputs && asserted.iter().any(|ids| !ids.is_empty()) {
         for &(spend_index, puzzle, solution) in &other_spends {
             let Ok(output) = run_puzzle(&mut allocator, puzzle, solution) else {
@@ -291,7 +212,6 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         }
     }
 
-    // The block's additions by parent coin ID.
     let mut children: HashMap<Bytes32, Vec<usize>> = HashMap::new();
     if with_outputs {
         for (index, coin) in additions.iter().enumerate() {
@@ -302,7 +222,7 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         }
     }
 
-    // Per-group aggregation. The members are listed in the block's order.
+    // The members are listed in the block's order.
     let mut spend_groups: Vec<SpendGroup> = Vec::new();
     for mut members in groups {
         members.sort_unstable();
@@ -314,8 +234,7 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
         for &i in &members[1..] {
             a_sum += &standard_spends[i].synthetic_pk;
         }
-        // A group whose keys sum to the identity element, or whose input hash is
-        // zero, has no tweak point (CHIP-0057 "Tweak Points").
+        // No tweak point: the key sum is the identity element or the input hash is zero.
         let Some(tweak_point) = compute_tweak_point(&coin_ids, &a_sum) else {
             continue;
         };
@@ -349,12 +268,9 @@ fn block_groups(coin_spends: &[CoinSpend], additions: &[Coin], with_outputs: boo
     }
 }
 
-/// The outputs of a group (CHIP-0057 Appendix A): the children of its members,
-/// then, for each member and each puzzle announcement it asserts, the children
-/// of every spend that makes that announcement and is not a member,
-/// de-duplicated by coin ID in that order. Coin announcements are not
-/// followed: CAT2 makes and asserts coin announcements for its ring, and
-/// wallets use them to bind their own coins.
+/// The outputs of a group (CHIP-0057 Appendix A). Every spend that makes an asserted puzzle
+/// announcement counts, since anyone can fund a coin that makes the same one. Coin announcements
+/// are not followed: CAT2 uses them for its ring, and wallets to bind their own coins.
 fn group_outputs(
     members: &[usize],
     standard_spends: &[EligibleSpend],
@@ -394,12 +310,8 @@ fn group_outputs(
     outputs
 }
 
-/// Iterative Tarjan strongly-connected-components over a directed graph
-/// represented as adjacency lists.
-///
-/// Returns SCCs in Tarjan finishing order. Iterative (explicit stack) to
-/// avoid stack overflow on adversarial deep graphs that a recursive
-/// implementation would not survive.
+/// Strongly connected components by Tarjan's algorithm, with an explicit stack so that a deep
+/// graph in a block cannot overflow the call stack.
 fn iterative_tarjan_scc(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
     let n = adj.len();
     let mut index_counter: usize = 0;
@@ -414,7 +326,6 @@ fn iterative_tarjan_scc(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
             continue;
         }
 
-        // Initialize root frame.
         indices[start] = Some(index_counter);
         lowlinks[start] = index_counter;
         index_counter += 1;
@@ -427,7 +338,6 @@ fn iterative_tarjan_scc(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
         while let Some(&(v, next_neighbor)) = work.last() {
             if next_neighbor < adj[v].len() {
                 let w = adj[v][next_neighbor];
-                // Advance the iterator on the current frame before recursing.
                 if let Some(frame) = work.last_mut() {
                     frame.1 += 1;
                 }
@@ -445,7 +355,6 @@ fn iterative_tarjan_scc(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
                     }
                 }
             } else {
-                // All neighbors exhausted — finish this node.
                 let v_index = indices[v].expect("visited node has an index");
                 if lowlinks[v] == v_index {
                     let mut scc: Vec<usize> = Vec::new();

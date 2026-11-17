@@ -1,8 +1,5 @@
 //! Silent payments through settlement coins (CHIP-0057 "Payments through Settlement Coins").
-//!
-//! [`derive_settlement_outputs`] is the CHIP's `DeriveSettlementOutputs` as a pure function. The
-//! action system derives the same values with [`crate::Action::silent_payment_requested`] and
-//! [`crate::Action::silent_payment_settle`], using the helpers of this module.
+//! [`derive_settlement_outputs`] is the CHIP's `DeriveSettlementOutputs` as a pure function.
 //!
 //! An XCH payment is encoded `(p amount ())` and a CAT payment `(p amount (p))`. `(p amount)`
 //! has another tree hash, and so another announcement, and is never produced here.
@@ -29,13 +26,8 @@ use super::protocol::{aggregate_sender_sks, compute_input_hash, derive_one_time_
 use super::send_keys::SyntheticSecretKey;
 use crate::{DriverError, SpendContext};
 
-/// A requested payment as an offer lists it: `(p amount ())` for XCH
-/// (`wrapper` is `None`) and `(p amount (p))` for a CAT, the memo list holding
-/// the hint of the CAT payment (CHIP-0057 `DeriveSettlementOutputs`).
-///
-/// # Errors
-///
-/// Fails only if the hint cannot be allocated.
+/// A requested payment as an offer lists it (CHIP-0057 `DeriveSettlementOutputs`): `(p amount ())`
+/// for XCH (`wrapper` is `None`) and `(p amount (p))` for a CAT, the memo being the CAT hint.
 pub fn encoded_payment(
     ctx: &mut SpendContext,
     puzzle_hash: Bytes32,
@@ -49,16 +41,14 @@ pub fn encoded_payment(
     Ok(Payment::new(puzzle_hash, amount, memos))
 }
 
-/// `wrap(W, SETTLEMENT_PAYMENTS_HASH)`: the puzzle hash of the settlement coin
-/// of asset `W`, the bare settlement puzzle hash for XCH.
+/// `wrap(W, SETTLEMENT_PAYMENTS_HASH)`: the puzzle hash of the settlement coin of asset `W`.
 #[must_use]
 pub fn settlement_puzzle_hash(wrapper: Option<&Wrapper>) -> Bytes32 {
     wrap_puzzle_hash(wrapper, SETTLEMENT_PAYMENT_HASH.into())
 }
 
-/// The `ASSERT_PUZZLE_ANNOUNCEMENT` of a notarized payment made by the
-/// settlement coin of asset `W`: it asserts
-/// `SHA256(wrap(W, SETTLEMENT_PAYMENTS_HASH) || tree_hash((nonce . payments)))`.
+/// The `ASSERT_PUZZLE_ANNOUNCEMENT` of a notarized payment made by the settlement coin of asset
+/// `W`: `SHA256(wrap(W, SETTLEMENT_PAYMENTS_HASH) || tree_hash((nonce . payments)))`.
 #[must_use]
 pub fn settlement_assertion(
     ctx: &SpendContext,
@@ -71,9 +61,7 @@ pub fn settlement_assertion(
     )
 }
 
-/// The puzzle announcement the settlement coin of asset `W` makes for the
-/// notarized payment its solution lists:
-/// `SHA256(wrap(W, SETTLEMENT_PAYMENTS_HASH) || tree_hash((nonce . payments)))`.
+/// The id of the puzzle announcement that `settlement_assertion` asserts.
 #[must_use]
 pub fn settlement_announcement(
     ctx: &SpendContext,
@@ -83,30 +71,13 @@ pub fn settlement_announcement(
     settlement_assertion(ctx, wrapper, notarized_payment).announcement_id
 }
 
-/// A coin of the party's spend group in `DeriveSettlementOutputs`: an XCH coin
-/// (`wrapper` is `None`) or a CAT coin whose inner puzzle is the standard
-/// puzzle (plain, or under the revocation layer of a revocable CAT).
+/// A coin of the party's spend group in `DeriveSettlementOutputs`: an XCH coin or a CAT coin
+/// whose inner puzzle is the standard puzzle.
 ///
-/// - `coin_id` and `puzzle_hash` are the coin's ID and its puzzle hash on
-///   chain: the standard puzzle hash for XCH, `wrap(W, standard puzzle hash)`
-///   for a CAT coin.
-/// - `secret_key` is the coin's SYNTHETIC secret key, the one whose public key
-///   is curried into the coin's standard puzzle.
-/// - `wrapper` is the coin's asset.
-///
-/// [`derive_settlement_outputs`] checks that the key belongs to the coin:
-/// `wrap(wrapper, StandardArgs::curry_tree_hash(secret_key.public_key()))`
-/// must equal `puzzle_hash`. That is, the key curries to the coin's standard
-/// puzzle, and that puzzle under `wrapper` is the coin's puzzle. A raw wallet
-/// key, the key of another coin or the wrong wrapper is refused: it would give
-/// a key sum, and so one-time puzzle hashes, that no scanner reconstructs.
-///
-/// The check is only as good as `puzzle_hash`, which must be the coin's, not a
-/// hash computed from the key. [`SettlementGroupCoin::new`] takes the coin ID
-/// and the puzzle hash from the coin itself, so they cannot come from
-/// different coins; use it for a coin of a transaction. The fields are public
-/// because the CHIP's procedure takes coin IDs, and the coin IDs of its test
-/// vectors have no coin behind them.
+/// [`derive_settlement_outputs`] refuses an entry whose key, curried into the standard puzzle and
+/// wrapped in `wrapper`, does not give `puzzle_hash`: a raw wallet key, another coin's key or the
+/// wrong wrapper would derive puzzle hashes no scanner finds. `puzzle_hash` must be the coin's
+/// own, so build the entry of a real coin with [`SettlementGroupCoin::new`].
 #[derive(Debug, Clone)]
 pub struct SettlementGroupCoin {
     /// The coin's ID.
@@ -120,9 +91,7 @@ pub struct SettlementGroupCoin {
 }
 
 impl SettlementGroupCoin {
-    /// The entry of `coin`, held with the synthetic key `secret_key` in the
-    /// asset `wrapper` (`None` for XCH): its coin ID and puzzle hash are the
-    /// coin's.
+    /// The entry of `coin`, taking the coin ID and the puzzle hash from the coin itself.
     #[must_use]
     pub fn new(coin: &Coin, secret_key: SyntheticSecretKey, wrapper: Option<Wrapper>) -> Self {
         Self {
@@ -133,9 +102,7 @@ impl SettlementGroupCoin {
         }
     }
 
-    /// Whether `secret_key` is the synthetic key of this coin:
-    /// `wrap(wrapper, StandardArgs::curry_tree_hash(secret_key.public_key()))`
-    /// equals the coin's `puzzle_hash`.
+    /// Whether `secret_key` curries to the coin's standard puzzle under `wrapper`.
     fn key_belongs_to_coin(&self) -> bool {
         let p2_puzzle_hash: Bytes32 =
             StandardArgs::curry_tree_hash(self.secret_key.public_key().into_inner()).into();
@@ -143,14 +110,8 @@ impl SettlementGroupCoin {
     }
 }
 
-/// A recipient entry of `DeriveSettlementOutputs`: an output to a silent
-/// payment address, paid in the asset `wrapper` (`None` for XCH).
-///
-/// `spend_pk` is the spend key of the address that is paid: `B_spend`, or
-/// `B_m = B_spend + label_pk(m)` for a labeled address (the party's change is
-/// label 0). `settled` is true for a requested payment, paid through the
-/// settlement coin of the asset, and false for an output a coin of the party's
-/// spend group creates, such as its change.
+/// A recipient entry of `DeriveSettlementOutputs`: an output to a silent payment address, either
+/// requested through the settlement coin of its asset or created by the party's spend group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementRecipient {
     /// The scan key of the address, `B_scan`.
@@ -165,9 +126,7 @@ pub struct SettlementRecipient {
     pub amount: u64,
 }
 
-/// A requested payment of the party to an address that is not a silent
-/// payment address, in the asset `wrapper`, as the party lists it in its
-/// offer (for example `(q amount ())`).
+/// A requested payment of the party to an address that is not a silent payment address.
 #[derive(Debug, Clone)]
 pub struct OtherPayment {
     /// The asset of the payment: `None` for XCH.
@@ -210,60 +169,26 @@ pub struct SettlementGroupOutput {
 /// The result of [`derive_settlement_outputs`].
 #[derive(Debug, Clone)]
 pub struct SettlementDerivation {
-    /// `wrap(W, p)` of each settled entry, in the order of the recipients: the
-    /// puzzle hash of the coin the settlement coin of asset `W` must create.
+    /// The puzzle hash `wrap(W, p)` each settled entry is paid to, in the order of the recipients.
     pub settlement_outputs: Vec<Bytes32>,
-    /// The encoded payment of each settled entry, in the order of the
-    /// recipients.
+    /// The encoded payment of each settled entry, in the order of the recipients.
     pub settled_payments: Vec<Payment>,
-    /// One notarized payment per asset of the party's requested payments, in
-    /// order of first appearance (settled entries, then other payments).
+    /// One notarized payment per requested asset, in order of first appearance.
     pub notarized_payments: Vec<SettlementNotarizedPayment>,
-    /// One `ASSERT_PUZZLE_ANNOUNCEMENT` per asset, aligned with
-    /// `notarized_payments`.
+    /// One `ASSERT_PUZZLE_ANNOUNCEMENT` per asset, aligned with `notarized_payments`.
     pub assertions: Vec<AssertPuzzleAnnouncement>,
-    /// The outputs of the entries that are not settled, in the order of the
-    /// recipients.
+    /// The outputs of the entries that are not settled, in the order of the recipients.
     pub group_outputs: Vec<SettlementGroupOutput>,
 }
 
-/// CHIP-0057 procedure `DeriveSettlementOutputs`.
+/// CHIP-0057 procedure `DeriveSettlementOutputs`: derives the party's settled payments, the
+/// assertion of each asset's notarized payment, and the outputs of its own spend group. One `k`
+/// sequence per scan key covers settled entries and the party's own outputs alike.
 ///
-/// `group` is the party's spend group: one coin ID, coin puzzle hash,
-/// synthetic secret key and wrapper (`None` for XCH) per coin
-/// ([`SettlementGroupCoin`]). `recipients` are the party's recipient entries, `other_payments` its
-/// requested payments to addresses that are not silent payment addresses, and
-/// `nonce` the offer's nonce for its requested payments.
-///
-/// The derivation of `SendSilentPayment` runs once over every entry, with one
-/// `k` sequence per scan key covering settled entries and the party's own
-/// outputs alike, and `K_MAX` outputs at most per scan key. For each asset, in
-/// order of first appearance, the payments are the settled entries' encoded
-/// payments in the order of the recipients, then the asset's other payments
-/// in list order; the notarized payment is `(nonce . payments)` and the
-/// assertion is the settlement coin's puzzle announcement of it.
-///
-/// # Errors
-///
-/// - [`DriverError::SilentPaymentInvalidSettlementInput`] if the group is
-///   empty.
-/// - [`DriverError::SilentPaymentKeyNotSynthetic`] if a coin's secret key,
-///   curried into the standard puzzle and wrapped in the coin's wrapper, does
-///   not give the coin's puzzle hash (a raw wallet key, the key of another
-///   coin, or the wrong wrapper).
-/// - [`DriverError::SilentPayment`] with
-///   [`SilentPaymentError::IdentityPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::IdentityPublicKey)
-///   if a recipient's scan key or spend key is the identity element, and with
-///   [`SilentPaymentError::InvalidPublicKey`](chia_sdk_utils::silent_payments::SilentPaymentError::InvalidPublicKey)
-///   if one is outside the prime-order subgroup (`SendSilentPayment` begins
-///   with this check; the action system applies it through
-///   [`SilentPaymentAddress::validate`]).
-/// - [`DriverError::SilentPaymentAssetNotInGroup`] if an entry that is not
-///   settled is paid in an asset that no coin of the group holds.
-/// - [`DriverError::SilentPaymentTooManyOutputs`] if more than `K_MAX`
-///   entries go to one scan key.
-/// - The failures of `SendSilentPayment`: [`DriverError::SilentPaymentZeroKeySum`],
-///   [`DriverError::SilentPaymentZeroInputHash`], [`DriverError::SilentPaymentZeroTweak`].
+/// Fails if the group is empty, a key is not the synthetic key of its coin
+/// ([`DriverError::SilentPaymentKeyNotSynthetic`]), a recipient key is the identity element or
+/// outside the subgroup, an own output is in an asset no coin of the group holds, more than
+/// `K_MAX` entries go to one scan key, or `SendSilentPayment` fails.
 pub fn derive_settlement_outputs(
     ctx: &mut SpendContext,
     group: &[SettlementGroupCoin],
@@ -274,9 +199,6 @@ pub fn derive_settlement_outputs(
     if group.is_empty() {
         return Err(DriverError::SilentPaymentInvalidSettlementInput);
     }
-    // Each key must be the synthetic key of its coin: curried into the
-    // standard puzzle and wrapped in the coin's wrapper, it gives the coin's
-    // puzzle hash.
     if !group.iter().all(SettlementGroupCoin::key_belongs_to_coin) {
         return Err(DriverError::SilentPaymentKeyNotSynthetic);
     }
@@ -286,12 +208,7 @@ pub fn derive_settlement_outputs(
         .collect();
     let coin_ids: Vec<Bytes32> = group.iter().map(|coin| coin.coin_id).collect();
     let coin_wrappers: Vec<Option<Wrapper>> = group.iter().map(|coin| coin.wrapper).collect();
-    // SendSilentPayment fails if any B_scan or B_m is the identity element (or
-    // outside the subgroup) before anything is derived: an identity scan key
-    // makes the shared secret a public constant, and an identity spend key
-    // makes the one-time key t_k * G, which anyone holding the scan key can
-    // spend. This is the check the action system applies to an address; the
-    // network does not take part in it.
+    // Only the two keys are validated; the network does not take part in the check.
     for recipient in recipients {
         SilentPaymentAddress::new(
             recipient.scan_pk,
@@ -300,8 +217,7 @@ pub fn derive_settlement_outputs(
         )
         .validate()?;
     }
-    // The Fail step for an asset no coin of the group holds applies to the
-    // entries the group creates only.
+    // A settled entry may be in an asset the group does not hold.
     if recipients
         .iter()
         .any(|r| !r.settled && !coin_wrappers.contains(&r.wrapper))
@@ -377,8 +293,7 @@ pub fn derive_settlement_outputs(
     })
 }
 
-/// Appends `payment` to the payments of its asset, adding the asset at the
-/// end when it is new (order of first appearance).
+/// Appends `payment` to the payments of its asset, keeping the order of first appearance.
 fn push_payment(
     requested: &mut Vec<(Option<Wrapper>, Vec<Payment>)>,
     wrapper: Option<Wrapper>,

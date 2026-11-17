@@ -13,11 +13,8 @@ use super::layers::{Wrapper, wrap_puzzle_hash};
 use super::protocol::derive_onetime_sk;
 use crate::{DriverError, Id, SettlementPayer};
 
-/// The scanner's input for one block: its tweak points, the coins created in
-/// it and its wrapper list (CHIP-0057 "Tweak Points", "Wrapper List of a
-/// Block"). It has no transport fields.
-///
-/// With an empty wrapper list candidates are tested bare only, so a CAT
+/// The scanner's input for one block: its tweak points, the coins created in it and its wrapper
+/// list (CHIP-0057 "Tweak Points", "Wrapper List of a Block"). With an empty wrapper list a CAT
 /// output is missed.
 #[derive(Clone, Debug, Default)]
 pub struct TweakData {
@@ -39,8 +36,7 @@ impl TweakData {
         }
     }
 
-    /// Tweak data with the block's wrapper list. Its order does not change
-    /// which coins are found.
+    /// Tweak data with the block's wrapper list, in any order.
     pub fn with_wrappers(
         tweak_points: Vec<PublicKey>,
         outputs: Vec<OutputMeta>,
@@ -67,14 +63,9 @@ pub struct OutputMeta {
     pub parent_coin_id: Bytes32,
 }
 
-/// A silent payment coin found by [`super::scan_from_tweaks`].
-///
-/// It holds no spendable key: the holder of the spend secret key derives the
-/// one-time key from `tweak` with [`DetectedSilentPaymentCoin::onetime_sk`]
-/// (CHIP-0057 "Spending"). `puzzle_hash` is the bare one-time puzzle hash; a
-/// coin that matched under a wrapper has puzzle hash
-/// `wrap(wrapper, puzzle_hash)`, and [`DetectedSilentPaymentCoin::coin`]
-/// returns that coin.
+/// A silent payment coin found by [`super::scan_from_tweaks`]. It holds no spendable key: the
+/// one-time key is derived from `tweak` with [`DetectedSilentPaymentCoin::onetime_sk`]
+/// (CHIP-0057 "Spending").
 #[derive(Clone)]
 pub struct DetectedSilentPaymentCoin {
     /// The ID of the matched coin.
@@ -89,21 +80,14 @@ pub struct DetectedSilentPaymentCoin {
     pub k: u32,
     /// `None` for unlabeled detections; `Some(m)` for label index `m`.
     pub label: Option<u32>,
-    /// The combined tweak: `t_k` for an unlabeled detection, and
-    /// `(t_k + label_scalar) mod r` for a labeled one. The one-time secret key
-    /// is `(b_spend + tweak) mod r`.
-    ///
-    /// The tweak cannot spend the coin without the spend secret key, but
-    /// together with the address it links the coin to the recipient, so it must
-    /// be kept private.
+    /// The combined tweak: `t_k`, or `(t_k + label_scalar) mod r` for a labeled detection. Keep
+    /// it private: with the address it links the coin to the recipient.
     pub tweak: ScalarField,
-    /// The wrapper under which the coin matched: `None` for an XCH output,
-    /// the CAT's wrapper for a CAT output.
+    /// The wrapper under which the coin matched: `None` for an XCH output.
     pub wrapper: Option<Wrapper>,
 }
 
-/// The tweak is not printed: together with the recipient's address it links
-/// the coin to the recipient.
+/// The tweak is not printed, since it links the coin to the recipient.
 impl fmt::Debug for DetectedSilentPaymentCoin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DetectedSilentPaymentCoin")
@@ -120,9 +104,7 @@ impl fmt::Debug for DetectedSilentPaymentCoin {
 }
 
 impl DetectedSilentPaymentCoin {
-    /// The detected output coin, as it is on chain: its puzzle hash is
-    /// `wrap(wrapper, puzzle_hash)`, the bare one-time puzzle hash for an XCH
-    /// output.
+    /// The detected coin as it is on chain, with puzzle hash `wrap(wrapper, puzzle_hash)`.
     #[must_use]
     pub fn coin(&self) -> Coin {
         Coin::new(
@@ -132,18 +114,9 @@ impl DetectedSilentPaymentCoin {
         )
     }
 
-    /// Derive the one-time secret key of the detected coin from the recipient's
-    /// spend secret key: `(b_spend + tweak) mod r`.
-    ///
-    /// This is the only step of receiving a silent payment that needs the spend
-    /// secret key. The coin is locked to the standard puzzle, so it is spent
-    /// with the synthetic key of the result (`derive_synthetic()`).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DriverError::SilentPaymentScalarOutOfRange`] if `tweak` is not
-    /// below the group order `r`. The tweak of a detection returned by
-    /// `scan_from_tweaks` always is.
+    /// The one-time secret key of the detected coin, `(b_spend + tweak) mod r`. The coin is
+    /// spent with the synthetic key of the result (`derive_synthetic()`). Fails only for a
+    /// `tweak` not below `r`, which a detection from `scan_from_tweaks` never has.
     pub fn onetime_sk(&self, spend_sk: &SecretKey) -> Result<SecretKey, DriverError> {
         derive_onetime_sk(spend_sk, &self.tweak)
     }
@@ -157,21 +130,16 @@ pub(crate) struct SilentPaymentPending {
     pub spend_pk: PublicKey,
     /// The spend that creates the output.
     pub source: SilentPaymentSource,
-    /// The coin that creates the output: a coin of the spend group, or the
-    /// settlement coin the transaction spends for a settled payment. `None`
-    /// for a payment created by the counterparty's settlement coin, which is
-    /// not known to this transaction.
+    /// The coin that creates the output, or `None` for a payment created by the counterparty's
+    /// settlement coin, which this transaction does not know.
     pub parent_coin: Option<Coin>,
     pub k: u32,
     pub amount: u64,
     pub memos: Memos<NodePtr>,
 }
 
-/// A requested payment to an address that is not a silent payment address,
-/// listed after the silent payments of its asset in the party's notarized
-/// payment ([`crate::Action::silent_payment_requested_other`],
-/// [`crate::Action::silent_payment_settle_other`]). Recorded at apply time,
-/// consumed when the transaction is prepared.
+/// A requested payment to an address that is not a silent payment address, listed after the
+/// silent payments of its asset in the party's notarized payment.
 #[derive(Debug, Clone)]
 pub(crate) struct SettledOtherPayment {
     pub asset: Option<Wrapper>,
@@ -181,23 +149,17 @@ pub(crate) struct SettledOtherPayment {
     pub payment: chia_puzzle_types::offer::Payment,
 }
 
-/// The spend that creates a silent payment output, recorded at apply time.
-///
-/// The index is the position of the spend in its asset's items, which only
-/// grow while actions are applied, so it stays valid until the output is
-/// emitted.
+/// The spend that creates a silent payment output, recorded at apply time. Indexes are positions
+/// in an asset's items, which only grow while actions are applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SilentPaymentSource {
     /// An XCH output, created by `spends.xch.items[index]`.
     Xch(usize),
-    /// A CAT output, created by `spends.cats[id].items[index]`: the first
-    /// conditions spend of that asset, the one the spend group's cycle binds.
+    /// A CAT output, created by `spends.cats[id].items[index]`, the asset's first conditions spend.
     Cat(Id, usize),
-    /// A requested payment created by a settlement coin of the asset `asset`
-    /// (`None` for XCH), listed in the party's notarized payment under
-    /// `nonce` (CHIP-0057 "Payments through Settlement Coins"). For
-    /// [`SettlementPayer::SpentSettlementCoin`], `settlement_index` is the
-    /// position of that settlement coin in its asset's items.
+    /// A requested payment created by a settlement coin of `asset`, listed in the party's
+    /// notarized payment under `nonce`. `settlement_index` is the position of a spent
+    /// settlement coin in its asset's items.
     Settled {
         asset: Option<Wrapper>,
         nonce: Bytes32,

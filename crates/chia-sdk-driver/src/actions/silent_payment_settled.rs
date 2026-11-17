@@ -8,68 +8,42 @@ use crate::{
     silent_payments::{SettledOtherPayment, SilentPaymentSource, Wrapper},
 };
 
-/// Who creates a settled payment (CHIP-0057 "Payments through Settlement
-/// Coins").
+/// Who creates a settled payment (CHIP-0057 "Payments through Settlement Coins").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SettlementPayer {
-    /// The counterparty's settlement coin, which this transaction does not
-    /// spend: the party is the maker of an offer, and its requested payments
-    /// are published in [`crate::Outputs::silent_payment_requests`] for the
-    /// offer file.
+    /// The counterparty's settlement coin, which this transaction does not spend (the party is
+    /// the maker). The requests are published in [`crate::Outputs::silent_payment_requests`].
     Counterparty,
-    /// A settlement coin of the payment's asset that this transaction spends:
-    /// the party is the taker of an offer and is paid from the coins the
-    /// maker offered. The amount counts against that asset, as
-    /// [`crate::Action::settle`] does.
+    /// A settlement coin of the payment's asset that this transaction spends (the party is the
+    /// taker). The amount counts against that asset, as [`crate::Action::settle`] does.
     SpentSettlementCoin,
 }
 
 /// A requested payment of a party, paid through a settlement coin.
-///
-/// The silent payment variant holds the address inline, as
-/// [`crate::SilentPaymentSendAction`] does.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum SettledEntry {
-    /// A payment to a silent payment address. Its one-time puzzle hash is
-    /// derived from the party's spend group, with the `k` counter of the
-    /// address's scan key, when the transaction is prepared.
+    /// A payment to a silent payment address, derived when the transaction is prepared.
     SilentPayment {
         /// The silent payment address that is paid.
         recipient: SilentPaymentAddress,
         /// The amount of the payment, in the smallest unit of the asset.
         amount: u64,
     },
-    /// A requested payment to an address that is not a silent payment address,
-    /// as the party lists it in its offer. It is listed in the notarized
-    /// payment of its asset after the asset's silent payments.
+    /// A requested payment to another kind of address, listed after the asset's silent payments.
     Other(Payment),
 }
 
-/// A CHIP-0057 payment through a settlement coin, created by
-/// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested),
-/// [`Action::silent_payment_requested_other`](crate::Action::silent_payment_requested_other),
-/// [`Action::silent_payment_settle`](crate::Action::silent_payment_settle) and
-/// [`Action::silent_payment_settle_other`](crate::Action::silent_payment_settle_other).
-///
-/// When the transaction is prepared, the party's entries are grouped per asset
-/// into one notarized payment each (CHIP-0057 `DeriveSettlementOutputs`), and a
-/// coin of the party's spend group asserts its announcement as a required
-/// condition.
-///
-/// Every entry of a party carries the same `nonce`, and the entries of one
-/// asset have one payer ([`DriverError::SilentPaymentSettlementMismatch`]
-/// otherwise). A silent payment takes the next `k` of its scan key, shared with
-/// every other silent payment output of the transaction.
+/// A CHIP-0057 payment through a settlement coin (`DeriveSettlementOutputs`), created by the
+/// `Action::silent_payment_requested*` and `Action::silent_payment_settle*` constructors. Every
+/// entry of a party carries the same `nonce`, and the entries of one asset have one payer
+/// ([`DriverError::SilentPaymentSettlementMismatch`] otherwise).
 #[derive(Debug, Clone)]
 pub struct SilentPaymentSettledAction {
-    /// The asset of the payment: [`Id::Xch`], or [`Id::Existing`] with the
-    /// asset ID of a CAT.
-    ///
-    /// The hidden puzzle hash of a revocable CAT is taken from the settlement
-    /// coin the transaction spends ([`SettlementPayer::SpentSettlementCoin`]),
-    /// or from [`crate::SilentPaymentState::requested_asset_info`]
-    /// ([`SettlementPayer::Counterparty`]).
+    /// The asset of the payment: [`Id::Xch`], or [`Id::Existing`] with the asset ID of a CAT.
+    /// For a revocable CAT the maker ([`SettlementPayer::Counterparty`]) must set
+    /// [`crate::SilentPaymentState::requested_asset_info`] before applying the action; the taker's
+    /// hidden puzzle hash is read from the settlement coin it spends.
     pub id: Id,
     /// The offer's nonce for the party's requested payments.
     pub nonce: Bytes32,
@@ -101,9 +75,7 @@ impl SilentPaymentSettledAction {
 
 impl SpendAction for SilentPaymentSettledAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        // A payment the counterparty's settlement coin makes moves none of the
-        // party's own value. One made by a settlement coin the transaction
-        // spends is paid out of that asset, as `SettleAction` counts it.
+        // A payment made by the counterparty's settlement coin moves none of the party's value.
         if self.payer == SettlementPayer::SpentSettlementCoin {
             *deltas.update(self.id) += Delta::new(0, self.amount());
             deltas.set_needed(self.id);
@@ -178,9 +150,8 @@ impl SpendAction for SilentPaymentSettledAction {
     }
 }
 
-/// The first settlement coin of the asset that the transaction spends: the asset as a wrapper
-/// (`None` for XCH, with the coin's hidden puzzle hash for a revocable CAT), the coin's position
-/// in the asset's items and the coin.
+/// The first settlement coin of the asset that the transaction spends: its wrapper (`None` for
+/// XCH), its position in the asset's items and the coin.
 fn settlement_source(
     spends: &Spends,
     id: Id,

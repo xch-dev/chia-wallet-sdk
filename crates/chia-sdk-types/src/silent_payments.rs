@@ -1,9 +1,4 @@
-//! Silent payments (CHIP-0057) — wallet-side cryptographic primitives.
-//!
-//! All scalar-field reduction in this module flows through [`ScalarField`], which
-//! enforces the unsigned-vs-signed byte-interpretation choice at the type level.
-//! See [`ScalarField::from_bytes_unsigned`] for why unsigned reduction is mandatory
-//! for protocol scalars and must not be swapped for the standard-puzzle reducer.
+//! Silent payments (CHIP-0057): scalars, tagged hashes, derivation paths and limits.
 
 mod limits;
 pub use limits::*;

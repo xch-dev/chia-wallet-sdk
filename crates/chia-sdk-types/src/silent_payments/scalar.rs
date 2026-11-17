@@ -1,59 +1,23 @@
-//! `ScalarField` newtype: big-endian 32-byte scalar with unsigned mod-r arithmetic
-//! over the BLS12-381 subgroup order.
-//!
-//! All CHIP-0057 protocol scalar values (input hash, output tweak, label scalar) use
-//! UNSIGNED interpretation mod `GROUP_ORDER`. This is intentionally distinct from
-//! the signed mod-r reducer used by the standard-puzzle synthetic-key offset (in
-//! `chia_puzzle_types::derive_synthetic`), which interprets the input bytes as a
-//! SIGNED two's-complement integer. The two routes silently disagree on any input
-//! whose high bit is set, so this module keeps them apart at the type level: the
-//! only way to obtain a `ScalarField` from arbitrary bytes is to choose between
-//! [`ScalarField::from_bytes_unsigned`] (which performs unsigned mod-r reduction)
-//! and [`ScalarField::from_bytes_raw`] (which performs no reduction at all).
-//!
-//! There is deliberately no `From<[u8; 32]>` impl. A bare conversion would erase
-//! the unsigned-vs-signed choice and reintroduce the protocol-correctness hazard.
-//!
-//! Some of these scalars are sensitive, so the type redacts its `Debug` output
-//! and zeroizes its bytes on drop; see [`ScalarField`].
+//! [`ScalarField`]: the protocol's scalars, reduced mod the BLS12-381 subgroup order as
+//! unsigned integers. There is no `From<[u8; 32]>`, so the reduction is always chosen explicitly.
 
 use std::fmt;
 
 use num_bigint::BigUint;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// BLS12-381 subgroup order `r` as big-endian bytes.
-///
-/// Matches `chia_puzzle_types::derive_synthetic::GROUP_ORDER_BYTES` byte-for-byte;
-/// duplicated here so the `chip-0057` module is self-contained and the unsigned
-/// reduction path has no dependency on the standard-puzzle module.
+/// The BLS12-381 subgroup order `r` as big-endian bytes.
 pub const GROUP_ORDER: [u8; 32] = [
     0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48, 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05,
     0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01,
 ];
 
-/// A scalar field element: 32 big-endian bytes representing a value in `[0, r)`
-/// when constructed via [`Self::from_bytes_unsigned`], or an unchecked 32-byte
-/// value when constructed via [`Self::from_bytes_raw`].
+/// A scalar as 32 big-endian bytes: below `r` from [`Self::from_bytes_unsigned`] and after any
+/// arithmetic, unchecked from [`Self::from_bytes_raw`].
 ///
-/// Arithmetic operations always reduce mod `r` before returning; the only way to
-/// observe a non-reduced value is to construct one via `from_bytes_raw` and read
-/// it back via [`Self::as_bytes`] / [`Self::to_bytes`] without performing arithmetic.
-///
-/// # Secrets
-///
-/// Several protocol scalars are sensitive: an output tweak links a coin to the
-/// recipient's address, and a label scalar links a labeled address to the
-/// wallet. The type is therefore handled like secret material:
-///
-/// - [`fmt::Debug`] never prints the value;
-/// - the bytes are zeroized when the value is dropped;
-/// - it is not `Copy`, so copies are explicit ([`Clone`]).
-///
-/// Bytes obtained with [`Self::to_bytes`] are the caller's to protect. The
-/// arithmetic goes through `num-bigint`, whose temporaries are neither
-/// constant-time nor zeroized, so secret *keys* are not added with this type:
-/// they are added with `chia_bls::SecretKey`'s own addition.
+/// An output tweak or a label scalar links a coin or an address to the wallet, so `Debug` is
+/// redacted, the bytes are zeroized on drop and the type is not `Copy`. The arithmetic is not
+/// constant-time, so secret keys are added with `chia_bls::SecretKey`, not with this type.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ScalarField([u8; 32]);
 
@@ -78,13 +42,9 @@ impl Drop for ScalarField {
 impl ZeroizeOnDrop for ScalarField {}
 
 impl ScalarField {
-    /// Reduce a 32-byte big-endian value mod `r` using UNSIGNED interpretation.
-    ///
-    /// This is the correct operation for CHIP-0057 protocol scalars (input hash,
-    /// output tweak, label scalar). Do NOT replace this with the signed mod-r
-    /// reducer used by the standard-puzzle synthetic-key offset — the two routes
-    /// disagree on inputs whose high bit is set, and a silent crossover would
-    /// produce undetectable silent payments.
+    /// Reduces 32 big-endian bytes mod `r` as an unsigned integer, as CHIP-0057 requires for the
+    /// input hash, output tweaks and label scalars. The signed reduction of the standard puzzle's
+    /// synthetic offset differs when the high bit is set and would give undetectable payments.
     #[must_use]
     pub fn from_bytes_unsigned(bytes: [u8; 32]) -> Self {
         let n = BigUint::from_bytes_be(&bytes);
@@ -93,18 +53,13 @@ impl ScalarField {
         Self(biguint_to_be_bytes_32(&result))
     }
 
-    /// Wrap raw bytes without any reduction.
-    ///
-    /// The caller is responsible for ensuring `bytes` represents a value in
-    /// `[0, r)` if that invariant matters downstream. This is the unchecked
-    /// escape hatch used for values known to be in range (e.g., secret-key
-    /// bytes drawn from a domain that guarantees `< r`).
+    /// Wraps bytes without reducing them; the caller ensures the value is below `r`.
     #[must_use]
     pub fn from_bytes_raw(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
-    /// Compute `(self + other) mod r`.
+    /// `(self + other) mod r`.
     #[must_use]
     pub fn add(&self, other: &Self) -> Self {
         let a = BigUint::from_bytes_be(&self.0);
@@ -114,29 +69,26 @@ impl ScalarField {
         Self(biguint_to_be_bytes_32(&result))
     }
 
-    /// Return a reference to the inner 32 big-endian bytes.
+    /// The 32 big-endian bytes.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 
-    /// Return a copy of the inner 32 big-endian bytes. The copy is not
-    /// zeroized when it goes out of scope.
+    /// A copy of the 32 big-endian bytes, which is not zeroized on drop.
     #[must_use]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
     }
 
-    /// Return `true` if the scalar's byte representation is all zero.
+    /// Whether the scalar is zero.
     #[must_use]
     pub fn is_zero(&self) -> bool {
         self.0 == [0u8; 32]
     }
 }
 
-/// Left-pad a `BigUint` into a 32-byte big-endian array, dropping leading zeros
-/// produced by `to_bytes_be`. Panics only if the value exceeds 32 bytes — which
-/// cannot happen for any output of `% GROUP_ORDER` since `r < 2^256`.
+/// Left-pads a value below `2^256` to 32 big-endian bytes.
 fn biguint_to_be_bytes_32(value: &BigUint) -> [u8; 32] {
     let be = value.to_bytes_be();
     let mut out = [0u8; 32];

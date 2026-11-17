@@ -48,9 +48,8 @@ pub enum Action {
     MeltSingleton(MeltSingletonAction),
     /// See [`Action::fee`].
     Fee(FeeAction),
-    /// A CHIP-0057 silent payment action. The variant always exists; the actions are created
-    /// with the `chip-0057` feature (`Action::silent_payment_send` and the settlement
-    /// constructors).
+    /// A CHIP-0057 silent payment action. The variant always exists, and its actions are created
+    /// with the `chip-0057` feature.
     SilentPayment(Box<SilentPaymentAction>),
 }
 
@@ -448,14 +447,9 @@ impl Action {
         Self::Fee(FeeAction::new(amount))
     }
 
-    /// Sends a CHIP-0057 silent payment in the asset `id` to the address: [`Id::Xch`], or a CAT
-    /// the transaction spends. See [`SilentPaymentSendAction`].
-    ///
-    /// A CAT output is created by the first spend of that asset and is hinted with its one-time
-    /// puzzle hash, so `memos` must be [`Memos::None`] for it
-    /// ([`DriverError::SilentPaymentCatMemos`]). The send fails if no coin of the asset is spent
-    /// ([`DriverError::SilentPaymentAssetNotInGroup`]) or the asset is a CAT issued in the same
-    /// transaction ([`DriverError::SilentPaymentNewCatUnsupported`]).
+    /// Sends a CHIP-0057 silent payment in the asset `id`, which is [`Id::Xch`] or a CAT the
+    /// transaction spends. `memos` must be [`Memos::None`] for a CAT, whose output is hinted with
+    /// its one-time puzzle hash. See [`SilentPaymentSendAction`].
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_send(
         id: Id,
@@ -468,22 +462,14 @@ impl Action {
         )))
     }
 
-    /// Requests a CHIP-0057 silent payment in an offer the transaction makes: the maker is paid
-    /// `amount` of the asset `id` ([`Id::Xch`] or a CAT) at the silent payment address by the
-    /// counterparty's settlement coin (CHIP-0057 "Payments through Settlement Coins"). `nonce`
-    /// is the offer's nonce for the maker's requested payments, for example
-    /// [`Offer::nonce`](crate::Offer::nonce) of the coins it offers.
+    /// Requests a silent payment in an offer the transaction makes: the counterparty's settlement
+    /// coin pays `amount` of the asset `id` to the address (CHIP-0057 "Payments through Settlement
+    /// Coins"). `nonce` is the offer's nonce for the maker's requested payments.
     ///
-    /// A requested CAT is taken to be not revocable unless its hidden puzzle hash is given in
+    /// A requested CAT is taken to be not revocable unless it is in
     /// [`SilentPaymentState::requested_asset_info`](crate::SilentPaymentState::requested_asset_info)
-    /// before the action is applied.
-    ///
-    /// One coin of the maker's spend group asserts the settlement coin's announcement, and the
-    /// notarized payment is published in
-    /// [`Outputs::silent_payment_requests`](crate::Outputs::silent_payment_requests), for
-    /// `Offer::from_input_spend_bundle`. The maker must not add
-    /// `RequestedPayments::assertions` of those payments to
-    /// [`ConditionConfig::required`](crate::ConditionConfig::required) again.
+    /// before the action is applied. The transaction asserts the payment itself, and publishes it in
+    /// [`Outputs::silent_payment_requests`](crate::Outputs::silent_payment_requests).
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_requested(
         id: Id,
@@ -501,9 +487,8 @@ impl Action {
         )))
     }
 
-    /// A requested payment of the maker to an address that is not a silent payment address. It
-    /// is listed in its asset's notarized payment after the maker's silent payments in that
-    /// asset, so that one announcement covers them (CHIP-0057 `DeriveSettlementOutputs`).
+    /// A requested payment of the maker to an ordinary address, listed after the maker's silent
+    /// payments in that asset so that one announcement covers them.
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_requested_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
         Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
@@ -516,14 +501,10 @@ impl Action {
         )))
     }
 
-    /// Takes a CHIP-0057 silent payment out of an offer the transaction takes: the taker is paid
-    /// `amount` of the asset `id` at the silent payment address by the first settlement coin of
-    /// that asset the transaction spends. `nonce` is the taker's nonce for its requested
-    /// payments.
-    ///
-    /// The amount counts against the asset, as [`Action::settle`] does. Fails with
-    /// [`DriverError::SilentPaymentSettlementCoinMissing`] if no settlement coin of the asset is
-    /// spent.
+    /// Takes a silent payment out of an offer the transaction takes: the first settlement coin of
+    /// the asset `id` that the transaction spends pays `amount` to the address. `nonce` is the
+    /// taker's nonce for its requested payments. The amount counts against the asset, as
+    /// [`Action::settle`] does.
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_settle(
         id: Id,
@@ -541,9 +522,8 @@ impl Action {
         )))
     }
 
-    /// A payment of the taker to an address that is not a silent payment address, made by the
-    /// settlement coin of its asset the transaction spends, and listed after the taker's silent
-    /// payments in that asset (CHIP-0057 `DeriveSettlementOutputs`).
+    /// A payment of the taker to an ordinary address by the settlement coin of its asset, listed
+    /// after the taker's silent payments in that asset.
     #[cfg(feature = "chip-0057")]
     pub fn silent_payment_settle_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
         Self::SilentPayment(Box::new(SilentPaymentAction::Settled(

@@ -1,20 +1,8 @@
-//! Silent payments (CHIP-0057): sending, scanning and payments through settlement coins.
-//!
-//! - **Sending.** [`crate::Action::silent_payment_send`] records an output in XCH or in a CAT the
-//!   transaction spends. [`crate::Spends::prepare_with_silent_payment_keys`] derives the outputs
-//!   from the spend group: every XCH coin spent with the standard puzzle and the first coin of
-//!   each CAT asset, which [`crate::Relation::AssertConcurrent`] binds into one cycle. Spends
-//!   outside the CHIP's closed list of eligible spends are rejected.
-//! - **Scanning.** [`tweak_data_from_block_spends`] forms a block's spend groups, tweak points
-//!   and wrapper list, and [`scan_from_tweaks`] matches the outputs with the scan secret key and
-//!   the spend public key. [`TweakData`] has no transport fields.
-//! - **Settlement coins.** [`derive_settlement_outputs`] is the CHIP's `DeriveSettlementOutputs`;
-//!   [`crate::Action::silent_payment_requested`] and [`crate::Action::silent_payment_settle`]
-//!   derive the same values in a transaction. [`spend_groups_from_block_spends`] gives each
-//!   group's outputs for a light-wallet server.
-//!
-//! Protocol scalars are reduced through [`chia_sdk_types::silent_payments::ScalarField`], which
-//! fixes the unsigned interpretation of hash output.
+//! Silent payments (CHIP-0057). Sending: [`crate::Action::silent_payment_send`] and
+//! [`crate::Spends::prepare_with_silent_payment_keys`]. Scanning:
+//! [`tweak_data_from_block_spends`] and [`scan_from_tweaks`]. Payments through settlement
+//! coins: [`derive_settlement_outputs`], [`crate::Action::silent_payment_requested`] and
+//! [`crate::Action::silent_payment_settle`].
 
 mod protocol;
 pub use protocol::{

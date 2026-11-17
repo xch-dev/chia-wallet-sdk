@@ -1,5 +1,4 @@
-//! Silent-payment bech32m address (HRP `spxch` mainnet / `tspxch` testnet)
-//! and the network discriminant.
+//! The silent payment address codec (CHIP-0057 "Silent Payment Address").
 
 use bech32::{
     Bech32m, ByteIterExt, DecodeError, Fe32, Fe32IterExt, Hrp,
@@ -11,25 +10,22 @@ use crate::Bech32Error;
 
 use super::SilentPaymentError;
 
-/// The CHIP-0057 address version this implementation emits (v0).
+/// The address version that is encoded.
 pub const SILENT_PAYMENT_ADDRESS_VERSION: u8 = 0;
 
-/// The version reserved for backward-incompatible upgrades; decoding MUST fail.
+/// The version reserved for a backward-incompatible upgrade; decoding it fails.
 pub const SILENT_PAYMENT_ADDRESS_VERSION_BACKWARD_INCOMPATIBLE: u8 = 31;
 
-/// Maximum silent-payment address length in characters. SP addresses exceed
-/// bech32's original 90-character limit; CHIP-0057 (following BIP-352) allows
-/// up to 1,023 characters.
+/// The longest address that is decoded, in characters.
 pub const SILENT_PAYMENT_ADDRESS_MAX_LENGTH: usize = 1023;
 
-/// Encode a version character followed by 5-bit groups as bech32m under `hrp`.
+/// Encodes 5-bit groups as bech32m under `hrp`.
 fn encode_fes(hrp: &str, fes: impl Iterator<Item = Fe32>) -> Result<String, Bech32Error> {
     let hrp = Hrp::parse(hrp)?;
     Ok(fes.with_checksum::<Bech32m>(&hrp).chars().collect())
 }
 
-/// Convert 5-bit groups to bytes. As bech32 0.9's `convert_bits(_, 5, 8, false)`
-/// did, fail if the leftover padding is five bits or more, or not all zero.
+/// Converts 5-bit groups to bytes, failing on padding of five bits or more or not all zero.
 fn fes_to_bytes_strict(groups: &[u8]) -> Result<Vec<u8>, Bech32Error> {
     let mut acc: u32 = 0;
     let mut bits: u32 = 0;
@@ -48,12 +44,7 @@ fn fes_to_bytes_strict(groups: &[u8]) -> Result<Vec<u8>, Bech32Error> {
     Ok(bytes)
 }
 
-/// Network discriminator for silent-payment addresses.
-///
-/// Each network maps to a fixed human-readable part (CHIP-0057 "Silent Payment
-/// Address"):
-/// - `Mainnet` → `"spxch"`
-/// - `Testnet` → `"tspxch"`
+/// The network of a silent payment address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SilentPaymentNetwork {
     /// Mainnet, with the human-readable part `spxch`.
@@ -72,9 +63,7 @@ impl SilentPaymentNetwork {
         }
     }
 
-    /// Parse a bech32m HRP string into a network discriminator. Returns
-    /// `Err(SilentPaymentError::WrongHrp(_))` for any value other than
-    /// `"spxch"` or `"tspxch"`.
+    /// The network of a human-readable part, or [`SilentPaymentError::WrongHrp`].
     pub fn from_hrp(hrp: &str) -> Result<Self, SilentPaymentError> {
         match hrp {
             "spxch" => Ok(Self::Mainnet),
@@ -84,20 +73,10 @@ impl SilentPaymentNetwork {
     }
 }
 
-/// A CHIP-0057 silent-payment address: bech32m data part of a single 5-bit
-/// version character (v0) followed by `serialize(B_scan) || serialize(B_spend)`
-/// (96 bytes), under HRP `spxch` (mainnet) / `tspxch` (testnet).
+/// A silent payment address (CHIP-0057 "Silent Payment Address"). A labeled address has the
+/// same form, with the labeled spend key in `spend_pk`.
 ///
-/// The address carries no labeled-vs-unlabeled discriminant: a labeled address
-/// has its `spend_pk` field set to `B_m = B_spend + label_pk` (CHIP-0057
-/// "Labeling"), and its wire form is identical to an unlabeled address with
-/// the same point. Senders cannot tell the two apart; the recipient's scanner
-/// recovers the label by trying each registered label.
-///
-/// `network` is taken from the human-readable part when an address is decoded.
-/// CHIP-0057 says a sender should reject an address whose network does not
-/// match the one it is transacting on. The SDK does not know which network a
-/// transaction is for, so that comparison is left to the caller.
+/// The caller compares `network` with the network it is sending on; the SDK does not.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SilentPaymentAddress {
     /// The scan public key, `B_scan`.
@@ -109,14 +88,8 @@ pub struct SilentPaymentAddress {
 }
 
 impl SilentPaymentAddress {
-    /// Construct a `SilentPaymentAddress` from public keys and a network.
-    ///
-    /// This constructor does not validate the keys (the fields are public, so
-    /// an address can be assembled without it anyway). Validation happens
-    /// wherever an address is used: [`Self::decode`] rejects invalid keys,
-    /// [`Self::encode`] refuses to encode them, and the silent-payment send
-    /// action calls [`Self::validate`] before deriving anything. Call
-    /// [`Self::validate`] directly when taking keys from an untrusted source.
+    /// An address from its keys and network. The keys are not checked here; [`Self::decode`],
+    /// [`Self::encode`] and the send action check them with [`Self::validate`].
     #[must_use]
     pub fn new(scan_pk: PublicKey, spend_pk: PublicKey, network: SilentPaymentNetwork) -> Self {
         Self {
@@ -126,19 +99,8 @@ impl SilentPaymentAddress {
         }
     }
 
-    /// Check the keys as CHIP-0057 "Silent Payment Address" requires: both must
-    /// be valid elements of the prime-order G1 subgroup, and neither may be
-    /// the identity element.
-    ///
-    /// An identity scan key would make the shared secret a public constant,
-    /// and a key outside the subgroup can leak bits of the sender's secret
-    /// keys (CHIP-0057 "Point Validation").
-    ///
-    /// # Errors
-    ///
-    /// [`SilentPaymentError::IdentityPublicKey`] if either key is the identity
-    /// element, and [`SilentPaymentError::InvalidPublicKey`] if either key is
-    /// outside the prime-order subgroup.
+    /// Checks that both keys are in the prime-order G1 subgroup and neither is the identity
+    /// (CHIP-0057 "Point Validation"). Call it on keys from an untrusted source.
     pub fn validate(&self) -> Result<(), SilentPaymentError> {
         if self.scan_pk.is_inf() || self.spend_pk.is_inf() {
             return Err(SilentPaymentError::IdentityPublicKey);
@@ -149,14 +111,8 @@ impl SilentPaymentAddress {
         Ok(())
     }
 
-    /// Encode as bech32m: HRP `||` `"1"` `||` base32(version `||` `scan_pk` `||` `spend_pk`) `||` checksum.
-    ///
-    /// The data part is a single 5-bit version character (v0) followed by the
-    /// 96-byte payload `serialize(B_scan) || serialize(B_spend)` (CHIP-0057
-    /// Address Versioning).
-    ///
-    /// Fails if the keys do not pass [`Self::validate`], so that an address no
-    /// decoder would accept is never produced.
+    /// Encodes the address as bech32m with version 0. Fails if the keys do not pass
+    /// [`Self::validate`].
     pub fn encode(&self) -> Result<String, SilentPaymentError> {
         self.validate()?;
 
@@ -173,24 +129,9 @@ impl SilentPaymentAddress {
         )?)
     }
 
-    /// Decode a bech32m silent-payment address (CHIP-0057 Address Versioning).
-    ///
-    /// Version rules:
-    ///   - v0: payload must be exactly 96 bytes.
-    ///   - v1-30 (forward-compatible): payload must be at least 96 bytes; the
-    ///     first 96 bytes are the keys and trailing data is ignored. Note that
-    ///     re-encoding such an address emits v0 with only the keys.
-    ///   - v31: reserved for backward-incompatible upgrades — always rejected.
-    ///
-    /// Rejects:
-    ///   - length > 1,023 characters → `SilentPaymentError::AddressTooLong(N)`.
-    ///   - HRP not in `{"spxch", "tspxch"}` → `SilentPaymentError::WrongHrp`.
-    ///   - bech32 / bech32m parse failure → `SilentPaymentError::Bech32(_)`.
-    ///   - non-bech32m variant (plain bech32) → `SilentPaymentError::Bech32(Bech32Error::InvalidFormat)`.
-    ///   - version 31 → `SilentPaymentError::ReservedAddressVersion`.
-    ///   - invalid payload length for the version → `SilentPaymentError::PayloadLength(N)`.
-    ///   - either pubkey half is invalid bytes → `SilentPaymentError::InvalidPublicKey`.
-    ///   - either pubkey half is the identity element → `SilentPaymentError::IdentityPublicKey`.
+    /// Decodes an address (CHIP-0057 "Address Versioning") and validates its keys. Version 0
+    /// has exactly 96 bytes; versions 1-30 may have more, which is ignored, so re-encoding
+    /// gives version 0; version 31 is rejected.
     pub fn decode(s: &str) -> Result<Self, SilentPaymentError> {
         if s.len() > SILENT_PAYMENT_ADDRESS_MAX_LENGTH {
             return Err(SilentPaymentError::AddressTooLong(s.len()));
