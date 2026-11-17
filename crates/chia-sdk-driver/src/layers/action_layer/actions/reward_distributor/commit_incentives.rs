@@ -215,7 +215,8 @@ impl RewardDistributorCommitIncentivesAction {
     ) -> Result<Conditions, DriverError> {
         let reward_slot = distributor.actual_reward_slot_value(reward_slot);
 
-        // Fail before running the puzzle, which never ends for an unreachable epoch.
+        // Fail before running the puzzle, which recurses until it runs out of memory for an
+        // unreachable epoch.
         Self::epochs_to_target(
             reward_slot.info.value.epoch_start,
             epoch_start,
