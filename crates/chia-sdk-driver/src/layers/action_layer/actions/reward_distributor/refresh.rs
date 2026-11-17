@@ -273,13 +273,18 @@ impl RewardDistributorRefreshAction {
             slots.len(),
             nft_inclusion_proofs.len(),
         )?;
-        for (i, nfts) in nfts.iter().enumerate() {
-            DriverError::check_length("nft_shares_delta", nfts.len(), nft_shares_delta[i].len())?;
-            DriverError::check_length("nft_new_shares", nfts.len(), nft_new_shares[i].len())?;
+        for (((nfts, shares_delta), new_shares), inclusion_proofs) in nfts
+            .iter()
+            .zip(nft_shares_delta)
+            .zip(nft_new_shares)
+            .zip(nft_inclusion_proofs)
+        {
+            DriverError::check_length("nft_shares_delta entry", nfts.len(), shares_delta.len())?;
+            DriverError::check_length("nft_new_shares entry", nfts.len(), new_shares.len())?;
             DriverError::check_length(
-                "nft_inclusion_proofs",
+                "nft_inclusion_proofs entry",
                 nfts.len(),
-                nft_inclusion_proofs[i].len(),
+                inclusion_proofs.len(),
             )?;
         }
 

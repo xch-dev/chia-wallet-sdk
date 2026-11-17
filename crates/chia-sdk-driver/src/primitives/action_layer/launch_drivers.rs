@@ -350,7 +350,7 @@ pub fn first_offered_xch_coin(offer: &Offer) -> Result<Coin, DriverError> {
         .xch
         .first()
         .copied()
-        .ok_or_else(|| DriverError::Custom("offer doesn't offer any XCH".to_string()))
+        .ok_or(DriverError::MissingOfferedXch)
 }
 
 /// Launches a [`CatalogRegistry`] funded by the XCH of `offer`.
@@ -1283,8 +1283,6 @@ mod tests {
         Ok((new_catalog, new_payment_cat))
     }
 
-    #[allow(clippy::similar_names)]
-    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn test_launch_without_offered_xch() -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
@@ -1295,7 +1293,7 @@ mod tests {
 
         assert!(matches!(
             first_offered_xch_coin(&offer),
-            Err(DriverError::Custom(message)) if message == "offer doesn't offer any XCH"
+            Err(DriverError::MissingOfferedXch)
         ));
         assert!(matches!(
             launch_reward_distributor(
@@ -1320,12 +1318,37 @@ mod tests {
                 &TESTNET11_CONSTANTS,
                 "",
             ),
-            Err(DriverError::Custom(message)) if message == "offer doesn't offer any XCH"
+            Err(DriverError::MissingOfferedXch)
+        ));
+        assert!(matches!(
+            launch_catalog_registry(
+                &mut ctx,
+                &offer,
+                1,
+                |_, _, _, ()| unreachable!("the offer has no XCH to launch from"),
+                &TESTNET11_CONSTANTS,
+                (),
+            ),
+            Err(DriverError::MissingOfferedXch)
+        ));
+        assert!(matches!(
+            launch_xchandles_registry(
+                &mut ctx,
+                &offer,
+                1,
+                1,
+                |_, _, _, ()| unreachable!("the offer has no XCH to launch from"),
+                &TESTNET11_CONSTANTS,
+                (),
+            ),
+            Err(DriverError::MissingOfferedXch)
         ));
 
         Ok(())
     }
 
+    #[allow(clippy::similar_names)]
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn test_catalog() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -2212,7 +2235,7 @@ mod tests {
                     did.info.inner_puzzle_hash().into(),
                     did.info.inner_puzzle_hash().into(),
                 ),
-                Err(DriverError::Custom(message)) if message == "base handle price must not be 0"
+                Err(DriverError::ZeroRegistrationPrice)
             ));
 
             let spent_values = [left_slot.info.value, right_slot.info.value];
@@ -3789,6 +3812,24 @@ mod tests {
                         found: 0,
                     })
                 ));
+                // Extra proofs are rejected too, rather than ignored.
+                assert!(matches!(
+                    registry
+                        .new_action::<RewardDistributorStakeAction>()
+                        .spend_for_collection_nft_mode(
+                            ctx,
+                            &mut registry,
+                            &[offer_nft],
+                            &[nft_proof.clone(), nft_proof.clone()],
+                            nft_bls.puzzle_hash,
+                            None,
+                        ),
+                    Err(DriverError::LengthMismatch {
+                        argument: "nft_launcher_proofs",
+                        expected: 1,
+                        found: 2,
+                    })
+                ));
 
                 registry
                     .new_action::<RewardDistributorStakeAction>()
@@ -4716,7 +4757,7 @@ mod tests {
                             dl_inner_puzzle_hash.into(),
                         ),
                     Err(DriverError::LengthMismatch {
-                        argument: "nft_new_shares",
+                        argument: "nft_new_shares entry",
                         expected: 1,
                         found: 0,
                     })

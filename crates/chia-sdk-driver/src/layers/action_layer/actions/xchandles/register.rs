@@ -256,8 +256,8 @@ impl XchandlesRegisterAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if `base_handle_price` is 0, since the price of one period is then 0, or
-    /// if any of the spends can't be created.
+    /// Returns [`DriverError::ZeroRegistrationPrice`] if the price of one period is 0 (when
+    /// `base_handle_price` is 0), or an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -281,7 +281,7 @@ impl XchandlesRegisterAction {
                 &handle,
                 1,
             ))
-            .ok_or_else(|| DriverError::Custom("base handle price must not be 0".to_string()))?;
+            .ok_or(DriverError::ZeroRegistrationPrice)?;
         let pricing_puzzle = ctx.curry(XchandlesFactorPricingPuzzleArgs {
             base_price: base_handle_price,
             registration_period,
