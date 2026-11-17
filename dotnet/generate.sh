@@ -3,7 +3,10 @@
 #
 # Usage: ./generate.sh [rust-target]
 #
-# The target defaults to the host. Requires `uniffi-bindgen-cs`, which can be installed with:
+# The target defaults to the host. Set SKIP_BUILD=1 to use a library that's already in
+# target/<rust-target>/release-uniffi instead of building it.
+#
+# Requires `uniffi-bindgen-cs`, which can be installed with:
 #   cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.11.1+v0.31.0
 set -euo pipefail
 
@@ -24,7 +27,11 @@ case "$TARGET" in
     ;;
 esac
 
-cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target "$TARGET"
+# CI builds the Linux libraries once and shares them between Go and .NET, so it sets SKIP_BUILD
+# and puts the library where the build would have
+if [ "${SKIP_BUILD:-}" != 1 ]; then
+  cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target "$TARGET"
+fi
 
 LIB="target/$TARGET/release-uniffi/$LIB"
 OUT=dotnet/ChiaWalletSdk
