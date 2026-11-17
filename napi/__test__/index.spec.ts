@@ -11,6 +11,7 @@ import {
   NftMetadata,
   NftMint,
   PublicKey,
+  SecretKey,
   Simulator,
   spendBundleCost,
   toHex,
@@ -170,6 +171,13 @@ test("public key roundtrip", (t) => {
   const pk = PublicKey.fromBytes(ptr.toAtom()!);
 
   t.true(bytesEqual(PublicKey.infinity().toBytes(), pk.toBytes()));
+});
+
+test("secret key from short seed throws", (t) => {
+  t.throws(() => SecretKey.fromSeed(new Uint8Array(31)), {
+    message: /expected at least 32 bytes, found 31/,
+  });
+  t.notThrows(() => SecretKey.fromSeed(new Uint8Array(32)));
 });
 
 test("curry add function", (t) => {

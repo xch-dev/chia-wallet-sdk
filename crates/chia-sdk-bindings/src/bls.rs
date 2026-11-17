@@ -1,4 +1,4 @@
-use bindy::Result;
+use bindy::{Error, Result};
 use chia_bls::{DerivableKey, PublicKey, SecretKey, Signature, aggregate_verify, sign, verify};
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
@@ -19,6 +19,14 @@ pub trait SecretKeyExt: Sized {
 
 impl SecretKeyExt for SecretKey {
     fn from_seed(seed: Bytes) -> Result<Self> {
+        // `chia_bls::SecretKey::from_seed` asserts that the seed is at least 32 bytes long.
+        if seed.len() < 32 {
+            return Err(Error::TooShort {
+                minimum: 32,
+                found: seed.len(),
+            });
+        }
+
         Ok(Self::from_seed(&seed))
     }
 

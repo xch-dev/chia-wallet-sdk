@@ -21,6 +21,7 @@ func TestInvalidInputs(t *testing.T) {
 		"10 byte public key": func() error { _, err := sdk.PublicKeyFromBytes(make([]byte, 10)); return err },
 		"10 byte secret key": func() error { _, err := sdk.SecretKeyFromBytes(make([]byte, 10)); return err },
 		"10 byte signature":  func() error { _, err := sdk.SignatureFromBytes(make([]byte, 10)); return err },
+		"16 byte seed":       func() error { _, err := sdk.SecretKeyFromSeed(make([]byte, 16)); return err },
 		"invalid mnemonic":   func() error { _, err := sdk.NewMnemonic("not a valid mnemonic phrase at all"); return err },
 		"invalid address":    func() error { _, err := sdk.AddressDecode("notavalidaddress"); return err },
 		"invalid offer":      func() error { _, err := sdk.DecodeOffer("not_a_valid_offer_string"); return err },
