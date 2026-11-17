@@ -101,6 +101,9 @@ enum MethodKind {
 /// so adding a new file to the `bindings` directory isn't noticed on its own: the crate is rebuilt
 /// once anything else it depends on changes, such as registering the new module in
 /// `chia-sdk-bindings`. Touch `bindings.json` to pick up a new file without any other change.
+///
+/// If a file can't be read or parsed, returns the tracking items followed by a `compile_error!`
+/// for each failure, which the macros emit in place of their usual output.
 fn load_bindings(
     path: &str,
 ) -> Result<(Bindy, IndexMap<String, Binding>, proc_macro2::TokenStream), proc_macro2::TokenStream>
