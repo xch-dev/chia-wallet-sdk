@@ -195,6 +195,7 @@ pub trait VaultMessageProofExt: Sized {
     fn decode(proof: Bytes) -> Result<Self>;
     fn encode_string(&self) -> Result<String>;
     fn decode_string(proof: String) -> Result<Self>;
+    fn vault_info(&self) -> Result<VaultInfo>;
 }
 
 impl VaultMessageProofExt for VaultMessageProof {
@@ -212,6 +213,10 @@ impl VaultMessageProofExt for VaultMessageProof {
 
     fn decode_string(proof: String) -> Result<Self> {
         Ok(Self::decode_string(&proof)?)
+    }
+
+    fn vault_info(&self) -> Result<VaultInfo> {
+        Ok(Self::vault_info(self)?)
     }
 }
 

@@ -24,6 +24,11 @@
     "fields": {
       "launcher_id": "Bytes32",
       "custody_hash": "TreeHash"
+    },
+    "methods": {
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "MemberConfig": {
