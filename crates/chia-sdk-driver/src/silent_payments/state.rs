@@ -18,18 +18,18 @@ use super::{
     settlement_assertion,
 };
 use crate::{
-    Asset, AssetInfo, CatAssetInfo, Deltas, DriverError, Finished, Id, Outputs, Relation,
-    SettlementPayer, SpendContext, SpendKind, SpendPosition, Spends, Unfinished,
+    Action, Asset, AssetInfo, CatAssetInfo, Deltas, DriverError, FeeOptions, FeeTransaction,
+    Finished, Id, Outputs, Relation, SettlementPayer, SpendContext, SpendKind, SpendPosition,
+    Spends, Unfinished, spend_with_minimum_fee,
 };
 
 /// The CHIP-0057 silent payments applied to [`Spends`]: the `k` counter of each scan key and the
 /// outputs that are derived when the transaction is prepared. It holds no secret key.
 #[derive(Debug, Clone, Default)]
 pub struct SilentPaymentState {
-    /// The hidden puzzle hash of each revocable CAT the transaction requests with
-    /// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested), which names
-    /// its assets by [`Id`]. A requested CAT that is not listed is taken to be not revocable. Set
-    /// it before the actions are applied.
+    /// The revocable CATs the transaction requests with
+    /// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested). A requested CAT
+    /// that is not listed is taken to be not revocable. Set it before the actions are applied.
     pub requested_asset_info: AssetInfo,
     /// The next `k` of each scan key, by its compressed public key.
     pub(crate) counters: HashMap<[u8; 48], u32>,
@@ -45,14 +45,10 @@ impl SilentPaymentState {
 }
 
 impl Spends<Unfinished> {
-    /// [`Spends::prepare`] for a transaction with silent payment actions. The outputs are derived
-    /// from the synthetic secret keys of the spend group, by p2 puzzle hash: every XCH coin spent
-    /// with the standard puzzle and the first CAT coin of each asset, keyed by the puzzle hash of
-    /// its inner standard puzzle. Intermediate coins have the puzzle hash of the coin that creates
-    /// them, so the keys of the selected coins are normally enough.
-    ///
-    /// The keys are only borrowed for the call. Every key is checked against its coin, and
-    /// [`DriverError::SilentPaymentKeyNotSynthetic`] is returned on a mismatch.
+    /// [`Spends::prepare`] for a transaction with silent payment actions. `secret_keys` are the
+    /// synthetic secret keys of the spend group by p2 puzzle hash: every XCH coin spent and the
+    /// first CAT coin of each asset. They are only borrowed for the call, and a key that is not its
+    /// coin's returns [`DriverError::SilentPaymentKeyNotSynthetic`].
     pub fn prepare_with_silent_payment_keys(
         mut self,
         ctx: &mut SpendContext,
@@ -105,20 +101,64 @@ impl Spends<Unfinished> {
         self.prepare_with_silent_payment_keys(ctx, deltas, relation, secret_keys)?
             .spend_with_keys(ctx, synthetic_keys)
     }
+
+    /// [`Spends::apply_with_fee`] for a transaction with silent payment actions. A coin selected
+    /// for the fee joins the spend group, so `secret_keys` needs the key of every coin in
+    /// `xch_coins`; see [`Spends::prepare_with_silent_payment_keys`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_with_fee_and_silent_payment_keys<T>(
+        &self,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        xch_coins: &[Coin],
+        fee: u64,
+        relation: Relation,
+        secret_keys: &IndexMap<Bytes32, SyntheticSecretKey>,
+        spend_p2: impl FnOnce(&mut SpendContext, Spends<Finished>) -> Result<T, DriverError>,
+    ) -> Result<T, DriverError> {
+        self.apply_with_fee_using(
+            ctx,
+            actions,
+            xch_coins,
+            fee,
+            relation,
+            |spends, ctx, deltas, relation| {
+                spends.prepare_with_silent_payment_keys(ctx, deltas, relation, secret_keys)
+            },
+            spend_p2,
+        )
+    }
+
+    /// [`Spends::apply_with_minimum_fee`] for a transaction with silent payment actions; see
+    /// [`Spends::apply_with_fee_and_silent_payment_keys`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_with_minimum_fee_and_silent_payment_keys<T>(
+        &self,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        xch_coins: &[Coin],
+        relation: Relation,
+        options: FeeOptions<'_>,
+        secret_keys: &IndexMap<Bytes32, SyntheticSecretKey>,
+        mut spend_p2: impl FnMut(&mut SpendContext, Spends<Finished>) -> Result<T, DriverError>,
+    ) -> Result<FeeTransaction<T>, DriverError> {
+        spend_with_minimum_fee(ctx, options, |ctx, fee| {
+            self.apply_with_fee_and_silent_payment_keys(
+                ctx,
+                actions,
+                xch_coins,
+                fee,
+                relation,
+                secret_keys,
+                &mut spend_p2,
+            )
+        })
+    }
 }
 
-/// Derives and emits the pending silent payment outputs from the spend group (CHIP-0057 "Inputs
-/// for Shared Secret Derivation", "Spend Groups across Assets"): every XCH coin spent with the
-/// standard puzzle, intermediate coins included, and the first coin of each CAT asset, which are
-/// the coins [`Relation::AssertConcurrent`] binds. Settled payments (CHIP-0057 "Payments through
-/// Settlement Coins") are derived in the same pass and handed to [`settle_silent_payments`].
-///
-/// Spends outside the closed list of eligible spends, a group of two or more coins without
-/// [`Relation::AssertConcurrent`], and a coin of the group without a matching synthetic secret key
-/// are rejected before any key is used.
-///
-/// Returns the coin ids of the spend group, which the caller compares with the coins that were
-/// bound together once the transaction is complete.
+/// Derives and emits the pending silent payment outputs from the spend group, the coins
+/// [`Relation::AssertConcurrent`] binds (CHIP-0057 "Inputs for Shared Secret Derivation", "Spend
+/// Groups across Assets"). Returns the coin ids of the group.
 fn derive_silent_payment_outputs(
     ctx: &mut SpendContext,
     spends: &mut Spends,
@@ -321,11 +361,8 @@ struct AssetSettlement {
     payments: Vec<Payment>,
 }
 
-/// Groups the party's settled payments per asset into one notarized payment each under the
-/// party's nonce and asserts each announcement as a required condition (CHIP-0057
-/// `DeriveSettlementOutputs`). Payments the counterparty's settlement coins make are published
-/// in [`Outputs::silent_payment_requests`](crate::Outputs::silent_payment_requests); payments a
-/// settlement coin of the transaction makes are added to that coin's solution.
+/// Groups the party's settled payments per asset into one notarized payment each and asserts its
+/// announcement (CHIP-0057 `DeriveSettlementOutputs`).
 fn settle_silent_payments(
     ctx: &mut SpendContext,
     spends: &mut Spends,

@@ -25,12 +25,16 @@ import {
   Clvm,
   Id,
   LabelRegistry,
+  minimumFee,
   Mnemonic,
+  recommendedFee,
+  Relation,
   SilentPaymentKeys,
   SilentPaymentNetwork,
   SilentPaymentSecretKey,
   SilentPayments,
   Simulator,
+  spendBundleCost,
   Spends,
   standardPuzzleHash,
 } from "../index.js";
@@ -214,4 +218,81 @@ test("napi: raw key against a non-synthetic coin surfaces SilentPaymentKeyNotSyn
 // CHIP-0057 "Kmax": the output limit is available without duplicating it.
 test("napi: SilentPayments.kMax() is the output limit", (t) => {
   t.is(SilentPayments.kMax(), 2400);
+});
+
+test("napi: a silent payment is priced with applyWithFeeAndSilentPaymentKeys", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const recipient = SilentPaymentKeys.fromMnemonic(new Mnemonic(TEST_MNEMONIC));
+  const sender = sim.bls(0n);
+  const senderSyntheticPk = sender.pk.deriveSynthetic();
+  const senderPh = standardPuzzleHash(senderSyntheticPk);
+
+  // The first coin covers the payment exactly, so the fee needs the second one
+  const paymentCoin = sim.newCoin(senderPh, 1_000n);
+  const feeCoin = sim.newCoin(senderPh, 1_000_000_000_000n);
+  const xchCoins = [paymentCoin, feeCoin];
+  const heightBefore = sim.height();
+
+  const spends = new Spends(clvm, senderPh);
+  const actions = [
+    Action.silentPaymentSend(
+      Id.xch(),
+      recipient.unlabeledAddress(SilentPaymentNetwork.Testnet),
+      1_000n,
+      undefined,
+    ),
+  ];
+  const secretKeys = [new SilentPaymentSecretKey(senderPh, sender.sk)];
+
+  t.throws(() =>
+    spends.applyWithFee(actions, xchCoins, 0n, Relation.AssertConcurrent),
+  );
+
+  let fee = 0n;
+  let cost = 0n;
+  let coinSpends = clvm.coinSpends();
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const finished = spends.applyWithFeeAndSilentPaymentKeys(
+      actions,
+      xchCoins,
+      fee,
+      Relation.AssertConcurrent,
+      secretKeys,
+    );
+    for (const pending of finished.pendingSpends()) {
+      finished.insert(
+        pending.coin().coinId(),
+        clvm.standardSpend(
+          senderSyntheticPk,
+          clvm.delegatedSpend(pending.conditions()),
+        ),
+      );
+    }
+    finished.spend();
+
+    coinSpends = clvm.coinSpends();
+    cost = spendBundleCost(coinSpends, true, 9_500_000);
+    const needed = recommendedFee(cost);
+    if (fee >= needed) break;
+    fee = needed;
+  }
+
+  t.true(fee > 0n);
+  t.is(fee, minimumFee(cost));
+  t.true(coinSpends.some((cs) => cs.coin.coinId().equals(feeCoin.coinId())));
+
+  sim.spendCoins(coinSpends, [sender.sk.deriveSynthetic()]);
+
+  const detections = SilentPayments.scanFromTweaks(
+    recipient.scanSk(),
+    recipient.spendPk(),
+    sim.tweakDataFromBlock(heightBefore),
+    new LabelRegistry(recipient.scanSk()),
+    K_MAX_DEFAULT,
+  );
+  t.is(detections.length, 1);
+  t.is(detections[0].amount, 1_000n);
 });

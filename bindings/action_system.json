@@ -116,6 +116,16 @@
           "secret_keys": "Vec<SilentPaymentSecretKey>"
         },
         "return": "FinishedSpends"
+      },
+      "apply_with_fee_and_silent_payment_keys": {
+        "args": {
+          "actions": "Vec<Action>",
+          "xch_coins": "Vec<Coin>",
+          "fee": "u64",
+          "relation": "Option<Relation>",
+          "secret_keys": "Vec<SilentPaymentSecretKey>"
+        },
+        "return": "FinishedSpends"
       }
     }
   },

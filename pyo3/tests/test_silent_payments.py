@@ -36,6 +36,7 @@ from chia_wallet_sdk import (
     Offer,
     OutputMeta,
     PublicKey,
+    Relation,
     ScalarField,
     SecretKey,
     SilentPaymentAddress,
@@ -50,6 +51,9 @@ from chia_wallet_sdk import (
     Simulator,
     Spends,
     TweakData,
+    minimum_fee,
+    recommended_fee,
+    spend_bundle_cost,
     standard_puzzle_hash,
 )
 
@@ -1019,3 +1023,70 @@ def test_keys_label_registry():
         labels.forward(2).to_bytes()
         == SilentPayments.generate_label(keys.scan_sk(), 2).public_key.to_bytes()
     )
+
+
+def test_silent_payment_is_priced_with_apply_with_fee():
+    sim = Simulator()
+    clvm = Clvm()
+
+    recipient = SilentPaymentKeys.from_mnemonic(Mnemonic(TEST_MNEMONIC))
+    sender = sim.bls(0)
+    sender_synthetic_pk = sender.pk.derive_synthetic()
+    sender_ph = standard_puzzle_hash(sender_synthetic_pk)
+
+    # The first coin covers the payment exactly, so the fee needs the second one.
+    payment_coin = sim.new_coin(sender_ph, 1_000)
+    fee_coin = sim.new_coin(sender_ph, 1_000_000_000_000)
+    xch_coins = [payment_coin, fee_coin]
+    height_before = sim.height()
+
+    spends = Spends(clvm, sender_ph)
+    actions = [
+        Action.silent_payment_send(
+            Id.xch(),
+            recipient.unlabeled_address(SilentPaymentNetwork.Testnet),
+            1_000,
+            None,
+        )
+    ]
+    secret_keys = [SilentPaymentSecretKey(sender_ph, sender.sk)]
+
+    with pytest.raises(Exception):
+        spends.apply_with_fee(actions, xch_coins, 0, Relation.AssertConcurrent)
+
+    fee = 0
+    for _ in range(8):
+        finished = spends.apply_with_fee_and_silent_payment_keys(
+            actions, xch_coins, fee, Relation.AssertConcurrent, secret_keys
+        )
+        for pending in finished.pending_spends():
+            finished.insert(
+                pending.coin().coin_id(),
+                clvm.standard_spend(
+                    sender_synthetic_pk, clvm.delegated_spend(pending.conditions())
+                ),
+            )
+        finished.spend()
+
+        coin_spends = clvm.coin_spends()
+        cost = spend_bundle_cost(coin_spends, True, 9_500_000)
+        needed = recommended_fee(cost)
+        if fee >= needed:
+            break
+        fee = needed
+
+    assert fee > 0
+    assert fee == minimum_fee(cost)
+    assert any(cs.coin.coin_id() == fee_coin.coin_id() for cs in coin_spends)
+
+    sim.spend_coins(coin_spends, [sender.sk.derive_synthetic()])
+
+    detections = SilentPayments.scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        sim.tweak_data_from_block(height_before),
+        LabelRegistry(recipient.scan_sk()),
+        K_MAX_DEFAULT,
+    )
+    assert len(detections) == 1
+    assert detections[0].amount == 1_000

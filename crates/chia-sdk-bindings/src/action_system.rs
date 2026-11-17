@@ -230,27 +230,15 @@ impl Spends {
         })
     }
 
-    /// `prepare` for a transaction with silent payment actions (CHIP-0057).
-    /// `secret_keys` are the raw wallet secret keys of the spend group by p2
-    /// puzzle hash: every XCH coin spent and the first CAT coin of each asset.
-    /// The synthetic keys are derived with the default hidden puzzle; a key
-    /// that does not belong to its coin fails with
-    /// `SilentPaymentKeyNotSynthetic`. The keys are used for this call only.
+    /// `prepare` for a transaction with silent payment actions. `secret_keys` are the raw wallet
+    /// secret keys of the spend group by p2 puzzle hash; the synthetic keys are derived here.
     pub fn prepare_with_silent_payment_keys(
         &self,
         deltas: Deltas,
         relation: Option<Relation>,
         secret_keys: Vec<SilentPaymentSecretKey>,
     ) -> Result<FinishedSpends> {
-        let secret_keys: IndexMap<Bytes32, SyntheticSecretKey> = secret_keys
-            .into_iter()
-            .map(|entry| {
-                (
-                    entry.p2_puzzle_hash,
-                    SyntheticSecretKey::from_raw(&entry.secret_key),
-                )
-            })
-            .collect();
+        let secret_keys = synthetic_secret_keys(secret_keys);
         self.prepare_with(|spends, ctx| {
             Ok(spends.prepare_with_silent_payment_keys(
                 ctx,
@@ -261,8 +249,8 @@ impl Spends {
         })
     }
 
-    /// The hidden puzzle hash of each revocable CAT the transaction requests
-    /// with `Action.silent_payment_requested`. Call it before `apply`.
+    /// The revocable CATs the transaction requests with `Action.silent_payment_requested`. Call it
+    /// before `apply`.
     pub fn set_silent_payment_requested_asset_info(&self, asset_info: AssetInfo) -> Result<()> {
         self.spends
             .lock()
@@ -342,6 +330,57 @@ impl Spends {
             finished: Arc::new(Mutex::new(finished)),
         })
     }
+
+    /// `apply_with_fee` for a transaction with silent payment actions. `secret_keys` needs the raw
+    /// wallet secret key of every coin in `xch_coins`, since a coin selected for the fee joins the
+    /// spend group.
+    pub fn apply_with_fee_and_silent_payment_keys(
+        &self,
+        actions: Vec<Action>,
+        xch_coins: Vec<Coin>,
+        fee: u64,
+        relation: Option<Relation>,
+        secret_keys: Vec<SilentPaymentSecretKey>,
+    ) -> Result<FinishedSpends> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let spends = self.spends.lock().unwrap();
+
+        let actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
+        let secret_keys = synthetic_secret_keys(secret_keys);
+
+        let (spends, finished) = spends.apply_with_fee_and_silent_payment_keys(
+            &mut ctx,
+            &actions,
+            &xch_coins,
+            fee,
+            relation.map_or(sdk::Relation::None, Into::into),
+            &secret_keys,
+            |ctx, spends| {
+                let finished = settlement_spends(ctx, &spends)?;
+                Ok((spends, finished))
+            },
+        )?;
+
+        Ok(FinishedSpends {
+            spends: Arc::new(Mutex::new(spends)),
+            clvm: self.clvm.clone(),
+            finished: Arc::new(Mutex::new(finished)),
+        })
+    }
+}
+
+fn synthetic_secret_keys(
+    secret_keys: Vec<SilentPaymentSecretKey>,
+) -> IndexMap<Bytes32, SyntheticSecretKey> {
+    secret_keys
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.p2_puzzle_hash,
+                SyntheticSecretKey::from_raw(&entry.secret_key),
+            )
+        })
+        .collect()
 }
 
 /// Builds the spends of the settlement coins, which don't need a p2 spend from the caller.

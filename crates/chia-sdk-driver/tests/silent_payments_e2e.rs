@@ -33,14 +33,17 @@ use chia_sdk_driver::silent_payments::{
     tweak_data_from_block_spends,
 };
 use chia_sdk_driver::{
-    Action, AssetInfo, Cat, CatAssetInfo, CatSpend, DriverError, FungibleSpend, HashedPtr, Id,
-    Offer, Relation, RequestedPayments, SilentPaymentAction, SilentPaymentSendAction, SpendContext,
-    SpendWithConditions, Spends, StandardLayer,
+    Action, AssetInfo, Cat, CatAssetInfo, CatSpend, DriverError, FeeOptions, Finished,
+    FungibleSpend, HashedPtr, Id, Offer, Outputs, Relation, RequestedPayments, SilentPaymentAction,
+    SilentPaymentSendAction, SpendContext, SpendKind, SpendWithConditions, Spends, StandardLayer,
+    minimum_fee,
 };
 use chia_sdk_test::silent_payments::tweak_data_from_simulator_block;
 use chia_sdk_test::{BlsPairWithCoin, Simulator, sign_transaction};
 use chia_sdk_types::silent_payments::GROUP_ORDER;
-use chia_sdk_types::{Condition, Conditions, run_puzzle, tree_hash_notarized_payment};
+use chia_sdk_types::{
+    Condition, Conditions, MAINNET_CONSTANTS, run_puzzle, tree_hash_notarized_payment,
+};
 use chia_sdk_utils::silent_payments::{LabelRegistry, SilentPaymentKeys, SilentPaymentNetwork};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::Allocator;
@@ -285,6 +288,105 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
         post_state.spent_height.is_some(),
         "detected coin must be spent after follow-on spend"
     );
+
+    Ok(())
+}
+
+/// Spends every coin of prepared spends with the standard puzzle of `public_key`.
+fn spend_standard(
+    ctx: &mut SpendContext,
+    spends: Spends<Finished>,
+    public_key: chia_bls::PublicKey,
+) -> Result<Outputs, DriverError> {
+    let mut coin_spends = std::collections::HashMap::new();
+
+    for (asset, kind) in spends.unspent() {
+        let SpendKind::Conditions(spend) = kind else {
+            unreachable!("there are no settlement spends");
+        };
+        coin_spends.insert(
+            asset.coin().coin_id(),
+            StandardLayer::new(public_key).spend_with_conditions(ctx, spend.finish())?,
+        );
+    }
+
+    spends.spend(ctx, coin_spends)
+}
+
+/// A silent payment priced at the minimum fee. The first coin covers the payment exactly, so the
+/// fee needs the second one, which joins the spend group.
+#[test]
+fn test_simulator_e2e_minimum_fee() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let a = sim.bls(1_000);
+    let fee_coin = sim.new_coin(a.puzzle_hash, 1_000_000_000_000);
+    let xch_coins = [a.coin, fee_coin];
+    let (_, secret_keys) = sender_keys(&[&a]);
+
+    let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
+    let actions = [Action::silent_payment_send(
+        Id::Xch,
+        recipient.unlabeled_address(SilentPaymentNetwork::Testnet),
+        1_000,
+        Memos::None,
+    )];
+    let height_before = sim.height();
+
+    let spends = Spends::new(a.puzzle_hash);
+
+    // The helpers without the keys refuse the transaction and leave the context as it was.
+    let without_keys = spends.apply_with_fee(
+        &mut ctx,
+        &actions,
+        &xch_coins,
+        0,
+        Relation::AssertConcurrent,
+        |ctx, spends| spend_standard(ctx, spends, a.pk),
+    );
+    assert!(matches!(
+        without_keys,
+        Err(DriverError::SilentPaymentKeysMissing)
+    ));
+    assert!(ctx.take().is_empty());
+
+    let tx = spends.apply_with_minimum_fee_and_silent_payment_keys(
+        &mut ctx,
+        &actions,
+        &xch_coins,
+        Relation::AssertConcurrent,
+        FeeOptions::new(&MAINNET_CONSTANTS, 9_500_000),
+        &secret_keys,
+        |ctx, spends| spend_standard(ctx, spends, a.pk),
+    )?;
+    assert!(tx.coin_spends.iter().any(|cs| cs.coin == fee_coin));
+    assert!(tx.fee > 0);
+    assert_eq!(tx.fee, minimum_fee(tx.cost));
+
+    // The same fee builds the same transaction, with the same one-time puzzle hash.
+    spends.apply_with_fee_and_silent_payment_keys(
+        &mut ctx,
+        &actions,
+        &xch_coins,
+        tx.fee,
+        Relation::AssertConcurrent,
+        &secret_keys,
+        |ctx, spends| spend_standard(ctx, spends, a.pk),
+    )?;
+    assert_eq!(ctx.take(), tx.coin_spends);
+
+    sim.spend_coins(tx.coin_spends, std::slice::from_ref(&a.sk))?;
+
+    let detections = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data_from_simulator_block(&sim, height_before),
+        None,
+        K_MAX_DEFAULT,
+    )?;
+    assert_eq!(detections.len(), 1);
+    assert_eq!(detections[0].amount, 1_000);
 
     Ok(())
 }

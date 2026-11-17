@@ -4960,6 +4960,7 @@ export declare class Spends {
   applyWithFee(actions: Array<Action>, xchCoins: Array<Coin>, fee: bigint, relation?: Relation | undefined | null): FinishedSpends
   setSilentPaymentRequestedAssetInfo(assetInfo: AssetInfo): void
   prepareWithSilentPaymentKeys(deltas: Deltas, relation: Relation | undefined | null, secretKeys: Array<SilentPaymentSecretKey>): FinishedSpends
+  applyWithFeeAndSilentPaymentKeys(actions: Array<Action>, xchCoins: Array<Coin>, fee: bigint, relation: Relation | undefined | null, secretKeys: Array<SilentPaymentSecretKey>): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {
