@@ -25,7 +25,7 @@ use rstest::rstest;
 
 use crate::{
     InnerPuzzleSpend, Launcher, MipsSpend, MipsSpendKind, MofN, Restriction, RestrictionKind,
-    RevealedControlledVault, Reveals, StandardLayer, calculate_vault_puzzle_message,
+    RevealedControlledVault, Reveals, SingletonInfo, StandardLayer, calculate_vault_puzzle_message,
     controlled_custody_puzzle_hash, controlled_member_spend, m_of_n_proof, mips_puzzle_hash,
     parse_vault_transaction,
 };
@@ -1438,6 +1438,121 @@ fn test_proof_does_not_check_coin_state() -> Result<()> {
             .is_some()
     );
     assert_eq!(custody.verify(&proof, &vault)?, messages());
+
+    Ok(())
+}
+
+#[test]
+fn test_vault_message_proof_vault_info() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1, Kind::Passkey], 1);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+    let proof = custody.sign_messages(&mut ctx, &vault, &messages(), &[0])?;
+
+    let info = proof.vault_info()?;
+    assert_eq!(info, vault.info);
+    assert_eq!(info.custody_hash, custody.custody_hash());
+    assert_eq!(Bytes32::from(info.puzzle_hash()), vault.coin.puzzle_hash);
+
+    // The signatures aren't checked, so an unsigned proof is still for the same vault.
+    let mut unsigned = proof.clone();
+    unsigned.coin_spend.solution = Program::from(vec![0x80]);
+    assert_eq!(unsigned.vault_info()?, vault.info);
+
+    // A puzzle reveal that doesn't hash to the coin's puzzle hash is rejected.
+    let mut forged = proof.clone();
+    forged.coin_spend.coin.puzzle_hash = Bytes32::new([1; 32]);
+    assert!(matches!(
+        forged.vault_info(),
+        Err(DriverError::WrongVaultPuzzleHash)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_vault_message_proof_vault_info_not_vault() -> Result<()> {
+    let mut ctx = SpendContext::new();
+
+    let proof_for = |ctx: &mut SpendContext, puzzle: NodePtr| -> Result<VaultMessageProof> {
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
+        let puzzle_reveal = ctx.serialize(&puzzle)?;
+        Ok(VaultMessageProof::new(
+            CoinSpend::new(
+                Coin::new(Bytes32::default(), puzzle_hash, 1),
+                puzzle_reveal,
+                Program::from(vec![0x80]),
+            ),
+            Signature::default(),
+        ))
+    };
+
+    // A standard puzzle isn't a singleton.
+    let standard = StandardLayer::new(BlsPair::new(0).pk).construct_puzzle(&mut ctx)?;
+    let proof = proof_for(&mut ctx, standard)?;
+    assert!(matches!(
+        proof.vault_info(),
+        Err(DriverError::UnsupportedVaultCustody)
+    ));
+
+    // A singleton whose inner puzzle isn't a MIPS puzzle isn't a vault.
+    let launcher_id = Bytes32::new([2; 32]);
+    let singleton = ctx.curry(SingletonArgs::new(launcher_id, standard))?;
+    let proof = proof_for(&mut ctx, singleton)?;
+    assert!(matches!(
+        proof.vault_info(),
+        Err(DriverError::UnsupportedVaultCustody)
+    ));
+
+    Ok(())
+}
+
+/// A proof for a made up coin with the expected launcher id and a custody of the forger's own is valid with its own
+/// custody hash, which is why the custody hash in the proof must be checked against the vault's coin on chain.
+#[test]
+fn test_vault_info_custody_hash_is_not_trusted() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let custody = TestCustody::new(&[Kind::R1, Kind::Passkey], 1);
+    let forger = TestCustody::with_seed(&[Kind::R1], 1, 100);
+    let vault = custody.mint(&mut sim, &mut ctx)?;
+
+    let forged_info = VaultInfo::new(vault.info.launcher_id, forger.custody_hash());
+    let forged_vault = Vault::new(
+        Coin::new(
+            vault.coin.parent_coin_info,
+            forged_info.puzzle_hash().into(),
+            vault.coin.amount,
+        ),
+        vault.proof,
+        forged_info,
+    );
+    let forged = forger.sign_messages(&mut ctx, &forged_vault, &messages(), &[0])?;
+
+    let info = forged.vault_info()?;
+    assert_eq!(info, forged_info);
+
+    // Trusting the proof's custody hash accepts the forgery.
+    assert_eq!(
+        verify_vault_signed_message(
+            &forged,
+            vault.info.launcher_id,
+            info.custody_hash.into(),
+            TESTNET11_CONSTANTS.genesis_challenge,
+            None,
+        )?,
+        messages()
+    );
+
+    // Comparing with the vault's coin on chain catches it.
+    assert_ne!(Bytes32::from(info.puzzle_hash()), vault.coin.puzzle_hash);
+    assert!(matches!(
+        custody.verify(&forged, &vault),
+        Err(DriverError::WrongVaultPuzzleHash)
+    ));
 
     Ok(())
 }

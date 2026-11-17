@@ -499,6 +499,45 @@ impl VaultMessageProof {
         let bytes = Bech32::decode(proof)?.expect_prefix(VAULT_MESSAGE_PROOF_PREFIX)?;
         Self::decode(&bytes)
     }
+
+    /// Reads the launcher id and custody hash of the vault that the proof claims to be for, from the singleton
+    /// puzzle reveal of its vault spend.
+    ///
+    /// Nothing in the proof is trusted, so this is only a claim. It's useful for finding which vault to look up, and
+    /// for comparing [`VaultInfo::puzzle_hash`](crate::SingletonInfo::puzzle_hash) with the puzzle hash of the vault's
+    /// coin on chain, but the custody hash must never be passed to [`verify_vault_signed_message`] as the expected
+    /// custody hash without checking it against a trusted source first. See [`verify_vault_signed_message`] for the
+    /// full flow.
+    ///
+    /// This fails if the puzzle reveal doesn't hash to the coin's puzzle hash, or isn't a singleton whose inner
+    /// puzzle is a top-level MIPS puzzle. The proof's signatures and delegated spend aren't checked.
+    pub fn vault_info(&self) -> Result<VaultInfo, DriverError> {
+        let mut allocator = Allocator::new();
+        let puzzle = node_from_bytes(&mut allocator, &self.coin_spend.puzzle_reveal)?;
+        let puzzle = Puzzle::parse(&allocator, puzzle);
+
+        if puzzle.curried_puzzle_hash() != self.coin_spend.coin.puzzle_hash.into() {
+            return Err(DriverError::WrongVaultPuzzleHash);
+        }
+
+        let Some(singleton) = SingletonLayer::<Puzzle>::parse_puzzle(&allocator, puzzle)? else {
+            return Err(DriverError::UnsupportedVaultCustody);
+        };
+
+        if IndexWrapperLayer::<NodePtr, DelegatedPuzzleFeederLayer<Puzzle>>::parse_puzzle(
+            &allocator,
+            singleton.inner_puzzle,
+        )?
+        .is_none()
+        {
+            return Err(DriverError::UnsupportedVaultCustody);
+        }
+
+        Ok(VaultInfo::new(
+            singleton.launcher_id,
+            singleton.inner_puzzle.curried_puzzle_hash(),
+        ))
+    }
 }
 
 /// Verifies that the vault with the expected launcher id and custody hash signed the messages in the proof, and
@@ -559,6 +598,71 @@ impl VaultMessageProof {
 /// The expected custody hash must come from a trusted source, such as the vault's coin on chain. Without it, anyone
 /// could make up a custody puzzle for any launcher id that doesn't require a signature. Since a vault's custody hash
 /// changes when its signers are changed, this also determines which signers the proof is checked against.
+///
+/// # Verifying a proof from someone else
+///
+/// A relying party, such as a website or service that receives a `vaultsig1...` string from a user, knows the
+/// launcher id of the vault it expects, but not the vault's custody hash. **Never use the custody hash in the proof
+/// (from [`VaultMessageProof::vault_info`]) as the expected custody hash without checking it against the chain.**
+/// Anyone can make a proof for any launcher id with a custody puzzle of their own that doesn't require a signature,
+/// and it passes this function if its own custody hash is the expected one.
+///
+/// The flow is:
+///
+/// 1. Decode the proof with [`VaultMessageProof::decode_string`].
+/// 2. Read the vault it claims to be for with [`VaultMessageProof::vault_info`], and check that its launcher id is
+///    the expected one.
+/// 3. Find the vault's current coin on chain, from a full node you trust, by following the singleton's lineage from
+///    the expected launcher id (or from a coin of the vault that you already track) to its latest unspent coin.
+///    Don't search for coins with the proof's puzzle hash instead: anyone can create a coin with the singleton puzzle
+///    hash for any launcher id and custody hash, by sending XCH to it, without it being the vault.
+/// 4. Check that the current coin's puzzle hash is [`VaultInfo::puzzle_hash`](crate::SingletonInfo::puzzle_hash) of
+///    the proof's vault info. Only then is the proof's custody hash the vault's current custody hash.
+/// 5. Call this function with the expected launcher id and that custody hash, then check the messages themselves (see
+///    the replay section below).
+///
+/// If the puzzle hashes in step 4 don't match, the proof was either forged, or signed by an earlier custody of the
+/// vault, such as before a signer was removed. A proof isn't tied to a time, so a proof from an earlier custody isn't
+/// a current signature, even if its messages include a date.
+///
+/// For [`verify_controlled_vault_signed_message`], the custody hash of each controller must be checked against the
+/// controller's current coin on chain in the same way.
+///
+/// ```
+/// use chia_protocol::{Bytes, Bytes32, Coin};
+/// use chia_sdk_driver::{SingletonInfo, VaultMessageProof, verify_vault_signed_message};
+///
+/// /// Verifies a proof against the vault's current coin, which the caller found on chain by following the
+/// /// singleton's lineage from the expected launcher id.
+/// fn verify(
+///     proof: &str,
+///     expected_launcher_id: Bytes32,
+///     current_vault_coin: &Coin,
+///     genesis_challenge: Bytes32,
+/// ) -> anyhow::Result<Vec<Bytes>> {
+///     let proof = VaultMessageProof::decode_string(proof)?;
+///     let info = proof.vault_info()?;
+///
+///     anyhow::ensure!(info.launcher_id == expected_launcher_id, "wrong vault");
+///     anyhow::ensure!(
+///         Bytes32::from(info.puzzle_hash()) == current_vault_coin.puzzle_hash,
+///         "not signed by the vault's current custody"
+///     );
+///
+///     // The custody hash is now known to be the vault's current custody hash.
+///     let messages = verify_vault_signed_message(
+///         &proof,
+///         expected_launcher_id,
+///         info.custody_hash.into(),
+///         genesis_challenge,
+///         None,
+///     )?;
+///
+///     // Check the messages themselves here, such as a domain, nonce and expiration time.
+///     Ok(messages)
+/// }
+/// # let _ = verify;
+/// ```
 ///
 /// # Denial of service
 ///

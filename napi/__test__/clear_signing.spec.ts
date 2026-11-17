@@ -10,6 +10,7 @@ import {
   calculateVaultStartRecoveryMessage,
   Clvm,
   Coin,
+  CoinSpend,
   customMemberHash,
   force1Of2Restriction,
   forceSingletonRecreationRestriction,
@@ -34,6 +35,7 @@ import {
   timelockRestriction,
   treeHashPair,
   Vault,
+  VaultInfo,
   vaultControllerEnvelope,
   vaultMessageEnvelope,
   VaultMessageProof,
@@ -589,6 +591,87 @@ test("signs and verifies vault messages", (t) => {
   t.throws(() => sim.spendCoins([coinSpend], []));
 });
 
+test("reads the vault a proof is for and checks it against the vault's coin", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = sim.bls(0n);
+  const config = new MemberConfig().withTopLevel(true);
+  const vault = mintVault(sim, clvm, blsMemberHash(config, alice.pk, false));
+
+  const messages = [Buffer.from("Sign in to example.com", "utf-8")];
+  const envelope = vaultMessageEnvelope(clvm, vault, messages);
+
+  const mips = clvm.mipsSpend(vault.coin, envelope);
+  mips.blsMember(config, alice.pk, false);
+  mips.spendVault(vault);
+  const [coinSpend] = clvm.coinSpends();
+
+  const signature = alice.sk.sign(
+    calculateVaultCoinMessage(
+      envelope.puzzle.treeHash(),
+      vault.coin.coinId(),
+      GENESIS_CHALLENGE,
+    ),
+  );
+  const proof = VaultMessageProof.decodeString(
+    new VaultMessageProof(coinSpend, signature, []).encodeString(),
+  );
+
+  // The proof claims to be for this vault, which is only trusted once its puzzle hash matches the vault's coin.
+  const info = proof.vaultInfo();
+  t.deepEqual(info.launcherId, vault.info.launcherId);
+  t.deepEqual(info.custodyHash, vault.info.custodyHash);
+  t.deepEqual(info.puzzleHash(), vault.coin.puzzleHash);
+  t.deepEqual(
+    new VaultInfo(vault.info.launcherId, vault.info.custodyHash).puzzleHash(),
+    vault.coin.puzzleHash,
+  );
+
+  t.deepEqual(
+    verifyVaultSignedMessage(
+      proof,
+      vault.info.launcherId,
+      info.custodyHash,
+      GENESIS_CHALLENGE,
+    ).map((message) => Buffer.from(message)),
+    messages,
+  );
+
+  // A different custody hash gives a different puzzle hash for the same vault.
+  t.notDeepEqual(
+    new VaultInfo(
+      vault.info.launcherId,
+      blsMemberHash(config, sim.bls(0n).pk, false),
+    ).puzzleHash(),
+    vault.coin.puzzleHash,
+  );
+
+  // A proof whose puzzle isn't a vault singleton, such as a standard coin spend, has no vault info.
+  const p2 = sim.bls(1n);
+  clvm.spendCoin(p2.coin, clvm.standardSpend(p2.pk, clvm.delegatedSpend([])));
+  const [standardSpend] = clvm.coinSpends();
+  t.throws(() =>
+    new VaultMessageProof(standardSpend, Signature.infinity(), []).vaultInfo(),
+  );
+
+  // Nor does a proof whose puzzle reveal doesn't match its coin.
+  const mismatched = new VaultMessageProof(
+    new CoinSpend(
+      new Coin(
+        vault.coin.parentCoinInfo,
+        p2.coin.puzzleHash,
+        vault.coin.amount,
+      ),
+      coinSpend.puzzleReveal,
+      coinSpend.solution,
+    ),
+    signature,
+    [],
+  );
+  t.throws(() => mismatched.vaultInfo());
+});
+
 // A fast-forwardable singleton member receives the controller's message by puzzle hash rather than coin id.
 for (const [name, fastForward] of [
   ["coin id", false],
@@ -666,10 +749,7 @@ for (const [name, fastForward] of [
     t.deepEqual(tx.launcherId, vault.info.launcherId);
     t.deepEqual(tx.custodyHash, vault.info.custodyHash);
     t.deepEqual(tx.signingVault?.puzzleHash, controller.coin.puzzleHash);
-    t.deepEqual(
-      tx.signingVault?.coin?.coinId(),
-      controller.coin.coinId(),
-    );
+    t.deepEqual(tx.signingVault?.coin?.coinId(), controller.coin.coinId());
     t.is(tx.authorizationPath.length, 1);
     t.deepEqual(tx.authorizationPath[0].launcherId, vault.info.launcherId);
     t.deepEqual(

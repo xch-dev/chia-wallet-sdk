@@ -145,6 +145,9 @@
         "args": {
           "proof": "String"
         }
+      },
+      "vault_info": {
+        "return": "VaultInfo"
       }
     }
   },
