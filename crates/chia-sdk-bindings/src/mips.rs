@@ -12,11 +12,21 @@ pub use spend::*;
 
 use bindy::Result;
 use chia_protocol::Coin;
-use chia_sdk_driver::{self as sdk, VaultInfo};
+use chia_sdk_driver::{self as sdk, SingletonInfo, VaultInfo};
 use chia_sdk_types::{Mod, puzzles::AddDelegatedPuzzleWrapper};
 use clvm_utils::TreeHash;
 
 use crate::{Program, Proof};
+
+pub trait VaultInfoExt {
+    fn puzzle_hash(&self) -> Result<TreeHash>;
+}
+
+impl VaultInfoExt for VaultInfo {
+    fn puzzle_hash(&self) -> Result<TreeHash> {
+        Ok(SingletonInfo::puzzle_hash(self))
+    }
+}
 
 #[derive(Clone)]
 pub struct Vault {

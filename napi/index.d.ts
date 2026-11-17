@@ -5228,6 +5228,7 @@ export declare class VaultDryRun {
 
 export declare class VaultInfo {
   clone(): VaultInfo
+  puzzleHash(): Buffer
   constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
@@ -5241,6 +5242,7 @@ export declare class VaultMessageProof {
   static decode(proof: Uint8Array): VaultMessageProof
   encodeString(): string
   static decodeString(proof: string): VaultMessageProof
+  vaultInfo(): VaultInfo
   constructor(coinSpend: CoinSpend, aggregatedSignature: Signature, controllerSpends: Array<CoinSpend>)
   get coinSpend(): CoinSpend
   set coinSpend(value: CoinSpend)

@@ -8,9 +8,9 @@ Add the crate with one of the TLS features enabled:
 
 ```toml
 [dependencies]
-chia-sdk-daemon = { version = "0.38.0", features = ["native-tls"] }
+chia-sdk-daemon = { version = "0.39.0", features = ["native-tls"] }
 # or
-chia-sdk-daemon = { version = "0.38.0", features = ["rustls"] }
+chia-sdk-daemon = { version = "0.39.0", features = ["rustls"] }
 ```
 
 ## Connecting to the Daemon

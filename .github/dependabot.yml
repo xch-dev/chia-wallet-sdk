@@ -15,6 +15,11 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "getrandom"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Must match a version the NordSecurity Go, C# and C++ binding
+      # generators support (see UNIFFI_BINDGEN_* in uniffi.yml), so this is
+      # bumped by hand once all three have released for the new version.
+      - dependency-name: "uniffi"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: "npm"
     directories:
