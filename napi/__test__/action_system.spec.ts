@@ -10,6 +10,7 @@ import {
   Clvm,
   Coin,
   CoinSpend,
+  ConsensusConstants,
   Constants,
   decodeOffer,
   decodePartialOffer,
@@ -1379,7 +1380,11 @@ test("apply with the minimum fee selects a coin for the fee", (t) => {
 
   for (let attempt = 0; attempt < 8; attempt++) {
     tx = buildWithFee(clvm, alice, spends, actions, xchCoins, fee);
-    cost = spendBundleCost(tx.coinSpends, true, FEE_HEIGHT);
+    cost = spendBundleCost(
+      tx.coinSpends,
+      ConsensusConstants.mainnet(),
+      FEE_HEIGHT,
+    );
     const needed = recommendedFee(cost);
 
     if (fee >= needed) break;

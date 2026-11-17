@@ -19,7 +19,7 @@ use chia_sdk_driver::{
     launch_xchandles_registry as driver_launch_xchandles_registry,
 };
 use chia_sdk_types::{
-    Conditions, MAINNET_CONSTANTS, Mod, TESTNET11_CONSTANTS,
+    Conditions, Mod,
     puzzles::{
         ANY_METADATA_UPDATER_HASH, CompactCoinProof, HandleNftMetadata, StateSchedulerLayerArgs,
         XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesPricingSolution,
@@ -30,7 +30,8 @@ use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{
-    AsProgram, Clvm, NotarizedPayment, Program, Proof, XchandlesHandleSlot, XchandlesUpdateSlot,
+    AggSigConstants, AsProgram, Clvm, NotarizedPayment, Program, Proof, XchandlesHandleSlot,
+    XchandlesUpdateSlot,
 };
 
 pub fn xchandles_get_price(base_price: u64, handle: String, num_periods: u64) -> Result<u64> {
@@ -1239,7 +1240,7 @@ impl Clvm {
         initial_registration_period: u64,
         constants: XchandlesConstants,
         initial_registration_asset_id: Bytes32,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
     ) -> Result<XchandlesRegistryLaunchResult> {
         let mut ctx = self.0.lock().unwrap();
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
@@ -1257,11 +1258,7 @@ impl Clvm {
                         asset_id,
                     ))
                 },
-                if mainnet {
-                    &MAINNET_CONSTANTS
-                } else {
-                    &TESTNET11_CONSTANTS
-                },
+                &agg_sig_constants.0,
                 (constants, initial_registration_asset_id),
             )?;
 

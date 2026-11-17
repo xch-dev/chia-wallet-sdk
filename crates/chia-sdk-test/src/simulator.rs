@@ -1,14 +1,15 @@
 use chia_bls::SecretKey;
+use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_consensus::flags::ConsensusFlags;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
-use chia_sdk_types::TESTNET11_CONSTANTS;
+use chia_sdk_signer::AggSigConstants;
 use indexmap::{IndexMap, IndexSet, indexset};
 use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{
-    BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction,
+    BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction_with_constants,
     spend_bundle_validation::{
         CoinRecord, ValidationClock, ValidationSettings, validate_conditions,
         validate_relative_conditions,
@@ -27,9 +28,9 @@ use data::SimulatorData;
 /// The simulator tracks coin states, hints, and (optionally) coin spends. Coins can be created
 /// directly with [`Simulator::new_coin`] or [`Simulator::bls`], without a parent spend. Each call
 /// to [`Simulator::new_transaction`] (or [`Simulator::spend_coins`]) validates a spend bundle
-/// with testnet11 consensus constants, including the CLVM cost, aggregate signature, and timelock
-/// conditions. If it is valid, the result is added to a new block immediately. There is no
-/// mempool.
+/// with the [`SimulatorConfig::constants`] (testnet11 by default), including the CLVM cost,
+/// aggregate signature, and timelock conditions. If it is valid, the result is added to a new
+/// block immediately. There is no mempool.
 ///
 /// The chain starts at height 0 with a timestamp of 0. Each new block increments the height by
 /// one and the next timestamp by one second. You can move time forward with
@@ -98,8 +99,8 @@ impl Simulator {
     /// ids, key pairs from [`Simulator::bls`], and header hashes.
     pub fn with_config(config: SimulatorConfig) -> Self {
         Self {
-            config,
             data: SimulatorData::new(ChaCha8Rng::seed_from_u64(config.seed)),
+            config,
         }
     }
 
@@ -157,6 +158,18 @@ impl Simulator {
     #[cfg(feature = "serde")]
     pub fn deserialize(data: &[u8]) -> Result<Self, bincode::error::DecodeError> {
         Self::deserialize_with_config(data, SimulatorConfig::default())
+    }
+
+    /// Returns the consensus constants that spend bundles are validated with. See
+    /// [`SimulatorConfig::constants`].
+    pub fn constants(&self) -> &ConsensusConstants {
+        &self.config.constants
+    }
+
+    /// Returns the `AGG_SIG_*` additional data of the [`Simulator::constants`], which BLS
+    /// signatures for this simulator must be made with.
+    pub fn agg_sig_constants(&self) -> AggSigConstants {
+        AggSigConstants::from(&self.config.constants)
     }
 
     /// Returns the current height, which is the number of blocks created so far.
@@ -344,7 +357,8 @@ impl Simulator {
     /// Signs the coin spends with the given secret keys, then processes them as a spend bundle
     /// with [`Simulator::new_transaction`].
     ///
-    /// Signatures are created with [`sign_transaction`], so only BLS signatures are supported.
+    /// Signatures are created with [`sign_transaction_with_constants`] and the
+    /// [`Simulator::agg_sig_constants`], so only BLS signatures are supported.
     /// Pass an empty slice if no signatures are required.
     ///
     /// # Errors
@@ -357,13 +371,14 @@ impl Simulator {
         coin_spends: Vec<CoinSpend>,
         secret_keys: &[SecretKey],
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        let signature = sign_transaction(&coin_spends, secret_keys)?;
+        let signature =
+            sign_transaction_with_constants(&coin_spends, secret_keys, &self.agg_sig_constants())?;
         self.new_transaction(SpendBundle::new(coin_spends, signature))
     }
 
     /// Validates a spend bundle and, if it's valid, adds its result to a new block.
     ///
-    /// The bundle is validated with testnet11 consensus constants against the current height and
+    /// The bundle is validated with [`SimulatorConfig::constants`] against the current height and
     /// [`Simulator::next_timestamp`]. This checks the CLVM, cost, aggregate signature, puzzle
     /// hashes, and timelock conditions. Every spent coin must exist and be unspent, unless it is
     /// created in the same bundle. `RESERVE_FEE` conditions are not checked.
@@ -387,8 +402,8 @@ impl Simulator {
         let validation = validate_conditions(
             &spend_bundle,
             ValidationSettings {
-                constants: &TESTNET11_CONSTANTS,
-                max_cost: 11_000_000_000 / 2,
+                constants: &self.config.constants,
+                max_cost: self.config.constants.max_block_cost_clvm / 2,
                 flags: ConsensusFlags::ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
                 clock,
             },
@@ -556,5 +571,52 @@ impl Simulator {
 
         self.data.height += 1;
         self.data.next_timestamp += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::slice;
+
+    use chia_protocol::Bytes;
+    use chia_sdk_types::{conditions::AggSigMe, default_constants};
+
+    use crate::{sign_transaction, to_program, to_puzzle};
+
+    use super::*;
+
+    #[test]
+    fn test_custom_network_constants() -> anyhow::Result<()> {
+        let genesis_challenge = Bytes32::new([42; 32]);
+
+        let mut sim = Simulator::with_config(SimulatorConfig {
+            constants: default_constants(genesis_challenge, genesis_challenge),
+            ..Default::default()
+        });
+
+        assert_eq!(sim.constants().genesis_challenge, genesis_challenge);
+        assert_eq!(sim.agg_sig_constants().me(), genesis_challenge);
+
+        let alice = sim.bls(0);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.new_coin(puzzle_hash, 1);
+        let solution = to_program([AggSigMe::new(alice.pk, Bytes::from(b"hello".to_vec()))])?;
+        let coin_spends = vec![CoinSpend::new(coin, puzzle_reveal, solution)];
+
+        // A signature made for testnet11 isn't valid on another network.
+        let signature = sign_transaction(&coin_spends, slice::from_ref(&alice.sk))?;
+        assert!(matches!(
+            sim.new_transaction(SpendBundle::new(coin_spends.clone(), signature)),
+            Err(SimulatorError::Validation(ErrorCode::BadAggregateSignature))
+        ));
+
+        // The simulator signs with its own network's additional data.
+        sim.spend_coins(coin_spends, &[alice.sk])?;
+        assert_eq!(
+            sim.coin_state(coin.coin_id()).unwrap().spent_height,
+            Some(0)
+        );
+
+        Ok(())
     }
 }

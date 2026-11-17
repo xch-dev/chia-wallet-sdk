@@ -837,7 +837,7 @@ export declare class CatalogRegistryActualNeighborsResult {
 
 export declare class CatalogRegistryConstants {
   clone(): CatalogRegistryConstants
-  static get(testnet11: boolean): CatalogRegistryConstants
+  static new(launcherId: Uint8Array, royaltyAddress: Uint8Array, royaltyBasisPoints: number, precommitPayoutPuzzleHash: Uint8Array, relativeBlockHeight: number, priceSingletonLauncherId: Uint8Array): CatalogRegistryConstants
   withPriceSingleton(priceSingletonLauncherId: Uint8Array): CatalogRegistryConstants
   withLauncherId(launcherId: Uint8Array): CatalogRegistryConstants
   get launcherId(): Buffer
@@ -1149,20 +1149,20 @@ export declare class Clvm {
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributorInfoFromEveCoin | null
-  launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, mainnet: boolean, comment: string): RewardDistributorLaunchResult
+  launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, aggSigConstants: AggSigConstants, comment: string): RewardDistributorLaunchResult
   rewardDistributorFromMempoolItem(mempoolItem: SpendBundle, constants: RewardDistributorConstants): RewardDistributor | null
   catalogRegistryFromSpend(spend: CoinSpend, constants: CatalogRegistryConstants): CatalogRegistry | null
   catalogRegistryFromParentSpend(parentSpend: CoinSpend, constants: CatalogRegistryConstants): CatalogRegistry | null
   catalogRegistryFromMempoolItem(mempoolItem: SpendBundle, constants: CatalogRegistryConstants): CatalogRegistry | null
-  launchCatalogRegistry(offer: SpendBundle, initialRegistrationPrice: bigint, constants: CatalogRegistryConstants, initialRegistrationAssetId: Uint8Array, mainnet: boolean): CatalogRegistryLaunchResult
+  launchCatalogRegistry(offer: SpendBundle, initialRegistrationPrice: bigint, constants: CatalogRegistryConstants, initialRegistrationAssetId: Uint8Array, aggSigConstants: AggSigConstants): CatalogRegistryLaunchResult
   xchandlesRegistryFromSpend(spend: CoinSpend, constants: XchandlesConstants): XchandlesRegistry | null
   xchandlesRegistryFromParentSpend(parentSpend: CoinSpend, constants: XchandlesConstants): XchandlesRegistry | null
   xchandlesRegistryFromMempoolItem(mempoolItem: SpendBundle, constants: XchandlesConstants): XchandlesRegistry | null
-  launchXchandlesRegistry(offer: SpendBundle, initialBaseRegistrationPrice: bigint, initialRegistrationPeriod: bigint, constants: XchandlesConstants, initialRegistrationAssetId: Uint8Array, mainnet: boolean): XchandlesRegistryLaunchResult
+  launchXchandlesRegistry(offer: SpendBundle, initialBaseRegistrationPrice: bigint, initialRegistrationPeriod: bigint, constants: XchandlesConstants, initialRegistrationAssetId: Uint8Array, aggSigConstants: AggSigConstants): XchandlesRegistryLaunchResult
   createOfferSecurityCoin(offer: SpendBundle): OfferSecurityCoinDetails
   createSecurityCoinWithPk(xchSettlementCoin: Coin, publicKey: PublicKey): Coin
   createOfferSecurityCoinWithKey(offer: SpendBundle, securityCoinSk: SecretKey): OfferSecurityCoinDetails
-  spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
+  spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, aggSigConstants: AggSigConstants): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
   offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
@@ -1397,6 +1397,27 @@ export declare class CompactLineageProof {
 export declare class Connector {
   clone(): Connector
   constructor(cert: Certificate)
+}
+
+export declare class ConsensusConstants {
+  clone(): ConsensusConstants
+  constructor(genesisChallenge: Uint8Array, aggSigMe: Uint8Array)
+  static mainnet(): ConsensusConstants
+  static testnet11(): ConsensusConstants
+  genesisChallenge(): Buffer
+  aggSigConstants(): AggSigConstants
+  maxBlockCostClvm(): bigint
+  costPerByte(): bigint
+  hardForkHeight(): number
+  hardFork2Height(): number
+  softFork8Height(): number
+  softFork9Height(): number
+  testnet(): boolean
+  withHardForkHeight(height: number): ConsensusConstants
+  withHardFork2Height(height: number): ConsensusConstants
+  withSoftFork8Height(height: number): ConsensusConstants
+  withSoftFork9Height(height: number): ConsensusConstants
+  withTestnet(testnet: boolean): ConsensusConstants
 }
 
 export declare class Constants {
@@ -4642,6 +4663,9 @@ export declare class Simulator {
   clone(): Simulator
   constructor()
   static withSeed(seed: bigint): Simulator
+  static withConstants(constants: ConsensusConstants): Simulator
+  constants(): ConsensusConstants
+  aggSigConstants(): AggSigConstants
   height(): number
   nextTimestamp(): bigint
   headerHash(): Buffer
@@ -5684,7 +5708,7 @@ export declare function singletonMemberHash(config: MemberConfig, launcherId: Ui
 
 export declare function singletonStructHash(launcherId: Uint8Array): Buffer
 
-export declare function spendBundleCost(coinSpends: Array<CoinSpend>, mainnet: boolean, height?: number | undefined | null): bigint
+export declare function spendBundleCost(coinSpends: Array<CoinSpend>, constants: ConsensusConstants, height?: number | undefined | null): bigint
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 
