@@ -27,8 +27,10 @@ env:
   BUILD_MACOS_X64: ${{ github.event_name != 'pull_request' }}
 
 jobs:
-  go:
-    name: Go - ${{ matrix.settings.platform }}
+  # Go links the static library and .NET loads the shared one. A single build produces both, so
+  # each Linux target is built once here and the Go and .NET jobs download it.
+  linux-library:
+    name: Linux library - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     strategy:
       fail-fast: false
@@ -36,10 +38,41 @@ jobs:
         settings:
           - host: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            platform: linux_amd64
           - host: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
-            platform: linux_arm64
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the target for the toolchain pinned in rust-toolchain.toml
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.settings.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.target }}
+          cache-bin: false
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build
+        run: cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target ${{ matrix.settings.target }}
+
+      - name: Upload libraries
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-library-${{ matrix.settings.target }}
+          path: |
+            target/${{ matrix.settings.target }}/release-uniffi/libchia_wallet_sdk.a
+            target/${{ matrix.settings.target }}/release-uniffi/libchia_wallet_sdk.so
+          if-no-files-found: error
+
+  go:
+    name: Go - ${{ matrix.settings.platform }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
           # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
           - host: windows-2022
             target: x86_64-pc-windows-gnu
@@ -138,6 +171,69 @@ jobs:
           path: go/chiawalletsdk/lib/${{ matrix.settings.platform }}/
           if-no-files-found: error
 
+  go-linux:
+    name: Go - ${{ matrix.settings.platform }}
+    runs-on: ${{ matrix.settings.host }}
+    needs: linux-library
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux_amd64
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            platform: linux_arm64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Restore uniffi-bindgen-go
+        id: uniffi-bindgen-go
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
+
+      - name: Install uniffi-bindgen-go
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag "$UNIFFI_BINDGEN_GO" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-go
+        if: steps.uniffi-bindgen-go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-go*
+          key: uniffi-bindgen-go-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_GO }}
+
+      - name: Download library
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-library-${{ matrix.settings.target }}
+          path: target/${{ matrix.settings.target }}/release-uniffi
+
+      - name: Generate bindings
+        env:
+          SKIP_BUILD: 1
+        run: ./go/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        working-directory: go
+        run: go test -race -v ./...
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-${{ matrix.settings.platform }}
+          path: go/chiawalletsdk/lib/${{ matrix.settings.platform }}/
+          if-no-files-found: error
+
       - name: Upload bindings
         if: matrix.settings.platform == 'linux_amd64'
         uses: actions/upload-artifact@v7
@@ -155,12 +251,6 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          - host: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            rid: linux-x64
-          - host: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            rid: linux-arm64
           # The cmake crate doesn't support the Visual Studio 2026 on windows-latest
           - host: windows-2022
             target: x86_64-pc-windows-msvc
@@ -206,6 +296,67 @@ jobs:
           key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
 
       - name: Build and generate bindings
+        run: ./dotnet/generate.sh ${{ matrix.settings.target }}
+
+      - name: Test
+        run: dotnet test dotnet/ChiaWalletSdk.Tests
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-${{ matrix.settings.rid }}
+          path: dotnet/ChiaWalletSdk/runtimes/${{ matrix.settings.rid }}/
+          if-no-files-found: error
+
+  dotnet-linux:
+    name: .NET - ${{ matrix.settings.rid }}
+    runs-on: ${{ matrix.settings.host }}
+    needs: linux-library
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rid: linux-x64
+          - host: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            rid: linux-arm64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore uniffi-bindgen-cs
+        id: uniffi-bindgen-cs
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
+
+      - name: Install uniffi-bindgen-cs
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag "$UNIFFI_BINDGEN_CS" --locked
+
+      # Saved right away, so a later failure doesn't throw away the build
+      - name: Save uniffi-bindgen-cs
+        if: steps.uniffi-bindgen-cs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo/bin/uniffi-bindgen-cs*
+          key: uniffi-bindgen-cs-${{ runner.os }}-${{ runner.arch }}-${{ env.UNIFFI_BINDGEN_CS }}
+
+      - name: Download library
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-library-${{ matrix.settings.target }}
+          path: target/${{ matrix.settings.target }}/release-uniffi
+
+      - name: Generate bindings
+        env:
+          SKIP_BUILD: 1
         run: ./dotnet/generate.sh ${{ matrix.settings.target }}
 
       - name: Test
@@ -444,7 +595,7 @@ jobs:
   go-release:
     name: Go - Release
     runs-on: ubuntu-latest
-    needs: [go, macos]
+    needs: [go, go-linux, macos]
     if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/go/')
     permissions:
       contents: write
@@ -505,7 +656,7 @@ jobs:
   dotnet-pack:
     name: .NET - Pack
     runs-on: ubuntu-latest
-    needs: [dotnet, macos]
+    needs: [dotnet, dotnet-linux, macos]
     permissions:
       contents: read
       id-token: write

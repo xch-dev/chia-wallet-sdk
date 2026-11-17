@@ -3,7 +3,10 @@
 #
 # Usage: ./generate.sh [rust-target]
 #
-# The target defaults to the host. Requires `uniffi-bindgen-go`, which can be installed with:
+# The target defaults to the host. Set SKIP_BUILD=1 to use a library that's already in
+# target/<rust-target>/release-uniffi instead of building it.
+#
+# Requires `uniffi-bindgen-go`, which can be installed with:
 #   cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag v0.7.1+v0.31.0
 #
 # Building for Android requires the Android NDK, found through `ANDROID_NDK_HOME`. Building for
@@ -68,7 +71,11 @@ EOF
   export CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_gnullvm="$TOOLCHAIN_FILE"
 fi
 
-cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target "$TARGET"
+# CI builds the Linux libraries once and shares them between Go and .NET, so it sets SKIP_BUILD
+# and puts the library where the build would have
+if [ "${SKIP_BUILD:-}" != 1 ]; then
+  cargo build --profile release-uniffi -p chia-wallet-sdk-uniffi --target "$TARGET"
+fi
 
 LIB="target/$TARGET/release-uniffi/libchia_wallet_sdk.a"
 OUT=go/chiawalletsdk
