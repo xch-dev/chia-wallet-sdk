@@ -10,7 +10,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use super::bps_of;
+use super::{bps_of, checked_add, checked_sub};
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
@@ -80,8 +80,10 @@ impl RewardDistributorWithdrawIncentivesAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed, or if the withdrawal share doesn't fit in
-    /// a [`u64`], which is only possible if `withdrawal_share_bps` is over 10,000.
+    /// Returns an error if the solution can't be parsed, if the withdrawal share doesn't fit in a
+    /// [`u64`], which is only possible if `withdrawal_share_bps` is over 10,000, or with
+    /// [`DriverError::ArithmeticOverflow`] if the withdrawal share is more than the reward slot's
+    /// rewards or the slot counter overflows.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -104,10 +106,10 @@ impl RewardDistributorWithdrawIncentivesAction {
                 rewards: params.committed_value,
             },
             created_reward_slot: RewardDistributorRewardSlotValue {
-                counter: params.reward_slot_counter + 1,
+                counter: checked_add(params.reward_slot_counter, 1)?,
                 epoch_start: params.reward_slot_epoch_time,
                 next_epoch_initialized: params.reward_slot_next_epoch_initialized,
-                rewards: params.reward_slot_total_rewards - withdrawal_share,
+                rewards: checked_sub(params.reward_slot_total_rewards, withdrawal_share)?,
             },
             changes,
         })

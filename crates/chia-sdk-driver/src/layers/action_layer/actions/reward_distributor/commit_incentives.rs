@@ -1,6 +1,7 @@
+use chia_consensus::opcodes::NEW_CREATE_COIN_COST;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    Conditions, Mod, announcement_id,
+    Conditions, MAINNET_CONSTANTS, Mod, announcement_id,
     puzzles::{
         RewardDistributorCommitIncentivesActionArgs,
         RewardDistributorCommitIncentivesActionSolution, RewardDistributorCommitmentSlotValue,
@@ -9,6 +10,8 @@ use chia_sdk_types::{
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
+
+use super::checked_add;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorCommitIncentivesActionLog,
@@ -68,6 +71,38 @@ impl RewardDistributorCommitIncentivesAction {
         }
     }
 
+    /// Returns the number of epochs from `slot_epoch_time` to `epoch_start`, which must be a
+    /// positive whole number, since the puzzle steps through the epochs until it reaches
+    /// `epoch_start` exactly.
+    ///
+    /// The puzzle creates a slot for each of these epochs, plus the updated spent reward slot and
+    /// the commitment slot. Each slot is a `CREATE_COIN`, so a spend that creates more slots than a
+    /// mainnet block's cost limit divided by the cost of a `CREATE_COIN` (8,148 after the 3.0 hard
+    /// fork, which lowered it) can't be confirmed, and is rejected rather than parsed.
+    fn epochs_to_target(
+        slot_epoch_time: u64,
+        epoch_start: u64,
+        epoch_seconds: u64,
+    ) -> Result<u64, DriverError> {
+        let max_created_slots = MAINNET_CONSTANTS.max_block_cost_clvm / NEW_CREATE_COIN_COST;
+
+        let elapsed = epoch_start
+            .checked_sub(slot_epoch_time)
+            .ok_or(DriverError::InvalidRewardDistributorEpoch)?;
+
+        if epoch_seconds == 0 || elapsed == 0 || elapsed % epoch_seconds != 0 {
+            return Err(DriverError::InvalidRewardDistributorEpoch);
+        }
+
+        let epochs = elapsed / epoch_seconds;
+
+        if epochs > max_created_slots - 2 {
+            return Err(DriverError::InvalidRewardDistributorEpoch);
+        }
+
+        Ok(epochs)
+    }
+
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(Self::new_args(self.launcher_id, self.epoch_seconds))
     }
@@ -79,7 +114,10 @@ impl RewardDistributorCommitIncentivesAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed.
+    /// Returns an error if the solution can't be parsed, with
+    /// [`DriverError::ArithmeticOverflow`] if the slot counter or the epoch's rewards overflow, or
+    /// with [`DriverError::InvalidRewardDistributorEpoch`] if the spend targets an epoch that the
+    /// puzzle can't reach from the spent reward slot (see [`DriverError::InvalidRewardDistributorEpoch`]).
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -98,14 +136,20 @@ impl RewardDistributorCommitIncentivesAction {
 
         if params.slot_epoch_time == params.epoch_start {
             created_reward_slots.push(RewardDistributorRewardSlotValue {
-                counter: params.slot_counter + 1,
+                counter: checked_add(params.slot_counter, 1)?,
                 epoch_start: params.epoch_start,
                 next_epoch_initialized: params.slot_next_epoch_initialized,
-                rewards: params.slot_total_rewards + params.rewards_to_add,
+                rewards: checked_add(params.slot_total_rewards, params.rewards_to_add)?,
             });
         } else {
+            // The puzzle creates a reward slot for each epoch from the one after the spent slot's
+            // epoch until it reaches `epoch_start` exactly, so it can only succeed if `epoch_start`
+            // is a whole number of epochs after the spent slot's epoch.
+            let epochs =
+                Self::epochs_to_target(params.slot_epoch_time, params.epoch_start, epoch_seconds)?;
+
             created_reward_slots.push(RewardDistributorRewardSlotValue {
-                counter: params.slot_counter + 1,
+                counter: checked_add(params.slot_counter, 1)?,
                 epoch_start: params.slot_epoch_time,
                 next_epoch_initialized: true,
                 rewards: params.slot_total_rewards,
@@ -117,17 +161,15 @@ impl RewardDistributorCommitIncentivesAction {
                 rewards: params.rewards_to_add,
             });
 
-            let mut start_epoch_time = params.slot_epoch_time + epoch_seconds;
-            let end_epoch_time = params.epoch_start;
-            while end_epoch_time > start_epoch_time {
+            // `epochs` is bounded, and every epoch start here is less than `epoch_start`, so the
+            // arithmetic can't overflow.
+            for epoch in 1..epochs {
                 created_reward_slots.push(RewardDistributorRewardSlotValue {
                     counter: 0,
-                    epoch_start: start_epoch_time,
+                    epoch_start: params.slot_epoch_time + epoch * epoch_seconds,
                     next_epoch_initialized: true,
                     rewards: 0,
                 });
-
-                start_epoch_time += epoch_seconds;
             }
         }
 
@@ -154,7 +196,9 @@ impl RewardDistributorCommitIncentivesAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
+    /// Returns an error if any of the spends can't be created, or for the reasons listed in
+    /// [`get_log`](Self::get_log), such as an `epoch_start` that isn't a whole number of epochs
+    /// after the epoch of `reward_slot`.
     #[allow(clippy::type_complexity)]
     pub fn spend(
         self,
@@ -166,6 +210,15 @@ impl RewardDistributorCommitIncentivesAction {
         rewards_to_add: u64,
     ) -> Result<Conditions, DriverError> {
         let reward_slot = distributor.actual_reward_slot_value(reward_slot);
+
+        // Fail before running the puzzle, which never ends for an unreachable epoch.
+        if reward_slot.info.value.epoch_start != epoch_start {
+            Self::epochs_to_target(
+                reward_slot.info.value.epoch_start,
+                epoch_start,
+                self.epoch_seconds,
+            )?;
+        }
 
         let new_commitment_slot_value = RewardDistributorCommitmentSlotValue {
             epoch_start,
@@ -191,10 +244,10 @@ impl RewardDistributorCommitIncentivesAction {
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
+        distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
+
         // spend reward slot
         reward_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
-
-        distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
         Ok(
             Conditions::new().assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,

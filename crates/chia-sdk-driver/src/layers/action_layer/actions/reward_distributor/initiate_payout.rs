@@ -10,6 +10,8 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
+use super::{checked_add, entry_payout};
+
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorCreatedAnnouncementPrefix, RewardDistributorInitiatePayoutActionLog,
@@ -107,7 +109,8 @@ impl RewardDistributorInitiatePayoutAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed.
+    /// Returns an error if the solution can't be parsed, or with
+    /// [`DriverError::ArithmeticOverflow`] if the slot counter overflows.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -123,7 +126,7 @@ impl RewardDistributorInitiatePayoutAction {
                 shares: params.entry_shares,
             },
             created_entry_slot: RewardDistributorEntrySlotValue {
-                counter: params.slot_counter + 1,
+                counter: checked_add(params.slot_counter, 1)?,
                 payout_puzzle_hash: params.entry_payout_puzzle_hash,
                 initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
                 shares: params.entry_shares,
@@ -154,12 +157,14 @@ impl RewardDistributorInitiatePayoutAction {
         let my_state = distributor.pending_spend.latest_state.1;
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
-        let withdrawal_amount_precision = u128::from(entry_slot.info.value.shares)
-            * (my_state.round_reward_info.cumulative_payout
-                - entry_slot.info.value.initial_cumulative_payout);
-        let withdrawal_amount =
-            u64::try_from(withdrawal_amount_precision / u128::from(self.precision))?;
-        let payout_rounding_error = withdrawal_amount_precision % u128::from(self.precision);
+        let payout = entry_payout(
+            entry_slot.info.value.shares,
+            my_state.round_reward_info.cumulative_payout,
+            entry_slot.info.value.initial_cumulative_payout,
+            self.precision,
+        )?;
+        let withdrawal_amount = payout.payout_amount;
+        let payout_rounding_error = payout.payout_rounding_error;
 
         // this announcement/message should be asserted to ensure everything goes according to plan
         let announcement_or_message_data = if self.require_approval {
