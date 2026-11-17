@@ -1046,12 +1046,7 @@ mod silent_payment_tests {
         )?;
 
         let pk_map = indexmap! { alice.puzzle_hash => alice.pk };
-        let result = spends.finish_with_keys(
-            &mut ctx,
-            &deltas,
-            Relation::None,
-            &pk_map,
-        );
+        let result = spends.finish_with_keys(&mut ctx, &deltas, Relation::None, &pk_map);
 
         assert!(
             matches!(result, Err(DriverError::SilentPaymentKeysMissing)),
