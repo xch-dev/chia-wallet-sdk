@@ -11,13 +11,9 @@ use crate::{
 };
 
 /// A CHIP-0057 silent payment send, created by
-/// [`Action::silent_payment_send`](crate::Action::silent_payment_send).
-///
-/// The output is created by a coin of the asset `id` in the spend group, and each scan key has
-/// one `k` counter across every asset. The address's network is not checked.
-///
-/// The `memos` of an XCH output are published on chain, and a 32-byte first memo is rejected
-/// ([`DriverError::SilentPaymentMemoHintForbidden`]).
+/// [`Action::silent_payment_send`](crate::Action::silent_payment_send). The address's network
+/// is not checked. The `memos` of an XCH output are published on chain, and a 32-byte first memo
+/// is rejected ([`DriverError::SilentPaymentMemoHintForbidden`]).
 #[derive(Debug, Clone)]
 pub struct SilentPaymentSendAction {
     /// The asset the output is paid in: [`Id::Xch`], or a CAT that the transaction spends.
@@ -82,8 +78,7 @@ pub(crate) fn next_k(spends: &Spends, scan_pk: &PublicKey) -> Result<u32, Driver
     Ok(k)
 }
 
-/// Takes `k` (from [`next_k`]) for the scan key and records the pending output, which is derived
-/// and created when the transaction is prepared and the spend group is known.
+/// Takes `k` for the scan key and records the output, derived when the transaction is prepared.
 pub(crate) fn record_pending(
     spends: &mut Spends,
     recipient: &SilentPaymentAddress,
@@ -118,9 +113,8 @@ fn spend_silent_payment(
 ) -> Result<(), DriverError> {
     let k = next_k(spends, &recipient.scan_pk)?;
 
-    // The output must be created by a coin of the spend group, so a conditions spend is
-    // preferred and any other source (a settlement coin) is rejected. The puzzle hash isn't
-    // known yet, and only the amount matters for choosing a source.
+    // The output must be created by a coin of the spend group, so a settlement coin is
+    // rejected. The puzzle hash isn't known yet; only the amount matters for choosing a source.
     let output = Output::new(BURN_PUZZLE_HASH, amount);
     let source = match spends.xch.items.iter().position(|item| {
         item.kind.is_conditions() && item.kind.is_allowed(&output, &item.asset.constraints())
@@ -1027,7 +1021,7 @@ mod silent_payment_tests {
 
     /// A silent payment send finished without the secret keys returns `Err(DriverError::SilentPaymentKeysMissing)` at finish time.
     #[test]
-    fn silent_payment_keys_not_registered_errors_at_finish() -> Result<()> {
+    fn finish_without_the_keys_returns_keys_missing() -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
         let alice = sim.bls(1);
@@ -1055,7 +1049,7 @@ mod silent_payment_tests {
         let result = spends.finish_with_keys(
             &mut ctx,
             &deltas,
-            Relation::None, // single-input — binding gate short-circuits; KeysNotRegistered fires
+            Relation::None,
             &pk_map,
         );
 

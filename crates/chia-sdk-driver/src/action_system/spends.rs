@@ -96,22 +96,18 @@ pub struct Outputs {
     pub fee: u64,
     /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
-    /// The notarized payments of the silent payments the transaction requests from a
-    /// counterparty's settlement coins ([`Action::silent_payment_requested`](crate::Action::silent_payment_requested)),
-    /// one per asset, for the requested payments of an offer built with
-    /// [`Offer::from_input_spend_bundle`](crate::Offer::from_input_spend_bundle). The transaction
-    /// already asserts their announcements.
+    /// The notarized payments of the silent payments requested with
+    /// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested), one per asset,
+    /// for the requested payments of an offer. The transaction already asserts their announcements.
     #[cfg(feature = "chip-0057")]
     pub silent_payment_requests: crate::RequestedPayments,
-    /// The asset information of [`Outputs::silent_payment_requests`]: the hidden puzzle hash of
-    /// each requested CAT (`None` for a CAT that is not revocable), so that the offer file lists
-    /// the settlement coin the transaction's assertion names.
+    /// The asset information of [`Outputs::silent_payment_requests`], with the hidden puzzle hash of
+    /// each revocable CAT.
     #[cfg(feature = "chip-0057")]
     pub silent_payment_asset_info: crate::AssetInfo,
 }
 
-/// The position of a spend in [`Spends`]: its asset and its index in that asset's items (or
-/// lineage).
+/// The position of a spend in [`Spends`]: its asset and its index in that asset's items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SpendPosition {
     Xch(usize),
@@ -301,15 +297,10 @@ impl Spends<Unfinished> {
         payment_assertions
     }
 
-    /// The spends that can emit conditions and that [`Spends::prepare`] uses: the first of them
-    /// emits the transaction-wide conditions, and the [`Relation`] links all of them. They are,
-    /// in order, every XCH conditions spend, then the first conditions spend of each CAT asset
-    /// (the other spends of an asset are tied to it by the CAT ring), then the last conditions
-    /// spend of each DID, NFT and option lineage.
-    ///
-    /// This is the one place the selection is made. With the `chip-0057` feature, the silent
-    /// payment spend group is predicted from it, and checked against it once the transaction is
-    /// complete, so the group is always exactly the coins `Relation::AssertConcurrent` binds.
+    /// The spends that [`Spends::prepare`] emits conditions from and links with the [`Relation`]:
+    /// every XCH conditions spend, then the first conditions spend of each CAT asset, then the last
+    /// conditions spend of each DID, NFT and option lineage. The first of them emits the
+    /// transaction-wide conditions.
     pub(crate) fn conditions_spend_positions(&self) -> Vec<SpendPosition> {
         let mut positions = Vec::new();
 
@@ -969,108 +960,59 @@ impl AddAsset for OptionContract {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_protocol::Bytes32;
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Condition;
 
     use crate::{Action, Id, Relation, SpendContext, SpendKind, Spends};
 
-    /// Pinning test for `Relation::AssertConcurrent` — verifies the closed
-    /// `ASSERT_CONCURRENT_SPEND` cycle that CHIP-0057 scanners rely on to form
-    /// multi-input spend groups ("Inputs for Shared Secret Derivation": each
-    /// coin outputs exactly one such condition, naming its predecessor). If
-    /// `emit_relation` drifted away from the closed cycle, multi-input silent
-    /// payments would stop being detected.
-    ///
-    /// NOT `#[cfg(feature = "chip-0057")]` gated: `Relation` is general-
-    /// purpose; SP is one consumer.
-    fn assert_concurrent_cycle_for_n(n: usize) -> Result<()> {
-        assert!(n >= 2, "pinning test only meaningful for n >= 2");
+    /// CHIP-0057 scanners find a spend group by following this cycle.
+    #[test]
+    fn test_assert_concurrent_is_a_closed_cycle() -> Result<()> {
+        for n in 2..=4 {
+            let mut sim = Simulator::new();
+            let mut ctx = SpendContext::new();
 
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        // Allocate N independently-funded XCH coins.
-        let coins: Vec<_> = (0..n).map(|_| sim.bls(1)).collect();
-
-        // Build Spends with N coins; intermediate puzzle hash defaults to
-        // coins[0]'s puzzle hash (the canonical change destination).
-        let mut spends = Spends::new(coins[0].puzzle_hash);
-        for c in &coins {
-            spends.add(c.coin);
-        }
-
-        // Apply a conditions-producing action on each xch item so each
-        // SpendKind is ConditionsSpend (rather than Settlement). The
-        // standard send-XCH action emits a CreateCoin condition on the
-        // chosen input — sufficient to keep every item.kind as
-        // SpendKind::Conditions before prepare() runs emit_relation.
-        //
-        // Burn destination: any 32-byte puzzle hash literal works; the test
-        // does not submit the bundle anywhere.
-        let burn_ph: chia_protocol::Bytes32 = [0x77u8; 32].into();
-        let deltas = spends.apply(&mut ctx, &[Action::send(Id::Xch, burn_ph, 1, Memos::None)])?;
-
-        // Drive Spends<Unfinished> -> Spends<Finished>; emit_relation runs
-        // inside prepare().
-        let finished = spends.prepare(&mut ctx, &deltas, Relation::AssertConcurrent)?;
-
-        // Collect the coin_ids in iteration order.
-        let coin_ids: Vec<chia_protocol::Bytes32> = finished
-            .xch
-            .items
-            .iter()
-            .map(|i| i.asset.coin_id())
-            .collect();
-        assert_eq!(coin_ids.len(), n);
-
-        // For each item, assert exactly one AssertConcurrentSpend with the
-        // expected predecessor coin_id (coin 0 -> coin N-1; coin i -> coin i-1).
-        for (i, item) in finished.xch.items.iter().enumerate() {
-            let SpendKind::Conditions(spend) = &item.kind else {
-                panic!("xch item {i} not SpendKind::Conditions; cannot inspect");
-            };
-            let conds = spend.conditions_ref();
-            let expected_predecessor = if i == 0 {
-                coin_ids[n - 1]
-            } else {
-                coin_ids[i - 1]
-            };
-            let mut count = 0;
-            let mut last_observed_target: Option<chia_protocol::Bytes32> = None;
-            for cond in conds.iter() {
-                if let Condition::AssertConcurrentSpend(a) = cond {
-                    count += 1;
-                    last_observed_target = Some(a.coin_id);
-                }
+            let coins: Vec<_> = (0..n).map(|_| sim.bls(1)).collect();
+            let mut spends = Spends::new(coins[0].puzzle_hash);
+            for coin in &coins {
+                spends.add(coin.coin);
             }
-            assert_eq!(
-                count, 1,
-                "coin {i} of {n}: expected exactly 1 AssertConcurrentSpend, got {count}"
-            );
-            assert_eq!(
-                last_observed_target,
-                Some(expected_predecessor),
-                "coin {i} of {n}: AssertConcurrentSpend target mismatch (expected predecessor {})",
-                hex::encode(expected_predecessor)
-            );
+
+            let deltas = spends.apply(
+                &mut ctx,
+                &[Action::send(Id::Xch, Bytes32::new([7; 32]), 1, Memos::None)],
+            )?;
+            let finished = spends.prepare(&mut ctx, &deltas, Relation::AssertConcurrent)?;
+
+            let coin_ids: Vec<Bytes32> = finished
+                .xch
+                .items
+                .iter()
+                .map(|item| item.asset.coin_id())
+                .collect();
+            assert_eq!(coin_ids.len(), n);
+
+            for (i, item) in finished.xch.items.iter().enumerate() {
+                let SpendKind::Conditions(spend) = &item.kind else {
+                    panic!("expected a conditions spend");
+                };
+                let asserted: Vec<Bytes32> = spend
+                    .clone()
+                    .finish()
+                    .into_iter()
+                    .filter_map(|condition| match condition {
+                        Condition::AssertConcurrentSpend(assertion) => Some(assertion.coin_id),
+                        _ => None,
+                    })
+                    .collect();
+
+                // Each coin asserts the one before it, and the first asserts the last.
+                assert_eq!(asserted, [coin_ids[(i + n - 1) % n]]);
+            }
         }
 
         Ok(())
-    }
-
-    #[test]
-    fn assert_concurrent_relation_emits_cycle_for_n_coins_2() -> Result<()> {
-        assert_concurrent_cycle_for_n(2)
-    }
-
-    #[test]
-    fn assert_concurrent_relation_emits_cycle_for_n_coins_3() -> Result<()> {
-        assert_concurrent_cycle_for_n(3)
-    }
-
-    #[test]
-    fn assert_concurrent_relation_emits_cycle_for_n_coins_4() -> Result<()> {
-        assert_concurrent_cycle_for_n(4)
     }
 }
