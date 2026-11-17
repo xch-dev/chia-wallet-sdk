@@ -438,20 +438,22 @@
       "proof": "Proof",
       "info": "OptionInfo"
     },
-    "child_proof": {
-      "return": "Proof"
-    },
-    "child": {
-      "args": {
-        "p2_puzzle_hash": "Bytes32"
+    "methods": {
+      "child_proof": {
+        "return": "Proof"
       },
-      "return": "OptionContract"
-    },
-    "child_with": {
-      "args": {
-        "info": "OptionInfo"
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "OptionContract"
       },
-      "return": "OptionContract"
+      "child_with": {
+        "args": {
+          "info": "OptionInfo"
+        },
+        "return": "OptionContract"
+      }
     }
   },
   "OptionInfo": {

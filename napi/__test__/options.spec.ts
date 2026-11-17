@@ -126,6 +126,24 @@ test("mints and spends an option", (t) => {
 
   if (!option) throw new Error("Option not found");
 
+  // The child helpers compute the same option that the spend recreated
+  const child = eveOption.child(alice.puzzleHash);
+  t.deepEqual(child.coin.coinId(), option.coin.coinId());
+  t.deepEqual(child.proof.toLineageProof(), option.proof.toLineageProof());
+  t.deepEqual(
+    eveOption.childProof().toLineageProof(),
+    option.proof.toLineageProof(),
+  );
+  t.deepEqual(
+    eveOption.childWith(optionInfo).coin.coinId(),
+    option.coin.coinId(),
+  );
+
+  const otherPuzzleHash = Buffer.alloc(32, 1);
+  const moved = eveOption.child(otherPuzzleHash);
+  t.deepEqual(moved.info.p2PuzzleHash, otherPuzzleHash);
+  t.notDeepEqual(moved.coin.coinId(), option.coin.coinId());
+
   // Exercise the option using the mojo from melting
   const childCoin = new Coin(alice.coin.coinId(), alice.puzzleHash, 0n);
 
