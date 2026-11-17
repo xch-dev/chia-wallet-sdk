@@ -106,106 +106,113 @@ fn load_bindings(
 ) -> Result<(Bindy, IndexMap<String, Binding>, proc_macro2::TokenStream), proc_macro2::TokenStream>
 {
     let path = Path::new(path);
-    let dir_path = path.parent().unwrap_or(Path::new("")).join("bindings");
+    let dir = path.parent().unwrap_or(Path::new("")).join("bindings");
 
     let mut errors = Vec::new();
 
     let bindy: Option<Bindy> = read_json(path, &mut errors);
 
-    let mut files = vec![path.to_path_buf()];
+    let mut files = fs::read_dir(&dir)
+        .and_then(|entries| {
+            entries
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<std::io::Result<Vec<_>>>()
+        })
+        .unwrap_or_else(|error| {
+            errors.push(format!("failed to read {}: {error}", dir.display()));
+            Vec::new()
+        });
 
-    match fs::read_dir(&dir_path) {
-        Ok(entries) => {
-            for entry in entries {
-                match entry {
-                    Ok(entry) => {
-                        let file = entry.path();
-                        if file.extension().is_some_and(|ext| ext == "json") {
-                            files.push(file);
-                        }
-                    }
-                    Err(error) => {
-                        errors.push(format!("failed to read {}: {error}", dir_path.display()));
-                    }
-                }
-            }
-        }
-        Err(error) => errors.push(format!("failed to read {}: {error}", dir_path.display())),
-    }
-
-    files[1..].sort();
+    files.retain(|file| file.extension().is_some_and(|ext| ext == "json"));
+    files.sort();
 
     let mut bindings = IndexMap::new();
 
-    for file in &files[1..] {
+    for file in &files {
         if let Some(contents) = read_json::<IndexMap<String, Binding>>(file, &mut errors) {
             bindings.extend(contents);
         }
     }
 
+    // A file that failed to parse may be the one that defines these classes, so only look for
+    // them once everything has been read.
+    if errors.is_empty() {
+        if let Some(methods) = class_methods(&mut bindings, "Constants", &dir, &mut errors) {
+            for &name in CONSTANTS {
+                methods.insert(
+                    name.to_string(),
+                    Method {
+                        kind: MethodKind::Static,
+                        args: IndexMap::new(),
+                        ret: Some("SerializedProgram".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+
+                methods.insert(
+                    format!("{name}_hash"),
+                    Method {
+                        kind: MethodKind::Static,
+                        args: IndexMap::new(),
+                        ret: Some("TreeHash".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+            }
+        }
+
+        if let Some(methods) = class_methods(&mut bindings, "Clvm", &dir, &mut errors) {
+            for &name in CONSTANTS {
+                methods.insert(
+                    name.to_string(),
+                    Method {
+                        kind: MethodKind::Normal,
+                        args: IndexMap::new(),
+                        ret: Some("Program".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+            }
+        }
+    }
+
     // Track every file that was found, including ones that failed to parse, so fixing one of
     // them is noticed like any other edit.
+    files.insert(0, path.to_path_buf());
     let tracked_files = track_files(&files);
 
-    let Some(bindy) = bindy.filter(|_| errors.is_empty()) else {
-        let errors = compile_errors(&errors);
-        return Err(quote!(#tracked_files #errors));
-    };
-
-    let Some(Binding::Class { methods, .. }) = bindings.get_mut("Constants") else {
-        let errors = compile_errors(&[format!(
-            "expected a class named `Constants` in {}",
-            dir_path.display()
-        )]);
-        return Err(quote!(#tracked_files #errors));
-    };
-
-    for &name in CONSTANTS {
-        methods.insert(
-            name.to_string(),
-            Method {
-                kind: MethodKind::Static,
-                args: IndexMap::new(),
-                ret: Some("SerializedProgram".to_string()),
-                stub_only: false,
-                no_wasm: false,
-            },
-        );
-
-        methods.insert(
-            format!("{name}_hash"),
-            Method {
-                kind: MethodKind::Static,
-                args: IndexMap::new(),
-                ret: Some("TreeHash".to_string()),
-                stub_only: false,
-                no_wasm: false,
-            },
-        );
+    if let Some(bindy) = bindy
+        && errors.is_empty()
+    {
+        Ok((bindy, bindings, tracked_files))
+    } else {
+        Err(quote! {
+            #tracked_files
+            #( ::core::compile_error!(#errors); )*
+        })
     }
+}
 
-    let Some(Binding::Class { methods, .. }) = bindings.get_mut("Clvm") else {
-        let errors = compile_errors(&[format!(
-            "expected a class named `Clvm` in {}",
-            dir_path.display()
-        )]);
-        return Err(quote!(#tracked_files #errors));
-    };
-
-    for &name in CONSTANTS {
-        methods.insert(
-            name.to_string(),
-            Method {
-                kind: MethodKind::Normal,
-                args: IndexMap::new(),
-                ret: Some("Program".to_string()),
-                stub_only: false,
-                no_wasm: false,
-            },
-        );
+/// Returns the methods of the class with the given name, which the macro adds generated methods
+/// to, or records an error if there's no such class.
+fn class_methods<'a>(
+    bindings: &'a mut IndexMap<String, Binding>,
+    name: &str,
+    dir: &Path,
+    errors: &mut Vec<String>,
+) -> Option<&'a mut IndexMap<String, Method>> {
+    if let Some(Binding::Class { methods, .. }) = bindings.get_mut(name) {
+        Some(methods)
+    } else {
+        errors.push(format!(
+            "expected a class named `{name}` in {}",
+            dir.display()
+        ));
+        None
     }
-
-    Ok((bindy, bindings, tracked_files))
 }
 
 /// Reads and deserializes a definition file, recording a message with the file's path (and the
@@ -235,13 +242,6 @@ fn read_json<T: DeserializeOwned>(path: &Path, errors: &mut Vec<String>) -> Opti
             ));
             None
         }
-    }
-}
-
-/// One `compile_error!` per message, pointing at the macro invocation.
-fn compile_errors(messages: &[String]) -> proc_macro2::TokenStream {
-    quote! {
-        #( ::core::compile_error!(#messages); )*
     }
 }
 

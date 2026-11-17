@@ -129,20 +129,42 @@ test("mints and spends an option", (t) => {
   // The child helpers compute the same option that the spend recreated
   const child = eveOption.child(alice.puzzleHash);
   t.deepEqual(child.coin.coinId(), option.coin.coinId());
-  t.deepEqual(child.proof.toLineageProof(), option.proof.toLineageProof());
-  t.deepEqual(
-    eveOption.childProof().toLineageProof(),
-    option.proof.toLineageProof(),
-  );
-  t.deepEqual(
-    eveOption.childWith(optionInfo).coin.coinId(),
-    option.coin.coinId(),
-  );
 
+  // napi classes expose their fields as getters, so compare them one by one
+  const expectProof = (proof: Proof) => {
+    const lineage = proof.toLineageProof();
+    if (!lineage) throw new Error("Expected a lineage proof");
+    t.deepEqual(lineage.parentParentCoinInfo, eveOption.coin.parentCoinInfo);
+    t.deepEqual(
+      lineage.parentInnerPuzzleHash,
+      eveOption.info.innerPuzzleHash(),
+    );
+    t.is(lineage.parentAmount, eveOption.coin.amount);
+  };
+
+  expectProof(eveOption.childProof());
+  expectProof(child.proof);
+  expectProof(option.proof);
+
+  // The child is created with the new p2 puzzle hash
   const otherPuzzleHash = Buffer.alloc(32, 1);
   const moved = eveOption.child(otherPuzzleHash);
   t.deepEqual(moved.info.p2PuzzleHash, otherPuzzleHash);
-  t.notDeepEqual(moved.coin.coinId(), option.coin.coinId());
+  t.deepEqual(moved.coin.puzzleHash, moved.info.puzzleHash());
+  t.notDeepEqual(moved.coin.puzzleHash, option.coin.puzzleHash);
+
+  // The child is created with the given info rather than the parent's
+  const otherInfo = new OptionInfo(
+    optionInfo.launcherId,
+    optionInfo.underlyingCoinId,
+    optionInfo.underlyingDelegatedPuzzleHash,
+    otherPuzzleHash,
+  );
+  const replaced = eveOption.childWith(otherInfo);
+  t.deepEqual(replaced.info.p2PuzzleHash, otherPuzzleHash);
+  t.deepEqual(replaced.coin.puzzleHash, otherInfo.puzzleHash());
+  t.deepEqual(replaced.coin.parentCoinInfo, eveOption.coin.coinId());
+  t.is(replaced.coin.amount, eveOption.coin.amount);
 
   // Exercise the option using the mojo from melting
   const childCoin = new Coin(alice.coin.coinId(), alice.puzzleHash, 0n);
