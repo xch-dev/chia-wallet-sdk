@@ -292,11 +292,12 @@ fn test_simulator_e2e_multi_input() -> Result<()> {
     Ok(())
 }
 
-/// Spends every coin of prepared spends with the standard puzzle of `public_key`.
+/// Spends every coin of prepared spends with the standard puzzle of the synthetic key for its
+/// puzzle hash.
 fn spend_standard(
     ctx: &mut SpendContext,
     spends: Spends<Finished>,
-    public_key: chia_bls::PublicKey,
+    public_keys: &indexmap::IndexMap<Bytes32, chia_bls::PublicKey>,
 ) -> Result<Outputs, DriverError> {
     let mut coin_spends = std::collections::HashMap::new();
 
@@ -304,6 +305,7 @@ fn spend_standard(
         let SpendKind::Conditions(spend) = kind else {
             unreachable!("there are no settlement spends");
         };
+        let public_key = public_keys[&asset.p2_puzzle_hash()];
         coin_spends.insert(
             asset.coin().coin_id(),
             StandardLayer::new(public_key).spend_with_conditions(ctx, spend.finish())?,
@@ -323,7 +325,7 @@ fn test_simulator_e2e_minimum_fee() -> Result<()> {
     let a = sim.bls(1_000);
     let fee_coin = sim.new_coin(a.puzzle_hash, 1_000_000_000_000);
     let xch_coins = [a.coin, fee_coin];
-    let (_, secret_keys) = sender_keys(&[&a]);
+    let (public_keys, secret_keys) = sender_keys(&[&a]);
 
     let recipient = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
     let actions = [Action::silent_payment_send(
@@ -343,7 +345,7 @@ fn test_simulator_e2e_minimum_fee() -> Result<()> {
         &xch_coins,
         0,
         Relation::AssertConcurrent,
-        |ctx, spends| spend_standard(ctx, spends, a.pk),
+        |ctx, spends| spend_standard(ctx, spends, &public_keys),
     );
     assert!(matches!(
         without_keys,
@@ -358,7 +360,7 @@ fn test_simulator_e2e_minimum_fee() -> Result<()> {
         Relation::AssertConcurrent,
         FeeOptions::new(&MAINNET_CONSTANTS, 9_500_000),
         &secret_keys,
-        |ctx, spends| spend_standard(ctx, spends, a.pk),
+        |ctx, spends| spend_standard(ctx, spends, &public_keys),
     )?;
     assert!(tx.coin_spends.iter().any(|cs| cs.coin == fee_coin));
     assert!(tx.fee > 0);
@@ -372,7 +374,7 @@ fn test_simulator_e2e_minimum_fee() -> Result<()> {
         tx.fee,
         Relation::AssertConcurrent,
         &secret_keys,
-        |ctx, spends| spend_standard(ctx, spends, a.pk),
+        |ctx, spends| spend_standard(ctx, spends, &public_keys),
     )?;
     assert_eq!(ctx.take(), tx.coin_spends);
 
@@ -387,6 +389,127 @@ fn test_simulator_e2e_minimum_fee() -> Result<()> {
     )?;
     assert_eq!(detections.len(), 1);
     assert_eq!(detections[0].amount, 1_000);
+
+    Ok(())
+}
+
+/// A silent payment funded by coins received at a silent payment address. The fee coin is another
+/// received coin and the change goes to the wallet's change address, so the transaction spends
+/// and creates no coin at an ordinary wallet address.
+#[test]
+fn test_received_coins_fund_a_send_with_fee_and_change() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let wallet = SilentPaymentKeys::from_mnemonic(&Mnemonic::parse(TEST_MNEMONIC)?);
+    let recipient = taker_keys()?;
+
+    // The wallet is paid 1,000 and 5,000 mojos.
+    let payer = sim.bls(6_000);
+    let height_before = sim.height();
+    let mut spends = Spends::new(payer.puzzle_hash);
+    spends.add(payer.coin);
+    let wallet_address = wallet.unlabeled_address(SilentPaymentNetwork::Testnet);
+    let deltas = spends.apply(
+        &mut ctx,
+        &[
+            Action::silent_payment_send(Id::Xch, wallet_address.clone(), 1_000, Memos::None),
+            Action::silent_payment_send(Id::Xch, wallet_address, 5_000, Memos::None),
+        ],
+    )?;
+    let (payer_public_keys, payer_secret_keys) = sender_keys(&[&payer]);
+    spends.finish_with_silent_payment_keys(
+        &mut ctx,
+        &deltas,
+        Relation::None,
+        &payer_public_keys,
+        &payer_secret_keys,
+    )?;
+    sim.spend_coins(ctx.take(), std::slice::from_ref(&payer.sk))?;
+
+    let received = scan_from_tweaks(
+        wallet.scan_sk(),
+        wallet.spend_pk(),
+        &tweak_data_from_simulator_block(&sim, height_before),
+        None,
+        K_MAX_DEFAULT,
+    )?;
+    assert_eq!(received.len(), 2);
+    let first = received.iter().find(|coin| coin.amount == 1_000).unwrap();
+    let second = received.iter().find(|coin| coin.amount == 5_000).unwrap();
+
+    let mut public_keys = indexmap::IndexMap::new();
+    let mut secret_keys = indexmap::IndexMap::new();
+    for coin in &received {
+        let secret_key = SyntheticSecretKey::from_raw(&coin.onetime_sk(wallet.spend_sk())?);
+        public_keys.insert(coin.puzzle_hash, secret_key.public_key().into_inner());
+        secret_keys.insert(coin.puzzle_hash, secret_key);
+    }
+
+    // The first coin covers the payment exactly, so the fee and the change need the second one.
+    let fee = 200;
+    let actions = [
+        Action::silent_payment_send(
+            Id::Xch,
+            recipient.unlabeled_address(SilentPaymentNetwork::Testnet),
+            1_000,
+            Memos::None,
+        ),
+        Action::silent_payment_send(
+            Id::Xch,
+            wallet.change_address(SilentPaymentNetwork::Testnet),
+            5_000 - fee,
+            Memos::None,
+        ),
+    ];
+    let height_before = sim.height();
+    let mut spends = Spends::new(payer.puzzle_hash);
+    spends.add(first.coin());
+    spends.apply_with_fee_and_silent_payment_keys(
+        &mut ctx,
+        &actions,
+        &[second.coin()],
+        fee,
+        Relation::AssertConcurrent,
+        &secret_keys,
+        |ctx, spends| spend_standard(ctx, spends, &public_keys),
+    )?;
+    let coin_spends = ctx.take();
+
+    let mut spent: Vec<Coin> = coin_spends.iter().map(|cs| cs.coin).collect();
+    spent.sort_by_key(|coin| coin.amount);
+    assert_eq!(spent, [first.coin(), second.coin()]);
+
+    let signers: Vec<_> = secret_keys
+        .into_values()
+        .map(SyntheticSecretKey::into_inner)
+        .collect();
+    sim.spend_coins(coin_spends, &signers)?;
+
+    let tweak_data = tweak_data_from_simulator_block(&sim, height_before);
+    let paid = scan_from_tweaks(
+        recipient.scan_sk(),
+        recipient.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    )?;
+    let change = scan_from_tweaks(
+        wallet.scan_sk(),
+        wallet.spend_pk(),
+        &tweak_data,
+        None,
+        K_MAX_DEFAULT,
+    )?;
+    assert_eq!(paid.len(), 1);
+    assert_eq!((paid[0].amount, paid[0].label), (1_000, None));
+    assert_eq!(change.len(), 1);
+    assert_eq!((change[0].amount, change[0].label), (5_000 - fee, Some(0)));
+
+    // The block creates the payment and the change, and nothing at the change puzzle hash.
+    let mut created = sim.block_outputs(height_before);
+    created.sort_by_key(|coin| coin.amount);
+    assert_eq!(created, [paid[0].coin(), change[0].coin()]);
 
     Ok(())
 }

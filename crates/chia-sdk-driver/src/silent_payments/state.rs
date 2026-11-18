@@ -104,7 +104,8 @@ impl Spends<Unfinished> {
 
     /// [`Spends::apply_with_fee`] for a transaction with silent payment actions. A coin selected
     /// for the fee joins the spend group, so `secret_keys` needs the key of every coin in
-    /// `xch_coins`; see [`Spends::prepare_with_silent_payment_keys`].
+    /// `xch_coins`; see [`Spends::prepare_with_silent_payment_keys`]. The group's coins are linked
+    /// on chain: when spending coins received at a silent payment address, pass only such coins.
     #[allow(clippy::too_many_arguments)]
     pub fn apply_with_fee_and_silent_payment_keys<T>(
         &self,
