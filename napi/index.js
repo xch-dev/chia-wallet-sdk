@@ -935,6 +935,7 @@ module.exports.CommitmentSlot = nativeBinding.CommitmentSlot
 module.exports.CompactCoinProof = nativeBinding.CompactCoinProof
 module.exports.CompactLineageProof = nativeBinding.CompactLineageProof
 module.exports.Connector = nativeBinding.Connector
+module.exports.ConsensusConstants = nativeBinding.ConsensusConstants
 module.exports.Constants = nativeBinding.Constants
 module.exports.ControlledVaultRecovery = nativeBinding.ControlledVaultRecovery
 module.exports.CreateCoin = nativeBinding.CreateCoin

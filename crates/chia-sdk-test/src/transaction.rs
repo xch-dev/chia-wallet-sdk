@@ -10,15 +10,16 @@ use crate::SimulatorError;
 
 /// Signs coin spends for the [`Simulator`](crate::Simulator) with the given BLS secret keys.
 ///
-/// This finds the BLS signatures that the coin spends require, using the testnet11
-/// `AGG_SIG_ME` additional data, signs each one with the matching secret key, and returns the
-/// aggregate signature. Required secp256k1 and secp256r1 signatures are skipped, so they must be
-/// handled separately. If no signatures are required, this returns the default (identity)
-/// signature.
+/// This finds the BLS signatures that the coin spends require, using the testnet11 `AGG_SIG_*`
+/// additional data that a default [`Simulator`](crate::Simulator) validates with, signs each one
+/// with the matching secret key, and returns the aggregate signature. Required secp256k1 and
+/// secp256r1 signatures are skipped, so they must be handled separately. If no signatures are
+/// required, this returns the default (identity) signature.
 ///
 /// The [`FullNodeSimulator`](crate::FullNodeSimulator) uses different additional data (see
 /// [`FullNodeSimulator::get_aggsig_additional_data`](crate::FullNodeSimulator::get_aggsig_additional_data)),
-/// so signatures from this function aren't valid there.
+/// so signatures from this function aren't valid there. Use [`sign_transaction_with_constants`]
+/// for any network other than testnet11.
 ///
 /// # Errors
 ///
@@ -49,13 +50,33 @@ pub fn sign_transaction(
     coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
 ) -> Result<Signature, SimulatorError> {
+    sign_transaction_with_constants(
+        coin_spends,
+        secret_keys,
+        &AggSigConstants::from(&*TESTNET11_CONSTANTS),
+    )
+}
+
+/// Signs coin spends with the given BLS secret keys, like [`sign_transaction`], but with the
+/// `AGG_SIG_*` additional data of any network.
+///
+/// Use [`Simulator::agg_sig_constants`](crate::Simulator::agg_sig_constants) for a simulator
+/// with custom [`SimulatorConfig::constants`](crate::SimulatorConfig::constants), or
+/// `AggSigConstants::new` with [`FullNodeSimulator::get_aggsig_additional_data`](crate::FullNodeSimulator::get_aggsig_additional_data)
+/// for a [`FullNodeSimulator`](crate::FullNodeSimulator).
+///
+/// # Errors
+///
+/// See [`sign_transaction`].
+pub fn sign_transaction_with_constants(
+    coin_spends: &[CoinSpend],
+    secret_keys: &[SecretKey],
+    constants: &AggSigConstants,
+) -> Result<Signature, SimulatorError> {
     let mut allocator = Allocator::new();
 
-    let required_signatures = RequiredSignature::from_coin_spends(
-        &mut allocator,
-        coin_spends,
-        &AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data),
-    )?;
+    let required_signatures =
+        RequiredSignature::from_coin_spends(&mut allocator, coin_spends, constants)?;
 
     let key_pairs = secret_keys
         .iter()

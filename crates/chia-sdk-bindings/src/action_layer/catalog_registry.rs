@@ -13,13 +13,13 @@ use chia_sdk_driver::{
     launch_catalog_registry as driver_launch_catalog_registry,
 };
 use chia_sdk_types::{
-    Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    Conditions,
     puzzles::{CatalogSlotValue, SlotNeigborsInfo},
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{CatalogSlot, Clvm, Program, Proof, Spend as BindingSpend};
+use crate::{AggSigConstants, CatalogSlot, Clvm, Program, Proof, Spend as BindingSpend};
 
 pub trait SlotNeigborsInfoExt {}
 
@@ -58,14 +58,36 @@ pub trait CatalogRegistryConstantsExt
 where
     Self: Sized,
 {
-    fn get(testnet11: bool) -> Result<Self>;
+    fn new(
+        launcher_id: Bytes32,
+        royalty_address: Bytes32,
+        royalty_basis_points: u16,
+        precommit_payout_puzzle_hash: Bytes32,
+        relative_block_height: u32,
+        price_singleton_launcher_id: Bytes32,
+    ) -> Result<Self>;
+
     fn with_price_singleton(&self, price_singleton_launcher_id: Bytes32) -> Result<Self>;
     fn with_launcher_id(&self, launcher_id: Bytes32) -> Result<Self>;
 }
 
 impl CatalogRegistryConstantsExt for CatalogRegistryConstants {
-    fn get(testnet11: bool) -> Result<Self> {
-        Ok(Self::get(testnet11))
+    fn new(
+        launcher_id: Bytes32,
+        royalty_address: Bytes32,
+        royalty_basis_points: u16,
+        precommit_payout_puzzle_hash: Bytes32,
+        relative_block_height: u32,
+        price_singleton_launcher_id: Bytes32,
+    ) -> Result<Self> {
+        Ok(CatalogRegistryConstants::new(
+            launcher_id,
+            royalty_address,
+            royalty_basis_points,
+            precommit_payout_puzzle_hash,
+            relative_block_height,
+            price_singleton_launcher_id,
+        ))
     }
 
     fn with_price_singleton(&self, price_singleton_launcher_id: Bytes32) -> Result<Self> {
@@ -460,7 +482,7 @@ impl Clvm {
         initial_registration_price: u64,
         constants: CatalogRegistryConstants,
         initial_registration_asset_id: Bytes32,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
     ) -> Result<CatalogRegistryLaunchResult> {
         let mut ctx = self.0.lock().unwrap();
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
@@ -477,11 +499,7 @@ impl Clvm {
                         asset_id,
                     ))
                 },
-                if mainnet {
-                    &MAINNET_CONSTANTS
-                } else {
-                    &TESTNET11_CONSTANTS
-                },
+                &agg_sig_constants.0,
                 (constants, initial_registration_asset_id),
             )?;
 

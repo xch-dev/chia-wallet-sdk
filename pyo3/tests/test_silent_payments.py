@@ -29,6 +29,7 @@ import pytest
 from chia_wallet_sdk import (
     Action,
     Clvm,
+    ConsensusConstants,
     Constants,
     Id,
     LabelRegistry,
@@ -1069,7 +1070,9 @@ def test_silent_payment_is_priced_with_apply_with_fee():
         finished.spend()
 
         coin_spends = clvm.coin_spends()
-        cost = spend_bundle_cost(coin_spends, True, 9_500_000)
+        cost = spend_bundle_cost(
+            coin_spends, ConsensusConstants.mainnet(), 9_500_000
+        )
         needed = recommended_fee(cost)
         if fee >= needed:
             break

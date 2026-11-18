@@ -23,6 +23,7 @@ import test from "ava";
 import {
   Action,
   Clvm,
+  ConsensusConstants,
   Id,
   LabelRegistry,
   minimumFee,
@@ -274,7 +275,11 @@ test("napi: a silent payment is priced with applyWithFeeAndSilentPaymentKeys", (
     finished.spend();
 
     coinSpends = clvm.coinSpends();
-    cost = spendBundleCost(coinSpends, true, 9_500_000);
+    cost = spendBundleCost(
+      coinSpends,
+      ConsensusConstants.mainnet(),
+      9_500_000,
+    );
     const needed = recommendedFee(cost);
     if (fee >= needed) break;
     fee = needed;

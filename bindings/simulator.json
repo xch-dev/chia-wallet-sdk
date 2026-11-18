@@ -11,6 +11,18 @@
           "seed": "u64"
         }
       },
+      "with_constants": {
+        "type": "factory",
+        "args": {
+          "constants": "ConsensusConstants"
+        }
+      },
+      "constants": {
+        "return": "ConsensusConstants"
+      },
+      "agg_sig_constants": {
+        "return": "AggSigConstants"
+      },
       "height": {
         "return": "u32"
       },

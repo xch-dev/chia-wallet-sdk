@@ -1,3 +1,6 @@
+use chia_consensus::consensus_constants::ConsensusConstants;
+use chia_sdk_types::TESTNET11_CONSTANTS;
+
 /// Options for creating a [`Simulator`](crate::Simulator).
 ///
 /// # Example
@@ -13,7 +16,7 @@
 /// });
 /// assert_eq!(sim.height(), 0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatorConfig {
     /// The seed for the random number generator used for coin parent ids, key pairs, and header
     /// hashes. Defaults to `1337`.
@@ -31,6 +34,11 @@ pub struct SimulatorConfig {
     /// [`Simulator::hinted_coins`](crate::Simulator::hinted_coins) and hint lookups. Defaults to
     /// `true`.
     pub save_hints: bool,
+    /// The consensus constants that spend bundles are validated with, including the `AGG_SIG_*`
+    /// additional data that [`Simulator::spend_coins`](crate::Simulator::spend_coins) signs
+    /// with. Defaults to [`TESTNET11_CONSTANTS`]. Use
+    /// [`default_constants`](chia_sdk_types::default_constants) to simulate another network.
+    pub constants: ConsensusConstants,
 }
 
 impl Default for SimulatorConfig {
@@ -40,6 +48,7 @@ impl Default for SimulatorConfig {
             timestamp_mode: TimestampMode::default(),
             save_spends: true,
             save_hints: true,
+            constants: TESTNET11_CONSTANTS.clone(),
         }
     }
 }

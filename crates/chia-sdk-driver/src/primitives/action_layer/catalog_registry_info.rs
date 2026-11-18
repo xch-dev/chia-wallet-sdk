@@ -51,26 +51,23 @@ pub struct CatalogRegistryConstants {
 }
 
 impl CatalogRegistryConstants {
-    /// Returns the constants of the official `CATalog` deployment on mainnet or testnet11.
-    ///
-    /// # Panics
-    ///
-    /// Always panics for now, because the official constants are not yet available.
-    pub fn get(testnet11: bool) -> Self {
-        let _ = testnet11;
-        // CatalogRegistryConstants {
-        //     launcher_id: Bytes32::default(),
-        //     royalty_address: Bytes32::from(hex!(
-        //         "764e9d674d2fa441f0f6f8fc5e749a17dde345ebe4a33536afd3ef417a3f8c90"
-        //     )),
-        //     royalty_basis_points: 100,
-        //     precommit_payout_puzzle_hash: Bytes32::from(hex!(
-        //         "764e9d674d2fa441f0f6f8fc5e749a17dde345ebe4a33536afd3ef417a3f8c90"
-        //     )),
-        //     relative_block_height: 4,
-        //     price_singleton_launcher_id: Bytes32::default(),
-        // }
-        todo!("CATalog constants not yet available.");
+    /// Creates a new [`CatalogRegistryConstants`].
+    pub fn new(
+        launcher_id: Bytes32,
+        royalty_address: Bytes32,
+        royalty_basis_points: u16,
+        precommit_payout_puzzle_hash: Bytes32,
+        relative_block_height: u32,
+        price_singleton_launcher_id: Bytes32,
+    ) -> Self {
+        Self {
+            launcher_id,
+            royalty_address,
+            royalty_basis_points,
+            precommit_payout_puzzle_hash,
+            relative_block_height,
+            price_singleton_launcher_id,
+        }
     }
 
     /// Returns a copy of the constants with a different price singleton launcher id.
