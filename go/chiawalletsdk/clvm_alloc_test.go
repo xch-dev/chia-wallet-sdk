@@ -83,8 +83,11 @@ func TestAllocConditions(t *testing.T) {
 	assertEphemeral := must(sdk.NewAssertEphemeral())
 	defer assertEphemeral.Destroy()
 
-	meltSingleton := must(sdk.NewMeltSingleton())
+	meltSingleton := must(sdk.NewMeltSingleton(nil))
 	defer meltSingleton.Destroy()
+
+	meltSingletonWithPuzzleHash := must(sdk.NewMeltSingleton(&puzzleHash))
+	defer meltSingletonWithPuzzleHash.Destroy()
 
 	cases := []struct {
 		value    sdk.ClvmType
@@ -93,6 +96,8 @@ func TestAllocConditions(t *testing.T) {
 		{sdk.ClvmTypeCreateCoin{Value: createCoin}, must(clvm.CreateCoin(puzzleHash, 999, nil))},
 		{sdk.ClvmTypeReserveFee{Value: reserveFee}, must(clvm.ReserveFee(500))},
 		{sdk.ClvmTypeAssertEphemeral{Value: assertEphemeral}, must(clvm.AssertEphemeral())},
+		{sdk.ClvmTypeMeltSingleton{Value: meltSingleton}, must(clvm.MeltSingleton(nil))},
+		{sdk.ClvmTypeMeltSingleton{Value: meltSingletonWithPuzzleHash}, must(clvm.MeltSingleton(&puzzleHash))},
 	}
 
 	for _, c := range cases {

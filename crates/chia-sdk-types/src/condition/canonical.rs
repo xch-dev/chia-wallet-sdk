@@ -80,6 +80,10 @@ mod tests {
     )]
     #[case("(51 () -113)", Condition::is_melt_singleton)]
     #[case("(51 () 0xff8f)", is_other)]
+    #[case(
+        "(51 0x0101010101010101010101010101010101010101010101010101010101010101 -113)",
+        Condition::is_melt_singleton
+    )]
     #[case("(51 () -113 () ())", Condition::is_run_cat_tail)]
     #[case("(0x0033 () -113 () ())", is_other)]
     fn test_canonical_condition(#[case] source: &str, #[case] expected: fn(&Condition) -> bool) {

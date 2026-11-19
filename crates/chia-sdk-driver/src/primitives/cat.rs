@@ -136,7 +136,7 @@ impl Cat {
             parent_coin_id,
             hidden_puzzle_hash,
             amount,
-            RunCatTail::new(tail, NodePtr::NIL),
+            RunCatTail::new(None, tail, NodePtr::NIL),
             extra_conditions,
         )
     }
@@ -163,7 +163,7 @@ impl Cat {
             parent_coin_id,
             hidden_puzzle_hash,
             amount,
-            RunCatTail::new(tail, NodePtr::NIL),
+            RunCatTail::new(None, tail, NodePtr::NIL),
             extra_conditions,
         )
     }
@@ -910,7 +910,7 @@ mod tests {
                 ctx,
                 Conditions::new()
                     .create_coin(alice.puzzle_hash, 7000, hint)
-                    .run_cat_tail(tail, NodePtr::NIL),
+                    .run_cat_tail(None, tail, NodePtr::NIL),
             )?,
         );
 
@@ -953,7 +953,7 @@ mod tests {
 
                 // Add the TAIL reveal to the second spend, to ensure the order doesn't matter
                 if i == tail_index {
-                    conditions.push(RunCatTail::new(tail, NodePtr::NIL));
+                    conditions.push(RunCatTail::new(None, tail, NodePtr::NIL));
 
                     if !melt {
                         conditions.push(CreateCoin::new(alice.puzzle_hash, 15000, hint));

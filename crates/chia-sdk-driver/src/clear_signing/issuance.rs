@@ -116,13 +116,13 @@ mod tests {
 
     #[rstest]
     #[case::two_tail_reveals(vec![
-        Condition::run_cat_tail(NodePtr::NIL, NodePtr::NIL),
-        Condition::run_cat_tail(NodePtr::NIL, NodePtr::NIL),
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
     ])]
-    #[case::melt(vec![Condition::melt_singleton()])]
+    #[case::melt(vec![Condition::melt_singleton(None)])]
     #[case::tail_reveal_and_melt(vec![
-        Condition::run_cat_tail(NodePtr::NIL, NodePtr::NIL),
-        Condition::melt_singleton(),
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
+        Condition::melt_singleton(None),
     ])]
     fn test_invalid_tail_reveal(#[case] conditions: Vec<Condition>) {
         let allocator = Allocator::new();
