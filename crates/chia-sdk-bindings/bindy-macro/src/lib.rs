@@ -10,10 +10,11 @@ use indoc::formatdoc;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use syn::{Ident, LitStr, Type, parse_str};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Bindy {
     entrypoint: String,
     pymodule: String,
@@ -40,7 +41,7 @@ struct Bindy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 enum Binding {
     Class {
         #[serde(default)]
@@ -66,7 +67,7 @@ enum Binding {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct Method {
     #[serde(rename = "type")]
     kind: MethodKind,
@@ -100,75 +101,151 @@ enum MethodKind {
 /// so adding a new file to the `bindings` directory isn't noticed on its own: the crate is rebuilt
 /// once anything else it depends on changes, such as registering the new module in
 /// `chia-sdk-bindings`. Touch `bindings.json` to pick up a new file without any other change.
-fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>, proc_macro2::TokenStream) {
-    let mut files = vec![PathBuf::from(path)];
+///
+/// If a file can't be read or parsed, returns the tracking items followed by a `compile_error!`
+/// for each failure, which the macros emit in place of their usual output.
+fn load_bindings(
+    path: &str,
+) -> Result<(Bindy, IndexMap<String, Binding>, proc_macro2::TokenStream), proc_macro2::TokenStream>
+{
+    let path = Path::new(path);
+    let dir = path.parent().unwrap_or(Path::new("")).join("bindings");
 
-    let source = fs::read_to_string(path).unwrap();
+    let mut errors = Vec::new();
 
-    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+    let bindy: Option<Bindy> = read_json(path, &mut errors);
+
+    let mut files = fs::read_dir(&dir)
+        .and_then(|entries| {
+            entries
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<std::io::Result<Vec<_>>>()
+        })
+        .unwrap_or_else(|error| {
+            errors.push(format!("failed to read {}: {error}", dir.display()));
+            Vec::new()
+        });
+
+    files.retain(|file| file.extension().is_some_and(|ext| ext == "json"));
+    files.sort();
 
     let mut bindings = IndexMap::new();
 
-    let mut dir: Vec<_> = fs::read_dir(Path::new(path).parent().unwrap().join("bindings"))
-        .unwrap()
-        .map(|p| p.unwrap())
-        .collect();
-
-    dir.sort_by_key(|p| p.path().file_name().unwrap().to_str().unwrap().to_string());
-
-    for path in dir {
-        if path.path().extension().unwrap() == "json" {
-            let source = fs::read_to_string(path.path()).unwrap();
-            files.push(path.path());
-            let contents: IndexMap<String, Binding> = serde_json::from_str(&source).unwrap();
+    for file in &files {
+        if let Some(contents) = read_json::<IndexMap<String, Binding>>(file, &mut errors) {
             bindings.extend(contents);
         }
     }
 
-    if let Binding::Class { methods, .. } =
-        &mut bindings.get_mut("Constants").expect("Constants not found")
+    // A file that failed to parse may be the one that defines these classes, so only look for
+    // them once everything has been read.
+    if errors.is_empty() {
+        if let Some(methods) = class_methods(&mut bindings, "Constants", &dir, &mut errors) {
+            for &name in CONSTANTS {
+                methods.insert(
+                    name.to_string(),
+                    Method {
+                        kind: MethodKind::Static,
+                        args: IndexMap::new(),
+                        ret: Some("SerializedProgram".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+
+                methods.insert(
+                    format!("{name}_hash"),
+                    Method {
+                        kind: MethodKind::Static,
+                        args: IndexMap::new(),
+                        ret: Some("TreeHash".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+            }
+        }
+
+        if let Some(methods) = class_methods(&mut bindings, "Clvm", &dir, &mut errors) {
+            for &name in CONSTANTS {
+                methods.insert(
+                    name.to_string(),
+                    Method {
+                        kind: MethodKind::Normal,
+                        args: IndexMap::new(),
+                        ret: Some("Program".to_string()),
+                        stub_only: false,
+                        no_wasm: false,
+                    },
+                );
+            }
+        }
+    }
+
+    // Track every file that was found, including ones that failed to parse, so fixing one of
+    // them is noticed like any other edit.
+    files.insert(0, path.to_path_buf());
+    let tracked_files = track_files(&files);
+
+    if let Some(bindy) = bindy
+        && errors.is_empty()
     {
-        for &name in CONSTANTS {
-            methods.insert(
-                name.to_string(),
-                Method {
-                    kind: MethodKind::Static,
-                    args: IndexMap::new(),
-                    ret: Some("SerializedProgram".to_string()),
-                    stub_only: false,
-                    no_wasm: false,
-                },
-            );
+        Ok((bindy, bindings, tracked_files))
+    } else {
+        Err(quote! {
+            #tracked_files
+            #( ::core::compile_error!(#errors); )*
+        })
+    }
+}
 
-            methods.insert(
-                format!("{name}_hash"),
-                Method {
-                    kind: MethodKind::Static,
-                    args: IndexMap::new(),
-                    ret: Some("TreeHash".to_string()),
-                    stub_only: false,
-                    no_wasm: false,
-                },
-            );
+/// Returns the methods of the class with the given name, which the macro adds generated methods
+/// to, or records an error if there's no such class.
+fn class_methods<'a>(
+    bindings: &'a mut IndexMap<String, Binding>,
+    name: &str,
+    dir: &Path,
+    errors: &mut Vec<String>,
+) -> Option<&'a mut IndexMap<String, Method>> {
+    if let Some(Binding::Class { methods, .. }) = bindings.get_mut(name) {
+        Some(methods)
+    } else {
+        errors.push(format!(
+            "expected a class named `{name}` in {}",
+            dir.display()
+        ));
+        None
+    }
+}
+
+/// Reads and deserializes a definition file, recording a message with the file's path (and the
+/// line and column, for a parse error) on failure.
+fn read_json<T: DeserializeOwned>(path: &Path, errors: &mut Vec<String>) -> Option<T> {
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            errors.push(format!("failed to read {}: {error}", path.display()));
+            return None;
+        }
+    };
+
+    match serde_json::from_str(&source) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            // serde_json's message ends with " at line L column C"; move the position next to
+            // the path instead, in the usual `path:line:column` form.
+            let message = error.to_string();
+            let suffix = format!(" at line {} column {}", error.line(), error.column());
+            let message = message.strip_suffix(&suffix).unwrap_or(&message);
+            errors.push(format!(
+                "{}:{}:{}: {message}",
+                path.display(),
+                error.line(),
+                error.column()
+            ));
+            None
         }
     }
-
-    if let Binding::Class { methods, .. } = &mut bindings.get_mut("Clvm").expect("Clvm not found") {
-        for &name in CONSTANTS {
-            methods.insert(
-                name.to_string(),
-                Method {
-                    kind: MethodKind::Normal,
-                    args: IndexMap::new(),
-                    ret: Some("Program".to_string()),
-                    stub_only: false,
-                    no_wasm: false,
-                },
-            );
-        }
-    }
-
-    (bindy, bindings, track_files(&files))
 }
 
 fn track_files(files: &[PathBuf]) -> proc_macro2::TokenStream {
@@ -225,7 +302,10 @@ fn build_base_mappings(
 #[proc_macro]
 pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings, tracked_files) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = match load_bindings(&input) {
+        Ok(loaded) => loaded,
+        Err(errors) => return errors.into(),
+    };
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -629,7 +709,10 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings, tracked_files) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = match load_bindings(&input) {
+        Ok(loaded) => loaded,
+        Err(errors) => return errors.into(),
+    };
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -1171,7 +1254,10 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings, tracked_files) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = match load_bindings(&input) {
+        Ok(loaded) => loaded,
+        Err(errors) => return errors.into(),
+    };
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -1529,7 +1615,10 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings, tracked_files) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = match load_bindings(&input) {
+        Ok(loaded) => loaded,
+        Err(errors) => return quote!({ #errors "" }).into(),
+    };
 
     let mut stubs = bindy.pyo3_stubs.clone();
     build_base_mappings(&bindy, &mut IndexMap::new(), &mut stubs);
@@ -1819,7 +1908,10 @@ pub fn bindy_uniffi_blocking(input: TokenStream) -> TokenStream {
 
 fn uniffi_bindings(input: TokenStream, blocking: bool) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let (bindy, bindings, tracked_files) = load_bindings(&input);
+    let (bindy, bindings, tracked_files) = match load_bindings(&input) {
+        Ok(loaded) => loaded,
+        Err(errors) => return errors.into(),
+    };
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 

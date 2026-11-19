@@ -17,26 +17,20 @@ pub struct OptionContract {
     pub info: OptionInfo,
 }
 
-pub trait OptionContractExt: Sized {
-    fn child_proof(&self) -> Result<Proof>;
-    fn child(&self, p2_puzzle_hash: Bytes32) -> Result<Self>;
-    fn child_with(&self, info: OptionInfo) -> Result<Self>;
-}
-
-impl OptionContractExt for OptionContract {
-    fn child_proof(&self) -> Result<Proof> {
+impl OptionContract {
+    pub fn child_proof(&self) -> Result<Proof> {
         Ok(SdkOptionContract::from(self.clone())
             .child_lineage_proof()
             .into())
     }
 
-    fn child(&self, p2_puzzle_hash: Bytes32) -> Result<Self> {
+    pub fn child(&self, p2_puzzle_hash: Bytes32) -> Result<Self> {
         Ok(SdkOptionContract::from(self.clone())
             .child(p2_puzzle_hash, self.coin.amount)
             .into())
     }
 
-    fn child_with(&self, info: OptionInfo) -> Result<Self> {
+    pub fn child_with(&self, info: OptionInfo) -> Result<Self> {
         Ok(SdkOptionContract::from(self.clone())
             .child_with(info, self.coin.amount)
             .into())

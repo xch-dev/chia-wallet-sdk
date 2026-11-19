@@ -2861,6 +2861,9 @@ export declare class OptionAssetInfo {
 
 export declare class OptionContract {
   clone(): OptionContract
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array): OptionContract
+  childWith(info: OptionInfo): OptionContract
   constructor(coin: Coin, proof: Proof, info: OptionInfo)
   get coin(): Coin
   set coin(value: Coin)
