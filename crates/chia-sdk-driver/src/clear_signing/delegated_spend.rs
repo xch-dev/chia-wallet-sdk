@@ -33,9 +33,9 @@ pub fn parse_delegated_spend(
 /// A condition that doesn't match any other variant is kept as [`Condition::Other`] and is otherwise
 /// ignored, which is only safe if consensus ignores it too. So a condition with a known consensus
 /// opcode must parse as its variant. This rejects anything that only looks like a known condition,
-/// such as a negative `CREATE_COIN` amount other than the canonical `-113`, or a `-113` output with
-/// a puzzle hash (which only the singleton and CAT puzzles understand). Consensus would reject most
-/// of these anyways, and refusing the rest is always safe.
+/// such as a negative `CREATE_COIN` amount other than the canonical `-113`, or a `-113` output whose
+/// puzzle hash isn't nil or 32 bytes (which only the singleton and CAT puzzles understand). Consensus
+/// would reject most of these anyways, and refusing the rest is always safe.
 ///
 /// Two byte opcodes (and one byte opcodes that consensus doesn't know) are unknown conditions, which
 /// consensus ignores apart from their cost.

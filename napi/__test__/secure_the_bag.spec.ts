@@ -300,7 +300,7 @@ test("spends the path to one payment of a revocable cat bag", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(bag.rootHash(), 1000n, clvm.alloc([bag.rootHash()])),
-          clvm.runCatTail(tail, clvm.nil()),
+          clvm.runCatTail(null, tail, clvm.nil()),
         ]),
       ),
     ),

@@ -41,7 +41,7 @@ test("issues and spends a cat", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-          clvm.runCatTail(tail, clvm.nil()),
+          clvm.runCatTail(null, tail, clvm.nil()),
         ]),
       ),
     ),
@@ -96,7 +96,7 @@ test("issues and melts a cat", (t) => {
       clvm.standardSpend(
         alice.pk,
         clvm.delegatedSpend([
-          clvm.runCatTail(tail, clvm.nil()),
+          clvm.runCatTail(null, tail, clvm.nil()),
           clvm.createCoin(alice.puzzleHash, 300n),
           clvm.createCoin(alice.puzzleHash, 500n),
           clvm.createCoin(alice.puzzleHash, 200n),
@@ -111,7 +111,7 @@ test("issues and melts a cat", (t) => {
       const conditions: Program[] = [];
 
       if (i === 1) {
-        conditions.push(clvm.runCatTail(tail, clvm.nil()));
+        conditions.push(clvm.runCatTail(null, tail, clvm.nil()));
       }
 
       return new CatSpend(
@@ -158,7 +158,7 @@ test("issues and spends a revocable cat", (t) => {
         alice.pk,
         clvm.delegatedSpend([
           clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
-          clvm.runCatTail(tail, clvm.nil()),
+          clvm.runCatTail(null, tail, clvm.nil()),
         ]),
       ),
     ),

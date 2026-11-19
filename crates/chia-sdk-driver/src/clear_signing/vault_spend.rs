@@ -215,6 +215,7 @@ mod tests {
     #[case::two_byte_opcode_is_ignored("(0x0100 1) (51 PH 1)", true)]
     #[case::melt("(51 () -113)", false)]
     #[case::tail_reveal_melts("(51 () -113 () ())", false)]
+    #[case::melt_with_puzzle_hash("(51 PH -113)", false)]
     fn test_vault_spend_child(
         #[case] conditions: &str,
         #[case] recreated: bool,
@@ -235,7 +236,7 @@ mod tests {
     #[case::odd_output_then_melt("(51 PH 1) (51 () -113)")]
     #[case::two_melts("(51 () -113) (51 () -113 () ())")]
     #[case::negative_amount("(51 PH -5)")]
-    #[case::melt_with_puzzle_hash("(51 PH -113)")]
+    #[case::melt_with_short_puzzle_hash("(51 0x01 -113)")]
     #[case::non_canonical_melt("(51 () 0xff8f)")]
     #[case::trivially_true_timelock("(80 -1) (51 PH 1)")]
     #[case::invalid_message("(66 0x3f)")]

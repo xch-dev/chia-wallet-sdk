@@ -103,7 +103,7 @@ test("alloc", (t) => {
     Buffer.from("00".repeat(32), "hex"),
     null,
     undefined,
-    new RunCatTail(clvm.nil(), clvm.nil()),
+    new RunCatTail(null, clvm.nil(), clvm.nil()),
   ]);
 
   t.is(
