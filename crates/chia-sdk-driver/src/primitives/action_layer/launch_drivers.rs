@@ -1,6 +1,5 @@
 use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey, Signature, sign};
-use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof,
@@ -54,8 +53,8 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
 /// Spends a standard coin owned by `sk` with `conditions`, and returns the signature for the spend.
 ///
 /// The security coin of a launch outputs the launch conditions and asserts the other spends, so
-/// the whole launch is bound together by its signature. `consensus_constants` determines the
-/// `AGG_SIG_ME` additional data.
+/// the whole launch is bound together by its signature. `agg_sig_constants` are the
+/// network's `AGG_SIG_*` additional data.
 ///
 /// # Example
 ///
@@ -64,7 +63,7 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
 /// use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 /// use chia_sdk_driver::{SpendContext, create_security_coin_with_pk, new_sk, spend_security_coin};
 /// use chia_sdk_test::Simulator;
-/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+/// use chia_sdk_types::Conditions;
 ///
 /// let mut sim = Simulator::new();
 /// let ctx = &mut SpendContext::new();
@@ -81,7 +80,7 @@ pub fn new_sk() -> Result<SecretKey, DriverError> {
 ///     security_coin,
 ///     Conditions::new().reserve_fee(1_000),
 ///     &sk,
-///     &TESTNET11_CONSTANTS,
+///     &sim.agg_sig_constants(),
 /// )?;
 /// sim.new_transaction(SpendBundle::new(ctx.take(), signature))?;
 /// # Ok::<(), anyhow::Error>(())
@@ -91,7 +90,7 @@ pub fn spend_security_coin(
     security_coin: Coin,
     conditions: Conditions<NodePtr>,
     sk: &SecretKey,
-    consensus_constants: &ConsensusConstants,
+    agg_sig_constants: &AggSigConstants,
 ) -> Result<Signature, DriverError> {
     let pk = sk.public_key();
 
@@ -111,7 +110,7 @@ pub fn spend_security_coin(
     let spend = Spend::new(puzzle_reveal_ptr, solution_ptr);
     ctx.spend(security_coin, spend)?;
 
-    sign_standard_transaction(ctx, security_coin, spend, sk, consensus_constants)
+    sign_standard_transaction(ctx, security_coin, spend, sk, agg_sig_constants)
 }
 
 /// Signs the `AGG_SIG_ME` condition output by a standard puzzle spend with `sk`.
@@ -126,7 +125,7 @@ pub fn sign_standard_transaction(
     coin: Coin,
     spend: Spend,
     sk: &SecretKey,
-    consensus_constants: &ConsensusConstants,
+    agg_sig_constants: &AggSigConstants,
 ) -> Result<Signature, DriverError> {
     let output = ctx.run(spend.puzzle, spend.solution)?;
     let output = Vec::<Condition<NodePtr>>::from_clvm(ctx, output)?;
@@ -149,7 +148,7 @@ pub fn sign_standard_transaction(
             agg_sig_me.public_key,
             agg_sig_me.message.clone(),
         ),
-        &AggSigConstants::new(consensus_constants.agg_sig_me_additional_data),
+        agg_sig_constants,
     );
 
     Ok(sign(sk, required_signature.message()))
@@ -382,7 +381,7 @@ pub fn first_offered_xch_coin(offer: &Offer) -> Result<Coin, DriverError> {
 ///     launch_catalog_registry, sign_standard_transaction,
 /// };
 /// use chia_sdk_test::Simulator;
-/// use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+/// use chia_sdk_types::Conditions;
 ///
 /// let mut sim = Simulator::new();
 /// let ctx = &mut SpendContext::new();
@@ -402,7 +401,7 @@ pub fn first_offered_xch_coin(offer: &Offer) -> Result<Coin, DriverError> {
 ///     alice.coin,
 ///     Spend::new(puzzle, solution),
 ///     &alice.sk,
-///     &TESTNET11_CONSTANTS,
+///     &sim.agg_sig_constants(),
 /// )?;
 /// let offer = Offer::from_spend_bundle(ctx, &SpendBundle::new(vec![offer_spend], signature))?;
 ///
@@ -423,7 +422,7 @@ pub fn first_offered_xch_coin(offer: &Offer) -> Result<Coin, DriverError> {
 ///     |_ctx, _launcher_id, _security_coin, (constants, payment_asset_id)| {
 ///         Ok((Conditions::new(), constants, payment_asset_id))
 ///     },
-///     &TESTNET11_CONSTANTS,
+///     &sim.agg_sig_constants(),
 ///     (constants, payment_asset_id),
 /// )?;
 ///
@@ -448,7 +447,7 @@ pub fn launch_catalog_registry<V>(
         (Conditions<NodePtr>, CatalogRegistryConstants, Bytes32),
         DriverError,
     >,
-    consensus_constants: &ConsensusConstants,
+    agg_sig_constants: &AggSigConstants,
     additional_args: V,
 ) -> Result<
     (
@@ -525,7 +524,7 @@ pub fn launch_catalog_registry<V>(
         security_coin,
         security_coin_conditions,
         &security_coin_sk,
-        consensus_constants,
+        agg_sig_constants,
     )?;
 
     // Finally, return the data
@@ -566,7 +565,7 @@ pub fn launch_xchandles_registry<V>(
         (Conditions<NodePtr>, XchandlesConstants, Bytes32),
         DriverError,
     >,
-    consensus_constants: &ConsensusConstants,
+    agg_sig_constants: &AggSigConstants,
     additional_args: V,
 ) -> Result<
     (
@@ -642,7 +641,7 @@ pub fn launch_xchandles_registry<V>(
         security_coin,
         security_coin_conditions,
         &security_coin_sk,
-        consensus_constants,
+        agg_sig_constants,
     )?;
 
     // Finally, return the data
@@ -823,7 +822,7 @@ pub fn launch_reward_distributor(
     first_epoch_start: u64,
     cat_refund_puzzle_hash: Bytes32,
     constants: RewardDistributorConstants,
-    consensus_constants: &ConsensusConstants,
+    agg_sig_constants: &AggSigConstants,
     comment: &str,
 ) -> Result<
     (
@@ -985,7 +984,7 @@ pub fn launch_reward_distributor(
         security_coin,
         security_coin_conditions,
         &security_coin_sk,
-        consensus_constants,
+        agg_sig_constants,
     )?;
 
     // Finally, return the data
@@ -1008,7 +1007,7 @@ mod tests {
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
     use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
-        MerkleTree, TESTNET11_CONSTANTS,
+        MerkleTree,
         puzzles::{
             ANY_METADATA_UPDATER_HASH, AnyMetadataUpdater, CatNftMetadata, CompactCoinProof,
             DelegatedStateActionSolution, HandleNftMetadata, IntermediaryCoinProof,
@@ -1315,7 +1314,7 @@ mod tests {
                     0,
                     Bytes32::default(),
                 ),
-                &TESTNET11_CONSTANTS,
+                &AggSigConstants::new(Bytes32::default()),
                 "",
             ),
             Err(DriverError::MissingOfferedXch)
@@ -1326,7 +1325,7 @@ mod tests {
                 &offer,
                 1,
                 |_, _, _, ()| unreachable!("the offer has no XCH to launch from"),
-                &TESTNET11_CONSTANTS,
+                &AggSigConstants::new(Bytes32::default()),
                 (),
             ),
             Err(DriverError::MissingOfferedXch)
@@ -1338,7 +1337,7 @@ mod tests {
                 1,
                 1,
                 |_, _, _, ()| unreachable!("the offer has no XCH to launch from"),
-                &TESTNET11_CONSTANTS,
+                &AggSigConstants::new(Bytes32::default()),
                 (),
             ),
             Err(DriverError::MissingOfferedXch)
@@ -1394,7 +1393,7 @@ mod tests {
             offer_src_coin,
             offer_spend,
             &launcher_bls.sk,
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -1442,7 +1441,7 @@ mod tests {
                     initial_registration_asset_id,
                 ))
             },
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
             (
                 catalog_constants.with_price_singleton(price_singleton_launcher_id),
                 payment_cat.info.asset_id,
@@ -1921,7 +1920,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -1969,7 +1968,7 @@ mod tests {
                 |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
                     Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
                 },
-                &TESTNET11_CONSTANTS,
+                &sim.agg_sig_constants(),
                 (
                     xchandles_constants.with_price_singleton(price_singleton_launcher_id),
                     payment_cat.info.asset_id,
@@ -2873,7 +2872,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -2906,7 +2905,7 @@ mod tests {
             |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
                 Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
             },
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
             (
                 xchandles_constants.with_price_singleton(price_singleton_launcher_id),
                 payment_cat.info.asset_id,
@@ -3512,7 +3511,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -3534,7 +3533,7 @@ mod tests {
                 first_epoch_start,
                 source_cat.info.p2_puzzle_hash,
                 constants,
-                &TESTNET11_CONSTANTS,
+                &sim.agg_sig_constants(),
                 "yak yak yak",
             )?;
 
@@ -5506,7 +5505,7 @@ mod tests {
             launcher_bls.coin,
             offer_spend,
             &launcher_bls.sk,
-            &TESTNET11_CONSTANTS,
+            &sim.agg_sig_constants(),
         )?;
         let offer = Offer::from_spend_bundle(
             ctx,
@@ -5528,7 +5527,7 @@ mod tests {
                 first_epoch_start,
                 source_cat.info.p2_puzzle_hash,
                 constants,
-                &TESTNET11_CONSTANTS,
+                &sim.agg_sig_constants(),
                 "yak yak yak",
             )?;
 

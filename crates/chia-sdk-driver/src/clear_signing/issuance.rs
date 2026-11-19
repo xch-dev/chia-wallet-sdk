@@ -52,23 +52,35 @@ pub struct RunCatTailInvocation {
     pub kind: IssuanceKind,
 }
 
-/// Parses the first `RUN_CAT_TAIL` condition in the list, if there is one.
+/// Parses the `RUN_CAT_TAIL` condition in the list, if there is one.
+///
+/// The CAT puzzle treats every `CREATE_COIN` with the amount `-113` as a TAIL reveal, and runs the last one. So more
+/// than one, or a `MELT_SINGLETON` (which has the same amount), returns [`DriverError::InvalidTailReveal`].
 pub fn parse_run_cat_tail(
     allocator: &Allocator,
     conditions: &[Condition],
 ) -> Result<Option<RunCatTailInvocation>, DriverError> {
+    let mut run_cat_tail = None;
+
     for condition in conditions {
-        let Some(run_cat_tail) = condition.as_run_cat_tail() else {
-            continue;
-        };
-
-        let asset_id = tree_hash(allocator, run_cat_tail.program).into();
-        let kind = classify_tail(allocator, run_cat_tail.program)?;
-
-        return Ok(Some(RunCatTailInvocation { asset_id, kind }));
+        match condition {
+            Condition::RunCatTail(_) if run_cat_tail.is_some() => {
+                return Err(DriverError::InvalidTailReveal);
+            }
+            Condition::RunCatTail(condition) => run_cat_tail = Some(condition),
+            Condition::MeltSingleton(_) => return Err(DriverError::InvalidTailReveal),
+            _ => {}
+        }
     }
 
-    Ok(None)
+    let Some(run_cat_tail) = run_cat_tail else {
+        return Ok(None);
+    };
+
+    let asset_id = tree_hash(allocator, run_cat_tail.program).into();
+    let kind = classify_tail(allocator, run_cat_tail.program)?;
+
+    Ok(Some(RunCatTailInvocation { asset_id, kind }))
 }
 
 fn classify_tail(allocator: &Allocator, tail: NodePtr) -> Result<IssuanceKind, DriverError> {
@@ -94,4 +106,30 @@ pub fn get_extra_delta_message(extra_delta: i64) -> Bytes {
     let mut allocator = Allocator::new();
     let ptr = extra_delta.to_clvm(&mut allocator).unwrap();
     allocator.atom(ptr).as_ref().to_vec().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case::two_tail_reveals(vec![
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
+    ])]
+    #[case::melt(vec![Condition::melt_singleton(None)])]
+    #[case::tail_reveal_and_melt(vec![
+        Condition::run_cat_tail(None, NodePtr::NIL, NodePtr::NIL),
+        Condition::melt_singleton(None),
+    ])]
+    fn test_invalid_tail_reveal(#[case] conditions: Vec<Condition>) {
+        let allocator = Allocator::new();
+
+        assert!(matches!(
+            parse_run_cat_tail(&allocator, &conditions),
+            Err(DriverError::InvalidTailReveal)
+        ));
+    }
 }

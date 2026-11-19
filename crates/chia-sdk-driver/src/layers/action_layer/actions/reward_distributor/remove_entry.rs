@@ -4,13 +4,14 @@ use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
     Conditions, Mod,
     puzzles::{
-        RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
-        RewardDistributorRemoveEntryActionArgs, RewardDistributorRemoveEntryActionSolution,
-        RewardDistributorSlotNonce,
+        RewardDistributorEntrySlotValue, RewardDistributorRemoveEntryActionArgs,
+        RewardDistributorRemoveEntryActionSolution, RewardDistributorSlotNonce,
     },
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
+
+use super::entry_payout;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
@@ -134,17 +135,16 @@ impl RewardDistributorRemoveEntryAction {
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount_precision = u128::from(entry_slot.info.value.shares)
-            * (my_state.round_reward_info.cumulative_payout
-                - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount =
-            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
+        let entry_payout_info = entry_payout(
+            entry_slot.info.value.shares,
+            my_state.round_reward_info.cumulative_payout,
+            entry_slot.info.value.initial_cumulative_payout,
+            self.precision,
+        )?;
+        let entry_payout_amount = entry_payout_info.payout_amount;
         let action_solution = ctx.alloc(&RewardDistributorRemoveEntryActionSolution {
             manager_singleton_inner_puzzle_hash,
-            entry_payout_info: RewardDistributorEntryPayoutInfo {
-                payout_amount: entry_payout_amount,
-                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
-            },
+            entry_payout_info,
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

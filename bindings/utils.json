@@ -70,7 +70,7 @@
     "type": "function",
     "args": {
       "coin_spends": "Vec<CoinSpend>",
-      "mainnet": "bool",
+      "constants": "ConsensusConstants",
       "height": "Option<u32>"
     },
     "return": "u64"

@@ -18,7 +18,7 @@ use chia_sdk_driver::{
     launch_reward_distributor, spend_security_coin, spend_settlement_cats, spend_settlement_nft,
 };
 use chia_sdk_types::{
-    Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    Condition, Conditions,
     puzzles::{P2NextRewardDistributorEpochSolution, StateSchedulerLayerArgs},
 };
 use chialisp::classic::clvm_tools::binutils::assemble;
@@ -32,14 +32,14 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo,
-    MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
-    OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, PlotNftMint, Program,
-    RestrictionMemo, RewardDistributor, RewardDistributorInfoFromEveCoin,
-    RewardDistributorLaunchResult, RewardSlot, SettlementNftSpendResult, Spend,
-    SpendSettlementCatsResult, StreamedAssetParsingResult, VaultMint, WrapperMemo,
-    conditions_to_programs,
+    AggSigConstants, AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did,
+    Force1of2RestrictedVariableMemo, HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo,
+    MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
+    NotarizedPayment, OfferSecurityCoinDetails, OptionContract,
+    P2NextRewardDistributorEpochCoinInfo, Payment, PlotNftMint, Program, RestrictionMemo,
+    RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    SettlementNftSpendResult, Spend, SpendSettlementCatsResult, StreamedAssetParsingResult,
+    VaultMint, WrapperMemo, conditions_to_programs,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -753,7 +753,7 @@ impl Clvm {
         first_epoch_start: u64,
         cat_refund_puzzle_hash: Bytes32,
         constants: RewardDistributorConstants,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
         comment: String,
     ) -> Result<RewardDistributorLaunchResult> {
         let mut ctx = self.0.lock().unwrap();
@@ -771,11 +771,7 @@ impl Clvm {
             first_epoch_start,
             cat_refund_puzzle_hash,
             constants,
-            if mainnet {
-                &MAINNET_CONSTANTS
-            } else {
-                &TESTNET11_CONSTANTS
-            },
+            &agg_sig_constants.0,
             &comment,
         )?;
 
@@ -865,7 +861,7 @@ impl Clvm {
         &self,
         security_coin_details: OfferSecurityCoinDetails,
         conditions: Vec<Program>,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
     ) -> Result<Signature> {
         let mut ctx = self.0.lock().unwrap();
 
@@ -879,11 +875,7 @@ impl Clvm {
             security_coin_details.security_coin,
             sdk_conditions,
             &security_coin_details.security_coin_sk,
-            if mainnet {
-                &MAINNET_CONSTANTS
-            } else {
-                &TESTNET11_CONSTANTS
-            },
+            &agg_sig_constants.0,
         )?)
     }
 

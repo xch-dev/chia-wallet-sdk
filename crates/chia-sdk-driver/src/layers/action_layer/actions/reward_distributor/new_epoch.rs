@@ -9,7 +9,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use super::bps_of;
+use super::{bps_of, checked_add};
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
     RewardDistributorCreatedAnnouncementPrefix, RewardDistributorNewEpochActionLog,
@@ -99,7 +99,8 @@ impl RewardDistributorNewEpochAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed.
+    /// Returns an error if the solution can't be parsed, or with
+    /// [`DriverError::ArithmeticOverflow`] if the slot counter overflows.
     pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
@@ -115,7 +116,7 @@ impl RewardDistributorNewEpochAction {
                 rewards: params.slot_total_rewards,
             },
             created_reward_slot: RewardDistributorRewardSlotValue {
-                counter: params.slot_counter + 1,
+                counter: checked_add(params.slot_counter, 1)?,
                 epoch_start: params.slot_epoch_time,
                 next_epoch_initialized: params.slot_next_epoch_initialized,
                 rewards: params.slot_total_rewards,

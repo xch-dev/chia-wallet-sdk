@@ -4,6 +4,7 @@ import {
   blsMemberHash,
   Clvm,
   Coin,
+  ConsensusConstants,
   customMemberHash,
   eip712HashToSign,
   eip712MemberHash,
@@ -712,7 +713,11 @@ for (const kind of ["r1", "passkey"] as const) {
         clvm.createCoin(standIn.info.custodyHash, standIn.coin.amount, null),
       ]),
     );
-    const estimatedCost = spendBundleCost(clvm.coinSpends(), true, HEIGHT);
+    const estimatedCost = spendBundleCost(
+      clvm.coinSpends(),
+      ConsensusConstants.mainnet(),
+      HEIGHT,
+    );
 
     // The margin is in cost, so it's added to the cost before pricing, not to the fee.
     const margin = dryRun.costMargin();
@@ -734,7 +739,11 @@ for (const kind of ["r1", "passkey"] as const) {
     mips.spendVault(vault);
 
     const coinSpends = clvm.coinSpends();
-    const realCost = spendBundleCost(coinSpends, true, HEIGHT);
+    const realCost = spendBundleCost(
+      coinSpends,
+      ConsensusConstants.mainnet(),
+      HEIGHT,
+    );
 
     if (kind === "r1") {
       t.is(realCost, estimatedCost);
@@ -819,7 +828,11 @@ test("vault dry run prices a vault controlled by another vault", (t) => {
       delegatedSpend.puzzle.treeHash(),
     ),
   );
-  const estimatedCost = spendBundleCost(clvm.coinSpends(), true, HEIGHT);
+  const estimatedCost = spendBundleCost(
+    clvm.coinSpends(),
+    ConsensusConstants.mainnet(),
+    HEIGHT,
+  );
 
   // The real spend, with the controller's member signing its authorization.
   const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
@@ -855,7 +868,10 @@ test("vault dry run prices a vault controlled by another vault", (t) => {
   controllerMips.spendVault(controller);
 
   const coinSpends = clvm.coinSpends();
-  t.is(spendBundleCost(coinSpends, true, HEIGHT), estimatedCost);
+  t.is(
+    spendBundleCost(coinSpends, ConsensusConstants.mainnet(), HEIGHT),
+    estimatedCost,
+  );
 
   sim.spendCoins(coinSpends, []);
 });

@@ -562,6 +562,67 @@ fn test_clear_signing_intermediate_delegated_conditions(
     Ok(())
 }
 
+/// A quoted conditions puzzle with a condition that clear signing can't interpret is an error if its spend is
+/// asserted, rather than being left out of the transaction. `(81 -1)` is valid on chain, since consensus treats a
+/// negative absolute timelock as always true.
+#[rstest]
+fn test_clear_signing_asserted_unparseable_delegated_conditions(
+    #[values(false, true)] asserted: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let trivially_true_timelock = ctx.alloc(&clvm_list!(81, -1))?;
+    let delegated_spend = ctx.delegated_spend(
+        Conditions::new()
+            .create_coin(alice.p2_puzzle_hash, 1, Memos::None)
+            .with(Condition::Other(trivially_true_timelock)),
+    )?;
+    let puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+
+    let actions = [
+        Action::send(Id::Xch, alice.p2_puzzle_hash, 1, Memos::None),
+        Action::send(Id::Xch, puzzle_hash, 1, Memos::None),
+    ];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let intermediate_coin = Coin::new(input_coin_id, puzzle_hash, 1);
+
+    ctx.spend(intermediate_coin, delegated_spend)?;
+
+    if asserted {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_concurrent_spend(
+                intermediate_coin.coin_id(),
+            ));
+    }
+
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    if asserted {
+        assert!(matches!(tx, Err(DriverError::InvalidDelegatedSpendFormat)));
+    } else {
+        assert_eq!(tx?.spends.len(), 1);
+    }
+
+    Ok(())
+}
+
 #[rstest]
 fn test_clear_signing_chained_delegated_conditions(
     #[values(false, true)] root_asserted: bool,
@@ -1052,7 +1113,7 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
 
     let hint = ctx.hint(alice.p2_puzzle_hash)?;
     let eve_conditions = Conditions::new()
-        .run_cat_tail(tail_puzzle, tail_solution)
+        .run_cat_tail(None, tail_puzzle, tail_solution)
         .create_coin(alice.p2_puzzle_hash, 1000, hint);
     let delegated_spend = ctx.delegated_spend(eve_conditions)?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
@@ -1137,7 +1198,7 @@ fn test_clear_signing_minimum_extra_delta() -> Result<()> {
     let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
 
     let delegated_spend =
-        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+        ctx.delegated_spend(Conditions::new().run_cat_tail(None, tail_puzzle, tail_solution))?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
     let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
 
@@ -1209,7 +1270,7 @@ fn test_clear_signing_unknown_tail_issuance() -> Result<()> {
     let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
 
     let delegated_spend =
-        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, NodePtr::NIL))?;
+        ctx.delegated_spend(Conditions::new().run_cat_tail(None, tail_puzzle, NodePtr::NIL))?;
     let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
     let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
 
@@ -1290,7 +1351,7 @@ pub(super) fn melt_eve_cat(
     let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
 
     let delegated_spend =
-        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+        ctx.delegated_spend(Conditions::new().run_cat_tail(None, tail_puzzle, tail_solution))?;
     let delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
     let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
 

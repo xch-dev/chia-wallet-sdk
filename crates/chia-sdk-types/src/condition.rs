@@ -6,11 +6,13 @@ use nfts::TradePrice;
 
 mod agg_sig;
 mod announcements;
+mod canonical;
 mod list;
 mod messages;
 mod nfts;
 
 pub use announcements::*;
+pub(crate) use canonical::Canonical;
 pub use list::*;
 pub use messages::*;
 
@@ -373,12 +375,16 @@ conditions! {
         },
         /// Runs a CAT's TAIL program, which is needed to issue or melt the CAT.
         ///
-        /// This isn't a consensus condition. It's a `CREATE_COIN` with an empty puzzle hash and the
-        /// magic amount `-113`, which the CAT puzzle removes from the inner puzzle's output before
-        /// running `program` with `solution`.
+        /// This isn't a consensus condition. It's a `CREATE_COIN` with the magic amount `-113`, which
+        /// the CAT puzzle removes from the inner puzzle's output before running `program` with
+        /// `solution`. If there's more than one, the CAT puzzle runs the last one.
+        ///
+        /// A singleton treats this as [`Condition::MeltSingleton`], since it only checks the amount.
         RunCatTail<P, S> as Copy {
             opcode: i8 if 51,
-            puzzle_hash: () if (),
+            /// The puzzle hash, which the CAT puzzle ignores. This is usually [`None`], but some
+            /// puzzles require every `CREATE_COIN` to use a fixed puzzle hash.
+            puzzle_hash: Option<Bytes32>,
             magic_amount: i8 if -113,
             /// The TAIL program, whose tree hash must be the CAT's asset id.
             program: P,
@@ -387,12 +393,15 @@ conditions! {
         },
         /// Melts a singleton, so that it isn't recreated.
         ///
-        /// This isn't a consensus condition. It's a `CREATE_COIN` with an empty puzzle hash and the
-        /// magic amount `-113`, which the singleton top layer removes from the output instead of
-        /// recreating the singleton.
+        /// This isn't a consensus condition. It's a `CREATE_COIN` with the magic amount `-113`, which
+        /// the singleton top layer removes from the output instead of recreating the singleton.
+        ///
+        /// A CAT treats this as a [`Condition::RunCatTail`] with a nil program and solution.
         MeltSingleton as Default + Copy {
             opcode: i8 if 51,
-            puzzle_hash: () if (),
+            /// The puzzle hash, which the singleton top layer ignores. This is usually [`None`], but
+            /// some puzzles require every `CREATE_COIN` to use a fixed puzzle hash.
+            puzzle_hash: Option<Bytes32>,
             magic_amount: i8 if -113,
         },
         /// Updates the metadata of an NFT by running its metadata updater puzzle.

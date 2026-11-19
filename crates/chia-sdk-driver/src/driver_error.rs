@@ -305,6 +305,19 @@ pub enum DriverError {
     #[error("the amount is too large to fit in a coin")]
     AmountOverflow,
 
+    /// Arithmetic on values parsed from a spend, or passed to a spend builder, overflowed,
+    /// underflowed or divided by zero. For example, a reward distributor withdrawal that removes
+    /// more rewards than its reward slot holds, or a payout with a precision of zero.
+    #[error("arithmetic overflow")]
+    ArithmeticOverflow,
+
+    /// A reward distributor commit incentives spend targets an epoch the puzzle can't reach from
+    /// the spent reward slot: the epoch length is zero, or the target epoch is before the slot's
+    /// epoch, isn't a whole number of epochs after it, or needs more reward slots than fit in a
+    /// block.
+    #[error("invalid reward distributor epoch")]
+    InvalidRewardDistributorEpoch,
+
     /// [`Spends::finish_with_keys`](crate::Spends::finish_with_keys) wasn't given a public key for
     /// one of the p2 puzzle hashes being spent.
     #[error("missing key")]
@@ -462,9 +475,17 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    /// A vault's delegated puzzle isn't a quoted list of conditions, so it can't be clear signed.
+    /// A delegated puzzle isn't a quoted list of conditions, or its conditions could be misunderstood (such as a
+    /// condition with a known opcode that doesn't parse, or more than one odd output from a vault), so it can't be
+    /// clear signed.
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
+
+    /// A CAT spend reveals its TAIL more than once, or outputs a `MELT_SINGLETON` condition, which the CAT puzzle
+    /// treats as a TAIL reveal without a program. The CAT puzzle only runs the last reveal, so these are rejected
+    /// rather than risk showing the wrong TAIL.
+    #[error("invalid TAIL reveal")]
+    InvalidTailReveal,
 
     /// A message sent by a vault isn't a puzzle-to-coin message with exactly one coin id.
     #[error("invalid vault message format")]

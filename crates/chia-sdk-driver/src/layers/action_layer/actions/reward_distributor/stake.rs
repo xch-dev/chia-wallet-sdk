@@ -21,6 +21,8 @@ use clvm_traits::{ToClvm, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
+use super::{checked_add, entry_payout_precision};
+
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
     RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
@@ -352,7 +354,8 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the lock puzzle can't be constructed or fails.
+    /// Returns an error if the lock puzzle can't be constructed or fails, or with
+    /// [`DriverError::ArithmeticOverflow`] if the entry's shares or slot counter overflow.
     pub fn created_slot_value<LPS>(
         ctx: &mut SpendContext,
         state: &RewardDistributorState,
@@ -375,10 +378,15 @@ impl RewardDistributorStakeAction {
         let (new_shares, _conds): (u64, NodePtr) = ctx.extract(lock_puzzle_output)?;
 
         Ok(RewardDistributorEntrySlotValue {
-            counter: u64::try_from(solution.existing_slot_counter + 1)?,
+            counter: u64::try_from(
+                solution
+                    .existing_slot_counter
+                    .checked_add(1)
+                    .ok_or(DriverError::ArithmeticOverflow)?,
+            )?,
             payout_puzzle_hash: solution.entry_custody_puzzle_hash,
             initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-            shares: solution.existing_slot_shares + new_shares,
+            shares: checked_add(solution.existing_slot_shares, new_shares)?,
         })
     }
 
@@ -389,7 +397,8 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed or the lock puzzle fails.
+    /// Returns an error if the solution can't be parsed or the lock puzzle fails, or with
+    /// [`DriverError::ArithmeticOverflow`] if the entry's shares or slot counter overflow.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -456,8 +465,10 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if `nft_launcher_proofs` isn't the same length as `offered_nfts`, or if
-    /// any of the spends can't be created.
+    /// Returns an error if `nft_launcher_proofs` isn't the same length as `offered_nfts`, if any
+    /// of the spends can't be created, or with [`DriverError::ArithmeticOverflow`] if
+    /// `existing_slot`'s initial cumulative payout is after the distributor's, its unclaimed
+    /// rewards don't fit in a [`u128`], or its shares or slot counter overflow.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_collection_nft_mode(
         self,
@@ -561,14 +572,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
@@ -613,7 +626,10 @@ impl RewardDistributorStakeAction {
     /// # Errors
     ///
     /// Returns an error if `nft_shares` or `inclusion_proofs` isn't the same length as
-    /// `offered_nfts`, or if any of the spends can't be created.
+    /// `offered_nfts`, if any of the spends can't be created, or with
+    /// [`DriverError::ArithmeticOverflow`] if the total of `nft_shares` overflows,
+    /// `existing_slot`'s initial cumulative payout is after the distributor's, its unclaimed
+    /// rewards don't fit in a [`u128`], or its shares or slot counter overflow.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_curated_nft_mode(
@@ -670,7 +686,7 @@ impl RewardDistributorStakeAction {
             };
             let notarized_payment_ptr = ctx.alloc(&np)?;
             notarized_payments.push(np);
-            total_shares_until_now += nft_shares[i];
+            total_shares_until_now = checked_add(total_shares_until_now, nft_shares[i])?;
 
             created_nfts.push(offered_nfts[i].child(
                 my_p2,
@@ -734,14 +750,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
@@ -782,7 +800,10 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
+    /// Returns an error if any of the spends can't be created, or with
+    /// [`DriverError::ArithmeticOverflow`] if `existing_slot`'s initial cumulative payout is after
+    /// the distributor's, its unclaimed rewards don't fit in a [`u128`], or its shares or slot
+    /// counter overflow.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_cat_mode(
         self,
@@ -848,14 +869,16 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
-                * (distributor
+            let rewards_to_give_up = entry_payout_precision(
+                existing_slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout);
+                    .cumulative_payout,
+                existing_slot.info.value.initial_cumulative_payout,
+            )?;
             security_conditions = security_conditions.send_message(
                 18,
                 RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),

@@ -3,7 +3,6 @@ use std::{collections::HashMap, fs::File};
 use chia_bls::{SecretKey, Signature};
 use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
 use chia_protocol::{CoinSpend, SpendBundle};
-use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::Allocator;
 use prettytable::{Table, row};
 
@@ -76,13 +75,8 @@ impl Benchmark {
         keys: &[SecretKey],
     ) -> anyhow::Result<()> {
         let sb = SpendBundle::new(coin_spends, Signature::default());
-        let sb_conds = get_conditions_from_spendbundle(
-            ctx,
-            &sb,
-            u64::MAX,
-            sim.height(),
-            &TESTNET11_CONSTANTS,
-        )?;
+        let sb_conds =
+            get_conditions_from_spendbundle(ctx, &sb, u64::MAX, sim.height(), sim.constants())?;
 
         let key = key.to_string();
         if !self.data_keys.contains(&key) {

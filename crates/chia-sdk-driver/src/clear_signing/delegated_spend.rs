@@ -1,6 +1,7 @@
+use chia_consensus::{flags::ConsensusFlags, opcodes::parse_opcode};
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, match_quote};
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Spend};
 
@@ -13,15 +14,50 @@ use crate::{DriverError, Spend};
 /// conditions that are output to be static. So in lieu of needing this flexibility in the
 /// future, we extract out the standard quoted conditions format rather than running the
 /// delegated spend to get its output. This ensures that the conditions are a fixed list.
+///
+/// A condition with a known consensus opcode that doesn't parse as its [`Condition`] variant is also
+/// [`DriverError::InvalidDelegatedSpendFormat`], since it would otherwise be ignored.
 pub fn parse_delegated_spend(
     allocator: &Allocator,
     delegated_spend: Spend,
 ) -> Result<Vec<Condition>, DriverError> {
-    let (_, conditions) =
-        <match_quote!(Vec<Condition>)>::from_clvm(allocator, delegated_spend.puzzle)
-            .map_err(|_| DriverError::InvalidDelegatedSpendFormat)?;
+    let (_, conditions) = <match_quote!(NodePtr)>::from_clvm(allocator, delegated_spend.puzzle)
+        .map_err(|_| DriverError::InvalidDelegatedSpendFormat)?;
 
-    Ok(conditions)
+    parse_conditions(allocator, conditions).ok_or(DriverError::InvalidDelegatedSpendFormat)
+}
+
+/// Parses a list of conditions for clear signing, or returns [`None`] if any of them would be
+/// misunderstood.
+///
+/// A condition that doesn't match any other variant is kept as [`Condition::Other`] and is otherwise
+/// ignored, which is only safe if consensus ignores it too. So a condition with a known consensus
+/// opcode must parse as its variant. This rejects anything that only looks like a known condition,
+/// such as a negative `CREATE_COIN` amount other than the canonical `-113`, or a `-113` output whose
+/// puzzle hash isn't nil or 32 bytes (which only the singleton and CAT puzzles understand). Consensus
+/// would reject most of these anyways, and refusing the rest is always safe.
+///
+/// Two byte opcodes (and one byte opcodes that consensus doesn't know) are unknown conditions, which
+/// consensus ignores apart from their cost.
+pub(crate) fn parse_conditions(
+    allocator: &Allocator,
+    conditions: NodePtr,
+) -> Option<Vec<Condition>> {
+    let conditions = Vec::<Condition>::from_clvm(allocator, conditions).ok()?;
+
+    for condition in &conditions {
+        if let Condition::Other(condition) = condition {
+            let (opcode, _) = <(NodePtr, NodePtr)>::from_clvm(allocator, *condition).ok()?;
+
+            if parse_opcode(allocator, opcode, ConsensusFlags::empty())
+                .is_some_and(|opcode| u8::try_from(opcode).is_ok())
+            {
+                return None;
+            }
+        }
+    }
+
+    Some(conditions)
 }
 
 #[cfg(test)]

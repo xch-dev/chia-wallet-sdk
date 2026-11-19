@@ -128,15 +128,17 @@ fn alloc(
                 clvm.receive_message(value.0.mode, value.0.message, value.0.data)?
             }
             ClvmType::Softfork(value) => clvm.softfork(value.0.cost, value.0.rest)?,
-            ClvmType::MeltSingleton(_value) => clvm.melt_singleton()?,
+            ClvmType::MeltSingleton(value) => clvm.melt_singleton(value.0.puzzle_hash)?,
             ClvmType::TransferNft(value) => clvm.transfer_nft(
                 value.0.launcher_id,
                 value.0.trade_prices.clone(),
                 value.0.singleton_inner_puzzle_hash,
             )?,
-            ClvmType::RunCatTail(value) => {
-                clvm.run_cat_tail(value.0.program.clone(), value.0.solution.clone())?
-            }
+            ClvmType::RunCatTail(value) => clvm.run_cat_tail(
+                value.0.puzzle_hash,
+                value.0.program.clone(),
+                value.0.solution.clone(),
+            )?,
             ClvmType::UpdateNftMetadata(value) => clvm.update_nft_metadata(
                 value.0.updater_puzzle_reveal.clone(),
                 value.0.updater_solution.clone(),

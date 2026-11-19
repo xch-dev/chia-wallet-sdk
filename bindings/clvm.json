@@ -543,6 +543,9 @@
         "return": "Program"
       },
       "melt_singleton": {
+        "args": {
+          "puzzle_hash": "Option<Bytes32>"
+        },
         "return": "Program"
       },
       "transfer_nft": {
@@ -555,6 +558,7 @@
       },
       "run_cat_tail": {
         "args": {
+          "puzzle_hash": "Option<Bytes32>",
           "program": "Program",
           "solution": "Program"
         },
@@ -652,7 +656,7 @@
           "first_epoch_start": "u64",
           "cat_refund_puzzle_hash": "Bytes32",
           "constants": "RewardDistributorConstants",
-          "mainnet": "bool",
+          "agg_sig_constants": "AggSigConstants",
           "comment": "String"
         },
         "return": "RewardDistributorLaunchResult"
@@ -691,7 +695,7 @@
           "initial_registration_price": "u64",
           "constants": "CatalogRegistryConstants",
           "initial_registration_asset_id": "Bytes32",
-          "mainnet": "bool"
+          "agg_sig_constants": "AggSigConstants"
         },
         "return": "CatalogRegistryLaunchResult"
       },
@@ -723,7 +727,7 @@
           "initial_registration_period": "u64",
           "constants": "XchandlesConstants",
           "initial_registration_asset_id": "Bytes32",
-          "mainnet": "bool"
+          "agg_sig_constants": "AggSigConstants"
         },
         "return": "XchandlesRegistryLaunchResult"
       },
@@ -751,7 +755,7 @@
         "args": {
           "security_coin_details": "OfferSecurityCoinDetails",
           "conditions": "Vec<Program>",
-          "mainnet": "bool"
+          "agg_sig_constants": "AggSigConstants"
         },
         "return": "Signature"
       },

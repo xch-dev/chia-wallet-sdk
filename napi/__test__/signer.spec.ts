@@ -3,6 +3,7 @@ import test from "ava";
 import {
   AggSigConstants,
   Clvm,
+  ConsensusConstants,
   k1MemberHash,
   K1Pair,
   MemberConfig,
@@ -177,10 +178,7 @@ test("a puzzle reveal that doesn't match the coin is rejected", (t) => {
 
   t.throws(
     () =>
-      clvm.requiredSignatures(
-        clvm.coinSpends(),
-        AggSigConstants.testnet11(),
-      ),
+      clvm.requiredSignatures(clvm.coinSpends(), AggSigConstants.testnet11()),
     { message: /does not match coin puzzle hash/ },
   );
 });
@@ -192,4 +190,79 @@ test("agg sig constants are derived from the agg sig me data", (t) => {
   t.is(toHex(derived.parent()), toHex(mainnet.parent()));
   t.is(toHex(derived.parentPuzzle()), toHex(mainnet.parentPuzzle()));
   t.not(toHex(mainnet.me()), toHex(AggSigConstants.testnet11().me()));
+});
+
+test("consensus constants describe mainnet, testnet11, and custom networks", (t) => {
+  const mainnet = ConsensusConstants.mainnet();
+  const testnet11 = ConsensusConstants.testnet11();
+
+  t.is(
+    toHex(mainnet.genesisChallenge()),
+    toHex(AggSigConstants.mainnet().me()),
+  );
+  t.is(
+    toHex(testnet11.aggSigConstants().me()),
+    toHex(AggSigConstants.testnet11().me()),
+  );
+  t.false(mainnet.testnet());
+  t.true(testnet11.testnet());
+
+  const genesisChallenge = new Uint8Array(32).fill(42);
+  const custom = new ConsensusConstants(genesisChallenge, genesisChallenge)
+    .withHardForkHeight(1)
+    .withHardFork2Height(2)
+    .withSoftFork8Height(3)
+    .withSoftFork9Height(4)
+    .withTestnet(true);
+
+  t.is(toHex(custom.genesisChallenge()), toHex(genesisChallenge));
+  t.is(
+    toHex(custom.aggSigConstants().parent()),
+    toHex(new AggSigConstants(genesisChallenge).parent()),
+  );
+  t.is(custom.hardForkHeight(), 1);
+  t.is(custom.hardFork2Height(), 2);
+  t.is(custom.softFork8Height(), 3);
+  t.is(custom.softFork9Height(), 4);
+  t.is(custom.maxBlockCostClvm(), mainnet.maxBlockCostClvm());
+  t.is(custom.costPerByte(), 12_000n);
+  t.is(mainnet.hardForkHeight(), 5_496_000);
+  t.true(custom.testnet());
+});
+
+test("sign and validate a spend on a custom network", (t) => {
+  const genesisChallenge = new Uint8Array(32).fill(42);
+  const sim = Simulator.withConstants(
+    new ConsensusConstants(genesisChallenge, genesisChallenge),
+  );
+  const clvm = new Clvm();
+
+  t.is(toHex(sim.constants().genesisChallenge()), toHex(genesisChallenge));
+
+  const alice = sim.bls(1n);
+  clvm.spendCoin(
+    alice.coin,
+    clvm.standardSpend(
+      alice.pk,
+      clvm.delegatedSpend([clvm.createCoin(alice.puzzleHash, 1n, null)]),
+    ),
+  );
+  const coinSpends = clvm.coinSpends();
+
+  const sign = (constants: AggSigConstants) =>
+    Signature.aggregate(
+      clvm
+        .requiredSignatures(coinSpends, constants)
+        .bls.map((item) => alice.sk.sign(item.message())),
+    );
+
+  // A signature for testnet11 can't be replayed on the custom network.
+  t.throws(() =>
+    sim.newTransaction(
+      new SpendBundle(coinSpends, sign(AggSigConstants.testnet11())),
+    ),
+  );
+
+  sim.newTransaction(new SpendBundle(coinSpends, sign(sim.aggSigConstants())));
+  t.is(sim.unspentCoins(alice.puzzleHash, false).length, 1);
 });

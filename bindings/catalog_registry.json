@@ -120,10 +120,15 @@
       "price_singleton_launcher_id": "Bytes32"
     },
     "methods": {
-      "get": {
+      "new": {
         "type": "factory",
         "args": {
-          "testnet11": "bool"
+          "launcher_id": "Bytes32",
+          "royalty_address": "Bytes32",
+          "royalty_basis_points": "u16",
+          "precommit_payout_puzzle_hash": "Bytes32",
+          "relative_block_height": "u32",
+          "price_singleton_launcher_id": "Bytes32"
         }
       },
       "with_price_singleton": {

@@ -123,8 +123,9 @@ impl PeerSimulator<Simulator> {
         Self::with_config(PeerSimulatorConfig::default()).await
     }
 
-    /// Starts a peer simulator with the given [`PeerSimulatorConfig`] and a default
-    /// [`Simulator`].
+    /// Starts a peer simulator with the given [`PeerSimulatorConfig`] and a new [`Simulator`],
+    /// whose consensus constants are [`default_constants`](chia_sdk_types::default_constants)
+    /// with the [`PeerSimulatorConfig::genesis_challenge`].
     ///
     /// # Errors
     ///
@@ -487,16 +488,21 @@ impl<S: PeerSimulatorBackend> Drop for PeerSimulator<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_bls::{PublicKey, SecretKey, Signature};
     use chia_protocol::{
         Bytes, Bytes32, Coin, CoinSpend, CoinState, CoinStateFilters, CoinStateUpdate,
         ProtocolMessageTypes, RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
+    use chia_sdk_signer::AggSigConstants;
     use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Memos, Remark};
     use chia_traits::Streamable;
     use clvmr::NodePtr;
 
-    use crate::{BlsPair, sign_transaction, to_program, to_puzzle};
+    use crate::{
+        BlsPair, sign_transaction, sign_transaction_with_constants, to_program, to_puzzle,
+    };
 
     use super::*;
 
@@ -637,6 +643,44 @@ mod tests {
 
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 3);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_custom_genesis_challenge_signature() -> anyhow::Result<()> {
+        let genesis_challenge = Bytes32::new([42; 32]);
+        let sim = PeerSimulator::with_config(PeerSimulatorConfig {
+            genesis_challenge,
+            ..Default::default()
+        })
+        .await?;
+        let peer = sim.connect().await?;
+        let pair = BlsPair::new(0);
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
+        let coin_spends = vec![CoinSpend::new(
+            coin,
+            puzzle_reveal,
+            to_program([AggSigMe::new(pair.pk, b"Hello, world!".to_vec().into())])?,
+        )];
+
+        // A signature for testnet11 isn't valid on the configured network.
+        let ack =
+            test_transaction_raw(&peer, coin_spends.clone(), slice::from_ref(&pair.sk)).await?;
+        assert_eq!(ack.status, 3);
+
+        let signature = sign_transaction_with_constants(
+            &coin_spends,
+            &[pair.sk],
+            &AggSigConstants::new(genesis_challenge),
+        )?;
+        let ack = peer
+            .send_transaction(SpendBundle::new(coin_spends, signature))
+            .await?;
+        assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
 
         Ok(())
     }

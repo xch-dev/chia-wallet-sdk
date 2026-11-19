@@ -6,8 +6,7 @@ use chia_sdk_types::{
     puzzles::{
         P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution, RefreshNftInfo,
         RewardDistributorDepositSlotValue, RewardDistributorDlInfo,
-        RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
-        RewardDistributorRefreshNftsFromDlActionArgs,
+        RewardDistributorEntrySlotValue, RewardDistributorRefreshNftsFromDlActionArgs,
         RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorRefreshNftsTotals,
         RewardDistributorSlotNonce, SlotAndNfts,
     },
@@ -15,6 +14,8 @@ use chia_sdk_types::{
 use clvm_traits::clvm_quote;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
+
+use super::{checked_add, entry_payout};
 
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
@@ -151,7 +152,8 @@ impl RewardDistributorRefreshAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed or a share count is out of range.
+    /// Returns an error if the solution can't be parsed, a share count is out of range, or a slot
+    /// counter overflows.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -170,7 +172,7 @@ impl RewardDistributorRefreshAction {
             .iter()
             .map(|e| {
                 Ok(RewardDistributorEntrySlotValue {
-                    counter: e.existing_slot_value.counter + 1,
+                    counter: checked_add(e.existing_slot_value.counter, 1)?,
                     payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
                     initial_cumulative_payout: changes
                         .old_state
@@ -377,24 +379,25 @@ impl RewardDistributorRefreshAction {
                     ));
             }
 
-            let payout_amount_precision = u128::from(slot.info.value.shares)
-                * (distributor
+            let entry_payout_info = entry_payout(
+                slot.info.value.shares,
+                distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
-                    .cumulative_payout
-                    - slot.info.value.initial_cumulative_payout);
-            let entry_payout_amount =
-                u64::try_from(payout_amount_precision / u128::from(self.precision))?;
-            let payout_rounding_error = payout_amount_precision % u128::from(self.precision);
+                    .cumulative_payout,
+                slot.info.value.initial_cumulative_payout,
+                self.precision,
+            )?;
             slots_and_nfts.push(SlotAndNfts {
                 existing_slot_value: slot.info.value,
-                entry_payout_info: RewardDistributorEntryPayoutInfo {
-                    payout_amount: entry_payout_amount,
-                    payout_rounding_error,
-                },
-                nfts_total_shares_delta: nft_infos.iter().map(|e| e.nft_shares_delta).sum(),
+                entry_payout_info,
+                nfts_total_shares_delta: nft_infos.iter().try_fold(0i64, |total, e| {
+                    total
+                        .checked_add(e.nft_shares_delta)
+                        .ok_or(DriverError::ArithmeticOverflow)
+                })?,
                 nfts: nft_infos,
             });
             slot.spend(ctx, my_inner_puzzle_hash)?;
@@ -409,20 +412,22 @@ impl RewardDistributorRefreshAction {
                 dl_inner_puzzle_hash,
             },
             totals: RewardDistributorRefreshNftsTotals {
-                total_entry_payout_amount: slots_and_nfts
-                    .iter()
-                    .map(|e| e.entry_payout_info.payout_amount)
-                    .sum(),
-                total_shares_delta: i128::from(
-                    slots_and_nfts
-                        .iter()
-                        .map(|e| e.nfts_total_shares_delta)
-                        .sum::<i64>(),
-                ),
-                total_payout_rounding_error: slots_and_nfts
-                    .iter()
-                    .map(|e| e.entry_payout_info.payout_rounding_error)
-                    .sum(),
+                total_entry_payout_amount: slots_and_nfts.iter().try_fold(0, |total, e| {
+                    checked_add(total, e.entry_payout_info.payout_amount)
+                })?,
+                total_shares_delta: slots_and_nfts.iter().try_fold(0i128, |total, e| {
+                    total
+                        .checked_add(i128::from(e.nfts_total_shares_delta))
+                        .ok_or(DriverError::ArithmeticOverflow)
+                })?,
+                total_payout_rounding_error: slots_and_nfts.iter().try_fold(
+                    0u128,
+                    |total, e| {
+                        total
+                            .checked_add(e.entry_payout_info.payout_rounding_error)
+                            .ok_or(DriverError::ArithmeticOverflow)
+                    },
+                )?,
             },
             slots_and_nfts,
         })?;

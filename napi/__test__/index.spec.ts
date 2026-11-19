@@ -5,6 +5,7 @@ import {
   bytesEqual,
   Clvm,
   Coin,
+  ConsensusConstants,
   Constants,
   curryTreeHash,
   fromHex,
@@ -321,8 +322,22 @@ test("mint and spend nft", (t) => {
     ),
   );
 
-  t.is(spendBundleCost(coinSpends, true, 9_500_000), 61_437_425n);
-  t.is(spendBundleCost(coinSpends, true), 66_418_338n);
+  t.is(
+    spendBundleCost(coinSpends, ConsensusConstants.mainnet(), 9_500_000),
+    61_437_425n,
+  );
+  t.is(spendBundleCost(coinSpends, ConsensusConstants.mainnet()), 66_418_338n);
+
+  // The cost follows the network's fork heights: with the 3.0 hard fork before the given
+  // height, it's the cost after the fork.
+  t.is(
+    spendBundleCost(
+      coinSpends,
+      ConsensusConstants.mainnet().withHardFork2Height(9_000_000),
+      9_500_000,
+    ),
+    66_418_338n,
+  );
 });
 
 test("create and parse condition", (t) => {
@@ -343,6 +358,31 @@ test("create and parse condition", (t) => {
       .filter((memo) => memo !== null),
     [puzzleHash],
   );
+});
+
+test("parse melt condition with and without a puzzle hash", (t) => {
+  const clvm = new Clvm();
+
+  const puzzleHash = fromHex("ff".repeat(32));
+
+  t.is(clvm.meltSingleton().parseMeltSingleton()?.puzzleHash, null);
+  t.true(
+    bytesEqual(
+      clvm.meltSingleton(puzzleHash).parseMeltSingleton()!.puzzleHash!,
+      puzzleHash,
+    ),
+  );
+});
+
+test("non-canonical opcode is not parsed as a condition", (t) => {
+  const clvm = new Clvm();
+
+  // (0x0033 0x01..01 1) isn't a CREATE_COIN to consensus, which only accepts the opcode 51.
+  const condition = clvm.deserialize(
+    fromHex(`ff820033ffa0${"01".repeat(32)}ff0180`),
+  );
+
+  t.is(condition.parseCreateCoin(), null);
 });
 
 test("handle nft metadata nil and populated encodings", (t) => {
