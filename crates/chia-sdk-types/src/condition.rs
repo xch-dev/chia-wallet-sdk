@@ -6,11 +6,13 @@ use nfts::TradePrice;
 
 mod agg_sig;
 mod announcements;
+mod canonical;
 mod list;
 mod messages;
 mod nfts;
 
 pub use announcements::*;
+pub(crate) use canonical::Canonical;
 pub use list::*;
 pub use messages::*;
 

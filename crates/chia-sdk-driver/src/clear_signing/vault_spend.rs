@@ -1,9 +1,6 @@
-use chia_consensus::opcodes::SEND_MESSAGE;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Condition;
-use clvm_traits::FromClvm;
-use clvmr::{Allocator, NodePtr};
-use num_bigint::BigInt;
+use clvmr::Allocator;
 
 use crate::{
     DriverError, Facts, Spend, VaultMessage, VaultPuzzleMessage, is_vault_puzzle_message,
@@ -75,10 +72,11 @@ impl DropCoin {
 /// in the [`Facts`]. An envelope that does anything other than recreate the vault returns
 /// [`DriverError::MixedVaultMessageEnvelope`].
 ///
-/// Otherwise, an odd `CREATE_COIN` is the recreated vault (if there's more than one, the last is used), and any other
-/// `CREATE_COIN` is a [`DropCoin`]. Each `SEND_MESSAGE` is parsed with [`parse_vault_puzzle_message`] if it's sent to
-/// a puzzle hash, or [`parse_vault_message`] otherwise, and a condition with the `SEND_MESSAGE` opcode that can't be
-/// parsed returns [`DriverError::InvalidVaultMessageFormat`], so no message can be missed. Puzzle announcement and
+/// Otherwise, an odd `CREATE_COIN` is the recreated vault, and any other `CREATE_COIN` is a [`DropCoin`]. The vault is
+/// melted instead if it outputs a `MELT_SINGLETON` or `RUN_CAT_TAIL`. Like the singleton layer, more than one odd
+/// output (including a melt) returns [`DriverError::InvalidDelegatedSpendFormat`]. Each `SEND_MESSAGE` is parsed with
+/// [`parse_vault_puzzle_message`] if it's sent to a puzzle hash, or [`parse_vault_message`] otherwise, and the
+/// conditions are parsed with [`parse_delegated_spend`], so no message can be missed. Puzzle announcement and
 /// concurrent spend assertions, `ASSERT_SECONDS_ABSOLUTE`, `ASSERT_BEFORE_SECONDS_ABSOLUTE`, and `RESERVE_FEE` are
 /// recorded in the [`Facts`].
 pub fn parse_vault_delegated_spend(
@@ -101,6 +99,7 @@ pub fn parse_vault_delegated_spend(
     }
 
     let mut child = None;
+    let mut melted = false;
     let mut drop_coins = Vec::new();
     let mut messages = Vec::new();
     let mut puzzle_messages = Vec::new();
@@ -128,11 +127,14 @@ pub fn parse_vault_delegated_spend(
                 // parsing is running at the delegated spend layer (i.e., inner puzzle), we know that the
                 // puzzle hash is actually the custody hash, rather than the singleton's full puzzle hash.
                 //
-                // Note that if a CREATE_COIN condition with an odd child is not included in the delegated
-                // spend, we assume that the singleton is being melted. This is technically only true if
-                // the special (puzzle specific) MELT_SINGLETON condition is included, but if it's not, then
-                // the transaction is invalid anyways.
+                // If there's no odd output, the singleton layer fails the spend, so it's safe to assume that
+                // the vault is melted.
                 if condition.amount % 2 == 1 {
+                    // The singleton layer doesn't allow more than one odd output, including a melt.
+                    if melted || child.is_some() {
+                        return Err(DriverError::InvalidDelegatedSpendFormat);
+                    }
+
                     child = Some(VaultOutput {
                         custody_hash: condition.puzzle_hash,
                         amount: condition.amount,
@@ -156,15 +158,14 @@ pub fn parse_vault_delegated_spend(
                     messages.push(parse_vault_message(allocator, condition)?);
                 }
             }
-            Condition::Other(condition) => {
-                let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
-
-                // If an unparseable opcode matches the SEND_MESSAGE opcode, we return an error.
-                // This is to make sure that we don't accidentally let a valid message slip through the cracks.
-                // If this happened, we wouldn't enforce the spend to be revealed, thus clear signing would be insecure.
-                if opcode == BigInt::from(SEND_MESSAGE) {
-                    return Err(DriverError::InvalidVaultMessageFormat);
+            // The singleton layer melts the vault if its odd output has the amount -113. A TAIL reveal has the same
+            // amount, and the vault isn't a CAT, so it melts the vault too.
+            Condition::MeltSingleton(_) | Condition::RunCatTail(_) => {
+                if melted || child.is_some() {
+                    return Err(DriverError::InvalidDelegatedSpendFormat);
                 }
+
+                melted = true;
             }
             _ => {}
         }
@@ -177,4 +178,79 @@ pub fn parse_vault_delegated_spend(
         puzzle_messages,
         signed_messages: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use clvm_traits::{ToClvm, clvm_quote};
+    use clvmr::NodePtr;
+    use rstest::rstest;
+
+    use super::*;
+
+    /// Parses a vault delegated spend from conditions written as hex atoms, with `()` for nil and `ph` or `other` for
+    /// a puzzle hash, so that non-canonical encodings can be written out exactly.
+    fn parse(conditions: &[&str]) -> Result<VaultSpendSummary, DriverError> {
+        let mut allocator = Allocator::new();
+        let mut list = Vec::new();
+
+        for condition in conditions {
+            let mut atoms = Vec::new();
+
+            for atom in condition.split_whitespace() {
+                let bytes = match atom {
+                    "()" => Vec::new(),
+                    "ph" => vec![1; 32],
+                    "other" => vec![2; 32],
+                    hex => hex::decode(hex).unwrap(),
+                };
+                atoms.push(allocator.new_atom(&bytes)?);
+            }
+
+            list.push(atoms.to_clvm(&mut allocator)?);
+        }
+
+        let puzzle = clvm_quote!(list).to_clvm(&mut allocator)?;
+
+        parse_vault_delegated_spend(
+            &mut Facts::default(),
+            &mut allocator,
+            Spend::new(puzzle, NodePtr::NIL),
+        )
+    }
+
+    #[rstest]
+    #[case::recreated(&["33 ph 01"], true)]
+    #[case::non_canonical_opcode_is_ignored(&["0033 other 01", "33 ph 01"], true)]
+    #[case::melt(&["33 () 8f"], false)]
+    #[case::tail_reveal_melts(&["33 () 8f () ()"], false)]
+    fn test_vault_spend_child(
+        #[case] conditions: &[&str],
+        #[case] recreated: bool,
+    ) -> anyhow::Result<()> {
+        let summary = parse(conditions)?;
+
+        assert_eq!(
+            summary.child,
+            recreated.then(|| VaultOutput::new(Bytes32::new([1; 32]), 1))
+        );
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case::two_odd_outputs(&["33 ph 01", "33 other 01"])]
+    #[case::melt_then_odd_output(&["33 () 8f", "33 ph 01"])]
+    #[case::odd_output_then_melt(&["33 ph 01", "33 () 8f"])]
+    #[case::two_melts(&["33 () 8f", "33 () 8f () ()"])]
+    #[case::negative_amount(&["33 ph fb"])]
+    #[case::melt_with_puzzle_hash(&["33 ph 8f"])]
+    #[case::non_canonical_melt(&["33 () ff8f"])]
+    #[case::invalid_message(&["42 3f"])]
+    fn test_vault_spend_rejected(#[case] conditions: &[&str]) {
+        assert!(matches!(
+            parse(conditions),
+            Err(DriverError::InvalidDelegatedSpendFormat)
+        ));
+    }
 }

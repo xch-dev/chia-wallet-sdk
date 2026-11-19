@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ClawbackV2, RevealedP2Puzzle, Reveals};
+use crate::{ClawbackV2, RevealedP2Puzzle, Reveals, clear_signing::parse_conditions};
 
 /// The destination and memos of a created coin.
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ pub fn parse_memos(
         reveals.p2_puzzle(p2_create_coin.puzzle_hash.into())
         && let Ok((_hint, (memo, rest))) =
             <(Bytes32, (NodePtr, NodePtr))>::from_clvm(allocator, memos)
-        && let Ok(conditions) = Vec::<Condition>::from_clvm(allocator, memo)
+        && let Some(conditions) = parse_conditions(allocator, memo)
         && p2_conditions_or_singleton
             .match_quoted_conditions_hash(
                 clvm_quote!(tree_hash(allocator, memo)).tree_hash().into(),

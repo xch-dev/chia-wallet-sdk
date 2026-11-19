@@ -44,7 +44,8 @@ use impl_conditions::impl_conditions;
 /// Field syntax:
 ///
 /// - `field: Type if value` is a constant (such as the opcode) that's checked when parsing and
-///   isn't stored in the struct.
+///   isn't stored in the struct. It only matches the canonical encoding of the value, since
+///   consensus and puzzles compare constants by their exact bytes.
 /// - `...field: Type` captures the rest of the list.
 /// - `field?: Type` is optional and uses the type's default when missing.
 ///
