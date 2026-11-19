@@ -5,15 +5,17 @@ use chia_sdk_types::{
     puzzles::{
         NftToUnlockInfo, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
         RewardDistributorCatUnlockingPuzzleArgs, RewardDistributorCatUnlockingPuzzleSolution,
-        RewardDistributorDepositSlotValue, RewardDistributorEntryPayoutInfo,
-        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
-        RewardDistributorNftsUnlockingPuzzleSolution, RewardDistributorSlotNonce,
-        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
+        RewardDistributorDepositSlotValue, RewardDistributorEntrySlotValue,
+        RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorNftsUnlockingPuzzleSolution,
+        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
+        RewardDistributorUnstakeActionSolution,
     },
 };
 use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
+
+use super::{checked_add, checked_sub, entry_payout};
 
 use crate::{
     Cat, CatMaker, CatSpend, DriverError, Layer, Nft, P2DelegatedBySingletonLayer,
@@ -258,7 +260,9 @@ impl RewardDistributorUnstakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the solution can't be parsed or the unlock puzzle fails.
+    /// Returns an error if the solution can't be parsed or the unlock puzzle fails, or with
+    /// [`DriverError::ArithmeticOverflow`] if the unlock puzzle removes more shares than the entry has or
+    /// the slot counter overflows.
     pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
@@ -282,10 +286,10 @@ impl RewardDistributorUnstakeAction {
         let removed_shares = ctx.extract::<(u64, NodePtr)>(unlock_puzzle_result)?.0;
 
         let created_entry_slot = RewardDistributorEntrySlotValue {
-            counter: solution.entry_slot.counter + 1,
+            counter: checked_add(solution.entry_slot.counter, 1)?,
             payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
             initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
-            shares: solution.entry_slot.shares - removed_shares,
+            shares: checked_sub(solution.entry_slot.shares, removed_shares)?,
         };
 
         let (cat_amount, nft_entries) = Self::unstake_cat_and_nft_from_solution(
@@ -339,8 +343,9 @@ impl RewardDistributorUnstakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if a deposit slot is missing, the payout doesn't fit in a `u64`, or the
-    /// spends can't be created.
+    /// Returns an error if a deposit slot is missing, the total of `locked_nft_shares` or the
+    /// payout doesn't fit in a `u64`, the entry has fewer shares than are removed, or the spends
+    /// can't be created.
     pub fn spend_for_locked_nfts(
         self,
         ctx: &mut SpendContext,
@@ -390,7 +395,7 @@ impl RewardDistributorUnstakeAction {
                 nft_shares: *locked_nft_share,
             });
 
-            removed_shares += locked_nft_share;
+            removed_shares = checked_add(removed_shares, *locked_nft_share)?;
 
             // spend locked NFT (inner puzzle is my_p2)
             let nft_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
@@ -435,17 +440,16 @@ impl RewardDistributorUnstakeAction {
             remove_entry_conditions.assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount_precision = u128::from(removed_shares)
-            * (my_state.round_reward_info.cumulative_payout
-                - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount =
-            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
+        let entry_payout_info = entry_payout(
+            removed_shares,
+            my_state.round_reward_info.cumulative_payout,
+            entry_slot.info.value.initial_cumulative_payout,
+            self.precision,
+        )?;
+        let entry_payout_amount = entry_payout_info.payout_amount;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: nfts_unlock_info,
-            entry_payout_info: RewardDistributorEntryPayoutInfo {
-                payout_amount: entry_payout_amount,
-                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
-            },
+            entry_payout_info,
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -468,7 +472,9 @@ impl RewardDistributorUnstakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created.
+    /// Returns an error if the payout doesn't fit in a `u64` or the spends can't be created, or
+    /// with [`DriverError::ArithmeticOverflow`] if the entry's initial cumulative payout is after
+    /// the distributor's or the precision is zero.
     pub fn spend_for_locked_cats(
         self,
         ctx: &mut SpendContext,
@@ -535,11 +541,13 @@ impl RewardDistributorUnstakeAction {
         )?;
 
         // spend self
-        let entry_payout_amount_precision = u128::from(locked_cat_coin.amount)
-            * (my_state.round_reward_info.cumulative_payout
-                - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount =
-            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
+        let entry_payout_info = entry_payout(
+            locked_cat_coin.amount,
+            my_state.round_reward_info.cumulative_payout,
+            entry_slot.info.value.initial_cumulative_payout,
+            self.precision,
+        )?;
+        let entry_payout_amount = entry_payout_info.payout_amount;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: RewardDistributorCatUnlockingPuzzleSolution {
                 cat_parent_id: locked_cat_coin.parent_coin_info,
@@ -547,10 +555,7 @@ impl RewardDistributorUnstakeAction {
                 cat_shares: locked_cat_coin.amount,
                 cat_maker_solution_rest: (),
             },
-            entry_payout_info: RewardDistributorEntryPayoutInfo {
-                payout_amount: entry_payout_amount,
-                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
-            },
+            entry_payout_info,
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

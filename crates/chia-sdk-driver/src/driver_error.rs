@@ -284,6 +284,19 @@ pub enum DriverError {
     #[error("the amount is too large to fit in a coin")]
     AmountOverflow,
 
+    /// Arithmetic on values parsed from a spend, or passed to a spend builder, overflowed,
+    /// underflowed or divided by zero. For example, a reward distributor withdrawal that removes
+    /// more rewards than its reward slot holds, or a payout with a precision of zero.
+    #[error("arithmetic overflow")]
+    ArithmeticOverflow,
+
+    /// A reward distributor commit incentives spend targets an epoch the puzzle can't reach from
+    /// the spent reward slot: the epoch length is zero, or the target epoch is before the slot's
+    /// epoch, isn't a whole number of epochs after it, or needs more reward slots than fit in a
+    /// block.
+    #[error("invalid reward distributor epoch")]
+    InvalidRewardDistributorEpoch,
+
     /// [`Spends::finish_with_keys`](crate::Spends::finish_with_keys) wasn't given a public key for
     /// one of the p2 puzzle hashes being spent.
     #[error("missing key")]
