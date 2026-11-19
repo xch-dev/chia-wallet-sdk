@@ -148,6 +148,34 @@ impl Spends {
         relation: Relation,
         spend_p2: impl FnOnce(&mut SpendContext, Spends<Finished>) -> Result<T, DriverError>,
     ) -> Result<T, DriverError> {
+        self.apply_with_fee_using(
+            ctx,
+            actions,
+            xch_coins,
+            fee,
+            relation,
+            Spends::prepare,
+            spend_p2,
+        )
+    }
+
+    /// [`Spends::apply_with_fee`], with the step that prepares the spends given by `prepare`.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_with_fee_using<T>(
+        &self,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        xch_coins: &[Coin],
+        fee: u64,
+        relation: Relation,
+        prepare: impl FnOnce(
+            Spends,
+            &mut SpendContext,
+            &Deltas,
+            Relation,
+        ) -> Result<Spends<Finished>, DriverError>,
+        spend_p2: impl FnOnce(&mut SpendContext, Spends<Finished>) -> Result<T, DriverError>,
+    ) -> Result<T, DriverError> {
         let existing = ctx.take();
 
         let spent: HashSet<Bytes32> = existing
@@ -199,7 +227,7 @@ impl Spends {
             }
 
             let deltas = spends.apply(ctx, &actions)?;
-            let spends = spends.prepare(ctx, &deltas, relation)?;
+            let spends = prepare(spends, ctx, &deltas, relation)?;
 
             spend_p2(ctx, spends)
         })();

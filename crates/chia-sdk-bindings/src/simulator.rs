@@ -5,7 +5,7 @@ use chia_bls::SecretKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, SpendBundle};
 use chia_sdk_test::SimulatorConfig;
 
-use crate::{AggSigConstants, BlsPairWithCoin, ConsensusConstants};
+use crate::{AggSigConstants, BlsPairWithCoin, ConsensusConstants, TweakData};
 
 #[derive(Default, Clone)]
 pub struct Simulator(Arc<Mutex<chia_sdk_test::Simulator>>);
@@ -105,6 +105,27 @@ impl Simulator {
 
     pub fn coin_spend(&self, coin_id: Bytes32) -> Result<Option<CoinSpend>> {
         Ok(self.0.lock().unwrap().coin_spend(coin_id))
+    }
+
+    /// The CHIP-0057 [`TweakData`] of the block at `height`.
+    pub fn tweak_data_from_block(&self, height: u32) -> Result<TweakData> {
+        Ok(
+            chia_sdk_test::silent_payments::tweak_data_from_simulator_block(
+                &self.0.lock().unwrap(),
+                height,
+            )
+            .into(),
+        )
+    }
+
+    /// The coin spends of the block at `height`.
+    pub fn block_spends(&self, height: u32) -> Result<Vec<CoinSpend>> {
+        Ok(self.0.lock().unwrap().block_spends(height))
+    }
+
+    /// The coins created in the block at `height`.
+    pub fn block_outputs(&self, height: u32) -> Result<Vec<Coin>> {
+        Ok(self.0.lock().unwrap().block_outputs(height))
     }
 
     pub fn spend_coins(

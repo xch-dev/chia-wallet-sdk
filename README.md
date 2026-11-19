@@ -55,6 +55,7 @@ The Rust crate re-exports a set of smaller crates, which can also be used indivi
 | `chip-0035`             | DataLayer store support ([CHIP-0035](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0035.md)) |
 | `chip-0037`             | EIP-712 vault members ([CHIP-0037](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0037.md))   |
 | `chip-0052`             | Partial offers ([CHIP-0052](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0052.md))          |
+| `chip-0057`             | Silent payments ([CHIP-0057](https://github.com/Chia-Network/chips/pull/198), a draft)                    |
 | `action-layer`          | Action layer puzzles and drivers                                                                          |
 | `auction`               | English auctions for NFTs, built on the action layer                                                      |
 | `pooling`               | Plot NFTs ([pooling puzzles](https://chialisp.com/pooling))                                               |

@@ -7,14 +7,17 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
-    self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext, SpendKind,
+    self as sdk, Cat, Delta, HashedPtr, Layer, OptionType, SettlementLayer, SpendContext,
+    SpendKind, silent_payments::SyntheticSecretKey,
 };
 use chia_sdk_types::{Condition, conditions::TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
+use indexmap::IndexMap;
 
 use crate::{
-    AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Program, Spend,
+    AsProgram, AsPtr, AssetInfo, Clvm, Did, Nft, NotarizedPayment, Offer, OptionContract, Payment,
+    Program, RequestedPayments, SilentPaymentAddress, SilentPaymentSecretKey, Spend,
 };
 
 /// Mirrors [`sdk::Relation`], but `None` is renamed since it's a reserved word in Python.
@@ -218,6 +221,49 @@ impl Spends {
     }
 
     pub fn prepare(&self, deltas: Deltas, relation: Option<Relation>) -> Result<FinishedSpends> {
+        self.prepare_with(|spends, ctx| {
+            Ok(spends.prepare(
+                ctx,
+                &deltas.0,
+                relation.map_or(sdk::Relation::None, Into::into),
+            )?)
+        })
+    }
+
+    /// `prepare` for a transaction with silent payment actions. `secret_keys` are the raw wallet
+    /// secret keys of the spend group by p2 puzzle hash; the synthetic keys are derived here.
+    pub fn prepare_with_silent_payment_keys(
+        &self,
+        deltas: Deltas,
+        relation: Option<Relation>,
+        secret_keys: Vec<SilentPaymentSecretKey>,
+    ) -> Result<FinishedSpends> {
+        let secret_keys = synthetic_secret_keys(secret_keys);
+        self.prepare_with(|spends, ctx| {
+            Ok(spends.prepare_with_silent_payment_keys(
+                ctx,
+                &deltas.0,
+                relation.map_or(sdk::Relation::None, Into::into),
+                &secret_keys,
+            )?)
+        })
+    }
+
+    /// The revocable CATs the transaction requests with `Action.silent_payment_requested`. Call it
+    /// before `apply`.
+    pub fn set_silent_payment_requested_asset_info(&self, asset_info: AssetInfo) -> Result<()> {
+        self.spends
+            .lock()
+            .unwrap()
+            .silent_payments
+            .requested_asset_info = asset_info.to_sdk();
+        Ok(())
+    }
+
+    fn prepare_with(
+        &self,
+        prepare: impl FnOnce(sdk::Spends, &mut SpendContext) -> Result<sdk::Spends<sdk::Finished>>,
+    ) -> Result<FinishedSpends> {
         // Every method locks the Clvm before the spends, so that concurrent calls can't deadlock.
         let mut ctx = self.clvm.lock().unwrap();
         let mut spends = self.spends.lock().unwrap();
@@ -228,11 +274,7 @@ impl Spends {
         );
         let spends = std::mem::replace(&mut *spends, empty);
 
-        let spends = spends.prepare(
-            &mut ctx,
-            &deltas.0,
-            relation.map_or(sdk::Relation::None, Into::into),
-        )?;
+        let spends = prepare(spends, &mut ctx)?;
 
         let finished = settlement_spends(&mut ctx, &spends)?;
 
@@ -288,6 +330,57 @@ impl Spends {
             finished: Arc::new(Mutex::new(finished)),
         })
     }
+
+    /// `apply_with_fee` for a transaction with silent payment actions. `secret_keys` needs the raw
+    /// wallet secret key of every coin in `xch_coins`, since a coin selected for the fee joins the
+    /// spend group.
+    pub fn apply_with_fee_and_silent_payment_keys(
+        &self,
+        actions: Vec<Action>,
+        xch_coins: Vec<Coin>,
+        fee: u64,
+        relation: Option<Relation>,
+        secret_keys: Vec<SilentPaymentSecretKey>,
+    ) -> Result<FinishedSpends> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let spends = self.spends.lock().unwrap();
+
+        let actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
+        let secret_keys = synthetic_secret_keys(secret_keys);
+
+        let (spends, finished) = spends.apply_with_fee_and_silent_payment_keys(
+            &mut ctx,
+            &actions,
+            &xch_coins,
+            fee,
+            relation.map_or(sdk::Relation::None, Into::into),
+            &secret_keys,
+            |ctx, spends| {
+                let finished = settlement_spends(ctx, &spends)?;
+                Ok((spends, finished))
+            },
+        )?;
+
+        Ok(FinishedSpends {
+            spends: Arc::new(Mutex::new(spends)),
+            clvm: self.clvm.clone(),
+            finished: Arc::new(Mutex::new(finished)),
+        })
+    }
+}
+
+fn synthetic_secret_keys(
+    secret_keys: Vec<SilentPaymentSecretKey>,
+) -> IndexMap<Bytes32, SyntheticSecretKey> {
+    secret_keys
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.p2_puzzle_hash,
+                SyntheticSecretKey::from_raw(&entry.secret_key),
+            )
+        })
+        .collect()
 }
 
 /// Builds the spends of the settlement coins, which don't need a p2 spend from the caller.
@@ -481,6 +574,89 @@ impl Action {
             id.0,
             amount,
             memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
+        )))
+    }
+
+    /// A CHIP-0057 silent payment in the asset `id`: `Id.xch()`, or a CAT the
+    /// transaction spends (`Id.existing(asset_id)`). A CAT output is hinted
+    /// with its one-time puzzle hash, so `memos` must be omitted for it.
+    pub fn silent_payment_send(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        memos: Option<Program>,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_send(
+            id.0,
+            recipient.into(),
+            amount,
+            memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
+        )))
+    }
+
+    /// The maker of an offer requests a CHIP-0057 silent payment of `amount`
+    /// in the asset `id` at its silent payment address, paid by the
+    /// counterparty's settlement coin. `nonce` is the offer's nonce of the
+    /// maker's requested payments. A requested CAT is taken to be not
+    /// revocable unless `Spends.set_silent_payment_requested_asset_info` gave
+    /// its hidden puzzle hash. The notarized payment is published in
+    /// `Outputs.silent_payment_requests`; one coin of the maker's spend group
+    /// asserts its announcement, so the maker must not add the
+    /// `RequestedPayments.assertions` of those payments again.
+    pub fn silent_payment_requested(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_requested(
+            id.0,
+            recipient.into(),
+            amount,
+            nonce,
+        )))
+    }
+
+    /// A requested payment of the maker to an address that is not a silent
+    /// payment address, listed after the maker's silent payments in that
+    /// asset.
+    pub fn silent_payment_requested_other(
+        id: Id,
+        payment: Payment,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_requested_other(
+            id.0,
+            payment.into(),
+            nonce,
+        )))
+    }
+
+    /// The taker of an offer is paid `amount` of the asset `id` at its silent
+    /// payment address by a settlement coin of that asset the transaction
+    /// spends. `nonce` is the taker's nonce of its requested payments.
+    pub fn silent_payment_settle(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_settle(
+            id.0,
+            recipient.into(),
+            amount,
+            nonce,
+        )))
+    }
+
+    /// A payment of the taker to an address that is not a silent payment
+    /// address, made by the settlement coin of its asset the transaction
+    /// spends; listed after the taker's silent payments in that asset.
+    pub fn silent_payment_settle_other(id: Id, payment: Payment, nonce: Bytes32) -> Result<Self> {
+        Ok(Self(sdk::Action::silent_payment_settle_other(
+            id.0,
+            payment.into(),
+            nonce,
         )))
     }
 
@@ -792,6 +968,24 @@ impl Outputs {
 
     pub fn reserved_fee(&self) -> Result<u64> {
         Ok(self.inner.reserved_fee)
+    }
+
+    /// The maker's requested silent payments (`Action.silent_payment_requested`),
+    /// one notarized payment per asset, for `Offer.from_input_spend_bundle`.
+    pub fn silent_payment_requests(&self) -> Result<RequestedPayments> {
+        Ok(RequestedPayments::from_sdk(
+            self.inner.silent_payment_requests.clone(),
+            &self.clvm,
+        ))
+    }
+
+    /// The asset information of `silent_payment_requests`: each requested
+    /// CAT with its hidden puzzle hash (`None` for a plain CAT).
+    pub fn silent_payment_asset_info(&self) -> Result<AssetInfo> {
+        Ok(AssetInfo::from_sdk(
+            self.inner.silent_payment_asset_info.clone(),
+            &self.clvm,
+        ))
     }
 }
 

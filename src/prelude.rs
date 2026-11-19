@@ -67,3 +67,24 @@ pub use chia_sdk_types::{
     TESTNET11_CONSTANTS, compile_chialisp, compile_rue, conditions::*, run_puzzle,
 };
 pub use chia_sdk_utils::{Address, Bech32, parse_hex, select_coins};
+
+#[cfg(feature = "chip-0057")]
+pub use chia_sdk_utils::silent_payments::{
+    LabelRegistry, SilentPaymentAddress, SilentPaymentError, SilentPaymentKeys,
+    SilentPaymentNetwork,
+};
+
+#[cfg(feature = "chip-0057")]
+pub use chia_sdk_driver::silent_payments::{
+    DetectedSilentPaymentCoin, K_MAX_DEFAULT, OtherPayment, OutputMeta, SettlementDerivation,
+    SettlementGroupCoin, SettlementGroupOutput, SettlementNotarizedPayment, SettlementRecipient,
+    SilentPaymentScan, SilentPaymentState, SpendGroup, SyntheticPublicKey, SyntheticSecretKey,
+    TweakData, Wrapper, compute_tweak_point, derive_settlement_outputs, eligible_spend,
+    scan_from_tweaks, sort_wrappers, spend_groups_from_block_spends, tweak_data_from_block_spends,
+    wrap_puzzle_hash,
+};
+
+#[cfg(feature = "chip-0057")]
+pub use chia_sdk_driver::{
+    SettledEntry, SettlementPayer, SilentPaymentSendAction, SilentPaymentSettledAction,
+};

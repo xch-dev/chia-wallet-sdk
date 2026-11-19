@@ -10,6 +10,9 @@ pub enum Relation {
 
     /// Each spend asserts that the previous spend (wrapping around to the last) is included in the
     /// same block, with `ASSERT_CONCURRENT_SPEND`.
+    ///
+    /// A CHIP-0057 silent payment that spends two or more coins needs this relation, since
+    /// scanners find its spend group by following the assertions.
     AssertConcurrent,
 
     /// Each spend creates a coin announcement with an empty message, and asserts the announcement

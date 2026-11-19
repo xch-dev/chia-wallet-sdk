@@ -8,9 +8,13 @@ use hex_literal::hex;
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
     MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
-    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
-    UpdateNftAction,
+    SettleAction, SilentPaymentAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
+    UpdateDidAction, UpdateNftAction,
 };
+#[cfg(feature = "chip-0057")]
+use crate::{SettledEntry, SettlementPayer, SilentPaymentSendAction, SilentPaymentSettledAction};
+#[cfg(feature = "chip-0057")]
+use chia_sdk_utils::silent_payments::SilentPaymentAddress;
 
 /// The puzzle hash that coins are sent to by [`Action::burn`]. There's no known puzzle with this
 /// hash, so the coins can never be spent.
@@ -44,6 +48,9 @@ pub enum Action {
     MeltSingleton(MeltSingletonAction),
     /// See [`Action::fee`].
     Fee(FeeAction),
+    /// A CHIP-0057 silent payment action. The variant always exists, and its actions are created
+    /// with the `chip-0057` feature.
+    SilentPayment(Box<SilentPaymentAction>),
 }
 
 impl Action {
@@ -439,6 +446,95 @@ impl Action {
     pub fn fee(amount: u64) -> Self {
         Self::Fee(FeeAction::new(amount))
     }
+
+    /// Sends a CHIP-0057 silent payment in the asset `id`, which is [`Id::Xch`] or a CAT the
+    /// transaction spends. `memos` must be [`Memos::None`] for a CAT, whose output is hinted with
+    /// its one-time puzzle hash. See [`SilentPaymentSendAction`].
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_send(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        memos: Memos,
+    ) -> Self {
+        Self::SilentPayment(Box::new(SilentPaymentAction::Send(
+            SilentPaymentSendAction::new(id, recipient, amount, memos),
+        )))
+    }
+
+    /// Requests a silent payment in an offer the transaction makes: the counterparty's settlement
+    /// coin pays `amount` of the asset `id` to the address (CHIP-0057 "Payments through Settlement
+    /// Coins"). `nonce` is the offer's nonce for the maker's requested payments.
+    ///
+    /// A requested CAT is taken to be not revocable unless it is in
+    /// [`SilentPaymentState::requested_asset_info`](crate::SilentPaymentState::requested_asset_info)
+    /// before the action is applied. The transaction asserts the payment itself, and publishes it in
+    /// [`Outputs::silent_payment_requests`](crate::Outputs::silent_payment_requests).
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_requested(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Self {
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                id,
+                nonce,
+                SettledEntry::SilentPayment { recipient, amount },
+                SettlementPayer::Counterparty,
+            ),
+        )))
+    }
+
+    /// A requested payment of the maker to an ordinary address, listed after the maker's silent
+    /// payments in that asset so that one announcement covers them.
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_requested_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                id,
+                nonce,
+                SettledEntry::Other(payment),
+                SettlementPayer::Counterparty,
+            ),
+        )))
+    }
+
+    /// Takes a silent payment out of an offer the transaction takes: the first settlement coin of
+    /// the asset `id` that the transaction spends pays `amount` to the address. `nonce` is the
+    /// taker's nonce for its requested payments. The amount counts against the asset, as
+    /// [`Action::settle`] does.
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_settle(
+        id: Id,
+        recipient: SilentPaymentAddress,
+        amount: u64,
+        nonce: Bytes32,
+    ) -> Self {
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                id,
+                nonce,
+                SettledEntry::SilentPayment { recipient, amount },
+                SettlementPayer::SpentSettlementCoin,
+            ),
+        )))
+    }
+
+    /// A payment of the taker to an ordinary address by the settlement coin of its asset, listed
+    /// after the taker's silent payments in that asset.
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_settle_other(id: Id, payment: Payment, nonce: Bytes32) -> Self {
+        Self::SilentPayment(Box::new(SilentPaymentAction::Settled(
+            SilentPaymentSettledAction::new(
+                id,
+                nonce,
+                SettledEntry::Other(payment),
+                SettlementPayer::SpentSettlementCoin,
+            ),
+        )))
+    }
 }
 
 /// An operation that can be applied to [`Spends`]. The index is the position of the action in the
@@ -470,6 +566,7 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.calculate_delta(deltas, index),
             Action::MeltSingleton(action) => action.calculate_delta(deltas, index),
             Action::Fee(action) => action.calculate_delta(deltas, index),
+            Action::SilentPayment(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -491,6 +588,7 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.spend(ctx, spends, index),
             Action::MeltSingleton(action) => action.spend(ctx, spends, index),
             Action::Fee(action) => action.spend(ctx, spends, index),
+            Action::SilentPayment(action) => action.spend(ctx, spends, index),
         }
     }
 }
