@@ -246,13 +246,10 @@ impl RewardDistributorRefreshAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if a deposit slot is missing, a share count or payout is out of range,
-    /// or the spends can't be created.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `nfts`, `nft_shares_delta`, `nft_new_shares`, or `nft_inclusion_proofs` is
-    /// shorter than needed for `slots` and `nfts`.
+    /// Returns an error if `nfts`, `nft_shares_delta`, `nft_new_shares`, or
+    /// `nft_inclusion_proofs` doesn't have an entry for each slot, or an entry of the latter three
+    /// doesn't have an item for each NFT; if a deposit slot is missing; if a share count or payout
+    /// is out of range; or if the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::cast_sign_loss)]
     pub fn spend(
@@ -270,6 +267,29 @@ impl RewardDistributorRefreshAction {
         dl_metadata_updater_hash_hash: Bytes32,
         dl_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Vec<Nft>), DriverError> {
+        DriverError::check_length("nfts", slots.len(), nfts.len())?;
+        DriverError::check_length("nft_shares_delta", slots.len(), nft_shares_delta.len())?;
+        DriverError::check_length("nft_new_shares", slots.len(), nft_new_shares.len())?;
+        DriverError::check_length(
+            "nft_inclusion_proofs",
+            slots.len(),
+            nft_inclusion_proofs.len(),
+        )?;
+        for (((nfts, shares_delta), new_shares), inclusion_proofs) in nfts
+            .iter()
+            .zip(nft_shares_delta)
+            .zip(nft_new_shares)
+            .zip(nft_inclusion_proofs)
+        {
+            DriverError::check_length("nft_shares_delta entry", nfts.len(), shares_delta.len())?;
+            DriverError::check_length("nft_new_shares entry", nfts.len(), new_shares.len())?;
+            DriverError::check_length(
+                "nft_inclusion_proofs entry",
+                nfts.len(),
+                inclusion_proofs.len(),
+            )?;
+        }
+
         // spend existing slots, build security conds, compute NFT children
         let mut security_conditions = Conditions::new();
         let mut slots_and_nfts = Vec::<SlotAndNfts>::new();

@@ -43,6 +43,9 @@ pub enum Error {
     #[error("Wrong length, expected {expected} bytes, found {found}")]
     WrongLength { expected: usize, found: usize },
 
+    #[error("Too short, expected at least {minimum} bytes, found {found}")]
+    TooShort { minimum: usize, found: usize },
+
     #[error("Bip39 error: {0}")]
     Bip39(#[from] bip39::Error),
 

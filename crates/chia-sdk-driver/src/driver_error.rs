@@ -162,6 +162,27 @@ pub enum DriverError {
     #[error("expected even oracle fee, but it was odd")]
     OddOracleFee,
 
+    /// An offer used to fund a launch or a security coin doesn't offer any XCH.
+    #[error("offer doesn't offer any XCH")]
+    MissingOfferedXch,
+
+    /// The price of one `XCHandles` registration period is 0, so the number of periods paid for
+    /// can't be computed.
+    #[error("price of one registration period is 0")]
+    ZeroRegistrationPrice,
+
+    /// Two arguments that must describe the same items have different lengths, for example a
+    /// list of NFTs and the list of their proofs.
+    #[error("expected {expected} items in {argument}, but found {found}")]
+    LengthMismatch {
+        /// The argument with the wrong length.
+        argument: &'static str,
+        /// The length it must have.
+        expected: usize,
+        /// The length it had.
+        found: usize,
+    },
+
     /// The total of the `RESERVE_FEE` conditions in an offer doesn't fit in a [`u64`].
     #[error("fee overflow")]
     FeeOverflow,
@@ -752,4 +773,24 @@ pub enum DriverError {
     /// A secured mint without a melt public key can't melt its pre-launcher coin.
     #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
     NoMeltPublicKey,
+}
+
+#[cfg(feature = "action-layer")]
+impl DriverError {
+    /// Returns [`DriverError::LengthMismatch`] if `found` isn't `expected`.
+    pub(crate) fn check_length(
+        argument: &'static str,
+        expected: usize,
+        found: usize,
+    ) -> Result<(), Self> {
+        if expected == found {
+            Ok(())
+        } else {
+            Err(Self::LengthMismatch {
+                argument,
+                expected,
+                found,
+            })
+        }
+    }
 }

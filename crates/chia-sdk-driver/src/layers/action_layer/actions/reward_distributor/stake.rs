@@ -465,14 +465,10 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created, or with
-    /// [`DriverError::ArithmeticOverflow`] if `existing_slot`'s initial cumulative payout is after
-    /// the distributor's, its unclaimed rewards don't fit in a [`u128`], or its shares or slot
-    /// counter overflow.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `nft_launcher_proofs` is shorter than `offered_nfts`.
+    /// Returns an error if `nft_launcher_proofs` isn't the same length as `offered_nfts`, if any
+    /// of the spends can't be created, or with [`DriverError::ArithmeticOverflow`] if
+    /// `existing_slot`'s initial cumulative payout is after the distributor's, its unclaimed
+    /// rewards don't fit in a [`u128`], or its shares or slot counter overflow.
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_collection_nft_mode(
         self,
@@ -483,6 +479,12 @@ impl RewardDistributorStakeAction {
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
     ) -> Result<(Conditions, Vec<NotarizedPayment>, Vec<Nft>), DriverError> {
+        DriverError::check_length(
+            "nft_launcher_proofs",
+            offered_nfts.len(),
+            nft_launcher_proofs.len(),
+        )?;
+
         let ephemeral_counter =
             ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
         let my_id = distributor.coin.coin_id();
@@ -623,14 +625,11 @@ impl RewardDistributorStakeAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created, or with
+    /// Returns an error if `nft_shares` or `inclusion_proofs` isn't the same length as
+    /// `offered_nfts`, if any of the spends can't be created, or with
     /// [`DriverError::ArithmeticOverflow`] if the total of `nft_shares` overflows,
     /// `existing_slot`'s initial cumulative payout is after the distributor's, its unclaimed
     /// rewards don't fit in a [`u128`], or its shares or slot counter overflow.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `nft_shares` or `inclusion_proofs` is shorter than `offered_nfts`.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_curated_nft_mode(
@@ -647,6 +646,13 @@ impl RewardDistributorStakeAction {
         dl_metadata_updater_hash_hash: Bytes32,
         dl_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Vec<NotarizedPayment>, Vec<Nft>), DriverError> {
+        DriverError::check_length("nft_shares", offered_nfts.len(), nft_shares.len())?;
+        DriverError::check_length(
+            "inclusion_proofs",
+            offered_nfts.len(),
+            inclusion_proofs.len(),
+        )?;
+
         let ephemeral_counter =
             ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
         let my_id = distributor.coin.coin_id();

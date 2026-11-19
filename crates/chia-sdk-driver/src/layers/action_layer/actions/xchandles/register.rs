@@ -256,11 +256,8 @@ impl XchandlesRegisterAction {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the spends can't be created.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `base_handle_price` is 0, since the price of one period is then 0.
+    /// Returns [`DriverError::ZeroRegistrationPrice`] if the price of one period is 0 (when
+    /// `base_handle_price` is 0), or an error if any of the spends can't be created.
     #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
@@ -276,8 +273,15 @@ impl XchandlesRegisterAction {
         resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
         let handle = precommit_coin.value.handle.clone();
-        let num_periods = precommit_coin.coin.amount()
-            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
+        let num_periods = precommit_coin
+            .coin
+            .amount()
+            .checked_div(XchandlesFactorPricingPuzzleArgs::get_price(
+                base_handle_price,
+                &handle,
+                1,
+            ))
+            .ok_or(DriverError::ZeroRegistrationPrice)?;
         let pricing_puzzle = ctx.curry(XchandlesFactorPricingPuzzleArgs {
             base_price: base_handle_price,
             registration_period,
