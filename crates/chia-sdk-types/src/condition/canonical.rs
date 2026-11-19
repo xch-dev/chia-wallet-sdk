@@ -41,6 +41,7 @@ fn is_canonical(atom: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use chialisp::classic::clvm_tools::binutils::assemble;
     use clvmr::{Allocator, NodePtr};
     use rstest::rstest;
 
@@ -68,29 +69,22 @@ mod tests {
     }
 
     /// Conditions are only recognized by their exact opcode and magic amount, like consensus and the puzzles do.
-    /// Each atom is written in hex, with `()` for nil and `ph` for a puzzle hash.
     #[rstest]
-    #[case("33 ph 01", Condition::is_create_coin)]
-    #[case("0033 ph 01", is_other)]
-    #[case("33 () 8f", Condition::is_melt_singleton)]
-    #[case("33 () ff8f", is_other)]
-    #[case("33 () 8f () ()", Condition::is_run_cat_tail)]
-    #[case("0033 () 8f () ()", is_other)]
-    fn test_canonical_condition(#[case] atoms: &str, #[case] expected: fn(&Condition) -> bool) {
+    #[case(
+        "(51 0x0101010101010101010101010101010101010101010101010101010101010101 1)",
+        Condition::is_create_coin
+    )]
+    #[case(
+        "(0x0033 0x0101010101010101010101010101010101010101010101010101010101010101 1)",
+        is_other
+    )]
+    #[case("(51 () -113)", Condition::is_melt_singleton)]
+    #[case("(51 () 0xff8f)", is_other)]
+    #[case("(51 () -113 () ())", Condition::is_run_cat_tail)]
+    #[case("(0x0033 () -113 () ())", is_other)]
+    fn test_canonical_condition(#[case] source: &str, #[case] expected: fn(&Condition) -> bool) {
         let mut allocator = Allocator::new();
-
-        let atoms: Vec<NodePtr> = atoms
-            .split_whitespace()
-            .map(|atom| {
-                let bytes = match atom {
-                    "()" => Vec::new(),
-                    "ph" => vec![1; 32],
-                    hex => hex::decode(hex).unwrap(),
-                };
-                allocator.new_atom(&bytes).unwrap()
-            })
-            .collect();
-        let ptr = atoms.to_clvm(&mut allocator).unwrap();
+        let ptr = assemble(&mut allocator, source).unwrap();
 
         let condition = Condition::<NodePtr>::from_clvm(&allocator, ptr).unwrap();
 
