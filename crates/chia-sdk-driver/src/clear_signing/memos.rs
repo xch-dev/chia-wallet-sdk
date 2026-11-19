@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ClawbackV2, RevealedP2Puzzle, Reveals};
+use crate::{ClawbackV2, RevealedP2Puzzle, Reveals, clear_signing::parse_conditions};
 
 /// The destination and memos of a created coin.
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ pub fn parse_memos(
         reveals.p2_puzzle(p2_create_coin.puzzle_hash.into())
         && let Ok((_hint, (memo, rest))) =
             <(Bytes32, (NodePtr, NodePtr))>::from_clvm(allocator, memos)
-        && let Ok(conditions) = Vec::<Condition>::from_clvm(allocator, memo)
+        && let Some(conditions) = parse_conditions(allocator, memo)
         && p2_conditions_or_singleton
             .match_quoted_conditions_hash(
                 clvm_quote!(tree_hash(allocator, memo)).tree_hash().into(),
@@ -122,4 +122,61 @@ fn parse_memo_list(allocator: &Allocator, memos: NodePtr) -> Vec<String> {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use chialisp::classic::clvm_tools::binutils::assemble;
+    use clvm_traits::ToClvm;
+    use rstest::rstest;
+
+    use crate::{P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion};
+
+    use super::*;
+
+    /// Fixed conditions are only shown if clear signing can interpret all of them.
+    #[rstest]
+    #[case::recognized(
+        "((51 0x0101010101010101010101010101010101010101010101010101010101010101 1))",
+        true
+    )]
+    #[case::negative_amount(
+        "((51 0x0101010101010101010101010101010101010101010101010101010101010101 -5))",
+        false
+    )]
+    #[case::invalid_message(
+        "((51 0x0101010101010101010101010101010101010101010101010101010101010101 1) (66 0x3f))",
+        false
+    )]
+    fn test_fixed_conditions_memo(
+        #[case] conditions: &str,
+        #[case] recognized: bool,
+    ) -> anyhow::Result<()> {
+        let mut allocator = Allocator::new();
+
+        let conditions = assemble(&mut allocator, conditions).unwrap();
+        let quoted_conditions_hash = clvm_quote!(tree_hash(&allocator, conditions)).tree_hash();
+
+        let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+            Bytes32::default(),
+            0,
+            quoted_conditions_hash.into(),
+            P2ConditionsOrSingletonVersion::FixedPuzzleMember,
+        );
+
+        let mut reveals = Reveals::default();
+        reveals.reveal_p2_conditions_or_singleton(p2);
+
+        let memos = (Bytes32::default(), (conditions, ())).to_clvm(&mut allocator)?;
+        let create_coin = CreateCoin::new(p2.tree_hash().into(), 1, Memos::Some(memos));
+
+        let parsed = parse_memos(&reveals, &allocator, create_coin, false);
+
+        assert_eq!(parsed.fixed_conditions.is_some(), recognized);
+
+        // Unrecognized fixed conditions still don't change where the coin goes.
+        assert_eq!(parsed.p2_puzzle_hash, p2.tree_hash().into());
+
+        Ok(())
+    }
 }

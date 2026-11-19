@@ -3,7 +3,7 @@ use chia_sdk_types::{
     Condition,
     puzzles::{DelegatedPuzzleFeederSolution, OneOfNSolution, SingletonMemberSolution},
 };
-use clvm_traits::FromClvm;
+use clvm_traits::{FromClvm, match_quote};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -115,7 +115,8 @@ type P2SingletonLayers = IndexWrapperLayer<usize, DelegatedPuzzleFeederLayer<Sin
 /// [`P2ConditionsOrSingleton`](crate::P2ConditionsOrSingleton) puzzles are only recognized if they've been revealed
 /// in the [`Reveals`], and the custody inside a clawback is parsed as well (returning
 /// [`DriverError::NestedClawback`] for a clawback inside another). Any other puzzle that is a quoted list of
-/// conditions is [`CustodyInfo::DelegatedConditions`], and anything else has no custody.
+/// conditions is [`CustodyInfo::DelegatedConditions`] (or [`DriverError::InvalidDelegatedSpendFormat`] if its
+/// conditions can't be clear signed), and anything else has no custody.
 pub fn parse_inner_spend(
     reveals: &Reveals,
     allocator: &Allocator,
@@ -238,9 +239,11 @@ pub fn parse_inner_spend(
                 })
             }
         }
-    } else if let Ok(conditions) =
-        parse_delegated_spend(allocator, Spend::new(puzzle.ptr(), solution))
-    {
+    } else if <match_quote!(NodePtr)>::from_clvm(allocator, puzzle.ptr()).is_ok() {
+        // A quoted puzzle whose conditions can't be clear signed is an error, rather than a puzzle that isn't
+        // recognized, so that an asserted spend can't be left out of the transaction.
+        let conditions = parse_delegated_spend(allocator, Spend::new(puzzle.ptr(), solution))?;
+
         Ok(InnerSpend {
             clawback: None,
             custody: Some(CustodyInfo::DelegatedConditions(conditions)),
