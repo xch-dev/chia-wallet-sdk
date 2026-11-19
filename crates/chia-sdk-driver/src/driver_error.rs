@@ -441,9 +441,17 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    /// A vault's delegated puzzle isn't a quoted list of conditions, so it can't be clear signed.
+    /// A delegated puzzle isn't a quoted list of conditions, or its conditions could be misunderstood (such as a
+    /// condition with a known opcode that doesn't parse, or more than one odd output from a vault), so it can't be
+    /// clear signed.
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
+
+    /// A CAT spend reveals its TAIL more than once, or outputs a `MELT_SINGLETON` condition, which the CAT puzzle
+    /// treats as a TAIL reveal without a program. The CAT puzzle only runs the last reveal, so these are rejected
+    /// rather than risk showing the wrong TAIL.
+    #[error("invalid TAIL reveal")]
+    InvalidTailReveal,
 
     /// A message sent by a vault isn't a puzzle-to-coin message with exactly one coin id.
     #[error("invalid vault message format")]

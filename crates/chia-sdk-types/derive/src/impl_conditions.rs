@@ -256,10 +256,11 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             } = field;
 
             match modifier {
+                // Constants are matched by their exact encoding, like consensus and CLVM's `=` do.
                 Modifier::None if constant.is_some() => quote! {
                     #( #attrs )*
-                    #[clvm(constant = #constant)]
-                    pub #name: #ty,
+                    #[clvm(constant = crate::condition::Canonical(#constant))]
+                    pub #name: crate::condition::Canonical<#ty>,
                 },
                 Modifier::None => quote! {
                     #( #attrs )*
@@ -427,8 +428,8 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             /// Any condition that doesn't match one of the other variants, kept as its raw value.
             ///
             /// When parsing, each variant is tried in order and this is the fallback, so it holds
-            /// conditions with unknown opcodes as well as known opcodes whose arguments don't fit
-            /// the expected shape.
+            /// conditions with unknown or non-canonical opcodes (which consensus doesn't recognize)
+            /// as well as known opcodes whose arguments don't fit the expected shape.
             Other(T),
         }
 
