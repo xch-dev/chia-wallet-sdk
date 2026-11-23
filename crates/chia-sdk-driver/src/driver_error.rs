@@ -473,7 +473,28 @@ pub enum DriverError {
     #[error("the auction reserve must be an empty coin locked by the auction")]
     InvalidAuctionReserve,
 
-    /// The NFT passed to `Launcher::launch_auction` isn't locked by the auction's lock puzzle hash.
+    /// The NFT passed to `AuctionLaunch::into_auction` isn't the coin at the memo's NFT coin id, or
+    /// its info doesn't match its puzzle hash.
+    #[error("the NFT isn't the coin locked by the auction")]
+    AuctionNftMismatch,
+
+    /// A bid's puzzle hash is the settlement payments puzzle hash or the auction's lock puzzle hash.
+    /// Anyone could take a refund or NFT sent to the settlement payments puzzle hash, and nobody
+    /// could spend one sent to the lock puzzle hash.
+    #[error("puzzle hash {0} can't receive an auction bid's refund or NFT")]
+    ReservedAuctionBidPuzzleHash(Bytes32),
+
+    /// Buying an auction now in a single spend would create two identical coins from the reserve,
+    /// since the refund of the current winning bid has the same puzzle hash and amount as one of
+    /// the payments. The bid at the buy now price must be placed on its own, and the auction ended
+    /// in a later spend.
+    #[error(
+        "buying the auction now in one spend would create the coin {0} twice, so place the bid at the buy now price on its own and end the auction in a later spend"
+    )]
+    AuctionBuyNowDuplicateOutput(Bytes32),
+
+    /// The NFT passed to `Launcher::launch_auction` or `AuctionLaunch::into_auction` isn't locked by
+    /// the auction's lock puzzle hash.
     #[error("the NFT must be locked by the auction before it's launched")]
     AuctionNftNotLocked,
 

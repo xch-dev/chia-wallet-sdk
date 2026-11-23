@@ -5,7 +5,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
     self as sdk, AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings,
-    Cat, Launcher, RoyaltyInfo, SingletonInfo,
+    Cat, Launcher, SingletonInfo,
 };
 use chia_sdk_types::puzzles::{AuctionBid, AuctionState};
 use clvm_utils::TreeHash;
@@ -361,7 +361,7 @@ pub trait AuctionLaunchExt: Sized {
     #[allow(clippy::wrong_self_convention)]
     fn into_auction(
         &self,
-        nft_royalty: RoyaltyInfo,
+        nft: Nft,
         reserve_lineage_proof: Option<LineageProof>,
     ) -> Result<Auction>;
 }
@@ -402,10 +402,12 @@ impl AuctionLaunchExt for AuctionLaunch {
 
     fn into_auction(
         &self,
-        nft_royalty: RoyaltyInfo,
+        nft: Nft,
         reserve_lineage_proof: Option<LineageProof>,
     ) -> Result<Auction> {
-        Ok(Self::into_auction(*self, nft_royalty, reserve_lineage_proof)?.into())
+        let ctx = nft.info.metadata.0.lock().unwrap();
+        let nft = nft.as_ptr(&ctx);
+        Ok(Self::into_auction(*self, &nft, reserve_lineage_proof)?.into())
     }
 }
 

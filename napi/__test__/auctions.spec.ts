@@ -18,7 +18,6 @@ import {
   Constants,
   Nft,
   NftMint,
-  RoyaltyInfo,
   Simulator,
 } from "../index.js";
 
@@ -32,6 +31,8 @@ interface LaunchedAuction {
   seller: BlsPairWithCoin;
   auction: Auction;
   nft: Nft;
+  // The NFT before it was locked by the auction
+  unlockedNft: Nft;
 }
 
 // Mints an NFT, locks it up, and launches an auction for it in a single spend bundle
@@ -102,7 +103,7 @@ function launchAuction(buyNowPrice: bigint | null = null): LaunchedAuction {
 
   sim.spendCoins(clvm.coinSpends(), [seller.sk]);
 
-  return { sim, clvm, seller, auction, nft: lockedNft };
+  return { sim, clvm, seller, auction, nft: lockedNft, unlockedNft: nft };
 }
 
 // Parses the child of an auction from the blockchain, like a wallet syncing it would
@@ -113,7 +114,7 @@ function parseChild(sim: Simulator, clvm: Clvm, auction: Auction): Auction {
 }
 
 test("auction can be parsed from its launcher", (t) => {
-  const { sim, clvm, auction, nft } = launchAuction();
+  const { sim, clvm, auction, nft, unlockedNft } = launchAuction();
 
   const launcherSpend = sim.coinSpend(auction.info.launcherId);
   if (!launcherSpend) throw new Error("Launcher spend not found");
@@ -136,14 +137,12 @@ test("auction can be parsed from its launcher", (t) => {
     auction.info.reserve.coin().parentCoinInfo,
   );
 
-  const parsed = launch.intoAuction(
-    new RoyaltyInfo(
-      nft.info.launcherId,
-      nft.info.royaltyPuzzleHash,
-      nft.info.royaltyBasisPoints,
-    ),
-    null,
-  );
+  // The NFT is checked against the memo, so it must be the coin locked by the auction
+  t.throws(() => launch.intoAuction(unlockedNft, null), {
+    message: /isn't the coin locked by the auction/,
+  });
+
+  const parsed = launch.intoAuction(nft, null);
   t.deepEqual(parsed.coin.coinId(), auction.coin.coinId());
   t.deepEqual(parsed.info.innerPuzzleHash(), auction.info.innerPuzzleHash());
 
@@ -215,6 +214,15 @@ test("auction pays out the winning bid", (t) => {
       ).coinId(),
     ),
   );
+
+  // Anyone could take a refund or NFT sent to the settlement payments puzzle hash
+  const settlementBid = new AuctionBid(
+    3000n,
+    Constants.settlementPaymentHash(),
+  );
+  t.throws(() => auction.bidActionSpend(clvm, settlementBid, false), {
+    message: /can't receive an auction bid's refund or NFT/,
+  });
 
   // Bids must be at least the increment more than the previous one
   const lowBid = new AuctionBid(2050n, first.bidder.puzzleHash);

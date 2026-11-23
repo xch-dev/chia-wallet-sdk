@@ -8,7 +8,7 @@ use chia_consensus::{
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof,
-    singleton::{LauncherSolution, SingletonSolution},
+    singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{BlsPairWithCoin, Simulator, sign_transaction};
@@ -16,9 +16,9 @@ use chia_sdk_types::{
     Conditions, announcement_id,
     conditions::{AssertMyAmount, CreateCoin, TransferNft},
     puzzles::{
-        AUCTION_CANCEL_MESSAGE, AUCTION_CANCEL_MESSAGE_MODE, AuctionBid, AuctionBpsPayment,
-        AuctionNftUnlockerSolution, AuctionPayments, AuctionState, AuctionTimings,
-        DefaultReserveAmountFromStateProgramArgs, ReserveFinalizerSolution,
+        AUCTION_CANCEL_MESSAGE, AUCTION_CANCEL_MESSAGE_MODE, AuctionBid, AuctionBidActionSolution,
+        AuctionBpsPayment, AuctionNftUnlockerSolution, AuctionPayments, AuctionState,
+        AuctionTimings, DefaultReserveAmountFromStateProgramArgs, ReserveFinalizerSolution,
     },
 };
 use clvm_traits::{ToClvm, clvm_list, clvm_quote};
@@ -283,7 +283,7 @@ impl Harness {
         assert_eq!(launch.nft_coin_id(), locked_nft.coin.coin_id());
         let reserve_lineage_proof = reserve_lineage_proof(&sim, &mut ctx, &launch)?;
         assert_eq!(
-            launch.into_auction(nft_royalty(&locked_nft), reserve_lineage_proof)?,
+            launch.into_auction(&locked_nft, reserve_lineage_proof)?,
             auction
         );
 
@@ -830,15 +830,6 @@ fn reserve_lineage_proof(
     Ok(reserve.lineage_proof)
 }
 
-/// The royalty info a wallet would fetch from the NFT on the blockchain.
-fn nft_royalty(nft: &Nft) -> RoyaltyInfo {
-    RoyaltyInfo::new(
-        nft.info.launcher_id,
-        nft.info.royalty_puzzle_hash,
-        nft.info.royalty_basis_points,
-    )
-}
-
 fn fee(amount: u64, bps: u64) -> u64 {
     calculate_auction_payment(amount, bps).unwrap()
 }
@@ -882,11 +873,11 @@ fn launcher_spend(h: &Harness, launcher_id: Bytes32) -> Result<CoinSpend> {
         .ok_or(anyhow!("missing launcher spend"))
 }
 
-/// Parses the auction launcher with a modified launcher solution, and the given royalty. Only XCH
+/// Parses the auction launcher with a modified launcher solution, and the given NFT. Only XCH
 /// reserves are supported, since no lineage proof is passed in.
 fn parse_modified(
     h: &mut Harness,
-    royalty: RoyaltyInfo,
+    nft: &Nft,
     modify: impl FnOnce(&mut LauncherSolution<AuctionMemo>),
 ) -> Result<Auction, DriverError> {
     let spend = launcher_spend(h, h.auction.info.launcher_id).unwrap();
@@ -896,7 +887,7 @@ fn parse_modified(
     let solution = h.ctx.alloc(&solution)?;
     AuctionLaunch::parse(&h.ctx, spend.coin, solution)
         .expect("expected an auction launch")
-        .into_auction(royalty, None)
+        .into_auction(nft, None)
 }
 
 #[test]
@@ -1761,9 +1752,9 @@ fn test_parse_ignores_other_launchers() -> Result<()> {
 #[test]
 fn test_parse_rejects_memos_that_dont_match_the_singleton() -> Result<()> {
     let mut h = Harness::new(Config::default())?;
-    let royalty = nft_royalty(&h.nft);
+    let nft = h.nft;
 
-    let result = parse_modified(&mut h, royalty, |solution| {
+    let result = parse_modified(&mut h, &nft, |solution| {
         solution.key_value_list.settings.timings.end_time += 1;
     });
     assert!(matches!(
@@ -1771,7 +1762,7 @@ fn test_parse_rejects_memos_that_dont_match_the_singleton() -> Result<()> {
         Err(DriverError::AuctionPuzzleHashMismatch)
     ));
 
-    let result = parse_modified(&mut h, royalty, |solution| {
+    let result = parse_modified(&mut h, &nft, |solution| {
         solution.key_value_list.nft_coin_id = Bytes32::new([7; 32]);
     });
     assert!(matches!(
@@ -1788,9 +1779,9 @@ fn test_parse_rejects_royalties_that_dont_match_the_singleton() -> Result<()> {
 
     // The royalty basis points are curried into the auction, so an NFT with a different royalty
     // than the one the auction was launched with is rejected
-    let mut royalty = nft_royalty(&h.nft);
-    royalty.basis_points += 1;
-    let result = parse_modified(&mut h, royalty, |_| {});
+    let mut nft = h.nft;
+    nft.info.royalty_basis_points += 1;
+    let result = parse_modified(&mut h, &nft, |_| {});
     assert!(matches!(
         result,
         Err(DriverError::AuctionPuzzleHashMismatch)
@@ -1800,12 +1791,70 @@ fn test_parse_rejects_royalties_that_dont_match_the_singleton() -> Result<()> {
 }
 
 #[test]
+fn test_parse_rejects_nfts_that_arent_the_locked_coin() -> Result<()> {
+    let mut h = Harness::new(Config::default())?;
+
+    // A different coin than the one in the memo
+    let mut nft = h.nft;
+    nft.coin.parent_coin_info = Bytes32::new([7; 32]);
+    let result = parse_modified(&mut h, &nft, |_| {});
+    assert!(
+        matches!(result, Err(DriverError::AuctionNftMismatch)),
+        "{result:?}"
+    );
+
+    // The right coin, but with info that doesn't match its puzzle hash
+    let mut nft = h.nft;
+    nft.info.p2_puzzle_hash = h.seller.puzzle_hash;
+    let result = parse_modified(&mut h, &nft, |_| {});
+    assert!(
+        matches!(result, Err(DriverError::AuctionNftMismatch)),
+        "{result:?}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_rejects_nfts_not_locked_by_the_auction() -> Result<()> {
+    let mut h = Harness::new(Config::default())?;
+
+    // A singleton launched with a memo for an NFT that the seller still owns, which the auction
+    // could never unlock
+    let mut nft = h.nft;
+    nft.info.p2_puzzle_hash = h.seller.puzzle_hash;
+    nft.coin = Coin::new(
+        nft.coin.parent_coin_info,
+        nft.info.puzzle_hash().into(),
+        nft.coin.amount,
+    );
+
+    let info = AuctionInfo {
+        nft_coin_id: nft.coin.coin_id(),
+        ..h.auction.info
+    };
+    let singleton_puzzle_hash =
+        SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into();
+
+    let result = parse_modified(&mut h, &nft, |solution| {
+        solution.key_value_list.nft_coin_id = nft.coin.coin_id();
+        solution.singleton_puzzle_hash = singleton_puzzle_hash;
+    });
+    assert!(
+        matches!(result, Err(DriverError::AuctionNftNotLocked)),
+        "{result:?}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_parse_rejects_singleton_amounts_other_than_1() -> Result<()> {
     let mut h = Harness::new(Config::default())?;
-    let royalty = nft_royalty(&h.nft);
+    let nft = h.nft;
 
     for amount in [2, 3] {
-        let result = parse_modified(&mut h, royalty, |solution| solution.amount = amount);
+        let result = parse_modified(&mut h, &nft, |solution| solution.amount = amount);
         assert!(
             matches!(result, Err(DriverError::InvalidAuctionSingletonAmount(a)) if a == amount),
             "{result:?}"
@@ -1818,10 +1867,10 @@ fn test_parse_rejects_singleton_amounts_other_than_1() -> Result<()> {
 #[test]
 fn test_parse_rejects_invalid_auctions() -> Result<()> {
     let mut h = Harness::new(Config::default())?;
-    let royalty = nft_royalty(&h.nft);
+    let nft = h.nft;
 
     // Even if the singleton was launched with these settings, the auction is invalid
-    let result = parse_modified(&mut h, royalty, |solution| {
+    let result = parse_modified(&mut h, &nft, |solution| {
         solution
             .key_value_list
             .settings
@@ -1834,7 +1883,7 @@ fn test_parse_rejects_invalid_auctions() -> Result<()> {
         Err(DriverError::DuplicateAuctionPaymentPuzzleHash(_))
     ));
 
-    let result = parse_modified(&mut h, royalty, |solution| {
+    let result = parse_modified(&mut h, &nft, |solution| {
         solution.key_value_list.settings.buy_now_price = Some(99);
     });
     assert!(matches!(
@@ -1861,7 +1910,7 @@ fn test_cat_reserve_needs_its_lineage_proof(
     let solution = spend.solution.to_clvm(&mut h.ctx)?;
     let launch = AuctionLaunch::parse(&h.ctx, spend.coin, solution)
         .ok_or(anyhow!("launcher isn't for an auction"))?;
-    h.auction = launch.into_auction(nft_royalty(&h.nft), None)?;
+    h.auction = launch.into_auction(&h.nft, None)?;
     assert!(h.bid(100).is_err());
     h.assert_unspent(h.auction.info.reserve.coin());
 
@@ -2371,7 +2420,12 @@ fn test_refund_to_settlement_puzzle_hash_is_not_a_royalty() -> Result<()> {
     let reserve_amount = h.auction.info.reserve_amount_for_bid(100).unwrap();
     let bidder = h.sim.bls(reserve_amount);
     let bid = AuctionBid::new(100, SETTLEMENT_PAYMENT_HASH.into());
-    let bid_action = h.auction.bid_action_spend(&mut h.ctx, bid, false)?;
+
+    // The driver refuses to build this bid, but the puzzle allows it, so other wallets can place it
+    let bid_action = Spend::new(
+        h.auction.info.construct_bid_action(&mut h.ctx)?,
+        h.ctx.alloc(&AuctionBidActionSolution::new(bid, false))?,
+    );
     StandardLayer::new(bidder.pk).spend(
         &mut h.ctx,
         bidder.coin,
@@ -2819,6 +2873,78 @@ fn test_buy_now_price_round_trips_through_the_memo() -> Result<()> {
         ..h.auction.info
     };
     assert_ne!(info.inner_puzzle_hash(), h.auction.info.inner_puzzle_hash());
+
+    Ok(())
+}
+
+#[test]
+fn test_bids_to_reserved_puzzle_hashes_are_rejected() -> Result<()> {
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+    let nft = h.nft;
+
+    // Anyone could take a refund or NFT sent to the settlement payments puzzle hash, and nobody
+    // could spend one sent to the auction's lock puzzle hash
+    for puzzle_hash in [
+        SETTLEMENT_PAYMENT_HASH.into(),
+        auction_lock_p2_puzzle_hash(h.auction.info.launcher_id),
+    ] {
+        let result =
+            h.auction
+                .bid_action_spend(&mut h.ctx, AuctionBid::new(100, puzzle_hash), false);
+        assert!(
+            matches!(result, Err(DriverError::ReservedAuctionBidPuzzleHash(ph)) if ph == puzzle_hash),
+            "{result:?}"
+        );
+
+        let result = h
+            .auction
+            .buy_now_action_spends(&mut h.ctx, puzzle_hash, false, &nft);
+        assert!(
+            matches!(result, Err(DriverError::ReservedAuctionBidPuzzleHash(ph)) if ph == puzzle_hash),
+            "{result:?}"
+        );
+    }
+
+    assert!(h.ctx.take().is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_buy_now_reports_a_refund_that_collides_with_a_payment() -> Result<()> {
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+    h.set_time(10)?;
+
+    // The seller bids to the payout puzzle hash, so that the refund of 918 + 27 + 45 = 990 is the
+    // same coin as the payout of 1,000 - 10 = 990 that the end action creates in the same spend
+    let key = h.bidder_key(918)?;
+    let bid = AuctionBid::new(918, h.seller.puzzle_hash);
+    let mut spend = BidSpend::default();
+    spend
+        .actions
+        .push(h.auction.bid_action_spend(&mut h.ctx, bid, false)?);
+    h.fund_bid(&mut spend, key, bid)?;
+    h.finish_bids(spend)?;
+
+    let nft = h.nft;
+    let result = h
+        .auction
+        .buy_now_action_spends(&mut h.ctx, h.seller.puzzle_hash, false, &nft);
+    let reserve = h.auction.info.reserve.coin();
+    let payout = Coin::new(reserve.coin_id(), h.seller.puzzle_hash, 990);
+    assert!(
+        matches!(result, Err(DriverError::AuctionBuyNowDuplicateOutput(id)) if id == payout.coin_id()),
+        "{result:?}"
+    );
+    h.ctx.take();
+
+    // The buyer can still place the bid at the buy now price on its own, and anyone can end the
+    // auction right after it
+    let buyer = h.bid(BUY_NOW_PRICE)?;
+    let reserve = h.auction.info.reserve;
+    let nft = h.end()?;
+    assert_eq!(nft.info.p2_puzzle_hash, buyer.bid.puzzle_hash);
+    h.assert_settled(reserve, BUY_NOW_PRICE);
 
     Ok(())
 }

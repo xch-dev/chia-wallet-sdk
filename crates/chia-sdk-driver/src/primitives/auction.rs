@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
@@ -183,12 +185,23 @@ impl Auction {
     ///
     /// If `grace` is true, the bid must be placed within the grace period after the previous
     /// spend, rather than before the end time.
+    ///
+    /// Returns [`DriverError::ReservedAuctionBidPuzzleHash`] if the bid's puzzle hash is the
+    /// settlement payments puzzle hash, which would let anyone take the refund or NFT, or the
+    /// auction's lock puzzle hash, which would lock them up forever. The puzzle doesn't prevent
+    /// this, so bids placed by other wallets may still use them.
     pub fn bid_action_spend(
         &self,
         ctx: &mut SpendContext,
         bid: AuctionBid,
         grace: bool,
     ) -> Result<Spend, DriverError> {
+        if bid.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+            || bid.puzzle_hash == auction_lock_p2_puzzle_hash(self.info.launcher_id)
+        {
+            return Err(DriverError::ReservedAuctionBidPuzzleHash(bid.puzzle_hash));
+        }
+
         let puzzle = self.info.construct_bid_action(ctx)?;
         let solution = ctx.alloc(&AuctionBidActionSolution::new(bid, grace))?;
         Ok(Spend::new(puzzle, solution))
@@ -221,6 +234,14 @@ impl Auction {
     ///
     /// Returns [`DriverError::AuctionBuyNowUnavailable`] if the auction can't be bought now (see
     /// [`AuctionInfo::available_buy_now_price`]).
+    ///
+    /// Returns [`DriverError::AuctionBuyNowDuplicateOutput`] if the refund of the current winning
+    /// bid would be the same coin as one of the payments made when the auction ends, which would
+    /// make the spend invalid. A winning bidder (such as the seller, bidding to the payout puzzle
+    /// hash) can choose their bid to cause this. In that case, place the bid at the buy now price
+    /// on its own with [`Auction::bid_action_spend`]. The auction can then be ended right away with
+    /// [`Auction::end_action_spend`] in a later spend, since a bid at the buy now price can't be
+    /// outbid.
     pub fn buy_now_action_spends(
         &self,
         ctx: &mut SpendContext,
@@ -236,6 +257,26 @@ impl Auction {
         let bid = AuctionBid::new(price, puzzle_hash);
         let bid_action = self.bid_action_spend(ctx, bid, grace)?;
         let end_action = self.end_action_spend(ctx, nft)?;
+        let action_spends = vec![bid_action, end_action];
+
+        // Every coin created by the actions has the reserve as its parent, so two with the same
+        // puzzle hash and amount would be the same coin
+        let reserve_conditions = self.child_state(ctx, &action_spends)?.reserve_conditions;
+        let mut created = HashSet::new();
+
+        for condition in reserve_conditions {
+            if let Ok(create_coin) = ctx.extract::<CreateCoin<NodePtr>>(condition) {
+                let coin = Coin::new(
+                    self.info.reserve.coin().coin_id(),
+                    create_coin.puzzle_hash,
+                    create_coin.amount,
+                );
+
+                if !created.insert(coin) {
+                    return Err(DriverError::AuctionBuyNowDuplicateOutput(coin.coin_id()));
+                }
+            }
+        }
 
         // The end action runs after the bid, so the NFT is unlocked to the buyer rather than to the
         // auction's current winning bid
@@ -243,7 +284,7 @@ impl Auction {
 
         Ok(AuctionBuyNow {
             bid,
-            action_spends: vec![bid_action, end_action],
+            action_spends,
             nft,
         })
     }

@@ -340,7 +340,7 @@
       },
       "into_auction": {
         "args": {
-          "nft_royalty": "RoyaltyInfo",
+          "nft": "Nft",
           "reserve_lineage_proof": "Option<LineageProof>"
         },
         "return": "Auction"

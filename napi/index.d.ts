@@ -449,7 +449,7 @@ export declare class AuctionLaunch {
   reserveAssetId(): Buffer | null
   singletonPuzzleHash(): Buffer
   singletonAmount(): bigint
-  intoAuction(nftRoyalty: RoyaltyInfo, reserveLineageProof?: LineageProof | undefined | null): Auction
+  intoAuction(nft: Nft, reserveLineageProof?: LineageProof | undefined | null): Auction
 }
 
 export declare class AuctionPayments {

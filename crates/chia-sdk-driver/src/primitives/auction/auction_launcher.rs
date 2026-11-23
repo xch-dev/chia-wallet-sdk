@@ -21,6 +21,11 @@ impl Launcher {
     /// bundle.
     ///
     /// The launcher must have a singleton amount of [`AUCTION_SINGLETON_AMOUNT`].
+    ///
+    /// A reserve in a revocable CAT can be revoked by the CAT's issuer at any time. That takes the
+    /// winning bid, and the auction can't be ended (so the NFT stays locked) until a coin of the
+    /// same amount is locked by the auction to stand in for the reserve. Wallets should warn
+    /// sellers about this before launching an auction with a revocable CAT reserve.
     pub fn launch_auction(
         self,
         ctx: &mut SpendContext,
@@ -86,8 +91,8 @@ impl Launcher {
 ///
 /// The NFT's royalty info is curried into the auction, but isn't stored in the memo. So wallets
 /// must fetch the NFT at [`nft_coin_id`](AuctionLaunch::nft_coin_id) from the blockchain, and pass
-/// its royalty info to [`into_auction`](AuctionLaunch::into_auction). For CAT reserves, they must
-/// also parse the spend of the reserve's parent (at
+/// it to [`into_auction`](AuctionLaunch::into_auction), which checks that it's locked by the
+/// auction. For CAT reserves, they must also parse the spend of the reserve's parent (at
 /// [`reserve_parent_coin_info`](AuctionLaunch::reserve_parent_coin_info)) to get its lineage proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuctionLaunch {
@@ -125,7 +130,7 @@ impl AuctionLaunch {
         })
     }
 
-    /// The coin id of the locked NFT, whose royalty info must be passed to
+    /// The coin id of the locked NFT, which must be passed to
     /// [`into_auction`](AuctionLaunch::into_auction).
     pub fn nft_coin_id(&self) -> Bytes32 {
         self.memo.nft_coin_id
@@ -137,20 +142,28 @@ impl AuctionLaunch {
         self.memo.reserve.parent_coin_info()
     }
 
-    /// Reconstructs the auction, given the royalty info of the NFT at
-    /// [`nft_coin_id`](AuctionLaunch::nft_coin_id), and the lineage proof of the reserve if it's a
-    /// CAT. Returns an error if the auction is invalid, or doesn't match the launched singleton,
-    /// which includes a royalty that doesn't match the auction.
+    /// Reconstructs the auction, given the NFT at [`nft_coin_id`](AuctionLaunch::nft_coin_id) as
+    /// parsed from the blockchain, and the lineage proof of the reserve if it's a CAT.
     ///
-    /// Some things can't be checked offline, so before bidding, wallets must also check that the
-    /// locked NFT is unspent and locked by the auction. A wrong lineage proof can't put any funds
-    /// at risk, but the reserve can't be spent with it.
+    /// Returns an error if the auction is invalid or doesn't match the launched singleton (which
+    /// includes an NFT royalty that doesn't match the auction), or if `nft` isn't that coin or isn't
+    /// locked by the auction. An auction whose NFT isn't locked by it can never be ended, so the
+    /// winning bid would be locked up forever.
+    ///
+    /// Whether the NFT is still unspent can't be checked offline, so wallets must check that before
+    /// bidding. A wrong lineage proof can't put any funds at risk, but the reserve can't be spent
+    /// with it.
     pub fn into_auction(
         self,
-        nft_royalty: RoyaltyInfo,
+        nft: &Nft,
         reserve_lineage_proof: Option<LineageProof>,
     ) -> Result<Auction, DriverError> {
         let launcher_id = self.launcher_coin.coin_id();
+        let nft_royalty = RoyaltyInfo::new(
+            nft.info.launcher_id,
+            nft.info.royalty_puzzle_hash,
+            nft.info.royalty_basis_points,
+        );
         let info =
             AuctionInfo::from_memo(launcher_id, self.memo, nft_royalty, reserve_lineage_proof);
 
@@ -167,6 +180,17 @@ impl AuctionLaunch {
 
         if puzzle_hash != self.singleton_puzzle_hash {
             return Err(DriverError::AuctionPuzzleHashMismatch);
+        }
+
+        // The royalty info and lock are read from `nft.info`, so it must be the info of the coin
+        if nft.coin.coin_id() != self.memo.nft_coin_id
+            || nft.coin.puzzle_hash != nft.info.puzzle_hash().into()
+        {
+            return Err(DriverError::AuctionNftMismatch);
+        }
+
+        if nft.info.p2_puzzle_hash != auction_lock_p2_puzzle_hash(launcher_id) {
+            return Err(DriverError::AuctionNftNotLocked);
         }
 
         let coin = Coin::new(launcher_id, puzzle_hash, self.singleton_amount);
