@@ -4586,6 +4586,20 @@ fn requested_payment_spend(
     ))
 }
 
+/// The nonce chia-blockchain notarizes requested payments with: the tree hash of the coins sorted by id, each as a
+/// `(parent_coin_info puzzle_hash amount)` list. It's allocated here, rather than hashed directly like the
+/// implementation does, so that the two are computed independently.
+fn coin_list_nonce(ctx: &mut SpendContext, coins: &[Coin]) -> Result<Bytes32> {
+    let mut coins = coins.to_vec();
+    coins.sort_by_key(Coin::coin_id);
+    let coins: Vec<_> = coins
+        .iter()
+        .map(|coin| (coin.parent_coin_info, (coin.puzzle_hash, (coin.amount, ()))))
+        .collect();
+    let coins = ctx.alloc(&coins)?;
+    Ok(ctx.tree_hash(coins).into())
+}
+
 /// How the nonce of a requested payment is chosen, given the coins that the offer spends.
 #[derive(Debug, Clone, Copy)]
 enum NonceKind {
@@ -4596,6 +4610,8 @@ enum NonceKind {
     OfferedCoinList,
     /// `Offer::nonce` of one of the offered coins.
     OneOfferedCoin,
+    /// The chia-blockchain form of the nonce for one of the offered coins.
+    OneOfferedCoinList,
     /// The id of one of the offered coins.
     OfferedCoinId,
     /// `Offer::nonce` of a coin that the transaction doesn't spend.
@@ -4610,16 +4626,8 @@ impl NonceKind {
 
         Ok(match self {
             Self::OfferedCoins => Offer::nonce(coin_ids),
-            Self::OfferedCoinList => {
-                let mut coins = offered_coins.to_vec();
-                coins.sort_by_key(Coin::coin_id);
-                let coins: Vec<_> = coins
-                    .iter()
-                    .map(|coin| (coin.parent_coin_info, (coin.puzzle_hash, (coin.amount, ()))))
-                    .collect();
-                let coins = ctx.alloc(&coins)?;
-                ctx.tree_hash(coins).into()
-            }
+            Self::OfferedCoinList => coin_list_nonce(ctx, offered_coins)?,
+            Self::OneOfferedCoinList => coin_list_nonce(ctx, &offered_coins[1..])?,
             Self::OneOfferedCoin => Offer::nonce(vec![coin_ids[1]]),
             Self::OfferedCoinId => coin_ids[0],
             Self::OtherCoin => Offer::nonce(vec![Bytes32::new([7; 32])]),
@@ -4630,7 +4638,11 @@ impl NonceKind {
     fn is_bound(self) -> bool {
         matches!(
             self,
-            Self::OfferedCoins | Self::OfferedCoinList | Self::OneOfferedCoin | Self::OfferedCoinId
+            Self::OfferedCoins
+                | Self::OfferedCoinList
+                | Self::OneOfferedCoin
+                | Self::OneOfferedCoinList
+                | Self::OfferedCoinId
         )
     }
 }
@@ -4641,6 +4653,7 @@ fn test_clear_signing_offer_nonce_bound(
         NonceKind::OfferedCoins,
         NonceKind::OfferedCoinList,
         NonceKind::OneOfferedCoin,
+        NonceKind::OneOfferedCoinList,
         NonceKind::OfferedCoinId,
         NonceKind::OtherCoin,
         NonceKind::Default
@@ -4724,7 +4737,7 @@ fn test_clear_signing_offer_nonce_bound(
 }
 
 #[rstest]
-fn test_clear_signing_asserted_spend_binds_nonce(
+fn test_clear_signing_asserted_spend_doesnt_bind_nonce(
     #[values(false, true)] asserted: bool,
 ) -> Result<()> {
     let mut sim = Simulator::new();
@@ -4733,8 +4746,8 @@ fn test_clear_signing_asserted_spend_binds_nonce(
     let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
     let coin = vault_coin(&alice, 1000);
 
-    // The payment is notarized with the id of a coin that the vault doesn't spend, which only binds it if the vault
-    // asserts that the coin is spent.
+    // The payment is notarized with the id of a coin that the vault doesn't spend. Asserting that the coin is spent
+    // doesn't bind it, since another transaction confirmed with this one can assert the same spend.
     let other_coin_id = Bytes32::new([7; 32]);
     let notarized_payment = NotarizedPayment::new(
         other_coin_id,
@@ -4769,7 +4782,84 @@ fn test_clear_signing_asserted_spend_binds_nonce(
     )??;
 
     assert_eq!(tx.received_payments.len(), 1);
-    assert_eq!(tx.received_payments[0].nonce_bound, asserted);
+    assert!(!tx.received_payments[0].nonce_bound);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_push_through_doesnt_bind_nonce() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
+
+    sim.set_next_timestamp(2000)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    // A payment notarized with the coin that the vault spends is bound, but one notarized with the clawback coin
+    // isn't. The vault only asserts the push-through, which another transaction confirmed with this one could also
+    // assert.
+    let vault_coin_payment = NotarizedPayment::new(
+        Offer::nonce(selected_coins(&spends).iter().map(Coin::coin_id).collect()),
+        vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
+    );
+    let push_through_payment = NotarizedPayment::new(
+        Offer::nonce(vec![clawback_coin.coin_id()]),
+        vec![Payment::new(alice.p2_puzzle_hash, 2, Memos::None)],
+    );
+
+    let mut vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+    let mut requested_payments = Vec::new();
+
+    for payment in [&vault_coin_payment, &push_through_payment] {
+        vault_conditions = vault_conditions.assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            tree_hash_notarized_payment(&ctx, payment),
+        ));
+        requested_payments.push(requested_payment_spend(
+            &mut ctx,
+            Bytes32::default(),
+            payment,
+        )?);
+    }
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let coin_spends = [result.spend_bundle.coin_spends, requested_payments].concat();
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    // The push-through is verified, but it isn't the vault's to spend
+    assert_eq!(tx.spends.len(), 2);
+    assert_eq!(
+        tx.spends[1].clawback,
+        Some(ClawbackInfo::new(clawback, ClawbackPath::PushThrough))
+    );
+
+    assert_eq!(tx.received_payments.len(), 2);
+
+    for payment in &tx.received_payments {
+        assert_eq!(payment.nonce_bound, payment.payment.amount == 1);
+    }
 
     Ok(())
 }

@@ -988,7 +988,7 @@ fn parse_vault(
     let p2_puzzle_hash_set = p2_puzzle_hashes.iter().copied().collect();
     let reserved_fee = facts.reserved_fees().try_into()?;
     let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
-    let trade = TradeContext::new(&verified_spends, facts.asserted_spends());
+    let trade = TradeContext::new(&verified_spends);
 
     // What the transaction offers is part of the value of its trade. The linked offer is a separate trade, so this is
     // only added for the transaction itself.

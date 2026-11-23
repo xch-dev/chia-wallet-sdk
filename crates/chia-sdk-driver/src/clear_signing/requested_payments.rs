@@ -35,7 +35,7 @@ pub struct AssertedPayment {
     pub payment: Payment,
     /// The royalty of the NFT, if this is a royalty payment of an NFT that's part of the trade.
     ///
-    /// It's set if the nonce is the launcher id of an NFT that a verified spend spends or creates, or whose payment
+    /// It's set if the nonce is the launcher id of an NFT that a verified spend spends, or whose payment
     /// is asserted along with this one, the NFT has a royalty, the payment is of XCH or a CAT to its royalty puzzle
     /// hash, and the amount is at most the royalty of the trade's value in that asset. The value is what the trade
     /// sends to the settlement puzzle in the asset plus the other payments of it that are asserted along with this
@@ -45,8 +45,8 @@ pub struct AssertedPayment {
     ///
     /// This is a hint for showing the payment, which is reported either way.
     pub royalty_basis_points: Option<u16>,
-    /// Whether the nonce ties the payment to this transaction, because it commits to a coin that the transaction is
-    /// guaranteed to spend.
+    /// Whether the nonce ties the payment to this transaction, because it commits to a coin that only this
+    /// transaction can spend.
     ///
     /// A settlement coin's announcement only commits to the nonce and the payments, so if two of the vault's
     /// transactions or linked offers assert the same nonce and payments, one payment can satisfy both. If the nonce
@@ -104,43 +104,36 @@ impl FungibleAsset {
 }
 
 impl TradeContext {
-    /// Creates the context of the payments asserted by a transaction with the verified spends, which also asserts
-    /// the spends of the `asserted_spends` coin ids (with `ASSERT_CONCURRENT_SPEND` in its trusted conditions).
+    /// Creates the context of the payments asserted by a transaction with the verified spends.
     ///
-    /// The coins that the transaction is guaranteed to spend are those of the verified spends and the asserted
-    /// spends. A nonce is bound if it commits to one of them, or to the verified spends' input coins (those that
-    /// aren't created by another verified spend), which are the coins an offer made by the transaction offers. It
-    /// commits to a set of coins if it's [`Offer::nonce`] of their ids, or the tree hash of the coins sorted by id,
-    /// each as a `(parent_coin_info puzzle_hash amount)` list, which is how chia-blockchain and Cloud Wallet notarize
-    /// an offer's requested payments. A single coin's id is also a bound nonce. Any of these commits to coins that
-    /// only one confirmed transaction can spend.
+    /// A nonce is bound if it commits to coins that only this transaction can spend: the coins of the verified spends
+    /// that receive a message from the vault, and of the spends of their descendants. Another transaction can't send
+    /// the same coin a message without making the bundle invalid, and a descendant can't exist without it. A spend
+    /// that's only verified because the transaction asserts it, such as a clawback push-through, isn't included,
+    /// since any number of transactions confirmed together can assert the same spend.
     ///
-    /// The NFTs that the verified spends spend or create are part of the trade, so their royalties can be paid.
-    pub fn new(
-        spends: &[VerifiedSpend],
-        asserted_spends: impl IntoIterator<Item = Bytes32>,
-    ) -> Self {
+    /// The nonce can commit to one of these coins, or to all of them that aren't created by another verified spend,
+    /// which are the coins an offer made by the transaction offers. It commits to a set of coins if it's
+    /// [`Offer::nonce`] of their ids, or the tree hash of the coins sorted by id, each as a
+    /// `(parent_coin_info puzzle_hash amount)` list, which is how chia-blockchain and Cloud Wallet notarize an offer's
+    /// requested payments. A single coin's id is also a bound nonce.
+    ///
+    /// The NFTs that the verified spends spend are part of the trade, so their royalties can be paid.
+    pub fn new(spends: &[VerifiedSpend]) -> Self {
         let child_coin_ids = child_coin_ids(spends);
         let mut input_coins = Vec::new();
         let mut bound_nonces = HashSet::new();
 
-        for spend in spends {
+        for spend in exclusive_spends(spends) {
             let coin = spend.asset.coin();
 
             if !child_coin_ids.contains(&coin.coin_id()) {
                 input_coins.push(coin);
             }
 
+            bound_nonces.insert(coin.coin_id());
+            bound_nonces.insert(Offer::nonce(vec![coin.coin_id()]));
             bound_nonces.insert(coin_list_nonce(vec![coin]));
-        }
-
-        for coin_id in spends
-            .iter()
-            .map(|spend| spend.asset.coin().coin_id())
-            .chain(asserted_spends)
-        {
-            bound_nonces.insert(coin_id);
-            bound_nonces.insert(Offer::nonce(vec![coin_id]));
         }
 
         if !input_coins.is_empty() {
@@ -152,20 +145,16 @@ impl TradeContext {
 
         let mut nft_royalties = HashMap::new();
 
+        // An NFT child is created by a spend of the same NFT, so the spends are enough.
         for spend in spends {
-            let assets = std::iter::once(&spend.asset)
-                .chain(spend.children.iter().map(|child| &child.asset));
-
-            for asset in assets {
-                if let ParsedAsset::Nft(nft) = asset {
-                    nft_royalties.insert(
-                        nft.info.launcher_id,
-                        NftRoyalty {
-                            puzzle_hash: nft.info.royalty_puzzle_hash,
-                            basis_points: nft.info.royalty_basis_points,
-                        },
-                    );
-                }
+            if let ParsedAsset::Nft(nft) = &spend.asset {
+                nft_royalties.insert(
+                    nft.info.launcher_id,
+                    NftRoyalty {
+                        puzzle_hash: nft.info.royalty_puzzle_hash,
+                        basis_points: nft.info.royalty_basis_points,
+                    },
+                );
             }
         }
 
@@ -195,6 +184,38 @@ impl TradeContext {
         self.bound_nonces.contains(&payment.notarized_payment.nonce)
             && !self.shared_payments.contains(payment)
     }
+}
+
+/// The verified spends that only this transaction can spend, which are those that receive a message from the vault and
+/// the spends of their descendants, in no particular order.
+fn exclusive_spends(spends: &[VerifiedSpend]) -> Vec<&VerifiedSpend> {
+    let spends_by_coin_id: HashMap<Bytes32, &VerifiedSpend> = spends
+        .iter()
+        .map(|spend| (spend.asset.coin().coin_id(), spend))
+        .collect();
+
+    let mut exclusive_coin_ids = HashSet::new();
+    let mut exclusive_spends = Vec::new();
+    let mut stack: Vec<&VerifiedSpend> = spends
+        .iter()
+        .filter(|spend| spend.custody.receives_message())
+        .collect();
+
+    while let Some(spend) = stack.pop() {
+        if !exclusive_coin_ids.insert(spend.asset.coin().coin_id()) {
+            continue;
+        }
+
+        exclusive_spends.push(spend);
+
+        for child in &spend.children {
+            if let Some(&child_spend) = spends_by_coin_id.get(&child.asset.coin().coin_id()) {
+                stack.push(child_spend);
+            }
+        }
+    }
+
+    exclusive_spends
 }
 
 /// The nonce that chia-blockchain and Cloud Wallet notarize an offer's requested payments with: the tree hash of the
