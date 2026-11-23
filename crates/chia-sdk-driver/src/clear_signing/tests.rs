@@ -4788,6 +4788,75 @@ fn test_clear_signing_asserted_spend_doesnt_bind_nonce(
 }
 
 #[rstest]
+fn test_clear_signing_descendant_binds_nonce(#[values(false, true)] asserted: bool) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    // The vault creates an intermediate coin, whose conditions are fixed by its puzzle. If the vault asserts its
+    // spend, it's verified as a descendant of the vault's own spend, so only this transaction can spend it.
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().create_coin(alice.p2_puzzle_hash, 1, Memos::None))?;
+    let puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+
+    let actions = [Action::send(Id::Xch, puzzle_hash, 1, Memos::None)];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let intermediate_coin = Coin::new(input_coin_id, puzzle_hash, 1);
+
+    ctx.spend(intermediate_coin, delegated_spend)?;
+
+    if asserted {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_concurrent_spend(
+                intermediate_coin.coin_id(),
+            ));
+    }
+
+    let notarized_payment = NotarizedPayment::new(
+        Offer::nonce(vec![intermediate_coin.coin_id()]),
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            tree_hash_notarized_payment(&ctx, &notarized_payment),
+        )));
+
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let requested_payment =
+        requested_payment_spend(&mut ctx, Bytes32::default(), &notarized_payment)?;
+    let coin_spends = [result.spend_bundle.coin_spends, vec![requested_payment]].concat();
+    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin() == intermediate_coin),
+        asserted
+    );
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.received_payments[0].nonce_bound, asserted);
+
+    Ok(())
+}
+
+#[rstest]
 fn test_clear_signing_push_through_doesnt_bind_nonce() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
@@ -5047,6 +5116,29 @@ fn test_clear_signing_pre_split_settlement_amount(
 }
 
 #[rstest]
+fn test_clear_signing_pre_split_without_settlement_coin(
+    #[values(false, true)] reserves_fee: bool,
+) -> Result<()> {
+    // When Cloud Wallet offers a CAT or NFT for XCH, the XCH coin it sets aside only pays the fee, and its fixed
+    // conditions only assert the payments (and reserve the fee, if there is one).
+    let mut fixed_conditions = Conditions::new().assert_puzzle_announcement(Bytes32::new([1; 32]));
+
+    if reserves_fee {
+        fixed_conditions = fixed_conditions.reserve_fee(100);
+    }
+
+    let tx = parse_pre_split(Some(AssetKind::Xch), 100, &fixed_conditions)??;
+
+    assert_eq!(pre_split_info(&tx).settlement_amount, 0);
+    assert_eq!(
+        tx.linked_offer.unwrap().reserved_fee,
+        if reserves_fee { 100 } else { 0 }
+    );
+
+    Ok(())
+}
+
+#[rstest]
 fn test_clear_signing_pre_split_settlement_amount_overflow() -> Result<()> {
     let fixed_conditions = Conditions::new()
         .create_coin(SETTLEMENT_PAYMENT_HASH.into(), u64::MAX, Memos::None)
@@ -5065,10 +5157,8 @@ fn test_clear_signing_pre_split_settlement_amount_overflow() -> Result<()> {
 enum InvalidFixedConditions {
     /// Part of the coin is sent to another puzzle hash.
     OtherDestination,
-    /// No settlement coin is created, so the whole coin is left for the bundle.
-    NoSettlementCoin,
-    /// No conditions at all.
-    Empty,
+    /// The whole coin is sent to another puzzle hash.
+    OnlyOtherDestination,
     /// The coin is melted, or a TAIL is run, with a `-113` output.
     Melt,
 }
@@ -5078,8 +5168,7 @@ fn test_clear_signing_pre_split_invalid_fixed_conditions(
     #[values(AssetKind::Xch, AssetKind::Cat)] asset_kind: AssetKind,
     #[values(
         InvalidFixedConditions::OtherDestination,
-        InvalidFixedConditions::NoSettlementCoin,
-        InvalidFixedConditions::Empty,
+        InvalidFixedConditions::OnlyOtherDestination,
         InvalidFixedConditions::Melt
     )]
     invalid: InvalidFixedConditions,
@@ -5088,8 +5177,9 @@ fn test_clear_signing_pre_split_invalid_fixed_conditions(
         InvalidFixedConditions::OtherDestination => Conditions::new()
             .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 500, Memos::None)
             .create_coin(Bytes32::new([2; 32]), 500, Memos::None),
-        InvalidFixedConditions::NoSettlementCoin => Conditions::new().reserve_fee(1000),
-        InvalidFixedConditions::Empty => Conditions::new(),
+        InvalidFixedConditions::OnlyOtherDestination => {
+            Conditions::new().create_coin(Bytes32::new([2; 32]), 1000, Memos::None)
+        }
         InvalidFixedConditions::Melt => Conditions::new()
             .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
             .with(MeltSingleton::default()),

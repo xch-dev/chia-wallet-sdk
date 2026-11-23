@@ -110,7 +110,9 @@ impl TradeContext {
     /// that receive a message from the vault, and of the spends of their descendants. Another transaction can't send
     /// the same coin a message without making the bundle invalid, and a descendant can't exist without it. A spend
     /// that's only verified because the transaction asserts it, such as a clawback push-through, isn't included,
-    /// since any number of transactions confirmed together can assert the same spend.
+    /// since any number of transactions confirmed together can assert the same spend. This assumes that the
+    /// conditions the vault commits to don't themselves receive another message from it, which would let the coin's
+    /// one spend take a message from a second transaction too.
     ///
     /// The nonce can commit to one of these coins, or to all of them that aren't created by another verified spend,
     /// which are the coins an offer made by the transaction offers. It commits to a set of coins if it's

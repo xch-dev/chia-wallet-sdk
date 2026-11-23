@@ -553,7 +553,7 @@ pub enum DriverError {
 
     /// The fixed conditions of an offer pre-split coin, which anyone can spend the coin with, do
     /// something other than create settlement coins: they create a coin at another puzzle hash (or
-    /// an XCH coin from an NFT), melt the coin or run a TAIL, or create no settlement coin at all.
+    /// an XCH coin from an NFT), or melt the coin or run a TAIL.
     #[error("offer pre-split fixed conditions may only create settlement coins")]
     InvalidOfferPreSplitConditions,
 

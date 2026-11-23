@@ -299,21 +299,23 @@ fn calculate_transfer_type(
 ///
 /// Anyone can spend the coin with its fixed conditions, so they may only send its value to the settlement payments
 /// puzzle, where it can only be taken by making the payments that the offer asserts. Each `CREATE_COIN` must be to
-/// the settlement payments puzzle, and at least one is required. The fixed conditions of an NFT (`is_nft`) may only
+/// the settlement payments puzzle. The fixed conditions of an NFT (`is_nft`) may only
 /// recreate the NFT, since its even outputs are XCH that the NFT doesn't hold. Melting the coin or running a TAIL
 /// (both are outputs with the amount `-113`) isn't allowed either. Other conditions, such as assertions,
 /// `RESERVE_FEE`, `AGG_SIG_ME` and the NFT transfer condition, don't create outputs and are allowed.
 ///
 /// Whatever is left of the coin's amount after the settlement coins and the reserved fee goes to whoever builds the
 /// bundle it's spent in, the same as the settlement coins themselves. Cloud Wallet uses this to fund the royalty
-/// payments that the fixed conditions assert.
+/// payments that the fixed conditions assert. A coin with no settlement coins has a settlement amount of zero, such
+/// as the coin Cloud Wallet sets aside for the fee when it offers a CAT or NFT, whose fixed conditions only assert
+/// the payments and reserve the fee.
 ///
 /// Returns [`DriverError::InvalidOfferPreSplitConditions`] if the fixed conditions don't follow these rules.
 fn offer_pre_split_settlement_amount(
     fixed_conditions: &[Condition],
     is_nft: bool,
 ) -> Result<u64, DriverError> {
-    let mut settlement_amount: Option<u128> = None;
+    let mut settlement_amount = 0_u128;
 
     for condition in fixed_conditions {
         match condition {
@@ -324,7 +326,7 @@ fn offer_pre_split_settlement_amount(
                     return Err(DriverError::InvalidOfferPreSplitConditions);
                 }
 
-                *settlement_amount.get_or_insert(0) += u128::from(condition.amount);
+                settlement_amount += u128::from(condition.amount);
             }
             Condition::MeltSingleton(_) | Condition::RunCatTail(_) => {
                 return Err(DriverError::InvalidOfferPreSplitConditions);
@@ -332,8 +334,6 @@ fn offer_pre_split_settlement_amount(
             _ => {}
         }
     }
-
-    let settlement_amount = settlement_amount.ok_or(DriverError::InvalidOfferPreSplitConditions)?;
 
     // The outputs of a spend bundle can't add up to more than a u64, so neither can the settlement coins.
     Ok(settlement_amount.try_into()?)
