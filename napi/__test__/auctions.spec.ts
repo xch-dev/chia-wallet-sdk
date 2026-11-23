@@ -336,7 +336,8 @@ test("auction can be bought now", (t) => {
   t.deepEqual(parsed.coin.coinId(), bought.coin.coinId());
 
   // An ended auction can't be bought again
-  t.throws(() =>
-    bought.buyNowActionSpends(clvm, buyer.puzzleHash, false, buyNow.nft),
+  t.throws(
+    () => bought.buyNowActionSpends(clvm, buyer.puzzleHash, false, buyNow.nft),
+    { message: /can't be bought now/ },
   );
 });

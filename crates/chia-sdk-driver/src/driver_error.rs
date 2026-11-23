@@ -429,13 +429,9 @@ pub enum DriverError {
         bps: u64,
     },
 
-    /// An auction's buy now price is `Some(0)`. It's curried in as 0 when there isn't one, so use
-    /// `None` instead.
-    #[error("the auction's buy now price must be greater than 0")]
-    ZeroAuctionBuyNowPrice,
-
     /// An auction's buy now price is below its minimum bid. Since a bid at the buy now price skips
-    /// the bid verifier, it would undercut the minimum bid.
+    /// the bid verifier, it would undercut the minimum bid. This includes `Some(0)`, which would be
+    /// curried in the same way as `None`.
     #[error(
         "the auction's buy now price of {buy_now_price} is below the minimum bid of {minimum_bid}"
     )]

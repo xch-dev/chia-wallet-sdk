@@ -259,14 +259,10 @@ impl AuctionInfo {
     /// checked separately.
     pub(crate) fn validate(&self) -> Result<(), DriverError> {
         if let Some(buy_now_price) = self.settings.buy_now_price {
-            // The buy now price is curried in as 0 when there isn't one, and the memo can't tell
-            // `Some(0)` apart from `None`
-            if buy_now_price == 0 {
-                return Err(DriverError::ZeroAuctionBuyNowPrice);
-            }
-
             // A bid at the buy now price skips the bid verifier, so a lower price would undercut the
-            // minimum bid. It would also be the only bid that could ever be placed.
+            // minimum bid. It would also be the only bid that could ever be placed. Since the
+            // minimum bid is non-zero, this also rejects `Some(0)`, which is curried in the same way
+            // as `None`, and which the memo can't tell apart from it.
             let minimum_bid = self.settings.bid_verifier.minimum_bid().get();
 
             if buy_now_price < minimum_bid {

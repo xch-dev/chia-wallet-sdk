@@ -1908,9 +1908,21 @@ fn test_rejects_invalid_buy_now_prices(
     #[values(flat(100, 100), percent(100, 100))] bid_verifier: AuctionBidVerifier,
 ) {
     // `Some(0)` would be curried in the same way as `None`
-    let error = launch_error(with_buy_now(0), default_settings);
+    let error = launch_error(
+        Config {
+            bid_verifier,
+            ..with_buy_now(0)
+        },
+        default_settings,
+    );
     assert!(
-        matches!(error, DriverError::ZeroAuctionBuyNowPrice),
+        matches!(
+            error,
+            DriverError::AuctionBuyNowPriceBelowMinimumBid {
+                buy_now_price: 0,
+                ..
+            }
+        ),
         "{error}"
     );
 
@@ -2507,12 +2519,8 @@ fn with_buy_now(buy_now_price: u64) -> Config {
 /// Places a bid without running it in the driver first, so that it's only checked on chain. The
 /// bidder funds the reserve amount for the bid.
 fn unchecked_bid(h: &mut Harness, amount: u64) -> Result<()> {
-    let reserve_amount = h
-        .auction
-        .info
-        .reserve_amount_for_bid(amount)
-        .ok_or(anyhow!("reserve amount overflow"))?;
-    let key = h.sim.bls(reserve_amount);
+    let key = h.bidder_key(amount)?;
+    let reserve_amount = key.coin.amount;
     StandardLayer::new(key.pk).spend(&mut h.ctx, key.coin, Conditions::new())?;
     let bid =
         h.auction
