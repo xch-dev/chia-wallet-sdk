@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
@@ -28,7 +30,7 @@ use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, BagAsset, BagCoin, BagFormat, BagPayment, Bulletin,
     BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2,
     ClearSigningAsset, CustodyInfo, Delta, Deltas, DriverError, DropCoin, FeeAction, HashedPtr, Id,
-    IssuanceKind, Layer, LinkedOffer, Nft, NftInfo, OfferPreSplitInfo, OptionInfo,
+    IssuanceKind, Layer, LinkedOffer, Nft, NftInfo, Offer, OfferPreSplitInfo, OptionInfo,
     P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset, ParsedBagPayment,
     ParsedChild, Puzzle, Reveals, SecureTheBag, SecureTheBagInfo, SingleCatSpend, Spend,
     SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransactionData, TransferNftById,
@@ -4317,6 +4319,308 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
 
     assert_eq!(tx.external_payments[0].payment.amount, 1000);
     assert_eq!(tx.received_payments[0].payment.amount, 750);
+
+    Ok(())
+}
+
+/// The coin ids of the coins selected for the spends, which are the coins an offer made from them offers.
+fn selected_coin_ids(spends: &Spends) -> Vec<Bytes32> {
+    spends
+        .xch
+        .items
+        .iter()
+        .map(|item| item.asset.coin_id())
+        .chain(
+            spends
+                .cats
+                .values()
+                .flat_map(|cats| &cats.items)
+                .map(|item| item.asset.coin.coin_id()),
+        )
+        .collect()
+}
+
+/// The coin ids of the verified spends that aren't created by another verified spend.
+fn input_coin_ids(tx: &VaultTransaction) -> HashSet<Bytes32> {
+    let child_coin_ids: HashSet<Bytes32> = tx
+        .spends
+        .iter()
+        .flat_map(|spend| &spend.children)
+        .map(|child| child.asset.coin().coin_id())
+        .collect();
+
+    tx.spends
+        .iter()
+        .map(|spend| spend.asset.coin().coin_id())
+        .filter(|coin_id| !child_coin_ids.contains(coin_id))
+        .collect()
+}
+
+/// Reveals the requested payment as a settlement spend of an XCH coin.
+fn requested_payment_spend(
+    ctx: &mut SpendContext,
+    parent_coin_id: Bytes32,
+    notarized_payment: &NotarizedPayment,
+) -> Result<CoinSpend> {
+    let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
+        notarized_payment.clone(),
+    ]))?;
+
+    Ok(CoinSpend::new(
+        Coin::new(
+            parent_coin_id,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            notarized_payment
+                .payments
+                .iter()
+                .map(|payment| payment.amount)
+                .sum(),
+        ),
+        SETTLEMENT_PAYMENT.to_vec().into(),
+        ctx.serialize(&settlement_solution)?,
+    ))
+}
+
+/// How the nonce of a requested payment is chosen, given the coins that the offer spends.
+#[derive(Debug, Clone, Copy)]
+enum NonceKind {
+    /// `Offer::nonce` of every offered coin, which is how offers are notarized.
+    OfferedCoins,
+    /// `Offer::nonce` of one of the offered coins.
+    OneOfferedCoin,
+    /// The id of one of the offered coins.
+    OfferedCoinId,
+    /// `Offer::nonce` of a coin that the transaction doesn't spend.
+    OtherCoin,
+    /// A nonce that isn't derived from a coin.
+    Default,
+}
+
+impl NonceKind {
+    fn nonce(self, offered_coin_ids: &[Bytes32]) -> Bytes32 {
+        match self {
+            Self::OfferedCoins => Offer::nonce(offered_coin_ids.to_vec()),
+            Self::OneOfferedCoin => Offer::nonce(vec![offered_coin_ids[1]]),
+            Self::OfferedCoinId => offered_coin_ids[0],
+            Self::OtherCoin => Offer::nonce(vec![Bytes32::new([7; 32])]),
+            Self::Default => Bytes32::default(),
+        }
+    }
+
+    fn is_bound(self) -> bool {
+        matches!(
+            self,
+            Self::OfferedCoins | Self::OneOfferedCoin | Self::OfferedCoinId
+        )
+    }
+}
+
+#[rstest]
+fn test_clear_signing_offer_nonce_bound(
+    #[values(
+        NonceKind::OfferedCoins,
+        NonceKind::OneOfferedCoin,
+        NonceKind::OfferedCoinId,
+        NonceKind::OtherCoin,
+        NonceKind::Default
+    )]
+    nonce_kind: NonceKind,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let IssuedAsset { id, .. } = issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 400)?;
+
+    // Offer XCH and a CAT, so that two coins are offered
+    let actions = [
+        Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 100, Memos::None),
+        Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 400, Memos::None),
+    ];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let offered_coin_ids = selected_coin_ids(&spends);
+    assert_eq!(offered_coin_ids.len(), 2);
+
+    let notarized_payment = NotarizedPayment::new(
+        nonce_kind.nonce(&offered_coin_ids),
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+    let notarized_payment_hash = tree_hash_notarized_payment(&ctx, &notarized_payment);
+
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            notarized_payment_hash,
+        )));
+
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let requested_payment =
+        requested_payment_spend(&mut ctx, Bytes32::default(), &notarized_payment)?;
+    let coin_spends = [result.spend_bundle.coin_spends, vec![requested_payment]].concat();
+    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(
+        input_coin_ids(&tx),
+        offered_coin_ids.iter().copied().collect()
+    );
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.received_payments[0].nonce, notarized_payment.nonce);
+    assert_eq!(tx.received_payments[0].nonce_bound, nonce_kind.is_bound());
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_asserted_spend_binds_nonce(
+    #[values(false, true)] asserted: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let coin = vault_coin(&alice, 1000);
+
+    // The payment is notarized with the id of a coin that the vault doesn't spend, which only binds it if the vault
+    // asserts that the coin is spent.
+    let other_coin_id = Bytes32::new([7; 32]);
+    let notarized_payment = NotarizedPayment::new(
+        other_coin_id,
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+    let notarized_payment_hash = tree_hash_notarized_payment(&ctx, &notarized_payment);
+    let requested_payment =
+        requested_payment_spend(&mut ctx, Bytes32::default(), &notarized_payment)?;
+
+    let mut vault_conditions = Conditions::new().assert_puzzle_announcement(announcement_id(
+        SETTLEMENT_PAYMENT_HASH.into(),
+        notarized_payment_hash,
+    ));
+
+    if asserted {
+        vault_conditions = vault_conditions.assert_concurrent_spend(other_coin_id);
+    }
+
+    let delegated_spend = ctx.delegated_spend(Conditions::new().create_coin(
+        alice.p2_puzzle_hash,
+        1000,
+        Memos::None,
+    ))?;
+
+    let tx = parse_linked_spend(
+        &mut ctx,
+        &alice,
+        coin,
+        delegated_spend,
+        vault_conditions,
+        &[requested_payment],
+    )??;
+
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.received_payments[0].nonce_bound, asserted);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_linked_offer_nonce_bound(
+    #[values(false, true)] bound: bool,
+    #[values(false, true)] asserted_by_vault: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // The pre-split coin can't commit to its own coin id, so it's bound to the coins that the transaction creating it
+    // spends.
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(
+        &sim,
+        &mut spends,
+        &Deltas::from_actions(&[Action::send(
+            Id::Xch,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            750,
+            Memos::None,
+        )]),
+    )?;
+
+    let nonce = if bound {
+        Offer::nonce(selected_coin_ids(&spends))
+    } else {
+        Bytes32::default()
+    };
+
+    let notarized_payment = NotarizedPayment::new(
+        nonce,
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+    let announcement_id = announcement_id(
+        SETTLEMENT_PAYMENT_HASH.into(),
+        tree_hash_notarized_payment(&ctx, &notarized_payment),
+    );
+
+    let fixed_conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
+        .assert_puzzle_announcement(announcement_id);
+    let delegated_spend = ctx.delegated_spend(fixed_conditions.clone())?;
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        ctx.tree_hash(delegated_spend.puzzle).into(),
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember,
+    );
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &fixed_conditions))?;
+
+    // If the vault also asserts the payment, it can be made once for both the transaction and the linked offer, by
+    // spending the pre-split coin in the same bundle.
+    if asserted_by_vault {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_puzzle_announcement(announcement_id));
+    }
+
+    let actions = [Action::send(Id::Xch, p2.tree_hash().into(), 750, memos)];
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let requested_payment =
+        requested_payment_spend(&mut ctx, Bytes32::default(), &notarized_payment)?;
+    let coin_spends = [result.spend_bundle.coin_spends, vec![requested_payment]].concat();
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    reveals.reveal_p2_conditions_or_singleton(p2);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let linked_offer = tx.linked_offer.unwrap();
+    assert_eq!(linked_offer.received_payments.len(), 1);
+    assert_eq!(
+        linked_offer.received_payments[0].nonce_bound,
+        bound && !asserted_by_vault
+    );
+
+    if asserted_by_vault {
+        assert_eq!(tx.received_payments.len(), 1);
+        assert_eq!(tx.received_payments[0].nonce_bound, bound);
+    } else {
+        assert!(tx.received_payments.is_empty());
+    }
 
     Ok(())
 }

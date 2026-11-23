@@ -16,8 +16,8 @@ use crate::{
     ClearSigningAsset, ControlledVaultReceiver, ControlledVaultRecovery, CustodyInfo, DriverError,
     DropCoin, Facts, Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo,
     P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage,
-    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    SpendContext, TradeContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers,
+    VaultMessage, VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
     parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
     parse_spend, parse_vault_controller_spend, parse_vault_delegated_spend,
     split_asserted_payments, vault_recovery_delegated_puzzle_hash,
@@ -988,10 +988,12 @@ fn parse_vault(
     let p2_puzzle_hash_set = p2_puzzle_hashes.iter().copied().collect();
     let reserved_fee = facts.reserved_fees().try_into()?;
     let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
+    let trade = TradeContext::new(&verified_spends, facts.asserted_spends());
     let split_payments = split_asserted_payments(
         &asserted_payments,
         &p2_puzzle_hash_set,
         reveals.asset_info(),
+        &trade,
     );
     let linked_offer = build_linked_offer(
         &reveals,
@@ -999,6 +1001,8 @@ fn parse_vault(
         &verified_spends,
         launcher_id,
         &p2_puzzle_hash_set,
+        &trade,
+        &asserted_payments,
     )?;
 
     // Hydrate ephemerally spent bulletin children.

@@ -7,7 +7,8 @@ use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
 
 use crate::{
-    AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, OptionInfo, Reveals, SingletonInfo,
+    AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, Offer, OptionInfo, Reveals,
+    SingletonInfo, VerifiedSpend,
 };
 
 /// A revealed notarized payment of a settlement coin whose announcement is asserted, so the transaction is only
@@ -32,6 +33,90 @@ pub struct AssertedPayment {
     /// The royalty of the NFT if the nonce is the launcher id of a revealed NFT and the payment is to its royalty
     /// puzzle hash, which suggests it's a royalty payment.
     pub royalty_basis_points: Option<u16>,
+    /// Whether the nonce ties the payment to this transaction, because it commits to a coin that the transaction is
+    /// guaranteed to spend.
+    ///
+    /// A settlement coin's announcement only commits to the nonce and the payments, so if two of the vault's
+    /// transactions or linked offers assert the same nonce and payments, one payment can satisfy both. If the nonce
+    /// is bound, they would both spend the same coin, so they can't both be confirmed. If it isn't, nothing stops a
+    /// payment that the transaction receives from also being claimed by another transaction, so it should be shown
+    /// with a warning.
+    ///
+    /// See [`TradeContext::new`] for which nonces are bound. A payment of a [`LinkedOffer`](crate::LinkedOffer) that
+    /// the transaction also asserts isn't bound, since one payment can satisfy both if the pre-split coins are spent
+    /// in the same bundle. A royalty payment's nonce is the NFT's launcher id, so it's never bound.
+    pub nonce_bound: bool,
+}
+
+/// What a transaction backs about the payments it asserts, which [`split_asserted_payments`] checks each payment
+/// against.
+#[derive(Debug, Default, Clone)]
+pub struct TradeContext {
+    bound_nonces: HashSet<Bytes32>,
+    shared_payments: Vec<AssertedNotarizedPayment>,
+}
+
+impl TradeContext {
+    /// Creates the context of the payments asserted by a transaction with the verified spends, which also asserts
+    /// the spends of the `asserted_spends` coin ids (with `ASSERT_CONCURRENT_SPEND` in its trusted conditions).
+    ///
+    /// The coins that the transaction is guaranteed to spend are those of the verified spends and the asserted
+    /// spends. A nonce is bound if it's one of their coin ids, [`Offer::nonce`] of one of them, or [`Offer::nonce`]
+    /// of the verified spends' input coins (those that aren't created by another verified spend), which is how an
+    /// offer's requested payments are notarized. Any of these commits to coins that only one confirmed transaction
+    /// can spend.
+    pub fn new(
+        spends: &[VerifiedSpend],
+        asserted_spends: impl IntoIterator<Item = Bytes32>,
+    ) -> Self {
+        let child_coin_ids: HashSet<Bytes32> = spends
+            .iter()
+            .flat_map(|spend| &spend.children)
+            .map(|child| child.asset.coin().coin_id())
+            .collect();
+
+        let mut input_coin_ids = Vec::new();
+        let mut spent_coin_ids = HashSet::new();
+
+        for spend in spends {
+            let coin_id = spend.asset.coin().coin_id();
+
+            if !child_coin_ids.contains(&coin_id) {
+                input_coin_ids.push(coin_id);
+            }
+
+            spent_coin_ids.insert(coin_id);
+        }
+
+        spent_coin_ids.extend(asserted_spends);
+
+        let mut bound_nonces = HashSet::new();
+
+        for coin_id in spent_coin_ids {
+            bound_nonces.insert(coin_id);
+            bound_nonces.insert(Offer::nonce(vec![coin_id]));
+        }
+
+        if !input_coin_ids.is_empty() {
+            bound_nonces.insert(Offer::nonce(input_coin_ids));
+        }
+
+        Self {
+            bound_nonces,
+            shared_payments: Vec::new(),
+        }
+    }
+
+    /// Records a payment that's also asserted somewhere else, so that a payment could satisfy both. Its payments
+    /// aren't bound, whatever their nonce.
+    pub fn add_shared_payment(&mut self, payment: AssertedNotarizedPayment) {
+        self.shared_payments.push(payment);
+    }
+
+    fn is_bound(&self, payment: &AssertedNotarizedPayment) -> bool {
+        self.bound_nonces.contains(&payment.notarized_payment.nonce)
+            && !self.shared_payments.contains(payment)
+    }
 }
 
 /// Asserted payments, split by whether they're paid to the vault.
@@ -73,16 +158,19 @@ pub enum ClearSigningAsset {
 }
 
 /// Splits each payment of the asserted notarized payments into received payments (to one of the `p2_puzzle_hashes`)
-/// and external payments (to anything else).
+/// and external payments (to anything else), checking them against the [`TradeContext`] of the transaction.
 pub fn split_asserted_payments(
     asserted_payments: &[AssertedNotarizedPayment],
     p2_puzzle_hashes: &HashSet<Bytes32>,
     asset_info: &AssetInfo,
+    trade: &TradeContext,
 ) -> SplitAssertedPayments {
     let mut received_payments = Vec::new();
     let mut external_payments = Vec::new();
 
     for asserted_notarized_payment in asserted_payments {
+        let nonce_bound = trade.is_bound(asserted_notarized_payment);
+
         for payment in &asserted_notarized_payment.notarized_payment.payments {
             let royalty_basis_points = royalty_basis_points(
                 asset_info,
@@ -95,6 +183,7 @@ pub fn split_asserted_payments(
                 nonce: asserted_notarized_payment.notarized_payment.nonce,
                 payment: payment.clone(),
                 royalty_basis_points,
+                nonce_bound,
             };
 
             if p2_puzzle_hashes.contains(&asserted_payment.payment.puzzle_hash) {

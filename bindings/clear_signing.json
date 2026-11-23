@@ -528,6 +528,7 @@
       "asset": "ClearSigningAsset",
       "nonce": "Bytes32",
       "payment": "Payment",
+      "nonce_bound": "bool",
       "royalty_basis_points": "Option<u16>"
     }
   },

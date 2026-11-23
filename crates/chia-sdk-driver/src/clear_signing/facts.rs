@@ -96,6 +96,11 @@ impl Facts {
             .contains(&announcement_id)
     }
 
+    /// The coin ids whose spends are asserted with `ASSERT_CONCURRENT_SPEND`, in no particular order.
+    pub fn asserted_spends(&self) -> impl Iterator<Item = Bytes32> + '_ {
+        self.asserted_spends.iter().copied()
+    }
+
     /// Whether the coin's spend is asserted with `ASSERT_CONCURRENT_SPEND`.
     pub fn is_spend_asserted(&self, coin_id: Bytes32) -> bool {
         self.asserted_spends.contains(&coin_id)

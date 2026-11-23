@@ -216,13 +216,15 @@ export declare class AssertedNotarizedPayment {
 
 export declare class AssertedPayment {
   clone(): AssertedPayment
-  constructor(asset: ClearSigningAsset, nonce: Uint8Array, payment: Payment, royaltyBasisPoints?: number | undefined | null)
+  constructor(asset: ClearSigningAsset, nonce: Uint8Array, payment: Payment, nonceBound: boolean, royaltyBasisPoints?: number | undefined | null)
   get asset(): ClearSigningAsset
   set asset(value: ClearSigningAsset)
   get nonce(): Buffer
   set nonce(value: Uint8Array)
   get payment(): Payment
   set payment(value: Payment)
+  get nonceBound(): boolean
+  set nonceBound(value: boolean)
   get royaltyBasisPoints(): number | null
   set royaltyBasisPoints(value: number | undefined | null)
 }

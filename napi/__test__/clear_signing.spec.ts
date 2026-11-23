@@ -1,6 +1,7 @@
 import test from "ava";
 
 import {
+  AssetInfo,
   BagAsset,
   BagFormat,
   BagPayment,
@@ -11,6 +12,7 @@ import {
   Clvm,
   Coin,
   CoinSpend,
+  Constants,
   customMemberHash,
   force1Of2Restriction,
   forceSingletonRecreationRestriction,
@@ -20,11 +22,15 @@ import {
   MemberConfig,
   MipsSpend,
   mOfNHash,
+  NotarizedPayment,
+  Offer,
   parseVaultTransaction,
   passkeyMemberHash,
+  Payment,
   preventVaultSideEffectsRestriction,
   r1MemberHash,
   R1Pair,
+  RequestedPayments,
   Reveals,
   SecureTheBag,
   sha256,
@@ -144,6 +150,83 @@ test("parses a vault transaction and signs the coin message", (t) => {
     sim.newTransaction(new SpendBundle(coinSpends, alice.sk.sign(message))),
   );
 });
+
+// A received payment is only bound to the transaction if its nonce commits to a coin that the transaction spends,
+// which is how offers are notarized. Otherwise, one payment could satisfy another offer with the same nonce.
+for (const [name, bound] of [
+  ["offered coins", true],
+  ["unrelated", false],
+] as const) {
+  test(`reports whether a received payment's nonce is bound (${name})`, (t) => {
+    const sim = new Simulator();
+    const clvm = new Clvm();
+
+    const alice = sim.bls(0n);
+    const config = new MemberConfig().withTopLevel(true);
+
+    const [vault, coin] = mintVaultWithCoin(
+      sim,
+      clvm,
+      blsMemberHash(config, alice.pk, false),
+      1000n,
+    );
+
+    const nonce = bound ? Offer.nonce([coin.coinId()]) : new Uint8Array(32);
+    const notarizedPayment = new NotarizedPayment(nonce, [
+      new Payment(coin.puzzleHash, 500n, clvm.nil()),
+    ]);
+    const requestedPayments = new RequestedPayments(clvm);
+    requestedPayments.addXch(notarizedPayment);
+
+    // The vault offers its coin, and asserts that the payment is made in return
+    const coinDelegatedSpend = clvm.delegatedSpend([
+      clvm.createCoin(Constants.settlementPaymentHash(), 1000n, null),
+    ]);
+
+    const delegatedSpend = clvm.delegatedSpend([
+      clvm.createCoin(vault.info.custodyHash, vault.coin.amount, null),
+      clvm.sendMessage(23, coinDelegatedSpend.puzzle.treeHash(), [
+        clvm.alloc(coin.coinId()),
+      ]),
+      ...requestedPayments.assertions(new AssetInfo(clvm)),
+    ]);
+
+    const p2Spend = clvm.mipsSpend(coin, coinDelegatedSpend);
+    p2Spend.singletonMember(
+      config,
+      vault.info.launcherId,
+      false,
+      vault.info.custodyHash,
+      vault.coin.amount,
+    );
+    clvm.spendCoin(coin, p2Spend.spend(coin.puzzleHash));
+
+    // The requested payment is revealed by a settlement spend
+    const settlementSpend = clvm.settlementSpend([notarizedPayment]);
+    const coinSpends = [
+      ...clvm.coinSpends(),
+      new CoinSpend(
+        new Coin(new Uint8Array(32), Constants.settlementPaymentHash(), 500n),
+        settlementSpend.puzzle.serialize(),
+        settlementSpend.solution.serialize(),
+      ),
+    ];
+
+    const tx = parseVaultTransaction(
+      clvm,
+      Reveals.fromCoinSpends(clvm, coinSpends),
+      vault.info.launcherId,
+      delegatedSpend,
+    );
+
+    t.is(tx.receivedPayments.length, 1);
+    const [payment] = tx.receivedPayments;
+    t.deepEqual(payment.nonce, Buffer.from(nonce));
+    t.is(payment.payment.amount, 500n);
+    t.is(payment.nonceBound, bound);
+    t.is(payment.royaltyBasisPoints, null);
+  });
+}
 
 test("parses a vault transaction funding a secure the bag", (t) => {
   const sim = new Simulator();
