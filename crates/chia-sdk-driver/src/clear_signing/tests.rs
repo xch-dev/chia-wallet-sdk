@@ -4934,6 +4934,88 @@ fn test_clear_signing_push_through_doesnt_bind_nonce() -> Result<()> {
 }
 
 #[rstest]
+fn test_clear_signing_descendant_push_through_doesnt_bind_nonce() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    sim.set_next_timestamp(2000)?;
+
+    // The vault creates an expired clawback to itself and asserts its push-through. The push-through is verified, but
+    // anyone can leave it out, and another of the vault's transactions could spend the clawback by its receiver path
+    // instead, which would satisfy the assertion as well.
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, alice.p2_puzzle_hash, 1000, 1, true);
+    let actions = [Action::send(
+        Id::Xch,
+        clawback.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let clawback_coin = Coin::new(input_coin_id, clawback.tree_hash().into(), 1);
+
+    let input_coin_payment = NotarizedPayment::new(
+        Offer::nonce(vec![input_coin_id]),
+        vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
+    );
+    let clawback_payment = NotarizedPayment::new(
+        Offer::nonce(vec![clawback_coin.coin_id()]),
+        vec![Payment::new(alice.p2_puzzle_hash, 2, Memos::None)],
+    );
+
+    let mut vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+    let mut requested_payments = Vec::new();
+
+    for payment in [&input_coin_payment, &clawback_payment] {
+        vault_conditions = vault_conditions.assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            tree_hash_notarized_payment(&ctx, payment),
+        ));
+        requested_payments.push(requested_payment_spend(
+            &mut ctx,
+            Bytes32::default(),
+            payment,
+        )?);
+    }
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let coin_spends = [result.spend_bundle.coin_spends, requested_payments].concat();
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin() == clawback_coin
+                && spend.clawback == Some(ClawbackInfo::new(clawback, ClawbackPath::PushThrough)))
+    );
+    assert_eq!(tx.received_payments.len(), 2);
+
+    for payment in &tx.received_payments {
+        assert_eq!(payment.nonce_bound, payment.payment.amount == 1);
+    }
+
+    Ok(())
+}
+
+#[rstest]
 fn test_clear_signing_linked_offer_nonce_bound(
     #[values(false, true)] bound: bool,
     #[values(false, true)] asserted_by_vault: bool,

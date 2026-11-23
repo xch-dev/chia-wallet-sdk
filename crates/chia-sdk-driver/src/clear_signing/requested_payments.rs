@@ -107,12 +107,14 @@ impl TradeContext {
     /// Creates the context of the payments asserted by a transaction with the verified spends.
     ///
     /// A nonce is bound if it commits to coins that only this transaction can spend: the coins of the verified spends
-    /// that receive a message from the vault, and of the spends of their descendants. Another transaction can't send
-    /// the same coin a message without making the bundle invalid, and a descendant can't exist without it. A spend
-    /// that's only verified because the transaction asserts it, such as a clawback push-through, isn't included,
-    /// since any number of transactions confirmed together can assert the same spend. This assumes that the
-    /// conditions the vault commits to don't themselves receive another message from it, which would let the coin's
-    /// one spend take a message from a second transaction too.
+    /// that receive a message from the vault, and of the spends of their descendants that can only be spent one way.
+    /// Another transaction can't send the same coin a message without making the bundle invalid, and a descendant
+    /// can't exist without it. A spend that's only verified because the transaction asserts it isn't included if its
+    /// coin can be spent another way (a clawback by its other paths, or a revocable CAT by its hidden puzzle), or
+    /// isn't a descendant at all, since any number of transactions confirmed together can assert the same spend, and
+    /// one of them could spend the coin the other way. This assumes that the conditions the vault commits to don't
+    /// themselves receive another message from it, which would let the coin's one spend take a message from a second
+    /// transaction too.
     ///
     /// The nonce can commit to one of these coins, or to all of them that aren't created by another verified spend,
     /// which are the coins an offer made by the transaction offers. It commits to a set of coins if it's
@@ -188,8 +190,8 @@ impl TradeContext {
     }
 }
 
-/// The verified spends that only this transaction can spend, which are those that receive a message from the vault and
-/// the spends of their descendants, in no particular order.
+/// The verified spends that only this transaction can spend, in no particular order. These are the spends that receive
+/// a message from the vault, and the spends of their descendants that can only happen the way they're shown.
 fn exclusive_spends(spends: &[VerifiedSpend]) -> Vec<&VerifiedSpend> {
     let spends_by_coin_id: HashMap<Bytes32, &VerifiedSpend> = spends
         .iter()
@@ -211,13 +213,25 @@ fn exclusive_spends(spends: &[VerifiedSpend]) -> Vec<&VerifiedSpend> {
         exclusive_spends.push(spend);
 
         for child in &spend.children {
-            if let Some(&child_spend) = spends_by_coin_id.get(&child.asset.coin().coin_id()) {
+            if let Some(&child_spend) = spends_by_coin_id.get(&child.asset.coin().coin_id())
+                && has_one_path(child_spend)
+            {
                 stack.push(child_spend);
             }
         }
     }
 
     exclusive_spends
+}
+
+/// Whether the coin can only be spent the way the verified spend shows. A spend that receives a message from the vault
+/// can't be replaced without leaving the message unreceived. Any other verified spend has conditions fixed by its
+/// puzzle, which can only be spent another way if it's a clawback (by its other paths) or a revocable CAT (by its
+/// hidden puzzle).
+fn has_one_path(spend: &VerifiedSpend) -> bool {
+    spend.custody.receives_message()
+        || (spend.clawback.is_none()
+            && !matches!(&spend.asset, ParsedAsset::Cat(cat) if cat.info.hidden_puzzle_hash.is_some()))
 }
 
 /// The nonce that chia-blockchain and Cloud Wallet notarize an offer's requested payments with: the tree hash of the
