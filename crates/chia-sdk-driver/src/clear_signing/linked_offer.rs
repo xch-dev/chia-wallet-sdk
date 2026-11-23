@@ -30,8 +30,9 @@ pub struct LinkedOffer {
 /// [`LinkedOffer`], or returns `None` if there are none.
 ///
 /// The payments are checked against the transaction's `trade` context, since the pre-split coins can only exist if
-/// the transaction is confirmed, with the settlement amounts of the pre-split coins as the value of the trade. The transaction's own `asserted_payments` are shared with the linked offer, so a
-/// payment that both assert isn't bound.
+/// the transaction is confirmed, with the settlement amounts of the pre-split coins as the value of the trade. The
+/// transaction's own `asserted_payments` are shared with the linked offer, so a payment that both assert isn't
+/// bound.
 ///
 /// Returns [`DriverError::WrongLinkedOfferLauncherId`] if a pre-split coin belongs to a vault other than
 /// `expected_launcher_id`.
@@ -41,7 +42,7 @@ pub fn build_linked_offer(
     spends: &[VerifiedSpend],
     expected_launcher_id: Bytes32,
     p2_puzzle_hashes: &HashSet<Bytes32>,
-    trade: &TradeContext,
+    mut trade: TradeContext,
     asserted_payments: &[AssertedNotarizedPayment],
 ) -> Result<Option<LinkedOffer>, DriverError> {
     let mut linked_offer = LinkedOffer {
@@ -49,7 +50,6 @@ pub fn build_linked_offer(
         received_payments: vec![],
         external_payments: vec![],
     };
-    let mut trade = trade.clone();
     let mut has_offer = false;
     let mut reserved_fee = 0_u128;
     let mut found_puzzle_assertions: Option<HashSet<Bytes32>> = None;

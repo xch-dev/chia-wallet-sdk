@@ -1009,7 +1009,7 @@ fn parse_vault(
         &verified_spends,
         launcher_id,
         &p2_puzzle_hash_set,
-        &trade,
+        trade,
         &asserted_payments,
     )?;
 
@@ -1308,11 +1308,7 @@ fn build_asset_flows(
     issuances: &[Issuance],
     reserved_fee: u64,
 ) -> Vec<AssetFlow> {
-    let child_coin_ids: HashSet<Bytes32> = spends
-        .iter()
-        .flat_map(|spend| spend.children.iter())
-        .map(|child| child.asset.coin().coin_id())
-        .collect();
+    let child_coin_ids = child_coin_ids(spends);
     let spend_by_coin_id: HashMap<Bytes32, &VerifiedSpend> = spends
         .iter()
         .map(|spend| (spend.asset.coin().coin_id(), spend))
@@ -1502,6 +1498,16 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     }
 
     p2_puzzle_hashes
+}
+
+/// The coin ids of the children of the spends. A spend whose coin isn't one of them is an input of the transaction,
+/// since its coin existed before it.
+pub(super) fn child_coin_ids(spends: &[VerifiedSpend]) -> HashSet<Bytes32> {
+    spends
+        .iter()
+        .flat_map(|spend| &spend.children)
+        .map(|child| child.asset.coin().coin_id())
+        .collect()
 }
 
 /// The children of the spends that aren't spent again by another spend in the list, which are the coins that remain

@@ -4008,11 +4008,11 @@ fn test_clear_signing_asserted_nft_payment_with_owner(
 }
 
 /// How an NFT's royalty payment relates to the trade it's asserted with.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RoyaltyCase {
-    /// The NFT's payment is asserted, and the royalty is 3% of the 1000 mojo price.
+    /// The NFT's payment is asserted, and the royalty is 50% of the 1000 mojo trade value.
     Royalty,
-    /// The royalty is more than 3% of the price.
+    /// The royalty is more than 50% of the trade value.
     TooLarge,
     /// The NFT's info is revealed, but its payment isn't asserted, so it isn't part of the trade.
     NftNotInTrade,
@@ -4020,8 +4020,21 @@ enum RoyaltyCase {
     WrongPuzzleHash,
 }
 
+/// Where the value of the trade, which the royalty is checked against, comes from.
+#[derive(Debug, Clone, Copy)]
+enum TradeValue {
+    /// The vault asserts a payment of the price to the seller.
+    PricePayment,
+    /// The vault sends the price to the settlement puzzle.
+    Offered,
+    /// The vault sends the price to a pre-split coin, whose fixed conditions assert the payments.
+    PreSplit,
+}
+
 #[rstest]
 fn test_clear_signing_royalty_payment(
+    #[values(TradeValue::PricePayment, TradeValue::Offered, TradeValue::PreSplit)]
+    trade_value: TradeValue,
     #[values(
         RoyaltyCase::Royalty,
         RoyaltyCase::TooLarge,
@@ -4034,8 +4047,10 @@ fn test_clear_signing_royalty_payment(
     let mut ctx = SpendContext::new();
 
     let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let coin = vault_coin(&alice, 1000);
 
-    // An NFT with a 3% royalty, which the vault requests
+    // An NFT with a 50% royalty, which the vault requests. It's high enough that counting the royalty itself as part
+    // of the trade value would make the TooLarge royalty fit.
     let settlement = ctx.alloc_mod::<SettlementPayment>()?;
     let info = NftInfo::new(
         Bytes32::new([1; 32]),
@@ -4043,7 +4058,7 @@ fn test_clear_signing_royalty_payment(
         NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
         None,
         Bytes32::new([2; 32]),
-        300,
+        5000,
         SETTLEMENT_PAYMENT_HASH.into(),
     );
     let nft_puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
@@ -4054,81 +4069,129 @@ fn test_clear_signing_royalty_payment(
         nonce,
         vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
     );
-
-    // The vault pays the seller 1000 mojos, and the royalty on top of it
-    let price_payment = NotarizedPayment::new(
-        nonce,
-        vec![Payment::new(Bytes32::new([3; 32]), 1000, Memos::None)],
-    );
     let royalty_payment = NotarizedPayment::new(
         info.launcher_id,
         vec![Payment::new(
-            if matches!(case, RoyaltyCase::WrongPuzzleHash) {
+            if case == RoyaltyCase::WrongPuzzleHash {
                 Bytes32::new([4; 32])
             } else {
                 info.royalty_puzzle_hash
             },
-            if matches!(case, RoyaltyCase::TooLarge) {
-                31
+            if case == RoyaltyCase::TooLarge {
+                501
             } else {
-                30
+                500
             },
             Memos::None,
         )],
     );
 
     let nft_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![nft_payment.clone()]))?;
-    let coin_spends = vec![
+    let mut coin_spends = vec![
         CoinSpend::new(
             Coin::new(Bytes32::default(), nft_puzzle_hash, 1),
             ctx.serialize(&nft_puzzle)?,
             ctx.serialize(&nft_solution)?,
         ),
-        requested_payment_spend(&mut ctx, Bytes32::default(), &price_payment)?,
         requested_payment_spend(&mut ctx, Bytes32::default(), &royalty_payment)?,
     ];
 
-    let mut conditions = Conditions::new();
+    let mut assertions = Conditions::new().assert_puzzle_announcement(announcement_id(
+        SETTLEMENT_PAYMENT_HASH.into(),
+        tree_hash_notarized_payment(&ctx, &royalty_payment),
+    ));
 
-    for payment in [&price_payment, &royalty_payment] {
-        conditions = conditions.assert_puzzle_announcement(announcement_id(
-            SETTLEMENT_PAYMENT_HASH.into(),
-            tree_hash_notarized_payment(&ctx, payment),
-        ));
-    }
-
-    if !matches!(case, RoyaltyCase::NftNotInTrade) {
-        conditions = conditions.assert_puzzle_announcement(announcement_id(
+    if case != RoyaltyCase::NftNotInTrade {
+        assertions = assertions.assert_puzzle_announcement(announcement_id(
             nft_puzzle_hash,
             tree_hash_notarized_payment(&ctx, &nft_payment),
         ));
     }
 
-    let delegated_spend = ctx.delegated_spend(conditions.create_coin(
-        alice.info.custody_hash.into(),
-        1,
-        Memos::None,
-    ))?;
-    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, alice.info.launcher_id, delegated_spend)?;
+    let mut p2 = None;
+
+    let (coin_conditions, vault_conditions) = match trade_value {
+        TradeValue::PricePayment => {
+            let price_payment = NotarizedPayment::new(
+                nonce,
+                vec![Payment::new(Bytes32::new([3; 32]), 1000, Memos::None)],
+            );
+            coin_spends.push(requested_payment_spend(
+                &mut ctx,
+                Bytes32::default(),
+                &price_payment,
+            )?);
+            let assertions = assertions.assert_puzzle_announcement(announcement_id(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                tree_hash_notarized_payment(&ctx, &price_payment),
+            ));
+
+            (
+                Conditions::new().create_coin(alice.p2_puzzle_hash, 1000, Memos::None),
+                assertions,
+            )
+        }
+        TradeValue::Offered => (
+            Conditions::new().create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
+            assertions,
+        ),
+        TradeValue::PreSplit => {
+            let fixed_conditions =
+                assertions.create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None);
+            let fixed_spend = ctx.delegated_spend(fixed_conditions.clone())?;
+            let pre_split = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+                alice.info.launcher_id,
+                0,
+                ctx.tree_hash(fixed_spend.puzzle).into(),
+                P2ConditionsOrSingletonVersion::FixedPuzzleMember,
+            );
+            let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &fixed_conditions))?;
+            p2 = Some(pre_split);
+
+            (
+                Conditions::new().create_coin(pre_split.tree_hash().into(), 1000, memos),
+                Conditions::new(),
+            )
+        }
+    };
+
+    let delegated_spend = ctx.delegated_spend(coin_conditions)?;
+    let tx = parse_linked_spend_with_reveals(
+        &mut ctx,
+        &alice,
+        coin,
+        delegated_spend,
+        vault_conditions,
+        &coin_spends,
+        |reveals| {
+            if let Some(p2) = p2 {
+                reveals.reveal_p2_conditions_or_singleton(p2);
+            }
+        },
+    )??;
 
     // The royalty payment is reported either way, but only labeled when it's a royalty of the trade
-    let royalty = tx
-        .external_payments
+    let external_payments = if let TradeValue::PreSplit = trade_value {
+        assert!(tx.external_payments.is_empty());
+        tx.linked_offer.unwrap().external_payments
+    } else {
+        tx.external_payments
+    };
+
+    let royalty = external_payments
         .iter()
         .find(|payment| payment.nonce == info.launcher_id)
         .unwrap();
     assert_eq!(
         royalty.royalty_basis_points,
-        matches!(case, RoyaltyCase::Royalty).then_some(300)
+        (case == RoyaltyCase::Royalty).then_some(5000)
     );
 
-    let price = tx
-        .external_payments
-        .iter()
-        .find(|payment| payment.nonce == nonce)
-        .unwrap();
-    assert_eq!(price.royalty_basis_points, None);
+    for payment in &external_payments {
+        if payment.nonce != info.launcher_id {
+            assert_eq!(payment.royalty_basis_points, None);
+        }
+    }
 
     Ok(())
 }
@@ -4465,19 +4528,19 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     Ok(())
 }
 
-/// The coin ids of the coins selected for the spends, which are the coins an offer made from them offers.
-fn selected_coin_ids(spends: &Spends) -> Vec<Bytes32> {
+/// The coins selected for the spends, which are the coins an offer made from them offers.
+fn selected_coins(spends: &Spends) -> Vec<Coin> {
     spends
         .xch
         .items
         .iter()
-        .map(|item| item.asset.coin_id())
+        .map(|item| item.asset)
         .chain(
             spends
                 .cats
                 .values()
                 .flat_map(|cats| &cats.items)
-                .map(|item| item.asset.coin.coin_id()),
+                .map(|item| item.asset.coin),
         )
         .collect()
 }
@@ -4526,8 +4589,11 @@ fn requested_payment_spend(
 /// How the nonce of a requested payment is chosen, given the coins that the offer spends.
 #[derive(Debug, Clone, Copy)]
 enum NonceKind {
-    /// `Offer::nonce` of every offered coin, which is how offers are notarized.
+    /// `Offer::nonce` of every offered coin, which is how the SDK notarizes offers.
     OfferedCoins,
+    /// The tree hash of every offered coin as a `(parent_coin_info puzzle_hash amount)` list, sorted by coin id, which
+    /// is how chia-blockchain and Cloud Wallet notarize offers.
+    OfferedCoinList,
     /// `Offer::nonce` of one of the offered coins.
     OneOfferedCoin,
     /// The id of one of the offered coins.
@@ -4539,20 +4605,32 @@ enum NonceKind {
 }
 
 impl NonceKind {
-    fn nonce(self, offered_coin_ids: &[Bytes32]) -> Bytes32 {
-        match self {
-            Self::OfferedCoins => Offer::nonce(offered_coin_ids.to_vec()),
-            Self::OneOfferedCoin => Offer::nonce(vec![offered_coin_ids[1]]),
-            Self::OfferedCoinId => offered_coin_ids[0],
+    fn nonce(self, ctx: &mut SpendContext, offered_coins: &[Coin]) -> Result<Bytes32> {
+        let coin_ids: Vec<Bytes32> = offered_coins.iter().map(Coin::coin_id).collect();
+
+        Ok(match self {
+            Self::OfferedCoins => Offer::nonce(coin_ids),
+            Self::OfferedCoinList => {
+                let mut coins = offered_coins.to_vec();
+                coins.sort_by_key(Coin::coin_id);
+                let coins: Vec<_> = coins
+                    .iter()
+                    .map(|coin| (coin.parent_coin_info, (coin.puzzle_hash, (coin.amount, ()))))
+                    .collect();
+                let coins = ctx.alloc(&coins)?;
+                ctx.tree_hash(coins).into()
+            }
+            Self::OneOfferedCoin => Offer::nonce(vec![coin_ids[1]]),
+            Self::OfferedCoinId => coin_ids[0],
             Self::OtherCoin => Offer::nonce(vec![Bytes32::new([7; 32])]),
             Self::Default => Bytes32::default(),
-        }
+        })
     }
 
     fn is_bound(self) -> bool {
         matches!(
             self,
-            Self::OfferedCoins | Self::OneOfferedCoin | Self::OfferedCoinId
+            Self::OfferedCoins | Self::OfferedCoinList | Self::OneOfferedCoin | Self::OfferedCoinId
         )
     }
 }
@@ -4561,12 +4639,14 @@ impl NonceKind {
 fn test_clear_signing_offer_nonce_bound(
     #[values(
         NonceKind::OfferedCoins,
+        NonceKind::OfferedCoinList,
         NonceKind::OneOfferedCoin,
         NonceKind::OfferedCoinId,
         NonceKind::OtherCoin,
         NonceKind::Default
     )]
     nonce_kind: NonceKind,
+    #[values(false, true)] issues_cat: bool,
 ) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
@@ -4575,19 +4655,37 @@ fn test_clear_signing_offer_nonce_bound(
     let IssuedAsset { id, .. } = issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 400)?;
 
     // Offer XCH and a CAT, so that two coins are offered
-    let actions = [
+    let mut actions = vec![
         Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 100, Memos::None),
         Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 400, Memos::None),
     ];
 
+    // Issuing a CAT in the same transaction creates and spends an eve coin, which isn't offered since it doesn't
+    // exist before the transaction.
+    if issues_cat {
+        let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+            alice.info.launcher_id,
+            Bytes::new(vec![1]),
+        ))?;
+        let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+            alice.info.custody_hash.into(),
+        ))?;
+        actions.push(Action::issue_cat(
+            Spend::new(tail_puzzle, tail_solution),
+            None,
+            10,
+        ));
+    }
+
     let mut spends = Spends::new(alice.p2_puzzle_hash);
     alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
 
-    let offered_coin_ids = selected_coin_ids(&spends);
-    assert_eq!(offered_coin_ids.len(), 2);
+    let offered_coins = selected_coins(&spends);
+    let offered_coin_ids: Vec<Bytes32> = offered_coins.iter().map(Coin::coin_id).collect();
+    assert_eq!(offered_coins.len(), 2);
 
     let notarized_payment = NotarizedPayment::new(
-        nonce_kind.nonce(&offered_coin_ids),
+        nonce_kind.nonce(&mut ctx, &offered_coins)?,
         vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
     );
     let notarized_payment_hash = tree_hash_notarized_payment(&ctx, &notarized_payment);
@@ -4617,6 +4715,7 @@ fn test_clear_signing_offer_nonce_bound(
         input_coin_ids(&tx),
         offered_coin_ids.iter().copied().collect()
     );
+    assert_eq!(tx.spends.len() > offered_coins.len(), issues_cat);
     assert_eq!(tx.received_payments.len(), 1);
     assert_eq!(tx.received_payments[0].nonce, notarized_payment.nonce);
     assert_eq!(tx.received_payments[0].nonce_bound, nonce_kind.is_bound());
@@ -4700,7 +4799,7 @@ fn test_clear_signing_linked_offer_nonce_bound(
     )?;
 
     let nonce = if bound {
-        Offer::nonce(selected_coin_ids(&spends))
+        Offer::nonce(selected_coins(&spends).iter().map(Coin::coin_id).collect())
     } else {
         Bytes32::default()
     };
@@ -5679,6 +5778,27 @@ fn parse_linked_spend(
     vault_conditions: Conditions,
     extra_coin_spends: &[CoinSpend],
 ) -> Result<Result<VaultTransaction, DriverError>> {
+    parse_linked_spend_with_reveals(
+        ctx,
+        vault,
+        coin,
+        delegated_spend,
+        vault_conditions,
+        extra_coin_spends,
+        |_| {},
+    )
+}
+
+/// Like [`parse_linked_spend`], but reveals more to clear signing before parsing.
+fn parse_linked_spend_with_reveals(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    coin: Coin,
+    delegated_spend: Spend,
+    vault_conditions: Conditions,
+    extra_coin_spends: &[CoinSpend],
+    reveal: impl FnOnce(&mut Reveals),
+) -> Result<Result<VaultTransaction, DriverError>> {
     let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle);
 
     let TestP2Puzzle::P2Singleton(p2_singleton) = vault.p2_puzzles[&vault.p2_puzzle_hash.into()]
@@ -5700,7 +5820,8 @@ fn parse_linked_spend(
             .create_coin(vault.info.custody_hash.into(), 1, Memos::None),
     )?;
 
-    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+    let mut reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+    reveal(&mut reveals);
 
     Ok(parse_vault_transaction(
         reveals,

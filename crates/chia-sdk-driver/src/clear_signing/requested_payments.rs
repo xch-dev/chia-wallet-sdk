@@ -1,11 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
+use clvm_traits::clvm_list;
+use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 
+use super::vault_transaction::child_coin_ids;
 use crate::{
     CatInfo, DriverError, Facts, HashedPtr, NftInfo, Offer, OptionInfo, ParsedAsset, Reveals,
     SingletonInfo, VerifiedSpend,
@@ -105,46 +108,46 @@ impl TradeContext {
     /// the spends of the `asserted_spends` coin ids (with `ASSERT_CONCURRENT_SPEND` in its trusted conditions).
     ///
     /// The coins that the transaction is guaranteed to spend are those of the verified spends and the asserted
-    /// spends. A nonce is bound if it's one of their coin ids, [`Offer::nonce`] of one of them, or [`Offer::nonce`]
-    /// of the verified spends' input coins (those that aren't created by another verified spend), which is how an
-    /// offer's requested payments are notarized. Any of these commits to coins that only one confirmed transaction
-    /// can spend.
+    /// spends. A nonce is bound if it commits to one of them, or to the verified spends' input coins (those that
+    /// aren't created by another verified spend), which are the coins an offer made by the transaction offers. It
+    /// commits to a set of coins if it's [`Offer::nonce`] of their ids, or the tree hash of the coins sorted by id,
+    /// each as a `(parent_coin_info puzzle_hash amount)` list, which is how chia-blockchain and Cloud Wallet notarize
+    /// an offer's requested payments. A single coin's id is also a bound nonce. Any of these commits to coins that
+    /// only one confirmed transaction can spend.
     ///
     /// The NFTs that the verified spends spend or create are part of the trade, so their royalties can be paid.
     pub fn new(
         spends: &[VerifiedSpend],
         asserted_spends: impl IntoIterator<Item = Bytes32>,
     ) -> Self {
-        let child_coin_ids: HashSet<Bytes32> = spends
-            .iter()
-            .flat_map(|spend| &spend.children)
-            .map(|child| child.asset.coin().coin_id())
-            .collect();
-
-        let mut input_coin_ids = Vec::new();
-        let mut spent_coin_ids = HashSet::new();
-
-        for spend in spends {
-            let coin_id = spend.asset.coin().coin_id();
-
-            if !child_coin_ids.contains(&coin_id) {
-                input_coin_ids.push(coin_id);
-            }
-
-            spent_coin_ids.insert(coin_id);
-        }
-
-        spent_coin_ids.extend(asserted_spends);
-
+        let child_coin_ids = child_coin_ids(spends);
+        let mut input_coins = Vec::new();
         let mut bound_nonces = HashSet::new();
 
-        for coin_id in spent_coin_ids {
+        for spend in spends {
+            let coin = spend.asset.coin();
+
+            if !child_coin_ids.contains(&coin.coin_id()) {
+                input_coins.push(coin);
+            }
+
+            bound_nonces.insert(coin_list_nonce(vec![coin]));
+        }
+
+        for coin_id in spends
+            .iter()
+            .map(|spend| spend.asset.coin().coin_id())
+            .chain(asserted_spends)
+        {
             bound_nonces.insert(coin_id);
             bound_nonces.insert(Offer::nonce(vec![coin_id]));
         }
 
-        if !input_coin_ids.is_empty() {
-            bound_nonces.insert(Offer::nonce(input_coin_ids));
+        if !input_coins.is_empty() {
+            bound_nonces.insert(Offer::nonce(
+                input_coins.iter().map(Coin::coin_id).collect(),
+            ));
+            bound_nonces.insert(coin_list_nonce(input_coins));
         }
 
         let mut nft_royalties = HashMap::new();
@@ -192,6 +195,20 @@ impl TradeContext {
         self.bound_nonces.contains(&payment.notarized_payment.nonce)
             && !self.shared_payments.contains(payment)
     }
+}
+
+/// The nonce that chia-blockchain and Cloud Wallet notarize an offer's requested payments with: the tree hash of the
+/// offered coins sorted by id, each as a `(parent_coin_info puzzle_hash amount)` list. Unlike [`Offer::nonce`], it
+/// hashes the coins rather than their ids, but it commits to the same coins.
+fn coin_list_nonce(mut coins: Vec<Coin>) -> Bytes32 {
+    coins.sort_by_key(Coin::coin_id);
+
+    coins
+        .iter()
+        .map(|coin| clvm_list!(coin.parent_coin_info, coin.puzzle_hash, coin.amount))
+        .collect::<Vec<_>>()
+        .tree_hash()
+        .into()
 }
 
 /// Asserted payments, split by whether they're paid to the vault.
