@@ -35,13 +35,13 @@ pub struct AssertedPayment {
     pub payment: Payment,
     /// The royalty of the NFT, if this is a royalty payment of an NFT that's part of the trade.
     ///
-    /// It's set if the nonce is the launcher id of an NFT that a verified spend spends, or whose payment
-    /// is asserted along with this one, the NFT has a royalty, the payment is of XCH or a CAT to its royalty puzzle
-    /// hash, and the amount is at most the royalty of the trade's value in that asset. The value is what the trade
-    /// sends to the settlement puzzle in the asset plus the other payments of it that are asserted along with this
-    /// one. Since each royalty is a share of an NFT's trade price, which is at most this value, a larger payment
-    /// isn't a royalty. The NFT's royalty puzzle hash and basis points come from its verified spend or from the
-    /// puzzle hash its payment asserts, so they can't be made up.
+    /// It's set if the nonce is the launcher id of an NFT that a verified spend spends, or whose payment is asserted
+    /// along with this one, the NFT has a royalty of at most 100%, the payment is of XCH or a CAT to its royalty
+    /// puzzle hash, and the NFT's royalty payments in that asset add up to at most the royalty of the trade's value in
+    /// it. The value is what the trade sends to the settlement puzzle in the asset plus the other payments of it that
+    /// are asserted along with this one. Since a royalty is a share of an NFT's trade price, which is at most this
+    /// value, larger payments aren't a royalty. The NFT's royalty puzzle hash and basis points come from its verified
+    /// spend or from the puzzle hash its payment asserts, so they can't be made up.
     ///
     /// This is a hint for showing the payment, which is reported either way.
     pub royalty_basis_points: Option<u16>,
@@ -312,19 +312,23 @@ pub fn split_asserted_payments(
         }
     }
 
-    // The basis points of the royalty, if the payment could be one, before its amount is checked.
+    // The basis points of the royalty, if the payment could be one, before its amount is checked. A royalty is a
+    // share of the trade price, so it can't be more than all of it.
     let royalty_candidate =
         |asserted_notarized_payment: &AssertedNotarizedPayment, payment: &Payment| -> Option<u16> {
             let royalty = nft_royalties.get(&asserted_notarized_payment.notarized_payment.nonce)?;
 
             (FungibleAsset::from_asset(asserted_notarized_payment.asset).is_some()
-                && royalty.basis_points > 0
+                && (1..=10_000).contains(&royalty.basis_points)
                 && payment.puzzle_hash == royalty.puzzle_hash)
                 .then_some(royalty.basis_points)
         };
 
-    // The value of the trade in each asset, which is what royalties are a share of.
+    // The value of the trade in each asset, which is what royalties are a share of, and the total of each NFT's
+    // royalty payments in each asset. An NFT's royalty is checked as a whole, so that splitting it into several
+    // payments doesn't let each of them be as large as the whole royalty.
     let mut trade_values = trade.settlement_amounts.clone();
+    let mut royalty_totals: HashMap<(Bytes32, FungibleAsset), u128> = HashMap::new();
 
     for asserted_notarized_payment in asserted_payments {
         let Some(asset) = FungibleAsset::from_asset(asserted_notarized_payment.asset) else {
@@ -332,8 +336,14 @@ pub fn split_asserted_payments(
         };
 
         for payment in &asserted_notarized_payment.notarized_payment.payments {
-            if royalty_candidate(asserted_notarized_payment, payment).is_none() {
-                *trade_values.entry(asset).or_default() += u128::from(payment.amount);
+            let amount = u128::from(payment.amount);
+
+            if royalty_candidate(asserted_notarized_payment, payment).is_some() {
+                *royalty_totals
+                    .entry((asserted_notarized_payment.notarized_payment.nonce, asset))
+                    .or_default() += amount;
+            } else {
+                *trade_values.entry(asset).or_default() += amount;
             }
         }
     }
@@ -343,15 +353,22 @@ pub fn split_asserted_payments(
 
     for asserted_notarized_payment in asserted_payments {
         let nonce_bound = trade.is_bound(asserted_notarized_payment);
-        let trade_value = FungibleAsset::from_asset(asserted_notarized_payment.asset)
+        let asset = FungibleAsset::from_asset(asserted_notarized_payment.asset);
+        let trade_value = asset
             .and_then(|asset| trade_values.get(&asset))
+            .copied()
+            .unwrap_or_default();
+        let royalty_total = asset
+            .and_then(|asset| {
+                royalty_totals.get(&(asserted_notarized_payment.notarized_payment.nonce, asset))
+            })
             .copied()
             .unwrap_or_default();
 
         for payment in &asserted_notarized_payment.notarized_payment.payments {
             let royalty_basis_points = royalty_candidate(asserted_notarized_payment, payment)
                 .filter(|&basis_points| {
-                    u128::from(payment.amount) <= trade_value * u128::from(basis_points) / 10_000
+                    royalty_total <= trade_value * u128::from(basis_points) / 10_000
                 });
 
             let asserted_payment = AssertedPayment {
@@ -525,4 +542,83 @@ pub fn parse_asserted_requested_payments(
     }
 
     Ok(payments)
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_puzzle_types::Memos;
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    fn test_royalty_is_checked_against_the_same_cat(
+        #[values(false, true)] price_is_revocable: bool,
+    ) {
+        let asset_id = Bytes32::new([1; 32]);
+        let launcher_id = Bytes32::new([2; 32]);
+        let royalty_puzzle_hash = Bytes32::new([3; 32]);
+        let nonce = Bytes32::new([4; 32]);
+
+        let cat = ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: None,
+        };
+        let revocable_cat = ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: Some(Bytes32::new([5; 32])),
+        };
+
+        let payment = |asset, nonce, puzzle_hash, amount| AssertedNotarizedPayment {
+            asset,
+            notarized_payment: NotarizedPayment::new(
+                nonce,
+                vec![Payment::new(puzzle_hash, amount, Memos::None)],
+            ),
+        };
+
+        // The vault receives an NFT with a 50% royalty, and pays the price and the royalty in a CAT. A revocable CAT
+        // with the same asset id is a different asset, so a price paid in it isn't the value the royalty is a share of.
+        let asserted_payments = [
+            payment(
+                ClearSigningAsset::Nft {
+                    launcher_id,
+                    metadata: HashedPtr::NIL,
+                    metadata_updater_puzzle_hash: Bytes32::default(),
+                    royalty_puzzle_hash,
+                    royalty_basis_points: 5000,
+                },
+                nonce,
+                Bytes32::new([6; 32]),
+                1,
+            ),
+            payment(
+                if price_is_revocable {
+                    revocable_cat
+                } else {
+                    cat
+                },
+                nonce,
+                Bytes32::new([7; 32]),
+                1000,
+            ),
+            payment(cat, launcher_id, royalty_puzzle_hash, 500),
+        ];
+
+        let split = split_asserted_payments(
+            &asserted_payments,
+            &HashSet::new(),
+            &TradeContext::default(),
+        );
+
+        let royalty = split
+            .external_payments
+            .iter()
+            .find(|payment| payment.nonce == launcher_id)
+            .unwrap();
+        assert_eq!(
+            royalty.royalty_basis_points,
+            (!price_is_revocable).then_some(5000)
+        );
+    }
 }

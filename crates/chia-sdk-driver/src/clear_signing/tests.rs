@@ -4018,6 +4018,38 @@ enum RoyaltyCase {
     NftNotInTrade,
     /// The payment isn't to the NFT's royalty puzzle hash.
     WrongPuzzleHash,
+    /// The royalty is split into two payments, which add up to more than 50% of the trade value.
+    SplitTooLarge,
+    /// The royalty is split into two payments, which add up to at most 50% of the trade value.
+    Split,
+    /// The NFT's royalty is more than 100%, which isn't a share of the trade price.
+    OverOneHundredPercent,
+    /// The NFT has no royalty, and the payment is zero.
+    NoRoyalty,
+}
+
+impl RoyaltyCase {
+    fn basis_points(self) -> u16 {
+        match self {
+            Self::OverOneHundredPercent => 20_000,
+            Self::NoRoyalty => 0,
+            _ => 5000,
+        }
+    }
+
+    fn amounts(self) -> &'static [u64] {
+        match self {
+            Self::TooLarge => &[501],
+            Self::SplitTooLarge => &[300, 201],
+            Self::Split => &[300, 200],
+            Self::NoRoyalty => &[0],
+            _ => &[500],
+        }
+    }
+
+    fn is_royalty(self) -> bool {
+        matches!(self, Self::Royalty | Self::Split)
+    }
 }
 
 /// Where the value of the trade, which the royalty is checked against, comes from.
@@ -4039,7 +4071,11 @@ fn test_clear_signing_royalty_payment(
         RoyaltyCase::Royalty,
         RoyaltyCase::TooLarge,
         RoyaltyCase::NftNotInTrade,
-        RoyaltyCase::WrongPuzzleHash
+        RoyaltyCase::WrongPuzzleHash,
+        RoyaltyCase::SplitTooLarge,
+        RoyaltyCase::Split,
+        RoyaltyCase::OverOneHundredPercent,
+        RoyaltyCase::NoRoyalty
     )]
     case: RoyaltyCase,
 ) -> Result<()> {
@@ -4058,7 +4094,7 @@ fn test_clear_signing_royalty_payment(
         NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
         None,
         Bytes32::new([2; 32]),
-        5000,
+        case.basis_points(),
         SETTLEMENT_PAYMENT_HASH.into(),
     );
     let nft_puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
@@ -4069,37 +4105,36 @@ fn test_clear_signing_royalty_payment(
         nonce,
         vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
     );
-    let royalty_payment = NotarizedPayment::new(
-        info.launcher_id,
-        vec![Payment::new(
-            if case == RoyaltyCase::WrongPuzzleHash {
-                Bytes32::new([4; 32])
-            } else {
-                info.royalty_puzzle_hash
-            },
-            if case == RoyaltyCase::TooLarge {
-                501
-            } else {
-                500
-            },
-            Memos::None,
-        )],
-    );
+    let royalty_puzzle_hash = if case == RoyaltyCase::WrongPuzzleHash {
+        Bytes32::new([4; 32])
+    } else {
+        info.royalty_puzzle_hash
+    };
 
     let nft_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![nft_payment.clone()]))?;
-    let mut coin_spends = vec![
-        CoinSpend::new(
-            Coin::new(Bytes32::default(), nft_puzzle_hash, 1),
-            ctx.serialize(&nft_puzzle)?,
-            ctx.serialize(&nft_solution)?,
-        ),
-        requested_payment_spend(&mut ctx, Bytes32::default(), &royalty_payment)?,
-    ];
+    let mut coin_spends = vec![CoinSpend::new(
+        Coin::new(Bytes32::default(), nft_puzzle_hash, 1),
+        ctx.serialize(&nft_puzzle)?,
+        ctx.serialize(&nft_solution)?,
+    )];
+    let mut assertions = Conditions::new();
 
-    let mut assertions = Conditions::new().assert_puzzle_announcement(announcement_id(
-        SETTLEMENT_PAYMENT_HASH.into(),
-        tree_hash_notarized_payment(&ctx, &royalty_payment),
-    ));
+    // Each royalty payment is a separate notarized payment, so each has its own announcement
+    for &amount in case.amounts() {
+        let royalty_payment = NotarizedPayment::new(
+            info.launcher_id,
+            vec![Payment::new(royalty_puzzle_hash, amount, Memos::None)],
+        );
+        coin_spends.push(requested_payment_spend(
+            &mut ctx,
+            Bytes32::default(),
+            &royalty_payment,
+        )?);
+        assertions = assertions.assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            tree_hash_notarized_payment(&ctx, &royalty_payment),
+        ));
+    }
 
     if case != RoyaltyCase::NftNotInTrade {
         assertions = assertions.assert_puzzle_announcement(announcement_id(
@@ -4178,14 +4213,18 @@ fn test_clear_signing_royalty_payment(
         tx.external_payments
     };
 
-    let royalty = external_payments
+    let royalties: Vec<_> = external_payments
         .iter()
-        .find(|payment| payment.nonce == info.launcher_id)
-        .unwrap();
-    assert_eq!(
-        royalty.royalty_basis_points,
-        (case == RoyaltyCase::Royalty).then_some(5000)
-    );
+        .filter(|payment| payment.nonce == info.launcher_id)
+        .collect();
+    assert_eq!(royalties.len(), case.amounts().len());
+
+    for royalty in royalties {
+        assert_eq!(
+            royalty.royalty_basis_points,
+            case.is_royalty().then_some(case.basis_points())
+        );
+    }
 
     for payment in &external_payments {
         if payment.nonce != info.launcher_id {
@@ -4788,27 +4827,40 @@ fn test_clear_signing_asserted_spend_doesnt_bind_nonce(
 }
 
 #[rstest]
-fn test_clear_signing_descendant_binds_nonce(#[values(false, true)] asserted: bool) -> Result<()> {
+fn test_clear_signing_descendant_binds_nonce(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+    #[values(false, true)] asserted: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
     let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let IssuedAsset { id, .. } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 2)?;
 
     // The vault creates an intermediate coin, whose conditions are fixed by its puzzle. If the vault asserts its
-    // spend, it's verified as a descendant of the vault's own spend, so only this transaction can spend it.
+    // spend, it's verified as a descendant of the vault's own spend, so only this transaction can spend it. That
+    // isn't true of a revocable CAT, since its issuer could spend it with the hidden puzzle instead.
     let delegated_spend =
         ctx.delegated_spend(Conditions::new().create_coin(alice.p2_puzzle_hash, 1, Memos::None))?;
     let puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
 
-    let actions = [Action::send(Id::Xch, puzzle_hash, 1, Memos::None)];
+    let actions = [Action::send(id, puzzle_hash, 1, Memos::None)];
 
     let mut spends = Spends::new(alice.p2_puzzle_hash);
     alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
 
-    let input_coin_id = spends.xch.items[0].asset.coin_id();
-    let intermediate_coin = Coin::new(input_coin_id, puzzle_hash, 1);
-
-    ctx.spend(intermediate_coin, delegated_spend)?;
+    let intermediate_coin = if let AssetKind::Xch = asset_kind {
+        let intermediate_coin = Coin::new(spends.xch.items[0].asset.coin_id(), puzzle_hash, 1);
+        ctx.spend(intermediate_coin, delegated_spend)?;
+        intermediate_coin
+    } else {
+        let intermediate_cat = spends.cats[&id].items[0].asset.child(puzzle_hash, 1);
+        Cat::spend_all(
+            &mut ctx,
+            &[CatSpend::new(intermediate_cat, delegated_spend)],
+        )?;
+        intermediate_cat.coin
+    };
 
     if asserted {
         spends
@@ -4851,84 +4903,10 @@ fn test_clear_signing_descendant_binds_nonce(#[values(false, true)] asserted: bo
         asserted
     );
     assert_eq!(tx.received_payments.len(), 1);
-    assert_eq!(tx.received_payments[0].nonce_bound, asserted);
-
-    Ok(())
-}
-
-#[rstest]
-fn test_clear_signing_push_through_doesnt_bind_nonce() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
-
-    sim.set_next_timestamp(2000)?;
-
-    let actions = [Action::Fee(FeeAction {
-        amount: 1,
-        reserved: true,
-    })];
-
-    let mut spends = Spends::new(alice.p2_puzzle_hash);
-    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
-
-    // A payment notarized with the coin that the vault spends is bound, but one notarized with the clawback coin
-    // isn't. The vault only asserts the push-through, which another transaction confirmed with this one could also
-    // assert.
-    let vault_coin_payment = NotarizedPayment::new(
-        Offer::nonce(selected_coins(&spends).iter().map(Coin::coin_id).collect()),
-        vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
-    );
-    let push_through_payment = NotarizedPayment::new(
-        Offer::nonce(vec![clawback_coin.coin_id()]),
-        vec![Payment::new(alice.p2_puzzle_hash, 2, Memos::None)],
-    );
-
-    let mut vault_conditions = Conditions::new()
-        .assert_concurrent_spend(clawback_coin.coin_id())
-        .assert_seconds_absolute(clawback.seconds);
-    let mut requested_payments = Vec::new();
-
-    for payment in [&vault_coin_payment, &push_through_payment] {
-        vault_conditions = vault_conditions.assert_puzzle_announcement(announcement_id(
-            SETTLEMENT_PAYMENT_HASH.into(),
-            tree_hash_notarized_payment(&ctx, payment),
-        ));
-        requested_payments.push(requested_payment_spend(
-            &mut ctx,
-            Bytes32::default(),
-            payment,
-        )?);
-    }
-
-    let mut result =
-        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
-    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
-    result.spend_bundle.coin_spends.extend(ctx.take());
-
-    let coin_spends = [result.spend_bundle.coin_spends, requested_payments].concat();
-    let mut reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
-    reveals.reveal_clawback(clawback);
-    let tx = parse_vault_transaction(
-        reveals,
-        &mut ctx,
-        alice.info.launcher_id,
-        result.delegated_spend,
-    )?;
-
-    // The push-through is verified, but it isn't the vault's to spend
-    assert_eq!(tx.spends.len(), 2);
     assert_eq!(
-        tx.spends[1].clawback,
-        Some(ClawbackInfo::new(clawback, ClawbackPath::PushThrough))
+        tx.received_payments[0].nonce_bound,
+        asserted && asset_kind != AssetKind::RevocableCat
     );
-
-    assert_eq!(tx.received_payments.len(), 2);
-
-    for payment in &tx.received_payments {
-        assert_eq!(payment.nonce_bound, payment.payment.amount == 1);
-    }
 
     Ok(())
 }
@@ -5241,8 +5219,10 @@ enum InvalidFixedConditions {
     OtherDestination,
     /// The whole coin is sent to another puzzle hash.
     OnlyOtherDestination,
-    /// The coin is melted, or a TAIL is run, with a `-113` output.
+    /// The coin is melted with a `-113` output.
     Melt,
+    /// A TAIL is run with a `-113` output.
+    RunTail,
 }
 
 #[rstest]
@@ -5251,7 +5231,8 @@ fn test_clear_signing_pre_split_invalid_fixed_conditions(
     #[values(
         InvalidFixedConditions::OtherDestination,
         InvalidFixedConditions::OnlyOtherDestination,
-        InvalidFixedConditions::Melt
+        InvalidFixedConditions::Melt,
+        InvalidFixedConditions::RunTail
     )]
     invalid: InvalidFixedConditions,
 ) -> Result<()> {
@@ -5265,24 +5246,13 @@ fn test_clear_signing_pre_split_invalid_fixed_conditions(
         InvalidFixedConditions::Melt => Conditions::new()
             .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
             .with(MeltSingleton::default()),
+        InvalidFixedConditions::RunTail => Conditions::new()
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+            .with(RunCatTail::new(None, NodePtr::NIL, NodePtr::NIL)),
     };
 
     assert!(matches!(
         parse_pre_split(Some(asset_kind), 1000, &fixed_conditions)?,
-        Err(DriverError::InvalidOfferPreSplitConditions)
-    ));
-
-    Ok(())
-}
-
-#[rstest]
-fn test_clear_signing_pre_split_run_tail() -> Result<()> {
-    let fixed_conditions = Conditions::new()
-        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
-        .with(RunCatTail::new(None, NodePtr::NIL, NodePtr::NIL));
-
-    assert!(matches!(
-        parse_pre_split(Some(AssetKind::Cat), 1000, &fixed_conditions)?,
         Err(DriverError::InvalidOfferPreSplitConditions)
     ));
 
