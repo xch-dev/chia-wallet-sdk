@@ -12,7 +12,7 @@ use chia_puzzles::{
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, Mod, announcement_id,
-    conditions::TradePrice,
+    conditions::{MeltSingleton, RunCatTail, TradePrice, TransferNft},
     puzzles::{
         EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, P2OneOfManySolution,
         RevocationArgs, SettlementPayment,
@@ -4317,6 +4317,194 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
 
     assert_eq!(tx.external_payments[0].payment.amount, 1000);
     assert_eq!(tx.received_payments[0].payment.amount, 750);
+
+    Ok(())
+}
+
+/// Sends `amount` of the asset from a new vault to an offer pre-split coin with the fixed conditions, and parses the
+/// transaction (which is valid on chain whatever the fixed conditions are).
+fn parse_pre_split(
+    asset_kind: Option<AssetKind>,
+    amount: u64,
+    fixed_conditions: &Conditions,
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // `None` is an NFT.
+    let id = if let Some(asset_kind) = asset_kind {
+        issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1000)?.id
+    } else {
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::mint_nft(
+                HashedPtr::NIL,
+                NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+                alice.p2_puzzle_hash,
+                300,
+                1,
+            )],
+        )?;
+        Id::Existing(result.outputs.nfts[0].info.launcher_id)
+    };
+
+    let delegated_spend = ctx.delegated_spend(fixed_conditions.clone())?;
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        ctx.tree_hash(delegated_spend.puzzle).into(),
+        P2ConditionsOrSingletonVersion::FixedPuzzleMember,
+    );
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, fixed_conditions))?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(id, p2.tree_hash().into(), amount, memos)],
+    )?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_p2_conditions_or_singleton(p2);
+
+    Ok(parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    ))
+}
+
+fn pre_split_info(tx: &VaultTransaction) -> &OfferPreSplitInfo {
+    tx.spends
+        .iter()
+        .flat_map(|spend| &spend.children)
+        .find_map(|child| match &child.transfer_type {
+            TransferType::OfferPreSplit(info) => Some(info),
+            _ => None,
+        })
+        .unwrap()
+}
+
+#[rstest]
+fn test_clear_signing_pre_split_settlement_amount(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+) -> Result<()> {
+    // The settlement amount is what the fixed conditions send to the settlement puzzle, not the coin amount minus the
+    // fee. A zero amount settlement coin, which Cloud Wallet uses to pay royalties, adds nothing to it, and the rest of
+    // the coin is left for the bundle.
+    let fixed_conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 600, Memos::None)
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 0, Memos::None)
+        .reserve_fee(100)
+        .assert_puzzle_announcement(Bytes32::new([1; 32]));
+
+    let tx = parse_pre_split(Some(asset_kind), 1000, &fixed_conditions)??;
+
+    let info = pre_split_info(&tx);
+    assert_eq!(info.settlement_amount, 600);
+    assert_eq!(info.fixed_conditions, fixed_conditions.into_vec());
+    assert_eq!(tx.linked_offer.unwrap().reserved_fee, 100);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_pre_split_settlement_amount_overflow() -> Result<()> {
+    let fixed_conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), u64::MAX, Memos::None)
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None);
+
+    assert!(matches!(
+        parse_pre_split(Some(AssetKind::Xch), 1000, &fixed_conditions)?,
+        Err(DriverError::TryFromInt(_))
+    ));
+
+    Ok(())
+}
+
+/// Fixed conditions that let anyone take some of the coin without settling it.
+#[derive(Debug, Clone, Copy)]
+enum InvalidFixedConditions {
+    /// Part of the coin is sent to another puzzle hash.
+    OtherDestination,
+    /// No settlement coin is created, so the whole coin is left for the bundle.
+    NoSettlementCoin,
+    /// No conditions at all.
+    Empty,
+    /// The coin is melted, or a TAIL is run, with a `-113` output.
+    Melt,
+}
+
+#[rstest]
+fn test_clear_signing_pre_split_invalid_fixed_conditions(
+    #[values(AssetKind::Xch, AssetKind::Cat)] asset_kind: AssetKind,
+    #[values(
+        InvalidFixedConditions::OtherDestination,
+        InvalidFixedConditions::NoSettlementCoin,
+        InvalidFixedConditions::Empty,
+        InvalidFixedConditions::Melt
+    )]
+    invalid: InvalidFixedConditions,
+) -> Result<()> {
+    let fixed_conditions = match invalid {
+        InvalidFixedConditions::OtherDestination => Conditions::new()
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 500, Memos::None)
+            .create_coin(Bytes32::new([2; 32]), 500, Memos::None),
+        InvalidFixedConditions::NoSettlementCoin => Conditions::new().reserve_fee(1000),
+        InvalidFixedConditions::Empty => Conditions::new(),
+        InvalidFixedConditions::Melt => Conditions::new()
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+            .with(MeltSingleton::default()),
+    };
+
+    assert!(matches!(
+        parse_pre_split(Some(asset_kind), 1000, &fixed_conditions)?,
+        Err(DriverError::InvalidOfferPreSplitConditions)
+    ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_pre_split_run_tail() -> Result<()> {
+    let fixed_conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+        .with(RunCatTail::new(None, NodePtr::NIL, NodePtr::NIL));
+
+    assert!(matches!(
+        parse_pre_split(Some(AssetKind::Cat), 1000, &fixed_conditions)?,
+        Err(DriverError::InvalidOfferPreSplitConditions)
+    ));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_nft_pre_split(#[values(false, true)] creates_xch: bool) -> Result<()> {
+    // An NFT pre-split may only recreate the NFT at the settlement puzzle. An even output would be an XCH coin, which
+    // the NFT doesn't hold.
+    let mut fixed_conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None)
+        .with(TransferNft::new(None, vec![], None));
+
+    if creates_xch {
+        fixed_conditions =
+            fixed_conditions.create_coin(SETTLEMENT_PAYMENT_HASH.into(), 2, Memos::None);
+    }
+
+    let result = parse_pre_split(None, 1, &fixed_conditions)?;
+
+    if creates_xch {
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidOfferPreSplitConditions)
+        ));
+    } else {
+        assert_eq!(pre_split_info(&result?).settlement_amount, 1);
+    }
 
     Ok(())
 }
