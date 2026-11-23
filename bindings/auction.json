@@ -108,7 +108,8 @@
     "fields": {
       "bid_verifier": "AuctionBidVerifier",
       "timings": "AuctionTimings",
-      "payments": "AuctionPayments"
+      "payments": "AuctionPayments",
+      "buy_now_price": "Option<u64>"
     }
   },
   "AuctionReserve": {
@@ -175,6 +176,9 @@
         },
         "return": "Option<u64>"
       },
+      "available_buy_now_price": {
+        "return": "Option<u64>"
+      },
       "bid_action_hash": {
         "return": "TreeHash"
       },
@@ -225,6 +229,15 @@
         },
         "return": "Spend"
       },
+      "buy_now_action_spends": {
+        "args": {
+          "clvm": "Clvm",
+          "puzzle_hash": "Bytes32",
+          "grace": "bool",
+          "nft": "Nft"
+        },
+        "return": "AuctionBuyNow"
+      },
       "cancel_action_spend": {
         "args": {
           "clvm": "Clvm",
@@ -267,6 +280,14 @@
         },
         "return": "Auction"
       }
+    }
+  },
+  "AuctionBuyNow": {
+    "type": "class",
+    "fields": {
+      "bid": "AuctionBid",
+      "action_spends": "Vec<Spend>",
+      "nft": "Nft"
     }
   },
   "AuctionChildState": {
@@ -319,7 +340,7 @@
       },
       "into_auction": {
         "args": {
-          "nft_royalty": "RoyaltyInfo",
+          "nft": "Nft",
           "reserve_lineage_proof": "Option<LineageProof>"
         },
         "return": "Auction"

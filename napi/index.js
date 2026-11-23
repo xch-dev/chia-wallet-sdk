@@ -876,6 +876,7 @@ module.exports.Auction = nativeBinding.Auction
 module.exports.AuctionBid = nativeBinding.AuctionBid
 module.exports.AuctionBidVerifier = nativeBinding.AuctionBidVerifier
 module.exports.AuctionBpsPayment = nativeBinding.AuctionBpsPayment
+module.exports.AuctionBuyNow = nativeBinding.AuctionBuyNow
 module.exports.AuctionChildState = nativeBinding.AuctionChildState
 module.exports.AuctionInfo = nativeBinding.AuctionInfo
 module.exports.AuctionLaunch = nativeBinding.AuctionLaunch

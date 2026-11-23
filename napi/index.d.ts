@@ -349,6 +349,7 @@ export declare class Auction {
   bidAnnouncementId(bid: AuctionBid): Buffer
   bidActionSpend(clvm: Clvm, bid: AuctionBid, grace: boolean): Spend
   endActionSpend(clvm: Clvm, nft: Nft): Spend
+  buyNowActionSpends(clvm: Clvm, puzzleHash: Uint8Array, grace: boolean, nft: Nft): AuctionBuyNow
   cancelActionSpend(clvm: Clvm, nft: Nft): Spend
   cancelAuthorization(clvm: Clvm): Array<Program>
   unlockNft(clvm: Clvm, nft: Nft): Nft
@@ -392,6 +393,16 @@ export declare class AuctionBpsPayment {
   set puzzleHash(value: Uint8Array)
 }
 
+export declare class AuctionBuyNow {
+  clone(): AuctionBuyNow
+  get bid(): AuctionBid
+  set bid(value: AuctionBid)
+  get actionSpends(): Array<Spend>
+  set actionSpends(value: Array<Spend>)
+  get nft(): Nft
+  set nft(value: Nft)
+}
+
 export declare class AuctionChildState {
   clone(): AuctionChildState
   get state(): AuctionState
@@ -406,6 +417,7 @@ export declare class AuctionInfo {
   clone(): AuctionInfo
   royaltyBps(): bigint
   reserveAmountForBid(bidAmount: bigint): bigint | null
+  availableBuyNowPrice(): bigint | null
   bidActionHash(): Buffer
   endActionHash(): Buffer
   cancelActionHash(): Buffer
@@ -437,7 +449,7 @@ export declare class AuctionLaunch {
   reserveAssetId(): Buffer | null
   singletonPuzzleHash(): Buffer
   singletonAmount(): bigint
-  intoAuction(nftRoyalty: RoyaltyInfo, reserveLineageProof?: LineageProof | undefined | null): Auction
+  intoAuction(nft: Nft, reserveLineageProof?: LineageProof | undefined | null): Auction
 }
 
 export declare class AuctionPayments {
@@ -465,13 +477,15 @@ export declare class AuctionReserve {
 
 export declare class AuctionSettings {
   clone(): AuctionSettings
-  constructor(bidVerifier: AuctionBidVerifier, timings: AuctionTimings, payments: AuctionPayments)
+  constructor(bidVerifier: AuctionBidVerifier, timings: AuctionTimings, payments: AuctionPayments, buyNowPrice?: bigint | undefined | null)
   get bidVerifier(): AuctionBidVerifier
   set bidVerifier(value: AuctionBidVerifier)
   get timings(): AuctionTimings
   set timings(value: AuctionTimings)
   get payments(): AuctionPayments
   set payments(value: AuctionPayments)
+  get buyNowPrice(): bigint | null
+  set buyNowPrice(value: bigint | undefined | null)
 }
 
 export declare class AuctionState {

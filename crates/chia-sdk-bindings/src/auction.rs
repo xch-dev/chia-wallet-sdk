@@ -5,7 +5,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
     self as sdk, AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings,
-    Cat, Launcher, RoyaltyInfo, SingletonInfo,
+    Cat, Launcher, SingletonInfo,
 };
 use chia_sdk_types::puzzles::{AuctionBid, AuctionState};
 use clvm_utils::TreeHash;
@@ -130,6 +130,7 @@ impl AuctionReserveExt for AuctionReserve {
 pub trait AuctionInfoExt {
     fn royalty_bps(&self) -> Result<u64>;
     fn reserve_amount_for_bid(&self, bid_amount: u64) -> Result<Option<u64>>;
+    fn available_buy_now_price(&self) -> Result<Option<u64>>;
     fn bid_action_hash(&self) -> Result<TreeHash>;
     fn end_action_hash(&self) -> Result<TreeHash>;
     fn cancel_action_hash(&self) -> Result<TreeHash>;
@@ -145,6 +146,10 @@ impl AuctionInfoExt for AuctionInfo {
 
     fn reserve_amount_for_bid(&self, bid_amount: u64) -> Result<Option<u64>> {
         Ok(Self::reserve_amount_for_bid(self, bid_amount))
+    }
+
+    fn available_buy_now_price(&self) -> Result<Option<u64>> {
+        Ok(Self::available_buy_now_price(self))
     }
 
     fn bid_action_hash(&self) -> Result<TreeHash> {
@@ -206,6 +211,34 @@ impl Auction {
         let nft = nft.as_ptr(&ctx);
         let spend = self.to_sdk().end_action_spend(&mut ctx, &nft)?;
         Ok(spend.as_program(&clvm.0))
+    }
+
+    /// Buys the auction at its buy now price for `puzzleHash`, by placing a bid at that price and
+    /// ending the auction in the same spend. The locked NFT is unlocked to the buyer in the same
+    /// spend bundle, so `unlockNft` must not be called. The buyer must fund the reserve and assert
+    /// the bid's announcement like any other bid.
+    pub fn buy_now_action_spends(
+        &self,
+        clvm: Clvm,
+        puzzle_hash: Bytes32,
+        grace: bool,
+        nft: Nft,
+    ) -> Result<AuctionBuyNow> {
+        let mut ctx = clvm.0.lock().unwrap();
+        let nft = nft.as_ptr(&ctx);
+        let buy_now = self
+            .to_sdk()
+            .buy_now_action_spends(&mut ctx, puzzle_hash, grace, &nft)?;
+
+        Ok(AuctionBuyNow {
+            bid: buy_now.bid,
+            action_spends: buy_now
+                .action_spends
+                .into_iter()
+                .map(|spend| spend.as_program(&clvm.0))
+                .collect(),
+            nft: buy_now.nft.as_program(&clvm.0),
+        })
     }
 
     /// The action spend that cancels the auction before the first bid. The locked NFT must be
@@ -297,6 +330,13 @@ impl From<sdk::Auction> for Auction {
 }
 
 #[derive(Clone)]
+pub struct AuctionBuyNow {
+    pub bid: AuctionBid,
+    pub action_spends: Vec<Spend>,
+    pub nft: Nft,
+}
+
+#[derive(Clone)]
 pub struct AuctionChildState {
     pub state: AuctionState,
     pub reserve_conditions: Vec<Program>,
@@ -321,7 +361,7 @@ pub trait AuctionLaunchExt: Sized {
     #[allow(clippy::wrong_self_convention)]
     fn into_auction(
         &self,
-        nft_royalty: RoyaltyInfo,
+        nft: Nft,
         reserve_lineage_proof: Option<LineageProof>,
     ) -> Result<Auction>;
 }
@@ -362,10 +402,12 @@ impl AuctionLaunchExt for AuctionLaunch {
 
     fn into_auction(
         &self,
-        nft_royalty: RoyaltyInfo,
+        nft: Nft,
         reserve_lineage_proof: Option<LineageProof>,
     ) -> Result<Auction> {
-        Ok(Self::into_auction(*self, nft_royalty, reserve_lineage_proof)?.into())
+        let ctx = nft.info.metadata.0.lock().unwrap();
+        let nft = nft.as_ptr(&ctx);
+        Ok(Self::into_auction(*self, &nft, reserve_lineage_proof)?.into())
     }
 }
 

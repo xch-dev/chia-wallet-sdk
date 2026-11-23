@@ -429,6 +429,26 @@ pub enum DriverError {
         bps: u64,
     },
 
+    /// An auction's buy now price is below its minimum bid. Since a bid at the buy now price skips
+    /// the bid verifier, it would undercut the minimum bid. This includes `Some(0)`, which would be
+    /// curried in the same way as `None`.
+    #[error(
+        "the auction's buy now price of {buy_now_price} is below the minimum bid of {minimum_bid}"
+    )]
+    AuctionBuyNowPriceBelowMinimumBid {
+        /// The buy now price.
+        buy_now_price: u64,
+        /// The minimum bid.
+        minimum_bid: u64,
+    },
+
+    /// An auction can't be bought now, since it has no buy now price, has ended, or already has a
+    /// winning bid at the buy now price.
+    #[error(
+        "the auction can't be bought now, since it has no buy now price, has ended, or has a bid at it"
+    )]
+    AuctionBuyNowUnavailable,
+
     /// Two of an auction's payments (the buyer's premium, the commission, and the payout) have the
     /// same puzzle hash, so they could be identical coins and the auction couldn't be ended.
     #[error("puzzle hash {0} receives more than one payment when the auction ends")]
@@ -453,7 +473,28 @@ pub enum DriverError {
     #[error("the auction reserve must be an empty coin locked by the auction")]
     InvalidAuctionReserve,
 
-    /// The NFT passed to `Launcher::launch_auction` isn't locked by the auction's lock puzzle hash.
+    /// The NFT passed to `AuctionLaunch::into_auction` isn't the coin at the memo's NFT coin id, or
+    /// its info doesn't match its puzzle hash.
+    #[error("the NFT isn't the coin locked by the auction")]
+    AuctionNftMismatch,
+
+    /// A bid's puzzle hash is the settlement payments puzzle hash or the auction's lock puzzle hash.
+    /// Anyone could take a refund or NFT sent to the settlement payments puzzle hash, and nobody
+    /// could spend one sent to the lock puzzle hash.
+    #[error("puzzle hash {0} can't receive an auction bid's refund or NFT")]
+    ReservedAuctionBidPuzzleHash(Bytes32),
+
+    /// Buying an auction now in a single spend would create two identical coins from the reserve,
+    /// since the refund of the current winning bid has the same puzzle hash and amount as one of
+    /// the payments. The bid at the buy now price must be placed on its own, and the auction ended
+    /// in a later spend.
+    #[error(
+        "buying the auction now in one spend would create the coin {0} twice, so place the bid at the buy now price on its own and end the auction in a later spend"
+    )]
+    AuctionBuyNowDuplicateOutput(Bytes32),
+
+    /// The NFT passed to `Launcher::launch_auction` or `AuctionLaunch::into_auction` isn't locked by
+    /// the auction's lock puzzle hash.
     #[error("the NFT must be locked by the auction before it's launched")]
     AuctionNftNotLocked,
 
