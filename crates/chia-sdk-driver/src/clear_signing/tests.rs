@@ -3771,7 +3771,10 @@ fn test_clear_signing_nft_offer() -> Result<()> {
         alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
     let coin_spends = [
         result.spend_bundle.coin_spends.clone(),
-        vec![requested_payment],
+        vec![
+            requested_payment,
+            requested_payment_spend(&mut ctx, Bytes32::default(), &royalty_payment)?,
+        ],
     ]
     .concat();
     let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
@@ -3790,9 +3793,22 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
-    assert_eq!(tx.asserted_payments.len(), 1);
-    assert_eq!(tx.received_payments.len(), 1);
+    // The royalty is paid to the vault, since it minted the NFT
+    assert_eq!(tx.asserted_payments.len(), 2);
+    assert_eq!(tx.received_payments.len(), 2);
     assert_eq!(tx.external_payments.len(), 0);
+
+    // The NFT is spent by the vault, so it's part of the trade, and the royalty is 3% of the price
+    let royalty = tx
+        .received_payments
+        .iter()
+        .find(|payment| payment.nonce == nft.info.launcher_id)
+        .unwrap();
+    assert_eq!(royalty.payment.amount, 30);
+    assert_eq!(
+        royalty.royalty_basis_points,
+        Some(nft.info.royalty_basis_points)
+    );
 
     let xch_payment = &tx.asserted_payments[0];
     assert_eq!(xch_payment.asset, ClearSigningAsset::Xch);
@@ -3987,6 +4003,132 @@ fn test_clear_signing_asserted_nft_payment_with_owner(
         }
     );
     assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+/// How an NFT's royalty payment relates to the trade it's asserted with.
+#[derive(Debug, Clone, Copy)]
+enum RoyaltyCase {
+    /// The NFT's payment is asserted, and the royalty is 3% of the 1000 mojo price.
+    Royalty,
+    /// The royalty is more than 3% of the price.
+    TooLarge,
+    /// The NFT's info is revealed, but its payment isn't asserted, so it isn't part of the trade.
+    NftNotInTrade,
+    /// The payment isn't to the NFT's royalty puzzle hash.
+    WrongPuzzleHash,
+}
+
+#[rstest]
+fn test_clear_signing_royalty_payment(
+    #[values(
+        RoyaltyCase::Royalty,
+        RoyaltyCase::TooLarge,
+        RoyaltyCase::NftNotInTrade,
+        RoyaltyCase::WrongPuzzleHash
+    )]
+    case: RoyaltyCase,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    // An NFT with a 3% royalty, which the vault requests
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let info = NftInfo::new(
+        Bytes32::new([1; 32]),
+        HashedPtr::NIL,
+        NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+        None,
+        Bytes32::new([2; 32]),
+        300,
+        SETTLEMENT_PAYMENT_HASH.into(),
+    );
+    let nft_puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
+    let nft_puzzle_hash: Bytes32 = ctx.tree_hash(nft_puzzle).into();
+
+    let nonce = Bytes32::new([9; 32]);
+    let nft_payment = NotarizedPayment::new(
+        nonce,
+        vec![Payment::new(alice.p2_puzzle_hash, 1, Memos::None)],
+    );
+
+    // The vault pays the seller 1000 mojos, and the royalty on top of it
+    let price_payment = NotarizedPayment::new(
+        nonce,
+        vec![Payment::new(Bytes32::new([3; 32]), 1000, Memos::None)],
+    );
+    let royalty_payment = NotarizedPayment::new(
+        info.launcher_id,
+        vec![Payment::new(
+            if matches!(case, RoyaltyCase::WrongPuzzleHash) {
+                Bytes32::new([4; 32])
+            } else {
+                info.royalty_puzzle_hash
+            },
+            if matches!(case, RoyaltyCase::TooLarge) {
+                31
+            } else {
+                30
+            },
+            Memos::None,
+        )],
+    );
+
+    let nft_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![nft_payment.clone()]))?;
+    let coin_spends = vec![
+        CoinSpend::new(
+            Coin::new(Bytes32::default(), nft_puzzle_hash, 1),
+            ctx.serialize(&nft_puzzle)?,
+            ctx.serialize(&nft_solution)?,
+        ),
+        requested_payment_spend(&mut ctx, Bytes32::default(), &price_payment)?,
+        requested_payment_spend(&mut ctx, Bytes32::default(), &royalty_payment)?,
+    ];
+
+    let mut conditions = Conditions::new();
+
+    for payment in [&price_payment, &royalty_payment] {
+        conditions = conditions.assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            tree_hash_notarized_payment(&ctx, payment),
+        ));
+    }
+
+    if !matches!(case, RoyaltyCase::NftNotInTrade) {
+        conditions = conditions.assert_puzzle_announcement(announcement_id(
+            nft_puzzle_hash,
+            tree_hash_notarized_payment(&ctx, &nft_payment),
+        ));
+    }
+
+    let delegated_spend = ctx.delegated_spend(conditions.create_coin(
+        alice.info.custody_hash.into(),
+        1,
+        Memos::None,
+    ))?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    let tx = parse_vault_transaction(reveals, &mut ctx, alice.info.launcher_id, delegated_spend)?;
+
+    // The royalty payment is reported either way, but only labeled when it's a royalty of the trade
+    let royalty = tx
+        .external_payments
+        .iter()
+        .find(|payment| payment.nonce == info.launcher_id)
+        .unwrap();
+    assert_eq!(
+        royalty.royalty_basis_points,
+        matches!(case, RoyaltyCase::Royalty).then_some(300)
+    );
+
+    let price = tx
+        .external_payments
+        .iter()
+        .find(|payment| payment.nonce == nonce)
+        .unwrap();
+    assert_eq!(price.royalty_basis_points, None);
 
     Ok(())
 }

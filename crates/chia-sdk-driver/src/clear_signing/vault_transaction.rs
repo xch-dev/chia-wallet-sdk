@@ -989,12 +989,20 @@ fn parse_vault(
     let reserved_fee = facts.reserved_fees().try_into()?;
     let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
     let trade = TradeContext::new(&verified_spends, facts.asserted_spends());
-    let split_payments = split_asserted_payments(
-        &asserted_payments,
-        &p2_puzzle_hash_set,
-        reveals.asset_info(),
-        &trade,
-    );
+
+    // What the transaction offers is part of the value of its trade. The linked offer is a separate trade, so this is
+    // only added for the transaction itself.
+    let mut offer_trade = trade.clone();
+
+    for child in verified_spends.iter().flat_map(|spend| &spend.children) {
+        if child.transfer_type == TransferType::Offered {
+            offer_trade
+                .add_settlement_amount(asset_from_parsed(&child.asset), child.asset.coin().amount);
+        }
+    }
+
+    let split_payments =
+        split_asserted_payments(&asserted_payments, &p2_puzzle_hash_set, &offer_trade);
     let linked_offer = build_linked_offer(
         &reveals,
         ctx,
@@ -1461,7 +1469,7 @@ fn asset_flow_key(asset: ClearSigningAsset) -> Option<Bytes32> {
     }
 }
 
-fn asset_from_parsed(asset: &ParsedAsset) -> ClearSigningAsset {
+pub(super) fn asset_from_parsed(asset: &ParsedAsset) -> ClearSigningAsset {
     match asset {
         ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => ClearSigningAsset::Xch,
         ParsedAsset::Cat(cat) => ClearSigningAsset::Cat {
