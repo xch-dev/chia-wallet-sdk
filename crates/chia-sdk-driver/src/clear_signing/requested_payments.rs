@@ -36,10 +36,10 @@ pub struct AssertedPayment {
     /// The royalty of the NFT, if this is a royalty payment of an NFT that's part of the trade.
     ///
     /// It's set if the nonce is the launcher id of an NFT that a verified spend spends, or whose payment is asserted
-    /// along with this one, the NFT has a royalty of at most 100%, the payment is of XCH or a CAT to its royalty
-    /// puzzle hash, and the NFT's royalty payments in that asset add up to at most the royalty of the trade's value in
-    /// it. The value is what the trade sends to the settlement puzzle in the asset plus the other payments of it that
-    /// are asserted along with this one. Since a royalty is a share of an NFT's trade price, which is at most this
+    /// along with this one, the NFT has a nonzero royalty of at most 100%, the payment is of XCH or a CAT to its
+    /// royalty puzzle hash, and the NFT's royalty payments in that asset add up to at most the royalty of the trade's
+    /// value in it. The value is what the trade sends to the settlement puzzle in the asset plus the other
+    /// non-royalty payments of it that are asserted along with this one. Since a royalty is a share of an NFT's trade price, which is at most this
     /// value, larger payments aren't a royalty. The NFT's royalty puzzle hash and basis points come from its verified
     /// spend or from the puzzle hash its payment asserts, so they can't be made up.
     ///
@@ -620,5 +620,35 @@ mod tests {
             royalty.royalty_basis_points,
             (!price_is_revocable).then_some(5000)
         );
+    }
+
+    #[test]
+    fn test_nft_payment_is_never_a_royalty() {
+        let launcher_id = Bytes32::new([1; 32]);
+        let royalty_puzzle_hash = Bytes32::new([2; 32]);
+
+        // A payment of the NFT itself, with the NFT's launcher id as the nonce and to its royalty puzzle hash
+        let asserted_payments = [AssertedNotarizedPayment {
+            asset: ClearSigningAsset::Nft {
+                launcher_id,
+                metadata: HashedPtr::NIL,
+                metadata_updater_puzzle_hash: Bytes32::default(),
+                royalty_puzzle_hash,
+                royalty_basis_points: 5000,
+            },
+            notarized_payment: NotarizedPayment::new(
+                launcher_id,
+                vec![Payment::new(royalty_puzzle_hash, 1, Memos::None)],
+            ),
+        }];
+
+        let split = split_asserted_payments(
+            &asserted_payments,
+            &HashSet::new(),
+            &TradeContext::default(),
+        );
+
+        assert_eq!(split.external_payments.len(), 1);
+        assert_eq!(split.external_payments[0].royalty_basis_points, None);
     }
 }

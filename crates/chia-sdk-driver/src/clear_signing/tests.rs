@@ -4061,11 +4061,19 @@ enum TradeValue {
     Offered,
     /// The vault sends the price to a pre-split coin, whose fixed conditions assert the payments.
     PreSplit,
+    /// The vault sends the price to the settlement puzzle, but the payments are asserted by a pre-split coin that
+    /// settles nothing. The linked offer is a separate trade, so the price isn't part of its value.
+    OfferedOutsidePreSplit,
 }
 
 #[rstest]
 fn test_clear_signing_royalty_payment(
-    #[values(TradeValue::PricePayment, TradeValue::Offered, TradeValue::PreSplit)]
+    #[values(
+        TradeValue::PricePayment,
+        TradeValue::Offered,
+        TradeValue::PreSplit,
+        TradeValue::OfferedOutsidePreSplit
+    )]
     trade_value: TradeValue,
     #[values(
         RoyaltyCase::Royalty,
@@ -4170,9 +4178,14 @@ fn test_clear_signing_royalty_payment(
             Conditions::new().create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
             assertions,
         ),
-        TradeValue::PreSplit => {
-            let fixed_conditions =
-                assertions.create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None);
+        TradeValue::PreSplit | TradeValue::OfferedOutsidePreSplit => {
+            let outside = matches!(trade_value, TradeValue::OfferedOutsidePreSplit);
+            let settlement_amount = if outside { 0 } else { 1000 };
+            let fixed_conditions = assertions.create_coin(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                settlement_amount,
+                Memos::None,
+            );
             let fixed_spend = ctx.delegated_spend(fixed_conditions.clone())?;
             let pre_split = P2ConditionsOrSingleton::from_quoted_conditions_hash(
                 alice.info.launcher_id,
@@ -4183,10 +4196,18 @@ fn test_clear_signing_royalty_payment(
             let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &fixed_conditions))?;
             p2 = Some(pre_split);
 
-            (
-                Conditions::new().create_coin(pre_split.tree_hash().into(), 1000, memos),
-                Conditions::new(),
-            )
+            let mut coin_conditions = Conditions::new().create_coin(
+                pre_split.tree_hash().into(),
+                settlement_amount,
+                memos,
+            );
+
+            if outside {
+                coin_conditions =
+                    coin_conditions.create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None);
+            }
+
+            (coin_conditions, Conditions::new())
         }
     };
 
@@ -4206,12 +4227,13 @@ fn test_clear_signing_royalty_payment(
     )??;
 
     // The royalty payment is reported either way, but only labeled when it's a royalty of the trade
-    let external_payments = if let TradeValue::PreSplit = trade_value {
-        assert!(tx.external_payments.is_empty());
-        tx.linked_offer.unwrap().external_payments
-    } else {
-        tx.external_payments
-    };
+    let external_payments =
+        if let TradeValue::PreSplit | TradeValue::OfferedOutsidePreSplit = trade_value {
+            assert!(tx.external_payments.is_empty());
+            tx.linked_offer.unwrap().external_payments
+        } else {
+            tx.external_payments
+        };
 
     let royalties: Vec<_> = external_payments
         .iter()
@@ -4222,7 +4244,8 @@ fn test_clear_signing_royalty_payment(
     for royalty in royalties {
         assert_eq!(
             royalty.royalty_basis_points,
-            case.is_royalty().then_some(case.basis_points())
+            (case.is_royalty() && !matches!(trade_value, TradeValue::OfferedOutsidePreSplit))
+                .then_some(case.basis_points())
         );
     }
 
