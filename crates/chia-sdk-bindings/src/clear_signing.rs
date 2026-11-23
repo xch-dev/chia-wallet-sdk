@@ -806,6 +806,7 @@ pub struct AssertedPayment {
     pub nonce: Bytes32,
     pub payment: Payment,
     pub royalty_basis_points: Option<u16>,
+    pub nonce_bound: bool,
 }
 
 impl AssertedPayment {
@@ -815,6 +816,7 @@ impl AssertedPayment {
             nonce: value.nonce,
             payment: value.payment.as_program(clvm),
             royalty_basis_points: value.royalty_basis_points,
+            nonce_bound: value.nonce_bound,
         }
     }
 }

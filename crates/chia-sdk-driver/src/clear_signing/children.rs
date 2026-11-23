@@ -52,8 +52,10 @@ pub struct OfferPreSplitInfo {
     pub nonce: usize,
     /// The conditions that anyone can spend the coin with, such as the offer's payment assertions and fee.
     pub fixed_conditions: Vec<Condition>,
-    /// The amount of the coin minus the fee reserved by the fixed conditions (floored at zero), which is what's
-    /// left for the offer.
+    /// The total amount of the settlement coins created by the fixed conditions, which is what the offer can be
+    /// settled with. The fixed conditions can only create settlement coins (anything else is an error), but they
+    /// don't have to use the whole coin. The rest, after any fee they reserve, goes to whoever builds the bundle the
+    /// coin is spent in, for example to pay a royalty that the fixed conditions assert.
     pub settlement_amount: u64,
 }
 
@@ -229,13 +231,15 @@ pub fn parse_children(
     Ok(children)
 }
 
-/// The bag asset is the asset of the child coin, or [`None`] if it can't be a bag (for example an NFT).
+/// The bag asset is the asset of the child coin, or [`None`] if the child is an NFT, which can't be a bag.
 fn calculate_transfer_type(
     reveals: &Reveals,
     memos: &ParsedMemos,
     bag_asset: Option<BagAsset>,
     input_amount: u64,
 ) -> Result<TransferType, DriverError> {
+    let is_nft = bag_asset.is_none();
+
     // The p2 puzzle hash of a clawback is the receiver's, but the coin can also be clawed back by
     // the sender, so it can't be treated as anything other than a regular send.
     if memos.clawback.is_some() {
@@ -279,24 +283,58 @@ fn calculate_transfer_type(
         reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let reserved_fee: u128 = fixed_conditions
-            .iter()
-            .filter_map(|condition| match condition {
-                Condition::ReserveFee(condition) => Some(u128::from(condition.amount)),
-                _ => None,
-            })
-            .sum();
-
-        let reserved_fee: u64 = reserved_fee.try_into()?;
-
         TransferType::OfferPreSplit(OfferPreSplitInfo {
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
+            settlement_amount: offer_pre_split_settlement_amount(fixed_conditions, is_nft)?,
             fixed_conditions: fixed_conditions.clone(),
-            // The fee can be paid by other coins in the bundle, so it may exceed the input amount.
-            settlement_amount: input_amount.saturating_sub(reserved_fee),
         })
     } else {
         TransferType::Sent
     })
+}
+
+/// The total amount of the settlement coins created by the fixed conditions of an offer pre-split coin, which is
+/// the amount the offer can be settled with.
+///
+/// Anyone can spend the coin with its fixed conditions, so they may only send its value to the settlement payments
+/// puzzle, where it can only be taken by making the payments that the offer asserts. Each `CREATE_COIN` must be to
+/// the settlement payments puzzle. The fixed conditions of an NFT (`is_nft`) may only
+/// recreate the NFT, since its even outputs are XCH that the NFT doesn't hold. Melting the coin or running a TAIL
+/// (both are outputs with the amount `-113`) isn't allowed either. Other conditions, such as assertions,
+/// `RESERVE_FEE`, `AGG_SIG_ME` and the NFT transfer condition, don't create outputs and are allowed.
+///
+/// Whatever is left of the coin's amount after the settlement coins and the reserved fee goes to whoever builds the
+/// bundle it's spent in, the same as the settlement coins themselves. Cloud Wallet uses this to fund the royalty
+/// payments that the fixed conditions assert. A coin with no settlement coins has a settlement amount of zero, such
+/// as the coin Cloud Wallet sets aside for the fee when it offers a CAT or NFT, whose fixed conditions only assert
+/// the payments and reserve the fee.
+///
+/// Returns [`DriverError::InvalidOfferPreSplitConditions`] if the fixed conditions don't follow these rules.
+fn offer_pre_split_settlement_amount(
+    fixed_conditions: &[Condition],
+    is_nft: bool,
+) -> Result<u64, DriverError> {
+    let mut settlement_amount = 0_u128;
+
+    for condition in fixed_conditions {
+        match condition {
+            Condition::CreateCoin(condition) => {
+                if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into()
+                    || (is_nft && condition.amount % 2 == 0)
+                {
+                    return Err(DriverError::InvalidOfferPreSplitConditions);
+                }
+
+                settlement_amount += u128::from(condition.amount);
+            }
+            Condition::MeltSingleton(_) | Condition::RunCatTail(_) => {
+                return Err(DriverError::InvalidOfferPreSplitConditions);
+            }
+            _ => {}
+        }
+    }
+
+    // The outputs of a spend bundle can't add up to more than a u64, so neither can the settlement coins.
+    Ok(settlement_amount.try_into()?)
 }

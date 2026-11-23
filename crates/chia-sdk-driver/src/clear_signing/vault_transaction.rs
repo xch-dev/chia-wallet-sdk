@@ -16,8 +16,8 @@ use crate::{
     ClearSigningAsset, ControlledVaultReceiver, ControlledVaultRecovery, CustodyInfo, DriverError,
     DropCoin, Facts, Issuance, IssuanceKind, Layer, LinkedOffer, P2ConditionsOrSingletonInfo,
     P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers, VaultMessage,
-    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    SpendContext, TradeContext, TransferType, VAULT_CONTROLLER_MESSAGE_COIN_ID, VaultLayers,
+    VaultMessage, VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
     parse_asserted_requested_payments, parse_children, parse_delegated_spend, parse_run_cat_tail,
     parse_spend, parse_vault_controller_spend, parse_vault_delegated_spend,
     split_asserted_payments, vault_recovery_delegated_puzzle_hash,
@@ -988,17 +988,29 @@ fn parse_vault(
     let p2_puzzle_hash_set = p2_puzzle_hashes.iter().copied().collect();
     let reserved_fee = facts.reserved_fees().try_into()?;
     let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
-    let split_payments = split_asserted_payments(
-        &asserted_payments,
-        &p2_puzzle_hash_set,
-        reveals.asset_info(),
-    );
+    let trade = TradeContext::new(&verified_spends);
+
+    // What the transaction offers is part of the value of its trade. The linked offer is a separate trade, so this is
+    // only added for the transaction itself.
+    let mut offer_trade = trade.clone();
+
+    for child in verified_spends.iter().flat_map(|spend| &spend.children) {
+        if child.transfer_type == TransferType::Offered {
+            offer_trade
+                .add_settlement_amount(asset_from_parsed(&child.asset), child.asset.coin().amount);
+        }
+    }
+
+    let split_payments =
+        split_asserted_payments(&asserted_payments, &p2_puzzle_hash_set, &offer_trade);
     let linked_offer = build_linked_offer(
         &reveals,
         ctx,
         &verified_spends,
         launcher_id,
         &p2_puzzle_hash_set,
+        trade,
+        &asserted_payments,
     )?;
 
     // Hydrate ephemerally spent bulletin children.
@@ -1296,11 +1308,7 @@ fn build_asset_flows(
     issuances: &[Issuance],
     reserved_fee: u64,
 ) -> Vec<AssetFlow> {
-    let child_coin_ids: HashSet<Bytes32> = spends
-        .iter()
-        .flat_map(|spend| spend.children.iter())
-        .map(|child| child.asset.coin().coin_id())
-        .collect();
+    let child_coin_ids = child_coin_ids(spends);
     let spend_by_coin_id: HashMap<Bytes32, &VerifiedSpend> = spends
         .iter()
         .map(|spend| (spend.asset.coin().coin_id(), spend))
@@ -1457,7 +1465,7 @@ fn asset_flow_key(asset: ClearSigningAsset) -> Option<Bytes32> {
     }
 }
 
-fn asset_from_parsed(asset: &ParsedAsset) -> ClearSigningAsset {
+pub(super) fn asset_from_parsed(asset: &ParsedAsset) -> ClearSigningAsset {
     match asset {
         ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => ClearSigningAsset::Xch,
         ParsedAsset::Cat(cat) => ClearSigningAsset::Cat {
@@ -1490,6 +1498,16 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     }
 
     p2_puzzle_hashes
+}
+
+/// The coin ids of the children of the spends. A spend whose coin isn't one of them is an input of the transaction,
+/// since its coin existed before it.
+pub(super) fn child_coin_ids(spends: &[VerifiedSpend]) -> HashSet<Bytes32> {
+    spends
+        .iter()
+        .flat_map(|spend| &spend.children)
+        .map(|child| child.asset.coin().coin_id())
+        .collect()
 }
 
 /// The children of the spends that aren't spent again by another spend in the list, which are the coins that remain

@@ -4,9 +4,10 @@ use chia_protocol::Bytes32;
 use chia_sdk_types::Condition;
 use clvmr::Allocator;
 
+use super::vault_transaction::asset_from_parsed;
 use crate::{
-    AssertedPayment, DriverError, Facts, Reveals, TransferType, VerifiedSpend,
-    parse_asserted_requested_payments, split_asserted_payments,
+    AssertedNotarizedPayment, AssertedPayment, DriverError, Facts, Reveals, TradeContext,
+    TransferType, VerifiedSpend, parse_asserted_requested_payments, split_asserted_payments,
 };
 
 /// A future offer that the transaction sets coins aside for, as described by the fixed conditions of its
@@ -28,6 +29,11 @@ pub struct LinkedOffer {
 /// Rolls the [`OfferPreSplit`](crate::TransferType::OfferPreSplit) children of the spends up into a
 /// [`LinkedOffer`], or returns `None` if there are none.
 ///
+/// The payments are checked against the transaction's `trade` context, since the pre-split coins can only exist if
+/// the transaction is confirmed, with the settlement amounts of the pre-split coins as the value of the trade. The
+/// transaction's own `asserted_payments` are shared with the linked offer, so a payment that both assert isn't
+/// bound.
+///
 /// Returns [`DriverError::WrongLinkedOfferLauncherId`] if a pre-split coin belongs to a vault other than
 /// `expected_launcher_id`.
 pub fn build_linked_offer(
@@ -36,6 +42,8 @@ pub fn build_linked_offer(
     spends: &[VerifiedSpend],
     expected_launcher_id: Bytes32,
     p2_puzzle_hashes: &HashSet<Bytes32>,
+    mut trade: TradeContext,
+    asserted_payments: &[AssertedNotarizedPayment],
 ) -> Result<Option<LinkedOffer>, DriverError> {
     let mut linked_offer = LinkedOffer {
         reserved_fee: 0,
@@ -57,6 +65,8 @@ pub fn build_linked_offer(
             if expected_launcher_id != info.launcher_id {
                 return Err(DriverError::WrongLinkedOfferLauncherId);
             }
+
+            trade.add_settlement_amount(asset_from_parsed(&child.asset), info.settlement_amount);
 
             let mut puzzle_assertions = HashSet::new();
 
@@ -93,10 +103,12 @@ pub fn build_linked_offer(
             offer_facts.assert_puzzle_announcement(announcement_id);
         }
 
-        let asserted_payments =
-            parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
-        let split_payments =
-            split_asserted_payments(&asserted_payments, p2_puzzle_hashes, reveals.asset_info());
+        for payment in asserted_payments {
+            trade.add_shared_payment(payment.clone());
+        }
+
+        let offer_payments = parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
+        let split_payments = split_asserted_payments(&offer_payments, p2_puzzle_hashes, &trade);
         linked_offer.received_payments = split_payments.received_payments;
         linked_offer.external_payments = split_payments.external_payments;
     }
