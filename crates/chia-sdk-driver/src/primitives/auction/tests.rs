@@ -82,6 +82,7 @@ struct Config {
     royalty_bps: u16,
     reserve: ReserveKind,
     did_owner: bool,
+    buy_now_price: Option<u64>,
 }
 
 impl Default for Config {
@@ -94,6 +95,7 @@ impl Default for Config {
             royalty_bps: 500,
             reserve: ReserveKind::Xch,
             did_owner: false,
+            buy_now_price: None,
         }
     }
 }
@@ -108,6 +110,7 @@ impl Config {
                 AuctionBpsPayment::new(self.commission_bps, COMMISSION_PUZZLE_HASH),
                 payout_puzzle_hash,
             ),
+            self.buy_now_price,
         )
     }
 }
@@ -116,6 +119,15 @@ impl Config {
 struct Bidder {
     bid: AuctionBid,
     reserve_amount: u64,
+}
+
+/// The spends of the bidders in a single spend of the auction.
+#[derive(Default)]
+struct BidSpend {
+    actions: Vec<Spend>,
+    cat_spends: Vec<CatSpend>,
+    keys: Vec<SecretKey>,
+    bidders: Vec<Bidder>,
 }
 
 /// Builds the auction settings from the config, the seller's puzzle hash, and the auction lock
@@ -332,52 +344,129 @@ impl Harness {
     }
 
     fn try_bids(&mut self, bids: &[(u64, bool)]) -> Result<Vec<Bidder>> {
-        let mut bidders = Vec::new();
-        let mut actions = Vec::new();
-        let mut cat_spends = Vec::new();
-        let mut keys = Vec::new();
+        let mut spend = BidSpend::default();
+        self.add_bids(&mut spend, bids)?;
+        self.finish_bids(spend)
+    }
 
+    /// Buys the auction at its buy now price, returning the buyer and the NFT sent to them.
+    fn buy_now(&mut self, grace: bool) -> Result<(Bidder, Nft)> {
+        let (bidders, nft) = self.bids_then_buy_now(&[], grace)?;
+        Ok((bidders[0], nft))
+    }
+
+    /// Like [`Harness::buy_now`], but first places `bids` in the same spend of the auction, which is
+    /// how a buyer would buy an auction with a pending bid. The buyer is the last bidder returned.
+    fn bids_then_buy_now(
+        &mut self,
+        bids: &[(u64, bool)],
+        grace: bool,
+    ) -> Result<(Vec<Bidder>, Nft)> {
+        let result = self.try_bids_then_buy_now(bids, grace);
+        self.cleanup(result)
+    }
+
+    fn try_bids_then_buy_now(
+        &mut self,
+        bids: &[(u64, bool)],
+        grace: bool,
+    ) -> Result<(Vec<Bidder>, Nft)> {
+        let mut spend = BidSpend::default();
+        self.add_bids(&mut spend, bids)?;
+
+        let price = self
+            .auction
+            .info
+            .available_buy_now_price()
+            .ok_or(DriverError::AuctionBuyNowUnavailable)?;
+        let key = self.bidder_key(price)?;
+        let puzzle_hash = key.puzzle_hash;
+
+        // Funding a CAT bid confirms a spend of the bank, which would also confirm any spends
+        // already in the context, so the buyer must be funded before the NFT is unlocked
+        self.fund_bid(&mut spend, key, AuctionBid::new(price, puzzle_hash))?;
+
+        let buy_now =
+            self.auction
+                .buy_now_action_spends(&mut self.ctx, puzzle_hash, grace, &self.nft)?;
+        assert_eq!(buy_now.bid, AuctionBid::new(price, puzzle_hash));
+        spend.actions.extend(buy_now.action_spends);
+
+        let bidders = self.finish_bids(spend)?;
+        self.nft = buy_now.nft;
+        Ok((bidders, buy_now.nft))
+    }
+
+    /// Adds a bid action for each of `bids` to `spend`, funded by a new bidder.
+    fn add_bids(&mut self, spend: &mut BidSpend, bids: &[(u64, bool)]) -> Result<()> {
         for &(amount, grace) in bids {
-            let reserve_amount = self
-                .auction
-                .info
-                .reserve_amount_for_bid(amount)
-                .ok_or(anyhow!("reserve amount overflow"))?;
-
-            let key = if self.bank.is_some() {
-                self.sim.bls(0)
-            } else {
-                self.sim.bls(reserve_amount)
-            };
-
+            let key = self.bidder_key(amount)?;
             let bid = AuctionBid::new(amount, key.puzzle_hash);
-            actions.push(self.auction.bid_action_spend(&mut self.ctx, bid, grace)?);
+            spend
+                .actions
+                .push(self.auction.bid_action_spend(&mut self.ctx, bid, grace)?);
+            self.fund_bid(spend, key, bid)?;
+        }
+        Ok(())
+    }
 
-            let conditions =
-                Conditions::new().assert_coin_announcement(self.auction.bid_announcement_id(bid));
-            let p2 = StandardLayer::new(key.pk);
-
-            if self.bank.is_some() {
-                let cat = self.fund_cat(key.puzzle_hash, reserve_amount)?;
-                let spend = p2.spend_with_conditions(&mut self.ctx, conditions)?;
-                cat_spends.push(CatSpend::new(cat, spend));
-            } else {
-                p2.spend(&mut self.ctx, key.coin, conditions)?;
-            }
-
-            keys.push(key.sk.clone());
-            bidders.push(Bidder {
-                bid,
-                reserve_amount,
-            });
+    /// A new key for a bidder, with a coin that holds the reserve amount for a bid of `amount` if
+    /// the reserve is XCH. CAT bidders are funded from the bank instead.
+    fn bidder_key(&mut self, amount: u64) -> Result<BlsPairWithCoin> {
+        if self.bank.is_some() {
+            return Ok(self.sim.bls(0));
         }
 
-        let auction = self.auction.spend(&mut self.ctx, actions, cat_spends)?;
-        let coin_spends = self.ctx.take();
-        self.sim.spend_coins(coin_spends.clone(), &keys)?;
-        self.confirmed(&coin_spends, &auction)?;
+        let reserve_amount = self
+            .auction
+            .info
+            .reserve_amount_for_bid(amount)
+            .ok_or(anyhow!("reserve amount overflow"))?;
+        Ok(self.sim.bls(reserve_amount))
+    }
 
-        Ok(bidders)
+    /// Funds exactly the reserve amount for `bid` from `key`, asserting the bid's announcement so
+    /// the funds can't be reused.
+    fn fund_bid(
+        &mut self,
+        spend: &mut BidSpend,
+        key: BlsPairWithCoin,
+        bid: AuctionBid,
+    ) -> Result<()> {
+        let reserve_amount = self
+            .auction
+            .info
+            .reserve_amount_for_bid(bid.amount)
+            .ok_or(anyhow!("reserve amount overflow"))?;
+
+        let conditions =
+            Conditions::new().assert_coin_announcement(self.auction.bid_announcement_id(bid));
+        let p2 = StandardLayer::new(key.pk);
+
+        if self.bank.is_some() {
+            let cat = self.fund_cat(key.puzzle_hash, reserve_amount)?;
+            let cat_spend = p2.spend_with_conditions(&mut self.ctx, conditions)?;
+            spend.cat_spends.push(CatSpend::new(cat, cat_spend));
+        } else {
+            p2.spend(&mut self.ctx, key.coin, conditions)?;
+        }
+
+        spend.keys.push(key.sk);
+        spend.bidders.push(Bidder {
+            bid,
+            reserve_amount,
+        });
+        Ok(())
+    }
+
+    fn finish_bids(&mut self, spend: BidSpend) -> Result<Vec<Bidder>> {
+        let auction = self
+            .auction
+            .spend(&mut self.ctx, spend.actions, spend.cat_spends)?;
+        let coin_spends = self.ctx.take();
+        self.sim.spend_coins(coin_spends.clone(), &spend.keys)?;
+        self.confirmed(&coin_spends, &auction)?;
+        Ok(spend.bidders)
     }
 
     /// Ends the auction and unlocks the NFT, returning the NFT sent to the winning bidder.
@@ -636,11 +725,19 @@ impl Harness {
     /// every fee recipient, and created an empty reserve for the ended auction.
     fn assert_settled(&self, reserve: AuctionReserve, amount: u64) {
         let premium = fee(amount, self.config.buyers_premium_bps);
+        let royalty = fee(amount, self.config.royalty_bps.into());
+        assert_eq!(reserve.coin().amount, amount + premium + royalty);
+        self.assert_paid_out(reserve, amount);
+    }
+
+    /// Like [`Harness::assert_settled`], but doesn't check the reserve's amount. When the winning
+    /// bid is placed in the same spend as the end, the reserve pays out funds that the bidder added
+    /// to the spend bundle, rather than funds it already held.
+    fn assert_paid_out(&self, reserve: AuctionReserve, amount: u64) {
+        let premium = fee(amount, self.config.buyers_premium_bps);
         let commission = fee(amount, self.config.commission_bps);
         let royalty = fee(amount, self.config.royalty_bps.into());
         let payout = amount - commission;
-
-        assert_eq!(reserve.coin().amount, amount + premium + royalty);
 
         for (puzzle_hash, payment) in [
             (PREMIUM_PUZZLE_HASH, premium),
@@ -1737,6 +1834,14 @@ fn test_parse_rejects_invalid_auctions() -> Result<()> {
         Err(DriverError::DuplicateAuctionPaymentPuzzleHash(_))
     ));
 
+    let result = parse_modified(&mut h, royalty, |solution| {
+        solution.key_value_list.settings.buy_now_price = Some(99);
+    });
+    assert!(matches!(
+        result,
+        Err(DriverError::AuctionBuyNowPriceBelowMinimumBid { .. })
+    ));
+
     Ok(())
 }
 
@@ -1796,6 +1901,35 @@ fn test_parse_follows_the_reserve_spent_by_someone_else(
     let _ = h.end()?;
 
     Ok(())
+}
+
+#[rstest]
+fn test_rejects_invalid_buy_now_prices(
+    #[values(flat(100, 100), percent(100, 100))] bid_verifier: AuctionBidVerifier,
+) {
+    // `Some(0)` would be curried in the same way as `None`
+    let error = launch_error(with_buy_now(0), default_settings);
+    assert!(
+        matches!(error, DriverError::ZeroAuctionBuyNowPrice),
+        "{error}"
+    );
+
+    // A bid at the buy now price skips the bid verifier, so it can't be below the minimum bid
+    let config = Config {
+        bid_verifier,
+        ..with_buy_now(99)
+    };
+    let error = launch_error(config, default_settings);
+    assert!(
+        matches!(
+            error,
+            DriverError::AuctionBuyNowPriceBelowMinimumBid {
+                buy_now_price: 99,
+                minimum_bid: 100,
+            }
+        ),
+        "{error}"
+    );
 }
 
 #[test]
@@ -2098,6 +2232,7 @@ fn test_driver_fee_math_matches_puzzles() -> Result<()> {
                 AuctionBpsPayment::new(commission_bps, COMMISSION_PUZZLE_HASH),
                 PAYOUT_PUZZLE_HASH,
             ),
+            None,
         );
         let reserve = Coin::new(
             Bytes32::new([6; 32]),
@@ -2356,6 +2491,326 @@ fn test_auction_can_only_end_once() -> Result<()> {
     let end_action = h.auction.end_action_spend(&mut h.ctx, &h.nft)?;
     let result = h.auction.child_state(&mut h.ctx, &[end_action]);
     assert_fails_with(result.map_err(anyhow::Error::from), "raise");
+
+    Ok(())
+}
+
+const BUY_NOW_PRICE: u64 = 1_000;
+
+fn with_buy_now(buy_now_price: u64) -> Config {
+    Config {
+        buy_now_price: Some(buy_now_price),
+        ..Config::default()
+    }
+}
+
+/// Places a bid without running it in the driver first, so that it's only checked on chain. The
+/// bidder funds the reserve amount for the bid.
+fn unchecked_bid(h: &mut Harness, amount: u64) -> Result<()> {
+    let reserve_amount = h
+        .auction
+        .info
+        .reserve_amount_for_bid(amount)
+        .ok_or(anyhow!("reserve amount overflow"))?;
+    let key = h.sim.bls(reserve_amount);
+    StandardLayer::new(key.pk).spend(&mut h.ctx, key.coin, Conditions::new())?;
+    let bid =
+        h.auction
+            .bid_action_spend(&mut h.ctx, AuctionBid::new(amount, key.puzzle_hash), false)?;
+    h.spend_unchecked(vec![bid], reserve_amount, &[key.sk])
+}
+
+/// Asserts that the driver refuses to buy the auction now.
+fn assert_buy_now_unavailable(h: &mut Harness) {
+    let nft = h.nft;
+    let result = h
+        .auction
+        .buy_now_action_spends(&mut h.ctx, h.seller.puzzle_hash, false, &nft);
+    assert!(
+        matches!(result, Err(DriverError::AuctionBuyNowUnavailable)),
+        "{result:?}"
+    );
+    h.ctx.take();
+}
+
+#[rstest]
+fn test_buy_now_ends_the_auction_right_away(
+    #[values(ReserveKind::Xch, ReserveKind::Cat, ReserveKind::RevocableCat)] reserve: ReserveKind,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        reserve,
+        ..with_buy_now(BUY_NOW_PRICE)
+    })?;
+
+    assert_eq!(
+        h.auction.info.available_buy_now_price(),
+        Some(BUY_NOW_PRICE)
+    );
+
+    // Well before the end time
+    h.set_time(10)?;
+    let reserve_before = h.auction.info.reserve;
+    let (buyer, nft) = h.buy_now(false)?;
+
+    assert_eq!(buyer.bid.amount, BUY_NOW_PRICE);
+    assert_eq!(
+        buyer.reserve_amount,
+        BUY_NOW_PRICE + fee(BUY_NOW_PRICE, 300) + fee(BUY_NOW_PRICE, 500)
+    );
+
+    h.assert_unspent(nft.coin);
+    assert_eq!(nft.info.p2_puzzle_hash, buyer.bid.puzzle_hash);
+    assert_eq!(nft.info.current_owner, None);
+
+    assert!(h.auction.info.state.ended);
+    assert_eq!(h.auction.info.state.winning_bid, buyer.bid);
+    assert_eq!(h.auction.info.available_buy_now_price(), None);
+
+    // The bid and end are in the same spend, so the reserve pays out the buyer's funds directly
+    h.assert_paid_out(reserve_before, BUY_NOW_PRICE);
+
+    // A bought auction can't be bid on, ended, cancelled, or bought again
+    assert_fails_with(h.bid(BUY_NOW_PRICE), "raise");
+    assert_fails_with(h.end(), "raise");
+    assert_fails_with(h.cancel(), "raise");
+    assert_buy_now_unavailable(&mut h);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_buy_now_refunds_the_winning_bid(
+    #[values(ReserveKind::Xch, ReserveKind::Cat, ReserveKind::RevocableCat)] reserve: ReserveKind,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        reserve,
+        ..with_buy_now(BUY_NOW_PRICE)
+    })?;
+
+    let bidder = h.bid(500)?;
+    assert_eq!(
+        h.auction.info.available_buy_now_price(),
+        Some(BUY_NOW_PRICE)
+    );
+
+    let outbid_reserve = h.auction.info.reserve;
+    let (buyer, nft) = h.buy_now(false)?;
+
+    h.assert_unspent(Harness::reserve_output(
+        outbid_reserve,
+        bidder.bid.puzzle_hash,
+        bidder.reserve_amount,
+    ));
+    assert_eq!(nft.info.p2_puzzle_hash, buyer.bid.puzzle_hash);
+    h.assert_paid_out(outbid_reserve, BUY_NOW_PRICE);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_buy_now_after_a_pending_bid_in_the_same_spend(
+    #[values(ReserveKind::Xch, ReserveKind::Cat, ReserveKind::RevocableCat)] reserve: ReserveKind,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        reserve,
+        ..with_buy_now(BUY_NOW_PRICE)
+    })?;
+
+    let reserve_before = h.auction.info.reserve;
+    let (bidders, nft) = h.bids_then_buy_now(&[(100, false), (200, false)], false)?;
+    let buyer = bidders[2];
+
+    assert_eq!(nft.info.p2_puzzle_hash, buyer.bid.puzzle_hash);
+    assert!(h.auction.info.state.ended);
+    assert_eq!(h.auction.info.state.winning_bid, buyer.bid);
+
+    // Every action in the spend is paid out by the same reserve coin, including the refunds of the
+    // bids that were placed before the buy now
+    for bidder in &bidders[..2] {
+        h.assert_unspent(Harness::reserve_output(
+            reserve_before,
+            bidder.bid.puzzle_hash,
+            bidder.reserve_amount,
+        ));
+    }
+    h.assert_paid_out(reserve_before, BUY_NOW_PRICE);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_bid_at_buy_now_price_skips_the_bid_verifier(
+    #[values(flat(100, 100), percent(100, 1_000))] bid_verifier: AuctionBidVerifier,
+) -> Result<()> {
+    // With either verifier, the next bid after 1,000 must be at least 1,100, so the buy now price
+    // of 1,050 is only reachable because it skips the verifier
+    let mut h = Harness::new(Config {
+        bid_verifier,
+        ..with_buy_now(1_050)
+    })?;
+
+    h.bid(1_000)?;
+    assert_fails_with(h.bid(1_049), "raise");
+
+    let (buyer, _) = h.buy_now(false)?;
+    assert_eq!(buyer.bid.amount, 1_050);
+
+    Ok(())
+}
+
+#[test]
+fn test_buy_now_price_can_equal_the_minimum_bid() -> Result<()> {
+    let mut h = Harness::new(with_buy_now(100))?;
+
+    // The only bid that can be placed is the buy now
+    assert_fails_with(h.bid(101), "raise");
+    let (buyer, _) = h.buy_now(false)?;
+    assert_eq!(buyer.bid.amount, 100);
+
+    Ok(())
+}
+
+#[test]
+fn test_bids_cannot_exceed_buy_now_price() -> Result<()> {
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+
+    assert_fails_with(h.bid(BUY_NOW_PRICE + 1), "raise");
+    assert_fails_with(h.bid(BUY_NOW_PRICE * 10), "raise");
+
+    // The checks are also enforced on chain, not just by the driver
+    let result = unchecked_bid(&mut h, BUY_NOW_PRICE + 1);
+    assert_fails_with(result, PUZZLE_RAISED);
+    unchecked_bid(&mut h, BUY_NOW_PRICE)?;
+
+    // A bid at the buy now price can never be outbid
+    assert_fails_with(h.bid(BUY_NOW_PRICE), "raise");
+    assert_fails_with(h.bid(BUY_NOW_PRICE + 100), "raise");
+
+    Ok(())
+}
+
+#[test]
+fn test_bid_at_buy_now_price_can_be_ended_by_anyone() -> Result<()> {
+    // A wallet should always buy with the bid and end in the same spend, but if a bid at the buy
+    // now price is placed on its own, the auction can still be ended right away
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+
+    h.set_time(10)?;
+    let winner = h.bid(BUY_NOW_PRICE)?;
+    assert_eq!(h.auction.info.available_buy_now_price(), None);
+    assert_buy_now_unavailable(&mut h);
+
+    let settled_reserve = h.auction.info.reserve;
+    let nft = h.end()?;
+
+    assert_eq!(nft.info.p2_puzzle_hash, winner.bid.puzzle_hash);
+    h.assert_settled(settled_reserve, BUY_NOW_PRICE);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_end_waits_for_the_end_time_below_the_buy_now_price(
+    #[values(None, Some(BUY_NOW_PRICE - 1))] bid: Option<u64>,
+) -> Result<()> {
+    let mut h = Harness::new(Config {
+        timings: AuctionTimings::new(END_TIME, 100),
+        ..with_buy_now(BUY_NOW_PRICE)
+    })?;
+
+    if let Some(amount) = bid {
+        h.set_time(END_TIME - 50)?;
+        h.bid(amount)?;
+    }
+
+    h.set_time(END_TIME - 1)?;
+    assert_fails_with(h.end(), "AssertSecondsAbsoluteFailed");
+
+    // The grace period still applies after a bid below the buy now price
+    if bid.is_some() {
+        h.set_time(END_TIME)?;
+        assert_fails_with(h.end(), "AssertSecondsRelativeFailed");
+    }
+
+    h.set_time(END_TIME + 100)?;
+    let _ = h.end()?;
+
+    Ok(())
+}
+
+#[test]
+fn test_end_waits_for_the_end_time_without_a_buy_now_price() -> Result<()> {
+    // With no buy now price, the price is curried in as 0, which must not match an auction with no
+    // bids
+    let mut h = Harness::new(Config::default())?;
+    assert_eq!(h.auction.info.available_buy_now_price(), None);
+
+    h.set_time(END_TIME - 1)?;
+    assert_fails_with(h.end(), "AssertSecondsAbsoluteFailed");
+
+    assert_buy_now_unavailable(&mut h);
+
+    h.set_time(END_TIME)?;
+    let _ = h.end()?;
+
+    Ok(())
+}
+
+#[test]
+fn test_buy_now_follows_bid_timing() -> Result<()> {
+    // Without a grace period, the auction can't be bought after the end time
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+    h.set_time(END_TIME)?;
+    assert_fails_with(h.buy_now(false), "AssertBeforeSecondsAbsoluteFailed");
+    assert_fails_with(h.buy_now(true), "AssertBeforeSecondsAbsoluteFailed");
+
+    // With a grace period, it can be bought within the grace period of the last bid
+    let mut h = Harness::new(Config {
+        timings: AuctionTimings::new(END_TIME, 100),
+        ..with_buy_now(BUY_NOW_PRICE)
+    })?;
+    h.set_time(950)?;
+    h.bid(100)?;
+
+    h.set_time(1_020)?;
+    assert_fails_with(h.buy_now(false), "AssertBeforeSecondsAbsoluteFailed");
+    let (buyer, nft) = h.buy_now(true)?;
+    assert_eq!(nft.info.p2_puzzle_hash, buyer.bid.puzzle_hash);
+    assert!(h.auction.info.state.ended);
+
+    Ok(())
+}
+
+#[test]
+fn test_seller_can_cancel_before_a_buy_now() -> Result<()> {
+    let mut h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+
+    let nft = h.cancel()?;
+    assert_eq!(nft.info.p2_puzzle_hash, h.seller.puzzle_hash);
+    assert_eq!(h.auction.info.available_buy_now_price(), None);
+    assert_buy_now_unavailable(&mut h);
+
+    Ok(())
+}
+
+#[test]
+fn test_buy_now_price_round_trips_through_the_memo() -> Result<()> {
+    // The harness parses the launcher spend and compares it to the launched auction
+    let h = Harness::new(with_buy_now(BUY_NOW_PRICE))?;
+    assert_eq!(
+        h.auction.info.memo().settings.buy_now_price,
+        Some(BUY_NOW_PRICE)
+    );
+
+    // The buy now price is curried into the auction, so the same settings without it are a
+    // different auction
+    let mut settings = h.auction.info.settings;
+    settings.buy_now_price = None;
+    let info = AuctionInfo {
+        settings,
+        ..h.auction.info
+    };
+    assert_ne!(info.inner_puzzle_hash(), h.auction.info.inner_puzzle_hash());
 
     Ok(())
 }

@@ -44,7 +44,8 @@ mod tests;
 /// An auction is launched with [`Launcher::launch_auction`](crate::Launcher::launch_auction), and
 /// discovered by other wallets with [`AuctionLaunch`]. Each spend of the auction runs one or more
 /// action spends, such as [`Auction::bid_action_spend`], [`Auction::end_action_spend`], or
-/// [`Auction::cancel_action_spend`], with [`Auction::spend`].
+/// [`Auction::cancel_action_spend`], with [`Auction::spend`]. If the auction has a buy now price,
+/// [`Auction::buy_now_action_spends`] places a bid at that price and ends the auction in one spend.
 ///
 /// # Example
 ///
@@ -100,6 +101,7 @@ mod tests;
 ///         AuctionBpsPayment::new(100, Bytes32::new([2; 32])),
 ///         seller.puzzle_hash,
 ///     ),
+///     None,
 /// );
 ///
 /// let (launch_auction, auction) = launcher.launch_auction(&mut ctx, settings, reserve, &nft)?;
@@ -160,6 +162,20 @@ pub struct AuctionChildState {
     pub royalty_amount: Option<u64>,
 }
 
+/// The spends needed to buy an auction at its buy now price. See [`Auction::buy_now_action_spends`].
+#[derive(Debug, Clone)]
+pub struct AuctionBuyNow {
+    /// The winning bid at the buy now price. The buyer must fund the reserve with
+    /// [`AuctionInfo::reserve_amount_for_bid`] of its amount, and assert
+    /// [`Auction::bid_announcement_id`] of it, the same as for any other bid.
+    pub bid: AuctionBid,
+    /// The bid and end action spends, which must be passed to [`Auction::spend`] in this order,
+    /// after any other action spends.
+    pub action_spends: Vec<Spend>,
+    /// The NFT sent to the buyer.
+    pub nft: Nft,
+}
+
 impl Auction {
     /// The action spend that places `bid`. The bidder must fund the reserve with
     /// [`AuctionInfo::reserve_amount_for_bid`], typically by spending coins in the same spend bundle
@@ -198,6 +214,40 @@ impl Auction {
         Ok(Spend::new(puzzle, solution))
     }
 
+    /// Buys the auction at its buy now price for `puzzle_hash`, by placing a bid at that price and
+    /// ending the auction in the same spend. `nft` is the locked NFT, which is unlocked to the buyer
+    /// in the same spend bundle, so [`Auction::unlock_nft`] must not be called. Like any other bid,
+    /// it must be placed before the end time, or within the grace period if `grace` is true.
+    ///
+    /// Returns [`DriverError::AuctionBuyNowUnavailable`] if the auction can't be bought now (see
+    /// [`AuctionInfo::available_buy_now_price`]).
+    pub fn buy_now_action_spends(
+        &self,
+        ctx: &mut SpendContext,
+        puzzle_hash: Bytes32,
+        grace: bool,
+        nft: &Nft,
+    ) -> Result<AuctionBuyNow, DriverError> {
+        let price = self
+            .info
+            .available_buy_now_price()
+            .ok_or(DriverError::AuctionBuyNowUnavailable)?;
+
+        let bid = AuctionBid::new(price, puzzle_hash);
+        let bid_action = self.bid_action_spend(ctx, bid, grace)?;
+        let end_action = self.end_action_spend(ctx, nft)?;
+
+        // The end action runs after the bid, so the NFT is unlocked to the buyer rather than to the
+        // auction's current winning bid
+        let nft = self.unlock_nft_to(ctx, nft, bid)?;
+
+        Ok(AuctionBuyNow {
+            bid,
+            action_spends: vec![bid_action, end_action],
+            nft,
+        })
+    }
+
     /// The action spend that cancels the auction before the first bid, which sends the NFT back to
     /// the payout puzzle hash. `nft` is the locked NFT, which must be unlocked with
     /// [`Auction::unlock_nft`] in the same spend bundle. A coin with the payout puzzle hash must
@@ -227,11 +277,23 @@ impl Auction {
 
     /// Spends the locked NFT to the winning bidder, or back to the payout puzzle hash if there are
     /// no bids, and returns the NFT that is created. This must be in the same spend bundle as the
-    /// end or cancel action, and `self` must be the auction before it's ended or cancelled.
+    /// end or cancel action, and `self` must be the auction before it's ended or cancelled, with no
+    /// bids placed in the same spend.
     pub fn unlock_nft(&self, ctx: &mut SpendContext, nft: &Nft) -> Result<Nft, DriverError> {
+        self.unlock_nft_to(ctx, nft, self.info.state.winning_bid)
+    }
+
+    /// Spends the locked NFT to `winning_bid`, which must be the winning bid when the end or cancel
+    /// action is run.
+    fn unlock_nft_to(
+        &self,
+        ctx: &mut SpendContext,
+        nft: &Nft,
+        winning_bid: AuctionBid,
+    ) -> Result<Nft, DriverError> {
         let unlocker = self.info.construct_nft_unlocker(ctx)?;
         let unlocker_solution = ctx.alloc(&AuctionNftUnlockerSolution::new(
-            self.info.state.winning_bid,
+            winning_bid,
             nft.coin.amount,
         ))?;
         let conditions = ctx.run(unlocker, unlocker_solution)?;

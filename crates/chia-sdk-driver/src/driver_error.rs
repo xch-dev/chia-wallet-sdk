@@ -429,6 +429,30 @@ pub enum DriverError {
         bps: u64,
     },
 
+    /// An auction's buy now price is `Some(0)`. It's curried in as 0 when there isn't one, so use
+    /// `None` instead.
+    #[error("the auction's buy now price must be greater than 0")]
+    ZeroAuctionBuyNowPrice,
+
+    /// An auction's buy now price is below its minimum bid. Since a bid at the buy now price skips
+    /// the bid verifier, it would undercut the minimum bid.
+    #[error(
+        "the auction's buy now price of {buy_now_price} is below the minimum bid of {minimum_bid}"
+    )]
+    AuctionBuyNowPriceBelowMinimumBid {
+        /// The buy now price.
+        buy_now_price: u64,
+        /// The minimum bid.
+        minimum_bid: u64,
+    },
+
+    /// An auction can't be bought now, since it has no buy now price, has ended, or already has a
+    /// winning bid at the buy now price.
+    #[error(
+        "the auction can't be bought now, since it has no buy now price, has ended, or has a bid at it"
+    )]
+    AuctionBuyNowUnavailable,
+
     /// Two of an auction's payments (the buyer's premium, the commission, and the payout) have the
     /// same puzzle hash, so they could be identical coins and the auction couldn't be ended.
     #[error("puzzle hash {0} receives more than one payment when the auction ends")]

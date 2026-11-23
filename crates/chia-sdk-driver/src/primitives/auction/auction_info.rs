@@ -145,12 +145,21 @@ impl AuctionInfo {
         bid_amount.checked_add(premium)?.checked_add(royalty)
     }
 
+    /// The buy now price, if the auction can still be bought at it. That's only possible until it's
+    /// ended, and while the winning bid is below the buy now price.
+    pub fn available_buy_now_price(&self) -> Option<u64> {
+        self.settings
+            .buy_now_price
+            .filter(|&price| !self.state.ended && self.state.winning_bid.amount < price)
+    }
+
     fn bid_action_args<V>(&self, bid_verifier: V) -> AuctionBidActionArgs<V> {
         AuctionBidActionArgs::new(
             bid_verifier,
             self.settings.timings,
             self.settings.payments.buyers_premium.bps,
             self.royalty_bps(),
+            self.settings.buy_now_price_arg(),
         )
     }
 
@@ -188,13 +197,15 @@ impl AuctionInfo {
             self.settings.timings,
             self.settings.payments,
             self.royalty_bps(),
+            self.settings.buy_now_price_arg(),
             SETTLEMENT_PAYMENT_HASH.into(),
             self.nft_coin_id,
         )
     }
 
-    /// The puzzle hash of the end action, which ends the auction once its timings allow it, pays
-    /// out the winning bid from the reserve, and authorizes the NFT to be unlocked.
+    /// The puzzle hash of the end action, which ends the auction once its timings allow it (or right
+    /// away if the winning bid is at the buy now price), pays out the winning bid from the reserve,
+    /// and authorizes the NFT to be unlocked.
     pub fn end_action_hash(&self) -> TreeHash {
         self.end_action_args(self.nft_unlocker_hash())
             .curry_tree_hash()
@@ -247,6 +258,25 @@ impl AuctionInfo {
     /// be checked offline, such as whether the NFT and reserve are locked by the auction, must be
     /// checked separately.
     pub(crate) fn validate(&self) -> Result<(), DriverError> {
+        if let Some(buy_now_price) = self.settings.buy_now_price {
+            // The buy now price is curried in as 0 when there isn't one, and the memo can't tell
+            // `Some(0)` apart from `None`
+            if buy_now_price == 0 {
+                return Err(DriverError::ZeroAuctionBuyNowPrice);
+            }
+
+            // A bid at the buy now price skips the bid verifier, so a lower price would undercut the
+            // minimum bid. It would also be the only bid that could ever be placed.
+            let minimum_bid = self.settings.bid_verifier.minimum_bid().get();
+
+            if buy_now_price < minimum_bid {
+                return Err(DriverError::AuctionBuyNowPriceBelowMinimumBid {
+                    buy_now_price,
+                    minimum_bid,
+                });
+            }
+        }
+
         let payments = self.settings.payments;
 
         for (name, bps) in [

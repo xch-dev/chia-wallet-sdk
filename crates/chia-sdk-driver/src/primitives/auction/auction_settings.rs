@@ -22,6 +22,11 @@ pub struct AuctionSettings {
     pub timings: AuctionTimings,
     /// The buyer's premium, the commission, and the payout puzzle hash.
     pub payments: AuctionPayments,
+    /// The price at which a bid wins the auction outright and lets it be ended right away, if any.
+    /// No bid can exceed it, and a bid at exactly this price skips the bid verifier. It must be at
+    /// least the minimum bid, and can't be `Some(0)`, since it's curried in as 0 when there isn't
+    /// one.
+    pub buy_now_price: Option<u64>,
 }
 
 impl AuctionSettings {
@@ -30,12 +35,20 @@ impl AuctionSettings {
         bid_verifier: AuctionBidVerifier,
         timings: AuctionTimings,
         payments: AuctionPayments,
+        buy_now_price: Option<u64>,
     ) -> Self {
         Self {
             bid_verifier,
             timings,
             payments,
+            buy_now_price,
         }
+    }
+
+    /// The buy now price as it's curried into the bid and end actions, where 0 means there isn't
+    /// one.
+    pub fn buy_now_price_arg(&self) -> u64 {
+        self.buy_now_price.unwrap_or(0)
     }
 }
 

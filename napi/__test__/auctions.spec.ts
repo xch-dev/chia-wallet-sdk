@@ -35,7 +35,7 @@ interface LaunchedAuction {
 }
 
 // Mints an NFT, locks it up, and launches an auction for it in a single spend bundle
-function launchAuction(): LaunchedAuction {
+function launchAuction(buyNowPrice: bigint | null = null): LaunchedAuction {
   const sim = new Simulator();
   const clvm = new Clvm();
 
@@ -79,6 +79,7 @@ function launchAuction(): LaunchedAuction {
       new AuctionBpsPayment(100n, COMMISSION_PUZZLE_HASH),
       seller.puzzleHash,
     ),
+    buyNowPrice,
   );
 
   // The reserve is an empty coin locked by the auction
@@ -275,4 +276,67 @@ test("auction can be cancelled before the first bid", (t) => {
   const parsed = parseChild(sim, clvm, auction);
   t.true(parsed.info.state.ended);
   t.deepEqual(parsed.coin.coinId(), cancelled.coin.coinId());
+});
+
+test("auction can be bought now", (t) => {
+  const buyNowPrice = 5000n;
+  const { sim, clvm, seller, auction, nft } = launchAuction(buyNowPrice);
+
+  t.is(auction.info.settings.buyNowPrice, buyNowPrice);
+  t.is(auction.info.availableBuyNowPrice(), buyNowPrice);
+
+  // The buy now price can't be below the minimum bid
+  const invalid = auction.info.settings;
+  invalid.buyNowPrice = 99n;
+  t.throws(
+    () =>
+      clvm.launchAuction(
+        seller.coin.coinId(),
+        invalid,
+        auction.info.reserve,
+        nft,
+      ),
+    { message: /below the minimum bid/ },
+  );
+
+  // Well before the end time, a bid at the buy now price ends the auction in the same spend
+  sim.setNextTimestamp(10n);
+
+  const reserveAmount = auction.info.reserveAmountForBid(buyNowPrice);
+  if (reserveAmount === null) throw new Error("Reserve amount overflow");
+  const buyer = sim.bls(reserveAmount);
+
+  const buyNow = auction.buyNowActionSpends(clvm, buyer.puzzleHash, false, nft);
+  t.is(buyNow.bid.amount, buyNowPrice);
+  t.is(buyNow.actionSpends.length, 2);
+
+  clvm.spendStandardCoin(
+    buyer.coin,
+    buyer.pk,
+    clvm.delegatedSpend([
+      clvm.assertCoinAnnouncement(auction.bidAnnouncementId(buyNow.bid)),
+    ]),
+  );
+
+  const reserve = auction.info.reserve.coin();
+  const bought = auction.spend(clvm, buyNow.actionSpends, []);
+  sim.spendCoins(clvm.coinSpends(), [buyer.sk]);
+
+  t.true(bought.info.state.ended);
+  t.is(bought.info.availableBuyNowPrice(), null);
+  t.deepEqual(buyNow.nft.info.p2PuzzleHash, buyer.puzzleHash);
+  t.is(sim.coinState(buyNow.nft.coin.coinId())?.spentHeight, null);
+  t.truthy(
+    sim.coinState(
+      new Coin(reserve.coinId(), seller.puzzleHash, 5000n - 50n).coinId(),
+    ),
+  );
+
+  const parsed = parseChild(sim, clvm, auction);
+  t.deepEqual(parsed.coin.coinId(), bought.coin.coinId());
+
+  // An ended auction can't be bought again
+  t.throws(() =>
+    bought.buyNowActionSpends(clvm, buyer.puzzleHash, false, buyNow.nft),
+  );
 });
