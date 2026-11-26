@@ -354,6 +354,28 @@ impl Simulator {
         self.data.coin_spends.get(&coin_id).cloned()
     }
 
+    /// The coin spends of the block at `height`.
+    #[must_use]
+    pub fn block_spends(&self, height: u32) -> Vec<CoinSpend> {
+        self.data
+            .coin_states
+            .values()
+            .filter(|cs| cs.spent_height == Some(height))
+            .filter_map(|cs| self.data.coin_spends.get(&cs.coin.coin_id()).cloned())
+            .collect()
+    }
+
+    /// The coins created in the block at `height`.
+    #[must_use]
+    pub fn block_outputs(&self, height: u32) -> Vec<Coin> {
+        self.data
+            .coin_states
+            .values()
+            .filter(|cs| cs.created_height == Some(height))
+            .map(|cs| cs.coin)
+            .collect()
+    }
+
     /// Signs the coin spends with the given secret keys, then processes them as a spend bundle
     /// with [`Simulator::new_transaction`].
     ///
@@ -652,5 +674,19 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn block_spends_empty_for_unused_height() {
+        let sim = Simulator::new();
+        assert!(sim.block_spends(0).is_empty());
+        assert!(sim.block_spends(1).is_empty());
+    }
+
+    #[test]
+    fn block_outputs_empty_for_unused_height() {
+        let sim = Simulator::new();
+        assert!(sim.block_outputs(0).is_empty());
+        assert!(sim.block_outputs(1).is_empty());
     }
 }

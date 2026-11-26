@@ -50,6 +50,10 @@ pub struct Spends<S = Unfinished> {
     /// spend of its own, such as a vault's delegated spend. This is empty until the spends are
     /// prepared.
     pub unplaced_conditions: Conditions,
+    /// The CHIP-0057 silent payments that have been applied, which
+    /// [`Spends::prepare_with_silent_payment_keys`] derives the outputs of.
+    #[cfg(feature = "chip-0057")]
+    pub silent_payments: crate::silent_payments::SilentPaymentState,
     _state: S,
 }
 
@@ -92,6 +96,25 @@ pub struct Outputs {
     pub fee: u64,
     /// The part of the fee that is asserted with a `RESERVE_FEE` condition.
     pub reserved_fee: u64,
+    /// The notarized payments of the silent payments requested with
+    /// [`Action::silent_payment_requested`](crate::Action::silent_payment_requested), one per asset,
+    /// for the requested payments of an offer. The transaction already asserts their announcements.
+    #[cfg(feature = "chip-0057")]
+    pub silent_payment_requests: crate::RequestedPayments,
+    /// The asset information of [`Outputs::silent_payment_requests`], with the hidden puzzle hash of
+    /// each revocable CAT.
+    #[cfg(feature = "chip-0057")]
+    pub silent_payment_asset_info: crate::AssetInfo,
+}
+
+/// The position of a spend in [`Spends`]: its asset and its index in that asset's items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum SpendPosition {
+    Xch(usize),
+    Cat(Id, usize),
+    Did(Id, usize),
+    Nft(Id, usize),
+    OptionContract(Id, usize),
 }
 
 /// The state of [`Spends`] while actions are being applied.
@@ -126,6 +149,8 @@ impl Spends<Unfinished> {
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
             unplaced_conditions: Conditions::new(),
+            #[cfg(feature = "chip-0057")]
+            silent_payments: crate::silent_payments::SilentPaymentState::default(),
             _state: Unfinished,
         }
     }
@@ -193,7 +218,7 @@ impl Spends<Unfinished> {
         Ok(())
     }
 
-    fn create_change(
+    pub(crate) fn create_change(
         &mut self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
@@ -272,63 +297,133 @@ impl Spends<Unfinished> {
         payment_assertions
     }
 
-    fn iter_conditions_spends(&mut self) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
-        self.xch
+    /// The spends that [`Spends::prepare`] emits conditions from and links with the [`Relation`]:
+    /// every XCH conditions spend, then the first conditions spend of each CAT asset, then the last
+    /// conditions spend of each DID, NFT and option lineage. The first of them emits the
+    /// transaction-wide conditions.
+    pub(crate) fn conditions_spend_positions(&self) -> Vec<SpendPosition> {
+        let mut positions = Vec::new();
+
+        for (index, item) in self.xch.items.iter().enumerate() {
+            if item.kind.is_conditions() {
+                positions.push(SpendPosition::Xch(index));
+            }
+        }
+
+        for (&id, cat) in &self.cats {
+            if let Some(index) = cat.items.iter().position(|item| item.kind.is_conditions()) {
+                positions.push(SpendPosition::Cat(id, index));
+            }
+        }
+
+        for (&id, did) in &self.dids {
+            if let Some(index) = did
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::Did(id, index));
+            }
+        }
+
+        for (&id, nft) in &self.nfts {
+            if let Some(index) = nft
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::Nft(id, index));
+            }
+        }
+
+        for (&id, option) in &self.options {
+            if let Some(index) = option
+                .lineage
+                .iter()
+                .rposition(|item| item.kind.is_conditions())
+            {
+                positions.push(SpendPosition::OptionContract(id, index));
+            }
+        }
+
+        positions
+    }
+
+    /// The spends selected by [`Spends::conditions_spend_positions`], in its order, with the coin
+    /// being spent.
+    pub(crate) fn iter_conditions_spends(
+        &mut self,
+    ) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
+        let selected: HashSet<SpendPosition> =
+            self.conditions_spend_positions().into_iter().collect();
+
+        // Every spend in the order the positions are listed in, so filtering keeps their order.
+        let xch = self
+            .xch
             .items
             .iter_mut()
-            .filter_map(|item| {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    Some((item.asset, spend))
-                } else {
-                    None
+            .enumerate()
+            .map(|(index, item)| (SpendPosition::Xch(index), item.asset, &mut item.kind));
+        let cats = self.cats.iter_mut().flat_map(|(&id, cat)| {
+            cat.items.iter_mut().enumerate().map(move |(index, item)| {
+                (
+                    SpendPosition::Cat(id, index),
+                    item.asset.coin,
+                    &mut item.kind,
+                )
+            })
+        });
+        let dids = self.dids.iter_mut().flat_map(|(&id, did)| {
+            did.lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::Did(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+        let nfts = self.nfts.iter_mut().flat_map(|(&id, nft)| {
+            nft.lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::Nft(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+        let options = self.options.iter_mut().flat_map(|(&id, option)| {
+            option
+                .lineage
+                .iter_mut()
+                .enumerate()
+                .map(move |(index, item)| {
+                    (
+                        SpendPosition::OptionContract(id, index),
+                        item.asset.coin,
+                        &mut item.kind,
+                    )
+                })
+        });
+
+        xch.chain(cats)
+            .chain(dids)
+            .chain(nfts)
+            .chain(options)
+            .filter_map(move |(position, coin, kind)| {
+                if !selected.contains(&position) {
+                    return None;
+                }
+                match kind {
+                    SpendKind::Conditions(spend) => Some((coin, spend)),
+                    SpendKind::Settlement(_) => None,
                 }
             })
-            .chain(self.cats.values_mut().filter_map(|cat| {
-                cat.items.iter_mut().find_map(|item| {
-                    if let SpendKind::Conditions(spend) = &mut item.kind {
-                        Some((item.asset.coin, spend))
-                    } else {
-                        None
-                    }
-                })
-            }))
-            .chain(self.dids.values_mut().filter_map(|did| {
-                did.lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
-            .chain(self.nfts.values_mut().filter_map(|nft| {
-                nft.lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
-            .chain(self.options.values_mut().filter_map(|option| {
-                option
-                    .lineage
-                    .iter_mut()
-                    .filter_map(|item| {
-                        if let SpendKind::Conditions(spend) = &mut item.kind {
-                            Some((item.asset.coin, spend))
-                        } else {
-                            None
-                        }
-                    })
-                    .last()
-            }))
     }
 
     /// Attaches the transaction-wide conditions (required and optional conditions, settlement
@@ -592,13 +687,33 @@ impl Spends<Unfinished> {
         deltas: &Deltas,
         relation: Relation,
     ) -> Result<Spends<Finished>, DriverError> {
+        // Silent payment outputs are derived from the sender's secret keys, which
+        // `Spends::prepare_with_silent_payment_keys` takes.
+        #[cfg(feature = "chip-0057")]
+        if self.silent_payments.has_pending() {
+            return Err(DriverError::SilentPaymentKeysMissing);
+        }
+
+        self.prepare_unfinished(ctx, deltas, relation)?;
+        Ok(self.into_finished())
+    }
+
+    /// The steps of [`Spends::prepare`], leaving the spends in the unfinished state.
+    pub(crate) fn prepare_unfinished(
+        &mut self,
+        ctx: &mut SpendContext,
+        deltas: &Deltas,
+        relation: Relation,
+    ) -> Result<(), DriverError> {
         self.create_change(ctx, deltas)?;
         self.check_unique_settlement_payments()?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
-        self.wrap_revocation_outputs(ctx)?;
+        self.wrap_revocation_outputs(ctx)
+    }
 
-        Ok(Spends {
+    pub(crate) fn into_finished(self) -> Spends<Finished> {
+        Spends {
             xch: self.xch,
             cats: self.cats,
             dids: self.dids,
@@ -609,8 +724,10 @@ impl Spends<Unfinished> {
             outputs: self.outputs,
             conditions: self.conditions,
             unplaced_conditions: self.unplaced_conditions,
+            #[cfg(feature = "chip-0057")]
+            silent_payments: self.silent_payments,
             _state: Finished,
-        })
+        }
     }
 
     /// Prepares the spends, and spends every coin with the standard puzzle (using the synthetic key
@@ -625,7 +742,20 @@ impl Spends<Unfinished> {
         relation: Relation,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        let spends = self.prepare(ctx, deltas, relation)?;
+        self.prepare(ctx, deltas, relation)?
+            .spend_with_keys(ctx, synthetic_keys)
+    }
+}
+
+impl Spends<Finished> {
+    /// Spends every coin with the standard puzzle (using the synthetic key for its p2 puzzle
+    /// hash), or with the settlement payments puzzle for settlement coins.
+    pub(crate) fn spend_with_keys(
+        self,
+        ctx: &mut SpendContext,
+        synthetic_keys: &IndexMap<Bytes32, PublicKey>,
+    ) -> Result<Outputs, DriverError> {
+        let spends = self;
 
         if !spends.unplaced_conditions.is_empty() {
             return Err(DriverError::CannotEmitConditions);
@@ -824,5 +954,65 @@ impl AddAsset for OptionContract {
             Id::Existing(self.info.launcher_id),
             SingletonSpends::new(self, false),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_protocol::Bytes32;
+    use chia_puzzle_types::Memos;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Condition;
+
+    use crate::{Action, Id, Relation, SpendContext, SpendKind, Spends};
+
+    /// CHIP-0057 scanners find a spend group by following this cycle.
+    #[test]
+    fn test_assert_concurrent_is_a_closed_cycle() -> Result<()> {
+        for n in 2..=4 {
+            let mut sim = Simulator::new();
+            let mut ctx = SpendContext::new();
+
+            let coins: Vec<_> = (0..n).map(|_| sim.bls(1)).collect();
+            let mut spends = Spends::new(coins[0].puzzle_hash);
+            for coin in &coins {
+                spends.add(coin.coin);
+            }
+
+            let deltas = spends.apply(
+                &mut ctx,
+                &[Action::send(Id::Xch, Bytes32::new([7; 32]), 1, Memos::None)],
+            )?;
+            let finished = spends.prepare(&mut ctx, &deltas, Relation::AssertConcurrent)?;
+
+            let coin_ids: Vec<Bytes32> = finished
+                .xch
+                .items
+                .iter()
+                .map(|item| item.asset.coin_id())
+                .collect();
+            assert_eq!(coin_ids.len(), n);
+
+            for (i, item) in finished.xch.items.iter().enumerate() {
+                let SpendKind::Conditions(spend) = &item.kind else {
+                    panic!("expected a conditions spend");
+                };
+                let asserted: Vec<Bytes32> = spend
+                    .clone()
+                    .finish()
+                    .into_iter()
+                    .filter_map(|condition| match condition {
+                        Condition::AssertConcurrentSpend(assertion) => Some(assertion.coin_id),
+                        _ => None,
+                    })
+                    .collect();
+
+                // Each coin asserts the one before it, and the first asserts the last.
+                assert_eq!(asserted, [coin_ids[(i + n - 1) % n]]);
+            }
+        }
+
+        Ok(())
     }
 }

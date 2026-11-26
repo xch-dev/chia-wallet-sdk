@@ -103,6 +103,29 @@
           "relation": "Option<Relation>"
         },
         "return": "FinishedSpends"
+      },
+      "set_silent_payment_requested_asset_info": {
+        "args": {
+          "asset_info": "AssetInfo"
+        }
+      },
+      "prepare_with_silent_payment_keys": {
+        "args": {
+          "deltas": "Deltas",
+          "relation": "Option<Relation>",
+          "secret_keys": "Vec<SilentPaymentSecretKey>"
+        },
+        "return": "FinishedSpends"
+      },
+      "apply_with_fee_and_silent_payment_keys": {
+        "args": {
+          "actions": "Vec<Action>",
+          "xch_coins": "Vec<Coin>",
+          "fee": "u64",
+          "relation": "Option<Relation>",
+          "secret_keys": "Vec<SilentPaymentSecretKey>"
+        },
+        "return": "FinishedSpends"
       }
     }
   },
@@ -185,6 +208,49 @@
           "id": "Id",
           "amount": "u64",
           "memos": "Option<Program>"
+        }
+      },
+      "silent_payment_send": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        }
+      },
+      "silent_payment_requested": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_requested_other": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "payment": "Payment",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_settle": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "recipient": "SilentPaymentAddress",
+          "amount": "u64",
+          "nonce": "Bytes32"
+        }
+      },
+      "silent_payment_settle_other": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "payment": "Payment",
+          "nonce": "Bytes32"
         }
       },
       "settle": {
@@ -413,6 +479,12 @@
       },
       "reserved_fee": {
         "return": "u64"
+      },
+      "silent_payment_requests": {
+        "return": "RequestedPayments"
+      },
+      "silent_payment_asset_info": {
+        "return": "AssetInfo"
       }
     }
   },

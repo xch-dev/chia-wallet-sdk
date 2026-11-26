@@ -47,4 +47,8 @@ impl Mnemonic {
     pub fn to_seed(&self, password: String) -> Result<Bytes> {
         Ok(Bytes::new(self.0.to_seed(password).to_vec()))
     }
+
+    pub(crate) fn inner(&self) -> &bip39::Mnemonic {
+        &self.0
+    }
 }

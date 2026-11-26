@@ -13,6 +13,11 @@ export declare class Action {
   clone(): Action
   static send(id: Id, puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Action
   static burn(id: Id, amount: bigint, memos?: Program | undefined | null): Action
+  static silentPaymentSend(id: Id, recipient: SilentPaymentAddress, amount: bigint, memos?: Program | undefined | null): Action
+  static silentPaymentRequested(id: Id, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
+  static silentPaymentRequestedOther(id: Id, payment: Payment, nonce: Uint8Array): Action
+  static silentPaymentSettle(id: Id, recipient: SilentPaymentAddress, amount: bigint, nonce: Uint8Array): Action
+  static silentPaymentSettleOther(id: Id, payment: Payment, nonce: Uint8Array): Action
   static settle(id: Id, notarizedPayment: NotarizedPayment): Action
   static settleRoyalty(clvm: Clvm, id: Id, launcherId: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyAmount: bigint): Action
   static createDid(metadata: Program, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, amount: bigint): Action
@@ -1852,6 +1857,29 @@ export declare class DepositSlot {
   set value(value: RewardDistributorDepositSlotValue)
 }
 
+export declare class DetectedSilentPaymentCoin {
+  clone(): DetectedSilentPaymentCoin
+  coin(): Coin
+  onetimeSk(spendSk: SecretKey): SecretKey
+  constructor(coinId: Uint8Array, puzzleHash: Uint8Array, amount: bigint, parentCoinId: Uint8Array, k: number, label: number | undefined | null, tweak: ScalarField, wrapper?: SilentPaymentWrapper | undefined | null)
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get parentCoinId(): Buffer
+  set parentCoinId(value: Uint8Array)
+  get k(): number
+  set k(value: number)
+  get label(): number | null
+  set label(value: number | undefined | null)
+  get tweak(): ScalarField
+  set tweak(value: ScalarField)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+}
+
 export declare class Did {
   clone(): Did
   childProof(): Proof
@@ -2437,6 +2465,17 @@ export declare class K1Signature {
   toBytes(): Buffer
 }
 
+export declare class LabelRegistry {
+  clone(): LabelRegistry
+  constructor(scanSk: SecretKey)
+  register(scanSk: SecretKey, m: number): void
+  scanPk(): PublicKey
+  forward(m: number): PublicKey | null
+  lookup(labelPk: PublicKey): number | null
+  len(): number
+  isEmpty(): boolean
+}
+
 export declare class LaunchedAuction {
   clone(): LaunchedAuction
   get auction(): Auction
@@ -2985,6 +3024,19 @@ export declare class Output {
   set cost(value: bigint)
 }
 
+export declare class OutputMeta {
+  clone(): OutputMeta
+  constructor(puzzleHash: Uint8Array, coinId: Uint8Array, amount: bigint, parentCoinId: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get parentCoinId(): Buffer
+  set parentCoinId(value: Uint8Array)
+}
+
 export declare class Outputs {
   clone(): Outputs
   xch(): Array<Coin>
@@ -2998,6 +3050,8 @@ export declare class Outputs {
   option(id: Id): OptionContract
   fee(): bigint
   reservedFee(): bigint
+  silentPaymentRequests(): RequestedPayments
+  silentPaymentAssetInfo(): AssetInfo
 }
 
 export declare class P2ConditionsOrSingleton {
@@ -4558,6 +4612,12 @@ export declare class RunCatTail {
   set solution(value: Program)
 }
 
+export declare class ScalarField {
+  clone(): ScalarField
+  static fromBytes(bytes: Uint8Array): ScalarField
+  toBytes(): Buffer
+}
+
 export declare class SecretKey {
   clone(): SecretKey
   static fromSeed(seed: Uint8Array): SecretKey
@@ -4680,6 +4740,175 @@ export declare class SigningVault {
   set coin(value: Coin | undefined | null)
 }
 
+export declare class SilentPaymentAddress {
+  clone(): SilentPaymentAddress
+  encode(): string
+  static decode(address: string): SilentPaymentAddress
+  constructor(scanPk: PublicKey, spendPk: PublicKey, network: SilentPaymentNetwork)
+  get scanPk(): PublicKey
+  set scanPk(value: PublicKey)
+  get spendPk(): PublicKey
+  set spendPk(value: PublicKey)
+  get network(): SilentPaymentNetwork
+  set network(value: SilentPaymentNetwork)
+}
+
+export declare class SilentPaymentEligibleSpend {
+  clone(): SilentPaymentEligibleSpend
+  constructor(syntheticKey: PublicKey, wrapper?: SilentPaymentWrapper | undefined | null)
+  get syntheticKey(): PublicKey
+  set syntheticKey(value: PublicKey)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+}
+
+export declare class SilentPaymentGroupCoin {
+  clone(): SilentPaymentGroupCoin
+  static fromCoin(coin: Coin, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null): SilentPaymentGroupCoin
+  constructor(coinId: Uint8Array, puzzleHash: Uint8Array, secretKey: SecretKey, wrapper?: SilentPaymentWrapper | undefined | null)
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get secretKey(): SecretKey
+  set secretKey(value: SecretKey)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+}
+
+export declare class SilentPaymentGroupOutput {
+  clone(): SilentPaymentGroupOutput
+  constructor(k: number, wrapper: SilentPaymentWrapper | undefined | null, puzzleHash: Uint8Array, amount: bigint, wrappedPuzzleHash: Uint8Array)
+  get k(): number
+  set k(value: number)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get wrappedPuzzleHash(): Buffer
+  set wrappedPuzzleHash(value: Uint8Array)
+}
+
+export declare class SilentPaymentKeys {
+  clone(): SilentPaymentKeys
+  static fromMnemonic(mnemonic: Mnemonic): SilentPaymentKeys
+  static fromSecretKeys(scanSk: SecretKey, spendSk: SecretKey): SilentPaymentKeys
+  scanSk(): SecretKey
+  spendSk(): SecretKey
+  scanPk(): PublicKey
+  spendPk(): PublicKey
+  unlabeledAddress(network: SilentPaymentNetwork): SilentPaymentAddress
+  labeledAddress(network: SilentPaymentNetwork, m: number): SilentPaymentAddress
+  changeAddress(network: SilentPaymentNetwork): SilentPaymentAddress
+  labelRegistry(labels: Array<number>): LabelRegistry
+}
+
+export declare class SilentPaymentLabel {
+  clone(): SilentPaymentLabel
+  constructor(scalar: ScalarField, publicKey: PublicKey)
+  get scalar(): ScalarField
+  set scalar(value: ScalarField)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+}
+
+export declare class SilentPaymentOtherPayment {
+  clone(): SilentPaymentOtherPayment
+  constructor(wrapper: SilentPaymentWrapper | undefined | null, payment: Uint8Array)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+  get payment(): Buffer
+  set payment(value: Uint8Array)
+}
+
+export declare class SilentPayments {
+  clone(): SilentPayments
+  static kMax(): number
+  static scanFromTweaks(scanSk: SecretKey, spendPk: PublicKey, data: TweakData, labels: LabelRegistry, kMax: number): Array<DetectedSilentPaymentCoin>
+  static generateLabel(scanSk: SecretKey, m: number): SilentPaymentLabel
+  static deriveOnetimeSk(spendSk: SecretKey, tweak: ScalarField): SecretKey
+  static deriveOneTimePuzzleHash(scanPk: PublicKey, spendPk: PublicKey, aggregatedSenderSk: SecretKey, inputHash: ScalarField, k: number): Buffer
+  static computeInputHash(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): ScalarField
+  static computeTweakPoint(coinIds: Array<Uint8Array>, aggregatedSenderPk: PublicKey): PublicKey | null
+  static aggregateSenderSks(sks: Array<SecretKey>): SecretKey
+  static tweakDataFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): TweakData
+  static spendGroupsFromBlockSpends(coinSpends: Array<CoinSpend>, additions: Array<Coin>): Array<SilentPaymentSpendGroup>
+  static eligibleSpend(coinSpend: CoinSpend): SilentPaymentEligibleSpend | null
+  static sortWrappers(wrappers: Array<SilentPaymentWrapper>): Array<SilentPaymentWrapper>
+  static deriveSettlementOutputs(group: Array<SilentPaymentGroupCoin>, recipients: Array<SilentPaymentSettlementRecipient>, otherPayments: Array<SilentPaymentOtherPayment>, nonce: Uint8Array): SilentPaymentSettlement
+}
+
+export declare class SilentPaymentSecretKey {
+  clone(): SilentPaymentSecretKey
+  constructor(p2PuzzleHash: Uint8Array, secretKey: SecretKey)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get secretKey(): SecretKey
+  set secretKey(value: SecretKey)
+}
+
+export declare class SilentPaymentSettlement {
+  clone(): SilentPaymentSettlement
+  constructor(settlementOutputs: Array<Uint8Array>, announcements: Array<Uint8Array>, settledPayments: Array<Uint8Array>, notarizedPayments: Array<Uint8Array>, groupOutputs: Array<SilentPaymentGroupOutput>)
+  get settlementOutputs(): Array<Buffer>
+  set settlementOutputs(value: Array<Uint8Array>)
+  get announcements(): Array<Buffer>
+  set announcements(value: Array<Uint8Array>)
+  get settledPayments(): Array<Buffer>
+  set settledPayments(value: Array<Uint8Array>)
+  get notarizedPayments(): Array<Buffer>
+  set notarizedPayments(value: Array<Uint8Array>)
+  get groupOutputs(): Array<SilentPaymentGroupOutput>
+  set groupOutputs(value: Array<SilentPaymentGroupOutput>)
+}
+
+export declare class SilentPaymentSettlementRecipient {
+  clone(): SilentPaymentSettlementRecipient
+  constructor(scanPk: PublicKey, spendPk: PublicKey, wrapper: SilentPaymentWrapper | undefined | null, settled: boolean, amount: bigint)
+  get scanPk(): PublicKey
+  set scanPk(value: PublicKey)
+  get spendPk(): PublicKey
+  set spendPk(value: PublicKey)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+  get settled(): boolean
+  set settled(value: boolean)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class SilentPaymentSpendGroup {
+  clone(): SilentPaymentSpendGroup
+  constructor(coins: Array<SilentPaymentSpendGroupCoin>, tweakPoint: PublicKey, outputs: Array<Coin>)
+  get coins(): Array<SilentPaymentSpendGroupCoin>
+  set coins(value: Array<SilentPaymentSpendGroupCoin>)
+  get tweakPoint(): PublicKey
+  set tweakPoint(value: PublicKey)
+  get outputs(): Array<Coin>
+  set outputs(value: Array<Coin>)
+}
+
+export declare class SilentPaymentSpendGroupCoin {
+  clone(): SilentPaymentSpendGroupCoin
+  constructor(coinId: Uint8Array, wrapper?: SilentPaymentWrapper | undefined | null)
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get wrapper(): SilentPaymentWrapper | null
+  set wrapper(value: SilentPaymentWrapper | undefined | null)
+}
+
+export declare class SilentPaymentWrapper {
+  clone(): SilentPaymentWrapper
+  wrap(puzzleHash: Uint8Array): Buffer
+  constructor(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null)
+  get assetId(): Buffer
+  set assetId(value: Uint8Array)
+  get hiddenPuzzleHash(): Buffer | null
+  set hiddenPuzzleHash(value: Uint8Array | undefined | null)
+}
+
 export declare class Simulator {
   clone(): Simulator
   constructor()
@@ -4707,6 +4936,9 @@ export declare class Simulator {
   lookupPuzzleHashes(puzzleHashes: Array<Uint8Array>, includeHints: boolean): Array<CoinState>
   unspentCoins(puzzleHash: Uint8Array, includeHints: boolean): Array<Coin>
   createBlock(): void
+  tweakDataFromBlock(height: number): TweakData
+  blockSpends(height: number): Array<CoinSpend>
+  blockOutputs(height: number): Array<Coin>
 }
 
 export declare class SlotNeigborsInfo {
@@ -4771,6 +5003,9 @@ export declare class Spends {
   apply(actions: Array<Action>): Deltas
   prepare(deltas: Deltas, relation?: Relation | undefined | null): FinishedSpends
   applyWithFee(actions: Array<Action>, xchCoins: Array<Coin>, fee: bigint, relation?: Relation | undefined | null): FinishedSpends
+  setSilentPaymentRequestedAssetInfo(assetInfo: AssetInfo): void
+  prepareWithSilentPaymentKeys(deltas: Deltas, relation: Relation | undefined | null, secretKeys: Array<SilentPaymentSecretKey>): FinishedSpends
+  applyWithFeeAndSilentPaymentKeys(actions: Array<Action>, xchCoins: Array<Coin>, fee: bigint, relation: Relation | undefined | null, secretKeys: Array<SilentPaymentSecretKey>): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {
@@ -4971,6 +5206,18 @@ export declare class TransferType {
   isOffered(): boolean
   asOfferPreSplit(): OfferPreSplitInfo | null
   asSecureTheBag(): SecureTheBagInfo | null
+}
+
+export declare class TweakData {
+  clone(): TweakData
+  constructor(tweakPoints: Array<PublicKey>, outputs: Array<OutputMeta>)
+  static withWrappers(tweakPoints: Array<PublicKey>, outputs: Array<OutputMeta>, wrappers: Array<SilentPaymentWrapper>): TweakData
+  get tweakPoints(): Array<PublicKey>
+  set tweakPoints(value: Array<PublicKey>)
+  get outputs(): Array<OutputMeta>
+  set outputs(value: Array<OutputMeta>)
+  get wrappers(): Array<SilentPaymentWrapper>
+  set wrappers(value: Array<SilentPaymentWrapper>)
 }
 
 export declare class UpdateDatastoreMerkleRoot {
@@ -5724,6 +5971,11 @@ export declare const enum RestrictionKind {
 export declare function selectCoins(coins: Array<Coin>, amount: bigint): Array<Coin>
 
 export declare function sha256(value: Uint8Array): Buffer
+
+export declare const enum SilentPaymentNetwork {
+  Mainnet = 0,
+  Testnet = 1,
+}
 
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean): Buffer
 
